@@ -365,6 +365,10 @@ public sealed partial class BattleSession
         {
             return NativeBattleNeedlesFamilyPacketArena.Read(memory.TenThousandNeedles178 ?? throw new NotSupportedException("Needles packets require their retained native banks."), reference, count);
         }
+        if (reference.Bank == NativeBattleGatlingGun150PacketArena.PacketBank)
+        {
+            return NativeBattleGatlingGun150PacketArena.Read(memory.GatlingGun150 ?? throw new NotSupportedException("Gatling Gun requires its retained physical packet banks."), reference, count);
+        }
         if (reference.Bank == NativeBattleGatlingGun305PacketArena.PacketBank)
         {
             return NativeBattleGatlingGun305PacketArena.Read(memory.GatlingGun305 ?? throw new NotSupportedException("Gatling Gun packets require their retained native banks."), reference, count);

@@ -1,0 +1,54 @@
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleGatlingGun150Profile
+{
+    public const ushort Effect = 150;
+    public const uint Entry = 0x60E340;
+    public const uint Initializer = 0x60E320;
+    public const uint RootCallback = 0x60F630;
+    public const uint MainCallback = 0x60E400;
+    public const uint Callback60E6D0 = 0x60E6D0;
+    public const uint Callback60E820 = 0x60E820;
+    public const uint Callback60EAE0 = 0x60EAE0;
+    public const uint Callback60EBD0 = 0x60EBD0;
+    public const uint Callback60ED10 = 0x60ED10;
+    public const uint Callback60EDA0 = 0x60EDA0;
+    public const uint Callback60EFF0 = 0x60EFF0;
+    public const uint Callback60F1C0 = 0x60F1C0;
+    public const uint Callback60F330 = 0x60F330;
+    public const uint BaseAddress = 0x244FD60;
+    public const uint FirstTargetGlobal = 0x244FD60;
+    public const uint RootBank = 0x244FD68;
+    public const uint RootDescriptor = 0x244FD78;
+    public const ushort RootStride = 16;
+    public const ushort RootCount = 1;
+    public const int RootBankLength = 16;
+    public const uint ChildDescriptor = 0x2451048;
+    public const uint ChildBank = 0x2451058;
+    public const ushort ChildStride = 36;
+    public const ushort ChildCount = 100;
+    public const int ChildBankLength = 3600;
+    public const uint ParticleABase = 0x244FD88;
+    public const uint ParticleBBase = 0x24506E8;
+    public const int ParticleStride = 24;
+    public const int ParticleCount = 100;
+    public const int ParticleBankBytes = 0x960;
+    public const uint ParametersGlobal = 0x2451E68;
+    public const uint CasterGlobal = 0x2451E6C;
+    public const uint InitializerGlobal = 0x2451E70;
+    public const uint CasterPointGlobal = 0x2451E78;
+    public const uint PacketBase = 0x2451E80;
+    public const int PacketBankBytes = 0x8000;
+    public const int PacketBytes = 0x10000;
+    public const uint CursorGlobal = 0x2461E80;
+    public const uint MeshAAddress = 0xDC24E0;
+    public const uint MeshBAddress = 0xDC27E0;
+    public const uint MeshCAddress = 0xDC2AA8;
+    public const uint SpriteAAddress = 0xDC1FA4;
+    public const uint SpriteBAddress = 0xDC21A0;
+    public const uint SpriteCAddress = 0xDC234C;
+    public const uint CameraAddress = 0xDC1DD4;
+    public const int CameraLength = 0x1D0;
+    public const uint SoundAddress = 0xDC2D70;
+    public const uint TextureNameAddress = 0xDC2D78;
+}
