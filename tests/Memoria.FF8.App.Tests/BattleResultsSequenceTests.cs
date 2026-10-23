@@ -96,6 +96,50 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Assert.Equal(1, completions);
     }
+    [Fact]
+    public void LearnedGuardiansOpenTheirMenuBeforeTheSingleFinalCompletion()
+    {
+        BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = [new(0, 1, 2, [11]), new(1, 1, 2, []), new(7, 1, 1, [71])] };
+        BattleSession session = Session();
+        int completions = 0;
+        int menusOpened = 0;
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
+        hud.ConfigureGuardianForceLearning(summary =>
+        {
+            menusOpened++;
+            MenuData data = new();
+            foreach (BattleGuardianForceRewardPresentation growth in summary.GuardianForceGrowth.Where(growth => growth.LearnedAbilityIds.Length > 0))
+            {
+                MenuGuardianForce force = new() { Id = $"gf-{growth.Id}", Name = $"GF {growth.Id}" };
+                force.LearningChoices.Add(new(growth.LearnedAbilityIds[0].ToString(), "Completed", Learned: true));
+                data.GuardianForces.Add(force);
+            }
+            MenuController menu = new(() => data);
+            menu.OpenBattleLearning(summary.GuardianForceGrowth.Where(growth => growth.LearnedAbilityIds.Length > 0).ToDictionary(growth => $"gf-{growth.Id}", growth => growth.LearnedAbilityIds[0].ToString()));
+            return menu;
+        });
+        session.InstantVictory();
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Assert.Equal(0, menusOpened);
+        Confirm(hud);
+        Assert.Equal(1, menusOpened);
+        Assert.Equal(0, completions);
+        MenuController learning = hud.GuardianForceLearningMenu!;
+        Assert.Equal("gf-0", learning.GuardianForce!.Id);
+        Assert.Same(learning.BuildView(), hud.BuildView());
+        hud.Navigate(MenuInput.PageLeft);
+        Assert.Equal("gf-7", learning.GuardianForce!.Id);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.Equal(1, completions);
+        hud.Navigate(MenuInput.Cancel);
+        hud.ConfirmResult();
+        Assert.Equal(1, completions);
+    }
+
     private static BattleRewardSummary Summary()
     {
         return new BattleRewardSummary(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [], []);

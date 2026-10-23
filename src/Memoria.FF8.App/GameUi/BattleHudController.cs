@@ -164,6 +164,10 @@ public sealed partial class BattleHudController
 
     public UiView BuildView()
     {
+        if (guardianForceLearningMenu is { IsOpen: true })
+        {
+            return guardianForceLearningMenu.BuildView();
+        }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
         PresentNativeShot();
@@ -188,6 +192,11 @@ public sealed partial class BattleHudController
 
     public void Navigate(MenuInput input)
     {
+        if (guardianForceLearningMenu is not null)
+        {
+            NavigateGuardianForceLearning(input);
+            return;
+        }
         RefreshNativeLimitSelection();
         RefreshGuardianFormSelection();
         commandIndex = Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));

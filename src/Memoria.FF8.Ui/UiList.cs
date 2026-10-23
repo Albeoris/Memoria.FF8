@@ -193,6 +193,8 @@ public sealed class UiList : UiElement
     public IList<UiImageSource?> LeadingImages { get; set; } = new List<UiImageSource?>();
     public IList<UiImageSource?> TrailingImages { get; set; } = new List<UiImageSource?>();
     public IList<string> SecondaryItems { get; set; } = new List<string>();
+
+    public Func<int, UiColor?>? ItemTextColor { get; set; }
     /// <summary>The fraction of the text area reserved for the secondary column.</summary>
     public float SecondaryWidth
     {
@@ -266,11 +268,12 @@ public sealed class UiList : UiElement
                     canvas.Image(trailing, new UiRect(row.X + rowColumns.TrailingLeft, row.Y, columns.TrailingWidth, row.Height).Inset(2));
                 }
                 bool enabled = Enabled && (index >= EnabledItems.Count || EnabledItems[index]);
+                UiColor textColor = ItemTextColor?.Invoke(index) ?? (enabled ? theme.Foreground : theme.Muted);
                 float textLeft = row.X + columns.TextInset + columns.LeadingWidth + columns.ImageWidth;
                 float secondaryLeft = row.X + rowColumns.SecondaryLeft;
                 float textRight = row.X + rowColumns.SecondaryRight;
                 UiTextFlow textFlow = TextFlow == UiTextFlow.Auto ? AutoRowHeight && Orientation == UiOrientation.Vertical ? UiTextFlow.Wrap : UiTextFlow.SingleLine : TextFlow;
-                canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, row.Height), enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, textFlow);
+                canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(textLeft, row.Y, rowColumns.PrimaryWidth, row.Height), textColor, UiAlignment.Center, textFlow);
                 if (hasSecondary)
                 {
                     UiRect secondaryClip = new(secondaryLeft, row.Y, Math.Max(0, textRight - secondaryLeft), row.Height);
@@ -294,7 +297,7 @@ public sealed class UiList : UiElement
                     canvas.PushClip(secondaryClip);
                     try
                     {
-                        canvas.Text(SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, secondaryBounds, enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, textFlow);
+                        canvas.Text(SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, secondaryBounds, textColor, UiAlignment.Center, textFlow);
                     }
                     finally
                     {

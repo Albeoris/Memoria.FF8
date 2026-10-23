@@ -16,6 +16,7 @@ internal sealed partial class RecreateGame
     private BattleDebugCatalog? presentationBattleCatalog;
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
+    private readonly Dictionary<int, int> battleGuardianForceLearning = [];
     private BattleDebugController? battleDebug;
     private BattleScenePresentation? battleScene;
     private Texture2D? battleTexture;
@@ -208,9 +209,11 @@ internal sealed partial class RecreateGame
             DisposeBattleTextures();
             presentedBattle = active;
             battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
+            battleGuardianForceLearning.Clear();
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.ConfigureResults(PresentationBattleResources.ReadNativeGlobalBattleMessages(), id => liveMenuCatalog?.ItemDescription(id) ?? "", id => liveMenuCatalog?.AbilityName(id) ?? $"Ability {id}");
+            battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingHint;
             battleSeconds = 0;
@@ -219,6 +222,35 @@ internal sealed partial class RecreateGame
         battleHud.CursorMemory = uiPreferences.CursorMemory;
         battleHud.GunbladeBindingHint = keyboard.BindingPrompt(ControlAction.RotateRight);
         battleHud.PhysicalOverrideBindingHint = keyboard.BindingPrompt(ControlAction.CameraLeft);
+    }
+
+    private MenuController CreateBattleGuardianForceLearningMenu(BattleRewardSummary rewards)
+    {
+        NativeCharacterVitals projected = world!.PreviewBattleResultOwners().CharacterVitals;
+        Dictionary<string, string> learned = rewards.GuardianForceGrowth.Where(growth => growth.LearnedAbilityIds.Length > 0).ToDictionary(growth => $"gf-{growth.Id}", growth => growth.LearnedAbilityIds[0].ToString(System.Globalization.CultureInfo.InvariantCulture));
+        MenuData ReadLearningData()
+        {
+            MenuData data = LiveMenuData.Build(session.State with { CharacterVitals = projected }, world.Events.Scene.Names, liveMenuCatalog);
+            data.GuardianForces.RemoveAll(force => !learned.ContainsKey(force.Id));
+            data.Settings["Text scale"] = $"{uiPreferences.TextScale}%";
+            return data;
+        }
+        void SelectLearning(MenuAction action)
+        {
+            if (action.Kind != "gf-learn" || !learned.ContainsKey(action.TargetId))
+            {
+                throw new InvalidOperationException("Victory learning accepts only a participating GF's next ability.");
+            }
+            int id = int.Parse(action.TargetId.AsSpan(3), System.Globalization.CultureInfo.InvariantCulture);
+            int ability = int.Parse(action.SubjectId, System.Globalization.CultureInfo.InvariantCulture);
+            projected = projected.SelectGuardianForceLearning(id, ability);
+            battleGuardianForceLearning[id] = ability;
+        }
+        MenuController menu = new(ReadLearningData, SelectLearning) { Presentation = uiPreferences.MenuPresentation };
+        menu.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
+        menu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
+        menu.OpenBattleLearning(learned);
+        return menu;
     }
 
     private void CompleteBattleResult()
@@ -230,7 +262,8 @@ internal sealed partial class RecreateGame
         }
         if (ActiveBattle?.CanReturnToField == true)
         {
-            ApplyBattleCommand(new BattleInput(BattleInputKind.Return));
+            world!.ApplyBattleInput(new BattleInput(BattleInputKind.Return), battleGuardianForceLearning);
+            SynchronizeBattleAudio();
             ClearBattlePresentation();
             fieldSeconds = 0;
             return;

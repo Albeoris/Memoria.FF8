@@ -29,13 +29,18 @@ internal sealed partial class GameWorld
 
     public BattleRewardSummary PreviewBattleRewards()
     {
+        return PreviewBattleResultOwners().Rewards;
+    }
+
+    internal BattleResultOwners PreviewBattleResultOwners()
+    {
         BattleSession active = battle ?? throw new InvalidOperationException("Battle rewards require an active battle owner.");
         if (active.Outcome != BattleOutcome.Victory)
         {
             throw new InvalidOperationException("Battle rewards are available after victory.");
         }
         BattleEncounterOccurrence encounter = session.State.PendingBattleEncounter ?? throw new InvalidDataException("Battle rewards require the observed encounter occurrence.");
-        return ProjectBattleResult(CaptureBattleOutcome(active, encounter)).Rewards;
+        return ProjectBattleResult(CaptureBattleOutcome(active, encounter));
     }
 
     private void ConfigureBattleHost()
@@ -224,9 +229,13 @@ internal sealed partial class GameWorld
         return current with { NativeExamTimerAtEntry = entry };
     }
 
-    public int ApplyBattleInput(BattleInput input)
+    public int ApplyBattleInput(BattleInput input, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
     {
         input.Validate();
+        if (guardianForceLearning is { Count: > 0 } && input.Kind != BattleInputKind.Return)
+        {
+            throw new InvalidOperationException("Battle learning choices belong to result confirmation.");
+        }
         if (input.Kind == BattleInputKind.ConfigurePlaythrough)
         {
             session.SetFullBattlePlaythrough(input.FullCombat);
@@ -258,11 +267,11 @@ internal sealed partial class GameWorld
             // TODO(TD-009): Original CRT entropy provenance remains unowned.
             input = input with { NativeSeed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256) };
         }
-        if (TryApplyMenuBattleInput(input, out int menuAdvanced))
+        if (TryApplyMenuBattleInput(input, out int menuAdvanced, guardianForceLearning))
         {
             return menuAdvanced;
         }
-        if (TryApplyRandomBattleInput(input, out int randomAdvanced))
+        if (TryApplyRandomBattleInput(input, out int randomAdvanced, guardianForceLearning))
         {
             return randomAdvanced;
         }
@@ -284,7 +293,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidOperationException("The completed battle does not permit return to its suspended field request.");
             }
-            CompleteBattle(active);
+            CompleteBattle(active, guardianForceLearning);
             battle = null;
             PublishBattleSnapshot(null);
             return 0;
@@ -436,7 +445,7 @@ internal sealed partial class GameWorld
         return result;
     }
 
-    internal void ApplyBattleResult(BattleEncounterOccurrence expected, BattleResult result)
+    internal void ApplyBattleResult(BattleEncounterOccurrence expected, BattleResult result, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
     {
         expected.Validate();
         result.Validate();
@@ -465,6 +474,17 @@ internal sealed partial class GameWorld
             }
         }
         BattleResultOwners owners = ProjectBattleResult(result);
+        if (guardianForceLearning is not null)
+        {
+            foreach ((int id, int ability) in guardianForceLearning)
+            {
+                if (!owners.Rewards.GuardianForceGrowth.Any(growth => growth.Id == id && growth.LearnedAbilityIds.Length > 0))
+                {
+                    throw new InvalidOperationException("Battle learning choices require a GF that learned an ability in this victory.");
+                }
+                owners = owners with { CharacterVitals = owners.CharacterVitals.SelectGuardianForceLearning(id, ability) };
+            }
+        }
         NativeBattleVariableState? variables = null;
         if (result.PersistentAiVariablesBefore is { } before)
         {

@@ -14,6 +14,15 @@ public enum BattleResultPage
 
 public sealed partial class BattleHudController
 {
+    private Func<BattleRewardSummary, MenuController>? createGuardianForceLearning;
+    private MenuController? guardianForceLearningMenu;
+    internal MenuController? GuardianForceLearningMenu => guardianForceLearningMenu;
+
+    public void ConfigureGuardianForceLearning(Func<BattleRewardSummary, MenuController> createMenu)
+    {
+        createGuardianForceLearning = createMenu;
+    }
+
     private BattleRewardSummary? resultRewards;
     private NativeCharacterVitals? resultVitals;
     private BattleRewardOffer[] resultLoot = [];
@@ -84,6 +93,11 @@ public sealed partial class BattleHudController
             return;
         }
         InitializeResults();
+        if (guardianForceLearningMenu is { IsOpen: false })
+        {
+            Complete();
+            return;
+        }
         long subticks = checked(elapsed.Ticks * BattleSession.FramesPerSecond);
         resultAgeSubticks = checked(resultAgeSubticks + subticks);
         if (ResultPage == BattleResultPage.Items && itemAcknowledged)
@@ -198,6 +212,11 @@ public sealed partial class BattleHudController
         {
             return;
         }
+        if (guardianForceLearningMenu is not null)
+        {
+            NavigateGuardianForceLearning(MenuInput.Confirm);
+            return;
+        }
         InitializeResults();
         if (resultAgeSubticks < 16 * TimeSpan.TicksPerSecond)
         {
@@ -244,7 +263,7 @@ public sealed partial class BattleHudController
         }
         else if (++resultGuardianForce >= (resultRewards?.GuardianForceGrowth.Length ?? 0))
         {
-            Complete();
+            BeginGuardianForceLearning();
         }
         else
         {
@@ -281,6 +300,27 @@ public sealed partial class BattleHudController
             resultAgeSubticks = 0;
         }
         else
+        {
+            Complete();
+        }
+    }
+
+    private void BeginGuardianForceLearning()
+    {
+        if (resultRewards is { } rewards && rewards.GuardianForceGrowth.Any(growth => growth.LearnedAbilityIds.Length > 0) && createGuardianForceLearning is not null)
+        {
+            guardianForceLearningMenu = createGuardianForceLearning(rewards);
+        }
+        else
+        {
+            Complete();
+        }
+    }
+
+    private void NavigateGuardianForceLearning(MenuInput input)
+    {
+        guardianForceLearningMenu!.Navigate(input);
+        if (!guardianForceLearningMenu.IsOpen)
         {
             Complete();
         }

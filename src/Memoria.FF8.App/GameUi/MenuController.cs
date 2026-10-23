@@ -108,6 +108,7 @@ public sealed partial class MenuController
     {
         screenId = ResolveSettingsAlias(screenId);
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
+        ClearBattleLearningReview();
         exitGame = null;
         pendingGuardianForceTransfer = null;
         CancelControlsCapture();
@@ -179,6 +180,7 @@ public sealed partial class MenuController
 
     public void Close()
     {
+        ClearBattleLearningReview();
         exitGame = null;
         if (ScreenId == "mode-review")
         {
@@ -365,6 +367,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (BackFromBattleLearning())
+        {
+            return;
+        }
         if (ScreenId == "junction-gf-confirm")
         {
             pendingGuardianForceTransfer = null;
@@ -510,6 +516,7 @@ public sealed partial class MenuController
             int guardianForceIndex = guardianForces.FindIndex(force => force.Id == GuardianForce?.Id);
             _gfId = guardianForces[(guardianForceIndex + delta + guardianForces.Count) % guardianForces.Count].Id;
             _selections[ScreenId] = Math.Clamp(SelectedIndex, 0, Math.Max(0, Entries.Count - 1));
+            FocusBattleLearnedAbility();
             _view = null;
             return;
         }

@@ -46,6 +46,8 @@ public sealed partial class MenuController
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;
         abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
+        string guardianForceId = GuardianForce?.Id ?? "";
+        abilities.ItemTextColor = index => index < choices.Length ? BattleLearnedAbilityColor(guardianForceId, choices[index].Id) : null;
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
         abilities.LeadingImages = choices.Select(choice => choice == learning && !choice.Learned ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
         var abilityPanel = Panel("ABILITY", abilities);

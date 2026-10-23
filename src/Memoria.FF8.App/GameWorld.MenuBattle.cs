@@ -46,7 +46,7 @@ internal sealed partial class GameWorld
         return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.Battle, session.State.FieldId, sourceFrame, null, null), 0);
     }
 
-    private bool TryApplyMenuBattleInput(BattleInput input, out int advanced)
+    private bool TryApplyMenuBattleInput(BattleInput input, out int advanced, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
     {
         advanced = 0;
         if (Events.PendingMenuBattle is not { } request)
@@ -71,7 +71,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("The menu battle does not permit return to exploration yet.");
                 }
-                CompleteBattle(active);
+                CompleteBattle(active, guardianForceLearning);
                 battle = null;
             }
             else

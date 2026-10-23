@@ -82,7 +82,7 @@ internal sealed partial class GameWorld
         };
     }
 
-    private bool TryApplyRandomBattleInput(BattleInput input, out int advanced)
+    private bool TryApplyRandomBattleInput(BattleInput input, out int advanced, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
     {
         advanced = 0;
         if (session.State.RandomEncounters is not { Pending: { } request } encounters)
@@ -113,7 +113,7 @@ internal sealed partial class GameWorld
                     {
                         throw new InvalidOperationException("The completed battle does not permit return to its suspended exploration scene.");
                     }
-                    CompleteBattle(active);
+                    CompleteBattle(active, guardianForceLearning);
                     battle = null;
                 }
                 else
