@@ -1,0 +1,57 @@
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleBreath129Profile
+{
+    public const ushort Effect = 129;
+    public const uint Entry = 0x6B4C00;
+    public const uint Initializer = 0x6B4C10;
+    public const uint RootCallback = 0x6B4CB0;
+    public const uint MainCallback = 0x6B5140;
+    public const uint TargetCallback = 0x6B5FC0;
+    public const uint FibreCallback = 0x6B68C0;
+    public const uint CurveCallback = 0x6B62D0;
+    public const uint BaseAddress = 0x2521110;
+    public const uint CompositeMatrixAddress = 0x2521110;
+    public const uint StageGlobal = 0x2521130;
+    public const uint CasterGlobal = 0x2521134;
+    public const uint RotationMatrixAddress = 0x2521138;
+    public const uint InitializerGlobal = 0x2521158;
+    public const uint WorkingGlobal = 0x252115C;
+    public const uint ParametersGlobal = 0x2521160;
+    public const uint RootBank = 0x2521168;
+    public const int RootBankLength = 20;
+    public const uint CursorGlobal = 0x252117C;
+    public const uint SpriteDescriptor = 0x2521180;
+    public const uint TargetDescriptor = 0x2521190;
+    public const uint FibreDescriptor = 0x25211A0;
+    public const uint CurveDescriptor = 0x25211B0;
+    public const uint MainDescriptor = 0x25211C0;
+    public const uint RootDescriptor = 0x25211D0;
+    public const uint MeshAddress = 0x12272DC;
+    public const int MeshLength = 0x1C28;
+    public const uint IndexedVerticesAddress = 0x1228F04;
+    public const int IndexedVerticesLength = 0x2C8;
+    public const int MutableSourcesLength = MeshLength + IndexedVerticesLength;
+    public const uint FirstActAddress = 0x12239B8;
+    public const uint SecondActAddress = 0x1225468;
+    public const uint ThirdActAddress = 0x1226098;
+    public const uint FourthActAddress = 0x122688C;
+    public const uint SpriteAddress = 0x12238C0;
+    public const uint CameraAddress = 0x12291CC;
+    public const uint SoundAddress = 0x12292F4;
+    public const uint CapturedPairsAddress = 0x12292F8;
+    public const uint ControlPairsAddress = 0x1229318;
+    public const uint ControlTrianglesAddress = 0x1229338;
+    public const uint StreamDirectoryAddress = 0x1229A28;
+    public const uint DistanceTableAddress = 0x1229F28;
+    public const uint SqrtTableAddress = 0x122DEA8;
+    public const uint TrigonometricTableAddress = 0x122E0A8;
+    public const uint TextureNameAddress = 0x12320A8;
+    public const int PointBankOffset = 0x19C0;
+    public const int SineBankOffset = 0x35C0;
+    public const int SelectedVerticesOffset = 0x35F0;
+    public const int FirstPacketOffset = 0x3B70;
+    public const int SecondPacketOffset = 0x1BB70;
+    public const int PacketBankBytes = 0x18000;
+    public const int VertexCount = 176;
+}

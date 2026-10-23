@@ -93,51 +93,18 @@ public static class NativeBattleRibbonPackets
                 throw new NotSupportedException("The ribbon edges require their original distance table.");
             }
             int distance = distances[Math.Min(Math.Abs(dy), 127) * 128 + Math.Min(Math.Abs(dx), 127)];
-            int directionX;
-            int directionY;
-            if (hasPrevious)
+            NativeBattleRibbonDirectionStep direction = NativeBattleRibbonDirection.Resolve(dx, dy, distance, hasPrevious, previousX, previousY);
+            previousX = direction.PreviousX;
+            previousY = direction.PreviousY;
+            if (!direction.Valid)
             {
-                int oldX = previousX ?? throw new NotSupportedException("The ribbon requires its produced preceding edge direction.");
-                int oldY = previousY ?? throw new NotSupportedException("The ribbon requires its produced preceding edge direction.");
-                if (distance == 0)
-                {
-                    directionX = oldX;
-                    directionY = oldY;
-                }
-                else
-                {
-                    int normalizedX = unchecked(dy << 12) / distance;
-                    int normalizedY = unchecked(dx << 12) / distance;
-                    previousX = unchecked((short)normalizedX);
-                    previousY = unchecked((short)normalizedY);
-                    int sumX = unchecked(normalizedX + oldX);
-                    int sumY = unchecked(normalizedY + oldY);
-                    if (sumX == 0 && sumY == 0)
-                    {
-                        sumX = unchecked(normalizedX * 2);
-                        sumY = unchecked(normalizedY * 2);
-                    }
-                    int factor = unchecked(0x4000 - (unchecked(unchecked(sumX * sumX) + unchecked(sumY * sumY)) >> 13));
-                    directionX = unchecked(factor * sumX) >> 13;
-                    directionY = unchecked(factor * sumY) >> 13;
-                }
-            }
-            else
-            {
-                if (distance == 0)
-                {
-                    return arena.Write(first + 0x14, BitConverter.GetBytes((short)-1));
-                }
-                directionX = unchecked(dy << 12) / distance;
-                directionY = unchecked(dx << 12) / distance;
-                previousX = unchecked((short)directionX);
-                previousY = unchecked((short)directionY);
+                return arena.Write(first + 0x14, BitConverter.GetBytes((short)-1));
             }
             int widthOffset = widthPolicy == NativeBattleRibbonWidthPolicy.Projected ? 6 : 2;
             int depthBias = widthPolicy == NativeBattleRibbonWidthPolicy.Projected ? 512 : 1024;
             int width = unchecked(Word(arena, second + widthOffset) << 5) / (Word(arena, first + 0x14) + depthBias);
-            offsetX = unchecked(width * directionX) >> 12;
-            offsetY = unchecked(width * directionY) >> 12;
+            offsetX = unchecked(width * direction.X) >> 12;
+            offsetY = unchecked(width * direction.Y) >> 12;
         }
         short x = Word(arena, first + 0x10);
         short y = Word(arena, first + 0x12);

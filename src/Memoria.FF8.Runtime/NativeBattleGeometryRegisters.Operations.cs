@@ -36,6 +36,18 @@ public static class NativeBattleGeometry
         return step with { Colors = PublishMac(step.Colors, NativePrecision53.RoundInteger(y * vz - z * vy), NativePrecision53.RoundInteger(z * vx - x * vz), NativePrecision53.RoundInteger(x * vy - y * vx), 0) };
     }
 
+    public static NativeBattleGeometryRegisterStep OuterProduct45E670(NativeBattleGeometryRegisterStep step)
+    {
+        Validate(step);
+        int x = ReadWord(step.Geometry.Rotation20, 0);
+        int y = ReadWord(step.Geometry.Rotation20, 8);
+        int z = ReadWord(step.Geometry.Rotation20, 16);
+        int vx = unchecked((short)Require(step.Colors.Ir[0]));
+        int vy = unchecked((short)Require(step.Colors.Ir[1]));
+        int vz = unchecked((short)Require(step.Colors.Ir[2]));
+        return step with { Colors = PublishMac(step.Colors, unchecked(y * vz - z * vy), unchecked(z * vx - x * vz), unchecked(x * vy - y * vx), 0) };
+    }
+
     public static NativeBattleGeometryRegisters LoadMatrix(NativeBattleGeometryRegisters geometry, NativeBattleActionMatrix matrix, bool rotation, bool translation, short? padding)
     {
         geometry.Validate();
