@@ -8,6 +8,9 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private IEnumerator<ModelAssetDiscoveryItem>? browserAssetReader;
+    private readonly Dictionary<string, ModelAssetDiscoveryItem[]> browserDiscoveryCache = new(StringComparer.Ordinal);
+    private readonly List<ModelAssetDiscoveryItem> browserPendingDiscovery = [];
+    private string? browserDiscoveryKey;
     private readonly Dictionary<string, ModelAssetDiscoveryItem> browserAssets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EditableModel> browserAssetModels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> browserAssetFingerprints = new(StringComparer.Ordinal);
@@ -50,7 +53,11 @@ internal sealed partial class RecreateGame
         browserAssetsComplete = false;
         browserImport = null;
         modelBrowser!.ResetAssets();
-        browserAssetReader = modelBrowserAssets!.DiscoverModelAssets(modelCatalog[entry.Id]).GetEnumerator();
+        browserDiscoveryKey = resourceHost!.Resources.Source.Edition + "\0" + browserAssetIdentity + "\0" + modelBrowserModGeneration;
+        browserPendingDiscovery.Clear();
+        browserAssetReader = browserDiscoveryCache.TryGetValue(browserDiscoveryKey, out ModelAssetDiscoveryItem[]? cached)
+            ? ((IEnumerable<ModelAssetDiscoveryItem>)cached).GetEnumerator()
+            : modelBrowserAssets!.DiscoverModelAssets(modelCatalog[entry.Id]).GetEnumerator();
     }
 
     private void ReadMoreBrowserAssets()
@@ -70,10 +77,22 @@ internal sealed partial class RecreateGame
                 return;
             }
             ModelAssetDiscoveryItem item = browserAssetReader.Current;
+            if (item.Kind != ModelAssetDiscoveryKind.Progress)
+            {
+                browserPendingDiscovery.Add(item);
+            }
             if (item.Kind is ModelAssetDiscoveryKind.Progress or ModelAssetDiscoveryKind.Coverage)
             {
                 modelBrowser.SetDiscoveryStatus(item.Name);
                 browserAssetsComplete = item.Kind == ModelAssetDiscoveryKind.Coverage;
+                if (browserAssetsComplete && browserDiscoveryKey is not null)
+                {
+                    browserDiscoveryCache[browserDiscoveryKey] = browserPendingDiscovery.ToArray();
+                    if (browserDiscoveryCache.Count > 4)
+                    {
+                        browserDiscoveryCache.Remove(browserDiscoveryCache.Keys.First(key => key != browserDiscoveryKey));
+                    }
+                }
                 return;
             }
             browserAssets[item.Id] = item;
@@ -81,8 +100,9 @@ internal sealed partial class RecreateGame
             bool clip = item.Kind == ModelAssetDiscoveryKind.Clip;
             string group = clip ? item.GroupId ?? item.Bank : item.AlternativeGroup ?? "Objects";
             string actualSource = BrowserAssetSource(item);
-            bool selected = clip ? item.OwnerId == modelBrowser.Selected?.Id || ClipModelTarget(item.Id) == modelBrowser.Selected?.Id || modelBrowser.SelectedAssets.Contains(ClipModelTarget(item.Id)) : item.Id == modelBrowser.Selected?.Id || item.AlternativeGroup is not null && !browserAssets.Values.Any(other => other.Id != item.Id && other.AlternativeGroup == item.AlternativeGroup);
-            modelBrowser.AddAsset(new(item.Id, item.Name, group, clip, item.Kind != ModelAssetDiscoveryKind.Diagnostic && item.Error is null, item.Error ?? item.Provenance + " · Source: " + actualSource, selected));
+            string label = clip && item.ResourcePath.StartsWith("battle/", StringComparison.OrdinalIgnoreCase) ? (browserAssets.GetValueOrDefault(ClipModelTarget(item.Id))?.Name ?? Path.GetFileName(ClipModelTarget(item.Id))) + " · " + item.Name : item.Name;
+            bool selected = clip ? item.OwnerId == modelBrowser.Selected?.Id || ClipModelTarget(item.Id) == modelBrowser.Selected?.Id || modelBrowser.SelectedAssets.Contains(ClipModelTarget(item.Id)) || browserAssets.GetValueOrDefault(modelBrowser.Selected?.Id ?? "") is { UsesOwnerSkeleton: true } selectedWeapon && selectedWeapon.RigOwnerId == ClipModelTarget(item.Id) : item.Id == modelBrowser.Selected?.Id || item.AlternativeGroup is not null && !browserAssets.Values.Any(other => other.Id != item.Id && other.AlternativeGroup == item.AlternativeGroup);
+            modelBrowser.AddAsset(new(item.Id, label, group, clip, item.Kind != ModelAssetDiscoveryKind.Diagnostic && item.Error is null, item.Error ?? item.Provenance + " · Source: " + actualSource + " · Locked dependency: rig, materials, textures", selected) { RigId = item.RigOwnerId ?? (item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) : item.Id) });
             if (item.Kind == ModelAssetDiscoveryKind.Diagnostic)
             {
                 modelBrowser.SetDiscoveryStatus("Incomplete: " + item.Name);
@@ -161,7 +181,7 @@ internal sealed partial class RecreateGame
         {
             activeWeapon = browser.Assets.FirstOrDefault(row => !row.IsClip && row.Supported && browserAssets.GetValueOrDefault(row.Id)?.AlternativeGroup is not null)?.Id;
         }
-        bool IncludeObject(ModelAssetDiscoveryItem item) => preview ? item.Id == browser.Selected?.Id || item.Id == activeWeapon : browser.SelectedAssets.Contains(item.Id);
+        bool IncludeObject(ModelAssetDiscoveryItem item) => preview ? item.Id == browser.Selected?.Id || item.Id == browser.ActiveObject || item.Id == activeWeapon : browser.SelectedAssets.Contains(item.Id);
         foreach (ModelAssetDiscoveryItem item in browserAssets.Values.Where(item => item.Kind == ModelAssetDiscoveryKind.Object && IncludeObject(item)))
         {
             AddObject(item, true);
@@ -184,7 +204,11 @@ internal sealed partial class RecreateGame
             {
                 objects.Add(target, new(target, BrowserAssetSource(item), BrowserFingerprint(item, source), rig, source, false));
             }
-            clips.Add(new(item.Id, target, rig, item.GroupId ?? item.Id, BrowserAssetSource(item), BrowserFingerprint(item, source), source.Animations[item.ClipIndex], item.NativeFrameCount, item.SecondsPerFrame));
+            clips.Add(new(item.Id, target, rig, item.GroupId ?? item.Id, BrowserAssetSource(item), BrowserFingerprint(item, source), source.Animations[item.ClipIndex], (int)MathF.Round(source.Animations[item.ClipIndex].Duration * source.NativeFramesPerSecond) + 1, 1f / source.NativeFramesPerSecond));
+        }
+        if (preview && activeClip is not null && objects.Values.Where(item => item.GeometrySelected && item.Model.Bones.Any(bone => bone.IsJoint)).Select(item => item.RigId).Distinct().Any(rig => !clips.Any(clip => clip.RigId == rig)))
+        {
+            browser.SetMessage("Missing paired clip component. Its rig remains in the base pose.");
         }
         return new(objects.Values.ToArray(), clips) { Edition = resourceHost!.Resources.Source.Edition.ToString() };
 

@@ -73,7 +73,7 @@ public static class ModelAssetExchange
             Unique(group.Select(clip => clip.RigId), "rig component within a synchronized clip group");
         }
         EditableAnimation[] animations = selection.Clips.GroupBy(clip => clip.GroupId, StringComparer.Ordinal).Select(group => new EditableAnimation(Token(group.Key), group.SelectMany(clip => clip.Animation.Channels.Select(channel => channel with { Bone = rigs[clip.RigId][channel.Bone] })).ToArray())).ToArray();
-        Manifest manifest = new(1, 1, selection.Edition, selection.Objects.Select(item => new ObjectInfo(item.Target, item.SourceVariant, item.Fingerprint, item.RigId, item.Model.Kind, item.Model.Name, item.AlternativeGroup, item.ReplacedPart, item.Model.Bones.Count(bone => bone.IsJoint), SkeletonSignature(item.Model.Bones), item.Model.NativeMetadata.ValueKind == JsonValueKind.Undefined ? JsonSerializer.SerializeToElement(new { }) : item.Model.NativeMetadata, item.Model.NativeFramesPerSecond)).ToArray(), selection.Clips.Select(clip => new ClipInfo(clip.Target, clip.ModelTarget, clip.RigId, clip.GroupId, clip.SourceVariant, clip.Fingerprint, clip.NativeFrameCount, clip.SecondsPerFrame, Token(clip.GroupId))).ToArray());
+        Manifest manifest = new(1, 1, selection.Edition, selection.Objects.Select(item => new ObjectInfo(item.Target, item.SourceVariant, item.Fingerprint, item.RigId, item.Model.Kind, item.Model.Name, item.AlternativeGroup, item.ReplacedPart, item.Model.Bones.Count(bone => bone.IsJoint), SkeletonSignature(item.Model.Bones), ModelExchange.RetainedNativeMetadata(item.Model.NativeMetadata, item.GeometrySelected), item.Model.NativeFramesPerSecond)).ToArray(), selection.Clips.Select(clip => new ClipInfo(clip.Target, clip.ModelTarget, clip.RigId, clip.GroupId, clip.SourceVariant, clip.Fingerprint, clip.NativeFrameCount, clip.SecondsPerFrame, Token(clip.GroupId))).ToArray());
         EditableModel combined = new("Memoria linked assets", "assembly", bones, meshes, textures, animations, JsonSerializer.SerializeToElement(new { })) { ExchangeManifest = JsonSerializer.Serialize(manifest) };
         return combined;
     }
@@ -168,7 +168,8 @@ public static class ModelAssetExchange
                     continue;
                 }
                 float nativeDuration = (clip.NativeFrameCount - 1) * clip.SecondsPerFrame;
-                if (channels.Any(channel => channel.Times[^1] > nativeDuration + 0.0001f) && channels.All(channel => channel.Interpolation != "CUBICSPLINE" && channel.Times.Zip(channel.Values).Where(pair => pair.First > nativeDuration).All(pair => Vector4.Distance(pair.Second, ModelExchange.Sample(channel, nativeDuration)) < 0.0001f)))
+                float groupDuration = manifest.Clips.Where(component => component.GroupId == clip.GroupId).Max(component => (component.NativeFrameCount - 1) * component.SecondsPerFrame);
+                if ((groupDuration > nativeDuration + 0.0001f || clip.NativeFrameCount == 1) && channels.Max(channel => channel.Times[^1]) <= MathF.Max(groupDuration, clip.NativeFrameCount == 1 ? clip.SecondsPerFrame : groupDuration) + 0.0001f && channels.Any(channel => channel.Times[^1] > nativeDuration + 0.0001f) && channels.All(channel => channel.Interpolation != "CUBICSPLINE" && channel.Times.Zip(channel.Values).Where(pair => pair.First > nativeDuration).All(pair => Vector4.Distance(pair.Second, ModelExchange.Sample(channel, nativeDuration)) < 0.0001f)))
                 {
                     channels = channels.Select(channel =>
                     {

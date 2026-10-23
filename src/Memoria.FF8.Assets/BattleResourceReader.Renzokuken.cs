@@ -34,8 +34,32 @@ public sealed partial class BattleAssets
     public BattleRenzokukenModels ReadNativeRenzokukenModels(BattleNativeRenzokukenResource resource, BattleModel body, BattleModel? weapon)
     {
         BattleRenzokukenModels result = BattleResourceReader.ReadRenzokukenModels(resource, body with { EditableOverride = null }, weapon is null ? null : weapon with { EditableOverride = null });
-        BattleModel changedBody = modelOverrides?.ApplyBattleBank("battle/" + body.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", result.Body) ?? result.Body;
-        BattleModel? changedWeapon = result.Weapon is { } decodedWeapon ? modelOverrides?.ApplyBattleBank("battle/" + decodedWeapon.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", decodedWeapon) ?? decodedWeapon : null;
+        BattleModel bodyBank = RetainExternalBankGeometry(result.Body, body.EditableOverride);
+        BattleModel changedBody = modelOverrides?.ApplyBattleBank("battle/" + body.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", bodyBank) ?? bodyBank;
+        BattleModel? weaponBank = result.Weapon is { } decodedWeapon ? RetainExternalBankGeometry(decodedWeapon, weapon?.EditableOverride) : null;
+        BattleModel? changedWeapon = weaponBank is null ? null : modelOverrides?.ApplyBattleBank("battle/" + weaponBank.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", weaponBank) ?? weaponBank;
         return new(changedBody, changedWeapon);
     }
+
+    private static BattleModel RetainExternalBankGeometry(BattleModel decoded, EditableModel? geometry)
+    {
+        if (geometry is null)
+        {
+            return decoded;
+        }
+        EditableModel bank = ModelExchange.FromBattle(decoded);
+        int[] sourceJoints = ModelExchange.NativeJointOrder(bank);
+        int[] targetJoints = ModelExchange.NativeJointOrder(geometry);
+        if (sourceJoints.Length != targetJoints.Length)
+        {
+            throw new NotSupportedException("The external animation bank requires the retained native joint set.");
+        }
+        Dictionary<int, int> joints = sourceJoints.Zip(targetJoints).ToDictionary(pair => pair.First, pair => pair.Second);
+        EditableAnimation[] animations = bank.Animations.Select(animation => animation with
+        {
+            Channels = animation.Channels.Select(channel => channel with { Bone = joints[channel.Bone] }).ToArray()
+        }).ToArray();
+        return decoded with { EditableOverride = geometry with { Animations = animations } };
+    }
+
 }

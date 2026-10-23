@@ -1,4 +1,3 @@
-using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
@@ -56,13 +55,13 @@ internal sealed partial class RecreateGame
             modelBrowser!.ResetAssets();
             foreach (ModelAssetObject item in inventory.Objects.Where(item => item.GeometrySelected))
             {
-                AddImportRow("object:" + item.Target, item.Model.Name, item.Target, false, item.Target, "embedded", item.Model, fingerprint: item.Fingerprint);
+                AddImportRow("object:" + item.Target, item.Model.Name, item.AlternativeGroup ?? "Objects", false, item.Target, "embedded", item.Model, fingerprint: item.Fingerprint);
             }
             foreach (ModelAssetClip clip in inventory.Clips)
             {
                 ParseClipAddress(clip.Target, out string target, out string bank, out int slot);
                 ModelAssetObject owner = inventory.Objects.Single(item => item.Target == clip.ModelTarget);
-                AddImportRow(clip.Target, clip.Animation.Name, clip.GroupId, true, target, bank, owner.Model, slot, clip.Fingerprint);
+                AddImportRow(clip.Target, clip.Animation.Name, clip.GroupId, true, target, bank, owner.Model, slot, clip.Fingerprint, clip.Animation);
             }
             foreach (string warning in inventory.Warnings.Where(warning => warning.Contains("mapping", StringComparison.OrdinalIgnoreCase)))
             {
@@ -83,7 +82,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void AddImportRow(string id, string name, string group, bool clip, string target, string bank, EditableModel imported, int slot = -1, string fingerprint = "")
+    private void AddImportRow(string id, string name, string group, bool clip, string target, string bank, EditableModel imported, int slot = -1, string fingerprint = "", EditableAnimation? animation = null)
     {
         string status = "Matched: " + target + (clip ? $" / {bank} / {slot}" : " / geometry");
         bool supported = true;
@@ -96,11 +95,15 @@ internal sealed partial class RecreateGame
             {
                 browserImportWarnings.Add($"{target}: native joint count changed from {before} to {after}.");
             }
-            ValidateImportRig(original, imported);
+            _ = ModelMods.Preview(original, new(target, imported, !clip, clip && animation is not null ? [new(bank, slot, animation)] : []));
             if (fingerprint.Length != 0 && !Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ModelExchange.ExportGlb(original))).Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
             {
                 browserImportWarnings.Add($"{target} / {bank}: source revision differs from the exported provider; retained target content is resolved from the current mod stack.");
                 status = "Warning: source revision differs · " + target;
+            }
+            if (clip && animation is not null && animation.Channels.Any(channel => channel.Interpolation != "LINEAR" || channel.Times.Any(time => MathF.Abs(time * original.NativeFramesPerSecond - MathF.Round(time * original.NativeFramesPerSecond)) > 0.0001f)))
+            {
+                browserImportWarnings.Add($"{target} / {bank} / {slot}: edited interpolation or keys between native frames will be sampled on the native frame grid; between-frame curves are not preserved by the native clip format.");
             }
             if (clip && (uint)slot >= original.Animations.Count)
             {
@@ -112,7 +115,7 @@ internal sealed partial class RecreateGame
             supported = false;
             status = "Unsupported: " + target + " · " + exception.Message;
         }
-        modelBrowser!.AddAsset(new(id, name, group, clip, supported, status, supported));
+        modelBrowser!.AddAsset(new(id, name, group, clip, supported, status + " · Scope: all consumers of this exact target slot · Retained target rig is required", supported) { RigId = target });
     }
 
     private EditableModel ReadImportOriginal(string target, string bank)
@@ -133,7 +136,24 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            ModelAssetDiscoveryItem item = modelBrowserAssets!.DiscoverModelAssets(entry).FirstOrDefault(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && ClipModelTarget(item.Id) == target) ?? throw new NotSupportedException("No loader binds this external bank to the target.");
+            ModelAssetDiscoveryItem? item = null;
+            string? diagnostic = null;
+            foreach (ModelAssetDiscoveryItem candidate in modelBrowserAssets!.DiscoverModelAssets(entry))
+            {
+                if (candidate.Kind == ModelAssetDiscoveryKind.Clip && candidate.Bank == bank && ClipModelTarget(candidate.Id) == target)
+                {
+                    item = candidate;
+                    break;
+                }
+                if (candidate.Kind == ModelAssetDiscoveryKind.Diagnostic && candidate.Id == entry.Id + "/diagnostic/" + bank)
+                {
+                    diagnostic = candidate.Error;
+                }
+            }
+            if (item is null)
+            {
+                throw new NotSupportedException(diagnostic ?? "No loader binds this external bank to the target.");
+            }
             model = item.Load!();
         }
         model = resourceHost!.ModelMods.Resolve(target, model, bank: bank);
@@ -170,27 +190,6 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private static void ValidateImportRig(EditableModel original, EditableModel imported)
-    {
-        int[] before = ModelExchange.NativeJointOrder(original);
-        int[] after = ModelExchange.NativeJointOrder(imported);
-        if (before.Length != after.Length)
-        {
-            throw new NotSupportedException("Retaining the target rig requires the same native joint set; rig replacement is a separate operation.");
-        }
-        for (int index = 0; index < before.Length; index++)
-        {
-            EditableBone a = original.Bones[before[index]];
-            EditableBone b = imported.Bones[after[index]];
-            int parentA = Array.IndexOf(before, a.Parent);
-            int parentB = Array.IndexOf(after, b.Parent);
-            if (parentA != parentB || Vector3.Distance(a.Translation, b.Translation) > 0.001f || MathF.Abs(Quaternion.Dot(a.Rotation, b.Rotation)) < 0.99999f || Vector3.Distance(a.Scale, b.Scale) > 0.001f)
-            {
-                throw new NotSupportedException("The changed joint hierarchy or rest transform cannot retain the target rig and its other clips.");
-            }
-        }
-    }
-
     private ModelAssetSelection BrowserImportSelection(bool preview)
     {
         ModelAssetImportInventory inventory = browserImport!;
@@ -205,8 +204,12 @@ internal sealed partial class RecreateGame
                 continue;
             }
             bool geometry = modelBrowser!.SelectedAssets.Contains("object:" + item.Target);
-            ModelAssetClip[] chosen = inventory.Clips.Where(clip => clip.ModelTarget == item.Target && modelBrowser.SelectedAssets.Contains(clip.Target) && (!preview || activeGroup is null || clip.GroupId == activeGroup)).ToArray();
-            if (!geometry && chosen.Length == 0)
+            ModelAssetClip[] chosen = inventory.Clips.Where(clip => clip.ModelTarget == item.Target && (preview || modelBrowser.SelectedAssets.Contains(clip.Target)) && (!preview || activeGroup is null || clip.GroupId == activeGroup)).ToArray();
+            if (!preview && !geometry && chosen.Length == 0)
+            {
+                continue;
+            }
+            if (preview && !geometry && chosen.Length == 0 && !modelBrowser.Assets.Any(row => row.Supported && (row.Id == "object:" + item.Target || inventory.Clips.Any(clip => clip.ModelTarget == item.Target && clip.Target == row.Id))))
             {
                 continue;
             }
@@ -221,8 +224,10 @@ internal sealed partial class RecreateGame
                     continue;
                 }
                 ParseClipAddress(clip.Target, out _, out string bank, out int slot);
-                EditableModel aligned = ModelMods.Preview(ReadImportOriginal(item.Target, bank), new(item.Target, item.Model, false, [new(bank, slot, clip.Animation)]));
-                clips.Add(clip with { Animation = aligned.Animations[slot] });
+                EditableModel current = ReadImportOriginal(item.Target, bank);
+                bool selected = modelBrowser.SelectedAssets.Contains(clip.Target);
+                EditableModel aligned = selected ? ModelMods.Preview(current, new(item.Target, item.Model, false, [new(bank, slot, clip.Animation)])) : current;
+                clips.Add(clip with { Animation = aligned.Animations[slot], SecondsPerFrame = 1f / current.NativeFramesPerSecond, NativeFrameCount = (int)MathF.Round(aligned.Animations[slot].Duration * current.NativeFramesPerSecond) + 1 });
             }
         }
         return new(objects, clips) { Edition = inventory.Edition };
@@ -257,12 +262,16 @@ internal sealed partial class RecreateGame
                     }
                     return new ModelModClipReplacement(bank, slot, clip.Animation);
                 }).ToArray();
-                ModelModReplacement replacement = new(item.Target, item.Model, item.GeometrySelected, selectedClips) { PreserveNativeParts = PreservedImportParts(selection.Objects, item) };
-                foreach (string bank in selectedClips.Select(clip => clip.Bank).Append("embedded").Distinct())
+                ModelModReplacement incoming = new(item.Target, item.Model, item.GeometrySelected, selectedClips) { PreserveNativeParts = PreservedImportParts(selection.Objects, item) };
+                EditableModel normalized = ModelMods.Preview(ReadImportOriginal(item.Target, "embedded"), incoming with { Clips = [] });
+                List<ModelModClipReplacement> normalizedClips = [];
+                foreach (string bank in selectedClips.Select(clip => clip.Bank).Distinct())
                 {
-                    _ = ModelMods.Preview(ReadImportOriginal(item.Target, bank), replacement with { ReplaceGeometry = item.GeometrySelected && bank == "embedded", Clips = selectedClips.Where(clip => clip.Bank == bank).ToArray() });
+                    ModelModClipReplacement[] components = selectedClips.Where(clip => clip.Bank == bank).ToArray();
+                    EditableModel aligned = ModelMods.Preview(ReadImportOriginal(item.Target, bank), incoming with { ReplaceGeometry = false, Clips = components });
+                    normalizedClips.AddRange(components.Select(clip => clip with { Animation = aligned.Animations[clip.Slot] }));
                 }
-                replacements.Add(replacement);
+                replacements.Add(new(item.Target, normalized, item.GeometrySelected, normalizedClips) { PreserveNativeParts = incoming.PreserveNativeParts });
             }
             if (replacements.Count == 0)
             {

@@ -10,6 +10,50 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class ModelModNativeTests
 {
     [Fact]
+    public void ConstantCubicNativeFieldTracksValidateKeyValuesWithoutMistakingTangentsForPoses()
+    {
+        AnimationFrame frame = new(Vector3.Zero, [Vector3.Zero, Vector3.Zero]);
+        FieldModel source = new("field", [new(-1, 2), new(0, 1)], [], [], [], [new([frame, frame])]);
+        EditableModel original = ModelExchange.FromField(source);
+        EditableAnimation cubic = original.Animations[0] with { Channels = original.Animations[0].Channels.Select(channel => channel.Path is "translation" or "scale" ? channel with { Interpolation = "CUBICSPLINE", Values = channel.Values.SelectMany(value => new[] { Vector4.Zero, value, Vector4.Zero }).ToArray() } : channel).ToArray() };
+        ModelModReplacement replacement = new("field/sample/0", original, false, [new("embedded", 0, cubic)]);
+        EditableModel preview = ModelMods.Preview(original, replacement);
+        Assert.Equal("CUBICSPLINE", preview.Animations[0].Channels[0].Interpolation);
+        ModelMods mods = Prepare(ModelModInstaller.Plan([replacement]));
+        FieldModel result = mods.Apply("field/sample/0", source);
+        Assert.Equal(2, result.Animations[0].Frames.Count);
+        Assert.True(result.Animations[0].Frames[0].Rotations.All(rotation => rotation.Length() < 0.001f));
+    }
+
+    [Fact]
+    public void PreviewRejectsNativeNumericOverflowUsingResolvedTargetMetadata()
+    {
+        EditableModel original = ModelExchange.FromBattle(Model());
+        EditableAnimation changed = original.Animations[0] with { Channels = original.Animations[0].Channels.Select(channel => channel.Path == "translation" ? channel with { Values = [new(1000000, 0, 0, 0)] } : channel).ToArray() };
+        var metadata = System.Text.Json.Nodes.JsonNode.Parse(original.NativeMetadata.GetRawText())!;
+        metadata["Scale"] = 1000000;
+        EditableModel untrusted = original with { NativeMetadata = System.Text.Json.JsonSerializer.SerializeToElement(metadata) };
+        Assert.Throws<NotSupportedException>(() => ModelMods.Preview(original, new("battle/test.dat", untrusted, false, [new("embedded", 0, changed)])));
+        Assert.Equal(original.NativeMetadata.GetRawText(), ModelMods.Preview(original, new("battle/test.dat", untrusted, false, [])).NativeMetadata.GetRawText());
+    }
+
+    [Fact]
+    public void WorldClipsKeepTargetNativeClockAndRejectAnotherClockBeforeInstallation()
+    {
+        AnimationFrame frame = new(Vector3.Zero, [Vector3.Zero]);
+        FieldModel source = new("world", [new(-1, 0)], [], [], [], [new([frame, frame])]);
+        EditableModel target = ModelExchange.FromField(source, ModelExchange.WorldFramesPerSecond);
+        ModelModReplacement selected = new("world/0", target, false, [new("embedded", 0, target.Animations[0])]);
+        Assert.Equal(ModelExchange.WorldFramesPerSecond, ModelMods.Preview(target, selected).NativeFramesPerSecond);
+        ModelMods mods = Prepare(ModelModInstaller.Plan([selected]));
+        FieldModel result = mods.Apply("world/0", source);
+        Assert.Equal(2, result.Animations[0].Frames.Count);
+        Assert.Equal(ModelExchange.WorldFramesPerSecond, result.EditableOverride!.NativeFramesPerSecond);
+        EditableModel wrong = ModelExchange.FromField(source, ModelExchange.FramesPerSecond);
+        Assert.Throws<NotSupportedException>(() => ModelMods.Preview(target, new("world/0", wrong, false, [new("embedded", 0, wrong.Animations[0])])));
+    }
+
+    [Fact]
     public void EditedClipIsDecodedByNativeGameplayPoseSourceWithoutChangingOtherClips()
     {
         BattleModel original = Model();

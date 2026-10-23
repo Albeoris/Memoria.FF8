@@ -50,6 +50,7 @@ public static class ModelModInstaller
             {
                 throw new InvalidDataException($"Multiple selected items replace the same target: {path}.");
             }
+            model = model with { NativeMetadata = ModelExchange.RetainedNativeMetadata(model.NativeMetadata, model.Meshes.Count != 0), ExchangeManifest = null };
             byte[] bytes = ModelExchange.ExportGlb(model);
             _ = ModelExchange.ImportGlb(bytes, allowBoneCountChange: true);
             outputs.Add(new(path, bytes));
@@ -163,7 +164,16 @@ public static class ModelModInstaller
     {
         for (string? current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
         {
-            if ((Directory.Exists(current) || File.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            FileAttributes attributes;
+            try
+            {
+                attributes = File.GetAttributes(current);
+            }
+            catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+            {
+                continue;
+            }
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
                 throw new InvalidDataException("Mod installation cannot traverse a symbolic link or junction.");
             }

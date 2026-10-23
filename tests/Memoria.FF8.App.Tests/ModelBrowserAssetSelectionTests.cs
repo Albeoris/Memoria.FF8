@@ -89,6 +89,18 @@ public sealed class ModelBrowserAssetSelectionTests
         Assert.Equal(0.4f, browser.PlaybackSeconds, 5);
     }
 
+    [Fact]
+    public void Native_loop_retains_the_last_sample_for_one_frame_interval()
+    {
+        ModelBrowserController browser = Browser();
+        browser.SetClipTiming(0.1f, 0.1f);
+        browser.AdvancePlayback(0.15f);
+        Assert.Equal(0.15f, browser.PlaybackSeconds, 5);
+        browser.AdvancePlayback(0.1f);
+        Assert.Equal(0.05f, browser.PlaybackSeconds, 5);
+        Assert.Equal(0.1f, browser.ClipDuration);
+    }
+
     [Theory]
     [InlineData(640, 448)]
     [InlineData(960, 672)]
@@ -96,6 +108,10 @@ public sealed class ModelBrowserAssetSelectionTests
     public void Asset_panel_renders_beside_preview_and_pointer_toggles_only_checkbox(int width, int height)
     {
         ModelBrowserController browser = Browser();
+        for (int index = 0; index < 9; index++)
+        {
+            browser.AddAsset(new("alternative-" + index, "Weapon alternative " + index, "Weapons", false));
+        }
         browser.SetDiscoveryStatus("Complete for supported sources");
         UiView view = browser.BuildView();
         view.Resize(width, height);

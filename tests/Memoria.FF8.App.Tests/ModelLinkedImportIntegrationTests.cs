@@ -102,7 +102,7 @@ public sealed class ModelLinkedImportIntegrationTests
         EditableBone child = new("bone_1", 0, Vector3.UnitY, Quaternion.Identity, Vector3.One) { NativeIndex = 1 };
         EditableAnimation idle = new("animation_0", [new(0, "translation", [0], [Vector4.Zero])]);
         EditableAnimation other = new("animation_1", [new(1, "rotation", [0], [new(0, 0, 0, 1)])]);
-        EditableModel original = new("target", "battle", [root, child], [], [], [idle, other], JsonSerializer.SerializeToElement(new { }));
+        EditableModel original = new("target", "battle", [root, child], [], [], [idle, other], JsonSerializer.SerializeToElement(new { Bones = new[] { new BattleBone(-1, 1), new BattleBone(0, 1) }, Scale = 1f }));
         EditableModel incoming = original with
         {
             Bones = [new EditableBone("exporter_root", -1, Vector3.Zero, Quaternion.Identity, Vector3.One, false), root with { Parent = 0 }, child with { Parent = 1 }],

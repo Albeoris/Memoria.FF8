@@ -71,6 +71,8 @@ internal sealed partial class RecreateGame
         browserAssets.Clear();
         browserAssetModels.Clear();
         browserAssetFingerprints.Clear();
+        browserDiscoveryCache.Clear();
+        browserPendingDiscovery.Clear();
         browserImportOriginals.Clear();
         browserImport = null;
         modelBrowser = null;
@@ -91,6 +93,7 @@ internal sealed partial class RecreateGame
         if (refreshVariants || modelBrowserModGeneration != resourceHost.Mods.Catalog.Generation)
         {
             modelBrowserModGeneration = resourceHost.Mods.Catalog.Generation;
+            browserDiscoveryCache.Clear();
             ModCatalogSnapshot installed = new(modelBrowserModGeneration, resourceHost.Mods.Catalog.Packages, resourceHost.Mods.ReadInstalledFiles(ModFormat.Memoria));
             if (!ModelMods.TryPrepare(installed, out browserInstalledModelMods, out IReadOnlyList<ModDiagnostic> diagnostics))
             {
@@ -190,7 +193,7 @@ internal sealed partial class RecreateGame
             }
         }
         bool space = IsActive && keys.IsKeyDown(Keys.Space);
-        if (browser.AssetsOpen && !browser.SearchFocused && !browser.PreviewFocused && space && !previousBrowserSpace)
+        if (browser.AssetsOpen && !browser.SearchFocused && !browser.PreviewFocused && space && !previousBrowserSpace && !input.Confirm && !(enter && !previousModelBrowserEnter))
         {
             browser.Navigate(MenuInput.Confirm);
         }
@@ -205,7 +208,7 @@ internal sealed partial class RecreateGame
         {
             browser.Navigate(MenuInput.Tab);
         }
-        if (keyboard.UiDetailRequested)
+        if (keyboard.UiDetailRequested && !browser.AssetsOpen)
         {
             browser.Navigate(MenuInput.Alternate);
         }
@@ -272,7 +275,7 @@ internal sealed partial class RecreateGame
             Rectangle rectangle = ModelBrowserPreviewBounds(GraphicsDevice.Viewport.Bounds);
             modelPreviewGpu ??= new GpuTriangleRenderer(GraphicsDevice);
             UpdateBrowserAssemblyPreview();
-            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.RotationY, modelBrowser.RotationX, modelBrowser.Zoom, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen || modelBrowser.Loop);
+            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.RotationY, modelBrowser.RotationX, modelBrowser.Zoom, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen);
             modelPreviewRendered = true;
         }
         catch (Exception exception) when (IsModelBrowserError(exception))

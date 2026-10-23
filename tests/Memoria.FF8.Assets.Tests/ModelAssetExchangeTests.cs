@@ -215,6 +215,45 @@ public sealed class ModelAssetExchangeTests
         Assert.Equal(1 / 30.5f, result.Clips[0].Animation.Duration);
     }
 
+    [Fact]
+    public void ClipOnlyManifestExcludesUnselectedNativePayloadAndRetainsRigContract()
+    {
+        ModelAssetSelection source = Selection();
+        JsonElement full = JsonSerializer.SerializeToElement(new
+        {
+            Bones = new[] { new { Parent = -1, Length = 12 } },
+            Scale = 0.1f,
+            ControlBones = new { First = 0, Second = -1, Additional = -1, RawHeader = 1 },
+            NativeWeaponUsesBodySkeleton = false,
+            Meshes = new[] { "unselected-geometry-sentinel" },
+            Vertices = new[] { "unselected-vertices-sentinel" },
+            Textures = new[] { "unselected-texture-sentinel" },
+            Animations = new[] { "unselected-clip-sentinel" },
+            NativePoseSource = new { Animations = "unselected-compressed-bank-sentinel" },
+            Sequences = "unselected-sequences-sentinel",
+            NativeActionCameraBank = "unselected-camera-sentinel",
+            NativeBodyTexturePack = "unselected-pack-sentinel",
+            NativeEyes = new { Bank = "unselected-eye-bank-sentinel", Texture = new { Depth = 1, WidthWords = 2, Height = 3, Words = "unselected-eye-pixels-sentinel" } }
+        });
+        source = source with { Objects = source.Objects.Select(item => item with { GeometrySelected = false, Model = item.Model with { NativeMetadata = full } }).ToArray() };
+        byte[] bytes = ModelAssetExchange.ExportGlb(source);
+        ModelAssetImportInventory result = ModelAssetExchange.InspectGlb(bytes);
+        Assert.DoesNotContain("unselected-", Encoding.UTF8.GetString(bytes));
+        Assert.All(result.Objects, item =>
+        {
+            Assert.True(item.Model.NativeMetadata.TryGetProperty("Bones", out _));
+            Assert.Equal(0.1f, item.Model.NativeMetadata.GetProperty("Scale").GetSingle());
+            Assert.True(item.Model.NativeMetadata.TryGetProperty("ControlBones", out _));
+            Assert.False(item.Model.NativeMetadata.TryGetProperty("NativeEyes", out _));
+        });
+        JsonElement geometry = ModelExchange.RetainedNativeMetadata(full);
+        Assert.True(geometry.TryGetProperty("NativeEyes", out JsonElement eyes));
+        Assert.Equal(2, eyes.GetProperty("Texture").GetProperty("WidthWords").GetInt32());
+        Assert.False(eyes.TryGetProperty("Bank", out _));
+        Assert.False(eyes.GetProperty("Texture").TryGetProperty("Words", out _));
+        Assert.DoesNotContain("unselected-", geometry.GetRawText());
+    }
+
     public static ModelAssetSelection Selection()
     {
         EditableModel Model(string name)

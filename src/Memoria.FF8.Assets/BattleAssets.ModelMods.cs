@@ -27,17 +27,21 @@ public sealed partial class BattleAssets
             foreach (string bank in modelOverrides.BattleBanks(modelId))
             {
                 IGameNativeMemorySource memory = GameDataResources.ReadNativeMemory(resources);
-                ModelExternalBankDescriptor? descriptor = ModelAssetDiscoveryBindings.SquallExternalBanks.SingleOrDefault(item => item.Bank == bank);
+                ModelBoundExternalBank? binding = ModelExternalBankCatalog.ForCharacter(character, NativeActions).SingleOrDefault(item => item.Descriptor.Bank == bank);
                 byte[] bytes;
                 uint? sourceDirectory = null;
-                if (descriptor is not null)
+                if (binding is not null)
                 {
-                    if (character != 0)
+                    if (binding.UnsupportedReason is string unsupported)
                     {
-                        throw new NotSupportedException("This external bank is only bound by the Squall loader.");
+                        throw new NotSupportedException(unsupported);
                     }
-                    bytes = ModelAssetDiscoveryBindings.ReadExternalBank(memory, descriptor.Address);
-                    sourceDirectory = descriptor.Address;
+                    if (linked && binding.SectionCount != 3)
+                    {
+                        throw new NotSupportedException("This external bank has no independent linked weapon animation section.");
+                    }
+                    bytes = ModelAssetDiscoveryBindings.ReadExternalBank(memory, binding.Descriptor.Address, binding.SectionCount);
+                    sourceDirectory = binding.Descriptor.Address;
                 }
                 else if (bank.StartsWith("victory-", StringComparison.Ordinal) && int.TryParse(bank.AsSpan(8), out int section))
                 {

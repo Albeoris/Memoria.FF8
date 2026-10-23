@@ -60,19 +60,15 @@ public sealed partial class GameAssets
         {
             EditableModel context = ModelExchange.FromBattle(bodyModel);
             yield return new(bodyEntry.Id, "Owner context: " + bodyEntry.Name, ModelAssetDiscoveryKind.Object, bodyEntry.Id, bodyEntry.ResourcePath, "embedded", -1, "native body selector 0 (optional owner context)", () => context);
-        }
-        if (character == 7)
-        {
-            foreach (ModelAssetDiscoveryItem clip in DiscoverVictoryBank(selected, bodyEntry, bodyModel, weapons, memory, character, selectedWeapon))
-            {
-                yield return clip;
-            }
-            yield break;
+
         }
         BattleWeaponDefinition[] definitions = [];
+        IReadOnlyList<BattleNativeAction> nativeActions = [];
         try
         {
-            definitions = BattleKernelReader.Weapons(resources.Read(new ResourceKey("main/kernel.bin"))).Where(definition => definition.CharacterId == character).ToArray();
+            byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
+            definitions = BattleKernelReader.Weapons(kernel).Where(definition => definition.CharacterId == character && character != 7).ToArray();
+            nativeActions = BattleActionKernelReader.ReadCatalogue(kernel).NativeActions;
         }
         catch (Exception exception) when (CatalogError(exception))
         {
@@ -146,49 +142,53 @@ public sealed partial class GameAssets
         {
             yield return DiscoveryDiagnostic(selected, "weapon-owner", "The selected weapon has no kernel/native selector owner binding.");
         }
-        if (character == 0)
+        if (selectedWeapon && weapons.Count > 0)
         {
-            foreach (ModelExternalBankDescriptor descriptor in ModelAssetDiscoveryBindings.SquallExternalBanks)
+            EditableModel context = ModelExchange.FromBattle(bodyModel);
+            foreach (ModelAssetDiscoveryItem clip in DiscoverEditable(bodyEntry, context, "embedded", "native weapon owner context; body skeletal bank", () => context, false))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                byte[]? bank = null;
-                error = null;
-                try
+                yield return clip with { RigOwnerId = bodyEntry.Id };
+            }
+        }
+        foreach (ModelBoundExternalBank binding in ModelExternalBankCatalog.ForCharacter(character, nativeActions))
+        {
+            ModelExternalBankDescriptor descriptor = binding.Descriptor;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (binding.UnsupportedReason is string reason)
+            {
+                yield return DiscoveryDiagnostic(selected, descriptor.Bank, reason);
+                continue;
+            }
+            byte[]? bank = null;
+            error = null;
+            try
+            {
+                bank = ModelAssetDiscoveryBindings.ReadExternalBank(memory, descriptor.Address, binding.SectionCount);
+            }
+            catch (Exception exception) when (CatalogError(exception))
+            {
+                error = exception.Message;
+            }
+            if (bank is null)
+            {
+                yield return DiscoveryDiagnostic(selected, descriptor.Bank, error ?? "External bank unavailable.");
+                continue;
+            }
+            foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, bodyModel, bank, descriptor.Bank, false, bodyEntry.Id))
+            {
+                yield return clip;
+            }
+            foreach ((ModelCatalogEntry weaponEntry, BattleModel weaponModel) in weapons.Where(item => item.Model.NativeWeaponUsesBodySkeleton != true && binding.SectionCount == 3))
+            {
+                foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(weaponEntry, weaponModel, bank, descriptor.Bank, true, bodyEntry.Id))
                 {
-                    bank = ModelAssetDiscoveryBindings.ReadExternalBank(memory, descriptor.Address);
-                }
-                catch (Exception exception) when (CatalogError(exception))
-                {
-                    error = exception.Message;
-                }
-                if (bank is null)
-                {
-                    yield return DiscoveryDiagnostic(selected, descriptor.Bank, error ?? "External bank unavailable.");
-                    continue;
-                }
-                if (!selectedWeapon)
-                {
-                    foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, bodyModel, bank, descriptor.Bank, false, bodyEntry.Id))
-                    {
-                        yield return clip;
-                    }
-                }
-                foreach ((ModelCatalogEntry weaponEntry, BattleModel weaponModel) in weapons.Where(item => item.Model.NativeWeaponUsesBodySkeleton != true))
-                {
-                    foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(weaponEntry, weaponModel, bank, descriptor.Bank, true, bodyEntry.Id))
-                    {
-                        yield return clip;
-                    }
+                    yield return clip;
                 }
             }
         }
         foreach (ModelAssetDiscoveryItem clip in DiscoverVictoryBank(selected, bodyEntry, bodyModel, weapons, memory, character, selectedWeapon))
         {
             yield return clip;
-        }
-        if (character != 0)
-        {
-            yield return DiscoveryDiagnostic(selected, "external-coverage", "Other character effect-owned banks require individual binding descriptors; embedded and mapped victory banks are supported.");
         }
     }
 
@@ -291,12 +291,9 @@ public sealed partial class GameAssets
             yield break;
         }
         string bankId = "victory-" + section;
-        if (!selectedWeapon)
+        foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, body, bank, bankId, false, bodyEntry.Id))
         {
-            foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, body, bank, bankId, false, bodyEntry.Id))
-            {
-                yield return clip;
-            }
+            yield return clip;
         }
         foreach ((ModelCatalogEntry entry, BattleModel model) in weapons.Where(item => item.Model.NativeWeaponUsesBodySkeleton != true))
         {

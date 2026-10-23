@@ -10,7 +10,7 @@ namespace Memoria.FF8;
 /// <summary>Original normal-foot world component with bounded native field reentry and complete saved-foot entry62 reload. Object collision, encounters and idle gestures remain unsupported.</summary>
 internal sealed partial class WorldMapScene : IDisposable
 {
-    public const double SimulationFps = 30.5;
+    public const double SimulationFps = ModelExchange.WorldFramesPerSecond;
     private const double NativeAngleUnit = 0.0015339808305725455;
     private const double NativeAtanScale = 651.8986206054688;
     private GameSession session;

@@ -26,7 +26,7 @@ internal static class ModelPreviewRenderer
         float size = Math.Min(width, height) * 0.43f * zoom / radius;
         Matrix4x4 rotation = Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateRotationX(pitch);
         float duration = (uint)animation < model.Animations.Count ? model.Animations[animation].Duration : 0;
-        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(model, animation, duration > 0 ? loop ? seconds % duration : Math.Clamp(seconds, 0, duration) : 0);
+        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(model, animation, duration > 0 ? loop ? seconds % (duration + 1 / model.NativeFramesPerSecond) : Math.Clamp(seconds, 0, duration) : 0);
         renderer.Begin(width, height, new Vector4(0.055f, 0.065f, 0.09f, 1));
         try
         {

@@ -260,12 +260,8 @@ public sealed partial class BattleAssets : IDisposable
 
     public BattleModel LoadPlayer(int characterId, int costume = 0)
     {
-        IReadOnlyList<string> names = PlayerModelNames(characterId);
-        if ((uint)costume >= names.Count)
-        {
-            throw new NotSupportedException($"Character {characterId} costume {costume} has no installed battle model.");
-        }
-        return LoadModel(names[costume]);
+        string path = ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(resources), characterId, false, costume);
+        return LoadModel(Path.GetFileName(path));
     }
 
     public BattleModel? ResolveWeaponModel(int characterId, int savedWeaponId, BattleModel body)
@@ -274,23 +270,11 @@ public sealed partial class BattleAssets : IDisposable
         {
             throw new NotSupportedException($"Saved weapon {savedWeaponId} does not belong to character {characterId}.");
         }
-        IReadOnlyList<int> installed = WeaponModelIds(characterId);
-        if (installed.Count == 0)
+        if (characterId == 7)
         {
-            if (WeaponDefinitions[savedWeaponId].Name == "None")
-            {
-                return null;
-            }
-            throw new FileNotFoundException($"Character {characterId} has no installed weapon model.");
+            return null;
         }
-        BattleWeaponDefinition[] choices = WeaponDefinitions.Where(weapon => weapon.CharacterId == characterId).ToArray();
-        int index = Array.FindIndex(choices, weapon => weapon.Id == savedWeaponId);
-        if (choices.Length != installed.Count || index < 0)
-        {
-            throw new NotSupportedException("Original character weapon records do not match the installed nonempty model catalog.");
-        }
-        // TODO(TD-009): Match original per-character kernel order to installed model order until the executable party-model table is proved.
-        BattleModel model = LoadWeapon(characterId, installed[index], body);
+        BattleModel model = LoadWeapon(ResolvePlayerWeaponName(characterId, savedWeaponId), body);
         // The original reduced loader supplies sequence/sound services for Zell and Kiros; it creates no second render header.
         return characterId is 1 or 9 ? null : model;
     }
@@ -306,27 +290,47 @@ public sealed partial class BattleAssets : IDisposable
         {
             return character;
         }
-        IReadOnlyList<int> installed = WeaponModelIds(characterId);
-        if (installed.Count == 0)
+        return LoadWeapon(ResolvePlayerWeaponName(characterId, savedWeaponId), character);
+    }
+
+    private string ResolvePlayerWeaponName(int characterId, int? savedWeaponId)
+    {
+        if (savedWeaponId is int selected)
         {
-            throw new NotSupportedException($"Character {characterId} has no installed battle sequence owner.");
-        }
-        int index = 0;
-        if (savedWeaponId is int id)
-        {
-            BattleWeaponDefinition[] choices = WeaponDefinitions.Where(weapon => weapon.CharacterId == characterId).ToArray();
-            index = Array.FindIndex(choices, weapon => weapon.Id == id);
-            if (choices.Length != installed.Count || index < 0)
+            if ((uint)selected >= WeaponDefinitions.Count || WeaponDefinitions[selected].CharacterId != characterId)
             {
-                throw new NotSupportedException($"Weapon {id} has no installed character {characterId} battle sequence binding.");
+                throw new NotSupportedException($"Weapon {selected} does not belong to character {characterId}.");
+            }
+            string path = ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(resources), characterId, true, WeaponDefinitions[selected].Tier);
+            return Path.GetFileName(path);
+        }
+        foreach (BattleWeaponDefinition definition in WeaponDefinitions.Where(weapon => weapon.CharacterId == characterId))
+        {
+            string name;
+            try
+            {
+                name = Path.GetFileName(ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(resources), characterId, true, definition.Tier));
+            }
+            catch (NotSupportedException)
+            {
+                continue;
+            }
+            if (entries.TryGetValue(name, out IFlArchiveEntry? entry) && entry.Size > 0)
+            {
+                return name;
             }
         }
-        return LoadWeapon(characterId, installed[index], character);
+        throw new NotSupportedException($"Character {characterId} has no valid native weapon sequence owner.");
     }
 
     public BattleModel LoadWeapon(int characterId, int weaponModelId, BattleModel character)
     {
         string name = $"d{characterId:X}w{weaponModelId:000}.dat";
+        return LoadWeapon(name, character);
+    }
+
+    private BattleModel LoadWeapon(string name, BattleModel character)
+    {
         string key = $"{name}|{character.Name}";
         if (!models.TryGetValue(key, out BattleModel? model))
         {

@@ -193,11 +193,12 @@ public sealed partial class GameAssets
         }
         if (entry.Category == "Battle weapon")
         {
-            string bodyName;
-            using (IFlArchive battle = OpenArchive("battle"))
+            if (!TryPartyAddress(entry.ResourcePath, out int character, out bool linked) || !linked)
             {
-                bodyName = battle.Entries.Select(item => Path.GetFileName(item.RelativePath.Replace('\\', '/'))).Where(name => name.StartsWith(filename[..2] + "c", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".dat", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault() ?? throw new NotSupportedException("This weapon has no matching character skeleton.");
+                throw new NotSupportedException("This weapon has no native character owner binding.");
             }
+            string bodyPath = ModelAssetDiscoveryBindings.ResolvePartyFile(ReadNativeMemory(), character, false, 0);
+            string bodyName = Path.GetFileName(bodyPath);
             byte[] bodyBytes = resources.Read(new ResourceKey("battle/" + bodyName));
             BattleModel body = resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + bodyName), bodyBytes) ?? BattleResourceReader.ReadModel(bodyName, bodyBytes);
             BattleModel weapon = resources.GetSource<IBattleModelSource>()?.ReadWeapon(new ResourceKey(entry.ResourcePath), bytes, body) ?? BattleResourceReader.ReadWeapon(filename, bytes, body);

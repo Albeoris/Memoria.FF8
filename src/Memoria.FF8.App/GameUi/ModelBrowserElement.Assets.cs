@@ -8,7 +8,7 @@ internal sealed partial class ModelBrowserElement
     private static UiRect PlaybackButton(int index) => new(18 + index * 79, 466, 74, 27);
     private static readonly UiRect AssetSearchBounds = new(514, 129, 416, 30);
     private static readonly UiRect AssetContinueBounds = new(514, 490, 416, 30);
-    private const int AssetPageSize = 8;
+    private const int AssetPageSize = 7;
 
     private void DrawAssets(IUiCanvas canvas, UiTheme theme)
     {
@@ -39,10 +39,10 @@ internal sealed partial class ModelBrowserElement
         {
             Button(canvas, theme, PlaybackButton(index), controls[index]);
         }
-        float fraction = controller.ClipDuration > 0 ? controller.PlaybackSeconds / controller.ClipDuration : 0;
+        float fraction = controller.ClipDuration > 0 ? Math.Clamp(controller.PlaybackSeconds / controller.ClipDuration, 0, 1) : 0;
         canvas.Fill(new UiRect(18, 505, 474, 9), theme.BorderLight);
         canvas.Fill(new UiRect(18, 505, 474 * fraction, 9), theme.Highlight);
-        int frame = (int)MathF.Round(controller.PlaybackSeconds / controller.ClipFrameSeconds);
+        int frame = (int)MathF.Round(Math.Min(controller.PlaybackSeconds, controller.ClipDuration) / controller.ClipFrameSeconds);
         int count = (int)MathF.Round(controller.ClipDuration / controller.ClipFrameSeconds) + 1;
         Label(canvas, $"Frame {frame}/{count} · {controller.SelectionSummary}", 12, new UiRect(24, 542, 894, 28), theme.Foreground);
         Label(canvas, active?.Detail ?? "Rigs, materials and textures are required dependencies.", 12, new UiRect(440, 578, 490, 34), theme.Muted);
@@ -86,7 +86,7 @@ internal sealed partial class ModelBrowserElement
         {
             controller.ToggleGroup(group.Group);
         }
-        else if (new UiRect(514, 167, 416, 280).Contains(x, y) && y < 414)
+        else if (new UiRect(514, 167, 416, AssetPageSize * 35).Contains(x, y))
         {
             int index = controller.AssetIndex / AssetPageSize * AssetPageSize + (int)((y - 167) / 35);
             controller.SelectAssetRow(index, true);

@@ -9,6 +9,41 @@ internal static class ModelModAnimationConverter
     private static readonly Matrix4x4 ToGltf = Matrix4x4.CreateRotationX(-MathF.PI / 2);
     private static readonly Matrix4x4 ToNative = Matrix4x4.CreateRotationX(MathF.PI / 2);
 
+    public static void Validate(EditableModel edited)
+    {
+        if (edited.Animations.Count == 0)
+        {
+            return;
+        }
+        if (!edited.NativeMetadata.TryGetProperty("Bones", out var nativeBones))
+        {
+            throw new NotSupportedException("Native clip validation requires the resolved target skeleton metadata.");
+        }
+        if (edited.Kind == "battle")
+        {
+            BattleBone[] bones = System.Text.Json.JsonSerializer.Deserialize<BattleBone[]>(nativeBones)!;
+            float scale = edited.NativeMetadata.GetProperty("Scale").GetSingle();
+            BattleModel sampled = ToBattle(edited, new(edited.Name, bones, [], [], [], scale));
+            foreach (BattleAnimation animation in sampled.Animations)
+            {
+                ModelModNativeAnimationWriter.Validate(animation, bones.Length);
+            }
+        }
+        else if (edited.Kind == "field")
+        {
+            ModelBone[] bones = System.Text.Json.JsonSerializer.Deserialize<ModelBone[]>(nativeBones)!;
+            FieldModel sampled = ToField(edited, new(edited.Name, bones, [], [], [], []));
+            if (sampled.Animations.SelectMany(animation => animation.Frames).Any(frame => Math.Abs(frame.Translation.X) > short.MaxValue || Math.Abs(frame.Translation.Y) > short.MaxValue || Math.Abs(frame.Translation.Z) > short.MaxValue))
+            {
+                throw new NotSupportedException("An animation root translation exceeds the native signed WORD range.");
+            }
+        }
+        else
+        {
+            throw new NotSupportedException("The target domain has no native skeletal clip representation.");
+        }
+    }
+
     public static BattleModel ToBattle(EditableModel edited, BattleModel model)
     {
         EditableModel original = ModelExchange.FromBattle(model with { EditableOverride = null });

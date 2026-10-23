@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
@@ -154,6 +155,131 @@ public sealed class ModelAssetDiscoveryTests
         Assert.All(items.Where(item => item.Kind is ModelAssetDiscoveryKind.Clip or ModelAssetDiscoveryKind.Object), item => Assert.Equal(selected.Id, item.OwnerId));
         Assert.DoesNotContain(items, item => item.Provenance.Contains("main_chr", StringComparison.Ordinal));
     }
+    [Theory]
+    [InlineData(1)]
+    [InlineData(9)]
+    public void DirectReducedWeaponHasOnlyOwnerBoundBodyClips(int character)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
+        Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith($"battle/d{character:x}w", StringComparison.OrdinalIgnoreCase));
+        ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
+        ModelAssetDiscoveryItem weapon = Assert.Single(items, item => item.Kind == ModelAssetDiscoveryKind.Object && item.Id == selected.Id);
+        Assert.True(weapon.UsesOwnerSkeleton);
+        Assert.NotEqual(selected.Id, weapon.RigOwnerId);
+        Assert.Equal(weapon.OwnerId, weapon.RigOwnerId);
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Object && item.Id == weapon.RigOwnerId);
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == weapon.RigOwnerId && item.Bank == "embedded");
+        Assert.DoesNotContain(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Id.StartsWith(selected.Id + "/clips/", StringComparison.Ordinal));
+        Assert.Empty(weapon.Load!().Animations);
+        if (character == 9)
+        {
+            Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == weapon.RigOwnerId && item.Bank.StartsWith("victory-", StringComparison.Ordinal));
+        }
+    }
+    [Fact]
+    public void DirectStandardWeaponRetainsIndependentAndOwnerExternalComponents()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
+        Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith("battle/d0w", StringComparison.OrdinalIgnoreCase));
+        ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
+        ModelAssetDiscoveryItem weapon = Assert.Single(items, item => item.Kind == ModelAssetDiscoveryKind.Object && item.Id == selected.Id);
+        Assert.False(weapon.UsesOwnerSkeleton);
+        Assert.Equal(selected.Id, weapon.RigOwnerId);
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == weapon.OwnerId && item.Bank == "finisher-165");
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == selected.Id && item.Bank == "finisher-165");
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == selected.Id && item.Bank == "embedded");
+    }
+
+    [Fact]
+    public void InstalledGameplayUsesTheSameNativeBodyAndWeaponReplacementTargets()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
+        Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
+        RecordingOverrides overrides = new();
+        using BattleAssets assets = new(TestResources.GameDirectory, modelOverrides: overrides);
+        foreach (BattleWeaponDefinition definition in assets.WeaponDefinitions)
+        {
+            NativeBattleModelDatSource nativeBody = assets.ReadNativeModelDatSource((byte)definition.CharacterId, false, 0);
+            BattleModel body = assets.LoadPlayer(definition.CharacterId);
+            Assert.Equal(nativeBody.Name, body.Name, ignoreCase: true);
+            Assert.Contains("battle/" + nativeBody.Name.ToLowerInvariant(), overrides.Targets);
+            if (definition.CharacterId == 7)
+            {
+                Assert.Null(assets.ResolveWeaponModel(definition.CharacterId, definition.Id, body));
+                continue;
+            }
+            NativeBattleModelDatSource nativeWeapon = assets.ReadNativeModelDatSource((byte)definition.CharacterId, true, (byte)definition.Tier);
+            overrides.Targets.Clear();
+            BattleModel? weapon = assets.ResolveWeaponModel(definition.CharacterId, definition.Id, body);
+            Assert.Contains("battle/" + nativeWeapon.Name.ToLowerInvariant(), overrides.Targets);
+            if (definition.CharacterId is 1 or 9)
+            {
+                Assert.Null(weapon);
+            }
+            else
+            {
+                Assert.Equal(nativeWeapon.Name, weapon!.Name, ignoreCase: true);
+            }
+            Assert.NotNull(assets.LoadPlayerSequences(definition.CharacterId, definition.Id, body));
+        }
+        BattleModel squall = assets.LoadPlayer(0);
+        overrides.Targets.Clear();
+        Assert.NotNull(assets.LoadPlayerSequences(0, null, squall));
+        BattleWeaponDefinition first = assets.WeaponDefinitions.First(definition => definition.CharacterId == 0);
+        NativeBattleModelDatSource expectedDefault = assets.ReadNativeModelDatSource(0, true, (byte)first.Tier);
+        Assert.Contains("battle/" + expectedDefault.Name.ToLowerInvariant(), overrides.Targets);
+    }
+
+    [Theory]
+    [InlineData(1, "duel-112")]
+    [InlineData(2, "shot-188")]
+    public void InstalledExplicitDuelAndShotActorBanksAreDiscoveredWithoutActions(int character, string bank)
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
+        Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
+        ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
+        Assert.True(items.Any(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && item.OwnerId == selected.Id), string.Join("; ", items.Where(item => item.Kind == ModelAssetDiscoveryKind.Diagnostic).Select(item => item.Id + ": " + item.Error)));
+        ModelAssetDiscoveryItem clip = items.First(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && item.OwnerId == selected.Id);
+        Assert.True(clip.NativeFrameCount > 0);
+        Assert.True(clip.Load!().Animations.Count > clip.ClipIndex);
+        if (character == 1)
+        {
+            Assert.DoesNotContain(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && item.OwnerId != selected.Id);
+        }
+    }
+
+    [Fact]
+    public void UnsupportedActorBanksRemainDiagnosticsWithoutClipRows()
+    {
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
+        Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
+        using GameAssets assets = new(TestResources.GameDirectory);
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith("battle/d9c", StringComparison.OrdinalIgnoreCase));
+        ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Diagnostic && item.Id.EndsWith("/actor-262", StringComparison.Ordinal) && item.Error is not null);
+        Assert.DoesNotContain(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == "actor-262");
+        Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Coverage && item.Error is not null);
+    }
+
+    private sealed class RecordingOverrides : IModelOverrideSource
+    {
+        public List<string> Targets { get; } = [];
+        public FieldModel Apply(string modelId, FieldModel original) => original;
+        public BattleModel Apply(string modelId, BattleModel original)
+        {
+            Targets.Add(modelId);
+            return original;
+        }
+        public BattleStage Apply(string modelId, BattleStage original) => original;
+        public WorldStaticModel Apply(string modelId, WorldStaticModel original) => original;
+    }
+
     private sealed class FakeMemory : IGameNativeMemorySource
     {
         private readonly Dictionary<uint, byte[]> blocks = [];

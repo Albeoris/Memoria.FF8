@@ -2,14 +2,19 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-public sealed record ModelBrowserAssetRow(string Id, string Name, string Group, bool IsClip, bool Supported = true, string Detail = "", bool DefaultSelected = true);
+public sealed record ModelBrowserAssetRow(string Id, string Name, string Group, bool IsClip, bool Supported = true, string Detail = "", bool DefaultSelected = true)
+{
+    public string? RigId { get; init; }
+}
 
 public sealed partial class ModelBrowserController
 {
     private readonly List<ModelBrowserAssetRow> assets = [];
+    private readonly HashSet<string> assetIds = new(StringComparer.Ordinal);
     private readonly HashSet<string> selectedAssets = new(StringComparer.Ordinal);
     private Action? assetContinue;
     private bool manuallySelectedAssets;
+    private string? beforeAssetHints;
     public bool AssetsOpen { get; private set; }
     public bool ImportSelection { get; private set; }
     public bool ClipsTab { get; private set; }
@@ -28,12 +33,20 @@ public sealed partial class ModelBrowserController
     public IReadOnlyList<ModelBrowserAssetRow> Assets => assets;
     public IReadOnlySet<string> SelectedAssets => selectedAssets;
     public IReadOnlyList<ModelBrowserAssetRow> VisibleAssets => assets.Where(row => row.IsClip == ClipsTab && MatchesSearch(row.Name + " " + row.Group + " " + row.Detail, AssetSearch)).ToArray();
-    public int HiddenSelectedCount => assets.Count(row => selectedAssets.Contains(row.Id) && !VisibleAssets.Any(visible => visible.Id == row.Id));
-    public string SelectionSummary => $"{assets.Count(row => !row.IsClip && selectedAssets.Contains(row.Id))} objects · {assets.Count(row => row.IsClip && selectedAssets.Contains(row.Id))} clip components · {HiddenSelectedCount} hidden selected";
+    public int HiddenSelectedCount
+    {
+        get
+        {
+            HashSet<string> visible = VisibleAssets.Select(row => row.Id).ToHashSet(StringComparer.Ordinal);
+            return selectedAssets.Count(id => !visible.Contains(id));
+        }
+    }
+    public string SelectionSummary => $"{assets.Count(row => !row.IsClip && selectedAssets.Contains(row.Id))} objects · {assets.Where(row => row.IsClip && selectedAssets.Contains(row.Id)).Select(row => row.Group).Distinct().Count()} groups · {assets.Count(row => row.IsClip && selectedAssets.Contains(row.Id))} components · {assets.Where(row => selectedAssets.Contains(row.Id)).Select(row => row.RigId).Where(rig => rig is not null).Distinct().Count()} rigs · {assets.Count} discovered · {HiddenSelectedCount} hidden";
 
     public void ResetAssets()
     {
         assets.Clear();
+        assetIds.Clear();
         selectedAssets.Clear();
         manuallySelectedAssets = false;
         ActiveObject = null;
@@ -45,7 +58,7 @@ public sealed partial class ModelBrowserController
 
     public void AddAsset(ModelBrowserAssetRow row)
     {
-        if (assets.Any(existing => existing.Id == row.Id))
+        if (!assetIds.Add(row.Id))
         {
             return;
         }
@@ -68,6 +81,11 @@ public sealed partial class ModelBrowserController
 
     public void OpenAssetPanel(Action? continueAction = null, bool importing = false)
     {
+        if (!AssetsOpen)
+        {
+            beforeAssetHints = Hints;
+        }
+        Hints = "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection";
         AssetsOpen = true;
         ImportSelection = importing;
         assetContinue = continueAction;
@@ -79,6 +97,11 @@ public sealed partial class ModelBrowserController
     public void CloseAssetPanel()
     {
         AssetsOpen = false;
+        if (beforeAssetHints is not null)
+        {
+            Hints = beforeAssetHints;
+            beforeAssetHints = null;
+        }
         assetContinue = null;
         SearchFocused = false;
         PreviewFocused = false;
@@ -211,7 +234,7 @@ public sealed partial class ModelBrowserController
         if (Playing && ClipDuration > 0)
         {
             float next = PlaybackSeconds + Math.Max(0, seconds) * PlaybackSpeed;
-            PlaybackSeconds = Loop ? next % ClipDuration : Math.Min(next, ClipDuration);
+            PlaybackSeconds = Loop ? next % (ClipDuration + ClipFrameSeconds) : Math.Min(next, ClipDuration);
         }
     }
 
@@ -256,7 +279,7 @@ public sealed partial class ModelBrowserController
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
         {
-            int step = input is MenuInput.PageUp or MenuInput.PageDown ? 9 : 1;
+            int step = input is MenuInput.PageUp or MenuInput.PageDown ? 7 : 1;
             SelectAssetRow(AssetIndex + (input is MenuInput.Up or MenuInput.PageUp ? -step : step), true);
         }
         else if (input is MenuInput.Left or MenuInput.Right)

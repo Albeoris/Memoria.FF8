@@ -381,29 +381,50 @@ public static partial class ModelExchange
         return result;
     }
 
-    private static IReadOnlyList<BattleMesh> NativeBattleMeshes(EditableModel model)
+    internal static IReadOnlyList<int[]> BattleMeshPartGroups(EditableModel model)
     {
-        IReadOnlyList<Vector3[]> pose = Pose(model, -1, 0);
         if (model.Meshes.Any(mesh => mesh.NativePart > 4095))
         {
             throw new InvalidDataException("Native geometry part index exceeds supported limits.");
         }
-        List<BattleMesh> parts = [];
         int nextPart = model.Meshes.Where(mesh => mesh.NativePart >= 0).Select(mesh => mesh.NativePart + 1).DefaultIfEmpty(0).Max();
-        var groups = model.Meshes.Select((mesh, index) => (mesh, index, part: mesh.NativePart >= 0 ? mesh.NativePart : nextPart++)).GroupBy(item => item.part).OrderBy(group => group.Key);
-        foreach (var group in groups)
+        Dictionary<int, List<int>> groups = [];
+        for (int index = 0; index < model.Meshes.Count; index++)
         {
-            while (parts.Count < group.Key)
+            int part = model.Meshes[index].NativePart >= 0 ? model.Meshes[index].NativePart : nextPart++;
+            if (!groups.TryGetValue(part, out List<int>? meshes))
             {
-                parts.Add(new BattleMesh([], []));
+                meshes = [];
+                groups.Add(part, meshes);
             }
+            meshes.Add(index);
+        }
+        int count = groups.Keys.Select(part => part + 1).DefaultIfEmpty(0).Max();
+        return Enumerable.Range(0, count).Select(part => groups.TryGetValue(part, out List<int>? meshes) ? meshes.ToArray() : []).ToArray();
+    }
+
+    internal static IReadOnlyList<Vector3[]> NativeBattlePartPose(EditableModel model, IReadOnlyList<Vector3[]> pose)
+    {
+        if (pose.Count != model.Meshes.Count)
+        {
+            throw new InvalidDataException("Editable pose primitives do not match their geometry.");
+        }
+        return BattleMeshPartGroups(model).Select(group => group.SelectMany(index => pose[index]).Select(ToNative).ToArray()).ToArray();
+    }
+
+    private static IReadOnlyList<BattleMesh> NativeBattleMeshes(EditableModel model)
+    {
+        IReadOnlyList<Vector3[]> pose = Pose(model, -1, 0);
+        List<BattleMesh> parts = [];
+        foreach (int[] group in BattleMeshPartGroups(model))
+        {
             List<BattleVertex> vertices = [];
             List<BattleFace> faces = [];
-            foreach (var item in group)
+            foreach (int meshIndex in group)
             {
-                EditableMesh mesh = item.mesh;
+                EditableMesh mesh = model.Meshes[meshIndex];
                 int offset = vertices.Count;
-                vertices.AddRange(pose[item.index].Select(position => new BattleVertex(ToNative(position), 0)));
+                vertices.AddRange(pose[meshIndex].Select(position => new BattleVertex(ToNative(position), 0)));
                 for (int index = 0; index < mesh.Indices.Count; index += 3)
                 {
                     int[] triangle = [mesh.Indices[index], mesh.Indices[index + 1], mesh.Indices[index + 2]];

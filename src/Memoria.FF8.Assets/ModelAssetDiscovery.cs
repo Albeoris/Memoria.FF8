@@ -6,7 +6,14 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-public enum ModelAssetDiscoveryKind { Object, Clip, Diagnostic, Progress, Coverage }
+public enum ModelAssetDiscoveryKind
+{
+    Object,
+    Clip,
+    Diagnostic,
+    Progress,
+    Coverage
+}
 
 /// <summary>A supported native binding. Load retains the complete owner rig; ClipIndex selects one finite clip.</summary>
 public sealed record ModelAssetDiscoveryItem(string Id, string Name, ModelAssetDiscoveryKind Kind, string OwnerId, string ResourcePath, string Bank, int ClipIndex, string Provenance, Func<EditableModel>? Load = null)
@@ -71,15 +78,15 @@ public static class ModelAssetDiscoveryBindings
         return "battle/" + value;
     }
 
-    public static byte[] ReadExternalBank(IGameNativeMemorySource memory, uint address)
+    public static byte[] ReadExternalBank(IGameNativeMemorySource memory, uint address, int expectedSectionCount = 3)
     {
         byte[] header = memory.Read(address, 20);
-        if (BinaryPrimitives.ReadInt32LittleEndian(header) != 3)
+        if (expectedSectionCount is not (2 or 3) || BinaryPrimitives.ReadInt32LittleEndian(header) != expectedSectionCount)
         {
-            throw new NotSupportedException("External skeletal bank requires the supported three-section directory.");
+            throw new NotSupportedException("External skeletal bank differs from its explicit body-only or paired directory binding.");
         }
-        int length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(16));
-        if (length is < 20 or > 16 * 1024 * 1024)
+        int length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4 + expectedSectionCount * 4));
+        if (length < 8 + expectedSectionCount * 4 || length > 16 * 1024 * 1024)
         {
             throw new InvalidDataException("External skeletal bank length exceeds its bounds.");
         }

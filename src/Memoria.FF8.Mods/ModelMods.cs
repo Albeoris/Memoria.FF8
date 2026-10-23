@@ -140,11 +140,15 @@ public sealed class ModelMods : IModelOverrideSource
         {
             return edited;
         }
+        if (variant.ClipSlot is not null && Math.Abs(original.NativeFramesPerSecond - edited.NativeFramesPerSecond) > 0.0001f)
+        {
+            throw new NotSupportedException("The imported clip clock does not match the target native playback contract.");
+        }
+        int[] retainedParts = variant.GeometryOnly && edited.NativeMetadata.ValueKind == System.Text.Json.JsonValueKind.Object && edited.NativeMetadata.TryGetProperty("memoria_preserve_native_parts", out var preservedParts) ? preservedParts.EnumerateArray().Select(part => part.GetInt32()).ToArray() : [];
         edited = AlignRetainedRig(original, edited);
         if (variant.GeometryOnly)
         {
-            int[] retained = edited.NativeMetadata.ValueKind == System.Text.Json.JsonValueKind.Object && edited.NativeMetadata.TryGetProperty("memoria_preserve_native_parts", out var parts) ? parts.EnumerateArray().Select(part => part.GetInt32()).ToArray() : [];
-            return RetainParts(original, original with { Meshes = edited.Meshes, Textures = edited.Textures }, retained);
+            return RetainParts(original, original with { Meshes = edited.Meshes, Textures = edited.Textures }, retainedParts);
         }
         int slot = variant.ClipSlot!.Value;
         if (slot >= original.Animations.Count)
@@ -152,6 +156,7 @@ public sealed class ModelMods : IModelOverrideSource
             throw new InvalidDataException($"Clip slot {slot} is absent from the target bank; adding gameplay slots is unsupported.");
         }
         EditableAnimation[] animations = original.Animations.ToArray();
+        ValidateNativeTracks(edited);
         animations[slot] = edited.Animations.Single();
         return original with { Animations = animations };
     }
@@ -164,12 +169,17 @@ public sealed class ModelMods : IModelOverrideSource
         HashSet<(string Bank, int Slot)> targets = [];
         foreach (ModelModClipReplacement clip in replacement.Clips)
         {
+            if (Math.Abs(original.NativeFramesPerSecond - replacement.Model.NativeFramesPerSecond) > 0.0001f)
+            {
+                throw new NotSupportedException("The imported clip clock does not match the target native playback contract.");
+            }
             if (!targets.Add((clip.Bank, clip.Slot)) || clip.Slot < 0 || clip.Slot >= animations.Length)
             {
                 throw new InvalidDataException("The selection duplicates a target clip or maps to an absent gameplay slot.");
             }
             EditableModel selected = AlignRetainedRig(original, replacement.Model with { Animations = [clip.Animation] });
             ValidateNativeTracks(selected);
+            ModelModAnimationConverter.Validate(selected with { NativeMetadata = original.NativeMetadata });
             animations[clip.Slot] = selected.Animations[0];
         }
         return result with { Animations = animations };
@@ -215,15 +225,16 @@ public sealed class ModelMods : IModelOverrideSource
             foreach (EditableAnimationChannel channel in animation.Channels)
             {
                 EditableBone bone = model.Bones[channel.Bone];
+                IEnumerable<Vector4> keys = channel.Interpolation == "CUBICSPLINE" ? channel.Values.Where((_, index) => index % 3 == 1) : channel.Values;
                 if (!bone.IsJoint)
                 {
                     throw new NotSupportedException("Animation of exporter helper nodes cannot be represented by the native rig.");
                 }
-                if (channel.Path == "translation" && bone.Parent >= 0 && channel.Values.Any(value => Vector3.Distance(new(value.X, value.Y, value.Z), bone.Translation) > 0.001f))
+                if (channel.Path == "translation" && bone.Parent >= 0 && keys.Any(value => Vector3.Distance(new(value.X, value.Y, value.Z), bone.Translation) > 0.001f))
                 {
                     throw new NotSupportedException("Native clips cannot animate non-root joint translations.");
                 }
-                if (model.Kind == "field" && channel.Path == "scale" && channel.Values.Any(value => Vector3.Distance(new(value.X, value.Y, value.Z), Vector3.One) > 0.001f))
+                if (model.Kind == "field" && channel.Path == "scale" && keys.Any(value => Vector3.Distance(new(value.X, value.Y, value.Z), Vector3.One) > 0.001f))
                 {
                     throw new NotSupportedException("Native field clips cannot represent animated scale.");
                 }
@@ -274,10 +285,11 @@ public sealed class ModelMods : IModelOverrideSource
         EditableMesh[] meshes = edited.Meshes.Select(mesh => mesh with
         {
             Node = -1,
+            RigId = original.Bones.FirstOrDefault(bone => bone.IsJoint)?.RigId,
             Vertices = mesh.Vertices.Select(vertex => vertex with { Joints = new(Map(vertex.Joints.X, vertex.Weights.X), Map(vertex.Joints.Y, vertex.Weights.Y), Map(vertex.Joints.Z, vertex.Weights.Z), Map(vertex.Joints.W, vertex.Weights.W)) }).ToArray(),
             InverseBindMatrices = mesh.InverseBindMatrices?.ToDictionary(pair => map[pair.Key], pair => pair.Value)
         }).ToArray();
-        return edited with { Bones = original.Bones, Meshes = meshes, Animations = animations };
+        return edited with { Bones = original.Bones, Meshes = meshes, Animations = animations, NativeFramesPerSecond = original.NativeFramesPerSecond, NativeMetadata = original.NativeMetadata };
 
         float Map(float joint, float weight) => weight == 0 ? 0 : map.TryGetValue((int)joint, out int target) ? target : throw new NotSupportedException("A weighted joint is absent from the retained rig.");
     }

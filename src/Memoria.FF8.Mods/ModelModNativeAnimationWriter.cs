@@ -8,6 +8,10 @@ namespace Memoria.FF8.Mods;
 /// <summary>Writes the existing native delta bitstream for selected independently decoded clips.</summary>
 internal static class ModelModNativeAnimationWriter
 {
+    public static void Validate(BattleAnimation animation, int bones)
+    {
+        _ = Encode(animation, bones);
+    }
     public static NativeBattlePoseSource Rewrite(NativeBattlePoseSource source, IReadOnlyList<BattleAnimation> original, IReadOnlyList<BattleAnimation> edited)
     {
         if (edited.Count != original.Count || edited.Count is < 1 or > 256)
@@ -88,7 +92,12 @@ internal static class ModelModNativeAnimationWriter
                 }
             }
         }
-        return writer.ToArray();
+        byte[] encoded = writer.ToArray();
+        if (encoded.Length > ushort.MaxValue)
+        {
+            throw new NotSupportedException("The native animation cursor cannot address a clip larger than 65535 bytes.");
+        }
+        return encoded;
 
         void Position(int value)
         {

@@ -47,7 +47,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
             {
                 seconds %= edited.Animations[animation].Duration + 1 / ModelExchange.FramesPerSecond;
             }
-            return ModelExchange.Pose(edited, animation, seconds).Select(mesh => mesh.Select(ModelExchange.ToNative).ToArray()).ToArray();
+            return ModelExchange.NativeBattlePartPose(edited, ModelExchange.Pose(edited, animation, seconds));
         }
         if ((uint)animation >= Animations.Count)
         {
@@ -107,7 +107,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
                 transform.Translation *= Scale;
                 editedTransforms[joints[index]] = ModelExchange.ConvertTransform(transform);
             }
-            return ModelExchange.PoseWithTransforms(edited, editedTransforms).Select(mesh => mesh.Select(ModelExchange.ToNative).ToArray()).ToArray();
+            return ModelExchange.NativeBattlePartPose(edited, ModelExchange.PoseWithTransforms(edited, editedTransforms));
         }
         //TODO(TD-009): GPU-independent geometry still uses floating-point skinning; native effect anchors use the integer508C90 matrices.
         return Meshes.Select(mesh => mesh.Vertices.Select(vertex => Vector3.Transform(vertex.Position, transforms[vertex.Bone]) * Scale).ToArray()).ToArray();
