@@ -74,6 +74,22 @@ public sealed class NativeBattleActorDirectorPresentationTests
         HashSet<int> salivaPacketBanks = [];
         bool oilOpeningRestored = false;
         HashSet<string> breath157Boundaries = [];
+        HashSet<string> sigh46Boundaries = [];
+        HashSet<uint> sigh46Callbacks = [];
+        HashSet<int> sigh46PacketBanks = [];
+        HashSet<int> sigh46MaterialRows = [];
+        HashSet<int> sigh46ParticleSlots = [];
+        HashSet<int> sigh46ParticleFrames = [];
+        HashSet<uint> sigh46ParticleSprites = [];
+        List<object> sigh46Observations = [];
+        bool sigh46EmittersSeen = false;
+        bool sigh46GeometrySeen = false;
+        bool sigh46VramInitialized = false;
+        bool sigh46VramWrapped = false;
+        bool sigh46Gt4Seen = false;
+        bool sigh46CommonPending = false;
+        bool sigh46CommonCompleted = false;
+        bool sigh46NodesDrainedBeforeReload = false;
         HashSet<string> magma48Boundaries = [];
         HashSet<uint> magma48Callbacks = [];
         HashSet<int> magma48PacketBanks = [];
@@ -464,6 +480,15 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(original.Sonic139Resources);
                 Assert.True(source.NativeEffectMemory!.Sonic139!.PendingColdSources);
                 Assert.Null(source.NativeEffectMemory.Sonic139.OriginalFrames);
+            }
+            if (effectId == 46)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.NotNull(original.Sigh46Resources);
+                Assert.Equal(false, source.NativeEffectMemory!.Sigh46!.SourcesLoaded);
+                Assert.All(source.NativeEffectMemory.Sigh46.InactiveBanks, bank => Assert.NotNull(bank));
+                Assert.Equal((byte)0, header.ReadByte(17));
             }
             if (effectId == 48)
             {
@@ -1266,6 +1291,212 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             sonic139Opcodes.Add(command.Opcode);
                         }
                     }
+                }
+                if (effectId == 46 && after?.ReturnedDescriptor is > 0)
+                {
+                    NativeBattleSigh46State sigh = current.NativeEffectMemory!.Sigh46!;
+                    NativeBattleSigh46Resources sighResources = original.Sigh46Resources!;
+                    Assert.Equal(true, sigh.SourcesLoaded);
+                    Assert.Equal(1u, sigh.ReadDword(NativeBattleSigh46Profile.SourceAddress));
+                    Assert.Equal(6, after.Pools.Length);
+                    Assert.All(sigh.InactiveBanks, bank => Assert.Null(bank));
+                    for (int poolIndex = 0; poolIndex < 6; poolIndex++)
+                    {
+                        NativeBattleCureFamilyPool expected = NativeBattleSigh46Profile.Pools[poolIndex];
+                        NativeBattleEffectTaskPool actual = after.Pools[poolIndex];
+                        Assert.Equal(expected.Descriptor, actual.DescriptorAddress);
+                        Assert.Equal(expected.Bank, actual.BankAddress);
+                        Assert.Equal(expected.Stride, actual.Stride);
+                        Assert.Equal((int)expected.Capacity, actual.Slots.Length);
+                        sigh46Callbacks.UnionWith(actual.Slots.Where(task => (task.Flags & 1) != 0).Select(task => task.Callback));
+                    }
+                    NativeBattleModulePoolTask sighRoot = Assert.Single(after.Pools[0].Slots, task => (task.Flags & 1) != 0);
+                    int sighPhase = sighRoot.ReadByte(0x29);
+                    string sighBoundary = "sigh-root-phase-" + sighPhase;
+                    if (sigh46Boundaries.Add(sighBoundary))
+                    {
+                        sigh46Observations.Add(new { Boundary = sighBoundary, Root = sighRoot, Globals = sigh.Globals });
+                        ColdNext(sighBoundary, current);
+                    }
+                    if (before?.Pools.Length == 6)
+                    {
+                        NativeBattleModulePoolTask oldRoot = before.Pools[0].Slots[0];
+                        if (oldRoot.ReadByte(0x29) == 5)
+                        {
+                            Assert.Equal(unchecked((ushort)(oldRoot.ReadWord(0x60) - 1)), sighRoot.ReadWord(0x60));
+                        }
+                        if (oldRoot.ReadByte(0x29) == 6 && oldRoot.ReadWord(0x5E) == 0)
+                        {
+                            Assert.Equal((byte)7, sighRoot.ReadByte(0x29));
+                        }
+                    }
+                    if (sighPhase == 7 && !sigh46NodesDrainedBeforeReload)
+                    {
+                        Assert.Equal((ushort)0, sighRoot.ReadWord(0x5E));
+                        Assert.DoesNotContain(after.Pools[2].Slots, task => (task.Flags & 1) != 0);
+                        int emitterOffset = checked((int)(sigh.ReadDword(NativeBattleSigh46Profile.EmitterPointerGlobal) - 0x20DFAB8u));
+                        int geometryOffset = checked((int)(sigh.ReadDword(NativeBattleSigh46Profile.GeometryPointerGlobal) - 0x20DFAB8u));
+                        Assert.All(Enumerable.Range(0, 20), index => Assert.Equal((byte)0, current.NativeEffectMemory.Arena!.Read(emitterOffset + index * 108 + 0x69, 1)[0]));
+                        Assert.All(Enumerable.Range(0, 100), index => Assert.Equal((byte)0, current.NativeEffectMemory.Arena!.Read(geometryOffset + index * 672 + 0x1D7, 1)[0]));
+                        sigh46NodesDrainedBeforeReload = true;
+                        sigh46Observations.Add(new { Boundary = "sigh-node-lists-drained-before-A3-reload", NativeCallback = current.NativeGraphics!.Callback, Emitters = 20, Geometry = 100 });
+                    }
+                    if (sighPhase == 8 && sighRoot.ReadByte(0x62) == 0)
+                    {
+                        Assert.Contains(current.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
+                        sigh46CommonPending = true;
+                    }
+                    if (sighPhase == 9)
+                    {
+                        Assert.Equal((byte)255, sighRoot.ReadByte(0x62));
+                        sigh46CommonCompleted = true;
+                    }
+                    foreach (NativeBattleSigh46Range channel in NativeBattleSigh46Profile.ChannelRegions)
+                    {
+                        Assert.Equal(new byte[channel.Length], sigh.Read(channel.Address, channel.Length));
+                    }
+                    uint emitterPointer = sigh.ReadDword(NativeBattleSigh46Profile.EmitterPointerGlobal);
+                    uint geometryPointer = sigh.ReadDword(NativeBattleSigh46Profile.GeometryPointerGlobal);
+                    if (emitterPointer != 0)
+                    {
+                        Assert.Equal(emitterPointer + 0x870, geometryPointer);
+                        int emitterOffset = checked((int)(emitterPointer - 0x20DFAB8u));
+                        int geometryOffset = checked((int)(geometryPointer - 0x20DFAB8u));
+                        Assert.InRange(sigh.ReadWord(NativeBattleSigh46Profile.EmitterScanCursorGlobal), (ushort)0, (ushort)19);
+                        Assert.InRange(sigh.ReadWord(NativeBattleSigh46Profile.GeometryScanCursorGlobal), (ushort)0, (ushort)99);
+                        bool liveEmitter = Enumerable.Range(0, 20).Any(index => current.NativeEffectMemory.Arena!.Read(emitterOffset + index * 108 + 0x69, 1)[0] != 0);
+                        bool liveGeometry = Enumerable.Range(0, 100).Any(index => current.NativeEffectMemory.Arena!.Read(geometryOffset + index * 672 + 0x1D7, 1)[0] != 0);
+                        if (liveEmitter && !sigh46EmittersSeen)
+                        {
+                            sigh46EmittersSeen = true;
+                            ColdNext("sigh-literal20-emitter-list-live", current);
+                        }
+                        if (liveGeometry && !sigh46GeometrySeen)
+                        {
+                            sigh46GeometrySeen = true;
+                            ColdNext("sigh-literal100-geometry-list-live", current);
+                        }
+                    }
+                    for (int customSlot = 0; customSlot < after.Pools[3].Slots.Length; customSlot++)
+                    {
+                        NativeBattleModulePoolTask custom = after.Pools[3].Slots[customSlot];
+                        if (custom.Callback != 0x8359C0)
+                        {
+                            continue;
+                        }
+                        NativeBattleModulePoolTask? oldCustom = before?.Pools.Length == 6 ? before.Pools[3].Slots[customSlot] : null;
+                        if (custom.ReadWord(0x24) == 1 && custom.ReadByte(0x29) == 1 && !sigh46VramInitialized)
+                        {
+                            NativeBattleGraphicsModel actualCaster = prior.NativeGraphics!.Models[3];
+                            short yaw = actualCaster.Rotation14!.Value;
+                            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), yaw), new(0, 0, -768));
+                            NativeBattleVector position = actualCaster.Transform!.Position28;
+                            Assert.Equal(new[] { unchecked((ushort)(position.X + offset.X)), unchecked((ushort)(position.Y + offset.Y)), unchecked((ushort)(position.Z + offset.Z)) }, new[] { custom.ReadWord(0x1C), custom.ReadWord(0x1E), custom.ReadWord(0x20) });
+                            AssertSigh46VramCopies(prior, current, [new(512, 256, 64, 256, 704, 256), new(672, 256, 64, 256, 768, 256)]);
+                            sigh46VramInitialized = true;
+                            ColdNext("sigh-original-VRAM-backup-two64-strips", current);
+                        }
+                        if (oldCustom is not null && (oldCustom.Flags & 1) != 0 && (custom.ReadByte(0x26) & 4) == 0)
+                        {
+                            Assert.Equal(unchecked((byte)(oldCustom.ReadByte(0x84) + 8)), custom.ReadWord(0x84));
+                            Assert.Equal(unchecked((byte)(oldCustom.ReadByte(0x86) + 6)), custom.ReadWord(0x86));
+                            AssertSigh46VramCopies(prior, current, Sigh46WrappedCopies(custom.ReadWord(0x84), custom.ReadWord(0x86)));
+                            sigh46VramWrapped = true;
+                            int selectedRow = unchecked((short)oldCustom.ReadWord(0x82));
+                            Assert.InRange(selectedRow, 0, 16);
+                            Assert.Equal((ushort)Math.Min(selectedRow + 1, 16), custom.ReadWord(0x82));
+                            foreach (NativeBattleStaticMeshResource seed in sighResources.MeshSeeds)
+                            {
+                                uint table = seed.Address == NativeBattleSigh46Profile.MeshAAddress ? NativeBattleSigh46Profile.ColorTableAAddress : NativeBattleSigh46Profile.ColorTableBAddress;
+                                ImmutableArray<byte> colors = sighResources.ReadColorStream(table, selectedRow);
+                                byte[] expected = seed.Bytes.ToArray();
+                                for (int face = 0; face < 60; face++)
+                                {
+                                    int[] lanes = [0, 24, 28, 32];
+                                    for (int color = 0; color < 4; color++)
+                                    {
+                                        colors.AsSpan().Slice(face * 16 + color * 4, 4).CopyTo(expected.AsSpan(656 + face * 36 + lanes[color], 4));
+                                    }
+                                }
+                                Assert.Equal(expected, sigh.ReadMesh(sighResources, seed.Address).Bytes.ToArray());
+                            }
+                            if (sigh46MaterialRows.Add(selectedRow) && selectedRow is 0 or 8 or 16)
+                            {
+                                sigh46Observations.Add(new { Boundary = "sigh-current-color-row-" + selectedRow, Row = selectedRow, Custom = custom });
+                                ColdNext("sigh-current-color-row-" + selectedRow, current);
+                            }
+                            if (custom.ReadByte(0x29) == 3 && sigh46Boundaries.Add("sigh-before-native-fade"))
+                            {
+                                ColdNext("sigh-before-native-fade", current);
+                            }
+                        }
+                    }
+                    for (int particleSlot = 0; particleSlot < after.Pools[4].Slots.Length; particleSlot++)
+                    {
+                        NativeBattleModulePoolTask particle = after.Pools[4].Slots[particleSlot];
+                        if ((particle.Flags & 1) == 0 || particle.Callback != 0x836090)
+                        {
+                            continue;
+                        }
+                        sigh46ParticleSlots.Add(particleSlot);
+                        sigh46ParticleFrames.Add(particle.ReadWord(0x50));
+                        Assert.Equal((ushort)14, particle.ReadWord(0x52));
+                        Assert.Contains(particle.ReadDword(0x4C), new uint[] { 0x15B82A4, 0x15B8438, 0x15B8BA4 });
+                        if (sigh46ParticleSprites.Add(particle.ReadDword(0x4C)))
+                        {
+                            ColdNext("sigh-current-smoke-resource-" + particle.ReadDword(0x4C).ToString("X"), current);
+                        }
+                    }
+                    DirectedNodePacketState sighPackets = Director(current);
+                    if (sighPackets.PrimaryDrawCursor is int sighEnd && sighPackets.SecondaryDrawCursor is int sighLimit)
+                    {
+                        int sighStart = sighLimit - sighPackets.DrawStep;
+                        if (sigh46PacketBanks.Add(sighStart - sighPackets.SourceArenaOffset))
+                        {
+                            ColdNext("sigh6000-bank-" + (sighStart - sighPackets.SourceArenaOffset).ToString("X"), current);
+                        }
+                        foreach (NativeBattleLogicalCommand command in Resonance49Commands(current).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= sighStart && command.Packet.ByteOffset < sighEnd))
+                        {
+                            byte[] physical = current.NativeEffectMemory.Arena!.Read(command.Packet.ByteOffset + command.WordOffset * 4, command.Words.Length * 4);
+                            for (int word = 0; word < command.Words.Length; word++)
+                            {
+                                uint mask = Additional182ConsumedMask(command.Opcode, word);
+                                Assert.Equal(command.Words[word] & mask, BinaryPrimitives.ReadUInt32LittleEndian(physical.AsSpan(word * 4, 4)) & mask);
+                            }
+                            if ((command.Opcode & 0xFC) == 0x3C)
+                            {
+                                Assert.Equal(4, command.VertexPayload4.Length);
+                                Assert.Contains(command.VertexPayload4, depth => depth > 0);
+                                if (!sigh46Gt4Seen)
+                                {
+                                    sigh46Gt4Seen = true;
+                                    sigh46Boundaries.Add("sigh-current-GT4-F0-native-SZ");
+                                    ColdNext("sigh-current-GT4-F0-native-SZ", current);
+                                }
+                            }
+                        }
+                    }
+                    NativeBattleModulePoolTask? sighTarget = after.Pools[1].Slots.FirstOrDefault(task => (task.Flags & 1) != 0);
+                    if (sighTarget is not null && sighTarget.ReadWord(0x24) is 40 or 41 && sigh46Boundaries.Add("sigh-before-target-old" + sighTarget.ReadWord(0x24)))
+                    {
+                        ColdNext("sigh-before-target-old" + sighTarget.ReadWord(0x24), current);
+                    }
+                }
+                if (effectId == 46 && before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0 && sigh46Boundaries.Add("sigh-all-six-banks-detached-after-COMMON-FF"))
+                {
+                    NativeBattleSigh46State sigh = current.NativeEffectMemory!.Sigh46!;
+                    Assert.Empty(after.Pools);
+                    for (int bank = 0; bank < 6; bank++)
+                    {
+                        NativeBattleCureFamilyPool pool = NativeBattleSigh46Profile.Pools[bank];
+                        for (int slot = 0; slot < pool.Capacity; slot++)
+                        {
+                            Assert.Equal(0, BinaryPrimitives.ReadUInt16LittleEndian(sigh.InactiveBanks[bank]!.Read(slot * pool.Stride, 2)) & 1);
+                        }
+                    }
+                    Assert.Equal((byte)255, sigh.InactiveBanks[0]!.Read(0x62, 1)[0]);
+                    Assert.True(sigh46NodesDrainedBeforeReload);
+                    ColdNext("sigh-all-six-banks-detached-after-COMMON-FF", current);
                 }
                 if (effectId == 48 && after?.ReturnedDescriptor is > 0)
                 {
@@ -4967,7 +5198,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     }
                     else if (effectId != 183)
                     {
-                        Assert.Equal(JsonSerializer.Serialize(original.MagmaBreath48Resources?.Camera ?? original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                        Assert.Equal(JsonSerializer.Serialize(original.Sigh46Resources?.Camera ?? original.MagmaBreath48Resources?.Camera ?? original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     }
                     if (effectId == 126)
                     {
@@ -5042,7 +5273,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakOwnership = effectId is 19 or 184
                                 ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = packetState.PacketBank, PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
+                            if (effectId is not (46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -5099,6 +5330,36 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId == 46)
+            {
+                Assert.Equal(new[] { 0, 0x6000 }, sigh46PacketBanks.Order().ToArray());
+                Assert.Equal(Enumerable.Range(0, 17).ToArray(), sigh46MaterialRows.Order().ToArray());
+                Assert.Equal(24, sigh46ParticleSlots.Count);
+                Assert.Contains(0, sigh46ParticleFrames);
+                Assert.Contains(14, sigh46ParticleFrames);
+                Assert.True(sigh46EmittersSeen);
+                Assert.True(sigh46GeometrySeen);
+                Assert.True(sigh46VramInitialized);
+                Assert.True(sigh46VramWrapped);
+                Assert.True(sigh46Gt4Seen);
+                Assert.True(sigh46CommonPending);
+                Assert.True(sigh46CommonCompleted);
+                Assert.True(sigh46NodesDrainedBeforeReload);
+                foreach (uint callback in new uint[] { 0x831CB0, 0x831EC0, 0x831FE0, 0x832100, 0x8359C0, 0x835E90, 0x836090, 0x836420 })
+                {
+                    Assert.Contains(callback, sigh46Callbacks);
+                }
+                foreach (string name in new[] { "sigh-root-phase-5", "sigh-root-phase-6", "sigh-root-phase-8", "sigh-before-target-old40", "sigh-before-target-old41", "sigh-current-GT4-F0-native-SZ", "sigh-all-six-banks-detached-after-COMMON-FF" })
+                {
+                    Assert.Contains(name, sigh46Boundaries);
+                }
+                for (int group = 0; group < 4; group++)
+                {
+                    Assert.Equal((short)0, completed.NativeStage!.Groups[group].ColorDepth);
+                    Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags);
+                }
+                File.WriteAllText(Path.Combine(output!, "sigh46-native-observations.json"), JsonSerializer.Serialize(new { Boundaries = sigh46Boundaries.Order().ToArray(), Callbacks = sigh46Callbacks.Order().ToArray(), PacketBanks = sigh46PacketBanks.Order().ToArray(), MaterialRows = sigh46MaterialRows.Order().ToArray(), ParticleSlots = sigh46ParticleSlots.Order().ToArray(), ParticleFrames = sigh46ParticleFrames.Order().ToArray(), ParticleSprites = sigh46ParticleSprites.Order().ToArray(), Observations = sigh46Observations }));
+            }
             if (effectId == 48)
             {
                 Assert.Equal(new[] { 0, 0x6000 }, magma48PacketBanks.Order().ToArray());
@@ -5881,7 +6142,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
+            if (effectId is 46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -6045,7 +6306,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             return wavesCommon.Union(graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.Packet).Where(packet => packet.Buffer == 0 && packet.Bank is "22DB3C4" or "22BE8E8" or "D34868"));
         }
         DirectedNodePacketState state = Director(current);
-        if (state.Effect is 48 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
+        if (state.Effect is 46 or 48 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -6081,6 +6342,18 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 46)
+        {
+            NativeBattleSigh46State sigh = snapshot.NativeEffectMemory!.Sigh46!;
+            uint source = sigh.ReadDword(NativeBattleSigh46Profile.InitializerGlobal);
+            uint cursor = sigh.ReadDword(NativeBattleSigh46Profile.PrimaryCursorGlobal);
+            uint limit = sigh.ReadDword(NativeBattleSigh46Profile.SecondaryCursorGlobal);
+            if (source == 0 || cursor == 0 || limit == 0 || snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor == 0)
+            {
+                return new(effect, 0, null, null, 0x6000, false);
+            }
+            return new(effect, checked((int)(source - 0x20DFAB8u)), checked((int)(cursor - 0x20DFAB8u)), checked((int)(limit - 0x20DFAB8u)), 0x6000, false);
+        }
         if (effect == 48)
         {
             NativeBattleMagmaBreath48State magma = snapshot.NativeEffectMemory!.MagmaBreath48!;
@@ -6930,6 +7203,42 @@ public sealed class NativeBattleActorDirectorPresentationTests
         return false;
     }
 
+    private static NativeBattleEffectVramCopy[] Sigh46WrappedCopies(ushort firstPhase, ushort secondPhase)
+    {
+        List<NativeBattleEffectVramCopy> copies = [];
+        Add(704, 64, 512, firstPhase);
+        Add(768, 32, 672, secondPhase);
+        return copies.ToArray();
+
+        void Add(short sourceX, short width, short destinationX, ushort phase)
+        {
+            copies.Add(new(sourceX, 256, width, (short)(256 - phase), destinationX, (short)(256 + phase)));
+            if (phase != 0)
+            {
+                copies.Add(new(sourceX, (short)(512 - phase), width, (short)phase, destinationX, 256));
+            }
+        }
+    }
+
+    private static void AssertSigh46VramCopies(BattleSnapshot prior, BattleSnapshot current, NativeBattleEffectVramCopy[] copies)
+    {
+        NativeBattleEffectTextureState oracle = prior.NativeEffectMemory!.Textures! with { Count = 0 };
+        foreach (NativeBattleEffectVramCopy copy in copies)
+        {
+            oracle = oracle.EnqueueCopy505EB0(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
+        }
+        byte[] expected = oracle.Drain505D20().State.ReadVram();
+        byte[] actual = current.NativeEffectMemory!.Textures!.ReadVram();
+        foreach (NativeBattleEffectVramCopy copy in copies)
+        {
+            for (int row = 0; row < copy.Height; row++)
+            {
+                int offset = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
+                Assert.Equal(expected.AsSpan(offset, copy.Width * 2).ToArray(), actual.AsSpan(offset, copy.Width * 2).ToArray());
+            }
+        }
+    }
+
     private sealed record Resonance49PacketWitness(int ProgrammeCommands, int PositiveDepthCommands, int StaticEnvironmentCommands, int? EnvironmentParity, int ScreenPairs, byte[] ScreenOpcodes);
 
     private static NativeBattleVector Resonance49ProgrammePoint(BattleSnapshot prior, int actor)
@@ -7624,6 +7933,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static bool CrossedContactGate(BattleSnapshot prior, BattleSnapshot current, ushort effect)
     {
+        if (effect == 46)
+        {
+            NativeBattleOriginalEffectState? sighBefore = prior.NativeGraphics!.OriginalEffect;
+            NativeBattleOriginalEffectState? sighAfter = current.NativeGraphics!.OriginalEffect;
+            if (sighBefore?.Pools.Length != 6 || sighAfter?.Pools.Length != 6)
+            {
+                return false;
+            }
+            return sighBefore.Pools[1].Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == 0x831FE0 && item.task.ReadByte(0x29) == 2 && unchecked((short)item.task.ReadWord(0x24)) >= 40 && sighAfter.Pools[1].Slots[item.slot].Callback == item.task.Callback && sighAfter.Pools[1].Slots[item.slot].ReadByte(0x29) == 3 && (sighAfter.Pools[1].Slots[item.slot].ReadByte(0x26) & 1) != 0);
+        }
         if (effect == 48)
         {
             NativeBattleOriginalEffectState? magmaBefore = prior.NativeGraphics!.OriginalEffect;
