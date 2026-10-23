@@ -119,11 +119,24 @@ public sealed class NativeBattleEffect315BodyTests
             }
         };
         NativeBattleEffect315BodyFrame frame = new(Memory(), NativeBattleFileStaging.Unknown(), model, Temporary().Write(0x28, Enumerable.Repeat((byte)0xA5, 4).ToArray()), 20);
-        frame = NativeBattleEffect315BodyDrawing.DrawOuter(frame, Identity(8000), 0x2000, 0x2211, services);
+        frame = NativeBattleEffect315BodyDrawing.DrawOuter(frame, Identity(8000), 0x2000, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(0x2211u)), services);
         Assert.Equal(shadow, calls.Contains("shadow"));
         Assert.Equal(linked, calls.Contains("linked"));
         Assert.True(calls.IndexOf("draw") < calls.IndexOf("restore"));
         Assert.Equal(4096, BinaryPrimitives.ReadInt32LittleEndian(frame.Temporary156.Read(0x2C, 4)));
+    }
+
+    [Fact]
+    public void Outer_copies_unconsumed_renderer_mode_DWORD_with_actual_partial_knownness()
+    {
+        NativeBattleGraphicsModel model = new(3, 0x20) { Color40 = 0x123456, Alpha7 = 77, GeometryWorldMatrix = Identity().ReadMatrix(), SequenceState = new() { MeshMask124 = 1 } };
+        NativeBattleEffect315BodyFrame frame = new(Memory(), NativeBattleFileStaging.Unknown(), model, Temporary(), 20);
+        NativeBattleEffectArena primitiveFlags = NativeBattleEffectArena.Clear().MarkUnknown(0, 4).Write(1, [0x22]);
+        NativeBattleEffect315BodyServices services = new(current => current, (current, basis) => current, current => current, current => current);
+        frame = NativeBattleEffect315BodyDrawing.DrawOuter(frame, Identity(8000), 0x2000, primitiveFlags, services);
+        (byte[] bytes, bool[] known) = frame.Temporary156.ReadSnapshot(0x10, 4);
+        Assert.Equal(new[] { false, true, false, false }, known);
+        Assert.Equal((byte)0x22, bytes[1]);
     }
 
     private static NativeBattleEffect315BodyDrawingStep Draw(byte[] geometry, NativeBattleEffectArena temporary)

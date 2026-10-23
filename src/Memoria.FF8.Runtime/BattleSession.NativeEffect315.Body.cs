@@ -22,7 +22,7 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect315 body requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect315 body requires its current projection.");
         NativeBattleFileStaging initialStaging = frame.Staging ?? throw new NotSupportedException("Effect315 body requires its current temporary owner.");
-        uint primitiveFlags = BinaryPrimitives.ReadUInt32LittleEndian(NativeDeformedBodyView(initialStaging, 0x1D969A8, 4).Read(0, 4));
+        NativeBattleEffectArena primitiveFlags = NativeDeformedBodyView(initialStaging, 0x1D969A8, 4);
         NativeBattleEffect315BodyFrame body = new(frame.Memory, initialStaging, graphics.Models[actor], NativeDeformedBodyView(initialStaging, temporaryAddress, 156), CommonCursor(frame.Memory));
         NativeBattleEffect315BodyServices services = new(Shadow, Compose, DrawSource, Restore)
         {

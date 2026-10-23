@@ -13,7 +13,7 @@ public sealed record NativeBattleEffect315BodyDrawingStep(NativeBattleEffectMemo
 
 public static partial class NativeBattleEffect315BodyDrawing
 {
-    public static NativeBattleEffect315BodyFrame DrawOuter(NativeBattleEffect315BodyFrame frame, NativeBattlePackedMatrix32 camera, uint scratchAddress, uint primitiveFlags, NativeBattleEffect315BodyServices services)
+    public static NativeBattleEffect315BodyFrame DrawOuter(NativeBattleEffect315BodyFrame frame, NativeBattlePackedMatrix32 camera, uint scratchAddress, NativeBattleEffectArena primitiveFlags4, NativeBattleEffect315BodyServices services)
     {
         if ((frame.Model.Flags0 & 0x20) == 0)
         {
@@ -25,7 +25,8 @@ public static partial class NativeBattleEffect315BodyDrawing
         NativeBattleEffectArena temporary = CopyMatrix(composed, frame.Temporary156, 0x7C);
         frame = services.Compose5095B0(frame with { Temporary156 = temporary }, basis);
         byte alpha = frame.Model.Alpha7 ?? throw new NotSupportedException("Effect315 body requires its current model alpha byte.");
-        temporary = Dword(Dword(Dword(frame.Temporary156, 4, scratchAddress), 0x10, primitiveFlags), 0x1C, frame.Model.Color40 ?? throw new NotSupportedException("Effect315 body requires its current model color."));
+        temporary = Dword(Dword(frame.Temporary156, 4, scratchAddress), 0x1C, frame.Model.Color40 ?? throw new NotSupportedException("Effect315 body requires its current model color."));
+        temporary = NativeBattleEffectNodeContextMemory.Copy(primitiveFlags4, 0, temporary, 0x10, 4);
         temporary = temporary.Write(0x14, new byte[4]);
         temporary = Word(Word(temporary, 0x18, 320), 0x1A, 216);
         temporary = Dword(temporary, 0x20, (frame.Model.SequenceState ?? throw new NotSupportedException("Effect315 body requires its current object mask.")).MeshMask124).Write(0x28, [alpha, alpha, alpha]);

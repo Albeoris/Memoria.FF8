@@ -21,6 +21,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
     private bool detached;
     private bool activated;
     private bool colorChanged;
+    private bool contactProjection;
     private NativeCrtRandomState? initialRandom;
     private NativeCrtRandomState? lastRandom;
     private uint? originalColor;
@@ -71,7 +72,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
                         Assert.Equal(savedDefault.Value, task.ReadWord(0xE));
                         vibration = unchecked((int)state.ReadDword(VibrationGlobal));
                     }
-                    if (age is > 0 and <= 160 && (task.Flags & 1) != 0)
+                    if (age is > 0 and <= 112 && (task.Flags & 1) != 0)
                     {
                         Assert.NotEqual(0u, caster.Flags8!.Value & 0x8000);
                     }
@@ -86,6 +87,22 @@ internal sealed class NativeBattleEffect315PresentationObserver
             {
                 foreach ((NativeBattleModulePoolTask task, int slot) in beforeEffect.Pools[1].Slots.Select((task, slot) => (task, slot)))
                 {
+                    NativeBattleModulePoolTask next = effect.Pools[1].Slots[slot];
+                    if ((task.Flags & 1) != 0 && task.Callback == 0x598E70 && unchecked((short)task.ReadWord(0xC)) == 112 && unchecked((short)next.ReadWord(0xC)) == 113)
+                    {
+                        NativeBattleActionPacketsState packets = current.NativeActionPackets!;
+                        int first = packets.Headers[effect.Parameters!.HeaderIndex7C].FirstContactIndex!.Value;
+                        NativeBattleContactHalf half = packets.ReadContact(first).Primary;
+                        Assert.Equal((byte)3, half.ActorIndex);
+                        NativeBattleGraphicsModel beforeCaster = prior.NativeGraphics.Models[3];
+                        Assert.Null(beforeCaster.ReadLinkedModelIndex140());
+                        uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!.Battle;
+                        NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, beforeCaster, current.Definition.NativeGraphics!.Rules, battleStatuses);
+                        Assert.True(plan.Loaded);
+                        Assert.Equal(plan.ImmediateStatusFlags, caster.Flags8);
+                        contactProjection = true;
+                        Mark("effect315-self-contact-status-projection", current, cold);
+                    }
                     if ((task.Flags & 1) == 0 || task.Callback != 0x598E70 || unchecked((short)task.ReadWord(0xC)) != 160)
                     {
                         continue;
@@ -165,6 +182,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
         Assert.True(detached);
         Assert.True(ActivationCompleted(completed));
         Assert.True(colorChanged);
+        Assert.True(contactProjection);
         Assert.True(bodyCommon);
         Assert.True(vibration is > 0);
         Assert.False(completed.NativeVibrationProcess!.IsPlaying(vibration.Value));
@@ -182,7 +200,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
         }
         Assert.Contains(161, mainAges);
         NativeBattleRestorationPresentationTests.Publish(output, "activated-original-pair", completed, null);
-        File.WriteAllText(Path.Combine(output, "effect315-observations.json"), JsonSerializer.Serialize(new { MainAges = mainAges.Order(), Callbacks = callbacks.Order(), ParticleTypes = particleTypes.Order(), PacketBanks = banks.Order(), Opcodes = opcodes.Order(), Markers = markers.Order(), BodyCommon = bodyCommon, Restored = restored, Detached = detached, Activated = activated, InitialRandom = initialRandom, LastRandom = lastRandom, Observations = observations }));
+        File.WriteAllText(Path.Combine(output, "effect315-observations.json"), JsonSerializer.Serialize(new { MainAges = mainAges.Order(), Callbacks = callbacks.Order(), ParticleTypes = particleTypes.Order(), PacketBanks = banks.Order(), Opcodes = opcodes.Order(), Markers = markers.Order(), BodyCommon = bodyCommon, ContactProjection = contactProjection, Restored = restored, Detached = detached, Activated = activated, InitialRandom = initialRandom, LastRandom = lastRandom, Observations = observations }));
     }
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
