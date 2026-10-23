@@ -115,14 +115,14 @@ public static partial class NativeBattleJunk44Controller
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x20 + index * 16, (ushort)((value & 0x1FF) + 0x100)));
                 }
             }
-            int cosine = NativeBattleCuragaMatrices.Cosine8DDRotation(unchecked((short)(phase * 2048 / 7 + 0x124)));
+            int sine = NativeBattleCameraMath.Sine(phase * 2048 / 7 + 0x124);
             for (int index = 0; index < Header(frame, inputs.ReadPackets(frame)).ReadByte(16); index++)
             {
                 RequireRecipientRecord(index);
                 NativeBattleModulePoolTask task = Read(frame, address);
                 int offset = 0x14 + index * 16;
                 uint modelAddress = task.ReadDword(offset);
-                int product = unchecked(Signed(task, offset + 12) * cosine);
+                int product = unchecked(Signed(task, offset + 12) * sine);
                 short y = unchecked((short)(Signed(task, offset + 6) - product / 4096));
                 frame = inputs.Execute(frame, new NativeBattleJunk44ModelPositionY(modelAddress, y));
                 if (phase == 6)

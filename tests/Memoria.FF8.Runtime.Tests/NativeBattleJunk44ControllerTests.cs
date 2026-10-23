@@ -190,6 +190,31 @@ public sealed class NativeBattleJunk44ControllerTests
         Assert.Equal(PointView(new(100, 200, 300), 444).Read(0, 8), restore.Point8.Read(0, 8));
     }
 
+    [Theory]
+    [InlineData((ushort)3)]
+    [InlineData((ushort)4)]
+    public void Lift_uses_native_56D130_sine_with_full_angle_and_signed_truncation(ushort age)
+    {
+        var frame = MainAt(age);
+        int amplitude = 500;
+        if (age == 3)
+        {
+            _ = frame.Random.Draw(out ushort random);
+            amplitude = (random & 0x1FF) + 0x100;
+        }
+        else
+        {
+            frame = Write(frame, Pools[4].Bank, Read(frame, Pools[4].Bank).WriteWord(0x20, unchecked((ushort)amplitude)));
+        }
+        int angle = (age - 3) * 2048 / 7 + 0x124;
+        short expected = unchecked((short)(200 - unchecked(amplitude * NativeBattleCameraMath.Sine(angle)) / 4096));
+        short swapped = unchecked((short)(200 - unchecked(amplitude * NativeBattleCameraMath.Cosine(angle)) / 4096));
+        Assert.NotEqual(swapped, expected);
+        List<NativeBattleJunk44Operation> operations = [];
+        _ = AdvanceTask(frame, Pools[4].Bank, Resources(), Inputs(operations));
+        Assert.Equal(expected, Assert.Single(operations.OfType<NativeBattleJunk44ModelPositionY>()).Y);
+    }
+
     [Fact]
     public void Old62_anchor_keeps_frame_publications_and_births_actual_target_debris_row_six()
     {
