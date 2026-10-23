@@ -80,6 +80,8 @@ public sealed partial record NativeCharacterVitals
     [JsonRequired]
     public required byte[] JunctionPartyBackup { get; init; }
 
+    public GuardianForceAbilityProfile? GuardianForceProfile { get; init; }
+
     public void Validate()
     {
         static bool Hash(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
@@ -90,6 +92,30 @@ public sealed partial record NativeCharacterVitals
         if (Definitions is null || MenuDefinitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null || row.AbilityProgress.IsDefault || row.AbilityProgress.Length != 21 || row.ForgottenAbilities > 0xFFFFFF) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
+        }
+        foreach (NativeGuardianForceVital gf in GuardianForces)
+        {
+            if (gf.Progression is { } progression && (progression.Abilities.IsDefault || progression.Abilities.Select(entry => entry.Ability).Distinct().Count() != progression.Abilities.Length || progression.Abilities.Any(entry => entry is null || entry.Ability <= 0 || entry.Ability >= MenuDefinitions.AbilityPoints.Length || entry.EarnedPoints is < 0 or > 255 || entry.Learned && entry.Forgotten)))
+            {
+                throw new InvalidDataException("GF progression requires distinct supported abilities and bounded earned AP.");
+            }
+        }
+        foreach (NativeGuardianForceVital gf in GuardianForces)
+        {
+            if (gf.LastProjection is { } projection && (projection.LearnedBank is null || projection.AbilityProgress.IsDefault || projection.AbilityProgress.Length != 21 || projection.LearningRules.IsDefault || projection.LearningRules.Length != 21 || projection.LearningRules.Any(rule => rule is null)))
+            {
+                throw new InvalidDataException("GF compatibility history requires a complete original projection mapping.");
+            }
+        }
+        if (GuardianForceCompatibilityDiagnostics.IsDefault || GuardianForceCompatibilityDiagnostics.Length > 32 || GuardianForceCompatibilityDiagnostics.Any(message => message is null))
+        {
+            throw new InvalidDataException("GF compatibility recovery diagnostics are malformed.");
+        }
+        GuardianForceRecoveryProfile?.Validate();
+        GuardianForceProfile?.Validate();
+        if (GuardianForceProfile is { } profile)
+        {
+            (MenuDefinitions with { Templates = profile.Source }).Validate();
         }
         MagicSystem.Validate();
         Definitions.Validate();
@@ -197,7 +223,7 @@ public sealed partial record NativeCharacterVitals
         }
         NativeGuardianForceVital[] rows = GuardianForces.ToArray();
         rows[id] = rows[id] with { Flags = (byte)(rows[id].Flags | 1) };
-        return (this with { GuardianForces = rows }).DeepCopy();
+        return (this with { GuardianForces = rows }).ApplyGuardianForceTemplates(ResolveGuardianForceTemplates());
     }
 
     public NativeCharacterVitals Rest()

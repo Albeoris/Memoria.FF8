@@ -31,6 +31,7 @@ public sealed partial class GameSession : IEventServices
 
     public GameSession(GameState state)
     {
+        state = NormalizeGuardianForceCompatibilityState(state);
         Validate(state);
         State = state;
         movieReturnScene = SceneKind.Field;
@@ -153,7 +154,7 @@ public sealed partial class GameSession : IEventServices
     {
         Dialog = null;
         movieReturnScene = SceneKind.Field;
-        Change(state, advancePlaytime: false);
+        Change(NormalizeGuardianForceCompatibilityState(state), advancePlaytime: false);
     }
 
     public void RequestMovie(int index)
@@ -452,6 +453,7 @@ public sealed partial class GameSession : IEventServices
 
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
+        vitals = vitals.NormalizeGuardianForceCompatibility();
         vitals.Validate();
         ValidateLiveEventMemoryOwners(State with { CharacterVitals = vitals }, State.EventMemory);
         State = State with { CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = SynchronizeSavedBattleFlags(vitals) };
@@ -570,7 +572,7 @@ public sealed partial class GameSession : IEventServices
     public static GameState Load(string path)
     {
         using FileStream stream = File.OpenRead(path);
-        GameState state = SnapshotStorage.Read(stream, CompactJsonOptions);
+        GameState state = NormalizeGuardianForceCompatibilityState(SnapshotStorage.Read(stream, CompactJsonOptions));
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
         if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)

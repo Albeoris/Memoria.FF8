@@ -11,13 +11,15 @@ public sealed partial class MenuController
     private int modFilter;
     private string? selectedModId;
     private static readonly string[] ModFilters = ["All packages", "Requested enabled", "Requested disabled", "Needs attention"];
-    private const int ModToolbarCount = 4;
+    private const int ModToolbarCount = 7;
 
     internal void ConnectMods(IModService service)
     {
         modSubscription?.Dispose();
         modService = service;
         modSubscription = service.Subscribe(_ => RestoreModSelection());
+        Register(new MenuScreenDefinition { Id = "mods-create", Title = "Mods · Create Mods", Help = "An initialized gameplay editor is required.", Entries = _ => [new("unavailable", "GF Abilities unavailable in this preview", "Open the tool from the running game.", Enabled: false)] });
+        Register(new MenuScreenDefinition { Id = "gf-mod-review", Title = "Mods · GF changes review", Help = "No gameplay editor is connected.", Entries = _ => [] });
         Register(new MenuScreenDefinition
         {
             Id = "mods-search",
@@ -53,6 +55,9 @@ public sealed partial class MenuController
         IModService service = modService!;
         List<MenuEntry> entries =
         [
+            new("installed-tab", "Installed Mods", "Installed packages and status.", Action: new MenuAction("mod-installed-tab")),
+            new("create-tab", "Create Mods", "Author a gameplay mod inside the game.", Destination: "mods-create"),
+            new("gf-review", "GF changes review", "Review pending gameplay consequences before mod activation.", Destination: "gf-mod-review"),
             new("mod-search", "Search: " + (modSearch.Length == 0 ? "All names" : modSearch), "Find packages by name or ID. Keyboard and an on-screen character picker are available.", Destination: "mods-search"),
             new("mod-filter", "Filter: " + ModFilters[modFilter], "Cycle requested enable state or packages requiring attention.", Action: new MenuAction("mod-filter")),
             new("mod-auto", $"[{(service.AutoEnableNewMods ? "x" : " ")}] Automatically enable new mods", "Keep explicit disables; preserve existing mods when turning off.", Action: new MenuAction("mod-auto")),
@@ -156,6 +161,8 @@ public sealed partial class MenuController
         ModOperationResult result;
         switch (action.Kind)
         {
+            case "mod-installed-tab":
+                return true;
             case "mod-search-letter":
                 foreach (char letter in action.Value)
                 {

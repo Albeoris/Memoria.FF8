@@ -10,6 +10,18 @@ public sealed class PlayerSaveMenuTests : IDisposable
     private readonly List<MenuSound> sounds = [];
 
     [Fact]
+    public void CancelledNativeExportReviewKeepsSaveMenuOpenWithoutSuccess()
+    {
+        PlayerSaveMenu menu = CreateMenu(out _);
+        menu.Open(PlayerSaveMenuMode.Save);
+        menu.Update(Confirm(), _ => throw new OperationCanceledException(), _ => Assert.Fail("Unexpected load."));
+        Assert.True(menu.IsOpen);
+        Assert.Equal("Save cancelled.", menu.Message);
+        Assert.False(menu.ConfirmOverwrite);
+        Assert.Equal(new[] { MenuSound.Cancel }, sounds);
+    }
+
+    [Fact]
     public void CursorSoundsRequireAChangedSlotPageOrBank()
     {
         PlayerSaveMenu menu = CreateMenu(out _);

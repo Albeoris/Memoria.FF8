@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeCharacterVitals
@@ -10,19 +12,10 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidOperationException("Amnesia Greens require an acquired GF's current native ability entry.");
         }
-        NativeCharacterVitals result = DeepCopy();
+        NativeCharacterVitals result = ApplyGuardianForceTemplates(ResolveGuardianForceTemplates());
         NativeGuardianForceVital gf = result.GuardianForces[id];
-        NativeGuardianForceLearnedBank learned = ability < 64 ? gf.LearnedBank with { Low = gf.LearnedBank.Low & ~(1UL << ability) } : gf.LearnedBank with { High = gf.LearnedBank.High & ~(1UL << (ability - 64)) };
-        uint forgotten = gf.ForgottenAbilities;
-        for (int rule = 0; rule < MenuDefinitions.Learning[id].Length; rule++)
-        {
-            if (MenuDefinitions.Learning[id][rule].Ability == ability)
-            {
-                forgotten |= 1u << rule;
-                break;
-            }
-        }
-        result.GuardianForces[id] = gf with { LearnedBank = learned, ForgottenAbilities = forgotten, Learning = gf.Learning == ability ? (byte)0 : gf.Learning };
+        result.GuardianForces[id] = gf with { Progression = gf.Progression! with { Abilities = gf.Progression.Abilities.Select(entry => entry.Ability == ability ? entry with { Learned = false, Forgotten = true } : entry).ToImmutableArray() } };
+        result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
         for (int row = 0; row < 8; row++)
         {
             bool retained = result.JunctionLearnedAbilities(row).Contains(ability);

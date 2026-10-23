@@ -11,6 +11,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Controls](players/controls.md) | Keyboard, controller, remapping and shortcuts. |
 | [Magic rules and Smart Attack](players/magic-system.md) | Shared stock, limited uses, automatic attacks and save compatibility. |
 | [GF transformations](players/guardian-forms.md) | Optional Ifrit form, commands, HP, lifetime and finisher Skip. |
+| [GF ability editor](players/gf-ability-editor.md) | Create native GF mods or save-local changes from inside the game. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
 | [Debug Room](players/debug-room.md) | Service tools, names, fixture previews and the battle laboratory. |
 | [Automatic exploration](players/automatic-exploration.md) | Start, pause, resume and reproduce an experimental automated run. |
@@ -22,6 +23,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Texture mods](modding/texture-mods.md) | Package discovery, manifests, adapters and supported replacements. |
 | [Model browser and Blender](modding/model-mods.md) | F2 catalog, GLB exchange, skeleton warnings and model replacements. |
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
+| [GF ability payload](modding/gf-abilities.md) | Declarative gameplay patches, guards, ordering and producer dependencies. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |
 
 ## Develop
@@ -31,6 +33,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Build and test](developers/building-and-testing.md) | A clean checkout, distribution layout, test projects and optional local inputs. |
 | [Architecture](developers/architecture.md) | Project responsibilities, state ownership and engine extension points. |
 | [Battle system](developers/battle-system.md) | Combat state, lifecycle, rewards, presentation and diagnostics. |
+| [GF ability architecture](developers/gf-abilities.md) | Canonical definitions, identity-based progression and legacy projection. |
 | [GF form architecture](developers/guardian-forms.md) | Ownership, native presentation, snapshots and the extension boundary. |
 | [Settings placement](developers/settings-placement.md) | Complete setting, binding and service-tool ownership map. |
 | [UI framework](developers/ui-framework.md) | Retained views, layout, input, canvas adapters and previews. |

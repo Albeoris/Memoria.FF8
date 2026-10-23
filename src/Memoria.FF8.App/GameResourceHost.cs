@@ -24,8 +24,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         Pump(true);
     }
 
+    public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
     public ResourceService Resources { get; }
     public ModRuntime Mods { get; }
+    public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
+    public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
     public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
 
@@ -112,8 +115,18 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: sceneResourceDiagnostics);
         }
+        if (!GuardianForceAbilityMods.TryPrepare(catalog, out GuardianForceAbilityMods guardianMods, out IReadOnlyList<ModDiagnostic> guardianDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: guardianDiagnostics);
+        }
+        ModPreparationResult guardianPublication = PrepareGuardianForcePublication?.Invoke(guardianMods, catalog) ?? ModPreparationResult.Accepted;
+        if (!guardianPublication.Success)
+        {
+            return guardianPublication;
+        }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
@@ -124,7 +137,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(demaster.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = tonberryDiagnostics.Concat(demaster.Diagnostics).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = tonberryDiagnostics.Concat(demaster.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -148,7 +161,9 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         ResourceService.PreparedResources prepared = Resources.Prepare(resolver);
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
+            guardianPublication.Commit?.Invoke();
             prepared.Commit(notify: false);
+            GuardianForceMods = guardianMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
         }, prepared.Notify);

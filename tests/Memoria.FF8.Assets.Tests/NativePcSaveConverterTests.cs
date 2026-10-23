@@ -199,6 +199,112 @@ public sealed class NativePcSaveConverterTests
         Assert.Equal(imported.OriginalSave!.Names.OrderBy(pair => pair.Key), transferred.OriginalSave!.Names.OrderBy(pair => pair.Key));
     }
 
+    [Fact]
+    public void LegacyGuardianForceProjectionMapsProgressByIdentityAndPreservesLiveState()
+    {
+        GameState target = Defaults();
+        NativeCharacterVitals source = target.CharacterVitals!;
+        ImmutableArray<NativeGuardianForceLearningRule> rules = source.MenuDefinitions.Learning[0].SetItem(0, new(1, 255, 1)).SetItem(1, new(1, 255, 2));
+        source = source with { MenuDefinitions = source.MenuDefinitions with { Learning = source.MenuDefinitions.Learning.SetItem(0, rules) } };
+        NativeCharacterVitals edited = source.DeepCopy() with { MenuDefinitions = source.MenuDefinitions with { Learning = source.MenuDefinitions.Learning.SetItem(0, rules.SetItem(0, rules[1]).SetItem(1, rules[0])) } };
+        edited.GuardianForces[0] = edited.GuardianForces[0] with { AbilityProgress = edited.GuardianForces[0].AbilityProgress.SetItem(0, 17).SetItem(1, 29), ForgottenAbilities = 1, Learning = 1 };
+        GameState active = target with { CharacterVitals = edited };
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, source);
+        Assert.True(plan.RequiresConfirmation);
+        Assert.Equal((byte)29, plan.ProjectedState.CharacterVitals!.GuardianForces[0].AbilityProgress[0]);
+        Assert.Equal((byte)17, plan.ProjectedState.CharacterVitals.GuardianForces[0].AbilityProgress[1]);
+        Assert.Equal(2u, plan.ProjectedState.CharacterVitals.GuardianForces[0].ForgottenAbilities);
+        Assert.Equal(1u, active.CharacterVitals!.GuardianForces[0].ForgottenAbilities);
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, source));
+        byte[] bytes = NativePcSaveConverter.Export(active, source, true);
+        GameState imported = NativePcSaveConverter.Import(bytes, target with { CharacterVitals = source }, _ => "fixture");
+        Assert.Equal((byte)29, imported.CharacterVitals!.GuardianForces[0].AbilityProgress[0]);
+    }
+
+    [Fact]
+    public void LegacyGuardianForceProjectionReviewsExpandedDefaultsAndDropsOnlyUnrepresentableState()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!;
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = source.ResolveGuardianForceTemplates().SetItem(0, Enumerable.Range(1, 50).Select(ability => new GuardianForceAbilityTemplate(ability, true, 10, LearningPriority: ability)).ToImmutableArray());
+        NativeCharacterVitals expanded = source.ApplyGuardianForceTemplates(templates);
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state with { CharacterVitals = expanded }, source);
+        Assert.True(plan.RequiresConfirmation);
+        Assert.Equal(28, plan.Losses.Count(loss => loss.Kind == "Capacity"));
+        Assert.True(plan.ProjectedState.CharacterVitals!.GuardianForces[0].LearnedBank.Has(22));
+        Assert.False(plan.ProjectedState.CharacterVitals.GuardianForces[0].LearnedBank.Has(23));
+        Assert.True(expanded.GuardianForces[0].LearnedBank.Has(50));
+        Assert.Null(plan.ProjectedState.CharacterVitals.GuardianForces[0].Progression);
+        Assert.Null(plan.ProjectedState.CharacterVitals.GuardianForces[0].LastProjection);
+        Assert.True(plan.ProjectedState.CharacterVitals.MenuDefinitions.Templates.IsDefault);
+        Assert.NotEmpty(NativePcSaveConverter.Export(state with { CharacterVitals = expanded }, source, true));
+    }
+
+    [Fact]
+    public void LegacyGuardianForceProjectionPreservesRepresentableItemTaughtAbility()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!;
+        NativeCharacterVitals taught = source.TeachGuardianForceAbility(0, 42);
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state with { CharacterVitals = taught }, source);
+        Assert.Empty(plan.Losses);
+        Assert.True(plan.ProjectedState.CharacterVitals!.GuardianForces[0].LearnedBank.Has(42));
+    }
+
+    [Fact]
+    public void LegacyGuardianForceProjectionReviewsLossOfAttributionEvenWhenValuesMatchSource()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!;
+        GuardianForceAbilityProfile profile = new(source.ResolveGuardianForceTemplates(), "source", [], [], []);
+        GameState attributed = state with { CharacterVitals = source with { GuardianForceProfile = profile } };
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(attributed, source);
+        Assert.Contains(plan.Losses, loss => loss.Kind == "Attribution");
+        Assert.Null(plan.ProjectedState.CharacterVitals!.GuardianForceProfile);
+        Assert.Same(profile, attributed.CharacterVitals!.GuardianForceProfile);
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(attributed));
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(attributed, source));
+        GameState recovered = state with { CharacterVitals = source with { GuardianForceRecoveryProfile = profile, GuardianForceOpaqueBaseline = true, GuardianForceCompatibilityDiagnostics = ["Recovered attribution"] } };
+        NativeGuardianForceLegacyExportPlan recoveryPlan = NativeGuardianForceLegacyCompatibility.Analyze(recovered, source);
+        Assert.Contains(recoveryPlan.Losses, loss => loss.Kind == "Attribution");
+        Assert.Null(recoveryPlan.ProjectedState.CharacterVitals!.GuardianForceRecoveryProfile);
+        Assert.False(recoveryPlan.ProjectedState.CharacterVitals.GuardianForceOpaqueBaseline);
+        Assert.Empty(recoveryPlan.ProjectedState.CharacterVitals.GuardianForceCompatibilityDiagnostics);
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(recovered));
+    }
+
+    [Fact]
+    public void LegacyGuardianForceProjectionReviewsDefaultOnlyEditAndKeepsOtherFeatureBlockers()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!;
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> defaults = source.ResolveGuardianForceTemplates().SetItem(0, [new(1, false, 10)]);
+        source = source with { MenuDefinitions = source.MenuDefinitions with { Templates = defaults, SourceTemplates = defaults } };
+        NativeCharacterVitals edited = source.ApplyGuardianForceTemplates(defaults.SetItem(0, [new(1, true, 10)]));
+        GameState active = state with { CharacterVitals = edited, GameplayPreferences = new() { GuardianFormsEnabled = true } };
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, source);
+        Assert.Contains(plan.Losses, loss => loss.Kind == "Configuration");
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, source, true));
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active with { GameplayPreferences = new() }));
+    }
+
+    [Fact]
+    public void LegacyGuardianForceProjectionRestoresUnacquiredTargetDefaultsWithoutGrantingDraftAbilities()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals source = state.CharacterVitals!.DeepCopy();
+        source.GuardianForces[0] = source.GuardianForces[0] with { Flags = 0, LearnedBank = new(4, 0), Learning = 1 };
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> defaults = source.ResolveGuardianForceTemplates();
+        source = source with { MenuDefinitions = source.MenuDefinitions with { Templates = defaults, SourceTemplates = defaults, InitialStates = source.GuardianForces.Select(gf => new NativeGuardianForceInitialState(gf.LearnedBank, gf.AbilityProgress, gf.Learning, gf.ForgottenAbilities)).ToImmutableArray() } };
+        NativeCharacterVitals edited = source.ApplyGuardianForceTemplates(defaults.SetItem(0, defaults[0].Add(new(3, true, 10))));
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state with { CharacterVitals = edited }, source);
+        NativeGuardianForceVital gf = plan.ProjectedState.CharacterVitals!.GuardianForces[0];
+        Assert.Equal((byte)0, gf.Flags);
+        Assert.True(gf.LearnedBank.Has(2));
+        Assert.False(gf.LearnedBank.Has(3));
+        Assert.Equal((byte)1, gf.Learning);
+    }
+
     private static GameState Defaults()
     {
         GameSession session = GameSession.CreateColdProcess();

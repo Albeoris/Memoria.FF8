@@ -279,22 +279,11 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         {
             IReadOnlyList<NativeGuardianForceAbility> abilities = vitals.GuardianForceAbilities(id);
             NativeGuardianForceAbility? existing = abilities.FirstOrDefault(ability => ability.Ability == Power);
-            if (Power >= 128 || existing?.Learned == true || existing is null && abilities.Count >= 22)
+            if (Power == 0 || Power >= vitals.MenuDefinitions.AbilityPoints.Length || existing?.Learned == true)
             {
                 return (vitals, economy, false);
             }
-            NativeGuardianForceLearnedBank learned = Power < 64 ? gf.LearnedBank with { Low = gf.LearnedBank.Low | (1UL << Power) } : gf.LearnedBank with { High = gf.LearnedBank.High | (1UL << (Power - 64)) };
-            int rule = -1;
-            for (int index = 0; index < vitals.MenuDefinitions.Learning[id].Length; index++)
-            {
-                if (vitals.MenuDefinitions.Learning[id][index].Ability == Power)
-                {
-                    rule = index;
-                    break;
-                }
-            }
-            NativeCharacterVitals taught = vitals.DeepCopy();
-            taught.GuardianForces[id] = gf with { LearnedBank = learned, ForgottenAbilities = rule < 0 ? gf.ForgottenAbilities : gf.ForgottenAbilities & ~(1u << rule) };
+            NativeCharacterVitals taught = vitals.TeachGuardianForceAbility(id, Power);
             return (taught.RebuildParty(), Consume(economy, slot), true);
         }
         int maximum = vitals.Definitions.GuardianForceMaximum(id, gf);

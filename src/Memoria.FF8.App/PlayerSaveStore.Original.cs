@@ -35,7 +35,7 @@ internal sealed partial class PlayerSaveStore
         return bank == 0 ? MemoriaSlotCount : OriginalSlotsPerBank;
     }
 
-    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null)
+    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null)
     {
         if (destinationSlot <= 0 || destinationSlot > TotalSlotCount)
         {
@@ -53,7 +53,11 @@ internal sealed partial class PlayerSaveStore
         }
         else
         {
-            Save(destinationSlot, new GameSession(Load(sourceSlot)), validateContinuation);
+            if (reviewedSource is not null && (sourceSlot > MemoriaSlotCount || destinationSlot <= MemoriaSlotCount))
+            {
+                throw new InvalidOperationException("A reviewed conversion state is supported only when copying a Memoria save to original FF8.");
+            }
+            Save(destinationSlot, new GameSession(reviewedSource ?? Load(sourceSlot)), validateContinuation, targetSource, allowGuardianForceLoss);
         }
         entries.Remove(destination);
     }

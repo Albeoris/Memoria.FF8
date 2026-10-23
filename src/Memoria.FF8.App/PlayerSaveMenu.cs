@@ -322,6 +322,12 @@ internal sealed class PlayerSaveMenu
             }
             SoundRequested?.Invoke(MenuSound.Confirm);
         }
+        catch (OperationCanceledException)
+        {
+            ConfirmOverwrite = false;
+            Message = IsTransferring ? "Copy cancelled." : "Save cancelled.";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+        }
         catch (Exception exception)
         {
             ReportFailure(IsTransferring ? "Copy" : Mode.ToString(), exception);

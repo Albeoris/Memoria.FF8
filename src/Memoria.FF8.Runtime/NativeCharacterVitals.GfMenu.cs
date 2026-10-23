@@ -23,39 +23,45 @@ public sealed partial record NativeCharacterVitals
         return flags;
     }
 
-    /// <summary>Original4ACB70: learned IDs first (limit22), then level and prerequisite unlock passes; output sorted by ability ID.</summary>
+    /// <summary>Managed abilities by identity, with native display sorting and no original row capacity limit.</summary>
     public IReadOnlyList<NativeGuardianForceAbility> GuardianForceAbilities(int id)
     {
         Validate();
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, 16u);
         NativeGuardianForceVital gf = GuardianForces[id];
         SortedDictionary<int, NativeGuardianForceAbility> result = [];
-        for (int ability = 0; ability < 128 && result.Count < 22; ability++)
+        ImmutableArray<GuardianForceAbilityTemplate> templates = ResolveGuardianForceTemplates()[id];
+        Dictionary<int, GuardianForceAbilityProgress>? ledger = gf.Progression?.Abilities.ToDictionary(entry => entry.Ability);
+        HashSet<int> active = templates.Select(entry => entry.Ability).ToHashSet();
+        for (int ability = 1; ability < MenuDefinitions.AbilityPoints.Length; ability++)
         {
-            if (gf.LearnedBank.Has(ability))
+            bool learned = ledger is null ? gf.LearnedBank.Has(ability) : ledger.TryGetValue(ability, out GuardianForceAbilityProgress? progress) && progress.Learned && !progress.Forgotten && (active.Contains(ability) || progress.ItemTaught);
+            if (learned)
             {
-                result.Add(ability, new NativeGuardianForceAbility(ability, true, -1, 0, 0));
+                result.Add(ability, new(ability, true, -1, 0, 0));
             }
         }
-        ImmutableArray<NativeGuardianForceLearningRule> rules = MenuDefinitions.Learning[id];
         int level = NativeStatDefinitions.Level(gf.Experience, Definitions.GuardianForces[id]);
-        for (int pass = 0; pass < 2; pass++)
+        for (int index = 0; index < templates.Length; index++)
         {
-            for (int index = 0; index < rules.Length && result.Count < 22; index++)
+            GuardianForceAbilityTemplate entry = templates[index];
+            int nativeIndex = Array.FindIndex(MenuDefinitions.Learning[id].ToArray(), rule => rule.Ability == entry.Ability);
+            GuardianForceAbilityProgress? progress = ledger?.GetValueOrDefault(entry.Ability);
+            bool forgotten = ledger is null ? nativeIndex >= 0 && (gf.ForgottenAbilities & (1u << nativeIndex)) != 0 : progress?.Forgotten == true;
+            bool eligible = entry.SupportedCondition && level >= entry.RequiredLevel && (entry.PrerequisiteAbility is null || result.TryGetValue(entry.PrerequisiteAbility.Value, out NativeGuardianForceAbility? prerequisite) && prerequisite.Learned) && (entry.ExcludedAbility is null || !result.TryGetValue(entry.ExcludedAbility.Value, out NativeGuardianForceAbility? excluded) || !excluded.Learned);
+            if (eligible && !forgotten && !result.ContainsKey(entry.Ability))
             {
-                NativeGuardianForceLearningRule rule = rules[index];
-                bool eligible = pass == 0 ? rule.Requirement <= 100 && level >= rule.Requirement : rule.Requirement is >= 101 and <= 121 && result.TryGetValue(rules[rule.Requirement - 101].Ability, out NativeGuardianForceAbility? prerequisite) && prerequisite.Learned && (rule.Exclusion == 255 || !result.TryGetValue(rules[rule.Exclusion].Ability, out NativeGuardianForceAbility? excluded) || !excluded.Learned);
-                if (eligible && !result.ContainsKey(rule.Ability) && (gf.ForgottenAbilities & (1u << index)) == 0)
-                {
-                    if (rule.Ability >= MenuDefinitions.AbilityPoints.Length)
-                    {
-                        throw new NotSupportedException("GF learning requires its actual kernel AP requirement.");
-                    }
-                    result.Add(rule.Ability, new NativeGuardianForceAbility(rule.Ability, false, index, gf.AbilityProgress[index], MenuDefinitions.AbilityPoints[rule.Ability]));
-                }
+                int points = ledger is null ? nativeIndex >= 0 ? gf.AbilityProgress[nativeIndex] : 0 : progress?.EarnedPoints ?? 0;
+                result.Add(entry.Ability, new(entry.Ability, false, index, points, entry.RequiredPoints));
             }
         }
-        return result.Values.ToArray();
+        List<NativeGuardianForceAbility> display = templates.Where(entry => result.ContainsKey(entry.Ability)).Select(entry => result[entry.Ability]).ToList();
+        foreach (NativeGuardianForceAbility extra in result.Values.Where(entry => !active.Contains(entry.Ability)))
+        {
+            int position = display.FindIndex(entry => entry.Ability > extra.Ability);
+            display.Insert(position < 0 ? display.Count : position, extra);
+        }
+        return display;
     }
 
     public NativeCharacterVitals SelectGuardianForceLearning(int id, int ability)
@@ -67,7 +73,8 @@ public sealed partial record NativeCharacterVitals
             throw new InvalidOperationException("Only an acquired GF's available unlearned ability can be selected.");
         }
         NativeGuardianForceVital[] next = GuardianForces.ToArray();
-        next[id] = next[id] with { Learning = checked((byte)ability) };
+        NativeGuardianForceVital gf = next[id];
+        next[id] = gf with { Learning = checked((byte)ability), LastProjection = gf.LastProjection is null ? null : gf.LastProjection with { Learning = checked((byte)ability) } };
         return this with { GuardianForces = next };
     }
 
@@ -76,29 +83,24 @@ public sealed partial record NativeCharacterVitals
     {
         Validate();
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, 16u);
-        NativeGuardianForceVital gf = GuardianForces[id];
-        NativeGuardianForceAbility? target = GuardianForceAbilities(id).FirstOrDefault(entry => entry.Ability == gf.Learning && !entry.Learned);
-        if ((gf.Flags & 1) == 0 || points == 0 || target is null || gf.Learning == 0)
+        if (points == 0 || (GuardianForces[id].Flags & 1) == 0)
         {
             return this;
         }
-        int progress = target.Progress + points;
-        NativeGuardianForceVital[] next = GuardianForces.ToArray();
-        gf = gf with { AbilityProgress = gf.AbilityProgress.SetItem(target.LearningIndex, (byte)Math.Min(progress, 255)) };
-        if (progress >= target.RequiredPoints)
+        NativeCharacterVitals result = ApplyGuardianForceTemplates(ResolveGuardianForceTemplates());
+        NativeGuardianForceVital gf = result.GuardianForces[id];
+        NativeGuardianForceAbility? target = result.GuardianForceAbilities(id).FirstOrDefault(entry => entry.Ability == gf.Learning && !entry.Learned);
+        if ((gf.Flags & 1) == 0 || points == 0 || target is null || gf.Learning == 0)
         {
-            int ability = target.Ability;
-            gf = gf with { LearnedBank = ability < 64 ? gf.LearnedBank with { Low = gf.LearnedBank.Low | (1UL << ability) } : gf.LearnedBank with { High = gf.LearnedBank.High | (1UL << (ability - 64)) } };
+            return result;
         }
-        next[id] = gf;
-        NativeCharacterVitals result = this with { GuardianForces = next };
-        if (progress >= target.RequiredPoints)
-        {
-            HashSet<int> available = result.GuardianForceAbilities(id).Where(entry => !entry.Learned).Select(entry => entry.Ability).ToHashSet();
-            byte learning = MenuDefinitions.Learning[id].FirstOrDefault(rule => rule.Ability != 0 && available.Contains(rule.Ability))?.Ability ?? 0;
-            next[id] = gf with { Learning = learning };
-        }
-        return result;
+        int earned = Math.Min(255, target.Progress + points);
+        GuardianForceAbilityProgress[] ledger = gf.Progression!.Abilities.ToArray();
+        int index = Array.FindIndex(ledger, entry => entry.Ability == target.Ability);
+        ledger[index] = ledger[index] with { EarnedPoints = earned, Learned = earned >= target.RequiredPoints };
+        result.GuardianForces[id] = gf with { Progression = gf.Progression with { Abilities = ledger.ToImmutableArray() } };
+        result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
+        return result.RebuildParty();
     }
 
     public IReadOnlySet<int> JunctionLearnedAbilities(int row)

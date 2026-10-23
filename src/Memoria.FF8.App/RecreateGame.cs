@@ -81,7 +81,7 @@ internal sealed partial class RecreateGame : Game
         }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
-        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(session.State);
+        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(session.State, allowGuardianForceProjection: true);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         globalSettings.ImportLegacyFiles(options.SavePath);
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
@@ -155,6 +155,7 @@ internal sealed partial class RecreateGame : Game
         ApplyDisplaySettings();
         try
         {
+            SynchronizeGuardianModProfile();
             resourceHost?.Pump();
             gameMenus?.RefreshModView();
             UpdateDisplayFrame(gameTime);
@@ -194,7 +195,7 @@ internal sealed partial class RecreateGame : Game
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true;
+        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus is { IsOpen: true, ScreenId: "gf-ability-search" };
         bool namingNavigation = gameMenus?.IsEditingName == true;
         if (keyboard.TextEntryEnabled != typingName || keyboard.NamingNavigationEnabled != namingNavigation)
         {
@@ -591,7 +592,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (IsActive && keyboard.AllowsNameText(args.Key))
         {
-            if (gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true)
+            if (gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
             {
                 gameMenus?.EnterNameCharacter(args.Character);
             }
@@ -763,7 +764,14 @@ internal sealed partial class RecreateGame : Game
             session.SetMoviePlayback(movie.Playback);
         }
         CaptureSession();
-        playerSaves.Save(slot, session, ValidatePlayerState);
+        if (slot > PlayerSaveStore.MemoriaSlotCount)
+        {
+            SaveOriginalPlayerSlotWithGuardianForceReview(slot);
+        }
+        else
+        {
+            playerSaves.Save(slot, session, ValidatePlayerState);
+        }
         ShowSaveNotice(slot == 0 ? "Quick saved." : $"Saved in {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
     }
 

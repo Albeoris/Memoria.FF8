@@ -23,11 +23,11 @@ internal static class BattlePartyProjection
             for (int bit = 19; bit < 28; bit++)
             {
                 NativeStatModifier modifier = vitals.Definitions.GuardianForceModifiers[bit - 19];
-                if ((gf.LearnedBank.High & (1UL << bit)) != 0 && modifier.Selector == 0)
+                if (gf.HasLearnedAbility(bit + 64) && modifier.Selector == 0)
                 {
                     percent += modifier.Percentage;
                 }
-                if ((gf.LearnedBank.High & (1UL << bit)) != 0)
+                if (gf.HasLearnedAbility(bit + 64))
                 {
                     flags |= modifier.Flags;
                 }

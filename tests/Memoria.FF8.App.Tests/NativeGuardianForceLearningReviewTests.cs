@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -71,21 +72,24 @@ public sealed class NativeGuardianForceLearningReviewTests
     }
 
     [Fact]
-    public void GfMenuUsesTheSameTwentyTwoEntryLearnedBankProjectionAsTheNativeLearningMenu()
+    public void GfMenuDisplaysTheFullCanonicalLearnedCollectionBeyondOriginalCapacity()
     {
         using GameAssets assets = InstalledAssets();
         NativeCharacterVitals current = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
+        int count = current.MenuDefinitions.AbilityPoints.Length - 1;
+        var templates = current.ResolveGuardianForceTemplates().SetItem(0, Enumerable.Range(1, count).Select(ability => new GuardianForceAbilityTemplate(ability, false, current.MenuDefinitions.AbilityPoints[ability], LearningPriority: ability - 1)).ToImmutableArray());
+        current = current.ApplyGuardianForceTemplates(templates);
         NativeGuardianForceVital[] rows = current.GuardianForces.ToArray();
-        // Component fixture models a learned bank exceeding4ACB70's display limit.
-        rows[0] = rows[0] with { LearnedBank = new NativeGuardianForceLearnedBank(ulong.MaxValue, ulong.MaxValue) };
-        current = current with { GuardianForces = rows };
+        // An isolated fixture models earned progression across the existing supported catalog.
+        rows[0] = rows[0] with { Progression = new(true, Enumerable.Range(1, count).Select(ability => new GuardianForceAbilityProgress(ability, true)).ToImmutableArray()) };
+        current = (current with { GuardianForces = rows }).ApplyGuardianForceTemplates(templates);
         MenuGuardianForce menu = Assert.Single(LiveMenuData.Build(new GameState { CharacterVitals = current }).GuardianForces);
-        Assert.Equal(22, menu.Abilities.Count);
-        Assert.Equal(22, menu.LearningChoices.Count);
+        Assert.True(count > 22);
+        Assert.Equal(count, menu.Abilities.Count);
+        Assert.Equal(count, menu.LearningChoices.Count);
         Assert.All(menu.LearningChoices, choice => Assert.True(choice.Learned));
-        Assert.Equal(Enumerable.Range(0, 22).Select(id => $"Learned ability {id}"), menu.Abilities);
+        Assert.Equal(Enumerable.Range(1, count).Select(id => $"Learned ability {id}"), menu.Abilities);
     }
-
     private static uint Threshold(NativeStatCurve curve, int level)
     {
         return (uint)(10 * (level - 1) * curve.ExperienceStep + (level - 1) * (level - 1) * curve.ExperienceFraction / 256);

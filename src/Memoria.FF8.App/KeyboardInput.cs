@@ -52,6 +52,7 @@ internal sealed class KeyboardInput
     public bool GameMenuRequested { get; private set; }
     public bool PauseRequested { get; private set; }
     public bool UiTabRequested { get; private set; }
+    public int UiPaneFocus { get; private set; }
     public int UiCharacterPage { get; private set; }
     public bool UiDetailRequested { get; private set; }
     public bool UiConfirmRequested { get; private set; }
@@ -104,6 +105,14 @@ internal sealed class KeyboardInput
     internal void SuppressHeldNameInput()
     {
         disarmedKeys.UnionWith(previousKeyboard.GetPressedKeys());
+    }
+
+    internal void SuppressHeldUiInput()
+    {
+        disarmedKeys.UnionWith(previousKeyboard.GetPressedKeys());
+        disarmedButtons.UnionWith(ControlsProfile.BindableButtons.Where(previousPad.IsButtonDown));
+        leftStickDisarmed = true;
+        rightStickDisarmed = true;
     }
 
     internal bool AllowsNameText(Keys key) => !disarmedKeys.Contains(key) && !IsArrowKey(key);
@@ -192,6 +201,7 @@ internal sealed class KeyboardInput
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
         UiTabRequested = Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab);
+        UiPaneFocus = Pressed(ControlAction.CameraLeft) ? -1 : Pressed(ControlAction.CameraRight) ? 1 : 0;
         UiCharacterPage = (Pressed(ControlAction.RotateRight) ? 1 : 0) - (Pressed(ControlAction.RotateLeft) ? 1 : 0);
         UiDetailRequested = Pressed(ControlAction.Card);
         UiConfirmRequested = Pressed(ControlAction.Confirm);

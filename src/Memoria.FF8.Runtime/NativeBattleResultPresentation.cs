@@ -48,7 +48,7 @@ public static class NativeBattleResultPresentation
             NativeStatCurve curve = after.Definitions.GuardianForces[id];
             byte previousLevel = NativeStatDefinitions.Level(previous.Experience, curve);
             byte finalLevel = NativeStatDefinitions.Level(final.Experience, curve);
-            int[] learned = Enumerable.Range(0, 128).Where(ability => final.LearnedBank.Has(ability) && !previous.LearnedBank.Has(ability)).ToArray();
+            int[] learned = Enumerable.Range(0, 128).Where(ability => final.HasLearnedAbility(ability) && !previous.HasLearnedAbility(ability)).ToArray();
             if (previousLevel != finalLevel || learned.Length > 0)
             {
                 notices.Add(new BattleGuardianForceRewardPresentation(id, previousLevel, finalLevel, learned));

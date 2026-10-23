@@ -17,6 +17,12 @@ public sealed record NativeGuardianForceLearnedBank([property: JsonRequired] ulo
 }
 public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities)
 {
+    public GuardianForceProgression? Progression { get; init; }
+    public GuardianForceCompatibilityProjection? LastProjection { get; init; }
+    public bool HasLearnedAbility(int ability)
+    {
+        return Progression is null ? LearnedBank.Has(ability) : Progression.Abilities.Any(entry => entry.Ability == ability && entry.Learned && !entry.Forgotten && entry.Active);
+    }
     public ushort? KillCount { get; init; }
     public ushort? DeathCount { get; init; }
 }
@@ -84,7 +90,7 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
         for (int bit = 19; bit < 28; bit++)
         {
             NativeStatModifier modifier = GuardianForceModifiers[bit - 19];
-            if ((guardianForce.LearnedBank.High & (1UL << bit)) != 0 && modifier.Selector == 1)
+            if (guardianForce.HasLearnedAbility(bit + 64) && modifier.Selector == 1)
             {
                 percentage += modifier.Percentage;
             }

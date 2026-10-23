@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeCharacterVitals
 {
-    /// <summary>4C2B40 unions IDs92..115 among each acquiredGF's first22 learned abilities, as4ACB70(a3=0).</summary>
+    /// <summary>Unions shop capabilities from every acquired GF without a managed ability capacity limit.</summary>
     public uint ShopAbilityMask()
     {
         Validate();
@@ -14,9 +14,9 @@ public sealed partial record NativeCharacterVitals
                 continue;
             }
             int learned = 0;
-            for (int ability = 0; ability < 128 && learned < 22; ability++)
+            for (int ability = 0; ability < 128; ability++)
             {
-                if (guardianForce.LearnedBank.Has(ability))
+                if (guardianForce.HasLearnedAbility(ability))
                 {
                     learned++;
                     if (ability is >= 92 and < 116)

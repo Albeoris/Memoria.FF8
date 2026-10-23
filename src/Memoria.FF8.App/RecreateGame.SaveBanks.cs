@@ -56,7 +56,16 @@ internal sealed partial class RecreateGame
 
     private void TransferPlayerSave(int source, int destination)
     {
-        playerSaves.Transfer(source, destination, ValidatePlayerState);
+        if (source <= PlayerSaveStore.MemoriaSlotCount && destination > PlayerSaveStore.MemoriaSlotCount)
+        {
+            GameState candidate = playerSaves.Load(source);
+            NativeCharacterVitals targetSource = ReviewOriginalGuardianForceExport(candidate);
+            playerSaves.Transfer(source, destination, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, reviewedSource: candidate);
+        }
+        else
+        {
+            playerSaves.Transfer(source, destination, ValidatePlayerState);
+        }
     }
 
     private void UpdatePlayerSavePointer()

@@ -139,12 +139,12 @@ internal sealed partial class PlayerSaveStore
         return IsInDirectory(fullPath, directory) || OriginalDirectory is { } original && IsInDirectory(fullPath, original);
     }
 
-    public static bool RequiresMemoriaFormat(GameState state)
+    public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
     {
-        return state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
-    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false)
     {
         if (slot < 0 || slot > TotalSlotCount)
         {
@@ -159,7 +159,17 @@ internal sealed partial class PlayerSaveStore
             string target = GetPath(slot);
             if (slot > MemoriaSlotCount)
             {
-                SaveOriginal(target, NativePcSaveConverter.Export(session.PrepareSnapshot()), validateContinuation);
+                GameState snapshot = session.PrepareSnapshot();
+                if (RequiresMemoriaFormat(snapshot, allowGuardianForceProjection: true))
+                {
+                    throw new NotSupportedException("This game's gameplay rules require a Memoria save slot.");
+                }
+                if (allowGuardianForceLoss && targetSource is null)
+                {
+                    throw new InvalidOperationException("Reviewed GF conversion requires the target game's source definitions.");
+                }
+                byte[] bytes = targetSource is null ? NativePcSaveConverter.Export(snapshot) : NativePcSaveConverter.Export(snapshot, targetSource, allowGuardianForceLoss);
+                SaveOriginal(target, bytes, validateContinuation);
             }
             else
             {

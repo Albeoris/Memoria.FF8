@@ -1,0 +1,23 @@
+# Create GF ability mods in the game
+
+[Documentation](../README.md) / Players
+
+Open **Mods → Create Mods → GF Abilities**. Choose a new draft, an existing native Memoria GF package (enabled or disabled), or a contribution saved in this playthrough. This gameplay tool supports Classic resources. The sixteen learnable GFs are available whether acquired or not; summon-only entities have no learning table.
+
+The left pane lists the existing ability catalog, with names, descriptions, AP costs, search and category filters. The right pane shows the full template, including locked abilities. **Initially learned** describes the template; **Learned now / AP** describes earned progress in the loaded game.
+
+Select a catalog ability, then **Append** or **Replace**. Replacement identifies both abilities before confirmation and preserves the original entry's learning role and conditions. It uses the replacement's catalog AP cost. A duplicate destination is rejected. **Swap positions** selects two rows and confirms their exchange; it changes display order, preserving automatic learning priority. The Card binding toggles the selected row's initial state.
+
+Use the displayed remappable escape-left/right bindings to focus the catalog/GF pane, previous/next character bindings to select a GF, and the Tab binding to focus the toolbar. Confirm on a red `[*]` row undoes its most recent draft edit; an armed Replace/Swap takes priority. The clickable **Undo row** remains available. Cancel first clears an armed operation. Changing targets with unsaved changes offers Save/Apply, Discard or Cancel. Undo history belongs to this editing session. **Restore inherited** removes a saved selected-layer contribution as a new edit.
+
+**Source**, **This mod only**, and **Current setup** show different compositions. Source is read-only. **Preview as enabled** substitutes a disabled package at its catalog position without enabling it. **Without this layer** compares the stack with the selected contribution removed. Conflict messages identify skipped operations. Previews do not grant abilities or change AP.
+
+**Apply once** reviews the selected contribution's structural changes, learning targets and junction consequences. Existing AP and learning are preserved. The optional **Also apply edited starting states** affects only starting states explicitly changed in this editing session; it shows exact learned/forgotten/AP changes before applying. These progression resets occur once. The contribution becomes save-local and its matching package GF document is excluded for this playthrough. Other payloads and global package enablement stay as configured. Save the game normally to retain the change.
+
+**Save mod** updates only `gameplay/gf-abilities.json`; **Save As** creates an independent document identity. The native folder picker is confined to the configured Mods/Memoria tree; choose or create a direct child package directory. Other package files and settings are preserved. An externally changed file requires reloading or Save As. Saving a document and activating it are separate results: check **Installed Mods** for the current status and diagnostics. New packages follow automatic enablement policy. **GF changes review** accepts pending mod changes that affect current progression or junctions. Unsafe battle/tutorial/party-transition boundaries reject application with a reason.
+
+Applying locally and then exporting keeps local ownership. **Use package** explicitly reviews removal of that local contribution and reactivation of the saved, enabled GF document. Independent local contributions remain. Missing previously applied packages retain their saved GF payload; the target list offers explicit reviewed removal. Their unrelated missing model/texture files are not reconstructed.
+
+Memoria saves preserve expanded lists and dormant progression. Original FFVIII saves cannot carry changed learning definitions or arbitrary display ordering, even when the list is small. The editor warns once when learning/effective capacity is exceeded. Original-format saving/copying uses a separate concrete loss review and a projected copy; cancellation preserves the full playthrough and destination. Unrelated unsupported gameplay settings can still require Memoria format.
+
+If another tool changes compatibility fields, Memoria compares them with the last saved mapping. Clear learned/AP/forgotten changes are adopted by identity. Ambiguous structural changes retain an opaque baseline and recovery information; former native documents are held out of automatic replay. **Review recovered native GF layers** explicitly previews reactivation over that baseline. Historical changes already baked into it cannot be subtracted by disabling a former package.

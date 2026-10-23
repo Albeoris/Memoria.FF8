@@ -26,7 +26,7 @@ public sealed partial class MenuController
             float scale = menus.TextScale;
             rowHeight = 34 * scale;
             float toolbarTop = Bounds.Y + 48 * scale;
-            packageTop = toolbarTop + rowHeight * ModToolbarCount + 12;
+            packageTop = toolbarTop + rowHeight * (ModToolbarCount - 1) + 12;
             float bottom = Bounds.Bottom - 80 * scale;
             visiblePackages = Math.Max(1, (int)((bottom - packageTop) / rowHeight));
             int packageCount = Math.Max(0, entries.Count - ModToolbarCount);
@@ -38,9 +38,16 @@ public sealed partial class MenuController
             firstPackage = Math.Clamp(firstPackage, 0, Math.Max(0, packageCount - visiblePackages));
             canvas.Text("CONFIG · MODS", 24 * scale, new UiRect(Bounds.X + 14, Bounds.Y + 6, Bounds.Width - 28, 40 * scale), theme.Foreground);
             float listWidth = Bounds.Width * 0.66f;
-            for (int index = 0; index < Math.Min(ModToolbarCount, entries.Count); index++)
+            float tabWidth = (listWidth - 20) / 2;
+            for (int index = 0; index < Math.Min(2, entries.Count); index++)
             {
-                DrawEntry(canvas, theme, entries[index], index, toolbarTop + index * rowHeight, listWidth - 20);
+                UiRect tab = new(Bounds.X + 14 + index * tabWidth, toolbarTop, tabWidth - 3, rowHeight - 2);
+                canvas.Fill(tab, index == 0 || menus.SelectedIndex == index ? theme.Highlight : new UiColor(30, 39, 58));
+                canvas.Text(entries[index].Label, 17 * scale, tab.Inset(4), theme.Foreground);
+            }
+            for (int index = 2; index < Math.Min(ModToolbarCount, entries.Count); index++)
+            {
+                DrawEntry(canvas, theme, entries[index], index, toolbarTop + (index - 1) * rowHeight, listWidth - 20);
             }
             for (int offset = 0; offset < visiblePackages && firstPackage + offset < packageCount; offset++)
             {
@@ -86,9 +93,14 @@ public sealed partial class MenuController
         {
             float toolbarTop = Bounds.Y + 48 * menus.TextScale;
             int index;
-            if (y >= toolbarTop && y < toolbarTop + rowHeight * ModToolbarCount && x < Bounds.X + Bounds.Width * 0.66f)
+            if (y >= toolbarTop && y < toolbarTop + rowHeight && x >= Bounds.X + 14 && x < Bounds.X + Bounds.Width * 0.66f)
             {
-                index = (int)((y - toolbarTop) / rowHeight);
+                float tabWidth = (Bounds.Width * 0.66f - 20) / 2;
+                index = Math.Min(1, (int)((x - Bounds.X - 14) / tabWidth));
+            }
+            else if (y >= toolbarTop + rowHeight && y < toolbarTop + rowHeight * (ModToolbarCount - 1) && x < Bounds.X + Bounds.Width * 0.66f)
+            {
+                index = 1 + (int)((y - toolbarTop) / rowHeight);
             }
             else if (y >= packageTop && y < packageTop + rowHeight * visiblePackages && x < Bounds.X + Bounds.Width * 0.66f)
             {

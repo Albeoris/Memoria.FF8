@@ -205,6 +205,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (NavigateGuardianEditor(input))
+        {
+            return;
+        }
         if (NavigateNaming(input))
         {
             return;
@@ -643,6 +647,10 @@ public sealed partial class MenuController
             return;
         }
         if (TryExecuteNativeTutorialExam(action))
+        {
+            return;
+        }
+        if (ExecuteGuardianEditorAction(action))
         {
             return;
         }

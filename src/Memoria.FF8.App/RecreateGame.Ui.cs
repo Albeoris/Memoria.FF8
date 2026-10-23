@@ -65,6 +65,7 @@ internal sealed partial class RecreateGame
             }
         };
         gameMenus.ConnectMods(resourceHost!.Mods);
+        ConnectGuardianAbilityEditor();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectQuickSaveRetention(playerSaves.PreviewQuickSaveCount, CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
@@ -458,7 +459,14 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                gameMenus.Close();
+                if (gameMenus.IsGuardianAbilityEditor)
+                {
+                    gameMenus.Navigate(MenuInput.Cancel);
+                }
+                else
+                {
+                    gameMenus.Close();
+                }
             }
             else
             {
@@ -469,7 +477,14 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                gameMenus.Close();
+                if (gameMenus.IsGuardianAbilityEditor)
+                {
+                    gameMenus.Navigate(MenuInput.Cancel);
+                }
+                else
+                {
+                    gameMenus.Close();
+                }
             }
             else if (ActiveBattle is not null)
             {
@@ -509,6 +524,10 @@ internal sealed partial class RecreateGame
             return true;
         }
         bool wasTypingName = gameMenus.IsTypingName;
+        if (keyboard.UiPaneFocus != 0 && gameMenus.IsGuardianAbilityEditor)
+        {
+            gameMenus.Navigate(keyboard.UiPaneFocus < 0 ? MenuInput.FocusLeft : MenuInput.FocusRight);
+        }
         if (input.MenuVertical < 0)
         {
             gameMenus.Navigate(MenuInput.Up);
@@ -559,7 +578,14 @@ internal sealed partial class RecreateGame
             view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
             if (keyboard.UiTabRequested && !gameMenus.IsEditingName)
             {
-                view.Key(UiKey.Tab);
+                if (gameMenus.IsGuardianAbilityEditor)
+                {
+                    gameMenus.Navigate(MenuInput.Tab);
+                }
+                else
+                {
+                    view.Key(UiKey.Tab);
+                }
             }
             view.Pointer(mouse.X, mouse.Y, mousePressEdge);
         }

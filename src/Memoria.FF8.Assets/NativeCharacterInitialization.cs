@@ -127,6 +127,9 @@ public static class NativeCharacterInitialization
             // Native56D9F0 clears the global junction flag; the template has no such global.
             DreamEnabled = false
         };
+        // Capture template defaults while the only progression owner is the original init.out.
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = state.ResolveGuardianForceTemplates();
+        state = state with { MenuDefinitions = menuDefinitions with { Templates = templates, SourceTemplates = templates, InitialStates = savedGuardianForces.Select(gf => new NativeGuardianForceInitialState(gf.LearnedBank, gf.AbilityProgress, gf.Learning, gf.ForgottenAbilities)).ToImmutableArray() } };
         state = state.RebuildParty();
         byte[] party = state.CombatParty.ToArray();
         for (int slot = 0; slot < party.Length; slot++)

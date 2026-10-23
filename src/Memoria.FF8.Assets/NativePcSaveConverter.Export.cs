@@ -6,14 +6,39 @@ namespace Memoria.FF8.Assets;
 
 public static partial class NativePcSaveConverter
 {
+    public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false)
+    {
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state, targetSource);
+        if (plan.RequiresConfirmation && !allowGuardianForceLoss)
+        {
+            throw new NotSupportedException("Original FF8 export requires confirmation of GF configuration/progression losses: " + string.Join("; ", plan.Losses.Select(loss => loss.Description)));
+        }
+        return ExportCore(plan.ProjectedState);
+    }
+
     public static byte[] Export(GameState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.CharacterVitals is { } vitals && (vitals.GuardianForceProfile is not null || vitals.GuardianForceRecoveryProfile is not null || vitals.GuardianForceOpaqueBaseline || !vitals.MenuDefinitions.Templates.IsDefault || vitals.GuardianForces.Any(gf => gf.Progression is not null)))
+        {
+            if (vitals.MenuDefinitions.SourceTemplates.IsDefault)
+            {
+                throw new NotSupportedException("Original FF8 export requires declared target source GF definitions for this managed ability state.");
+            }
+            NativeCharacterVitals target = vitals with { MenuDefinitions = vitals.MenuDefinitions with { Templates = vitals.MenuDefinitions.SourceTemplates } };
+            return Export(state, target);
+        }
+        return ExportCore(state);
+    }
+
+    private static byte[] ExportCore(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.Scene == SceneKind.Title || state.CharacterVitals is null || state.Economy is null)
         {
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");
         }
-        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.GameplayPreferences.LimitOncePerTurn || state.PendingGameplayPreferences is not null)
+        if (state.CharacterVitals.MagicSystem.RequiresMemoriaFormat || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.PendingGameplayPreferences is not null)
         {
             throw new NotSupportedException("This game contains gameplay rules or usage history that original FF8 saves cannot preserve. Choose a Memoria save slot.");
         }
@@ -75,7 +100,11 @@ public static partial class NativePcSaveConverter
                 WriteWord(block, start + 18, gf.HitPoints);
                 System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(block.AsSpan(start + 20), gf.LearnedBank.Low);
                 System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(block.AsSpan(start + 28), gf.LearnedBank.High);
-                gf.AbilityProgress.AsSpan().CopyTo(block.AsSpan(start + 36));
+                if (gf.AbilityProgress.Length != 21)
+                {
+                    throw new NotSupportedException("Original FF8 GF AP storage requires a reviewed projection into exactly twenty-one bytes.");
+                }
+                gf.AbilityProgress.AsSpan().CopyTo(block.AsSpan(start + 36, 21));
                 WriteWord(block, start + 60, gf.KillCount ?? 0);
                 WriteWord(block, start + 62, gf.DeathCount ?? 0);
                 block[start + 64] = gf.Learning;

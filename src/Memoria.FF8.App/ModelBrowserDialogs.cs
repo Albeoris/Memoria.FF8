@@ -69,9 +69,17 @@ internal static class ModelBrowserDialogs
         // Check every existing ancestor, including the root, to prevent junction escapes.
         for (DirectoryInfo? directory = new(fullPath); directory is not null; directory = directory.Parent)
         {
-            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+            try
             {
-                return false;
+                FileAttributes attributes = File.GetAttributes(directory.FullName);
+                if (directory.LinkTarget is not null || (attributes & FileAttributes.ReparsePoint) != 0 || (attributes & FileAttributes.Directory) == 0)
+                {
+                    return false;
+                }
+            }
+            catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+            {
+                // A not-yet-created package is permitted; existing links are rejected above.
             }
         }
         return true;
