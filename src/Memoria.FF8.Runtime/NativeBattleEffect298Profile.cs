@@ -1,0 +1,68 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleEffect298Profile
+{
+    public const ushort Effect = 298;
+    public const uint Entry = 0x670970;
+    public const uint Initializer = 0x670980;
+    public const uint RootCallback = 0x670A20;
+    public const uint MainCallback = 0x672290;
+    public const uint ScriptCallback = 0x670C60;
+    public const uint RootDescriptor = 0x25078D0;
+    public const uint RootBank = 0x25078E0;
+    public const int RootBankLength = 20;
+    public const uint BaseAddress = 0x2507880;
+    public const uint InitializerGlobal = 0x2507880;
+    public const uint ParametersGlobal = 0x2507884;
+    public const uint CasterGlobal = 0x2507888;
+    public const uint CursorGlobal = 0x25078F4;
+    public const uint SeedGlobal = 0x25078F8;
+    public const uint ArenaGlobal = 0x2507900;
+    public const uint ArenaAddress = 0x20DFAB8;
+    public const int MainOffset = 6036;
+    public const int MainLength = 35316;
+    public const int IoOffset = 41352;
+    public const int IoLength = 72;
+    public const int FirstPacketOffset = 41424;
+    public const int SecondPacketOffset = 98768;
+    public const int PacketBankBytes = 57344;
+    public const int ScratchOffset = 156112;
+    public const int ScratchLength = 512;
+    public const uint CameraAddress = 0x1052298;
+    public const int CameraLength = 328;
+    public const uint SoundAddress = 0x104E330;
+    public const uint VibrationAddress = 0x104E334;
+    public const int VibrationLength = 304;
+    public const uint TextureNameAddress = 0x105687C;
+    public const int TextureLength = 199712;
+    public const uint ScriptAddress = 0x1056560;
+    public const int ScriptLength = 796;
+    public const uint ProgrammeTableAddress = 0x1052278;
+    public const uint SpriteTableAddress = 0x104ED24;
+    public const uint TrigAddress = 0x10523E0;
+    public const int TrigLength = 16384;
+    public const uint NormalizationAddress = 0x10563E0;
+    public const int NormalizationLength = 384;
+    public const short CompletionFileId = 360;
+    public const uint ProgrammeAAddress = 0x104ED34;
+    public const int ProgrammeALength = 2700;
+    public const int ProgrammeAWorkspaceLength = 80;
+    public const uint ProgrammeBAddress = 0x104F7C0;
+    public const int ProgrammeBLength = 4768;
+    public const int ProgrammeBWorkspaceLength = 304;
+    public const uint ProgrammeCAddress = 0x1050A60;
+    public const int ProgrammeCLength = 3084;
+    public const int ProgrammeCWorkspaceLength = 272;
+    public const uint ProgrammeDAddress = 0x105166C;
+    public const int ProgrammeDLength = 3084;
+    public const int ProgrammeDWorkspaceLength = 272;
+    public const uint WorkingGlobal = ArenaGlobal;
+    public static readonly ImmutableArray<uint> ScriptCounterAddresses = [0x1056566, 0x10565B2, 0x10565FE, 0x105664A, 0x1056696, 0x105674A, 0x105675A, 0x10567E0, 0x10567EE, 0x1056874];
+    public static readonly ImmutableArray<uint> MeshAddresses = [0x104E464, 0x104E55C, 0x104E654];
+    public static readonly ImmutableArray<uint> SpriteAddresses = [0x104E74C, 0x104E8B8, 0x104EA64, 0x104EBC4];
+    public static readonly ImmutableArray<int> SpriteLengths = [364, 428, 352, 352];
+    public static readonly ImmutableArray<int> SpriteFrames = [12, 16, 13, 13];
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, 20, 1), new(0x2507890, ArenaAddress, 36, 45), new(0x25078A0, ArenaAddress + 0x654, 28, 64), new(0x25078B0, ArenaAddress + 0xD54, 328, 8), new(0x25078C0, ArenaAddress + MainOffset, MainLength, 1)];
+}
