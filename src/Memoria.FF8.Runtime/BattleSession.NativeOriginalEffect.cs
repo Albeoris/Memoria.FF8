@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         memory = memory.RetainReturnedTaskOnModuleLoad(graphics.OriginalEffect);
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
         NativeEffectMemory = memory.PublishEntry50AF20(selected.Binding, destination21DFEC0);
-        return graphics with { OriginalEffect = selected };
+        return graphics with { OriginalEffect = selected, GuardianAnimationSkip = null };
     }
 
     private NativeBattleGraphicsState PrepareNativeOriginalEffectParameters(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)

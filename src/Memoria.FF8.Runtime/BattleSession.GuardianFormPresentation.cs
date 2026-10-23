@@ -155,20 +155,26 @@ public sealed partial class BattleSession
         return models;
     }
 
-    public bool CanSkipGuardianFormFinisher => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
+    public bool CanSkipGuardianFormFinisher => CanSkipOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: false };
 
-    private bool SkippingGuardianFormPresentation => NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
+    private bool SkippingGuardianFormPresentation => SkippingOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
     private void AdvanceSkippedGuardianFormPresentation()
     {
-        for (int callback = 0; callback < 1200 && SkippingGuardianFormPresentation; callback++)
+        for (int callback = 0; callback < 4096 && SkippingGuardianFormPresentation; callback++)
         {
             DispatchTurnBasedFrame();
+            RetainGuardianAnimationFinale();
         }
+        RetainGuardianAnimationFinale();
     }
 
     public bool SkipGuardianFormFinisher()
     {
+        if (SkipOrdinaryGuardianAnimation())
+        {
+            return true;
+        }
         if (!CanSkipGuardianFormFinisher)
         {
             return false;

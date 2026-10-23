@@ -76,6 +76,10 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     public void Validate()
     {
         GuardianFormPresentation?.Validate();
+        if (GuardianAnimationSkip is { } skip && (!NativeBattleGuardianAnimationFinale.IsSupported(skip.Effect) || OriginalEffect?.Binding.Effect != skip.Effect))
+        {
+            throw new InvalidDataException("Saved summon skip request differs from its selected supported effect.");
+        }
         if (GuardianFormHumanFocalToRestore is <= 0)
         {
             throw new InvalidDataException("Saved GF camera restoration requires a positive focal length.");

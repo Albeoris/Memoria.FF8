@@ -48,7 +48,7 @@ These shortcuts use the defaults below. Player shortcuts can also be assigned to
 | Debug room | F2 | Open the host debug UI where available. |
 | Instant victory | F3 | Debug command for an active battle. |
 | Battle editor | F4 | Open battle debug controls. |
-| GF form finisher Skip | F8 / right stick click | Complete the active form's shortened Hell Fire, preserving earned Boost. |
+| GF animation Skip | D / left trigger (Escape battle, left) | Play only the finale of Quezacotl, Shiva, Ifrit, Siren or Diablos, including the Ifrit form finisher; preserve earned Boost, damage and statuses. |
 | Quick save | F5 | Write the configured quick-save snapshot. |
 | Save menu | F6 | Open the player save interface. |
 | Quick load | F9 | Open the quick-save picker. |
