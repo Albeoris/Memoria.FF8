@@ -103,29 +103,13 @@ public sealed partial class GameSession
         return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.SmartAttack != current.SmartAttack;
     }
 
-    public string? MagicMutationUnavailableReason
+    public string? MagicMutationUnavailableReason => ActiveFieldMutationBoundary switch
     {
-        get
-        {
-            static bool Present(JsonElement checkpoint, string name) => checkpoint.TryGetProperty(name, out JsonElement value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
-            if (State.Scene == SceneKind.Field && State.EventState is { ValueKind: JsonValueKind.Object } checkpoint)
-            {
-                if (checkpoint.TryGetProperty("TransitionRequested", out JsonElement transition) && transition.ValueKind == JsonValueKind.True)
-                {
-                    return "Magic rules cannot change during a field transition.";
-                }
-                if (Present(checkpoint, "PartyJoin") || Present(checkpoint, "PartySplit"))
-                {
-                    return "Magic rules cannot change during a scripted party transition.";
-                }
-                if (checkpoint.TryGetProperty("Scene", out JsonElement scene) && scene.ValueKind == JsonValueKind.Object && (Present(scene, "NativeTutorial") || Present(scene, "NativeMenuTutorial")))
-                {
-                    return "Magic rules cannot change during a tutorial.";
-                }
-            }
-            return null;
-        }
-    }
+        FieldMutationBoundary.Transition => "Magic rules cannot change during a field transition.",
+        FieldMutationBoundary.Party => "Magic rules cannot change during a scripted party transition.",
+        FieldMutationBoundary.Tutorial => "Magic rules cannot change during a tutorial.",
+        _ => null
+    };
 
     private void RequireMagicMutationBoundary()
     {

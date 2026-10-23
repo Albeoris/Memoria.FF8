@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -152,17 +153,80 @@ public sealed class GuardianForceProgressionTests
     [Theory]
     [InlineData("{\"TransitionRequested\":true}")]
     [InlineData("{\"PartyJoin\":{}}")]
+    [InlineData("{\"PartySplit\":{}}")]
+    [InlineData("{\"Scene\":{\"NativeTutorial\":{}}}")]
+    [InlineData("{\"Scene\":{\"NativeMenuTutorial\":{}}}")]
     public void SessionRejectsUnsafeScriptBoundariesBeforePreparingACommit(string checkpoint)
     {
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
         NativeCharacterVitals source = MagicSystemFixture.Create();
-        using JsonDocument json = JsonDocument.Parse(checkpoint);
-        GameSession session = new(new GameState { CharacterVitals = source, EventState = json.RootElement.Clone() });
+        JsonObject events = JsonNode.Parse(checkpoint)!.AsObject();
+        events["EventMemory"] = JsonSerializer.SerializeToNode(initial.State.EventMemory);
+        GameSession session = new(initial.State with { Scene = SceneKind.Field, CharacterVitals = source, EventState = JsonSerializer.SerializeToElement(events) });
         GuardianForceAbilityApplyPreview preview = session.PreviewGuardianForceAbilities(source.ResolveGuardianForceTemplates());
         string before = JsonSerializer.Serialize(session.State);
         Assert.False(session.CanApplyGuardianForceAbilities(out string? reason));
         Assert.False(string.IsNullOrEmpty(reason));
         Assert.Throws<InvalidOperationException>(() => session.PrepareGuardianForceAbilities(preview));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
+    }
+
+    [Theory]
+    [InlineData("{\"TransitionRequested\":true}")]
+    [InlineData("{\"PartyJoin\":{}}")]
+    [InlineData("{\"PartySplit\":{}}")]
+    [InlineData("{\"Scene\":{\"NativeTutorial\":{}}}")]
+    [InlineData("{\"Scene\":{\"NativeMenuTutorial\":{}}}")]
+    public void WorldMapIgnoresHistoricalFieldMutationBoundaries(string checkpoint)
+    {
+        GameSession initial = GameSession.CreateColdProcess();
+        initial.StartNewGame();
+        NativeCharacterVitals source = MagicSystemFixture.Create();
+        JsonObject events = JsonNode.Parse(checkpoint)!.AsObject();
+        events["EventMemory"] = JsonSerializer.SerializeToNode(initial.State.EventMemory);
+        JsonElement historical = JsonSerializer.SerializeToElement(events);
+        GameSession session = new(initial.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0), CharacterVitals = source, EventState = historical });
+        var templates = source.ResolveGuardianForceTemplates().SetItem(0, [new(100, true, 10)]);
+        GuardianForceAbilityApplyPreview preview = session.PreviewGuardianForceAbilities(templates);
+        Assert.True(session.CanApplyGuardianForceAbilities(out string? reason));
+        Assert.Null(reason);
+        Assert.Null(session.MagicMutationUnavailableReason);
+        GuardianForceAbilityPreparedApply prepared = session.PrepareGuardianForceAbilities(preview);
+        session.CommitPreparedGuardianForceAbilities(prepared);
+        Assert.True(session.CharacterVitals!.GuardianForceAbilities(0).Single().Learned);
+        Assert.True(JsonElement.DeepEquals(historical, session.State.EventState!.Value));
+    }
+
+    [Fact]
+    public void WorldTransitionFixtureAllowsGuardianChangesAndPreservesWorldAcrossSaveLoad()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("guardian-force-world-transition")));
+        GameState before = session.State;
+        Assert.Equal(SceneKind.WorldMap, before.Scene);
+        Assert.True(before.EventState!.Value.GetProperty("TransitionRequested").GetBoolean());
+        Assert.Null(session.MagicMutationUnavailableReason);
+        Assert.True(session.CanApplyGuardianForceAbilities(out _));
+        NativeCharacterVitals source = session.CharacterVitals!;
+        var templates = source.ResolveGuardianForceTemplates();
+        GuardianForceAbilityTemplate ability = templates[0][0];
+        templates = templates.SetItem(0, templates[0].SetItem(0, ability with { RequiredPoints = ability.RequiredPoints + 1 }));
+        GuardianForceAbilityApplyPreview preview = session.PreviewGuardianForceAbilities(templates);
+        GuardianForceAbilityPreparedApply prepared = session.PrepareGuardianForceAbilities(preview);
+        session.CommitPreparedGuardianForceAbilities(prepared);
+        Assert.Equal(ability.RequiredPoints + 1, session.CharacterVitals!.ResolveGuardianForceTemplates()[0][0].RequiredPoints);
+        Assert.Equal(before.World, session.State.World);
+        Assert.True(session.State.EventState!.Value.GetProperty("TransitionRequested").GetBoolean());
+        NativeCharacterVitals eventOwner = session.State.EventState.Value.GetProperty("CharacterVitals").Deserialize<NativeCharacterVitals>()!;
+        Assert.Equal(ability.RequiredPoints + 1, eventOwner.ResolveGuardianForceTemplates()[0][0].RequiredPoints);
+        string path = TestResources.ArtifactFile("guardian-force-world-transition.json");
+        session.Save(path, compact: true);
+        GameSession restored = new(GameSession.Load(path));
+        Assert.True(restored.CanApplyGuardianForceAbilities(out _));
+        Assert.Equal(ability.RequiredPoints + 1, restored.CharacterVitals!.ResolveGuardianForceTemplates()[0][0].RequiredPoints);
+        Assert.True(restored.State.EventState!.Value.GetProperty("TransitionRequested").GetBoolean());
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.World), JsonSerializer.SerializeToElement(restored.State.World)));
+        Assert.True(JsonElement.DeepEquals(session.State.EventState.Value, restored.State.EventState.Value));
     }
 
     [Fact]
