@@ -31,6 +31,7 @@ internal sealed class TripleTriadPracticeGame : Game
         this.gameDirectory = gameDirectory;
         this.save = save;
         this.load = load;
+        controller.ReplayDeclined += Exit;
         controller.EnablePresentation();
         view = controller.BuildView();
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 960, PreferredBackBufferHeight = 672, SynchronizeWithVerticalRetrace = true };

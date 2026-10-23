@@ -221,7 +221,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved Triple Triad opponent hand disagrees with its native deal.");
         }
-        if (request.Rules.HasFlag(TripleTriadRules.Random) && play.SelectedCards.Length != 0)
+        if (request.Rules.HasFlag(TripleTriadRules.Random) && !play.IsReplay && play.SelectedCards.Length != 0)
         {
             TripleTriadPreparedHand expectedPlayer = TripleTriadPreparation.SelectRandomHand(cards, expectedOpponent.RandomState);
             if (play.SelectedCards.Length != 5 || !play.SelectedCards.SequenceEqual(expectedPlayer.Cards))
@@ -239,7 +239,7 @@ internal sealed partial class GameWorld
             }
             if (savedMatch.Round == 0)
             {
-                uint dealSeed = request.Rules.HasFlag(TripleTriadRules.Random) ? TripleTriadPreparation.SelectRandomHand(cards, expectedOpponent.RandomState).RandomState : expectedOpponent.RandomState;
+                uint dealSeed = request.Rules.HasFlag(TripleTriadRules.Random) && !play.IsReplay ? TripleTriadPreparation.SelectRandomHand(cards, expectedOpponent.RandomState).RandomState : expectedOpponent.RandomState;
                 TripleTriadPreparedBoard expectedBoard = TripleTriadPreparation.GenerateElements(request.Rules, dealSeed);
                 TripleTriadStartingSide expectedStarter = TripleTriadPreparation.TossStartingSide(expectedBoard.RandomState);
                 if (!savedMatch.BoardElements.SequenceEqual(expectedBoard.Elements) || savedMatch.StartingPlayer != 1 - expectedStarter.NativeSide)
@@ -303,9 +303,37 @@ internal sealed partial class GameWorld
         TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, (TripleTriadTradeRule)request.TradeRule, request.OpponentOwner, selectedSlots);
         int result = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
         NativeCardInventory next = settlement.Inventory.CompleteMatch(result, play.RandomState);
-        Events.ReturnFromTripleTriad(result, () => session.CompleteTripleTriad(next));
+        tripleTriad.BeginReplayPrompt(() => RestartTripleTriad(next), () =>
+        {
+            Events.ReturnFromTripleTriad(result, () => session.CompleteTripleTriad(next));
+            tripleTriad = null;
+            session.SetEventState(Events.Capture());
+        }, Enumerable.Range(0, 110).Sum(inventoryCard => next.AvailableCount(inventoryCard)) >= 5);
+    }
+
+    private void RestartTripleTriad(NativeCardInventory inventory)
+    {
+        NativeTripleTriadRequest request = Events.PendingTripleTriad!;
+        uint seed = inventory.TripleTriadRandomState!.Value;
+        TripleTriadOpponentHand opponent = TripleTriadOpponentGenerator.Generate(inventory, request.OpponentOwner, request.RareChance, request.CommonLevelMask, seed);
+        NativeTripleTriadPlayState play = new()
+        {
+            Version = 1,
+            RequestIdentity = TripleTriadIdentity(request),
+            InitialRandomState = seed,
+            RandomState = opponent.RandomState,
+            DealRandomState = seed,
+            OpponentHand = opponent.Cards.ToArray(),
+            SelectedCards = [],
+            RulesAccepted = true,
+            IsReplay = true,
+            Prompt = new TripleTriadPromptState(TripleTriadPromptPhase.Accepted, 0, seed),
+            Match = null
+        };
+        session.CompleteTripleTriad(inventory);
+        session.SetTripleTriadPlay(play);
         tripleTriad = null;
-        session.SetEventState(Events.Capture());
+        EnsureTripleTriad();
     }
 
     private PlayerActionResult ApplyTripleTriad(PlayerAction action)
@@ -348,7 +376,7 @@ internal sealed partial class GameWorld
             case PlayerActionKind.Confirm:
                 controller.Navigate(UiKey.Confirm);
                 break;
-            case PlayerActionKind.Cancel when controller.AwaitingRules:
+            case PlayerActionKind.Cancel when controller.AwaitingRules || controller.AwaitingReplay:
                 controller.Navigate(UiKey.Cancel);
                 break;
             case PlayerActionKind.Wait when controller.AwaitingRules:

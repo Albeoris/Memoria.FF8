@@ -95,7 +95,7 @@ public sealed partial class TripleTriadController
 
     public void ChooseDeck(int index)
     {
-        if (AwaitingRules || Match is not null || (uint)index >= recentDecks.Length)
+        if (AwaitingRules || AwaitingReplay || Match is not null || (uint)index >= recentDecks.Length)
         {
             return;
         }
@@ -132,7 +132,7 @@ public sealed partial class TripleTriadController
 
     public void ChooseCard(int id)
     {
-        if (AwaitingRules || Match is not null || deck.Count >= 5 || !available.Contains(id) || Remaining(id) <= 0)
+        if (AwaitingRules || AwaitingReplay || Match is not null || deck.Count >= 5 || !available.Contains(id) || Remaining(id) <= 0)
         {
             return;
         }
@@ -146,6 +146,7 @@ public sealed partial class TripleTriadController
     public void RestoreMatch(TripleTriadMatch match)
     {
         ArgumentNullException.ThrowIfNull(match);
+        ClearReplayPrompt();
         ClearPresentation();
         ClearTradePresentation();
         TradingHand = null;
@@ -169,6 +170,11 @@ public sealed partial class TripleTriadController
 
     private void NavigateCore(UiKey key)
     {
+        if (AwaitingReplay)
+        {
+            NavigateReplay(key);
+            return;
+        }
         if (AwaitingRules)
         {
             if (key is UiKey.Up or UiKey.Down)
@@ -299,7 +305,14 @@ public sealed partial class TripleTriadController
             }
             else if (key == UiKey.Confirm)
             {
-                CompletionRequested?.Invoke();
+                if (CompletionRequested is not null)
+                {
+                    CompletionRequested();
+                }
+                else
+                {
+                    BeginReplayPrompt(ResetForReplay, () => ReplayDeclined?.Invoke());
+                }
             }
             return;
         }
@@ -345,6 +358,10 @@ public sealed partial class TripleTriadController
 
     public void Play(int handIndex, int cellIndex)
     {
+        if (AwaitingReplay)
+        {
+            return;
+        }
         if ((uint)handIndex >= 5 || (uint)cellIndex >= 9 || Match is null || Match.CurrentPlayer != 0 || Match.Outcome != TripleTriadOutcome.InProgress || Match.Hands[0][handIndex] is null || Match.Board[cellIndex] is not null)
         {
             Message = "Choose an empty square.";
@@ -366,7 +383,7 @@ public sealed partial class TripleTriadController
 
     public bool AdvanceOpponent()
     {
-        if (IsAnimating || Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
+        if (AwaitingReplay || IsAnimating || Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
         {
             return false;
         }
@@ -382,7 +399,7 @@ public sealed partial class TripleTriadController
 
     public void SelectHand(int index)
     {
-        if (!IsAnimating && (uint)index < 5 && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
+        if (!AwaitingReplay && !IsAnimating && (uint)index < 5 && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
         {
             SelectedHand = index;
             ChoosingCell = true;

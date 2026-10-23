@@ -10,8 +10,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class TripleTriadHostIntegrationTests
 {
-    [Fact]
-    public void OriginalMartineChallengeRestoresAndCompletesTheNativeHost()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OriginalMartineChallengeRestoresAndCompletesTheNativeHost(bool acceptReplay)
     {
         string directory = TestResources.GameDirectory;
         string source = TestResources.FixturePath("App.Tests.TripleTriadHostIntegrationTests.1");
@@ -104,11 +106,56 @@ public sealed class TripleTriadHostIntegrationTests
         Assert.Equal(27, world.Events.Frame);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
         Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
-        for (int slot = 0; slot < 5 && world.Events.PendingTripleTriad is not null; slot++)
+        for (int slot = 0; slot < 5 && !controller.AwaitingReplay; slot++)
         {
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.TriadTradeCard, slot)).Accepted);
             Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.TriadTradeCard, slot)).Accepted);
         }
+        Assert.True(controller.AwaitingReplay);
+        Assert.True(restoredController.AwaitingReplay);
+        Assert.NotNull(world.Events.PendingTripleTriad);
+        Assert.NotNull(restored.Events.PendingTripleTriad);
+        Assert.Equal(27, world.Events.Frame);
+        Assert.Equal(27, restored.Events.Frame);
+        if (acceptReplay)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+            Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+            var replay = world.EnsureTripleTriad()!;
+            var restoredReplay = restored.EnsureTripleTriad()!;
+            Assert.NotSame(controller, replay);
+            Assert.NotSame(restoredController, restoredReplay);
+            Assert.False(replay.AwaitingRules);
+            Assert.False(replay.AwaitingReplay);
+            Assert.Empty(replay.Deck);
+            Assert.Null(replay.Match);
+            Assert.Equal(27, world.Events.Frame);
+            Assert.NotNull(world.Events.PendingTripleTriad);
+            Assert.Equal(1, session.CardInventory!.TripleTriadStatistics!.Wins + session.CardInventory.TripleTriadStatistics.Losses + session.CardInventory.TripleTriadStatistics.Draws);
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.CardInventory), JsonSerializer.SerializeToElement(restoredSession.CardInventory)));
+            Assert.Equal(replay.Available, restoredReplay.Available);
+            foreach (int id in replay.Available)
+            {
+                Assert.Equal(session.CardInventory.AvailableCount(id), replay.Remaining(id));
+            }
+            int selected = replay.Available.First();
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.TriadSelectCard, selected)).Accepted);
+            string replaySelection = Path.Combine(output, "martine-field621-replay-selection.json");
+            session.Save(replaySelection);
+            GameSession replaySession = new(GameSession.Load(replaySelection));
+            using GameWorld reloadedReplay = new(replaySession, directory);
+            reloadedReplay.EnsureField();
+            var reloadedController = reloadedReplay.EnsureTripleTriad()!;
+            Assert.False(reloadedController.AwaitingRules);
+            Assert.False(reloadedController.AwaitingReplay);
+            Assert.Equal(new[] { selected }, reloadedController.Deck);
+            Assert.Null(reloadedController.Match);
+            Assert.Equal(27, reloadedReplay.Events.Frame);
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.CardInventory), JsonSerializer.SerializeToElement(replaySession.CardInventory)));
+            return;
+        }
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted);
         Assert.Null(world.Events.PendingTripleTriad);
         Assert.Null(restored.Events.PendingTripleTriad);
         Assert.Null(session.State.TripleTriadPlay);

@@ -45,6 +45,14 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         {
             canvas.OutlinedText(controller.IsAnimating && controller.TradingHand is null ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(160, 635, 640, 30), theme.Foreground, new UiColor(0, 0, 0), 1);
         }
+        if (controller.AwaitingReplay)
+        {
+            theme.Panel(canvas, new UiRect(330, 254, 300, 156));
+            canvas.Text("Play again?", 24, new UiRect(354, 270, 260, 32), theme.Foreground);
+            canvas.Text("Yes", 24, new UiRect(400, 312, 190, 36), controller.CanReplay ? theme.Foreground : theme.Muted);
+            canvas.Text("No", 24, new UiRect(400, 354, 190, 36), theme.Foreground);
+            theme.Pointer(canvas, 350, 316 + controller.ReplaySelection * 42, 26);
+        }
         DrawPromptFade(canvas);
     }
 
@@ -335,6 +343,23 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
     {
         if (controller.IsAnimating)
         {
+            return;
+        }
+        if (controller.AwaitingReplay)
+        {
+            for (int choice = 0; choice < 2; choice++)
+            {
+                if (new UiRect(350, 312 + choice * 42, 250, 36).Contains(x, y))
+                {
+                    if (choice == 0 && !controller.CanReplay)
+                    {
+                        return;
+                    }
+                    controller.SelectReplayChoice(choice);
+                    controller.Navigate(UiKey.Confirm);
+                    break;
+                }
+            }
             return;
         }
         if (controller.AwaitingRules)

@@ -354,7 +354,7 @@ public sealed class TripleTriadTradePresentationTests
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
         int acknowledgements = 0;
         int ticks = 0;
-        while (world.ActiveTripleTriad is not null && ticks++ < 100)
+        while (!controller.AwaitingReplay && ticks++ < 100)
         {
             Assert.NotNull(world.Events.PendingTripleTriad);
             Assert.Equal(inventoryBefore, JsonSerializer.Serialize(session.CardInventory));
@@ -377,6 +377,11 @@ public sealed class TripleTriadTradePresentationTests
                     break;
             }
         }
+        Assert.True(controller.AwaitingReplay);
+        Assert.NotNull(world.ActiveTripleTriad);
+        Assert.NotNull(world.Events.PendingTripleTriad);
+        Assert.Equal(inventoryBefore, JsonSerializer.Serialize(session.CardInventory));
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted);
         Assert.Null(world.ActiveTripleTriad);
         Assert.Null(world.Events.PendingTripleTriad);
         Assert.Null(session.State.TripleTriadPlay);
