@@ -369,6 +369,14 @@ public sealed partial class BattleSession
         {
             return NativeBattleGatlingGun305PacketArena.Read(memory.GatlingGun305 ?? throw new NotSupportedException("Gatling Gun packets require their retained native banks."), reference, count);
         }
+        if (reference.Bank == "22F421C")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Effect183 packet banks require their single contiguous physical owner.");
+            }
+            return (memory.Effect183 ?? throw new NotSupportedException("Effect183 requires its retained executable packet storage.")).ReadPacket(checked(NativeBattleEffect183Profile.PacketBase + (uint)reference.ByteOffset), count);
+        }
         if (reference.Bank == NativeBattleMeltEye158PacketArena.PacketBank)
         {
             return NativeBattleMeltEye158PacketArena.Read(memory.MeltEye158 ?? throw new NotSupportedException("Melt-Eye packets require their retained native banks."), reference, count);
