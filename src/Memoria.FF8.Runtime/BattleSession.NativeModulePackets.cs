@@ -25,6 +25,11 @@ public sealed partial class BattleSession
             else
             {
                 NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native module packet emission requires its prior projection/register owner.");
+                if (draw.Kind == NativeBattleModuleDrawKind.Impact570860)
+                {
+                    graphics = SubmitNativeImpactPackets(graphics, draw, projection, index);
+                    continue;
+                }
                 batch = draw.Kind switch
                 {
                     NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, definition.NativeEffectMeshes.Single(resource => resource.Id == draw.MeshId), projection, 17, 2, definition.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
@@ -34,6 +39,26 @@ public sealed partial class BattleSession
                 };
             }
             graphics = AppendNativeModulePacketBatch(graphics, batch, index, draw.NativeEffectArenaOffset);
+        }
+        return graphics;
+    }
+
+    private NativeBattleGraphicsState SubmitNativeImpactPackets(NativeBattleGraphicsState graphics, NativeBattleModuleDraw draw, NativeBattleCameraProjection projection, int moduleDraw)
+    {
+        if (draw.NativeEffectArenaOffset is not null)
+        {
+            throw new InvalidDataException("Native570860 writes only its ordinary COMMON packet owner.");
+        }
+        NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native570860 requires its current camera.");
+        NativeBattleModuleImpactPacketStep rendered = NativeBattleModuleImpactPackets.Draw570860(NativeEffectMemory ?? throw new NotSupportedException("Native570860 requires its current process memory."), NativeFileStaging ?? throw new NotSupportedException("Native570860 requires its retained temporary memory."), draw, camera.CapturePackedView1D97778(), projection, definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native570860 requires its authenticated color constants."), definition.NativeEffectMeshes.SingleOrDefault(resource => resource.Id == 5), definition.NativeModuleResources, camera.Roll);
+        NativeEffectMemory = rendered.Memory;
+        NativeFileStaging = rendered.Staging;
+        foreach (NativeBattleGfGeometryBatch batch in rendered.Batches)
+        {
+            NativeBattlePrimitiveProcess process = (NativeEffectMemory ?? throw new NotSupportedException("Native570860 lost its current process memory.")).PrimitiveProcess ?? throw new NotSupportedException("Native570860 requires its current COMMON packet owner.");
+            int cursor = process.ByteCursor ?? throw new NotSupportedException("Native570860 requires its current COMMON cursor.");
+            NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, process.CommonPacketWriteCapacity, address => process.ReadCommonPacket(address, 1)[0]);
+            graphics = AppendNativeModulePacketBatch(graphics, new NativeBattleModulePacketBatch([], batch.AllocationBytes) { CapturedWrites = resolved }, moduleDraw, null);
         }
         return graphics;
     }

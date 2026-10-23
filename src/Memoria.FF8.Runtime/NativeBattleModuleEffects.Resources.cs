@@ -33,6 +33,7 @@ public sealed partial record NativeBattleModuleDraw
     public short Rotation { get; init; }
     public short Orientation { get; init; }
     public int Scale { get; init; }
+    public int ImpactScaleZ { get; init; }
     public int DepthOffset { get; init; }
     public int Direction { get; init; }
     public uint PackedParameters { get; init; }
@@ -110,6 +111,7 @@ public sealed partial record NativeBattleModuleState
         {
             0x5705A0 => NativeBattleModuleKind.Defensive5705A0,
             0x570BC0 => NativeBattleModuleKind.Sprite570BC0,
+            0x5707A0 => NativeBattleModuleKind.ImpactSeed5707A0,
             _ => throw new NotSupportedException($"Native module callback{resource.Callback:X} requires its original implementation.")
         };
         (NativeBattleModuleState state, int child) = Append(kind);

@@ -31,7 +31,9 @@ public enum NativeBattleModuleKind
     SpectralCastingParticle573C40,
     SpectralCastingGround573DF0,
     SpectralCastingColumn573F40,
-    SpectralCastingRing5740D0
+    SpectralCastingRing5740D0,
+    ImpactSeed5707A0,
+    Impact570860
 }
 
 public enum NativeBattleModuleDrawKind
@@ -40,7 +42,8 @@ public enum NativeBattleModuleDrawKind
     Defensive,
     Sprite,
     Sound,
-    Mesh
+    Mesh,
+    Impact570860
 }
 
 public sealed partial record NativeBattleModuleDraw(NativeBattleModuleDrawKind Kind, byte Intensity);
@@ -178,6 +181,8 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 NativeBattleModuleKind.SpectralCastingGround573DF0 => state.AdvanceSpectralCastingGround(index, inputs),
                 NativeBattleModuleKind.SpectralCastingColumn573F40 => state.AdvanceSpectralCastingColumn(index, inputs),
                 NativeBattleModuleKind.SpectralCastingRing5740D0 => state.AdvanceSpectralCastingRing(index, inputs),
+                NativeBattleModuleKind.ImpactSeed5707A0 => state.AdvanceImpactSeed5707A0(index, inputs),
+                NativeBattleModuleKind.Impact570860 => state.AdvanceImpact570860(index, inputs),
                 _ => throw new NotSupportedException("Native effect-module task requires its original callback owner.")
             };
             state = callback.State;
