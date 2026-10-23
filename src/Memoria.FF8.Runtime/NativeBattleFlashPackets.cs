@@ -2,9 +2,15 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>571300's common-heap tile and7011A0's private-arena fullscreen polygon; both store every packet byte before45C8E0.</summary>
+/// <summary>571250/571300 common-heap tiles and7011A0's private-arena fullscreen polygon store every packet byte before45C8E0.</summary>
 public static class NativeBattleFlashPackets
 {
+    public static NativeBattleModulePacketBatch Emit571250(int red, int green, int blue)
+    {
+        uint rgb = unchecked((uint)(byte)red | (uint)(byte)green << 8 | (uint)(byte)blue << 16);
+        return Packet([0x03000000, 0x62000000 | rgb, 0, 216u << 16 | 320], 17);
+    }
+
     public static NativeBattleModulePacketBatch Emit(NativeBattleModuleDraw draw)
     {
         if (draw.Kind != NativeBattleModuleDrawKind.Flash)
@@ -27,6 +33,11 @@ public static class NativeBattleFlashPackets
         {
             throw new NotSupportedException("Native fullscreen packet requires its original command, vertices and physical arena owner.");
         }
+        return Packet(words, bucket);
+    }
+
+    private static NativeBattleModulePacketBatch Packet(ImmutableArray<uint> words, int bucket)
+    {
         NativeBattleGeometryPrimitive primitive = new(bucket, words, [0, 0, 0, 0]) { PhysicalWriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToImmutableArray() };
         return new([new(primitive, 0, 1)], words.Length * 4);
     }

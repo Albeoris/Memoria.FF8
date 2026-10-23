@@ -8,41 +8,47 @@ public sealed record NativeBattleStaticMeshContext88Step(NativeBattleEffectMemor
 
 public static class NativeBattleStaticMeshContext88
 {
-    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, short? matrixPadding18 = null, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0) || depthShift > 31)
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
-        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift);
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex);
     }
 
-    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleStaticMeshContext88Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 2, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Static mesh requires its actual loaded geometry registers."), memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Masamune requires its current projection controls.");
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0) || depthShift > 31)
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
-        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift);
+        return DrawCore(memory, mesh, projection, context, constants, registers, far, flags, tableBaseBucket, depthShift, selectedVerticesAddress, readSelectedVertex);
     }
 
-    private static NativeBattleStaticMeshContext88Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift)
+    private static NativeBattleStaticMeshContext88Step DrawCore(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters far, uint flags, int tableBaseBucket, byte depthShift, uint? selectedVerticesAddress, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex)
     {
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics!;
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess!;
-        context = Put(context, 4, checked(mesh.Address + 8));
-        context = Put(context, 0x18, 0);
+        if ((flags & 0x2000) == 0)
+        {
+            context = Put(context, 4, checked(mesh.Address + 8));
+        }
+        if ((flags & 0x1000) == 0)
+        {
+            context = Put(context, 0x18, 0);
+        }
         (byte[] rgbBytes, bool[] rgbKnown) = context.ReadSnapshot(8, 3);
         uint? rgb = rgbKnown.All(value => value) ? (uint)(rgbBytes[0] | rgbBytes[1] << 8 | rgbBytes[2] << 16) : null;
         far = far with { FarRed = rgbKnown[0] ? (uint)rgbBytes[0] << 4 : null, FarGreen = rgbKnown[1] ? (uint)rgbBytes[1] << 4 : null, FarBlue = rgbKnown[2] ? (uint)rgbBytes[2] << 4 : null };
@@ -70,7 +76,7 @@ public static class NativeBattleStaticMeshContext88
                 byte[] face = mesh.Bytes.AsSpan().Slice(cursor, lengths[group]).ToArray();
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    (NativeBattleVector position, short w) = Vertex(corner);
+                    (NativeBattleVector position, short? w) = Vertex(corner);
                     registers = NativeBattleGeometry.LoadVector(registers, corner, position, w);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
@@ -94,7 +100,7 @@ public static class NativeBattleStaticMeshContext88
                 {
                     if (corner == 3)
                     {
-                        (NativeBattleVector position, short w) = Vertex(corner);
+                        (NativeBattleVector position, short? w) = Vertex(corner);
                         registers = NativeBattleGeometry.LoadVector(registers, 0, position, w);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
@@ -105,7 +111,15 @@ public static class NativeBattleStaticMeshContext88
                 (byte[] cueBytes, bool[] cueKnown) = context.ReadSnapshot(12, 4);
                 bool depthCue = (flags & (gouraud ? 0x80u : 0x40u)) != 0;
                 int? packetCue = depthCue && cueKnown.All(value => value) ? BinaryPrimitives.ReadInt32LittleEndian(cueBytes) : null;
-                NativeBattleModuleMeshContext packetContext = new(flags, rgb, packetCue, null, null, 0, tableBaseBucket, depthShift);
+                bool textured = (group & 2) != 0;
+                ushort? texturePage = null;
+                if (textured && (flags & 0x500) != 0)
+                {
+                    (byte[] pageBytes, bool[] pageKnown) = context.ReadSnapshot(0x10, 2);
+                    texturePage = pageKnown.All(value => value) ? BinaryPrimitives.ReadUInt16LittleEndian(pageBytes) : null;
+                }
+                uint? uvOffset = textured ? Dword(context, 0x18) : null;
+                NativeBattleModuleMeshContext packetContext = new(flags, rgb, packetCue, texturePage, null, uvOffset, tableBaseBucket, depthShift);
                 NativeBattleGfGeometryAttempt attempt = NativeBattleModulePackets.EmitFace572200(face, new Corners(projected.Length, ReadCorner), group, packetContext, constants, allocated);
                 if (attempt.Primitive is not null)
                 {
@@ -139,9 +153,18 @@ public static class NativeBattleStaticMeshContext88
                 cursor = checked(cursor + lengths[group]);
                 context = Put(context, 0x20, checked(mesh.Address + (uint)cursor));
 
-                (NativeBattleVector Position, short W) Vertex(int corner)
+                (NativeBattleVector Position, short? W) Vertex(int corner)
                 {
-                    int offset = checked(8 + BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4);
+                    int selectedOffset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4;
+                    if ((flags & 0x2000) != 0)
+                    {
+                        if (selectedVerticesAddress is null || readSelectedVertex is null || Dword(context, 4) != selectedVerticesAddress)
+                        {
+                            throw new NotSupportedException("Static mesh selected vertices require their actual retained address and bounded reader.");
+                        }
+                        return readSelectedVertex(selectedOffset);
+                    }
+                    int offset = checked(8 + selectedOffset);
                     ReadOnlySpan<byte> bytes = mesh.Bytes.AsSpan().Slice(offset, 8);
                     return (new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..])), BinaryPrimitives.ReadInt16LittleEndian(bytes[6..]));
                 }
