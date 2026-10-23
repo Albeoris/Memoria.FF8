@@ -1,0 +1,53 @@
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattlePoisonGas171Profile
+{
+    public const ushort Effect = 171;
+    public const uint Entry = 0x5DB270;
+    public const uint Initializer = 0x5DB250;
+    public const uint RootCallback = 0x5DC8C0;
+    public const uint MainCallback = 0x5DB340;
+    public const uint Callback5DB620 = 0x5DB620;
+    public const uint Callback5DB720 = 0x5DB720;
+    public const uint Callback5DB8B0 = 0x5DB8B0;
+    public const uint Callback5DBA00 = 0x5DBA00;
+    public const uint Callback5DBED0 = 0x5DBED0;
+    public const uint Callback5DC270 = 0x5DC270;
+    public const uint Callback5DC5B0 = 0x5DC5B0;
+    public const uint Callback5DC700 = 0x5DC700;
+    public const uint BaseAddress = 0x23AD700;
+    public const uint FirstTargetGlobal = 0x23AD700;
+    public const uint RootBank = 0x23AD708;
+    public const uint RootDescriptor = 0x23AD718;
+    public const ushort RootStride = 16;
+    public const ushort RootCount = 1;
+    public const int RootBankLength = 16;
+    public const uint ChildDescriptor = 0x23AE9E8;
+    public const uint ChildBank = 0x23AE9F8;
+    public const ushort ChildStride = 36;
+    public const ushort ChildCount = 100;
+    public const int ChildBankLength = 3600;
+    public const uint ParticleABase = 0x23AD728;
+    public const uint ParticleBBase = 0x23AE088;
+    public const int ParticleStride = 24;
+    public const int ParticleCount = 100;
+    public const int ParticleBankBytes = 0x960;
+    public const uint ParametersGlobal = 0x23AF808;
+    public const uint CasterGlobal = 0x23AF80C;
+    public const uint InitializerGlobal = 0x23AF810;
+    public const uint WorkingGlobal = 0x23AF814;
+    public const uint CursorGlobal = 0x23AF818;
+    public const uint ArenaAddress = 0x20DFAB8;
+    public const int PacketStep = 0xC000;
+    public const int PacketBankBytes = 0xC000;
+    public const int PacketBytes = 0x18000;
+    public const uint MeshAAddress = 0xD65A4C;
+    public const uint SpriteAAddress = 0xD656F4;
+    public const uint SpriteBAddress = 0xD658A0;
+    public const uint CameraAddress = 0xD65640;
+    public const int CameraLength = 0xB4;
+    public const uint SoundAddress = 0xD68CB4;
+    public const uint EmitterPointsAddress = 0xD68CC0;
+    public const int EmitterPointsLength = 64;
+    public const uint TextureNameAddress = 0xD68D00;
+}
