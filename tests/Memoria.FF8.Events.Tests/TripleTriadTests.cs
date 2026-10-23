@@ -25,7 +25,7 @@ internal static partial class Program
             NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
             GameSession fresh = GameSession.CreateColdProcess();
             fresh.StartNewGame();
-            GameSession session = new(fresh.State with { Scene = SceneKind.Field, FieldId = 600, CardInventory = inventory, SeeD = null, WorldControls = controls with { EventFlags104 = controls.EventFlags104 | 0x10 } });
+            GameSession session = new(fresh.State with { Scene = SceneKind.Field, FieldId = 600, FieldLoadContext = NativeFieldLoadContext.FromOriginalSave(600), CardInventory = inventory, SeeD = null, WorldControls = controls with { EventFlags104 = controls.EventFlags104 | 0x10 } });
             EventEngine engine = new(session);
             if (host)
             {
@@ -66,6 +66,23 @@ internal static partial class Program
             Require(published == 1 && restored.PendingTripleTriad is null && restored.Scene.TripleTriadRequest is null, "CARDGAME did not return exactly once.");
             Require(restoredSession.State.Variables[904] == 5 && restoredSession.State.Variables[908] == nativeResult, "CARDGAME completion lost native R0=count or R1=win/loss/draw/cancel.");
             Require(restored.Capture().GetProperty("EventMemory").ValueKind != JsonValueKind.Null, "CARDGAME lost canonical event memory.");
+        }
+        foreach (bool gainedCard in new[] { false, true })
+        {
+            (GameSession session, EventEngine engine) = Create(cards, true);
+            Require(engine.TalkTo(0, true), "Rematch fixture did not queue its original challenge.");
+            engine.Step();
+            NativeCardInventory settled = gainedCard ? cards.Acquire(5, out _) : cards.Transfer(0, 121, out _);
+            session.SetCardInventory(settled);
+            JsonElement snapshot = engine.Capture();
+            (GameSession restoredSession, EventEngine restored) = Create(cards, true);
+            restored.Restore(snapshot);
+            Require(restored.PendingTripleTriad?.AvailableCards == 5, "Rematch restore changed the historical CARDGAME count.");
+            Require(restoredSession.CardInventory!.Cards.SequenceEqual(settled.Cards) && restoredSession.CardInventory.ObtainedRareCards.SequenceEqual(settled.ObtainedRareCards), "Rematch restore lost settled card ownership or acquisition history.");
+            Require(Enumerable.Range(0, NativeCardInventory.CardCount).Sum(card => Math.Max(0, restoredSession.CardInventory.AvailableCount(card))) == (gainedCard ? 6 : 4), "Rematch restore reconstructed the original inventory instead of preserving the settlement.");
+            Require(JsonElement.DeepEquals(snapshot, restored.Capture()), "Rematch restore changed the suspended field snapshot.");
+            restored.ReturnFromTripleTriad(gainedCard ? 0 : 1);
+            Require(restoredSession.State.Variables[904] == 5 && restoredSession.State.Variables[908] == (gainedCard ? 0 : 1), "Rematch return replaced historical R0 with the settled inventory count.");
         }
         (GameSession ordinarySession, EventEngine ordinary) = Create(cards, true);
         Require(ordinary.TalkTo(0), "Ordinary talk request failed after the card challenge extension.");

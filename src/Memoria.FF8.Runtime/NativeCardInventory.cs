@@ -127,6 +127,10 @@ public sealed record NativeCardInventory
         return next;
     }
 
+    /// <summary>Total playable instances; the native never-acquired sentinel is not a negative quantity.</summary>
+    [JsonIgnore]
+    public int TotalAvailableCount => Enumerable.Range(0, CardCount).Sum(card => Math.Max(0, AvailableCount(card)));
+
     /// <summary>Native534950 distinguishes never acquired, common quantity and current rare-card location.</summary>
     public int AvailableCount(int cardId)
     {

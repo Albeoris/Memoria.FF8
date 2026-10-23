@@ -21,7 +21,7 @@ public sealed record NativeTripleTriadPlayState
     public required int[] SelectedCards { get; init; }
     [JsonRequired]
     public required bool RulesAccepted { get; init; }
-    /// <summary>Rematches reopen manual deck selection without repeating the rules prompt.</summary>
+    /// <summary>Identifies rematches, which reuse the accepted rules without repeating their prompt.</summary>
     public bool IsReplay { get; init; }
     [JsonRequired]
     public required TripleTriadPromptState Prompt { get; init; }

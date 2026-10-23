@@ -3,6 +3,29 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadTradeTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(100)]
+    public void PlayableTotalCountsInstancesWithoutSubtractingNeverAcquiredCards(int quantity)
+    {
+        NativeCardInventory inventory = Own(Enumerable.Repeat(0, quantity));
+        Assert.Equal(quantity, inventory.TotalAvailableCount);
+        Assert.Equal(-1, inventory.AvailableCount(1));
+        NativeCardInventory withRare = inventory.Acquire(84, out _);
+        Assert.Equal(quantity + 1, withRare.TotalAvailableCount);
+        NativeCardInventory lostRare = withRare.Transfer(84, 121, out _);
+        Assert.Equal(quantity, lostRare.TotalAvailableCount);
+        Assert.Equal(0, lostRare.AvailableCount(84));
+        if (quantity > 0)
+        {
+            Assert.Equal(quantity - 1, inventory.Transfer(0, 121, out _).TotalAvailableCount);
+        }
+        Assert.Equal(quantity, inventory.TotalAvailableCount);
+    }
+
+    [Theory]
     [InlineData(TripleTriadTradeRule.One, 6, 1)]
     [InlineData(TripleTriadTradeRule.Diff, 6, 2)]
     [InlineData(TripleTriadTradeRule.Diff, 7, 4)]

@@ -53,7 +53,7 @@ public sealed partial class EventEngine
     private NativeTripleTriadRequest PrepareTripleTriad(Fiber fiber)
     {
         ImmutableArray<int> raw = fiber.Stack.Take(7).Reverse().ToImmutableArray();
-        int count = Enumerable.Range(0, NativeCardInventory.CardCount).Sum(card => Math.Max(0, services.CardInventory!.AvailableCount(card)));
+        int count = services.CardInventory!.TotalAvailableCount;
         return new NativeTripleTriadRequest(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position, fiber.Sequence, raw, unchecked((byte)raw[0]), raw[1], unchecked((byte)raw[2]), unchecked((byte)raw[3]), unchecked((byte)raw[4]), unchecked((byte)raw[5]), unchecked((byte)raw[6]), count);
     }
 
@@ -132,9 +132,10 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved CARDGAME request disagrees with its exact issuing program, fiber, result bank or scene owner.");
         }
         ImmutableArray<int> raw = request.RawOperands;
-        if (request.OpponentOwner != unchecked((byte)raw[0]) || request.NativeRuleMask != raw[1] || request.TradeRule != unchecked((byte)raw[2]) || request.RareChance != unchecked((byte)raw[3]) || request.Argument4 != unchecked((byte)raw[4]) || request.Argument5 != unchecked((byte)raw[5]) || request.CommonLevelMask != unchecked((byte)raw[6]) || request.AvailableCards != Enumerable.Range(0, NativeCardInventory.CardCount).Sum(card => Math.Max(0, saved.CardInventory.AvailableCount(card))))
+        // AvailableCards is the original CARDGAME count retained in R0 above; rematch settlements may change the current inventory.
+        if (request.OpponentOwner != unchecked((byte)raw[0]) || request.NativeRuleMask != raw[1] || request.TradeRule != unchecked((byte)raw[2]) || request.RareChance != unchecked((byte)raw[3]) || request.Argument4 != unchecked((byte)raw[4]) || request.Argument5 != unchecked((byte)raw[5]) || request.CommonLevelMask != unchecked((byte)raw[6]))
         {
-            throw new InvalidDataException("Saved CARDGAME operands or original available-card count have been changed.");
+            throw new InvalidDataException("Saved CARDGAME operands have been changed.");
         }
     }
 }
