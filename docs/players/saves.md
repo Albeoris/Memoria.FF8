@@ -77,3 +77,13 @@ When a migration is necessary:
 Migration does not mean replaying earlier travel or generating rewards, inventory, random state or battle outcomes from historical inputs. There is no generic reconstruction command or Save/Load recreation key in the current application. Keep a working copy of important saves before changing engine versions.
 
 Developer entry points are [GameState](../../src/Memoria.FF8.Runtime/GameState.cs), [GameSession](../../src/Memoria.FF8.Runtime/GameSession.cs), [PlayerSaveStore](../../src/Memoria.FF8.App/PlayerSaveStore.cs) and [PlayerSaveMenu](../../src/Memoria.FF8.App/PlayerSaveMenu.cs).
+
+## Card Mod once
+
+**Card Mod once** defaults to **Off**. Enable it before **Begin** in New Game, or under **Config → Gameplay → Exploration and saving**. Each save keeps its own setting; Title changes the default for future games.
+
+When enabled, Card Mod produces one normal recipe batch per unique card ID during the entire game and keeps the cards. You still need the learned ability, the recipe's normal card quantity and room for the complete item result. Extra copies do not grant extra conversions.
+
+Successful conversions are recorded permanently in that save, including conversions while the option is Off. Disabling and re-enabling the option, losing a card or acquiring it again never clears its history. While Off, ordinary Card Mod consumes cards and may repeat as usual. A new game starts with an empty history. Existing saves without this history start empty; past conversions cannot be reconstructed.
+
+The enabled option or any recorded conversion requires a Memoria save slot. Original FF8 save files cannot preserve this history, so exporting to them is refused even after the option is disabled.

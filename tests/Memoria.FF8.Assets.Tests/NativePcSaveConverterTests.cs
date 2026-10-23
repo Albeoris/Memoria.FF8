@@ -7,6 +7,33 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativePcSaveConverterTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Original_export_rejects_card_history_even_when_mode_is_off(bool enabled)
+    {
+        GameState source = Defaults() with { GameplayPreferences = new() { CardModOnce = enabled }, RefinedCardIds = [82] };
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+        Assert.Contains("Choose a Memoria save slot", exception.Message);
+    }
+
+    [Fact]
+    public void Original_export_rejects_enabled_card_mode_without_history()
+    {
+        GameState source = Defaults() with { GameplayPreferences = new() { CardModOnce = true } };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+    }
+
+    [Fact]
+    public void Original_import_starts_card_mode_off_with_empty_history()
+    {
+        byte[] original = NativePcSaveConverter.Export(Defaults());
+        GameState defaults = Defaults() with { GameplayPreferences = new() { CardModOnce = true }, RefinedCardIds = [82] };
+        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture");
+        Assert.False(imported.GameplayPreferences.CardModOnce);
+        Assert.Empty(imported.RefinedCardIds);
+    }
+
     [Fact]
     public void Original_export_rejects_draw_rule_instead_of_losing_it()
     {

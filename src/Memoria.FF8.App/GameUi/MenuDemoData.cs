@@ -187,6 +187,7 @@ public static class MenuSettings
         new("Limit once per turn", "Check Limit Break availability once per ATB cycle. Cycling party members keeps the same result until the character takes an action. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard removes both aids; explicit do-not-attack actions remain. Saved with this game; Title sets the new-game default.", ["Normal", "Hard"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
+        new("Card Mod once", "Refine each card ID once per game without consuming cards. The recipe still requires its normal card quantity. Conversion history is saved even while Off; switching modes or obtaining more copies does not reset it.", ["Off", "On"]),
         new("Draw once per spell", MagicUiText.Get("DrawOnceDescription"), ["Off", "On"]),
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),
         new("Infinite magic", MagicUiText.Get("InfiniteDescription"), ["Off", "On"]),

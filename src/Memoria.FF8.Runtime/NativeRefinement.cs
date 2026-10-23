@@ -44,7 +44,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         return Tables[ability.Kind][recipeIndex];
     }
 
-    public int MaximumBatches(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row)
+    public int MaximumBatches(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null)
     {
         NativeRefinementRecipe recipe = Recipe(abilityId, recipeIndex);
         economy.Validate();
@@ -73,13 +73,18 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         int ingredients = kind == 4 ? cards?.AvailableCount(recipe.Ingredient) ?? 0 : kind == 2 ? vitals.GetMagicCount(row, recipe.Ingredient) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Ingredient)?.Count ?? 0;
         int output = magicOutput ? vitals.GetMagicCount(row, recipe.Output) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Output)?.Count ?? 0;
         //4D8FAE rounds capacity UP: the last complete batch may lose excess output at100.
-        return Math.Max(0, Math.Min(ingredients / recipe.IngredientCount, (100 - output + recipe.OutputCount - 1) / recipe.OutputCount));
+        int maximum = Math.Max(0, Math.Min(ingredients / recipe.IngredientCount, (100 - output + recipe.OutputCount - 1) / recipe.OutputCount));
+        if (kind == 4 && cardModOnce)
+        {
+            return refinedCardIds?.Contains(recipe.Ingredient) == true ? 0 : Math.Min(1, maximum);
+        }
+        return maximum;
     }
 
-    public NativeRefinementResult Refine(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, int batches)
+    public NativeRefinementResult Refine(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, int batches, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batches, 1);
-        int maximum = MaximumBatches(vitals, economy, cards, abilityId, recipeIndex, row);
+        int maximum = MaximumBatches(vitals, economy, cards, abilityId, recipeIndex, row, cardModOnce, refinedCardIds);
         if (batches > maximum)
         {
             throw new InvalidOperationException("Refinement requires a learned GF ability, sufficient ingredients and output capacity.");
@@ -111,14 +116,14 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
             nextEconomy = nextEconomy.AddItem(recipe.Output, produced, out _);
             nextEconomy = nextEconomy.UpdateItemOrder(recipe.Output);
         }
-        if (kind == 4)
+        if (kind == 4 && !cardModOnce)
         {
             for (int index = 0; index < consumed; index++)
             {
                 nextCards = nextCards!.Transfer(recipe.Ingredient, 0, out _);
             }
         }
-        else if (kind != 2)
+        else if (kind is not (2 or 4))
         {
             int slot = Array.FindIndex(nextEconomy.Items, stock => stock.ItemId == recipe.Ingredient);
             int remaining = nextEconomy.Items[slot].Count - consumed;

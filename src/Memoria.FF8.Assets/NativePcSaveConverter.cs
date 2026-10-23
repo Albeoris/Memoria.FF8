@@ -93,7 +93,8 @@ public static partial class NativePcSaveConverter
         GameState result = defaults with
         {
             OriginalSave = original,
-            GameplayPreferences = defaults.GameplayPreferences with { GuardianFormsEnabled = false, DrawOncePerSpell = false },
+            GameplayPreferences = defaults.GameplayPreferences with { GuardianFormsEnabled = false, DrawOncePerSpell = false, CardModOnce = false },
+            RefinedCardIds = [],
             Scene = module == 1 ? SceneKind.Field : SceneKind.WorldMap,
             FieldId = fieldId,
             FieldName = resolveFieldName(fieldId),

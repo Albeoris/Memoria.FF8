@@ -191,6 +191,8 @@ public sealed class MenuBattleRewards
 
 public sealed record MenuRecipe(string Id, string Ability, string IngredientId, int IngredientQuantity, string ResultId, string ResultName, int ResultQuantity)
 {
+    public bool CardModOnce { get; init; }
+    public bool CardAlreadyRefined { get; init; }
     public int? NativeAbility { get; init; }
     public int? NativeRecipeIndex { get; init; }
     public byte? NativeKind { get; init; }

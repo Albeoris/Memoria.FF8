@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,6 +22,7 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment[]? AbandonedNativeBattles { get; init; }
     public GameplayPreferences GameplayPreferences { get; init; } = new();
+    public ImmutableArray<int> RefinedCardIds { get; init; } = [];
     public GameplayPreferences? PendingGameplayPreferences { get; init; }
     public bool PendingMagicModeReview { get; init; }
     [JsonIgnore]
@@ -242,6 +244,12 @@ public interface IEventServices
     NativeLimitProgress? LimitProgress => null;
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
+    GameplayPreferences GameplayPreferences => new();
+    IReadOnlyList<int> RefinedCardIds => Array.Empty<int>();
+    void RecordCardRefinement(int cardId)
+    {
+        throw new NotSupportedException("Card refinement requires a persistent history owner.");
+    }
     NativeEconomy? Economy => null;
     NativeShotAvailabilityState? ShotAvailability => null;
     NativeFieldLocation? NativeFieldLocation => null;

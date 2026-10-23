@@ -33,7 +33,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Refinement selected a character outside the current native menu roster.");
         }
-        NativeRefinementResult next = definitions.Refine(services.CharacterVitals ?? throw new NotSupportedException("Refinement has no character owner."), services.Economy ?? throw new NotSupportedException("Refinement has no inventory owner."), services.CardInventory, action.Value, recipe, row, action.Quantity!.Value);
+        NativeRefinementResult next = definitions.Refine(services.CharacterVitals ?? throw new NotSupportedException("Refinement has no character owner."), services.Economy ?? throw new NotSupportedException("Refinement has no inventory owner."), services.CardInventory, action.Value, recipe, row, action.Quantity!.Value, services.GameplayPreferences.CardModOnce, services.RefinedCardIds);
         if (activeMenu)
         {
             PublishPartyMenuCallback(next.Vitals, next.Economy, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, cardInventory: next.Cards);
@@ -42,6 +42,10 @@ public sealed partial class EventEngine
         else
         {
             services.SetNativePartyMenuOwners(next.Vitals, next.Economy, services.ShotAvailability!, services.SalaryPresentation!, cardInventory: next.Cards);
+        }
+        if (definitions.Abilities[action.Value - 92].Kind == 4)
+        {
+            services.RecordCardRefinement(definitions.Recipe(action.Value, recipe).Ingredient);
         }
         return true;
     }

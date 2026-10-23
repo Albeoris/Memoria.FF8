@@ -13,6 +13,7 @@ public sealed record GameplayPreferences
     public bool SmartAttack { get; init; }
     public bool LimitOncePerTurn { get; init; }
     public bool DrawOncePerSpell { get; init; }
+    public bool CardModOnce { get; init; }
 
     public void Validate()
     {

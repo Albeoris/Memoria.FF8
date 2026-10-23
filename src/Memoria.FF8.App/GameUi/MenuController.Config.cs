@@ -44,7 +44,7 @@ public sealed partial class MenuController
             return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
         }
         bool newGame = ScreenId == "new-game-options";
-        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Limit once per turn", "Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"] : SettingsPlacement.Pages[ScreenId].Items;
+        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Limit once per turn", "Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers", "Card Mod once"] : SettingsPlacement.Pages[ScreenId].Items;
         List<MenuEntry> entries = [];
         foreach (string id in ids)
         {

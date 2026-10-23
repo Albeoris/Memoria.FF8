@@ -5,8 +5,25 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public GameplayPreferences GameplayPreferences => State.GameplayPreferences;
+    public IReadOnlyList<int> RefinedCardIds => State.RefinedCardIds;
+
+    public void RecordCardRefinement(int cardId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cardId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(cardId, NativeCardInventory.CardCount);
+        if (!State.RefinedCardIds.Contains(cardId))
+        {
+            State = State with { RefinedCardIds = State.RefinedCardIds.Add(cardId) };
+        }
+    }
+
     private static void ValidateTripleTriadCheckpoint(GameState state)
     {
+        if (state.RefinedCardIds.IsDefault || state.RefinedCardIds.Any(id => (uint)id >= NativeCardInventory.CardCount) || state.RefinedCardIds.Distinct().Count() != state.RefinedCardIds.Length)
+        {
+            throw new InvalidDataException("Saved Card Mod history requires unique valid card IDs.");
+        }
         if (state.TripleTriadPlay is not { } play)
         {
             return;
@@ -45,7 +62,12 @@ public sealed partial class GameSession
 
     public bool RefineCard(TripleTriadRefinement recipe, int batches = 1)
     {
+        ArgumentNullException.ThrowIfNull(recipe);
         if (State.TripleTriadPlay is not null || State.Battle is not null || State.CardInventory is not { } cards || State.Economy is not { } economy || !CanUseCardMod(State.CharacterVitals))
+        {
+            return false;
+        }
+        if (State.GameplayPreferences.CardModOnce && (batches != 1 || State.RefinedCardIds.Contains(recipe.CardId)))
         {
             return false;
         }
@@ -53,7 +75,12 @@ public sealed partial class GameSession
         {
             return false;
         }
-        GameState candidate = State with { CardInventory = result.Cards, Economy = result.Economy };
+        GameState candidate = State with
+        {
+            CardInventory = State.GameplayPreferences.CardModOnce ? cards : result.Cards,
+            Economy = result.Economy,
+            RefinedCardIds = State.RefinedCardIds.Contains(recipe.CardId) ? State.RefinedCardIds : State.RefinedCardIds.Add(recipe.CardId)
+        };
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;
         return true;
