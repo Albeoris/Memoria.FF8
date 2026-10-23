@@ -277,6 +277,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleGastricJuice128Resources? GastricJuice128Resources { get; init; }
     public NativeBattleSandStorm155Resources? SandStorm155Resources { get; init; }
     public NativeBattleWildCannonBlow156Resources? WildCannonBlow156Resources { get; init; }
+    public NativeBattleBladeShot12Resources? BladeShot12Resources { get; init; }
     public NativeBattleAcid170Resources? Acid170Resources { get; init; }
     public NativeBattleMorph172Resources? Morph172Resources { get; init; }
     public NativeBattlePoisonGas171Resources? PoisonGas171Resources { get; init; }
