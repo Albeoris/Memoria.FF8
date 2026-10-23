@@ -42,6 +42,23 @@ public static class NativeBattleLightBackTransform
             _ => geometry.V2
         };
         short?[] components = [Word(vector, 0), Word(vector, 2), Word(vector, 4)];
+        return TransformCore(memory, lighting, geometry, colors, components, Enumerable.Range(0, 3).Select(row => lighting.BackColor?.ReadLane(row)).ToArray());
+    }
+
+    public static NativeBattleEffectMemory TransformIr(NativeBattleEffectMemory memory)
+    {
+        NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? NativeBattleScriptedLightingMemory.Unknown();
+        NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown();
+        NativeBattleScriptedColorRegisters colors = memory.ScriptedColorRegisters ?? NativeBattleScriptedColorRegisters.Unknown();
+        lighting.Validate();
+        geometry.Validate();
+        colors.Validate();
+        short?[] components = colors.Ir.Select(value => value is { } actual ? (short?)unchecked((short)actual) : null).ToArray();
+        return TransformCore(memory, lighting, geometry, colors, components, [0, 0, 0]);
+    }
+
+    private static NativeBattleEffectMemory TransformCore(NativeBattleEffectMemory memory, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisters geometry, NativeBattleScriptedColorRegisters colors, short?[] components, int?[] translations)
+    {
         int?[] mac = new int?[3];
         int?[] ir = new int?[3];
         uint flags = 0;
@@ -56,7 +73,7 @@ public static class NativeBattleLightBackTransform
                 short? component = components[column];
                 products[column] = coefficient == 0 || component == 0 ? 0 : coefficient is { } a && component is { } b ? a * (b * (1d / 4096d)) : null;
             }
-            int? translation = lighting.BackColor?.ReadLane(row);
+            int? translation = translations[row];
             if (translation is not { } add || products.Any(value => !value.HasValue))
             {
                 continue;
