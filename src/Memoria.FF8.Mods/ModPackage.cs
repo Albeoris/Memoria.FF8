@@ -19,7 +19,10 @@ public enum ModEffectiveStatus
 
 public sealed record ModDiagnostic(string Code, string Message, string? PackageId = null, string? RelativePath = null);
 
-public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? ExplicitEnabled, bool RequestedEnabled, ModEffectiveStatus Status, string RootDirectory);
+public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? ExplicitEnabled, bool RequestedEnabled, ModEffectiveStatus Status, string RootDirectory)
+{
+    public JunctionManifestMetadata? JunctionMetadata { get; init; }
+}
 
 /// <summary>A seekable, uncompressed payload inside a physical file.</summary>
 public sealed record ModFileSegment(string Path, long Offset, long Length);

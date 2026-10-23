@@ -151,8 +151,8 @@ public sealed class JunctionImporterTests : IDisposable
     [InlineData("<LoadLibrary>bad.dll</LoadLibrary>")]
     [InlineData("<LoadPrograms />")]
     [InlineData("<Conditional Folder='Dynamic' />")]
-    [InlineData("<Compatibility />")]
-    [InlineData("<OrderConstraints />")]
+    [InlineData("<Compatibility><Unknown /></Compatibility>")]
+    [InlineData("<OrderConstraints><Unknown /></OrderConstraints>")]
     [InlineData("<Variable Name='Counter'>1</Variable>")]
     [InlineData("<UnknownBehavior />")]
     [InlineData("<FFNxConfig><enable_vsync>1</enable_vsync></FFNxConfig>")]
@@ -199,6 +199,118 @@ public sealed class JunctionImporterTests : IDisposable
         Assert.Equal("movies/test.cam", Assert.Single(JunctionModImporter.Open(path).Files).RelativePath);
         path = Package($"<ModInfo>{option}<ModFolder Folder='CRF'><ActiveWhen><Or><Option>Enabled = 1</Option><Unknown /></Or></ActiveWhen></ModFolder></ModInfo>");
         Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(path));
+    }
+
+    [Theory]
+    [InlineData("=")]
+    [InlineData("==")]
+    [InlineData("!=")]
+    [InlineData("&lt;&gt;")]
+    [InlineData("&gt;")]
+    [InlineData("&lt;")]
+    [InlineData("&gt;=")]
+    [InlineData("&lt;=")]
+    public void UndeclaredStaticOptionComparisonsAreInactiveForEveryOperator(string comparison)
+    {
+        string path = Package($"<ModInfo><ModFolder Folder='base'/><ModFolder Folder='alternate' ActiveWhen='Missing {comparison} 1'/></ModInfo>", ("base/movies/base.cam", [1]), ("alternate/movies/alternate.cam", [2]));
+        Assert.Equal("movies/base.cam", Assert.Single(JunctionModImporter.Open(path).Files).RelativePath);
+    }
+
+    [Fact]
+    public void MissingStaticOptionCanBeNegatedWithoutInventingAZeroValue()
+    {
+        string path = Package("<ModInfo><ModFolder Folder='Assets'><ActiveWhen><Not><Option>Missing != 1</Option></Not></ActiveWhen></ModFolder></ModInfo>", ("Assets/movies/test.cam", [1]));
+        Assert.Single(JunctionModImporter.Open(path).Files);
+    }
+
+    [Fact]
+    public void DriverConfigurationSelectorsDoNotBecomeInactiveStaticOptions()
+    {
+        string path = Package("<ModInfo><ModFolder Folder='Assets' ActiveWhen='ffnx_game_language = 1'/></ModInfo>");
+        Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(path));
+    }
+
+    [Theory]
+    [InlineData("mods/textures")]
+    [InlineData("textures")]
+    [InlineData("movies")]
+    [InlineData("music")]
+    [InlineData("field")]
+    [InlineData("battle")]
+    public void SelectedResourceAlsoUsedAsAPreviewRemainsAReplacement(string subtree)
+    {
+        string manifest = $"""
+            <ModInfo>
+              <ConfigOption>
+                <ID>Choice</ID><Type>List</Type><Default>1</Default>
+                <Option Value="0" Name="Other" PreviewFile="Inactive/{subtree}/example.dds"/>
+                <Option Value="1" Name="Selected" PreviewFile="Selected/{subtree}/example.dds"/>
+                <Option Value="2" Name="Standalone preview" PreviewFile="Selected/cover.png"/>
+              </ConfigOption>
+              <ModFolder Folder="Selected" ActiveWhen="Choice = 1"/>
+              <ModFolder Folder="Inactive" ActiveWhen="Choice = 0"/>
+            </ModInfo>
+            """;
+        string path = Package(manifest, ($"Selected/{subtree}/example.dds", [1]), ($"Inactive/{subtree}/example.dds", [2]), ("Selected/cover.png", [3]));
+        JunctionReplacement replacement = Assert.Single(JunctionModImporter.Open(path).Files);
+        Assert.Equal($"{subtree}/example.dds", replacement.RelativePath);
+        Assert.Equal($"Selected/{subtree}/example.dds", replacement.SourcePath);
+        using Stream content = replacement.OpenRead();
+        Assert.Equal(1, content.ReadByte());
+    }
+
+    [Theory]
+    [InlineData("Variable")]
+    [InlineData("GameState")]
+    public void DynamicExpressionsStillFailInsideAnInactiveStaticBranch(string expression)
+    {
+        string path = Package($"<ModInfo><ModFolder Folder='Assets'><ActiveWhen><And><Option>Missing = 1</Option><{expression}>1</{expression}></And></ActiveWhen></ModFolder></ModInfo>");
+        Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(path));
+    }
+
+    [Fact]
+    public void ReadsDeclarativeMediaSettingsAndKeepsSelectedResourceRoot()
+    {
+        string path = Package("""
+            <ModInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <ContainsMovies>true</ContainsMovies><ContainsMusic>false</ContainsMusic>
+              <FFNxConfig><ffmpeg_video_ext>mp4</ffmpeg_video_ext><use_external_music Enabled="1">true</use_external_music></FFNxConfig>
+              <ConfigOption><ID>Enabled</ID><Type>Bool</Type><Default>1</Default></ConfigOption>
+              <ModFolder Folder="data/movies" ActiveWhen="1" />
+            </ModInfo>
+            """, ("data/movies/opening.mp4", [1]));
+        JunctionModPackage package = JunctionModImporter.Open(path);
+        Assert.Equal("movies/opening.mp4", Assert.Single(package.Files).RelativePath);
+        Assert.Equal("data/movies/opening.mp4", package.Files[0].SourcePath);
+        Assert.True(package.Manifest.ContainsMovies);
+        Assert.False(package.Manifest.ContainsMusic);
+        Assert.True(package.Manifest.UseExternalMusic);
+        Assert.Equal("mp4", package.Manifest.VideoExtension);
+    }
+
+    [Fact]
+    public void InactiveResourceSettingsDoNotApplyAndUnknownOptionFails()
+    {
+        string option = "<ConfigOption><ID>Enabled</ID><Type>Bool</Type><Default>0</Default></ConfigOption>";
+        string path = Package($"<ModInfo>{option}<FFNxConfig><use_external_music Enabled='1'>true</use_external_music></FFNxConfig><ModFolder Folder='Assets' ActiveWhen='0'/></ModInfo>", ("Assets/music/track.ogg", [1]));
+        JunctionModPackage package = JunctionModImporter.Open(path);
+        Assert.Null(package.Manifest.UseExternalMusic);
+        Assert.Empty(package.Files);
+        path = Package("<ModInfo><FFNxConfig><use_external_music Missing='1'>true</use_external_music></FFNxConfig></ModInfo>");
+        Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(path));
+    }
+
+    [Fact]
+    public void ImportsGuidRelationshipsAndRejectsUnknownCompatibility()
+    {
+        Guid own = Guid.NewGuid();
+        Guid other = Guid.NewGuid();
+        string path = Package($"<ModInfo><ID>{own}</ID><Compatibility><Require ModID='{other}'>Dependency</Require></Compatibility><OrderConstraints><Before>{other}</Before><After>{own}</After></OrderConstraints></ModInfo>");
+        JunctionManifestMetadata manifest = JunctionModImporter.Open(path).Manifest;
+        Assert.Equal(own, manifest.Id);
+        Assert.Equal(other, Assert.Single(manifest.RequiredMods));
+        Assert.Equal(other, Assert.Single(manifest.Before));
+        Assert.Equal(own, Assert.Single(manifest.After));
     }
 
     private string Package(string manifest, params (string Name, byte[] Content)[] files)

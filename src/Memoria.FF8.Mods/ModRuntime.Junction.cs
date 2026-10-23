@@ -31,6 +31,7 @@ public sealed partial class ModRuntime
             bool compatible = isCompatible(ModFormat.Junction);
             identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}");
             ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
+            JunctionManifestMetadata? manifestMetadata = null;
             try
             {
                 bool isFolder = Directory.Exists(root);
@@ -40,6 +41,7 @@ public sealed partial class ModRuntime
                 JunctionModPackage imported = JunctionModImporter.Open(root);
                 ValidateJunctionVersion(root, metadataPath, metadataStamp);
                 name = imported.Name;
+                manifestMetadata = imported.Manifest;
                 identities.Add($"{metadataPath}\0{metadataStamp.Length}\0{metadataStamp.LastWriteTicks}\0{name}");
                 foreach (string diagnostic in imported.Diagnostics)
                 {
@@ -93,7 +95,108 @@ public sealed partial class ModRuntime
                 notices.Add(new("junction-import-failed", exception.Message, id));
                 identities.Add(exception.Message);
             }
-            packages.Add(new(id, name, ModFormat.Junction, explicitEnabled, requested, status, root));
+            packages.Add(new(id, name, ModFormat.Junction, explicitEnabled, requested, status, root) { JunctionMetadata = manifestMetadata });
+        }
+        ApplyJunctionRelationships(packages, files, notices);
+    }
+
+    private static void ApplyJunctionRelationships(List<ModPackage> packages, List<ModFile> files, List<ModDiagnostic> notices)
+    {
+        List<ModPackage> junction = packages.Where(package => package.Format == ModFormat.Junction).ToList();
+        Dictionary<Guid, ModPackage[]> identities = junction.Where(package => package.JunctionMetadata?.Id is not null).GroupBy(package => package.JunctionMetadata!.Id!.Value).ToDictionary(group => group.Key, group => group.ToArray());
+        HashSet<string> rejected = new(StringComparer.OrdinalIgnoreCase);
+        bool IsActive(ModPackage package)
+        {
+            return package.Status == ModEffectiveStatus.Active && !rejected.Contains(package.Id);
+        }
+        void RejectRequirements()
+        {
+            bool changed;
+            do
+            {
+                changed = false;
+                foreach (ModPackage package in junction.Where(IsActive))
+                {
+                    foreach (Guid required in package.JunctionMetadata?.RequiredMods ?? [])
+                    {
+                        string? problem = !identities.TryGetValue(required, out ModPackage[]? candidates) ? "missing" : candidates.Length != 1 ? "ambiguous" : !IsActive(candidates[0]) ? "inactive" : null;
+                        if (problem is not null)
+                        {
+                            rejected.Add(package.Id);
+                            notices.Add(new("junction-dependency-" + problem, $"Required Junction mod {required} is {problem}.", package.Id));
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            while (changed);
+        }
+        RejectRequirements();
+        Dictionary<string, HashSet<string>> edges = junction.Where(IsActive).ToDictionary(package => package.Id, _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+        foreach (ModPackage package in junction.Where(IsActive))
+        {
+            void AddConstraint(Guid target, bool before)
+            {
+                if (!identities.TryGetValue(target, out ModPackage[]? candidates))
+                {
+                    return;
+                }
+                if (candidates.Length != 1)
+                {
+                    notices.Add(new("junction-order-ambiguous", $"Junction order target {target} is ambiguous.", package.Id));
+                    rejected.Add(package.Id);
+                    return;
+                }
+                ModPackage other = candidates[0];
+                if (IsActive(other) && edges.ContainsKey(other.Id))
+                {
+                    edges[before ? package.Id : other.Id].Add(before ? other.Id : package.Id);
+                }
+            }
+            foreach (Guid target in package.JunctionMetadata?.Before ?? [])
+            {
+                AddConstraint(target, true);
+            }
+            foreach (Guid target in package.JunctionMetadata?.After ?? [])
+            {
+                AddConstraint(target, false);
+            }
+        }
+        bool Reaches(string start, string target, HashSet<string> visited)
+        {
+            return visited.Add(start) && edges[start].Any(next => next.Equals(target, StringComparison.OrdinalIgnoreCase) || Reaches(next, target, visited));
+        }
+        foreach (string id in edges.Keys)
+        {
+            if (Reaches(id, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
+            {
+                rejected.Add(id);
+                notices.Add(new("junction-order-cycle", "Junction package participates in a load-order cycle.", id));
+            }
+        }
+        RejectRequirements();
+        List<ModPackage> pending = junction.Where(IsActive).ToList();
+        List<ModPackage> ordered = [];
+        while (pending.Count > 0)
+        {
+            ModPackage next = pending.First(candidate => !pending.Any(other => edges[other.Id].Contains(candidate.Id)));
+            ordered.Add(next);
+            pending.Remove(next);
+        }
+        ordered.AddRange(junction.Where(package => !IsActive(package)).Select(package => rejected.Contains(package.Id) ? package with { Status = ModEffectiveStatus.ReloadFailure } : package));
+        int insertion = packages.FindIndex(package => package.Format == ModFormat.Junction);
+        if (insertion >= 0)
+        {
+            packages.RemoveAll(package => package.Format == ModFormat.Junction);
+            packages.InsertRange(insertion, ordered);
+        }
+        ModFile[] original = files.Where(file => file.Format == ModFormat.Junction && !rejected.Contains(file.PackageId)).ToArray();
+        int fileInsertion = files.FindIndex(file => file.Format == ModFormat.Junction);
+        if (fileInsertion >= 0)
+        {
+            files.RemoveAll(file => file.Format == ModFormat.Junction);
+            files.InsertRange(fileInsertion, ordered.SelectMany(package => original.Where(file => file.PackageId.Equals(package.Id, StringComparison.OrdinalIgnoreCase))));
         }
     }
 

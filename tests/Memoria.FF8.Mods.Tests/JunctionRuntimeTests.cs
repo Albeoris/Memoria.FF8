@@ -113,6 +113,45 @@ public sealed class JunctionRuntimeTests : IDisposable
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-setting-ignored" && diagnostic.PackageId == "Junction/Working" && diagnostic.Message.Contains("enable_ffmpeg_videos", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void RequiredPackagesMustBeActiveAndBeforeOverridesAlphabeticalPrecedence()
+    {
+        Guid baseId = Guid.NewGuid();
+        Guid addonId = Guid.NewGuid();
+        Write("Junction/A_Base/mod.xml", $"<ModInfo><ID>{baseId}</ID><ModFolder Folder='Assets'/></ModInfo>");
+        Write("Junction/A_Base/Assets/movies/intro.cam", "base");
+        Write("Junction/Z_Addon/mod.xml", $"<ModInfo><ID>{addonId}</ID><Compatibility><Require ModID='{baseId}'>Base</Require></Compatibility><OrderConstraints><Before>{baseId}</Before></OrderConstraints><ModFolder Folder='Assets'/><FFNxConfig><ffmpeg_video_ext>mp4</ffmpeg_video_ext></FFNxConfig></ModInfo>");
+        Write("Junction/Z_Addon/Assets/movies/intro.cam", "addon");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        Assert.Equal(new[] { "Junction/Z_Addon", "Junction/A_Base" }, runtime.Catalog.FindAll(ModFormat.Junction, "movies/intro.cam").Select(file => file.PackageId));
+        Assert.Equal("mp4", runtime.Catalog.Packages[0].JunctionMetadata!.VideoExtension);
+        Assert.True(runtime.SetEnabled("Junction/A_Base", false).Success);
+        Publish(runtime);
+        Assert.Empty(runtime.Catalog.Files);
+        Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-dependency-inactive" && diagnostic.PackageId == "Junction/Z_Addon");
+    }
+
+    [Fact]
+    public void MissingRequirementsAndOrderCyclesRejectOnlyAffectedPackages()
+    {
+        Guid first = Guid.NewGuid();
+        Guid second = Guid.NewGuid();
+        Write("Junction/A/mod.xml", $"<ModInfo><ID>{first}</ID><OrderConstraints><Before>{second}</Before></OrderConstraints></ModInfo>");
+        Write("Junction/A/movies/intro.cam", "a");
+        Write("Junction/B/mod.xml", $"<ModInfo><ID>{second}</ID><OrderConstraints><Before>{first}</Before></OrderConstraints></ModInfo>");
+        Write("Junction/B/movies/intro.cam", "b");
+        Write("Junction/C/mod.xml", $"<ModInfo><Compatibility><Require ModID='{Guid.NewGuid()}'>Missing</Require></Compatibility></ModInfo>");
+        Write("Junction/C/movies/intro.cam", "c");
+        WritePackage("Working", "Working");
+        Write("Junction/Working/Assets/movies/intro.cam", "working");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        Assert.Equal("Junction/Working", Assert.Single(runtime.Catalog.Files).PackageId);
+        Assert.Equal(2, runtime.Diagnostics.Count(diagnostic => diagnostic.Code == "junction-order-cycle"));
+        Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-dependency-missing");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))

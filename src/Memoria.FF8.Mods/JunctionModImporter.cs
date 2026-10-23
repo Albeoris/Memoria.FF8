@@ -5,7 +5,10 @@ using System.Xml.Linq;
 
 namespace Memoria.FF8.Mods;
 
-public sealed record JunctionModPackage(string Name, string SourcePath, IReadOnlyList<JunctionReplacement> Files, IReadOnlyList<string> Diagnostics);
+public sealed record JunctionModPackage(string Name, string SourcePath, IReadOnlyList<JunctionReplacement> Files, IReadOnlyList<string> Diagnostics)
+{
+    public JunctionManifestMetadata Manifest { get; init; } = new();
+}
 
 public sealed class JunctionReplacement
 {
@@ -58,7 +61,7 @@ public static partial class JunctionModImporter
         using MemoryStream xml = new(bytes, false);
         using XmlReader reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = ManifestLimit });
         XElement root = XDocument.Load(reader).Root ?? throw new InvalidDataException("Junction mod.xml is empty.");
-        if (root.Name != "ModInfo" || root.Attributes().Any())
+        if (root.Name != "ModInfo" || root.Attributes().Any(attribute => !attribute.IsNamespaceDeclaration))
         {
             throw new InvalidDataException("Junction mod.xml requires an unqualified ModInfo root.");
         }
@@ -66,6 +69,7 @@ public static partial class JunctionModImporter
         Dictionary<string, int> options = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> previews = new(StringComparer.OrdinalIgnoreCase);
         List<string> diagnostics = [];
+        JunctionManifestMetadata metadata = ReadManifestMetadata(root);
         foreach (XElement element in root.Elements())
         {
             string tag = element.Name.LocalName;
@@ -104,22 +108,10 @@ public static partial class JunctionModImporter
             else if (tag == "FFNxConfig")
             {
                 RequireAttributes(element);
-                foreach (XElement setting in element.Elements())
-                {
-                    if (setting.Name != "enable_ffmpeg_videos")
-                    {
-                        throw new NotSupportedException($"Unsupported Junction FFNx setting: {setting.Name}.");
-                    }
-                    RequireLeaf(setting);
-                    foreach (XAttribute attribute in setting.Attributes())
-                    {
-                        if (attribute.Name.Namespace != XNamespace.None || !int.TryParse(attribute.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
-                        {
-                            throw Unsupported(setting);
-                        }
-                    }
-                    diagnostics.Add("Ignored Junction FFNx setting enable_ffmpeg_videos; movie decoding uses the engine's FFmpeg pipeline.");
-                }
+            }
+            else if (tag is "ContainsMovies" or "ContainsMusic" or "Compatibility" or "OrderConstraints")
+            {
+                // Parsed and validated by ReadManifestMetadata.
             }
             else if (tag == "Variables" && !element.HasElements && !element.HasAttributes && string.IsNullOrWhiteSpace(element.Value))
             {
@@ -130,6 +122,7 @@ public static partial class JunctionModImporter
                 throw Unsupported(element);
             }
         }
+        metadata = ReadResourceSettings(root, options, metadata, diagnostics);
         string[] supportedLanguages = root.Elements("GameLanguage").SelectMany(element => ParseLanguages(element.Value)).ToArray();
         if (supportedLanguages.Length > 0 && !supportedLanguages.Any(language => language.Equals("EN", StringComparison.OrdinalIgnoreCase) || language.Equals("ANY", StringComparison.OrdinalIgnoreCase)))
         {
@@ -152,7 +145,7 @@ public static partial class JunctionModImporter
                 folders.Add(prefix);
             }
         }
-        if (folders.Count == 0)
+        if (!root.Elements("ModFolder").Any())
         {
             folders.Add("");
         }
@@ -166,8 +159,12 @@ public static partial class JunctionModImporter
                 {
                     continue;
                 }
-                string relativePath = file.SourcePath[prefix.Length..];
-                if (relativePath.Length == 0 || IsMetadata(file.SourcePath, previews))
+                string relativePath = ResourceFolderPrefix(folder) + file.SourcePath[prefix.Length..];
+                if (relativePath.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
+                {
+                    relativePath = relativePath[5..];
+                }
+                if (relativePath.Length == 0 || IsMetadata(file.SourcePath, relativePath, previews))
                 {
                     continue;
                 }
@@ -175,7 +172,7 @@ public static partial class JunctionModImporter
                 replacements.TryAdd(relativePath, new JunctionReplacement(relativePath, file.SourcePath, file.Length, file.OpenRead, file.FileSegment));
             }
         }
-        return new JunctionModPackage(name, sourcePath, Array.AsReadOnly(replacements.Values.ToArray()), diagnostics.AsReadOnly());
+        return new JunctionModPackage(name, sourcePath, Array.AsReadOnly(replacements.Values.ToArray()), diagnostics.AsReadOnly()) { Manifest = metadata };
     }
 
     internal static string NormalizePath(string value)
@@ -335,14 +332,27 @@ public static partial class JunctionModImporter
 
     private static bool EvaluateOption(string condition, IReadOnlyDictionary<string, int> options)
     {
+        if (condition.Trim() is "0" or "1")
+        {
+            return condition.Trim() == "1";
+        }
         if (string.IsNullOrWhiteSpace(condition))
         {
             return true;
         }
         Match match = OptionCondition().Match(condition);
-        if (!match.Success || !options.TryGetValue(match.Groups[1].Value, out int actual) || !int.TryParse(match.Groups[3].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int expected))
+        if (!match.Success || !int.TryParse(match.Groups[3].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int expected))
         {
             throw new NotSupportedException($"Unsupported Junction option condition: {condition}.");
+        }
+        if (match.Groups[1].Value.StartsWith("ffnx_", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException($"Junction driver configuration selectors require an unsupported live FFNx configuration source: {condition}.");
+        }
+        if (!options.TryGetValue(match.Groups[1].Value, out int actual))
+        {
+            // An undeclared static option has no value; every comparison is inactive.
+            return false;
         }
         return match.Groups[2].Value switch
         {
@@ -356,9 +366,10 @@ public static partial class JunctionModImporter
         };
     }
 
-    private static bool IsMetadata(string path, HashSet<string> previews)
+    private static bool IsMetadata(string path, string resourcePath, HashSet<string> previews)
     {
-        return path.Equals("mod.xml", StringComparison.OrdinalIgnoreCase) || path.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || path.Equals("Readme.txt", StringComparison.OrdinalIgnoreCase) || path.StartsWith("Preview/", StringComparison.OrdinalIgnoreCase) || previews.Contains(path);
+        bool resource = resourcePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("music/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("field/", StringComparison.OrdinalIgnoreCase) || resourcePath.StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
+        return path.Equals("mod.xml", StringComparison.OrdinalIgnoreCase) || path.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || path.Equals("Readme.txt", StringComparison.OrdinalIgnoreCase) || !resource && (path.StartsWith("Preview/", StringComparison.OrdinalIgnoreCase) || previews.Contains(path));
     }
 
     private static string[] ParseLanguages(string value)
@@ -378,7 +389,7 @@ public static partial class JunctionModImporter
 
     private static void RequireAttributes(XElement element, params string[] allowed)
     {
-        if (element.Attributes().Any(attribute => attribute.Name.Namespace != XNamespace.None || !allowed.Contains(attribute.Name.LocalName, StringComparer.Ordinal)))
+        if (element.Attributes().Any(attribute => !attribute.IsNamespaceDeclaration && (attribute.Name.Namespace != XNamespace.None || !allowed.Contains(attribute.Name.LocalName, StringComparer.Ordinal))))
         {
             throw Unsupported(element);
         }
