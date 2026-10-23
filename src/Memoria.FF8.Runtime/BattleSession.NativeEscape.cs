@@ -3,6 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleEscapeState
 {
     public bool Held { get; init; }
+    public bool PresentationHeld { get; init; }
     public int HeldFrames { get; init; }
     public bool Requested { get; init; }
     public bool Completed { get; init; }
@@ -53,7 +54,19 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeEscapeFrame()
     {
-        if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true || !nativeEscape.Held)
+        if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingNativeOutcome || !NativeEntryReady || NativeGraphics?.UiServices?.PauseDE9 == true)
+        {
+            return;
+        }
+        if (nativeEscape.PresentationHeld != nativeEscape.Held)
+        {
+            if (NativeGraphics is { } graphics)
+            {
+                NativeGraphics = QueueNativeDescriptor(graphics, nativeEscape.Held ? (ushort)108 : (ushort)109, 0, priority: 240);
+            }
+            nativeEscape = nativeEscape with { PresentationHeld = nativeEscape.Held };
+        }
+        if (!nativeEscape.Held)
         {
             return;
         }
