@@ -5,15 +5,16 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeQuezacotlRibbon(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
+    private (NativeBattleGraphicsState Graphics, uint? PathOutlineDirectionDword) AdvanceNativeQuezacotlRibbon(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C8850 requires its retained arena/process owners.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C8850 lost its module state.");
         NativeBattleEffectTaskPool pool = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521728);
         if (pool.Head is null)
         {
-            return graphics;
+            return (graphics, null);
         }
+        uint? pathOutlineDirection = null;
         NativeBattleQuezacotlRibbonResources resources = effect.Binding.NativeQuezacotlResources?.Ribbon ?? throw new NotSupportedException("Native6C8850 requires its authenticated ribbon control and lookup resources; explicitly migrate this standalone's resource binding.");
         resources.Validate();
         NativeBattleStackFrame? callbackStack = memory.ExecutionStack is { } stack ? NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(stack, graphics.EntryLifecycle) : null;
@@ -67,6 +68,7 @@ public sealed partial class BattleSession
                 effect = written.Effect with { Quezacotl = effect.Quezacotl! with { Random17A0 = ribbon.Random17A0 } };
                 NativeBattleEffectPacketWrite taskWrite = NativeBattleEffectPacketArena.Append(memory, address, written.Ordering, new([ribbon.TaskWrites], 0));
                 memory = taskWrite.Memory;
+                pathOutlineDirection = ribbon.PathOutlineDirectionDword;
                 current = current with { Slots = current.Slots.SetItem(index, current.Slots[index] with { Payload = ribbon.Task128.AsSpan().Slice(12).ToArray().ToImmutableArray() }) };
                 effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == current.DescriptorAddress ? current : existing).ToImmutableArray() };
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = taskWrite.Ordering } };
@@ -127,6 +129,6 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
             NativeGraphics = graphics;
         }
-        return graphics;
+        return (graphics, pathOutlineDirection);
     }
 }

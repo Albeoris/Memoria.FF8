@@ -216,6 +216,35 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         Assert.IsType<NotSupportedException>(error.InnerException);
     }
 
+    [Theory]
+    [InlineData(1, 0u)]
+    [InlineData(2, 0x0211BD34u)]
+    public void Preceding_particle_saved_EDI_initializes_degenerate_paused_paths_and_restores_identically(int particleCount, uint expected)
+    {
+        var (memory, effect, paths) = Fixture();
+        NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        NativeBattleQuezacotlPathStep first = Step(spawned.Memory, spawned.Effect);
+        NativeBattleQuezacotlResources resources = first.Effect.Binding.NativeQuezacotlResources!;
+        effect = first.Effect with { Binding = first.Effect.Binding with { NativeQuezacotlResources = resources with { Ribbon = resources.Ribbon! with { DistanceBytes16384 = new byte[16384].ToImmutableArray() } } } };
+        memory = first.Memory with { QuezacotlPause = 1 };
+        NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(0x2521718, 0x211BD34, 0x3C, 32);
+        for (int index = 0; index < particleCount; index++)
+        {
+            (particles, _) = particles.Append(0x6C7EA0);
+        }
+        var pass = NativeBattleQuezacotlParticleCallbacks.AdvancePool(particles, (current, _) => new(current, 0));
+        NativeBattleQuezacotlPathStep actual = Continue(memory, effect);
+        NativeBattleQuezacotlPathStep restored = Continue(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!, JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(effect))!);
+        Assert.Equal(expected, actual.FinalOutlineDirectionDword);
+        Assert.NotEmpty(actual.Ordering.Packets);
+        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+
+        NativeBattleQuezacotlPathStep Continue(NativeBattleEffectMemory currentMemory, NativeBattleOriginalEffectState currentEffect)
+        {
+            return NativeBattleQuezacotlPathCallbacks.Advance6C7800(currentMemory, currentEffect, currentEffect.Pools[0], 0, NativeBattleLogicalOrdering.Clear(), new(null, 216, 160, 108), default, pass.PathOutlineDirectionDword);
+        }
+    }
+
     [Fact]
     public void NegativeControlSpawnsItsChildAndTheSharedTraversalRunsThatChildInTheSamePass()
     {

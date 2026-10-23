@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeQuezacotlPaths(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
+    private NativeBattleGraphicsState AdvanceNativeQuezacotlPaths(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace, uint? incomingOutlineDirectionDword)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C7800 requires its retained effect memory.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C7800 lost its current module.");
@@ -23,8 +23,8 @@ public sealed partial class BattleSession
         bool checkpointActive = false;
         try
         {
-            //508420 reuses one native stack depth for all path tasks; nothing from another pool or frame is assumed.
-            uint? outlineDirection = null;
+            //508420 reuses one native stack depth for all path tasks after the preceding particle pass.
+            uint? outlineDirection = incomingOutlineDirectionDword;
             NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
             {
                 transaction.BeginCheckpoint();

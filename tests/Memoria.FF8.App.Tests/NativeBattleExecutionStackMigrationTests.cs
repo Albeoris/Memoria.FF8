@@ -56,6 +56,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
                     if (!restored && battle.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         string mid = Path.Combine(evidence!, "desktop-midcast.json");
+                        session.SetEventState(world.Events.Capture());
                         session.Save(mid, compact: true);
                         GameSession independent = new(GameSession.Load(mid));
                         using GameWorld clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
@@ -73,6 +74,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
                 if (materialized && battle.NativeGraphics.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: 0 } && battle.NativeEffectMemory!.Active == 0 && battle.Capture().GuardianForceCasts.Length == 0 && battle.Events.Count(item => item.Kind == "ActionComplete") > completed)
                 {
                     Assert.True(restored);
+                    session.SetEventState(world.Events.Capture());
                     session.Save(Path.Combine(evidence!, "desktop-after-summon.json"), compact: true);
                     NativeBattleProductionEffectAdmissionTests.Publish(evidence, "desktop-proof", new { Source = source, Mode = mode, Frame = battle.Frame, Callback = battle.NativeGraphics.Callback, Materialized = materialized, IndependentRestore = restored, ActionCompleted = true });
                     return;

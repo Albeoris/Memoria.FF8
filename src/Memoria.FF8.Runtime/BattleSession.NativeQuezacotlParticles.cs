@@ -5,14 +5,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeQuezacotlParticles(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
+    private (NativeBattleGraphicsState Graphics, uint? PathOutlineDirectionDword) AdvanceNativeQuezacotlParticles(NativeBattleGraphicsState graphics, NativeBattleGteDepthTrace depthTrace)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C7EA0 requires its retained effect memory.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C7EA0 lost its current module.");
         NativeBattleEffectTaskPool before = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521718);
         if (before.Head is null)
         {
-            return graphics;
+            return (graphics, null);
         }
         using NativeBattleEffectArenaTransaction transaction = new(memory.Arena ?? throw new NotSupportedException("Native secondary pool requires its retained arena."));
         using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Native secondary pool requires its retained ordering frame.")).Pending);
@@ -21,9 +21,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory committedMemory = memory;
         NativeBattleGraphicsState committedGraphics = graphics;
         bool checkpointActive = false;
+        uint? pathOutlineDirection = null;
         try
         {
-            NativeBattleEffectTaskStep stepped = before.Advance((current, index) =>
+            (NativeBattleEffectTaskStep stepped, pathOutlineDirection) = NativeBattleQuezacotlParticleCallbacks.AdvancePool(before, (current, index) =>
             {
                 transaction.BeginCheckpoint();
                 ordering.BeginCheckpoint();
@@ -88,6 +89,6 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
             NativeGraphics = graphics;
         }
-        return graphics;
+        return (graphics, pathOutlineDirection);
     }
 }

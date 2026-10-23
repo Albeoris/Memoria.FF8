@@ -154,6 +154,20 @@ public sealed class NativeBattleQuezacotlRibbonTests
         Assert.Equal(0, actual.Returned);
     }
 
+    [Theory]
+    [InlineData(0, -995, 3005)]
+    [InlineData(2048, -868, 3004)]
+    [InlineData(4096, -739, 3005)]
+    public void Second_endpoint_output_supplies_both_signed_WORDs_to_later_path_scratch(short progress, short x, ushort y)
+    {
+        byte[] pairs = new byte[80];
+        BinaryPrimitives.WriteInt16LittleEndian(pairs.AsSpan(2), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(pairs.AsSpan(6), 2);
+        NativeBattleQuezacotlRibbonResources resources = new(pairs.ToImmutableArray(), Triangles(), SqrtFixture(), DistanceFixture());
+        NativeBattleQuezacotlRibbonStep step = NativeBattleQuezacotlRibbon.Advance6C8850(Task(progress, 0), resources, 0, _ => Identity with { X = -1000, Y = 3000, Z = 1000 }, Envelope(), 7, false, Identity, Projection, incomingDirectionDword: 0x1A5020);
+        Assert.Equal((ushort)x | ((uint)y << 16), step.PathOutlineDirectionDword);
+    }
+
     [Fact]
     public void Pause_stops_task_progress_but_retains_drawing_and_exactly_forty_two_private_random_draws()
     {

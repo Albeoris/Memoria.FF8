@@ -31,21 +31,23 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState FinishNativeQuezacotlSecondaryLists(NativeBattleGraphicsState graphics, NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, ushort phase, NativeBattleGteDepthTrace depthTrace)
     {
         NativeEffectMemory = memory;
+        uint? pathOutlineDirection = null;
         if (phase >= 87)
         {
-            graphics = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect }, depthTrace);
+            (graphics, pathOutlineDirection) = AdvanceNativeQuezacotlRibbon(graphics with { OriginalEffect = effect }, depthTrace);
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
         if (phase >= 88)
         {
-            graphics = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect }, depthTrace);
+            (graphics, uint? particleDirection) = AdvanceNativeQuezacotlParticles(graphics with { OriginalEffect = effect }, depthTrace);
+            pathOutlineDirection = particleDirection ?? pathOutlineDirection;
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }
         if (phase >= 257)
         {
-            graphics = AdvanceNativeQuezacotlPaths(graphics with { OriginalEffect = effect }, depthTrace);
+            graphics = AdvanceNativeQuezacotlPaths(graphics with { OriginalEffect = effect }, depthTrace, pathOutlineDirection);
             memory = NativeEffectMemory!;
             effect = graphics.OriginalEffect!;
         }

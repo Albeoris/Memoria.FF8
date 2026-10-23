@@ -8,6 +8,24 @@ public sealed record NativeBattleQuezacotlParticleStep(NativeBattleEffectMemory 
 /// <summary>6C7EA0's eight native subdivisions, linked trail rows and same-pass child task appends.</summary>
 public static class NativeBattleQuezacotlParticleCallbacks
 {
+    internal static (NativeBattleEffectTaskStep Tasks, uint? PathOutlineDirectionDword) AdvancePool(NativeBattleEffectTaskPool pool, Func<NativeBattleEffectTaskPool, int, NativeBattleEffectTaskCallback> callback)
+    {
+        uint previous = 0;
+        uint? direction = null;
+        NativeBattleEffectTaskStep tasks = pool.Advance((current, index) =>
+        {
+            //6C7EAF saves508420's EDI in the subsequent6C79A0 direction slot.
+            direction = previous;
+            NativeBattleEffectTaskCallback step = callback(current, index);
+            if ((step.Result & 2) == 0)
+            {
+                previous = checked(current.BankAddress + (uint)index * current.Stride);
+            }
+            return step;
+        });
+        return (tasks, direction);
+    }
+
     public static NativeBattleQuezacotlParticleStep Advance6C7EA0(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, NativeBattleGteDepthTrace? depthTrace = null)
     {
         NativeBattleQuezacotlRibbonResources resources = effect.Binding.NativeQuezacotlResources?.Ribbon ?? throw new NotSupportedException("Native6C7EA0 requires its actual immutable particle and trail resources.");

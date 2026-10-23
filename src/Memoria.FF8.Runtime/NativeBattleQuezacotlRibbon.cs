@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleQuezacotlRibbonStep(ImmutableArray<byte> Task128, NativeBattleGfGeometryAttempt TaskWrites, ushort Random17A0, NativeBattleGfGeometryBatch CommonPackets, int Returned);
+public sealed record NativeBattleQuezacotlRibbonStep(ImmutableArray<byte> Task128, NativeBattleGfGeometryAttempt TaskWrites, ushort Random17A0, NativeBattleGfGeometryBatch CommonPackets, int Returned)
+{
+    public uint PathOutlineDirectionDword { get; init; }
+}
 
 /// <summary>6C8850's endpoint interpolation, ribbon jitter, paused drawing and post-progress fade.</summary>
 public static class NativeBattleQuezacotlRibbon
@@ -94,7 +97,9 @@ public static class NativeBattleQuezacotlRibbon
                 }
             }
         }
-        return new(task.ToImmutableArray(), writes.Attempt(null), random17A0, packets, returned);
+        //6C88B0's second endpoint output aliases the later6C79A0 direction slot.
+        uint pathDirection = (ushort)second.Position.X | ((uint)(ushort)second.Position.Y << 16);
+        return new(task.ToImmutableArray(), writes.Attempt(null), random17A0, packets, returned) { PathOutlineDirectionDword = pathDirection };
 
         NativeBattleQuezacotlRibbonPoint Point(int index, NativeBattleVector position)
         {
