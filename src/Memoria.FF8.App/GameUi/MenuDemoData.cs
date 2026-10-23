@@ -184,6 +184,7 @@ public static class MenuSettings
         new("Quick saves", "Number of rotating quick saves to retain. Shared by every save on this installation.", Enumerable.Range(1, 999).Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()),
         new("Cursor", "Initial resets menu cursors. Memory also remembers each battle character's accepted command, action and Draw Stock/Cast choice.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
+        new("Limit once per turn", "Check Limit Break availability once per ATB cycle. Cycling party members keeps the same result until the character takes an action. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard removes both aids; explicit do-not-attack actions remain. Saved with this game; Title sets the new-game default.", ["Normal", "Hard"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
         new("Shared magic stock", MagicUiText.Get("SharedDescription"), ["Off", "On"]),

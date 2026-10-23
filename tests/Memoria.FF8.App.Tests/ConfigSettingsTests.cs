@@ -182,7 +182,7 @@ public sealed class ConfigSettingsTests
             Assert.True(selected.Bounds.Bottom <= view.Root.Bounds.Bottom);
             controller.Navigate(MenuInput.Down);
         }
-        Assert.Equal(new[] { "Difficulty", "Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers" }.Order(), seen.Order());
+        Assert.Equal(new[] { "Difficulty", "Battle ATB mode", "Limit once per turn", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers" }.Order(), seen.Order());
         Assert.Contains(controller.Entries, entry => entry.Id == "begin");
     }
 

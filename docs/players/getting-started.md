@@ -40,6 +40,10 @@ For manual setup, obtain the Windows x64 LGPL static archive from [BtbN/FFmpeg-B
 
 Set `MEMORIA_FF8_MEDIA_TOOLS` to select another media directory for both the launcher and engine. Direct engine launches can override it with `--media-tools`; see the [command line](../reference/command-line.md) and [environment reference](../reference/environment-variables.md). The launcher requires ready media tools before starting a game. A direct engine launch may continue without them, but movie-dependent scenes can then fail to continue.
 
+## New Game battle options
+
+**Limit once per turn** is Off by default. When enabled, each character gets one Limit availability check per ATB cycle. Switching allies or reopening the command menu keeps the first result, including a failed check. Another check becomes available after the gauge resets and fills again, such as after acting or being defeated and revived. Saving and loading preserves the result. The option belongs to the saved game and can also be changed under Config → Combat between battles; enabled saves use the Memoria format.
+
 ## Start from source
 
 Follow [Build and test](../developers/building-and-testing.md) to create the same package locally. For a direct development launch, set `MEMORIA_FF8_GAME_DIR` to your installation and run from the source root:

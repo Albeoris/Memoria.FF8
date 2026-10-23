@@ -46,7 +46,7 @@ public sealed class SettingsCompatibilityTests
         List<MenuAction> actions = [];
         MenuController menus = new(() => data, actions.Add);
         menus.Open("new-game-options");
-        Assert.Equal(["Difficulty", "Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers", "begin"], menus.Entries.Select(entry => entry.Id));
+        Assert.Equal(["Difficulty", "Battle ATB mode", "Limit once per turn", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers", "begin"], menus.Entries.Select(entry => entry.Id));
         UiChoiceRow atb = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiChoiceRow>(), row => row.Id == "Battle ATB mode");
         Assert.Equal("ATB mode", atb.Text);
         menus.SelectEntry("new-game-options", "Rare card markers");

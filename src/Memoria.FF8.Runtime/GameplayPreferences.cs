@@ -11,6 +11,7 @@ public sealed record GameplayPreferences
     public bool SharedMagicStock { get; init; }
     public bool InfiniteMagic { get; init; }
     public bool SmartAttack { get; init; }
+    public bool LimitOncePerTurn { get; init; }
 
     public void Validate()
     {

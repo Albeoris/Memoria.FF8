@@ -99,6 +99,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native Limit selection requires a ready player with its original character record.");
         }
+        if (definition.LimitOncePerTurn && actor.LimitTurnCrisis is byte retainedCrisis)
+        {
+            nativeLimitLevels[actorId] = retainedCrisis;
+            return retainedCrisis;
+        }
         bool disabled = definition.NativeLimitsDisabled ?? throw new NotSupportedException("Native Limit selection requires the actual battle prohibition flag.");
         int deadParty = combatants.Count(member => member.IsPlayer && member.IsActive && (NativeSavedStatusBits(member) & 1) != 0);
         ushort savedStatuses = NativeSavedStatusBits(actor);
@@ -106,6 +111,10 @@ public sealed partial class BattleSession
         byte roll = disabled || (battleStatuses & 0x200) != 0 ? (byte)0 : (byte)NextRandomByte();
         byte crisis = NativeBattleLimitRules.CrisisLevel(limit, actor.CurrentHp, actor.MaximumHp, savedStatuses, battleStatuses, deadParty, roll, disabled);
         nativeLimitLevels[actorId] = crisis;
+        if (definition.LimitOncePerTurn)
+        {
+            actor.LimitTurnCrisis = crisis;
+        }
         nativeSlotsRolls.Remove(actorId);
         return crisis;
     }

@@ -707,6 +707,14 @@ public sealed partial class GameSession : IEventServices
         }
         state.GameplayPreferences.Validate();
         state.PendingGameplayPreferences?.Validate();
+        if (state.Battle is { Definition: { } limitDefinition } && limitDefinition.LimitOncePerTurn != state.GameplayPreferences.LimitOncePerTurn)
+        {
+            throw new InvalidDataException("Battle Limit policy differs from the saved gameplay preference.");
+        }
+        if ((state.Battle is not null || state.PendingBattleEncounter is not null) && state.PendingGameplayPreferences is { } pendingLimitPreferences && pendingLimitPreferences.LimitOncePerTurn != state.GameplayPreferences.LimitOncePerTurn)
+        {
+            throw new InvalidDataException("Pending Limit policy cannot change during battle.");
+        }
         if (state.Battle is { Definition: { } battleDefinition } && battleDefinition.GuardianFormsEnabled != state.GameplayPreferences.GuardianFormsEnabled)
         {
             throw new InvalidDataException("Saved battle GF Transformations option differs from its save preference.");

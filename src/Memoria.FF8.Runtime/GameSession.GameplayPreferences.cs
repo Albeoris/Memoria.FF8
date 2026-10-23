@@ -18,7 +18,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(preferences);
         preferences.Validate();
-        RequireGuardianFormsPreferenceBoundary(preferences);
+        RequireBattleGameplayPreferenceBoundary(preferences);
         if (State.Battle is not null || State.PendingBattleEncounter is not null)
         {
             State = State with { PendingGameplayPreferences = preferences, PendingMagicModeReview = preferences.SharedMagicStock != State.GameplayPreferences.SharedMagicStock };
@@ -35,7 +35,7 @@ public sealed partial class GameSession
     public void ApplyGameplayPreferences(MagicModePreview preview)
     {
         ArgumentNullException.ThrowIfNull(preview);
-        RequireGuardianFormsPreferenceBoundary(preview.Preferences);
+        RequireBattleGameplayPreferenceBoundary(preview.Preferences);
         if (State.Battle is not null || State.PendingBattleEncounter is not null)
         {
             State = State with { PendingGameplayPreferences = preview.Preferences, PendingMagicModeReview = preview.Preferences.SharedMagicStock != State.GameplayPreferences.SharedMagicStock };
@@ -76,8 +76,12 @@ public sealed partial class GameSession
         State = State with { PendingGameplayPreferences = null, PendingMagicModeReview = false };
     }
 
-    private void RequireGuardianFormsPreferenceBoundary(GameplayPreferences preferences)
+    private void RequireBattleGameplayPreferenceBoundary(GameplayPreferences preferences)
     {
+        if (preferences.LimitOncePerTurn != State.GameplayPreferences.LimitOncePerTurn && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        {
+            throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
+        }
         if (preferences.GuardianFormsEnabled != State.GameplayPreferences.GuardianFormsEnabled && (State.Battle is not null || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");

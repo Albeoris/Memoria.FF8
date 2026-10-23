@@ -44,7 +44,7 @@ public sealed partial class MenuController
             return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
         }
         bool newGame = ScreenId == "new-game-options";
-        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"] : SettingsPlacement.Pages[ScreenId].Items;
+        string[] ids = newGame ? ["Difficulty", "Battle ATB mode", "Limit once per turn", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers"] : SettingsPlacement.Pages[ScreenId].Items;
         List<MenuEntry> entries = [];
         foreach (string id in ids)
         {
@@ -66,8 +66,13 @@ public sealed partial class MenuController
             }
             string value = ConfigValue(setting.Id);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            bool enabled = setting.Id != "GF Transformations" || !Data.GuardianFormsPreferenceLocked;
-            string help = enabled ? setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description : newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.";
+            bool enabled = setting.Id switch
+            {
+                "GF Transformations" => !Data.GuardianFormsPreferenceLocked,
+                "Limit once per turn" => !Data.LimitOncePerTurnPreferenceLocked,
+                _ => true
+            };
+            string help = !enabled && setting.Id == "Limit once per turn" ? "Limit once per turn is unavailable until the active or pending battle ends." : enabled ? setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description : newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.";
             MenuAction action = setting.Id == "Quick saves" && !newGame ? new("quick-save-open") : setting.Id is "UI font" or "Dialogue font" ? new("font-picker-open", setting.Id) : new("config", setting.Id, Value: setting.Values[next]);
             entries.Add(new MenuEntry(setting.Id, newGame ? MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
         }

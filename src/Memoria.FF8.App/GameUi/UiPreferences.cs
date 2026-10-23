@@ -59,6 +59,7 @@ internal sealed record UiPreferences
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int DialogueFontSize { get; init; } = 10;
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
+    public bool LimitOncePerTurn { get; init; }
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
@@ -228,6 +229,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("GF Transformations requires On or Off.")
             };
         }
+        if (key == "Limit once per turn")
+        {
+            return value switch
+            {
+                "On" => this with { LimitOncePerTurn = true },
+                "Off" => this with { LimitOncePerTurn = false },
+                _ => throw new ArgumentException("Limit once per turn requires On or Off.")
+            };
+        }
         if (key == "Difficulty")
         {
             return value switch
@@ -280,7 +290,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }

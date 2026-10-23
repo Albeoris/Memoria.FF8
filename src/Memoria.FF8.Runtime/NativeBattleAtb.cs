@@ -33,7 +33,20 @@ public sealed partial class BattleCombatant
 {
     private int displayAtb;
     private byte? nativePlayerAtbSpeed;
-    public NativeBattleAtbState? NativeAtb { get; internal set; }
+    private NativeBattleAtbState? nativeAtb;
+    internal byte? LimitTurnCrisis { get; set; }
+    public NativeBattleAtbState? NativeAtb
+    {
+        get => nativeAtb;
+        internal set
+        {
+            if (nativeAtb is { } previous && value is { } next && next.Current < previous.Current)
+            {
+                LimitTurnCrisis = null;
+            }
+            nativeAtb = value;
+        }
+    }
 
     internal byte NativeAtbSpeed
     {

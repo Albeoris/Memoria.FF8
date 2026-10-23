@@ -344,7 +344,7 @@ public sealed partial class BattleSession
             NativeExamTimer = NativeExamTimer,
             Outcome = Outcome,
             DebugOutcome = DebugOutcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.HumanHitPoints, actor.Atb, actor.StatusEffects.ToArray()) { NativeAtb = actor.NativeAtb, LimitTurnCrisis = actor.LimitTurnCrisis, GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray(), NativeMagicInventory = actor.NativeMagicInventory.ToArray(), NativeDrawSlots = actor.NativeDrawSlots.ToArray(), NativeParticipant = CaptureNativeParticipant(actor), NativeStatus = CaptureNativeStatus(actor) }).ToArray(),
             NativeAllocations = nativeAllocations.ToArray(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
@@ -1157,6 +1157,11 @@ public sealed partial class BattleSession
             actor.CurrentHp = saved.CurrentHp;
             RestoreNativeStatus(actor, saved.NativeStatus);
             RestoreNativeAtb(actor, saved.NativeAtb, saved.Atb);
+            if (saved.LimitTurnCrisis is > 4 || saved.LimitTurnCrisis is not null && (!definition.LimitOncePerTurn || !actor.IsPlayer || actor.NativeLimit is null))
+            {
+                throw new InvalidDataException("Saved turn Limit result has invalid character ownership or crisis level.");
+            }
+            actor.LimitTurnCrisis = saved.LimitTurnCrisis;
             ValidateStocks(saved.MagicStocks, 32);
         }
         RestoreNativeElementAttack(snapshot.NativeElementAttack);
@@ -1386,6 +1391,7 @@ public sealed partial class BattleSession
             {
                 actor.Atb = replacement.Atb;
             }
+            actor.LimitTurnCrisis = replacement.LimitTurnCrisis;
             actor.IsBusy = replacement.IsBusy;
             actor.Effects.Clear();
             actor.Effects.AddRange(replacement.Effects);

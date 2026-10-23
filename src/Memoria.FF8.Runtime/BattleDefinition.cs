@@ -146,6 +146,7 @@ public sealed record BattleCombatantDefinition
 public sealed record BattleDefinition
 {
     public bool GuardianFormsEnabled { get; init; }
+    public bool LimitOncePerTurn { get; init; }
     public ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; init; } = [];
     public NativeCharacterVitals? MagicVitals { get; init; }
     public NativeBattleClockRules? NativeClockRules { get; init; }
@@ -303,6 +304,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
 {
+    public byte? LimitTurnCrisis { get; init; }
     public NativeBattleAtbState? NativeAtb { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public NativeBattleStatusSnapshot? NativeStatus { get; init; }
@@ -666,6 +668,10 @@ public sealed partial class BattleCombatant
         get => NativeAtb?.Display ?? displayAtb;
         internal set
         {
+            if (value < Atb)
+            {
+                LimitTurnCrisis = null;
+            }
             if (NativeAtb is { } native)
             {
                 NativeAtb = native with { Current = checked((int)((long)native.Maximum * value / BattleSession.AtbMaximum)) };

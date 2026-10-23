@@ -69,6 +69,7 @@ public sealed partial class MenuController
             "Cursor" => preferences.CursorMemory ? "Memory" : "Initial",
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
+            "Limit once per turn" => preferences.LimitOncePerTurn ? "On" : "Off",
             "Difficulty" => preferences.Difficulty.ToString(),
             "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",
             "Gunblade trigger" => preferences.GunbladeMode.ToString(),

@@ -130,12 +130,15 @@ internal sealed partial class RecreateGame
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
         data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
+        data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
+        data.SupportedActions.Add("config:Limit once per turn");
         data.Settings["Difficulty"] = ReadCurrentUiPreferences().Difficulty.ToString();
         data.SupportedActions.Add("config:Difficulty");
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
         data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null;
+        data.LimitOncePerTurnPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.SupportedActions.Add("config:GF Transformations");
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
@@ -380,11 +383,15 @@ internal sealed partial class RecreateGame
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
         GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
-        return current with { Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
+        return current with { LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
     {
+        if (key == "Limit once per turn" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
+        {
+            throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
+        }
         if (key == "GF Transformations" && ActiveBattle is { } active && preferences.GuardianFormsEnabled != active.GuardianFormsEnabled)
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
@@ -401,10 +408,10 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
+        if (session.State.Scene != SceneKind.Title && key is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { LimitOncePerTurn = preferences.LimitOncePerTurn, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
         }
         if (key == "Difficulty" && debugBattle is not null)
         {
