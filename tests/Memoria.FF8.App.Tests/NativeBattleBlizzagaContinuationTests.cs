@@ -129,8 +129,3 @@ public sealed class NativeBattleBlizzagaContinuationTests
         return !HasBlizzaga(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }
-
-
-
-
-
