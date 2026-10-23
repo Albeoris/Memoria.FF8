@@ -262,6 +262,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { ReflectBeam135Resources = ReadNativeReflectBeam135Resources() };
             }
+            if (binding.Effect == 136)
+            {
+                if (binding.Entry != NativeBattleOilShot136Profile.Entry || binding.Initializer != NativeBattleOilShot136Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag135.tim", NativeBattleOilShot136Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("OilShot requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { OilShot136Resources = ReadNativeOilShot136Resources() };
+            }
             if (binding.Effect == 138)
             {
                 if (binding.Entry != NativeBattleSaliva138Profile.Entry || binding.Initializer != NativeBattleSaliva138Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag137.tim", NativeBattleSaliva138Profile.InitializerGlobal) || binding.InitializerResources is not null)

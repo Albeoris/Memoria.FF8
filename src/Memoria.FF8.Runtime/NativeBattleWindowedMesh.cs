@@ -16,7 +16,7 @@ public static class NativeBattleWindowedMesh
         }
         int vertexCount = BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4));
         int faceStart = BinaryPrimitives.ReadInt32LittleEndian(Read(0, 4));
-        int cursor = checked(faceStart + 12);
+        int cursor = checked(faceStart + layout.InitialFaceBias);
         context = Put(context, layout.FaceCursor, checked(source.Address + (uint)cursor));
         NativeBattleGeometryRegisterStep? registers = null;
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -117,9 +117,13 @@ public static class NativeBattleWindowedMesh
                 {
                     attempts.Add(packed with { Primitive = null });
                     attempts.Add(Environment(checked(allocated + polygonBytes), Window(context, layout.WindowA), polygon.Bucket));
+                    if (layout.InsertDrawMode)
+                    {
+                        attempts.Add(DrawMode(checked(allocated + polygonBytes + 12), polygon.Bucket));
+                    }
                     attempts.Add(packed with { WriteMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Untouched, polygonBytes).ToImmutableArray(), Primitive = polygon });
-                    attempts.Add(Environment(checked(allocated + polygonBytes + 12), Window(context, layout.WindowB), polygon.Bucket));
-                    allocated = checked(allocated + polygonBytes + 24);
+                    attempts.Add(Environment(checked(allocated + polygonBytes + 12 + (layout.InsertDrawMode ? 8 : 0)), Window(context, layout.WindowB), polygon.Bucket));
+                    allocated = checked(allocated + polygonBytes + 24 + (layout.InsertDrawMode ? 8 : 0));
                 }
                 cursor = checked(cursor + faceBytes);
             }
@@ -169,6 +173,15 @@ public static class NativeBattleWindowedMesh
         value = unchecked(value << 5) | (unchecked((uint)~(height - 1)) & 0xF8);
         value = unchecked(value << 2) | (unchecked((uint)((short)~(width - 1) >> 3)) & 0x1F);
         return value;
+    }
+
+    private static NativeBattleGfGeometryAttempt DrawMode(int offset, int bucket)
+    {
+        ImmutableArray<uint> words = [0x01000000, 0xE1000220];
+        byte[] bytes = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, words[0]);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), words[1]);
+        return new(offset, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray(), new(bucket, words, []));
     }
 
     private static NativeBattleGfGeometryAttempt Environment(int offset, uint command, int bucket)
