@@ -89,28 +89,32 @@ public sealed partial record NativeCharacterVitals
         };
         for (int id = 0; id < 16; id++)
         {
-            NativeGuardianForceVital gf = GuardianForces[id];
-            GuardianForceProgression progression = gf.Progression ?? ImportGuardianForceProgression(id, previous[id]);
-            Dictionary<int, GuardianForceAbilityProgress> ledger = progression.Abilities.ToDictionary(entry => entry.Ability);
-            bool initialize = progression.Initialized || (gf.Flags & 1) != 0;
-            if ((gf.Flags & 1) != 0)
-            {
-                foreach (GuardianForceAbilityTemplate entry in templates[id])
-                {
-                    if (entry.Ability < MenuDefinitions.AbilityPoints.Length)
-                    {
-                        ledger.TryAdd(entry.Ability, new(entry.Ability, entry.InitialLearned));
-                    }
-                }
-            }
-            gf = gf with
-            {
-                Progression = new(initialize, ledger.Values.Select(entry => entry with { Active = templates[id].Any(template => template.Ability == entry.Ability) || entry.ItemTaught }).OrderBy(entry => entry.Ability).ToImmutableArray())
-            };
-            result.GuardianForces[id] = gf;
-            result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
+            result.ApplyGuardianForceTemplate(id, previous[id], templates[id]);
         }
         return result.ReconcileGuardianForceJunctions();
+    }
+
+    private void ApplyGuardianForceTemplate(int id, ImmutableArray<GuardianForceAbilityTemplate> previous, ImmutableArray<GuardianForceAbilityTemplate> templates)
+    {
+        NativeGuardianForceVital gf = GuardianForces[id];
+        GuardianForceProgression progression = gf.Progression ?? ImportGuardianForceProgression(id, previous);
+        Dictionary<int, GuardianForceAbilityProgress> ledger = progression.Abilities.ToDictionary(entry => entry.Ability);
+        bool initialize = progression.Initialized || (gf.Flags & 1) != 0;
+        if ((gf.Flags & 1) != 0)
+        {
+            foreach (GuardianForceAbilityTemplate entry in templates)
+            {
+                if (entry.Ability < MenuDefinitions.AbilityPoints.Length)
+                {
+                    ledger.TryAdd(entry.Ability, new(entry.Ability, entry.InitialLearned));
+                }
+            }
+        }
+        GuardianForces[id] = gf with
+        {
+            Progression = new(initialize, ledger.Values.Select(entry => entry with { Active = templates.Any(template => template.Ability == entry.Ability) || entry.ItemTaught }).OrderBy(entry => entry.Ability).ToImmutableArray())
+        };
+        GuardianForces[id] = SynchronizeGuardianForce(id);
     }
 
     private GuardianForceProgression ImportGuardianForceProgression(int id, ImmutableArray<GuardianForceAbilityTemplate> templates)

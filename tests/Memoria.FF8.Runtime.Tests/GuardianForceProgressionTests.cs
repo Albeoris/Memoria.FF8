@@ -244,6 +244,37 @@ public sealed class GuardianForceProgressionTests
     }
 
     [Fact]
+    public void AcquisitionMaterializesOnlySelectedTemplateWithoutRebuildingSavedOwners()
+    {
+        NativeCharacterVitals source = MagicSystemFixture.Create();
+        source.GuardianForces[0] = source.GuardianForces[0] with { Flags = 0x80, HitPoints = 60000, MaximumHitPoints = 1 };
+        source.Records[0] = source.Records[0] with { HitPoints = new NativeHpWord(60000, 60000) };
+        source = source with
+        {
+            MenuDefinitions = source.MenuDefinitions with
+            {
+                Templates = source.ResolveGuardianForceTemplates().SetItem(0, [new(100, true, 10)])
+            }
+        };
+        string original = JsonSerializer.Serialize(source);
+
+        NativeCharacterVitals acquired = source.AcquireGuardianForce(0);
+
+        Assert.Equal((byte)0x81, acquired.GuardianForces[0].Flags);
+        Assert.True(acquired.GuardianForces[0].Progression!.Initialized);
+        Assert.True(acquired.GuardianForces[0].HasLearnedAbility(100));
+        Assert.Equal((ushort)60000, acquired.GuardianForces[0].HitPoints);
+        Assert.Equal((ushort)1, acquired.GuardianForces[0].MaximumHitPoints);
+        Assert.Equal(source.GuardianForces.Skip(1), acquired.GuardianForces.Skip(1));
+        Assert.Equal(source.Records, acquired.Records);
+        Assert.Equal(source.CombatParty, acquired.CombatParty);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        NativeCharacterVitals restored = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(acquired))!;
+        restored.Validate();
+        Assert.Equal(JsonSerializer.Serialize(acquired), JsonSerializer.Serialize(restored.AcquireGuardianForce(0)));
+    }
+
+    [Fact]
     public void SessionPreviewIsPureAndApplyChecksRevisionAndUpdatesSnapshotOwners()
     {
         NativeCharacterVitals source = MagicSystemFixture.Create();

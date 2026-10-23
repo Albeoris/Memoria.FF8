@@ -23,6 +23,7 @@ public sealed class NativeFieldItemBattleTests
         Assert.Equal(count == 1 ? new NativeItemStock(0, 0) : new NativeItemStock(168, 1), result.Economy.Items[7]);
         Assert.Equal(vitals.GuardianForces[5] with { Flags = 0x81 }, result.Vitals.GuardianForces[5]);
         Assert.Equal(vitals.Records, result.Vitals.Records);
+        Assert.Equal(vitals.GuardianForces.Where((_, id) => id != 5), result.Vitals.GuardianForces.Where((_, id) => id != 5));
         Assert.Equal((byte)0x80, vitals.GuardianForces[5].Flags);
         Assert.Equal(count, economy.Items[7].Count);
         result.Vitals.Validate();

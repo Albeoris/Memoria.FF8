@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -223,7 +224,13 @@ public sealed partial record NativeCharacterVitals
         }
         NativeGuardianForceVital[] rows = GuardianForces.ToArray();
         rows[id] = rows[id] with { Flags = (byte)(rows[id].Flags | 1) };
-        return (this with { GuardianForces = rows }).ApplyGuardianForceTemplates(ResolveGuardianForceTemplates());
+        NativeCharacterVitals result = (this with { GuardianForces = rows }).DeepCopy();
+        if (!MenuDefinitions.Templates.IsDefault)
+        {
+            ImmutableArray<GuardianForceAbilityTemplate> templates = MenuDefinitions.Templates[id];
+            result.ApplyGuardianForceTemplate(id, templates, templates);
+        }
+        return result;
     }
 
     public NativeCharacterVitals Rest()
