@@ -130,40 +130,7 @@ public static partial class NativeBattleSandStorm155Controller
         {
             throw new InvalidDataException("Sand Storm bank transfer requires the actual closed queue and exclusive inactive task owners.");
         }
-        NativeBattleEffectArena[] storage = new NativeBattleEffectArena[2];
-        for (int bank = 0; bank < 2; bank++)
-        {
-            NativeBattleEffectTaskPool pool = frame.Effect.Pools[bank];
-            pool.Validate();
-            NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
-            for (int slot = 0; slot < pool.Slots.Length; slot++)
-            {
-                NativeBattleModulePoolTask task = pool.Slots[slot];
-                byte[] bytes = new byte[pool.Stride];
-                BinaryPrimitives.WriteUInt16LittleEndian(bytes, task.Flags);
-                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), task.State);
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), task.Next is int next ? checked(pool.BankAddress + (uint)(next * pool.Stride)) : 0);
-                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), task.Callback);
-                task.Payload.AsSpan().CopyTo(bytes.AsSpan(12));
-                int offset = slot * pool.Stride;
-                arena = arena.Write(offset, bytes);
-                if (task.UnknownPayloadRanges is { } unknown)
-                {
-                    foreach (NativeBattleEffectUnknownRegion range in unknown)
-                    {
-                        arena = arena.MarkUnknown(offset + range.Offset, range.Length);
-                    }
-                }
-                if (task.ResourcePointers is { } pointers)
-                {
-                    foreach ((int field, NativeBattleResourcePointer pointer) in pointers)
-                    {
-                        arena = arena.WriteResourcePointer(offset + field, pointer);
-                    }
-                }
-            }
-            storage[bank] = arena;
-        }
+        NativeBattleEffectArena[] storage = [NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[0]), NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[1])];
         return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = storage[0], ChildBankStorage = storage[1] } };
     }
 }

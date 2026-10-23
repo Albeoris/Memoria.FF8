@@ -9,6 +9,16 @@ public static class NativeBattleEffectTaskMemory
 {
     private const uint ArenaAddress = 0x20DFAB8;
 
+    public static NativeBattleEffectArena CaptureBank(NativeBattleEffectTaskPool pool)
+    {
+        pool.Validate();
+        if ((long)pool.Stride * pool.Slots.Length > NativeBattleEffectArena.Length)
+        {
+            throw new NotSupportedException("Native task bank capture leaves its bounded physical storage carrier.");
+        }
+        return PublishPool(NativeBattleEffectArena.Clear(), pool, 0);
+    }
+
     public static bool TryReadPointer(ImmutableArray<NativeBattleEffectTaskPool> pools, uint address, out NativeBattleResourcePointer? pointer)
     {
         if (Find(pools, address, 4, out int pool, out int slot, out int offset))

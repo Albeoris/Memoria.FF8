@@ -114,6 +114,10 @@ public sealed partial class BattleSession
         {
             return RunNativeSaliva138(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleWildCannonBlow156Profile.Entry)
+        {
+            return RunNativeWildCannonBlow156(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleSandStorm155Profile.Entry)
         {
             return RunNativeSandStorm155(graphics, true);
