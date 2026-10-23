@@ -74,6 +74,17 @@ public sealed class NativeBattleActorDirectorPresentationTests
         HashSet<int> salivaPacketBanks = [];
         bool oilOpeningRestored = false;
         HashSet<string> breath157Boundaries = [];
+        HashSet<string> stare45Boundaries = [];
+        HashSet<uint> stare45Callbacks = [];
+        HashSet<int> stare45TimBanks = [];
+        HashSet<int> stare45Bones = [];
+        HashSet<uint> stare45ProgrammesCompleted = [];
+        HashSet<string> stare45Protocol = [];
+        HashSet<byte> stare45Opcodes = [];
+        List<object> stare45Observations = [];
+        NativeBattleVector? stare45TargetF1 = null;
+        bool stare45ModePairSeen = false;
+        bool stare45MorphSeen = false;
         HashSet<string> sigh46Boundaries = [];
         HashSet<uint> sigh46Callbacks = [];
         HashSet<int> sigh46PacketBanks = [];
@@ -480,6 +491,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(original.Sonic139Resources);
                 Assert.True(source.NativeEffectMemory!.Sonic139!.PendingColdSources);
                 Assert.Null(source.NativeEffectMemory.Sonic139.OriginalFrames);
+            }
+            if (effectId == 45)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.NotNull(original.Stare45Resources);
+                Assert.All(source.NativeEffectMemory!.Stare45!.InactiveBanks, bank => Assert.NotNull(bank));
+                Assert.Equal((byte)0, header.ReadByte(17));
             }
             if (effectId == 46)
             {
@@ -1291,6 +1310,177 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             sonic139Opcodes.Add(command.Opcode);
                         }
                     }
+                }
+                if (effectId == 45 && after?.ReturnedDescriptor is > 0)
+                {
+                    NativeBattleStare45State stare = current.NativeEffectMemory!.Stare45!;
+                    Assert.Equal(6, after.Pools.Length);
+                    Assert.All(stare.InactiveBanks, bank => Assert.Null(bank));
+                    for (int poolIndex = 0; poolIndex < 6; poolIndex++)
+                    {
+                        NativeBattleCureFamilyPool expected = NativeBattleStare45Profile.Pools[poolIndex];
+                        NativeBattleEffectTaskPool actual = after.Pools[poolIndex];
+                        Assert.Equal(expected.Descriptor, actual.DescriptorAddress);
+                        Assert.Equal(expected.Bank, actual.BankAddress);
+                        Assert.Equal(expected.Stride, actual.Stride);
+                        Assert.Equal((int)expected.Capacity, actual.Slots.Length);
+                        stare45Callbacks.UnionWith(actual.Slots.Where(task => (task.Flags & 1) != 0).Select(task => task.Callback));
+                    }
+                    Assert.DoesNotContain(after.Pools[5].Slots, task => (task.Flags & 1) != 0);
+                    NativeBattleModulePoolTask stareRoot = Assert.Single(after.Pools[0].Slots, task => (task.Flags & 1) != 0);
+                    string rootPhase = "stare-root-phase-" + stareRoot.ReadByte(0x29);
+                    if (stare45Boundaries.Add(rootPhase))
+                    {
+                        ColdNext(rootPhase, current);
+                    }
+                    string protocol = stare.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x40) + "/" + stare.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x42) + "/" + stare.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x44);
+                    if (stare45Protocol.Add(protocol))
+                    {
+                        stare45Observations.Add(new { Boundary = "actual-object-request-pipeline", Protocol = protocol, Callback = current.NativeGraphics!.Callback });
+                        ColdNext("stare-protocol-" + protocol.Replace('/', '-'), current);
+                    }
+                    if (before?.Pools.Length == 6 && before.Pools[2].Slots.Any(task => (task.Flags & 1) != 0))
+                    {
+                        NativeBattleStare45State oldState = prior.NativeEffectMemory!.Stare45!;
+                        Assert.Equal(oldState.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x42), stare.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x40));
+                        Assert.Equal(oldState.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x44), stare.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x42));
+                    }
+                    if (before?.Pools.Length == 6)
+                    {
+                        NativeBattlePackedMatrix32 basisCamera = prior.NativeCamera!.CapturePackedView1D97778();
+                        NativeBattleActionMatrix camera = basisCamera.ReadMatrix();
+                        var up = NativeBattleActionGeometryRules.NormalizeVector56BC50(camera.Rotation[1], camera.Rotation[4], camera.Rotation[7]);
+                        var right = NativeBattleActionGeometryRules.NormalizeVector56BC50(up.Y, unchecked(-up.X), 0);
+                        var crossed = NativeBattleRayBomb10Geometry.Cross56BBF0(right, up);
+                        var forward = NativeBattleActionGeometryRules.NormalizeVector56BC50(crossed.X, crossed.Y, crossed.Z);
+                        short[] expectedBasis = [(short)right.X, (short)up.X, (short)forward.X, (short)right.Y, (short)up.Y, (short)forward.Y, (short)right.Z, (short)up.Z, (short)forward.Z];
+                        Assert.Equal(expectedBasis, Enumerable.Range(0, 9).Select(index => unchecked((short)stare.ReadWord(NativeBattleStare45Profile.BasisAddress + (uint)index * 2))).ToArray());
+                        Assert.Equal(basisCamera.Bytes.AsSpan().Slice(20, 12).ToArray(), stare.Read(NativeBattleStare45Profile.BasisAddress + 20, 12));
+                        Assert.Equal(prior.NativeEffectMemory!.Stare45!.Read(NativeBattleStare45Profile.BasisAddress + 18, 2), stare.Read(NativeBattleStare45Profile.BasisAddress + 18, 2));
+                    }
+                    for (int slot = 0; slot < after.Pools[3].Slots.Length; slot++)
+                    {
+                        NativeBattleModulePoolTask programme = after.Pools[3].Slots[slot];
+                        NativeBattleModulePoolTask? oldProgramme = before?.Pools.Length == 6 ? before.Pools[3].Slots[slot] : null;
+                        if (programme.Callback is not (0x836D60 or 0x839590))
+                        {
+                            continue;
+                        }
+                        bool casterProgramme = programme.Callback == 0x836D60;
+                        uint expectedSource = casterProgramme ? NativeBattleStare45Profile.ProgrammeAAddress : NativeBattleStare45Profile.ProgrammeBAddress;
+                        int expectedCache = casterProgramme ? NativeBattleStare45Profile.ProgrammeAWorkspaceLength : NativeBattleStare45Profile.ProgrammeBWorkspaceLength;
+                        Assert.Equal(expectedSource, programme.ReadDword(0x74));
+                        Assert.Equal((uint)expectedCache, programme.ReadDword(0x78));
+                        uint physicalAddress = after.Pools[3].BankAddress + (uint)(slot * after.Pools[3].Stride);
+                        if (programme.ReadByte(0x29) == 0)
+                        {
+                            if (!casterProgramme && programme.ReadWord(0x24) is 14 or 15 && stare45Boundaries.Add("stare-target-before-old" + programme.ReadWord(0x24)))
+                            {
+                                ColdNext("stare-target-before-old" + programme.ReadWord(0x24), current);
+                            }
+                            continue;
+                        }
+                        Assert.Equal(expectedSource, programme.ReadDword(0x94));
+                        uint frame = programme.ReadDword(0x98);
+                        Assert.InRange(frame, 1u, casterProgramme ? 30u : 40u);
+                        if ((programme.Flags & 1) != 0 && casterProgramme)
+                        {
+                            int bone = programme.ReadWord(0x8A) == 0 ? 21 : 22;
+                            NativeBattleVector point = BladeShot12PointOracle(prior, 3, [(byte)bone]);
+                            NativeBattleVector offset = NativeBattleGfMatrices.RotateShort56C4F0(NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), unchecked((short)programme.ReadWord(0x62))), new(0, 0, -64));
+                            Assert.Equal(new[] { unchecked((ushort)(point.X + offset.X)), unchecked((ushort)(point.Y + offset.Y)), unchecked((ushort)(point.Z + offset.Z)) }, new[] { programme.ReadWord(0x1C), programme.ReadWord(0x1E), programme.ReadWord(0x20) });
+                            if (stare45Bones.Add(bone))
+                            {
+                                stare45Observations.Add(new { Boundary = "actual-caster-current-bone-" + bone, PhysicalTask = physicalAddress, Bone = bone, Point = point, Offset = offset });
+                                ColdNext("stare-current-bone-" + bone, current);
+                            }
+                        }
+                        if ((programme.Flags & 1) != 0 && !casterProgramme)
+                        {
+                            if (stare45TargetF1 is null)
+                            {
+                                stare45TargetF1 = BladeShot12PointOracle(prior, 0, [0xF1]);
+                                Assert.Equal(1u, frame);
+                                stare45Boundaries.Add("stare-target-first-delayed-F1");
+                                ColdNext("stare-target-first-delayed-F1", current);
+                            }
+                            NativeBattleVector expected = stare45TargetF1.Value;
+                            Assert.Equal(new[] { unchecked((ushort)expected.X), unchecked((ushort)expected.Y), unchecked((ushort)expected.Z) }, new[] { programme.ReadWord(0x1C), programme.ReadWord(0x1E), programme.ReadWord(0x20) });
+                        }
+                        if (frame is 1 or 15 or 30 or 40 && stare45Boundaries.Add("stare-cache-" + slot + "-frame-" + frame))
+                        {
+                            ColdNext("stare-cache-" + slot + "-frame-" + frame, current);
+                        }
+                        if (oldProgramme is not null && (oldProgramme.Flags & 1) != 0 && programme.ReadByte(0x29) == 2 && (programme.ReadByte(0x26) & 1) != 0)
+                        {
+                            Assert.Equal(casterProgramme ? 30u : 40u, frame);
+                            stare45ProgrammesCompleted.Add(physicalAddress);
+                        }
+                    }
+                    if (after.Pools[3].Slots.Count(task => (task.Flags & 1) != 0 && task.Callback == 0x836D60) == 2)
+                    {
+                        Assert.Equal(new ushort[] { 0, 1 }, after.Pools[3].Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x836D60).Select(task => task.ReadWord(0x8A)).Order().ToArray());
+                    }
+                    if (!stare45MorphSeen && stare.Read(NativeBattleStare45Profile.ScratchAddress, NativeBattleStare45Profile.ScratchLength).Any(value => value != 0))
+                    {
+                        stare45MorphSeen = true;
+                        Assert.All(Enumerable.Range(0, 100), vertex => Assert.Equal((ushort)0, stare.ReadWord(NativeBattleStare45Profile.ScratchAddress + (uint)(vertex * 8 + 6))));
+                        ColdNext("stare-current800-morph-XYZ6-W-retained", current);
+                    }
+                    DirectedNodePacketState tim = Director(current);
+                    if (tim.PrimaryDrawCursor is int end && tim.SecondaryDrawCursor is int limit)
+                    {
+                        Assert.Equal(limit - tim.DrawStep, end);
+                        if (stare45TimBanks.Add(end - tim.SourceArenaOffset))
+                        {
+                            ColdNext("stare-TIM-C000-bank-no-packet-writes-" + (end - tim.SourceArenaOffset).ToString("X"), current);
+                        }
+                    }
+                    ImmutableHashSet<NativeBattlePrimitiveReference> programmePackets = Stare45PacketReferences(prior, current);
+                    NativeBattleLogicalCommand[] commands = Resonance49Commands(current).Where(command => programmePackets.Contains(command.Packet)).ToArray();
+                    foreach (NativeBattleLogicalCommand command in commands)
+                    {
+                        NativeBattlePrimitiveProcess physical = current.NativeEffectMemory!.PrimitiveProcess! with { PacketBank = command.Packet.Bank, PacketBuffer = command.Packet.Buffer };
+                        for (int word = 0; word < command.Words.Length; word++)
+                        {
+                            uint mask = Additional182ConsumedMask(command.Opcode, word);
+                            int offset = command.Packet.ByteOffset + (command.WordOffset + word) * 4;
+                            uint actual = mask == 0xFFFF ? BinaryPrimitives.ReadUInt16LittleEndian(physical.ReadCommonPacket(offset, 2)) : BinaryPrimitives.ReadUInt32LittleEndian(physical.ReadCommonPacket(offset, 4));
+                            Assert.Equal(command.Words[word] & mask, actual & mask);
+                        }
+                        stare45Opcodes.Add(command.Opcode);
+                        if ((command.Opcode & 0xFC) is 0x2C or 0x3C)
+                        {
+                            Assert.Equal(4, command.VertexPayload4.Length);
+                            Assert.Contains(command.VertexPayload4, depth => depth > 0);
+                            int packetBytes = (command.Words.Length + 1) * 4;
+                            NativeBattleLogicalCommand mode = Assert.Single(commands, candidate => candidate.Packet.Bank == command.Packet.Bank && candidate.Packet.Buffer == command.Packet.Buffer && candidate.Packet.ByteOffset == command.Packet.ByteOffset + packetBytes && candidate.WordOffset == 1 && candidate.Opcode == 0xE1);
+                            Assert.Equal(command.OrderingBucket, mode.OrderingBucket);
+                            Assert.Equal(new uint[] { 0xE1000020 }, mode.Words.ToArray());
+                            Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(physical.ReadCommonPacket(mode.Packet.ByteOffset + 8, 4)));
+                            Assert.Equal((byte)2, physical.ReadCommonPacket(mode.Packet.ByteOffset + 3, 1)[0]);
+                            Assert.Equal(4, mode.VertexPayload4.Length);
+                            stare45ModePairSeen = true;
+                        }
+                    }
+                    if (commands.Length > 0 && stare45Boundaries.Add("stare-actual-COMMON-prefix-and-E1-pairs"))
+                    {
+                        ColdNext("stare-actual-COMMON-prefix-and-E1-pairs", current);
+                    }
+                }
+                if (effectId == 45 && before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0 && stare45Boundaries.Add("stare-all-six-exclusive-banks-detached"))
+                {
+                    NativeBattleStare45State stare = current.NativeEffectMemory!.Stare45!;
+                    Assert.Empty(after.Pools);
+                    for (int bank = 0; bank < 6; bank++)
+                    {
+                        NativeBattleCureFamilyPool pool = NativeBattleStare45Profile.Pools[bank];
+                        for (int slot = 0; slot < pool.Capacity; slot++)
+                        {
+                            Assert.Equal(0, BinaryPrimitives.ReadUInt16LittleEndian(stare.InactiveBanks[bank]!.Read(slot * pool.Stride, 2)) & 1);
+                        }
+                    }
+                    ColdNext("stare-all-six-exclusive-banks-detached", current);
                 }
                 if (effectId == 46 && after?.ReturnedDescriptor is > 0)
                 {
@@ -5198,7 +5388,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     }
                     else if (effectId != 183)
                     {
-                        Assert.Equal(JsonSerializer.Serialize(original.Sigh46Resources?.Camera ?? original.MagmaBreath48Resources?.Camera ?? original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                        Assert.Equal(JsonSerializer.Serialize(original.Stare45Resources?.Camera ?? original.Sigh46Resources?.Camera ?? original.MagmaBreath48Resources?.Camera ?? original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     }
                     if (effectId == 126)
                     {
@@ -5270,10 +5460,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakWithout = without;
                             peakPixels = pixels;
                             peakPlain = plain;
-                            peakOwnership = effectId is 19 or 184
-                                ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
+                            peakOwnership = effectId is 19 or 184 or 45
+                                ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 45 ? "Actual COMMON effect prefix before complete first original model allocation, including paired E1 mode packets" : effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = packetState.PacketBank, PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
+                            if (effectId is not (45 or 46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -5330,6 +5520,37 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId == 45)
+            {
+                Assert.Equal(new[] { 21, 22 }, stare45Bones.Order().ToArray());
+                Assert.Equal(3, stare45ProgrammesCompleted.Count);
+                Assert.NotNull(stare45TargetF1);
+                Assert.Equal(new[] { 0, 0xC000 }, stare45TimBanks.Order().ToArray());
+                Assert.True(stare45ModePairSeen);
+                Assert.True(stare45MorphSeen);
+                Assert.Contains(stare45Opcodes, opcode => (opcode & 0xFC) == 0x2C);
+                Assert.Contains(stare45Opcodes, opcode => (opcode & 0xFC) == 0x3C);
+                Assert.DoesNotContain((byte)0xE2, stare45Opcodes);
+                foreach (string protocol in new[] { "0/0/1", "0/1/1", "1/1/1" })
+                {
+                    Assert.Contains(protocol, stare45Protocol);
+                }
+                foreach (uint callback in new uint[] { 0x8366E0, 0x836990, 0x836AC0, 0x836D60, 0x839590, 0x839690 })
+                {
+                    Assert.Contains(callback, stare45Callbacks);
+                }
+                foreach (string name in new[] { "stare-target-before-old14", "stare-target-before-old15", "stare-target-first-delayed-F1", "stare-actual-COMMON-prefix-and-E1-pairs", "stare-all-six-exclusive-banks-detached" })
+                {
+                    Assert.Contains(name, stare45Boundaries);
+                }
+                Assert.DoesNotContain(completed.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.CommonTextureLoad508660);
+                for (int group = 0; group < 4; group++)
+                {
+                    Assert.Equal((short)0, completed.NativeStage!.Groups[group].ColorDepth);
+                    Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags);
+                }
+                File.WriteAllText(Path.Combine(output!, "stare45-native-observations.json"), JsonSerializer.Serialize(new { Boundaries = stare45Boundaries.Order().ToArray(), Callbacks = stare45Callbacks.Order().ToArray(), Bones = stare45Bones.Order().ToArray(), ProgrammeTasks = stare45ProgrammesCompleted.Order().ToArray(), TimBanksWithoutPackets = stare45TimBanks.Order().ToArray(), Protocol = stare45Protocol.Order().ToArray(), Opcodes = stare45Opcodes.Order().ToArray(), Observations = stare45Observations }));
+            }
             if (effectId == 46)
             {
                 Assert.Equal(new[] { 0, 0x6000 }, sigh46PacketBanks.Order().ToArray());
@@ -6142,7 +6363,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
+            if (effectId is 45 or 46 or 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -6296,6 +6517,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
         {
             return NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
         }
+        if (graphics.OriginalEffect.Binding.Effect == 45)
+        {
+            return Stare45PacketReferences(prior, current);
+        }
         if (graphics.OriginalEffect.Binding.Effect == 49)
         {
             return Resonance49PacketReferences(current);
@@ -6306,7 +6531,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             return wavesCommon.Union(graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.Packet).Where(packet => packet.Buffer == 0 && packet.Bank is "22DB3C4" or "22BE8E8" or "D34868"));
         }
         DirectedNodePacketState state = Director(current);
-        if (state.Effect is 46 or 48 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
+        if (state.Effect is 45 or 46 or 48 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -6342,6 +6567,18 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 45)
+        {
+            NativeBattleStare45State stare = snapshot.NativeEffectMemory!.Stare45!;
+            uint source = stare.ReadDword(NativeBattleStare45Profile.InitializerGlobal);
+            uint cursor = stare.ReadDword(NativeBattleStare45Profile.PrimaryCursorGlobal);
+            uint limit = stare.ReadDword(NativeBattleStare45Profile.SecondaryCursorGlobal);
+            if (source == 0 || cursor == 0 || limit == 0 || snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor == 0)
+            {
+                return new(effect, 0, null, null, 0xC000, false);
+            }
+            return new(effect, checked((int)(source - 0x20DFAB8u)), checked((int)(cursor - 0x20DFAB8u)), checked((int)(limit - 0x20DFAB8u)), 0xC000, false);
+        }
         if (effect == 46)
         {
             NativeBattleSigh46State sigh = snapshot.NativeEffectMemory!.Sigh46!;
@@ -7203,6 +7440,18 @@ public sealed class NativeBattleActorDirectorPresentationTests
         return false;
     }
 
+    private static ImmutableHashSet<NativeBattlePrimitiveReference> Stare45PacketReferences(BattleSnapshot prior, BattleSnapshot current)
+    {
+        ImmutableHashSet<NativeBattlePrimitiveReference> polygons = NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
+        if (polygons.IsEmpty)
+        {
+            return polygons;
+        }
+        NativeBattleLogicalCommand[] commands = Resonance49Commands(current);
+        var modes = commands.Where(command => command.Opcode == 0xE1 && command.WordOffset == 1 && command.Words.Length == 1 && command.Words[0] == 0xE1000020 && commands.Any(polygon => polygons.Contains(polygon.Packet) && polygon.Packet.Bank == command.Packet.Bank && polygon.Packet.Buffer == command.Packet.Buffer && polygon.Packet.ByteOffset + (polygon.Words.Length + 1) * 4 == command.Packet.ByteOffset && polygon.OrderingBucket == command.OrderingBucket)).Select(command => command.Packet);
+        return polygons.Union(modes);
+    }
+
     private static NativeBattleEffectVramCopy[] Sigh46WrappedCopies(ushort firstPhase, ushort secondPhase)
     {
         List<NativeBattleEffectVramCopy> copies = [];
@@ -7933,6 +8182,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static bool CrossedContactGate(BattleSnapshot prior, BattleSnapshot current, ushort effect)
     {
+        if (effect == 45)
+        {
+            NativeBattleOriginalEffectState? stareBefore = prior.NativeGraphics!.OriginalEffect;
+            NativeBattleOriginalEffectState? stareAfter = current.NativeGraphics!.OriginalEffect;
+            if (stareBefore?.Pools.Length != 6 || stareAfter?.Pools.Length != 6 || prior.NativeEffectMemory!.Stare45!.ReadWord(NativeBattleStare45Profile.EffectObjectAddress + 0x48) != 1)
+            {
+                return false;
+            }
+            return stareBefore.Pools[1].Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == 0x836990 && item.task.ReadByte(0x29) == 1 && stareAfter.Pools[1].Slots[item.slot].Callback == item.task.Callback && stareAfter.Pools[1].Slots[item.slot].ReadByte(0x29) == 2);
+        }
         if (effect == 46)
         {
             NativeBattleOriginalEffectState? sighBefore = prior.NativeGraphics!.OriginalEffect;

@@ -569,6 +569,14 @@ public sealed partial class GameAssets
             {
                 binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
             }
+            if (binding.Effect == 45)
+            {
+                if (binding.Entry != NativeBattleStare45Profile.Entry || binding.Initializer != NativeBattleStare45Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag044.tim", NativeBattleStare45Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Stare45 requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { Stare45Resources = ReadNativeStare45Resources() };
+            }
             if (binding.Effect == 46)
             {
                 if (binding.Entry != NativeBattleSigh46Profile.Entry || binding.Initializer != NativeBattleSigh46Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag045.tim", NativeBattleSigh46Profile.InitializerGlobal) || binding.InitializerResources is not null)
