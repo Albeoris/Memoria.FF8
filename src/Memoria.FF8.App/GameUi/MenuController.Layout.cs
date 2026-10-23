@@ -36,7 +36,7 @@ public sealed partial class MenuController
         root.Children.Add(anchored);
         anchored.Children.Add(PresentationProvider.Compose(this));
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { ViewportMode = PresentationProvider.ViewportMode, DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
@@ -78,7 +78,7 @@ public sealed partial class MenuController
         {
             container.Children.Add(BuildNativeStatus());
         }
-        else if (ScreenId == "gf" || ScreenId.StartsWith("gf-", StringComparison.Ordinal))
+        else if (ScreenId == "gf" || (ScreenId.StartsWith("gf-", StringComparison.Ordinal) && !ScreenId.StartsWith("gf-ability-", StringComparison.Ordinal) && ScreenId != "gf-mod-review"))
         {
             container.Children.Add(BuildNativeGuardianForce());
         }
@@ -114,7 +114,7 @@ public sealed partial class MenuController
     private UiElement BuildStandard()
     {
         bool characterPage = CurrentScreen.Layout is MenuLayout.Character or MenuLayout.Junction;
-        bool collectionDetail = ScreenId.StartsWith("gf-", StringComparison.Ordinal) || ScreenId == "card-detail";
+        bool collectionDetail = (ScreenId.StartsWith("gf-", StringComparison.Ordinal) && !ScreenId.StartsWith("gf-ability-", StringComparison.Ordinal) && ScreenId != "gf-mod-review") || ScreenId == "card-detail";
         bool showSummary = characterPage || collectionDetail;
         var content = Grid(showSummary ? [1.6f, 5.8f] : [1], [1]);
         if (characterPage)

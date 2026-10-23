@@ -13,6 +13,7 @@ internal sealed record UiControlCommand(string? Screen = null, bool Demo = true,
 internal sealed partial class RecreateGame
 {
     private MenuController? gameMenus;
+    private int? previousMenuWheel;
     private MonoGameUiCanvas? uiCanvas;
     private UiTheme uiTheme => CreateUiTheme();
 
@@ -451,17 +452,39 @@ internal sealed partial class RecreateGame
         bool nativeMainWasOpen = !hostOnly && IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
         bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
+        int wheelDelta = previousMenuWheel is int previousWheel ? mouse.ScrollWheelValue - previousWheel : 0;
+        previousMenuWheel = mouse.ScrollWheelValue;
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
         previousUiMousePressed = mousePressed;
+        bool searchOwnedInput = gameMenus.IsGuardianSearchEditing;
+        bool searchOwnershipChanged = false;
+        void DispatchMenuInput(MenuInput command)
+        {
+            if (searchOwnershipChanged)
+            {
+                return;
+            }
+            gameMenus.Navigate(command);
+            if (searchOwnedInput != gameMenus.IsGuardianSearchEditing)
+            {
+                searchOwnershipChanged = true;
+                keyboard.SuppressHeldUiInput();
+            }
+        }
         bool openMenu = keyboard.GameMenuRequested;
+        if (openMenu && !saveMenu.IsOpen && gameMenus.IsGuardianAbilityWorkspace)
+        {
+            DispatchMenuInput(MenuInput.Actions);
+            return true;
+        }
         if (keyboard.DebugRoomRequested && !saveMenu.IsOpen && !gameMenus.IsNamePrompt)
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityEditor)
+                if (gameMenus.IsGuardianAbilityWorkspace)
                 {
-                    gameMenus.Navigate(MenuInput.Cancel);
+                    DispatchMenuInput(MenuInput.Cancel);
                 }
                 else
                 {
@@ -477,9 +500,9 @@ internal sealed partial class RecreateGame
         {
             if (gameMenus.IsOpen)
             {
-                if (gameMenus.IsGuardianAbilityEditor)
+                if (gameMenus.IsGuardianAbilityWorkspace)
                 {
-                    gameMenus.Navigate(MenuInput.Cancel);
+                    DispatchMenuInput(MenuInput.Cancel);
                 }
                 else
                 {
@@ -523,73 +546,89 @@ internal sealed partial class RecreateGame
             suppressNativeNameInput = false;
             return true;
         }
-        bool wasTypingName = gameMenus.IsTypingName;
+        bool wasTypingName = gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing;
+        if (keyboard.UiSwitchColumnRequested && gameMenus.IsGuardianAbilityEditor)
+        {
+            DispatchMenuInput(MenuInput.SwitchColumn);
+        }
         if (keyboard.UiPaneFocus != 0 && gameMenus.IsGuardianAbilityEditor)
         {
-            gameMenus.Navigate(keyboard.UiPaneFocus < 0 ? MenuInput.FocusLeft : MenuInput.FocusRight);
+            DispatchMenuInput(keyboard.UiPaneFocus < 0 ? MenuInput.FocusLeft : MenuInput.FocusRight);
         }
         if (input.MenuVertical < 0)
         {
-            gameMenus.Navigate(MenuInput.Up);
+            DispatchMenuInput(MenuInput.Up);
         }
         if (input.MenuVertical > 0)
         {
-            gameMenus.Navigate(MenuInput.Down);
+            DispatchMenuInput(MenuInput.Down);
         }
         if (input.MenuHorizontal < 0)
         {
-            gameMenus.Navigate(MenuInput.Left);
+            DispatchMenuInput(MenuInput.Left);
         }
         if (input.MenuHorizontal > 0)
         {
-            gameMenus.Navigate(MenuInput.Right);
+            DispatchMenuInput(MenuInput.Right);
         }
         if (input.MenuPage != 0)
         {
-            gameMenus.Navigate(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
+            DispatchMenuInput(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
         }
         if (keyboard.UiCharacterPage < 0)
         {
-            gameMenus.Navigate(MenuInput.PageLeft);
+            DispatchMenuInput(MenuInput.PageLeft);
         }
         if (keyboard.UiCharacterPage > 0)
         {
-            gameMenus.Navigate(MenuInput.PageRight);
+            DispatchMenuInput(MenuInput.PageRight);
         }
         if (keyboard.UiDetailRequested)
         {
-            gameMenus.Navigate(MenuInput.Alternate);
+            DispatchMenuInput(MenuInput.Alternate);
         }
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
-            gameMenus.Navigate(MenuInput.Confirm);
+            DispatchMenuInput(MenuInput.Confirm);
         }
         if (input.Cancel || keyboard.UiCancelRequested)
         {
-            gameMenus.Navigate(MenuInput.Cancel);
+            DispatchMenuInput(MenuInput.Cancel);
         }
         if (gameMenus.IsOpen)
         {
             if (keyboard.UiTabRequested && gameMenus.IsEditingName)
             {
-                gameMenus.Navigate(MenuInput.Tab);
+                DispatchMenuInput(MenuInput.Tab);
             }
             UiView view = gameMenus.BuildView();
             view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-            if (keyboard.UiTabRequested && !gameMenus.IsEditingName)
+            if ((keyboard.UiTabRequested || keyboard.UiReverseTabRequested) && !gameMenus.IsEditingName)
             {
                 if (gameMenus.IsGuardianAbilityEditor)
                 {
-                    gameMenus.Navigate(MenuInput.Tab);
+                    DispatchMenuInput(keyboard.UiReverseTabRequested ? MenuInput.ReverseTab : MenuInput.Tab);
                 }
                 else
                 {
                     view.Key(UiKey.Tab);
                 }
             }
-            view.Pointer(mouse.X, mouse.Y, mousePressEdge);
+            if (!searchOwnershipChanged)
+            {
+                view.Pointer(mouse.X, mouse.Y, mousePressEdge);
+                if (searchOwnedInput != gameMenus.IsGuardianSearchEditing)
+                {
+                    searchOwnershipChanged = true;
+                    keyboard.SuppressHeldUiInput();
+                }
+            }
+            if (!searchOwnershipChanged && IsActive && gameMenus.IsGuardianAbilityEditor && wheelDelta != 0)
+            {
+                gameMenus.HandleGuardianAbilityEditorWheel(mouse.X, mouse.Y, wheelDelta);
+            }
         }
-        if (wasTypingName != gameMenus.IsTypingName)
+        if (wasTypingName != (gameMenus.IsTypingName || gameMenus.IsGuardianSearchEditing))
         {
             keyboard.SuppressHeldNameInput();
         }

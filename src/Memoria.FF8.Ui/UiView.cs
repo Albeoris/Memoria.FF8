@@ -223,6 +223,13 @@ public sealed class UiView
         return true;
     }
 
+    public (float X, float Y) ToDesignPoint(float x, float y)
+    {
+        EnsureLayout();
+        GetTransform(out float scale, out float offsetX, out float offsetY);
+        return ((x - offsetX) / scale, (y - offsetY) / scale);
+    }
+
     /// <summary>A press transition activates once; holding the pointer does not repeat activation.</summary>
     public void Pointer(float x, float y, bool pressed)
     {

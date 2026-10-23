@@ -4,7 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 public enum MenuInput
 {
-    Up, Down, Left, Right, Confirm, Cancel, PageLeft, PageRight, Alternate, Tab, PageUp, PageDown, FocusLeft, FocusRight
+    Up, Down, Left, Right, Confirm, Cancel, PageLeft, PageRight, Alternate, Tab, PageUp, PageDown, FocusLeft, FocusRight, Actions, ReverseTab, SwitchColumn
 }
 
 public sealed record MenuAction(string Kind, string SubjectId = "", string TargetId = "", string Value = "");

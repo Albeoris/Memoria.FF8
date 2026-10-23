@@ -26,22 +26,18 @@ public sealed partial class MenuController
     private int guardianPane;
     private int guardianCatalogCursor;
     private int guardianRowCursor;
-    private int guardianToolbarCursor;
     private int guardianCatalogScroll;
     private int guardianRowScroll;
     private int guardianPreviewMode = 2;
-    private bool guardianPreviewEnabled;
     private string guardianSearch = "";
     private int guardianCategory;
     private string? guardianPending;
     private int guardianPendingAbility;
-    private int guardianSwapSecond;
-    private bool guardianCapacityWarning;
+        private bool guardianCapacityWarning;
     private bool guardianResetDefaults;
     private bool guardianWithoutLayer;
     private Action? guardianAfterDiscard;
     private static readonly string[] GuardianCategories = ["All", "Junction", "Command", "Character", "Party", "GF", "Menu"];
-    private static readonly string[] GuardianTools = ["Append", "Replace", "Swap positions", "Undo row", "Restore inherited", "Preview", "Preview as enabled", "Without this layer", "Search", "Category", "Apply once", "Save mod", "Save As", "Target", "Use package"];
     internal bool GuardianEditorEditionSupported { get; set; } = true;
     private Func<GuardianForceAbilityPatchDocument, GuardianForceEditorReview>? reviewGuardianPackageOwnership;
     private Func<string, GuardianForceEditorReview>? reviewRemoveGuardianLayer;
@@ -52,6 +48,7 @@ public sealed partial class MenuController
         reviewGuardianPackageOwnership = review;
         reviewRemoveGuardianLayer = remove;
     }
+
     internal bool IsGuardianAbilityEditor => ScreenId == "gf-ability-editor";
 
     internal void ConnectGuardianForceEditor(Func<GuardianForceEditorContext> read, Func<int, string> gfName, Func<int, string> abilityName, Func<int, string> description, Func<ControlAction, string> binding, Func<GuardianForceAbilityPatchDocument, bool, System.Collections.Immutable.ImmutableArray<GuardianForceAbilityReset>, GuardianForceEditorReview> review, Func<GuardianForceEditorReview, string> apply, Func<GuardianForceAbilityPatchDocument, GuardianForceAbilityPackageDocument?, bool, GuardianForceAbilityPackageDocument?> save)
@@ -64,6 +61,7 @@ public sealed partial class MenuController
         reviewGuardianEditor = review;
         applyGuardianEditor = apply;
         saveGuardianEditor = save;
+        RegisterGuardianEditorPages();
         Register(new()
         {
             Id = "mods-create",
@@ -78,7 +76,8 @@ public sealed partial class MenuController
             Id = "gf-ability-targets",
             Title = "Create Mods · GF Abilities · Target",
             Help = "Choose exactly one editing owner. Disabled packages can be edited without activation.",
-            Entries = _ => GuardianTargetEntries()
+            Entries = _ => GuardianTargetEntries(),
+            Details = _ => ["Create new mod opens an independent draft immediately. No file is written until Save mod.", "Edit existing mod includes compatible disabled packages.", readGuardianEditor!().Current is null ? "Load a game to edit this playthrough." : "Edit this playthrough changes its save-local contribution."]
         });
         Register(new()
         {
@@ -103,15 +102,7 @@ public sealed partial class MenuController
             Entries = _ => [new("reset", $"[{(guardianResetDefaults ? "x" : " ")}] Also apply edited starting states", "Only explicitly edited starting states; learned or unlearned with 0 AP. These writes occur once.", Action: new("gf-editor-review-reset")), new("apply", "Apply reviewed changes", "The current playthrough changes and needs a normal game save.", Action: new("gf-editor-apply")), new("cancel", "Cancel", "Keep the draft and live playthrough.", Action: new("menu-back"))],
             Details = _ => GuardianReviewDetails()
         });
-        Register(new()
-        {
-            Id = "gf-ability-search",
-            Title = "GF Abilities · Search",
-            Help = "Type an ability name or choose letters. Back retains the search.",
-            Columns = 8,
-            Entries = _ => [.. "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -%".Select((letter, i) => new MenuEntry("letter-" + i, letter.ToString(), "Add a search character.", Action: new("gf-editor-letter", Value: letter.ToString()))), new("delete", "Delete", "Delete character.", Action: new("gf-editor-delete")), new("clear", "Clear", "Show all abilities.", Action: new("gf-editor-clear")), new("done", "Done", "Return to editor.", Action: new("menu-back"))],
-            Details = _ => ["Search: " + guardianSearch]
-        });
+
     }
 
     internal void ConnectGuardianModReview(Func<IReadOnlyList<string>?> read, Func<string> accept)
@@ -171,14 +162,7 @@ public sealed partial class MenuController
 
     private IReadOnlyList<MenuEntry> GuardianTargetEntries()
     {
-        List<MenuEntry> entries = [new("new", "New mod draft", "Start an independent contribution.", Action: new("gf-editor-target", "new")), new("local", "Current playthrough · local changes", "Continue the save-local contribution.", Action: new("gf-editor-target", "local"), Enabled: readGuardianEditor?.Invoke().Current is not null)];
-        if (modService is not null)
-        {
-            foreach (ModPackage package in modService.Catalog.Packages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))))
-            {
-                entries.Add(new(package.Id, package.Name + " · " + package.Status, "Edit this package's GF document, including when disabled.", Action: new("gf-editor-target", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition));
-            }
-        }
+        List<MenuEntry> entries = [new("new", "Create new mod", "Open an independent draft. No file is written yet.", Action: new("gf-editor-target", "new")), new("existing", "Edit existing mod", "Choose a compatible GF package, including disabled packages.", Destination: "mods-gf-packages"), new("local", "Edit this playthrough", readGuardianEditor?.Invoke().Current is null ? "Load a game to edit this playthrough." : "Continue the save-local contribution.", Action: new("gf-editor-target", "local"), Enabled: readGuardianEditor?.Invoke().Current is not null)];
         if (readGuardianEditor?.Invoke() is { } context)
         {
             if (context.Current?.GuardianForceOpaqueBaseline == true && context.Current.GuardianForceRecoveryProfile is not null)
@@ -235,11 +219,23 @@ public sealed partial class MenuController
         guardianDraft = new(input, context.Source.MenuDefinitions.AbilityPoints, document);
         guardianPending = null;
         guardianReview = null;
+        guardianPreview = false;
+        guardianWithoutLayer = false;
+        guardianSubject = 0;
+        guardianRowCursor = 0;
+        guardianCatalogCursor = 0;
+        guardianSearch = "";
+        guardianCategory = 0;
+        GuardianFocus("catalog");
         Push("gf-ability-editor");
     }
 
     private GuardianForceAbilityComposition GuardianEditorComposition()
     {
+        if (!guardianPreview)
+        {
+            return guardianDraft!.Preview;
+        }
         GuardianForceEditorContext context = readGuardianEditor!();
         ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> source = context.Source.ResolveGuardianForceTemplates();
         if (guardianPreviewMode == 0)
@@ -249,7 +245,7 @@ public sealed partial class MenuController
         GuardianForceAbilityPatchDocument draft = guardianDraft!.ExportDocument;
         if (guardianPreviewMode == 1)
         {
-            return GuardianForceAbilityComposer.Compose(source, guardianWithoutLayer ? [] : [new("This mod only", draft)], context.Source.MenuDefinitions.AbilityPoints);
+            return GuardianForceAbilityComposer.Compose(source, [new("This mod only", draft)], context.Source.MenuDefinitions.AbilityPoints);
         }
         List<GuardianForceAbilityPatchLayer> layers = [];
         bool substituted = false;
@@ -275,7 +271,7 @@ public sealed partial class MenuController
                 layers.Add(layer);
             }
         }
-        if (!guardianLocal && !substituted && !guardianWithoutLayer && (guardianPackage is null || guardianPreviewEnabled))
+        if (!guardianLocal && !substituted && !guardianWithoutLayer)
         {
             if (guardianPackage is null)
             {
@@ -322,126 +318,6 @@ public sealed partial class MenuController
     private static int GuardianCategory(int id) => id < 20 ? 1 : id < 39 ? 2 : id < 78 ? 3 : id < 83 ? 4 : id < 92 ? 5 : 6;
     private GuardianForceAbilityTemplate? GuardianSelectedRow => guardianDraft is null ? null : GuardianEditorComposition().Templates[guardianSubject].ElementAtOrDefault(guardianRowCursor);
 
-    internal bool EnterGuardianSearchCharacter(char character)
-    {
-        if (ScreenId != "gf-ability-search")
-        {
-            return false;
-        }
-        if (character == '\b')
-        {
-            guardianSearch = guardianSearch.Length > 0 ? guardianSearch[..^1] : "";
-        }
-        else if (!char.IsControl(character) && guardianSearch.Length < 100)
-        {
-            guardianSearch += character;
-        }
-        guardianCatalogCursor = 0;
-        _view = null;
-        return true;
-    }
-
-    private bool NavigateGuardianEditor(MenuInput input)
-    {
-        if (!IsGuardianAbilityEditor || guardianDraft is null)
-        {
-            return false;
-        }
-        if (input == MenuInput.Cancel)
-        {
-            if (guardianPending is not null)
-            {
-                guardianPending = null;
-            }
-            else
-            {
-                GuardGuardianDraft(() => Back());
-            }
-        }
-        else if (input is MenuInput.FocusLeft or MenuInput.FocusRight)
-        {
-            guardianPane = input == MenuInput.FocusLeft ? 0 : 1;
-        }
-        else if (input == MenuInput.Tab)
-        {
-            guardianPane = (guardianPane + 1) % 3;
-        }
-        else if (input is MenuInput.PageLeft or MenuInput.PageRight)
-        {
-            guardianSubject = (guardianSubject + (input == MenuInput.PageLeft ? 15 : 1)) % 16;
-            guardianRowCursor = 0;
-            guardianRowScroll = 0;
-            guardianPending = null;
-        }
-        else if (input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown or MenuInput.Left or MenuInput.Right)
-        {
-            int step = input is MenuInput.Up or MenuInput.PageUp or MenuInput.Left ? -1 : 1;
-            if (input is MenuInput.PageUp or MenuInput.PageDown)
-            {
-                step *= 8;
-            }
-            if (guardianPane == 0)
-            {
-                guardianCatalogCursor = Math.Clamp(guardianCatalogCursor + step, 0, Math.Max(0, GuardianCatalog().Length - 1));
-            }
-            else if (guardianPane == 1)
-            {
-                guardianRowCursor = Math.Clamp(guardianRowCursor + step, 0, Math.Max(0, GuardianEditorComposition().Templates[guardianSubject].Length - 1));
-            }
-            else
-            {
-                guardianToolbarCursor = (guardianToolbarCursor + step + GuardianTools.Length) % GuardianTools.Length;
-            }
-        }
-        else if (input == MenuInput.Alternate && guardianPane == 1 && GuardianSelectedRow is { } entry)
-        {
-            GuardianEdit(() => guardianDraft.Toggle(guardianSubject, entry.Ability));
-        }
-        else if (input == MenuInput.Confirm)
-        {
-            if (guardianPane == 2)
-            {
-                GuardianTool(guardianToolbarCursor);
-            }
-            else if (guardianPane == 0)
-            {
-                int[] catalog = GuardianCatalog();
-                if (catalog.Length > 0)
-                {
-                    guardianPendingAbility = catalog[Math.Min(guardianCatalogCursor, catalog.Length - 1)];
-                    guardianPending = "choose";
-                    Message = guardianAbilityName!(guardianPendingAbility) + ": choose Append or Replace in the toolbar (Tab).";
-                    guardianPane = 2;
-                    guardianToolbarCursor = 0;
-                }
-            }
-            else if (GuardianSelectedRow is { } selected)
-            {
-                if (guardianPending == "replace")
-                {
-                    Message = "Replace " + guardianAbilityName!(selected.Ability) + " with " + guardianAbilityName(guardianPendingAbility) + ". Confirm Replace in the toolbar.";
-                    guardianPending = "replace-confirm";
-                    guardianPane = 2;
-                    guardianToolbarCursor = 1;
-                }
-                else if (guardianPending == "swap")
-                {
-                    guardianSwapSecond = selected.Ability;
-                    guardianPending = "swap-confirm";
-                    Message = "Swap " + guardianAbilityName!(guardianPendingAbility) + " and " + guardianAbilityName(selected.Ability) + ". Confirm Swap positions in the toolbar.";
-                    guardianPane = 2;
-                    guardianToolbarCursor = 2;
-                }
-                else if (guardianDraft.RowDirty(guardianSubject, selected.Ability))
-                {
-                    GuardianEdit(() => guardianDraft.Undo(guardianSubject, selected.Ability));
-                }
-            }
-        }
-        _view = null;
-        return true;
-    }
-
     private void GuardGuardianDraft(Action continuation)
     {
         if (guardianDraft?.Dirty == true)
@@ -459,7 +335,7 @@ public sealed partial class MenuController
     {
         try
         {
-            if (guardianPreviewMode == 0 || guardianWithoutLayer)
+            if (guardianPreview)
             {
                 throw new InvalidOperationException("This comparison is read-only. Select This mod only or Current setup with the selected layer before editing.");
             }
@@ -500,80 +376,73 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (guardianPreview && index is not (5 or 7 or 15))
+        {
+            Message = "Preview is read-only.";
+            return;
+        }
         GuardianForceAbilityTemplate? row = GuardianSelectedRow;
         switch (index)
         {
             case 0:
-                if (guardianPending is null && GuardianCatalog() is { Length: > 0 } appendCatalog)
+                if (GuardianCatalogCanAdd)
                 {
-                    guardianPendingAbility = appendCatalog[Math.Min(guardianCatalogCursor, appendCatalog.Length - 1)];
-                    guardianPending = "choose";
-                }
-                if (guardianPending is "choose" or "replace" or "replace-confirm")
-                {
-                    GuardianEdit(() => guardianDraft.Append(guardianSubject, guardianPendingAbility));
+                    int incoming = GuardianCatalog()[guardianCatalogCursor];
+                    GuardianEdit(() => guardianDraft.Append(guardianSubject, incoming));
+                    guardianRowCursor = guardianDraft.Preview.Templates[guardianSubject].ToList().FindIndex(entry => entry.Ability == incoming);
                     guardianPending = null;
-                }
-                break;
-            case 1:
-                if (guardianPending == "replace-confirm" && row is not null)
-                {
-                    GuardianEdit(() => guardianDraft.Replace(guardianSubject, row.Ability, guardianPendingAbility));
-                    guardianPending = null;
+                    GuardianFocus("rows");
                 }
                 else
                 {
-                    int[] catalog = GuardianCatalog();
-                    if (catalog.Length > 0)
-                    {
-                        guardianPendingAbility = catalog[Math.Min(guardianCatalogCursor, catalog.Length - 1)];
-                        guardianPending = "replace";
-                        guardianPane = 1;
-                        Message = "Choose the GF row to replace with " + guardianAbilityName!(guardianPendingAbility) + ".";
-                    }
+                    Message = "Already in this GF, or no catalog ability selected.";
+                }
+                break;
+            case 1:
+                if (GuardianCatalogCanAdd && row is not null)
+                {
+                    guardianPendingAbility = GuardianCatalog()[guardianCatalogCursor];
+                    guardianPending = "replace";
+                    guardianOperationOrigin = "catalog";
+                    GuardianFocus("rows");
+                }
+                else
+                {
+                    Message = "Select an incoming ability not already in this GF and a target row.";
                 }
                 break;
             case 2:
-                if (guardianPending == "swap-confirm")
-                {
-                    GuardianEdit(() => guardianDraft.Swap(guardianSubject, guardianPendingAbility, guardianSwapSecond));
-                    guardianPending = null;
-                }
-                else if (row is not null)
+                if (row is not null)
                 {
                     guardianPendingAbility = row.Ability;
                     guardianPending = "swap";
-                    guardianPane = 1;
-                    Message = "Swap " + guardianAbilityName!(row.Ability) + ": choose a different GF row and confirm.";
+                    guardianOperationOrigin = "rows";
+                    GuardianFocus("rows");
                 }
                 break;
             case 3:
-                if (row is not null)
-                {
-                    GuardianEdit(() => guardianDraft.Undo(guardianSubject, row.Ability));
-                }
+                GuardianUndo();
                 break;
             case 4:
                 if (row is not null)
                 {
-                    GuardianEdit(() => guardianDraft.RestoreInherited(guardianSubject, row.Ability));
+                    guardianRestoreAbility = row.Ability;
+                    Push("mods-gf-restore-review");
                 }
                 break;
             case 5:
-                guardianPreviewMode = (guardianPreviewMode + 1) % 3;
-                break;
-            case 6:
-                guardianPreviewEnabled = !guardianPreviewEnabled;
+                GuardianTogglePreview();
                 break;
             case 7:
                 guardianWithoutLayer = !guardianWithoutLayer;
                 break;
             case 8:
-                Push("gf-ability-search");
+                GuardianStartSearch();
                 break;
             case 9:
+                int? selectedCatalog = GuardianCatalog().ElementAtOrDefault(guardianCatalogCursor);
                 guardianCategory = (guardianCategory + 1) % GuardianCategories.Length;
-                guardianCatalogCursor = 0;
+                GuardianRefilter(selectedCatalog);
                 break;
             case 10:
                 guardianReview = reviewGuardianEditor!(guardianDraft.ExportDocument, guardianResetDefaults, guardianDraft.EditedStartingStates);
@@ -593,6 +462,10 @@ public sealed partial class MenuController
                 break;
             case 13:
                 GuardGuardianDraft(() => Push("gf-ability-targets"));
+                break;
+            case 15:
+                guardianPending = null;
+                Push("mods-gf-select");
                 break;
             case 14:
                 guardianReview = reviewGuardianPackageOwnership!(guardianDraft.ExportDocument);
@@ -619,6 +492,24 @@ public sealed partial class MenuController
         {
             switch (action.Kind)
             {
+                case "gf-editor-placement-accept":
+                    Back();
+                    guardianDraft!.RebaseInput(guardianPlacementInput);
+                    guardianPending = null;
+                    Message = "Package position reviewed. Inspect the recomputed draft, then Save mod to the reviewed destination.";
+                    break;
+                case "gf-editor-restore-accept":
+                    Back();
+                    GuardianEdit(() => guardianDraft!.RestoreInherited(guardianSubject, guardianRestoreAbility));
+                    break;
+                case "gf-editor-undo-accept":
+                    Back();
+                    GuardianEdit(() => guardianDraft!.Undo(guardianSubject, guardianUndoAbility));
+                    break;
+                case "gf-editor-command":
+                    Back();
+                    GuardianExecuteCommand(action.SubjectId);
+                    break;
                 case "gf-editor-publish":
                     Message = acceptGuardianModReview!();
                     break;
@@ -654,7 +545,7 @@ public sealed partial class MenuController
                     break;
                 case "gf-editor-apply":
                     string applied = applyGuardianEditor!(guardianReview!);
-                    if (guardianDraft?.ExportDocument.DocumentId == guardianReview!.Document.DocumentId)
+                    if (guardianLocal && guardianDraft?.ExportDocument.DocumentId == guardianReview!.Document.DocumentId)
                     {
                         guardianDraft.Accept(guardianReview.Document);
                     }
@@ -662,15 +553,7 @@ public sealed partial class MenuController
                     Message = applied;
                     ContinueGuardianNavigation();
                     break;
-                case "gf-editor-letter":
-                    EnterGuardianSearchCharacter(action.Value[0]);
-                    break;
-                case "gf-editor-delete":
-                    EnterGuardianSearchCharacter('\b');
-                    break;
-                case "gf-editor-clear":
-                    guardianSearch = "";
-                    break;
+
             }
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)

@@ -8,7 +8,7 @@ namespace Memoria.FF8.GameUi;
 internal sealed class GuardianForceAbilityDraft
 {
     private sealed record Command(GuardianForceAbilityPatchOperation? Operation, ImmutableArray<string> Rows, ImmutableHashSet<string>? Suppressed = null);
-    private readonly ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> input;
+    private ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> input;
     private readonly ImmutableArray<byte> costs;
     private readonly List<Command> commands = [];
     private GuardianForceAbilityPatchDocument checkpoint;
@@ -130,6 +130,47 @@ internal sealed class GuardianForceAbilityDraft
         }, gf, existing), [Handle(gf, first), Handle(gf, second)]);
     }
 
+    private List<Command> UndoGroup(int gf, int ability)
+    {
+        string handle = Handle(gf, ability);
+        int index = commands.FindLastIndex(command => command.Rows.Contains(handle));
+        if (index < 0)
+        {
+            return [];
+        }
+        List<Command> group = [commands[index]];
+        HashSet<string> removed = [];
+        if (commands[index].Operation is { } operation)
+        {
+            removed.Add(operation.Id);
+        }
+        foreach (Command command in commands.Skip(index + 1))
+        {
+            if (command.Operation is { } dependent && Dependencies(dependent).Any(removed.Contains))
+            {
+                removed.Add(dependent.Id);
+                group.Add(command);
+            }
+        }
+        return group;
+    }
+
+    public bool UndoRequiresReview(int gf, int ability) => UndoGroup(gf, ability).Count > 1;
+
+    public string UndoDescription(int gf, int ability, Func<int, string> name)
+    {
+        Command? command = UndoGroup(gf, ability).FirstOrDefault();
+        return command?.Operation is not { } operation ? "Undo" : operation.Kind switch
+        {
+            GuardianForceAbilityOperationKind.OrderSubset => "Undo swap with " + name(operation.Order.FirstOrDefault(id => id != ability)),
+            GuardianForceAbilityOperationKind.EnsureAbility => "Undo add",
+            GuardianForceAbilityOperationKind.ReplaceAbility => "Undo replace",
+            _ => "Undo starting state"
+        };
+    }
+
+    public IReadOnlyList<string> UndoReview(int gf, int ability, Func<int, string> name) => UndoGroup(gf, ability).Select(command => command.Operation is { } operation ? operation.Kind + ": " + string.Join(", ", operation.Kind == GuardianForceAbilityOperationKind.OrderSubset ? operation.Order.Select(name) : new[] { name(operation.Ability), name(operation.Replacement ?? operation.Ability) }.Distinct()) : "Restore inherited contribution").ToArray();
+
     public void Undo(int gf, int ability)
     {
         string handle = Handle(gf, ability);
@@ -160,6 +201,30 @@ internal sealed class GuardianForceAbilityDraft
         Invalidate();
     }
 
+    public IReadOnlyList<string> RestoreInheritedReview(int gf, int ability, Func<int, string> name)
+    {
+        GuardianForceAbilityDraft proposed = new(input, costs, RawDocument());
+        proposed.RestoreInherited(gf, ability);
+        var before = Preview.Templates[gf];
+        var after = proposed.Preview.Templates[gf];
+        List<string> result = ["Restore inherited contribution for " + name(ability) + ". Current learned/AP progress is preserved."];
+        foreach (int id in before.Select(entry => entry.Ability).Union(after.Select(entry => entry.Ability)))
+        {
+            int oldIndex = before.ToList().FindIndex(entry => entry.Ability == id);
+            int newIndex = after.ToList().FindIndex(entry => entry.Ability == id);
+            if (oldIndex != newIndex || oldIndex < 0 || newIndex < 0 || before[oldIndex] != after[newIndex])
+            {
+                string describe(ImmutableArray<GuardianForceAbilityTemplate> entries, int index) => index < 0 ? "absent" : "position " + (index + 1) + ", Start learned " + entries[index].InitialLearned + ", prerequisite " + (entries[index].PrerequisiteAbility is int required ? name(required) : "none");
+                result.Add(name(id) + ": " + describe(before, oldIndex) + " → " + describe(after, newIndex));
+            }
+        }
+        if (result.Count == 1)
+        {
+            result.Add("No inherited fields differ from the selected contribution.");
+        }
+        return result;
+    }
+
     public void RestoreInherited(int gf, int ability)
     {
         GuardianForceAbilityPatchDocument current = RawDocument();
@@ -179,6 +244,19 @@ internal sealed class GuardianForceAbilityDraft
         } while (changed);
         ImmutableArray<string> affected = current.Operations.Where(operation => removed.Contains(operation.Id)).SelectMany(operation => operation.Kind == GuardianForceAbilityOperationKind.OrderSubset ? operation.Order.Select(id => Handle(gf, id)) : [Handle(gf, operation.Replacement ?? operation.Ability)]).Append(handle).Distinct().ToImmutableArray();
         commands.Add(new(null, affected, removed.ToImmutableHashSet()));
+        Invalidate();
+    }
+
+    public void RebaseInput(ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> value)
+    {
+        input = value;
+        checkpointTemplates = Compose(checkpoint).Templates;
+        Invalidate();
+    }
+
+    public void DiscardChanges()
+    {
+        commands.Clear();
         Invalidate();
     }
 
@@ -222,7 +300,11 @@ internal sealed class GuardianForceAbilityDraft
         {
             throw new InvalidOperationException(outcome.Message);
         }
-        commands.Add(new(operation, rows));
+        int gf = operation.GuardianForce;
+        var before = Preview.Templates[gf];
+        var after = preview.Templates[gf];
+        ImmutableArray<string> affected = rows.Concat(before.Where(entry => after.FirstOrDefault(candidate => candidate.Ability == entry.Ability) is { } changed && changed != entry).Select(entry => Handle(gf, entry.Ability))).Distinct().ToImmutableArray();
+        commands.Add(new(operation, affected));
         Invalidate();
     }
 

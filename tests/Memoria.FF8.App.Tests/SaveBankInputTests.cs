@@ -20,7 +20,7 @@ public sealed class SaveBankInputTests
     [Fact]
     public void Controller_transfer_uses_remapped_card_action()
     {
-        KeyboardInput input = new() { Profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Card, ControlDevice.Controller, new InputChord([], [Buttons.RightStick])) };
+        KeyboardInput input = new() { Profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Card, ControlDevice.Controller, new InputChord([], [Buttons.RightStick]), replaceConflicts: true) };
         input.Read(default, Pad(), true);
         Assert.True(input.Read(default, Pad(Buttons.RightStick), true).CardChallenge);
         Assert.False(input.Read(default, Pad(Buttons.RightStick), true).CardChallenge);

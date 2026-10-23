@@ -47,11 +47,14 @@ internal sealed class KeyboardInput
     public bool RecoveryNavigationEnabled { get; set; }
     public bool NamingNavigationEnabled { get; set; }
     public bool TextEntryEnabled { get; set; }
+    public bool GuardianEditorEnabled { get; set; }
     public bool SpeedToggleRequested { get; private set; }
     public bool DebugRoomRequested { get; private set; }
     public bool GameMenuRequested { get; private set; }
     public bool PauseRequested { get; private set; }
     public bool UiTabRequested { get; private set; }
+    public bool UiReverseTabRequested { get; private set; }
+    public bool UiSwitchColumnRequested { get; private set; }
     public int UiPaneFocus { get; private set; }
     public int UiCharacterPage { get; private set; }
     public bool UiDetailRequested { get; private set; }
@@ -139,7 +142,7 @@ internal sealed class KeyboardInput
         {
             disarmedButtons.UnionWith(ControlsProfile.BindableButtons.Where(pad.IsButtonDown));
         }
-        IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> matches = Profile.Match(current, pad);
+        IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> matches = Profile.Match(current, pad, GuardianEditorEnabled && !TextEntryEnabled);
         if (TextEntryEnabled)
         {
             matches = matches.Where(match => match.Device == ControlDevice.Controller).ToArray();
@@ -200,7 +203,11 @@ internal sealed class KeyboardInput
         GuardianFormSkipRequested = Pressed(ControlAction.CameraLeft);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
-        UiTabRequested = Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab);
+        UiSwitchColumnRequested = GuardianEditorEnabled && !TextEntryEnabled && Pressed(ControlAction.GuardianSwitchColumn);
+        bool switchColumnHeld = GuardianEditorEnabled && !TextEntryEnabled && Down(ControlAction.GuardianSwitchColumn);
+        bool tabRequested = !switchColumnHeld && (Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab));
+        UiReverseTabRequested = GuardianEditorEnabled && tabRequested && (current.IsKeyDown(Keys.LeftShift) || current.IsKeyDown(Keys.RightShift));
+        UiTabRequested = tabRequested && !UiReverseTabRequested;
         UiPaneFocus = Pressed(ControlAction.CameraLeft) ? -1 : Pressed(ControlAction.CameraRight) ? 1 : 0;
         UiCharacterPage = (Pressed(ControlAction.RotateRight) ? 1 : 0) - (Pressed(ControlAction.RotateLeft) ? 1 : 0);
         UiDetailRequested = Pressed(ControlAction.Card);

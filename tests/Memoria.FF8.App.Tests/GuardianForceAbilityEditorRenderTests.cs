@@ -12,23 +12,10 @@ public sealed class GuardianForceAbilityEditorRenderTests
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
+    [InlineData(2048, 797)]
     public void SyntheticExpandedEditorRendersWithoutInstalledResources(int width, int height)
     {
-        NativeCharacterVitals source = Source();
-        NativeCharacterVitals current = source.ApplyGuardianForceTemplates(source.ResolveGuardianForceTemplates());
-        GameSession session = new(new GameState { CharacterVitals = current });
-        MenuController menu = new(() => new MenuData());
-        GuardianForceAbilityPatchDocument inherited = new()
-        {
-            DocumentId = "synthetic-layer",
-            Operations = [new() { Id = "default", GuardianForce = 0, Kind = GuardianForceAbilityOperationKind.SetInitialState, Ability = 2, InitialLearned = true }]
-        };
-        menu.ConnectGuardianForceEditor(() => new(source, session.CharacterVitals, [new("Example gameplay enhancements", inherited)], [], []), id => id == 0 ? "Quezacotl" : "Guardian Force " + id, AbilityName,
-            _ => "Allows magic junctioning to improve a character's stats. Current earned AP is separate from this mod's starting state.",
-            action => action switch { ControlAction.CameraLeft => "Ctrl+Left", ControlAction.CameraRight => "Ctrl+Right", ControlAction.Card => "A", ControlAction.RotateLeft => "LB", ControlAction.RotateRight => "RB", ControlAction.UiTab => "Tab", _ => action.ToString() },
-            (document, reset, resets) => new(session.PreviewGuardianForceAbilities(GuardianForceAbilityComposer.Compose(source.ResolveGuardianForceTemplates(), [new("Selected", document)], source.MenuDefinitions.AbilityPoints).Templates), document, reset),
-            _ => throw new InvalidOperationException("Rendering must not apply a draft."),
-            (_, _, _) => throw new InvalidOperationException("Rendering must not save a draft."));
+        MenuController menu = CreateMenu();
         menu.Open("gf-ability-targets");
         menu.Execute(new("gf-editor-target", "new"));
         menu.Navigate(MenuInput.FocusRight);
@@ -39,6 +26,8 @@ public sealed class GuardianForceAbilityEditorRenderTests
         {
             if (scrolled)
             {
+                menu.Navigate(MenuInput.Actions);
+                menu.Execute(new("gf-editor-command", "tool:2"));
                 for (int index = 0; index < 32; index++)
                 {
                     menu.Navigate(MenuInput.Down);
@@ -52,7 +41,7 @@ public sealed class GuardianForceAbilityEditorRenderTests
             view.Resize(width, height);
             view.Draw(canvas, new UiTheme());
             Assert.Contains(canvas.Texts, text => text.Value.Contains("45 entries", StringComparison.Ordinal));
-            Assert.Contains(canvas.Texts, text => text.Value.Contains("[*]", StringComparison.Ordinal));
+            Assert.Contains(canvas.Texts, text => text.Value.Contains("Unsaved", StringComparison.Ordinal));
             Assert.Contains(canvas.Texts, text => text.Value == "Save mod");
             Assert.All(canvas.Texts, text => Assert.True(text.Bounds.Width >= 0 && text.Bounds.Height >= 0));
             string prefix = Path.Combine(directory, $"gf-editor-{width}x{height}{(scrolled ? "-scrolled" : "")}");
@@ -62,17 +51,137 @@ public sealed class GuardianForceAbilityEditorRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(MenuPresentation.Classic)]
+    [InlineData(MenuPresentation.Vector)]
+    public void WideEditorShowsTwentyThreeEntriesInTwoColumns(MenuPresentation presentation)
+    {
+        MenuController menu = CreateMenu(23);
+        menu.Presentation = presentation;
+        menu.Open("gf-ability-targets");
+        menu.Execute(new("gf-editor-target", "new"));
+        using Bitmap bitmap = new(2048, 797);
+        using BattlePreviewCanvas renderer = new(bitmap, Path.Combine(Path.GetTempPath(), "unconfigured-game-resources"));
+        renderer.BeginFrame(TimeSpan.Zero);
+        SyntheticArtworkCanvas canvas = new(renderer);
+        UiView view = menu.BuildView();
+        view.Resize(2048, 797);
+        view.Draw(canvas, new UiTheme());
+
+        Assert.Contains(canvas.Texts, text => text.Value == "1–23 / 23 · Page 1/1");
+        Assert.Equal(2, canvas.Texts.Count(text => text.Value == "Start learned"));
+        for (int position = 1; position <= 23; position++)
+        {
+            Assert.Single(canvas.Texts, text => text.Value == position.ToString());
+        }
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_EDITOR_RENDER_DIR") ?? Path.Combine(Path.GetTempPath(), "Memoria.FF8.GfEditorPreviews");
+        Directory.CreateDirectory(directory);
+        bitmap.Save(Path.Combine(directory, $"gf-editor-23-{presentation}-2048x797.png"), ImageFormat.Png);
+        Assert.All(canvas.Texts.Where(text => text.Value is "Save mod" or "Preview" or "Actions" or "Details"), text =>
+        {
+            Assert.True(text.Bounds.X >= 0 && text.Bounds.Y >= 0);
+            Assert.True(text.Bounds.Right <= 2048 && text.Bounds.Bottom <= 797);
+        });
+    }
+
+    [Theory]
+    [InlineData(1280, 720, 100)]
+    [InlineData(1920, 1080, 100)]
+    [InlineData(2048, 797, 150)]
+    [InlineData(640, 448, 150)]
+    public void ResizedEditorKeepsActionsAndRowsWithinViewport(int width, int height, int textScale)
+    {
+        MenuController menu = CreateMenu(29, textScale);
+        menu.Open("gf-ability-targets");
+        menu.Execute(new("gf-editor-target", "new"));
+        using Bitmap bitmap = new(width, height);
+        using BattlePreviewCanvas renderer = new(bitmap, Path.Combine(Path.GetTempPath(), "unconfigured-game-resources"));
+        renderer.BeginFrame(TimeSpan.Zero);
+        SyntheticArtworkCanvas canvas = new(renderer);
+        UiView view = menu.BuildView();
+        view.Resize(width, height);
+        view.Draw(canvas, new UiTheme());
+        Assert.Contains(canvas.Texts, text => text.Value.Contains("Page 1/", StringComparison.Ordinal));
+        Assert.All(canvas.Texts, text =>
+        {
+            Assert.True(text.Bounds.Width >= 0 && text.Bounds.Height >= 0);
+            Assert.True(text.Bounds.X >= 0 && text.Bounds.Y >= 0);
+            Assert.True(text.Bounds.Right <= width + 1 && text.Bounds.Bottom <= height + 1);
+        });
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_EDITOR_RENDER_DIR") ?? Path.Combine(Path.GetTempPath(), "Memoria.FF8.GfEditorPreviews");
+        Directory.CreateDirectory(directory);
+        bitmap.Save(Path.Combine(directory, $"gf-editor-resized-{width}x{height}-{textScale}.png"), ImageFormat.Png);
+    }
+
+    [Fact]
+    public void EntryAndPreviewUseDedicatedAuthoringAndReadOnlyContent()
+    {
+        MenuController menu = CreateMenu(23);
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_EDITOR_RENDER_DIR") ?? Path.Combine(Path.GetTempPath(), "Memoria.FF8.GfEditorPreviews");
+        Directory.CreateDirectory(directory);
+        menu.Open("gf-ability-targets");
+        Capture("entry", canvas =>
+        {
+            Assert.Contains(canvas.Texts, text => text.Value == "Create new mod");
+            Assert.DoesNotContain(canvas.Texts, text => text.Value.Contains(" AP", StringComparison.Ordinal));
+        });
+        menu.Execute(new("gf-editor-target", "new"));
+        menu.Navigate(MenuInput.Actions);
+        menu.Execute(new("gf-editor-command", "preview"));
+        Capture("preview", canvas =>
+        {
+            Assert.Contains(canvas.Texts, text => text.Value == "Preview · Read-only");
+            Assert.Contains(canvas.Texts, text => text.Value == "Back to editor");
+            Assert.DoesNotContain(canvas.Texts, text => text.Value is "Add" or "Replace" or "Swap" or "Save mod" or "Apply changes" or "Search abilities…");
+        });
+
+        void Capture(string suffix, Action<SyntheticArtworkCanvas> assertions)
+        {
+            using Bitmap bitmap = new(2048, 797);
+            using BattlePreviewCanvas renderer = new(bitmap, Path.Combine(Path.GetTempPath(), "unconfigured-game-resources"));
+            renderer.BeginFrame(TimeSpan.Zero);
+            SyntheticArtworkCanvas canvas = new(renderer);
+            UiView view = menu.BuildView();
+            view.Resize(2048, 797);
+            view.Draw(canvas, new UiTheme());
+            assertions(canvas);
+            bitmap.Save(Path.Combine(directory, $"gf-editor-{suffix}-2048x797.png"), ImageFormat.Png);
+        }
+    }
+
+    private static MenuController CreateMenu(int abilityCount = 45, int textScale = 100)
+    {
+        NativeCharacterVitals source = Source(abilityCount);
+        NativeCharacterVitals current = source.ApplyGuardianForceTemplates(source.ResolveGuardianForceTemplates());
+        GameSession session = new(new GameState { CharacterVitals = current });
+        MenuData data = new();
+        data.Settings["Text scale"] = textScale + "%";
+        MenuController menu = new(() => data);
+        GuardianForceAbilityPatchDocument inherited = new()
+        {
+            DocumentId = "synthetic-layer",
+            Operations = [new() { Id = "default", GuardianForce = 0, Kind = GuardianForceAbilityOperationKind.SetInitialState, Ability = 2, InitialLearned = true }]
+        };
+        menu.ConnectGuardianForceEditor(() => new(source, session.CharacterVitals, [new("Example gameplay enhancements", inherited)], [], []), id => id == 0 ? "Quezacotl" : "Guardian Force " + id, AbilityName,
+            _ => "Allows magic junctioning to improve a character's stats. Current earned AP is separate from this mod's starting state.",
+            action => action switch { ControlAction.CameraLeft => "Ctrl+Left", ControlAction.CameraRight => "Ctrl+Right", ControlAction.Card => "A", ControlAction.RotateLeft => "LB", ControlAction.RotateRight => "RB", ControlAction.UiTab => "Tab", _ => action.ToString() },
+            (document, reset, resets) => new(session.PreviewGuardianForceAbilities(GuardianForceAbilityComposer.Compose(source.ResolveGuardianForceTemplates(), [new("Selected", document)], source.MenuDefinitions.AbilityPoints).Templates), document, reset),
+            _ => throw new InvalidOperationException("Rendering must not apply a draft."),
+            (_, _, _) => throw new InvalidOperationException("Rendering must not save a draft."));
+        return menu;
+    }
+
     private static string AbilityName(int id)
     {
         string[] names = ["None", "HP-J", "Str-J", "Vit-J", "Mag-J", "Spr-J", "Spd-J", "Eva-J", "Hit-J", "Luck-J", "Elem-Atk-J", "ST-Atk-J", "Elem-Def-J", "ST-Def-J", "Elem-Defx2", "Elem-Defx4", "ST-Defx2", "ST-Defx4", "Abilityx3", "Abilityx4", "Magic", "GF", "Draw", "Item", "Card", "Doom", "Mad Rush", "Treatment", "Defend", "Darkside", "Recover", "Absorb", "Revive", "Level Down", "Level Up", "Kamikaze", "Devour", "MiniMog", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Vit+40%"];
         return id >= 0 && id < names.Length ? names[id] : "Catalog ability " + id;
     }
 
-    private static NativeCharacterVitals Source()
+    private static NativeCharacterVitals Source(int abilityCount = 45)
     {
         NativeStatCurve curve = new(1, 0, 1, 10, 10);
         NativeStatModifier modifier = new(0, 0, 0);
-        var templates = Enumerable.Range(0, 16).Select(_ => Enumerable.Range(1, 45).Select(ability => new GuardianForceAbilityTemplate(ability, ability % 5 == 0, 20, PrerequisiteAbility: ability == 3 ? 1 : null, LearningPriority: ability)).ToImmutableArray()).ToImmutableArray();
+        var templates = Enumerable.Range(0, 16).Select(_ => Enumerable.Range(1, abilityCount).Select(ability => new GuardianForceAbilityTemplate(ability, ability % 5 == 0, 20, PrerequisiteAbility: ability == 3 ? 1 : null, LearningPriority: ability)).ToImmutableArray()).ToImmutableArray();
         return new()
         {
             Version = 1,

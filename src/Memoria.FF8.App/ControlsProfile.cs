@@ -51,7 +51,8 @@ public enum ControlAction
     UiPageUp,
     UiPageDown,
     // Retained for reading older controls profiles; no longer a separate binding.
-    GuardianFormSkip
+    GuardianFormSkip,
+    GuardianSwitchColumn
 }
 
 public sealed record ControlActionDefinition(ControlAction Action, string Label, string Category);
@@ -273,6 +274,9 @@ public sealed class ControlsProfile
         Key(ControlAction.UiTab, Keys.Tab);
         Key(ControlAction.UiPageUp, Keys.PageUp);
         Key(ControlAction.UiPageDown, Keys.PageDown);
+        result.Add(new Binding(ControlAction.GuardianSwitchColumn, ControlDevice.Keyboard, new InputChord([Keys.LeftControl, Keys.Tab], [])));
+        result.Add(new Binding(ControlAction.GuardianSwitchColumn, ControlDevice.Keyboard, new InputChord([Keys.RightControl, Keys.Tab], [])));
+        Pad(ControlAction.GuardianSwitchColumn, Buttons.RightStick);
         Pad(ControlAction.MoveUp, Buttons.DPadUp);
         Pad(ControlAction.MoveDown, Buttons.DPadDown);
         Pad(ControlAction.MoveLeft, Buttons.DPadLeft);
@@ -290,9 +294,9 @@ public sealed class ControlsProfile
         return new ControlsProfile(result);
     }
 
-    internal IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> Match(KeyboardState keyboard, GamePadState controller)
+    internal IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> Match(KeyboardState keyboard, GamePadState controller, bool guardianEditor = false)
     {
-        Binding[] held = bindings.Concat(PermanentBindings).Where(binding => binding.Chord.Matches(keyboard, controller)).ToArray();
+        Binding[] held = bindings.Concat(PermanentBindings).Where(binding => (guardianEditor || binding.Action != ControlAction.GuardianSwitchColumn) && binding.Chord.Matches(keyboard, controller)).ToArray();
         return held.Where(binding => !held.Any(other => other.Device == binding.Device && other.Chord.Count > binding.Chord.Count && other.Chord.Contains(binding.Chord))).Select(binding => (binding.Action, binding.Device, binding.Chord)).ToArray();
     }
 
@@ -303,11 +307,15 @@ public sealed class ControlsProfile
             return CreateDefault();
         }
         Document document = JsonSerializer.Deserialize<Document>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty controls profile.");
-        if (document.Version != 1 || document.Bindings is null)
+        if (document.Version is not (1 or 2) || document.Bindings is null)
         {
             throw new InvalidDataException("Unsupported controls profile.");
         }
         Binding[] loaded = document.Bindings.Where(binding => binding.Action is not (ControlAction.SkipMovie or ControlAction.GuardianFormSkip)).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).Where(binding => !UsesReservedKeyForAnotherAction(binding.Action, binding.Device, binding.Chord)).ToArray();
+        if (document.Version == 1 && !loaded.Any(binding => binding.Action == ControlAction.GuardianSwitchColumn))
+        {
+            loaded = loaded.Concat(CreateDefault().bindings.Where(binding => binding.Action == ControlAction.GuardianSwitchColumn && !loaded.Any(existing => existing.Device == binding.Device && existing.Chord.Same(binding.Chord)))).ToArray();
+        }
         return new ControlsProfile(loaded, document.Controller);
     }
 
@@ -316,7 +324,7 @@ public sealed class ControlsProfile
         Validate();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         string temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new Document(1, bindings, Controller), JsonOptions));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(new Document(2, bindings, Controller), JsonOptions));
         File.Move(temporary, path, true);
     }
 
@@ -353,6 +361,7 @@ public sealed class ControlsProfile
 
     private static string Label(ControlAction action) => action switch
     {
+        ControlAction.GuardianSwitchColumn => "GF editor: Switch column",
         ControlAction.Confirm => "Confirm / Talk",
         ControlAction.Cancel => "Cancel / Walk",
         ControlAction.Card => "Card / Details",

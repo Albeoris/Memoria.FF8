@@ -87,7 +87,9 @@ public sealed class ReservedKeyboardInputTests
             KeyboardInput input = new() { Profile = loaded };
             Assert.True(input.Read(new KeyboardState(Keys.LeftControl, Keys.Enter), true).Confirm);
             loaded.Save(path);
-            Assert.DoesNotContain("LeftControl", File.ReadAllText(path));
+            JsonNode saved = JsonNode.Parse(File.ReadAllText(path))!;
+            Assert.DoesNotContain(saved["Bindings"]!.AsArray(), binding => binding!["Chord"]!["Keys"]!.AsArray().Any(key => key!.GetValue<string>() == "Enter"));
+            Assert.NotEmpty(loaded.GetBindings(ControlAction.GuardianSwitchColumn, ControlDevice.Keyboard));
         }
         finally
         {

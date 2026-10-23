@@ -23,7 +23,7 @@ public sealed partial class MenuController
     private static readonly string[] ControlsGroups = ["Navigation", "Interaction", "Camera and battle", "Shortcuts"];
     private static readonly ControlAction[][] ControlsGroupActions =
     [
-        [ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight, ControlAction.UiTab, ControlAction.UiPageUp, ControlAction.UiPageDown],
+        [ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight, ControlAction.UiTab, ControlAction.UiPageUp, ControlAction.UiPageDown, ControlAction.GuardianSwitchColumn],
         [ControlAction.Confirm, ControlAction.Cancel, ControlAction.Menu, ControlAction.Card, ControlAction.Select, ControlAction.Pause],
         [ControlAction.CameraLeft, ControlAction.CameraRight, ControlAction.RotateLeft, ControlAction.RotateRight, ControlAction.BattleAdvanceTurn],
         [ControlAction.SpeedToggle, ControlAction.QuickSave, ControlAction.QuickLoad, ControlAction.SaveMenu, ControlAction.LoadMenu]

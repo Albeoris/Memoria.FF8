@@ -371,6 +371,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId is "gf-ability-dirty" or "gf-ability-review")
+        {
+            guardianAfterDiscard = null;
+        }
         if (BackFromBattleLearning())
         {
             return;

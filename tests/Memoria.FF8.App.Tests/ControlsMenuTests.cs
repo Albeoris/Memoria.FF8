@@ -193,7 +193,7 @@ public sealed class ControlsMenuTests
                 }
                 menus.Execute(new("controls-group"));
             }
-            Assert.Equal(23, player.Count);
+            Assert.Equal(ControlsProfile.PlayerActions.Count, player.Count);
             Assert.All(player, action => Assert.False(ControlsProfile.IsDeveloperAction(action)));
             menus.Open("debug-shortcuts", true);
             ControlAction[] developer = menus.Entries.Where(entry => Enum.TryParse<ControlAction>(entry.Id, out _)).Select(entry => Enum.Parse<ControlAction>(entry.Id)).ToArray();

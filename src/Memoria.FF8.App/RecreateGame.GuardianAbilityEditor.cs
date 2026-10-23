@@ -237,6 +237,11 @@ internal sealed partial class RecreateGame
             }
             revision = null;
         }
+        string packageId = "Memoria/" + Path.GetFileName(destination);
+        if (gameMenus is not null && !gameMenus.ReviewGuardianPackagePlacement(packageId, document))
+        {
+            return null;
+        }
         if (exportedIndependent && session.CharacterVitals?.GuardianForceProfile?.LocalDocuments.Any(local => local.DocumentId == localOwnerId) == true)
         {
             RequireGuardianMutationBoundary();

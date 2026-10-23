@@ -195,7 +195,8 @@ internal sealed partial class RecreateGame : Game
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus is { IsOpen: true, ScreenId: "gf-ability-search" };
+        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true;
+        keyboard.GuardianEditorEnabled = gameMenus?.IsGuardianAbilityEditor == true;
         bool namingNavigation = gameMenus?.IsEditingName == true;
         if (keyboard.TextEntryEnabled != typingName || keyboard.NamingNavigationEnabled != namingNavigation)
         {
