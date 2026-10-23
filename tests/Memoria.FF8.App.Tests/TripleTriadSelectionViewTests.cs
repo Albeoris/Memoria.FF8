@@ -132,20 +132,20 @@ public sealed class TripleTriadSelectionViewTests
         {
             controller.ChooseCard(id);
         }
-        controller.Match!.Play(0, 0);
+        controller.Match!.Play(0, 4);
         controller.Match.Play(0, 8);
         controller.RestoreMatch(controller.Match);
         controller.SelectHand(1);
-        Assert.Equal(0, controller.SelectedCell);
+        Assert.Equal(4, controller.SelectedCell);
         RecordingCanvas canvas = Draw(controller.BuildView());
         UiRect occupied = Assert.Single(canvas.Images, image => image.Source.Kind == UiImageKind.CardFace && image.Source.Id == 0 && image.Source.Palette == 0).Bounds;
         UiRect pointer = Assert.Single(canvas.Pointers);
         Assert.True(occupied.Contains(pointer.X, pointer.Y));
         Assert.True(occupied.Contains(pointer.Right - 1, pointer.Bottom - 1));
         Assert.True(canvas.Operations.LastIndexOf("pointer") > canvas.Operations.LastIndexOf("image"));
-        TripleTriadPlacedCard before = controller.Match.Board[0]!;
+        TripleTriadPlacedCard before = controller.Match.Board[4]!;
         controller.Navigate(UiKey.Confirm);
-        Assert.Equal(before, controller.Match.Board[0]);
+        Assert.Equal(before, controller.Match.Board[4]);
         Assert.Equal(1, controller.Match.Hands[0][1]);
         Assert.True(controller.ChoosingCell);
     }

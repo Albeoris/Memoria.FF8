@@ -134,7 +134,7 @@ public sealed class TripleTriadRematchInventoryTests
             Assert.Equal(0, replay.PromptFade);
             Assert.Equal(0, replay.Selection);
             Assert.Equal(0, replay.SelectedHand);
-            Assert.Equal(0, replay.SelectedCell);
+            Assert.Equal(4, replay.SelectedCell);
             foreach (int id in Enumerable.Range(0, 110))
             {
                 Assert.Equal(expected.AvailableCount(id) - replay.Deck.Count(card => card == id), replay.Remaining(id));

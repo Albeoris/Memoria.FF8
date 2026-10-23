@@ -9,6 +9,39 @@ public sealed class TripleTriadControllerTests
 {
     private static readonly TripleTriadCard[] Cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1 + id % 10, 1 + id % 9, 1 + id % 8, 1 + id % 7, TripleTriadElement.None)).ToArray();
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void EveryPlayerTurnStartsAtCenterEvenWhenOccupied(int startingPlayer)
+    {
+        TripleTriadController controller = Create();
+        controller.CreateMatch = hand => TripleTriadMatch.Create(Cards, hand, [5, 6, 7, 8, 9], startingPlayer: startingPlayer);
+        controller.ChooseOpponentMove = match => new TripleTriadMove(Array.FindIndex(match.Hands[1].ToArray(), card => card is not null), match.Board[4] is null ? 4 : 8);
+        foreach (int id in Enumerable.Range(0, 5))
+        {
+            controller.ChooseCard(id);
+        }
+        if (startingPlayer == 1)
+        {
+            Assert.True(controller.AdvanceOpponent());
+        }
+        controller.Navigate(UiKey.Confirm);
+        Assert.True(controller.ChoosingCell);
+        Assert.Equal(4, controller.SelectedCell);
+        controller.Navigate(UiKey.Left);
+        Assert.Equal(3, controller.SelectedCell);
+        controller.Navigate(UiKey.Confirm);
+        Assert.NotNull(controller.Match!.Board[3]);
+        Assert.True(controller.AdvanceOpponent());
+        controller.SelectHand(controller.SelectedHand);
+        Assert.True(controller.ChoosingCell);
+        Assert.Equal(4, controller.SelectedCell);
+        Assert.NotNull(controller.Match.Board[4]);
+        controller.Navigate(UiKey.Confirm);
+        Assert.True(controller.ChoosingCell);
+        Assert.Equal(0, controller.Match.CurrentPlayer);
+    }
+
     [Fact]
     public void SelectionReservesInstancesAndCancelReturnsThemWithoutChangingCollection()
     {

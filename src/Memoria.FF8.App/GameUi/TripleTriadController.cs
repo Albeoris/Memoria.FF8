@@ -58,7 +58,7 @@ public sealed partial class TripleTriadController
     public int FirstVisibleCard => SelectionPage == 0 ? 0 : FirstPageCardCount + (SelectionPage - 1) * CardsPerPage;
     public int VisibleCardCount => Math.Min(SelectionPage == 0 ? FirstPageCardCount : CardsPerPage, available.Length - FirstVisibleCard);
     public int SelectedHand { get; private set; }
-    public int SelectedCell { get; private set; }
+    public int SelectedCell { get; private set; } = 4;
     public bool ChoosingCell { get; private set; }
     public IReadOnlyList<int>? TradingHand { get; private set; }
     public IReadOnlyList<int> TradeSelection => tradeSelection.AsReadOnly();
@@ -120,7 +120,7 @@ public sealed partial class TripleTriadController
         if (deck.Count == 5)
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules);
-            SelectFirstHand();
+            ResetTurnSelection();
             Message = "Choose a card, then a square.";
             DeckConfirmed?.Invoke(deck.ToArray());
         }
@@ -155,7 +155,7 @@ public sealed partial class TripleTriadController
         tradeSelection.Clear();
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
-        SelectFirstHand();
+        ResetTurnSelection();
         Message = Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? "Choose a card, then a square." : "Opponent is thinking\u2026";
     }
 
@@ -300,7 +300,7 @@ public sealed partial class TripleTriadController
                     Match.RestartSuddenDeath(Match.CurrentPlayer);
                 }
                 ChoosingCell = false;
-                SelectFirstHand();
+                ResetTurnSelection();
                 Message = "Sudden Death. Cards follow their owners into the next round.";
                 Changed?.Invoke();
             }
@@ -377,7 +377,7 @@ public sealed partial class TripleTriadController
         TripleTriadMoveResult result = Match.Play(handIndex, cellIndex);
         PresentMove(result, before);
         ChoosingCell = false;
-        SelectFirstHand();
+        ResetTurnSelection();
         Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Opponent is thinking…" : ResultText();
         Changed?.Invoke();
     }
@@ -392,7 +392,7 @@ public sealed partial class TripleTriadController
         TripleTriadPlacedCard?[] before = Match.Board.ToArray();
         TripleTriadMoveResult result = Match.Play(move.HandIndex, move.CellIndex);
         PresentMove(result, before);
-        SelectFirstHand();
+        ResetTurnSelection();
         Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Choose a card, then a square." : ResultText();
         Changed?.Invoke();
         return true;
@@ -505,8 +505,9 @@ public sealed partial class TripleTriadController
         _ => Match.CanRestartSuddenDeath ? "Draw. Sudden Death continues." : "Draw."
     };
 
-    private void SelectFirstHand()
+    private void ResetTurnSelection()
     {
+        SelectedCell = 4;
         if (Match is not null)
         {
             SelectedHand = Enumerable.Range(0, 5).FirstOrDefault(index => Match.Hands[0][index] is not null);

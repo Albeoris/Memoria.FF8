@@ -77,7 +77,7 @@ public sealed partial class TripleTriadController
         completingRecentDeck = false;
         Selection = 0;
         SelectedHand = 0;
-        SelectedCell = 0;
+        SelectedCell = 4;
         RecentDeckSelection = recentDecks.Length > 0 ? 0 : -1;
         Message = "Choose five cards.";
         Changed?.Invoke();
