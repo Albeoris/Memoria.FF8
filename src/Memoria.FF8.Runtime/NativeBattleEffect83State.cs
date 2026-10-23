@@ -9,6 +9,9 @@ public sealed record NativeBattleEffect83State([property: JsonRequired] NativeBa
 {
     [JsonRequired]
     public ImmutableDictionary<uint, NativeBattleEffectOwnedModelState> OwnedModels { get; init; } = ImmutableDictionary<uint, NativeBattleEffectOwnedModelState>.Empty;
+    [JsonRequired]
+    public bool OwnedModelSourceBound { get; init; }
+
 
     public static NativeBattleEffect83State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.Select(_ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()).ToImmutableArray(), null, true);
 

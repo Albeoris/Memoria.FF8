@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using static Memoria.FF8.Runtime.NativeBattleEffect83Profile;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -12,6 +13,7 @@ public sealed class NativeBattleEffect83StateTests
         NativeBattleEffect83State state = NativeBattleEffect83State.FromColdProcess();
         state.Validate();
         Assert.True(state.ColdSourceOrigin);
+        Assert.False(state.OwnedModelSourceBound);
         Assert.Null(state.NodeData);
         Assert.Empty(state.OwnedModels);
         Assert.Equal(8, state.BankStorage.Length);
@@ -32,6 +34,7 @@ public sealed class NativeBattleEffect83StateTests
     {
         NativeBattleEffect83State state = NativeBattleEffect83State.FromUnknown();
         Assert.False(state.ColdSourceOrigin);
+        Assert.False(state.OwnedModelSourceBound);
         Assert.Throws<NotSupportedException>(() => state.ReadWord(TargetAddress));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(0, 1));
         NativeBattleEffectArena view = state.ReadView(TransformedAddress, 16);
@@ -62,7 +65,7 @@ public sealed class NativeBattleEffect83StateTests
     public void Json_preserves_current_owner_writes_sidecars_and_detached_banks()
     {
         NativeBattleEffect83State state = NativeBattleEffect83State.FromColdProcess().WriteWord(TargetAddress + 0x46, 110).WriteDword(DescriptorAddress + 4, TransformedAddress).DetachBank(7);
-        state = state with { NodeData = new byte[NodeSourceLength].ToImmutableArray(), OwnedModels = state.OwnedModels.Add(0x25CF8D8, new(0x25CF8D8, ModelAddress, null)) };
+        state = state with { OwnedModelSourceBound = true, NodeData = new byte[NodeSourceLength].ToImmutableArray(), OwnedModels = state.OwnedModels.Add(0x25CF8D8, new(0x25CF8D8, ModelAddress, null)) };
         state = state.WriteWord(NodeSourceAddress + 4, 0xB278);
         string json = JsonSerializer.Serialize(state);
         NativeBattleEffect83State restored = JsonSerializer.Deserialize<NativeBattleEffect83State>(json)!;
@@ -72,6 +75,16 @@ public sealed class NativeBattleEffect83StateTests
         Assert.Equal(TransformedAddress, restored.ReadDword(DescriptorAddress + 4));
         Assert.Equal((ushort)0xB278, restored.ReadWord(NodeSourceAddress + 4));
         Assert.Null(restored.BankStorage[7]);
+        Assert.True(restored.OwnedModelSourceBound);
         Assert.Equal(ModelAddress, restored.OwnedModels[0x25CF8D8].ResourceAddress);
     }
+
+    [Fact]
+    public void Older_source_binding_state_requires_explicit_named_migration()
+    {
+        JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffect83State.FromColdProcess()))!.AsObject();
+        Assert.True(old.Remove("OwnedModelSourceBound"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect83State>(old.ToJsonString()));
+    }
+
 }
