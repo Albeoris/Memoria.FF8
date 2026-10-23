@@ -767,10 +767,7 @@ internal sealed partial class RecreateGame
         SynchronizeMenuPresentation();
         if (gameMenus?.IsOpen == true && uiCanvas is not null)
         {
-            if (ActiveBattle is null)
-            {
-                batch.Draw(pixel, bounds, gameMenus.Presentation == MenuPresentation.Vector ? Color.Black * 0.3f : gameMenus.ScreenId is "new-game-options" or "title-exit" ? Color.Black * 0.65f : Color.Black);
-            }
+            batch.Draw(pixel, bounds, Color.Black);
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas, gameMenus.CreateTheme());
