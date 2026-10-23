@@ -56,19 +56,19 @@ public static class NativeBattleProjectedSpriteD8
 
     public static NativeBattleProjectedSpriteDraw Draw(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket)
     {
-        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2);
+        return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2, false);
     }
 
-    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift)
+    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false)
     {
-        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift);
+        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift, allowCallerScale);
     }
 
-    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift)
+    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift, bool allowCallerScale)
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         ushort callerFlags = ReadWord(temporary, 0x24);
-        int supportedFlags = readD8DepthBias ? 0x100 : 0x10D;
+        int supportedFlags = readD8DepthBias ? 0x100 : allowCallerScale ? 0x10F : 0x10D;
         if ((callerFlags & ~supportedFlags) != 0)
         {
             throw new InvalidDataException("Projected sprite dispatcher requires its supported actual caller flags.");
@@ -96,6 +96,21 @@ public static class NativeBattleProjectedSpriteD8
         }
         int callerAngle = (flags & 1) != 0 ? unchecked(ReadInt(temporary, 8) - cameraRoll) : -(int)cameraRoll;
         NativeBattleActionMatrix main = NativeBattleGfMatrices.RotateZ56D090(ReadMatrix(temporary, 0x84), callerAngle);
+        if (!readD8DepthBias && allowCallerScale && (flags & 2) != 0)
+        {
+            temporary = Dword(temporary, 0x14, 4096);
+            int[] scales = [ReadInt(temporary, 0x0C), ReadInt(temporary, 0x10), 4096];
+            short[] rotation = main.Rotation.ToArray();
+            for (int row = 0; row < 3; row++)
+            {
+                for (int column = 0; column < 3; column++)
+                {
+                    int index = row * 3 + column;
+                    rotation[index] = unchecked((short)(unchecked(rotation[index] * scales[row]) >> 12));
+                }
+            }
+            main = main with { Rotation = rotation.ToImmutableArray() };
+        }
         for (int index = 0; index < 9; index++)
         {
             temporary = Word(temporary, 0x84 + index * 2, unchecked((ushort)main.Rotation[index]));

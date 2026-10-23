@@ -6,7 +6,7 @@ public static class NativeBattleModuleSpriteDrawing
 {
     public const int TemporaryLength = 180;
 
-    public static NativeBattleModuleSpriteDraw Draw571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket = 17, byte depthShift = 2)
+    public static NativeBattleModuleSpriteDraw Draw571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket = 17, byte depthShift = 2, bool allowCallerScale = false)
     {
         temporary180.Validate();
         if (depthShift > 31)
@@ -17,7 +17,7 @@ public static class NativeBattleModuleSpriteDrawing
         {
             throw new InvalidDataException("Native571C80 requires its actual180-byte physical temporary.");
         }
-        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.DrawUnbiased571C80(memory, temporary180, readResource, projection, cameraRoll, tableBaseBucket, depthShift);
+        NativeBattleProjectedSpriteDraw drawn = NativeBattleProjectedSpriteD8.DrawUnbiased571C80(memory, temporary180, readResource, projection, cameraRoll, tableBaseBucket, depthShift, allowCallerScale);
         return new(drawn.Memory, drawn.TemporaryD8, drawn.Batch);
     }
 }
