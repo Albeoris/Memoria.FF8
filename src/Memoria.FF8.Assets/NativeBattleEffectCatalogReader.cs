@@ -569,6 +569,14 @@ public sealed partial class GameAssets
             {
                 binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
             }
+            if (binding.Effect == 304)
+            {
+                if (binding.Entry != NativeBattleBoomerangSword304Profile.Entry || binding.Initializer != NativeBattleBoomerangSword304Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag303.tim", NativeBattleBoomerangSword304Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Boomerang Sword requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { BoomerangSword304Resources = ReadNativeBoomerangSword304Resources() };
+            }
             if (binding.Effect == 302)
             {
                 if (binding.Entry != NativeBattleSnipeLaser302Profile.Entry || binding.Initializer != NativeBattleSnipeLaser302Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag276-301.tim", NativeBattleSnipeLaser302Profile.InitializerGlobal) || binding.InitializerResources is not null)
