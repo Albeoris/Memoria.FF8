@@ -171,6 +171,51 @@ public sealed class ModMenuTests : IDisposable
         Assert.NotNull(menu.BuildView());
     }
 
+    [Fact]
+    public void DiagnosticsNavigateByPackageAndRefreshClearsTheOpenGroup()
+    {
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        runtime.ReportFailure(new("duplicate", "First problem.", "Tonberry/alpha", "hashmap/alpha.csv"));
+        runtime.ReportFailure(new("duplicate", "Second problem.", "tonberry/ALPHA", "hashmap/beta.csv"));
+        runtime.ReportFailure(new("missing", "Other mod problem.", "Demaster/beta"));
+        runtime.ReportFailure(new("transaction", "Global problem."));
+        MenuController menu = Menu(runtime);
+        menu.Open("mods-diagnostics");
+        Assert.Equal(4, menu.Entries.Count);
+        Assert.Contains(menu.Entries, entry => entry.Label == "Tonberry/alpha · 2");
+        Assert.DoesNotContain(menu.Entries, entry => entry.Label.Contains("duplicate", StringComparison.Ordinal));
+        menu.SelectEntry("mods-diagnostics", "diagnostic-mod-Tonberry/alpha");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("mods-package-diagnostics", menu.ScreenId);
+        Assert.Equal(3, menu.Entries.Count);
+        menu.SelectEntry(menu.ScreenId, "diagnostic-1");
+        Assert.Equal(new[] { "Tonberry/alpha", "duplicate", "Second problem.", "hashmap/beta.csv" }, menu.CurrentScreen.Details(menu));
+        Assert.NotNull(menu.BuildView());
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("diagnostic-mod-Tonberry/alpha", menu.SelectedEntry!.Id);
+        menu.SelectEntry(menu.ScreenId, "diagnostic-mod-Demaster/beta");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("retry", menu.SelectedEntry!.Id);
+        menu.SelectEntry(menu.ScreenId, "diagnostic-0");
+        Assert.Contains("Other mod problem.", menu.CurrentScreen.Details(menu));
+        Assert.DoesNotContain("First problem.", menu.CurrentScreen.Details(menu));
+        menu.Navigate(MenuInput.Cancel);
+        menu.SelectEntry(menu.ScreenId, "diagnostic-mod-");
+        menu.Navigate(MenuInput.Confirm);
+        menu.SelectEntry(menu.ScreenId, "diagnostic-0");
+        Assert.Equal(new[] { "Global transaction", "transaction", "Global problem." }, menu.CurrentScreen.Details(menu));
+        menu.SelectEntry(menu.ScreenId, "retry");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.True(runtime.IsReloadPending);
+        Assert.False(runtime.PreparePending(force: true));
+        Assert.Empty(runtime.View.Diagnostics);
+        Assert.Contains(menu.Entries, entry => entry.Id == "none");
+        Assert.DoesNotContain(menu.Entries, entry => entry.Id.StartsWith("diagnostic-", StringComparison.Ordinal));
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(new[] { "retry", "none" }, menu.Entries.Select(entry => entry.Id));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))

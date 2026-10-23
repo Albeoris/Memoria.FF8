@@ -11,6 +11,7 @@ public sealed partial class MenuController
     private int modFilter;
     private int modFormat;
     private string? selectedModId;
+    private string? diagnosticModId;
     private int modSelectedOrdinal;
     private string modFocusedControlId = "commands";
     private int modPageSize = 1;
@@ -54,8 +55,14 @@ public sealed partial class MenuController
         });
         Register(new MenuScreenDefinition
         {
-            Id = "mods-diagnostics", Title = "Mods · Diagnostics", Help = "Current transaction and package diagnostics. Back returns to Mods.",
-            Entries = _ => [new("retry", "Retry / Refresh", "Rescan and validate through the mod service.", Action: new("mod-refresh")), .. (service.View.Diagnostics.Count == 0 ? new[] { new MenuEntry("none", "No current diagnostics", "No problems reported.") } : service.View.Diagnostics.Select((diagnostic, index) => new MenuEntry("diagnostic-" + index, (diagnostic.PackageId ?? "Global transaction") + " · " + diagnostic.Code, diagnostic.Message)))],
+            Id = "mods-diagnostics", Title = "Mods · Diagnostics", Help = "Select a mod to inspect its diagnostics.",
+            Entries = _ => ModDiagnosticGroups(),
+            Details = _ => ModDiagnosticGroupDetails()
+        });
+        Register(new MenuScreenDefinition
+        {
+            Id = "mods-package-diagnostics", Title = "Mods · Package diagnostics", Help = "Diagnostics for the selected mod. Back returns to the mod groups.",
+            Entries = _ => ModDiagnosticEntries(),
             Details = _ => ModDiagnosticDetails()
         });
     }
@@ -217,24 +224,54 @@ public sealed partial class MenuController
         return details;
     }
 
+    private IReadOnlyList<MenuEntry> ModDiagnosticGroups()
+    {
+        List<MenuEntry> entries = [new("retry", "Retry / Refresh", "Rescan and validate through the mod service.", Action: new("mod-refresh"))];
+        foreach (var group in modService!.View.Diagnostics.GroupBy(diagnostic => diagnostic.PackageId, StringComparer.OrdinalIgnoreCase))
+        {
+            string name = group.Key ?? "Global transaction";
+            entries.Add(new("diagnostic-mod-" + group.Key, name + " · " + group.Count(), "View diagnostics: " + name, Action: new("mod-diagnostics-open", group.Key ?? ""), Destination: "mods-package-diagnostics"));
+        }
+        if (entries.Count == 1)
+        {
+            entries.Add(new("none", "No current diagnostics", "No problems reported."));
+        }
+        return entries;
+    }
+
+    private ModDiagnostic[] CurrentModDiagnostics()
+    {
+        return modService!.View.Diagnostics.Where(diagnostic => string.Equals(diagnostic.PackageId, diagnosticModId, StringComparison.OrdinalIgnoreCase)).ToArray();
+    }
+
+    private IReadOnlyList<MenuEntry> ModDiagnosticEntries()
+    {
+        ModDiagnostic[] diagnostics = CurrentModDiagnostics();
+        return [new("retry", "Retry / Refresh", "Rescan and validate through the mod service.", Action: new("mod-refresh")), .. (diagnostics.Length == 0 ? new[] { new MenuEntry("none", "No current diagnostics", "No problems reported for this group.") } : diagnostics.Select((diagnostic, index) => new MenuEntry("diagnostic-" + index, diagnostic.Code, diagnostic.Message)))];
+    }
+
+    private IReadOnlyList<string> ModDiagnosticGroupDetails()
+    {
+        if (SelectedEntry?.Action is { Kind: "mod-diagnostics-open" } action)
+        {
+            string? packageId = action.SubjectId.Length == 0 ? null : action.SubjectId;
+            int count = modService!.View.Diagnostics.Count(diagnostic => string.Equals(diagnostic.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+            return [packageId ?? "Global transaction", "Diagnostics: " + count, "Confirm to view this group's messages."];
+        }
+        return ["Diagnostics grouped by mod.", "Select a mod to view its messages."];
+    }
+
     private IReadOnlyList<string> ModDiagnosticDetails()
     {
-        List<string> details = [];
-        if (SelectedEntry?.Id.StartsWith("diagnostic-", StringComparison.Ordinal) == true && int.TryParse(SelectedEntry.Id[11..], out int index) && modService!.View.Diagnostics.ElementAtOrDefault(index) is { } diagnostic)
+        List<string> details = [diagnosticModId ?? "Global transaction"];
+        if (SelectedEntry?.Id.StartsWith("diagnostic-", StringComparison.Ordinal) == true && int.TryParse(SelectedEntry.Id[11..], out int index) && CurrentModDiagnostics().ElementAtOrDefault(index) is { } diagnostic)
         {
-            details.Add(diagnostic.PackageId ?? "Global transaction");
             details.Add(diagnostic.Code);
             details.Add(diagnostic.Message);
             if (diagnostic.RelativePath is not null)
             {
                 details.Add(diagnostic.RelativePath);
             }
-        }
-        else if (SelectedModView is { } view)
-        {
-            details.AddRange(ModDetails());
-            details.Add("Package ID: " + view.Package.Id);
-            details.Add("Location: " + view.Package.RootDirectory);
         }
         return details;
     }
@@ -247,6 +284,10 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "mod-diagnostics-open":
+                diagnosticModId = action.SubjectId.Length == 0 ? null : action.SubjectId;
+                _selections["mods-package-diagnostics"] = 0;
+                return true;
             case "mod-installed-tab":
                 return true;
             case "mod-search-letter":
