@@ -202,8 +202,13 @@ public sealed partial class BattleSession
     private void DispatchTurnBasedFrame()
     {
         AdvanceNativeEscapeFrame();
-        bool timeAdvanced = ContinueTurnAdvance();
-        if (!timeAdvanced && CanAutomaticallyAdvanceTurn)
+        bool realTime = UsesRealTimeBattleClock;
+        if (realTime)
+        {
+            StopTurnAdvance();
+        }
+        bool timeAdvanced = !realTime && ContinueTurnAdvance();
+        if (!realTime && !timeAdvanced && CanAutomaticallyAdvanceTurn)
         {
             for (int count = 1; count <= MaximumAdvanceFrames; count++)
             {
@@ -466,7 +471,7 @@ public sealed partial class BattleSession
             return becameReady;
         }
         // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
-        bool clockAdmitted = Mode != BattleAtbMode.TurnBased && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
+        bool clockAdmitted = UsesRealTimeBattleClock && (HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false));
         if (clockAdmitted)
         {
             AdvanceBattleTime(becameReady, !HasNativeUiServiceClock);

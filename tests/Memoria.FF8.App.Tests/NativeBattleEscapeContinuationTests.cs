@@ -30,16 +30,31 @@ public sealed class NativeBattleEscapeContinuationTests
         Directory.CreateDirectory(output!);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
         Publish("before");
+        BattleSession normal = Restore(initial);
+        normal.SetMode(BattleAtbMode.Normal);
+        int[] initialGauges = Gauges(battle);
         for (int frame = 0; frame < 12; frame++)
         {
             Advance(true);
+            normal.PublishNativeEscapeButtons(3);
+            normal.AdvanceNativeGraphicsPresentation(callback);
+            Assert.Equal(Gauges(normal), Gauges(battle));
+            Assert.Equal(normal.Frame, battle.Frame);
+            Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
         }
+        Assert.NotEqual(initialGauges, Gauges(battle));
         Assert.All(battle.NativeGraphics!.Models.Take(3), model => Assert.NotEqual(0u, model.Flags8!.Value & 0x1000000));
         Assert.All(battle.NativeGraphics.Models.Take(3), model => Assert.Equal((byte)16, model.Sequence));
         CompareNext("held");
         Advance(false);
         Assert.All(battle.NativeGraphics!.Models.Take(3), model => Assert.Equal(0u, model.Flags8!.Value & 0x1000000));
         Assert.Equal(0, battle.Escape.HeldFrames);
+        int[] releasedGauges = Gauges(battle);
+        for (int frame = 0; frame < 5; frame++)
+        {
+            Advance(false);
+            Assert.Equal(releasedGauges, Gauges(battle));
+        }
         CompareNext("released");
         for (int frame = 0; frame < 1200 && battle.Outcome == BattleOutcome.Active; frame++)
         {
@@ -52,7 +67,16 @@ public sealed class NativeBattleEscapeContinuationTests
         Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
         Assert.True(battle.CanReturnToField);
         Assert.Equal((byte?)2, battle.NativeResult);
+        Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
+        int[] completedGauges = Gauges(battle);
+        Advance(true);
+        Assert.Equal(completedGauges, Gauges(battle));
         CompareNext("escaped");
+
+        static int[] Gauges(BattleSession session)
+        {
+            return session.Combatants.Select(actor => actor.NativeAtb?.Current ?? actor.Atb).ToArray();
+        }
 
         BattleSession Restore(BattleSnapshot snapshot)
         {

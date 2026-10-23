@@ -8,6 +8,40 @@ public sealed class NativeBattleEscapePresentationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Escape_clock_obeys_native_action_and_allocation_pauses(bool allocationPaused)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSnapshot ready = CreateReady(game, assets).Capture();
+        NativeBattleClockState clock = Assert.IsType<NativeBattleClockState>(ready.NativeClock);
+        NativeBattleAllocationControl control = Assert.IsType<NativeBattleAllocationControl>(ready.NativeScriptState.AllocationControl);
+        BattleSession battle = BattleSession.Restore(ready with
+        {
+            NativeClock = clock with { ActionPause = allocationPaused ? 0u : 1u },
+            NativeScriptState = ready.NativeScriptState with { EscapeDisabled = true, AllocationControl = control with { PauseGate = allocationPaused } }
+        });
+        int[] gauges = battle.Combatants.Select(actor => actor.NativeAtb!.Current).ToArray();
+        battle.PublishNativeEscapeButtons(3);
+        for (int callback = 0; callback < 8; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(gauges, battle.Combatants.Select(actor => actor.NativeAtb!.Current).ToArray());
+        Assert.Equal(BattleAtbMode.TurnBased, battle.Mode);
+        battle.PublishNativeEscapeButtons(0);
+        BattleSnapshot released = battle.Capture();
+        battle = BattleSession.Restore(released with
+        {
+            NativeClock = released.NativeClock! with { ActionPause = 0 },
+            NativeScriptState = released.NativeScriptState with { AllocationControl = control with { PauseGate = false } }
+        });
+        battle.Tick();
+        Assert.Equal(gauges, battle.Combatants.Select(actor => actor.NativeAtb!.Current).ToArray());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Original_escape_hold_and_release_drive_standing_sequences_and_resume_from_json(bool escapeDisabled)
     {
         using GameAssets game = new(TestResources.GameDirectory);

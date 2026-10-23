@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private HashSet<string>? nativeUiBecameReady;
 
-    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && combatants.Any(actor => actor.IsPlayer && actor.IsReady);
+    private bool WaitingForTurnBasedDecision => !UsesRealTimeBattleClock && combatants.Any(actor => actor.IsPlayer && actor.IsReady);
 
     private HashSet<string> PumpNativeHostFrame(bool advanceFrame = true)
     {

@@ -44,6 +44,9 @@ public sealed partial class BattleSession
     public NativeBattleEscapeState Escape => nativeEscape;
     public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (ResolvedNativeFlags & 1) != 0;
 
+    private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && PendingSlotsDeal is null && NativeGraphics?.UiServices?.PauseDE9 != true;
+    private bool UsesRealTimeBattleClock => Mode != BattleAtbMode.TurnBased || EscapeAdvancesBattleTime;
+
     public void PublishNativeEscapeButtons(ushort buttons)
     {
         bool held = PendingSlotsDeal is null && (buttons & 3) == 3;

@@ -30,6 +30,8 @@ In supported battle contexts, Rotate right is also the gunblade / Shot trigger, 
 
 To escape a battle, hold both escape actions together (D + F by default, or both controller triggers). Characters run while you hold them; escape attempts repeat every two seconds, so keep holding until the party escapes. Releasing either action stops the attempt. Some battles prevent escape even while the running animation plays.
 
+In TurnBased mode, holding both escape actions also lets ATB fill at its ordinary real-time pace, including enemy gauges. Releasing either action restores turn-based waiting. The selected battle mode stays unchanged, and ordinary battle pauses still apply.
+
 In battle, **Menu** (V / North button) cycles ready characters and recalculates Limit availability, including when only one character is ready. When the first command shows `>`, hold **Right** to reveal the character's Limit and confirm while holding it. Releasing Right before confirmation returns to the ordinary command. Confirming Renzokuken or Duel opens target selection directly; the other Limits open their spell, ammunition or action choices. Cancel returns from a target or choice without recalculating the crisis level.
 
 After a victory in which a GF learns an ability, the results open its learning menu with the completed ability highlighted in shifting colors and the cursor on it. Choose another available ability with **Confirm**, or keep the default next target. **Previous/next character** switches only among GFs that learned an ability in that battle. **Cancel** opens the next GF you have not viewed; manually visited GFs are skipped. Closing the last review completes the battle results.
