@@ -21,7 +21,23 @@ internal sealed class NoticeElement(string message) : UiElement
         }
         else
         {
-            canvas.Text(message, 20 * scale, content, theme.Foreground, UiAlignment.Center);
+            float size = 20 * scale;
+            List<string> lines = SystemTextLayout.Wrap(message, value => canvas.MeasureText(value, size, float.PositiveInfinity).Width, content.Width);
+            float lineHeight = canvas.MeasureText("Mg", size, float.PositiveInfinity).Height;
+            float y = content.Y + Math.Max(0, (content.Height - lines.Count * lineHeight) / 2);
+            canvas.PushClip(content);
+            try
+            {
+                foreach (string line in lines)
+                {
+                    canvas.AlignedText(line, size, new UiRect(content.X, y, content.Width, lineHeight), theme.Foreground, UiAlignment.Center);
+                    y += lineHeight;
+                }
+            }
+            finally
+            {
+                canvas.PopClip();
+            }
         }
     }
 }

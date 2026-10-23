@@ -8,16 +8,18 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleNoticePresentationTests
 {
     [Theory]
-    [InlineData(960, 672)]
-    [InlineData(1920, 1344)]
-    public void System_notice_is_half_width_and_centers_text_at_both_scales(int width, int height)
+    [InlineData(960, 672, null)]
+    [InlineData(960, 672, "Arial")]
+    [InlineData(1920, 1344, null)]
+    [InlineData(1920, 1344, "Arial")]
+    public void System_notice_is_half_width_and_centers_text_at_both_scales(int width, int height, string? fontFamily)
     {
         using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
         using (BattlePreviewCanvas canvas = new(bitmap))
         {
             UiView view = new(new NoticeElement("Quick saved."));
             view.Resize(width, height);
-            view.Draw(canvas, new UiTheme());
+            view.Draw(canvas, new UiTheme { FontFamily = fontFamily });
         }
         int scale = width / 960;
         Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(200 * scale, 40 * scale).ToArgb());
