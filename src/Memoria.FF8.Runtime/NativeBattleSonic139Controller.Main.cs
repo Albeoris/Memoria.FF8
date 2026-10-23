@@ -180,6 +180,6 @@ public static partial class NativeBattleSonic139Controller
         NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.LoadVector(Registers(frame), 0, point, w);
         NativeBattleScriptedGraphicsMemory controls = frame.Memory.ScriptedGraphics ?? throw new NotSupportedException("Sonic Wave requires its current projection controls.");
         registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
-        return (Publish(frame, registers), registers.Geometry.Sxy[2]!.Value, unchecked((short)registers.Geometry.Sz[3]!.Value));
+        return (Publish(frame, registers), registers.Geometry.Sxy[2]!.Value, unchecked((short)(unchecked((int)registers.Geometry.Sz[3]!.Value) >> 2)));
     }
 }

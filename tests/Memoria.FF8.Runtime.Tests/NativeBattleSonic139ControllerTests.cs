@@ -106,6 +106,20 @@ public sealed class NativeBattleSonic139ControllerTests
     }
 
     [Fact]
+    public void Target_bounds_consume_45E250_quarter_depth_while_GTE_SZ3_retains_raw_projection()
+    {
+        NativeBattleSonic139Frame frame = Frame(70);
+        frame = frame with { Memory = frame.Memory with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } };
+        NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleGraphicsModel model = new(0, 3) { Transform = new(new(0, 0, 0), new(0, 0, 8000), 0, 0, 0) };
+        NativeBattleSonic139Inputs inputs = Inputs((current, _) => current) with { ReadView = _ => NativeBattlePackedMatrix32.FromMatrix(identity, null), ReadProjection = _ => new(identity, 256, 160, 108) };
+        var observed = IncludeActor6A9AD0(frame, model, NativeBattleSonic139Bounds.Initial, inputs);
+        Assert.Equal(8000u, observed.Frame.Memory.GeometryRegisters!.Sz[3]);
+        Assert.Equal(2000, observed.Bounds.MinimumDepth);
+        Assert.Equal(12, observed.Bounds.MaxX - observed.Bounds.MinX);
+    }
+
+    [Fact]
     public void Byte_copy_preserves_unknown_padding_in_the_single_task_owner()
     {
         NativeBattleSonic139Frame frame = Frame(70);
