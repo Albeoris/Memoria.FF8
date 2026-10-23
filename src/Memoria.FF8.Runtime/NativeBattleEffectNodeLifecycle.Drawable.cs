@@ -18,14 +18,21 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
             {
                 uint firstShape = Pointer(memory.ContextDword(0x230), ByteCurve(0x130));
                 uint secondShape = Pointer(memory.ContextDword(0x230), ByteCurve(0x134));
-                short ratio = WordCurve(0x138);
-                if (inputs.MorphResource is { } morph)
+                if (inputs.SelectedMorph is { } selectedMorph)
                 {
-                    morph(resource, firstShape, secondShape, ratio);
+                    selectedMorph(resource, firstShape, secondShape, BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan(0x138)));
                 }
                 else
                 {
-                    Morph881540(resource, firstShape, secondShape, ratio);
+                    short ratio = WordCurve(0x138);
+                    if (inputs.MorphResource is { } morph)
+                    {
+                        morph(resource, firstShape, secondShape, ratio);
+                    }
+                    else
+                    {
+                        Morph881540(resource, firstShape, secondShape, ratio);
+                    }
                 }
             }
             if (inputs.ResourceUpdate is { } update)

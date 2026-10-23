@@ -81,6 +81,7 @@ internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? Co
 {
     public Func<NativeBattleEffectNodeBank, uint, int, byte, ImmutableArray<byte>>? ResourceUpdate { get; init; }
     public Action<uint, uint, uint, short>? MorphResource { get; init; }
+    public Action<uint, uint, uint, uint>? SelectedMorph { get; init; }
     public NativeBattleModelScaleVector? ActorScale { get; init; }
     public NativeBattleEffectNodeOrientation2Policy Orientation2Policy { get; init; }
     public Action<NativeBattleEffectNodeMemory, int, NativeBattleVector, NativeBattleVector>? LookBasis8DDA50 { get; init; }

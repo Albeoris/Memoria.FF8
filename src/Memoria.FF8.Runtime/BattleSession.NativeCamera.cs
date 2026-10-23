@@ -304,6 +304,10 @@ public sealed partial class BattleSession
                 {
                     graphics = psychoBlast23Completed;
                 }
+                else if (TryWriteNativeEffect83Completion(graphics, address, value, out NativeBattleGraphicsState effect83Completed))
+                {
+                    graphics = effect83Completed;
+                }
                 else if (TryWriteNativeAngelWing84Completion(graphics, address, value, out NativeBattleGraphicsState angelWing84Completed))
                 {
                     graphics = angelWing84Completed;
