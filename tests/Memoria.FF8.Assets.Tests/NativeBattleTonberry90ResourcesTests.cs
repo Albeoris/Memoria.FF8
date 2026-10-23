@@ -28,6 +28,11 @@ public sealed class NativeBattleTonberry90ResourcesTests
         Assert.Equal(new short[] { 416, 417 }, resources.Files.Select(file => file.FileId).ToArray());
         Assert.Equal(new[] { "MAG089_B.1T0", "MAG089_B.1Z0" }, resources.Files.Select(file => file.Name.ToUpperInvariant()).ToArray());
         Assert.All(resources.Files, file => Assert.False(file.Data.IsDefaultOrEmpty));
+        Assert.Equal(new[] { "mag089_0.tim", "mag089_1.tim", "mag089_2.tim" }, binding.InitializerResources!.Value.Select(resource => resource.Name));
+        Assert.Equal(new uint[] { 0x25A4C20, 0x259EEAC, 0x259EEB0 }, binding.InitializerResources.Value.Select(resource => resource.GlobalAddress));
+        var initialized = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), new(90, 89, binding, null, null));
+        Assert.Equal(resources.InitializerTims.Sum(tim => tim.Data.Length), initialized.Memory.Cursor);
+        Assert.Equal(binding.InitializerResources.Value.Select(resource => resource.GlobalAddress), initialized.Effect.ResourcePointers.Select(pointer => pointer.GlobalAddress));
         string json = JsonSerializer.Serialize(binding);
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)!));
         Assert.Null(game.ReadNativeEffectCatalog()[89].Tonberry90Resources);

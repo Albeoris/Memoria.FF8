@@ -153,9 +153,9 @@ public static class NativeBattleOriginalEffects
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) InitializeTonberry762320(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
         NativeBattleEffectBinding binding = selected.Binding;
-        if (binding.InitializerIsRet == true || binding.InitializerResource is not null || binding.InitializerResources is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)
+        if (binding.InitializerIsRet == true || binding.InitializerResource is not null || binding.InitializerAsset is not null || binding.InitializerAssets is not null)
         {
-            throw new InvalidDataException("Native Tonberry initializer requires its three ordered TIM inputs rather than a generic loader descriptor.");
+            throw new InvalidDataException("Native Tonberry initializer requires its specialized three ordered TIM inputs without conflicting generic loader inputs.");
         }
         NativeBattleTonberry90Resources resources = binding.Tonberry90Resources ?? throw new NotSupportedException("Native Tonberry initializer requires its original TIM assets.");
         ImmutableArray<NativeBattleEffectInitializerAsset> tims = resources.InitializerTims;
@@ -164,6 +164,10 @@ public static class NativeBattleOriginalEffects
         if (tims.IsDefault || tims.Length != names.Length || tims.Where((tim, index) => tim is null || tim.Name != names[index] || tim.Data.IsDefaultOrEmpty).Any())
         {
             throw new InvalidDataException("Native Tonberry initializer requires all three original TIM files in load order.");
+        }
+        if (binding.InitializerResources is { } descriptors && (descriptors.IsDefault || descriptors.Length != names.Length || descriptors.Where((descriptor, index) => descriptor is null || descriptor.Name != names[index] || descriptor.GlobalAddress != publications[index]).Any()))
+        {
+            throw new InvalidDataException("Native Tonberry initializer metadata must preserve its three ordered TIM names and publication globals.");
         }
         memory = memory.BeginLoad(selected.SelectedIndex);
         ImmutableArray<NativeBattleEffectResourcePointer>.Builder pointers = ImmutableArray.CreateBuilder<NativeBattleEffectResourcePointer>(tims.Length);

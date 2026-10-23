@@ -341,7 +341,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
     }
 
-    private static bool Released(BattleSnapshot snapshot)
+    internal static bool Released(BattleSnapshot snapshot)
     {
         NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
         return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && (effect.Binding.Effect == 116 ? snapshot.NativeEffectMemory is { Active: 0 } && !graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104) : effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)));
