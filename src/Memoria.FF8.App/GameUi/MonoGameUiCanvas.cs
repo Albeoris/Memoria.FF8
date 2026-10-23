@@ -1,19 +1,21 @@
 using Memoria.FF8.Ui;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Draws retained controls, system text and the original menu pointer.</summary>
-internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory) : IUiCanvas, IBattleMessageCanvas, IDisposable
+internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null) : IUiCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
-    private readonly MenuArtworkProvider artwork = new(gameDirectory);
+    private readonly MenuArtworkProvider artwork = new(gameDirectory, resources);
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
     private string? cardFontFamily;
     private readonly UiTextOverflow textOverflow = new();
+    private long artworkGeneration = -1;
     private readonly Dictionary<(string Text, float Size, float Width, string Family), UiSize> textMeasurements = [];
 
     public void BeginFrame(TimeSpan time)
@@ -77,6 +79,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     private Texture2D GetImage(UiImageSource source)
     {
+        if (artworkGeneration != artwork.Generation)
+        {
+            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsCardImage).ToArray())
+            {
+                images[key].Dispose();
+                images.Remove(key);
+            }
+            artworkGeneration = artwork.Generation;
+        }
         if (source.Kind is UiImageKind.CardFace or UiImageKind.CardFaceGrayscale && cardFontFamily != text.FontFamily)
         {
             foreach (UiImageSource key in images.Keys.Where(key => key.Kind is UiImageKind.CardFace or UiImageKind.CardFaceGrayscale).ToArray())

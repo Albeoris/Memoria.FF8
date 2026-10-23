@@ -40,7 +40,7 @@ internal sealed partial class RecreateGame
 
     private void InitializeGameUi()
     {
-        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory);
+        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources);
         if (!File.Exists(UiPreferencesPath))
         {
             uiPreferences.Save(UiPreferencesPath);

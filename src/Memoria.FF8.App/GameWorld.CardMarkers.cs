@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld
 {
     private CardArtwork? cardArtwork;
+    private long cardArtworkGeneration = -1;
 
     private IReadOnlyList<CardMarkerVisual> CreateCardMarkers(TimeSpan elapsed)
     {
@@ -20,7 +21,12 @@ internal sealed partial class GameWorld
         {
             return [];
         }
-        cardArtwork ??= CardArtwork.Load(assets.GameDirectory);
+        if (cardArtworkGeneration != (resources?.Generation ?? 0))
+        {
+            cardArtwork = null;
+            cardArtworkGeneration = resources?.Generation ?? 0;
+        }
+        cardArtwork ??= CardArtwork.Load(assets.GameDirectory, resources);
         // An opponent may hold several unique cards. Show each for one complete turn.
         long turn = (long)Math.Floor(Math.Max(0, elapsed.TotalSeconds) / 8);
         return offers.GroupBy(offer => offer.ObjectId).Select(group =>

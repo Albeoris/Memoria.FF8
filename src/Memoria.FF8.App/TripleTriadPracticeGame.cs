@@ -12,6 +12,7 @@ internal sealed class TripleTriadPracticeGame : Game
     private readonly string gameDirectory;
     private readonly Action save;
     private readonly Action load;
+    private readonly GameResourceHost? resourceHost;
     private readonly UiView view;
     private SpriteBatch batch = null!;
     private SystemTextRenderer text = null!;
@@ -25,12 +26,13 @@ internal sealed class TripleTriadPracticeGame : Game
     private double opponentDelay;
     private string? notice;
 
-    public TripleTriadPracticeGame(TripleTriadController controller, string gameDirectory, Action save, Action load)
+    public TripleTriadPracticeGame(TripleTriadController controller, string gameDirectory, Action save, Action load, GameResourceHost? resourceHost = null)
     {
         this.controller = controller;
         this.gameDirectory = gameDirectory;
         this.save = save;
         this.load = load;
+        this.resourceHost = resourceHost;
         controller.ReplayDeclined += Exit;
         controller.EnablePresentation();
         view = controller.BuildView();
@@ -46,7 +48,7 @@ internal sealed class TripleTriadPracticeGame : Game
         text = new SystemTextRenderer(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
-        canvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, gameDirectory);
+        canvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, gameDirectory, resourceHost?.Resources);
         canvas.PrepareTripleTriad(controller);
         audio = new FieldAudioPresentation(Window.Handle, gameDirectory, "");
         cardAudio = new TripleTriadAudioPresentation(audio, controller);
@@ -54,6 +56,7 @@ internal sealed class TripleTriadPracticeGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        resourceHost?.Pump();
         KeyboardState keys = Keyboard.GetState();
         if (IsActive)
         {

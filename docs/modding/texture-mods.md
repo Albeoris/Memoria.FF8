@@ -28,6 +28,7 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | --- | --- | --- |
 | Tonberry | Classic `classic-world-texl`, `classic-world-road-region`, and explicitly supplied `tonberry-classic-page` | Requires original color/page semantics. Generic field tiles, model atlases and battle images are not automatically equivalent. Remastered is incompatible. |
 | Demaster | Classic world TEXL pages and original road regions represented by world page 29 | Compatibility of a package does not make every target compatible. Other families require a source-published compatible layout. |
+| Demaster card artwork | `demaster-card-artwork`: menu card atlases, Triple Triad fronts, back, elements and split backgrounds | Square 256 × 256 source sheets at an integer scale; localized alternatives follow the source language. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
 
 Unknown targets produce diagnostics or retain original pixels. Installing a cloud image does not add cloud geometry to the Classic renderer. Water mapping, full field/UI/model native-page reconstruction, dynamic palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
@@ -54,6 +55,10 @@ Classic TEXL page `n` resolves `textures/world/dat/texl/texl_<n+1, three digits>
 Classic road regions resolve `textures/world/dat/wmset/wmset_029_0.dds` or `.png`. This image represents the complete 256 × 256 source page. The adapter crops each original road region before the engine builds its road atlas; do not supply the optimized engine atlas under this name.
 
 Logical UV dimensions remain separate from physical resolution. TEXL and road page replacements must have equal positive integral scale on both axes. Incompatible dimensions fail preparation. Filename helpers for other families do not establish UV compatibility.
+
+Card artwork uses `textures/mc00.tex` through `mc09.tex` for the inventory and field card markers, and `textures/cards/cards_0` through `cards_13` for the mini-game. Names take `.dds` or `.png`, with DDS preferred. Each menu sheet contains eleven fronts in a four-column grid. Each mini-game sheet contains eight fronts in two columns; `cards_13` also supplies the hidden-card back at (0, 192). Element icons come from `textures/cards/text_0`. Japanese resources select `mc05.tex` and `cards_7`; other source languages select `mc05.tex_en` and `cards_7_en`. These are alternatives, so a single language does not consume both versions.
+
+The rules background combines `textures/cards/back_0` and `back_1`; the playing board combines `board_0` and `board_1`. The first sheet supplies the left 256 × 224 region and the second its leftmost 128 × 224 region, producing a 384 × 224 canvas. Both replacement halves must have the same scale. A missing half retains original pixels. Card interfaces and field markers refresh when the active resource generation changes; composed fronts preserve replacement resolution above the default 256 × 256 output.
 
 The shared decoder accepts PNG and two-dimensional DDS: 32-bit RGBA/BGRA, BC1, BC2, BC3 and BC7, including supported DX10 headers. Arrays, cube maps, volumes, unsupported masks/formats, invalid dimensions/mip counts and truncated data fail. DDS mip levels are retained; current CPU renderers sample the base level.
 

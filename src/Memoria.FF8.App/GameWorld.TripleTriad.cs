@@ -180,7 +180,7 @@ internal sealed partial class GameWorld
     {
         UiView view = EnsureTripleTriad()!.BuildView();
         using Bitmap bitmap = new(renderWidth, renderHeight, PixelFormat.Format32bppArgb);
-        using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
+        using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory, resources))
         {
             view.Resize(renderWidth, renderHeight);
             view.Draw(canvas, new UiTheme());

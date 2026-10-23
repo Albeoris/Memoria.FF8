@@ -46,14 +46,16 @@ public sealed class NativeTripleTriadArtwork
         return elements[index];
     }
 
-    public static NativeTripleTriadArtwork Load(string gameDirectory)
+    public static NativeTripleTriadArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
         using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
         NativeTripleTriadArtwork original = Read(GameDataResources.ReadNativeMemory(new ResourceService(source)));
-        PixelImage[] fronts = Enumerable.Range(0, CardArtwork.CardCount).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.fronts[id], subresource: $"front/{id}")).ToArray();
-        PixelImage back = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Back, subresource: "back");
-        PixelImage[] elements = Enumerable.Range(0, original.elements.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.elements[id], subresource: $"element/{id}")).ToArray();
-        return new NativeTripleTriadArtwork(elements, fronts, back, original.Background, original.BoardBackground);
+        PixelImage[] fronts = Enumerable.Range(0, CardArtwork.CardCount).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.fronts[id], subresource: $"front/{id}", resources: resources)).ToArray();
+        PixelImage back = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Back, subresource: "back", resources: resources);
+        PixelImage[] elements = Enumerable.Range(0, original.elements.Length).Select(id => NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.elements[id], subresource: $"element/{id}", resources: resources)).ToArray();
+        PixelImage background = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.Background, subresource: "background", resources: resources);
+        PixelImage boardBackground = NativeArtworkTexture.Resolve(source, new ResourceKey("cards/cards"), original.BoardBackground, subresource: "board-background", resources: resources);
+        return new NativeTripleTriadArtwork(elements, fronts, back, background, boardBackground);
     }
 
     public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)

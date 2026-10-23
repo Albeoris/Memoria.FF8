@@ -4,6 +4,7 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using Memoria.FF8.Ui;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
@@ -18,16 +19,17 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
     private readonly MenuArtworkProvider artwork;
     private readonly Dictionary<UiImageSource, Bitmap> images = [];
     private readonly UiTextOverflow textOverflow = new();
+    private long artworkGeneration = -1;
 
     public void BeginFrame(TimeSpan time)
     {
         textOverflow.BeginFrame(time);
     }
 
-    public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null)
+    public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null, ResourceService? resources = null)
     {
         this.gameDirectory = gameDirectory ?? LaunchOptions.ConfiguredGameDirectory;
-        artwork = new MenuArtworkProvider(this.gameDirectory);
+        artwork = new MenuArtworkProvider(this.gameDirectory, resources);
         graphics = Graphics.FromImage(bitmap);
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
@@ -86,6 +88,15 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     private void DrawImage(UiImageSource source, UiRect bounds, bool stretch)
     {
+        if (artworkGeneration != artwork.Generation)
+        {
+            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsCardImage).ToArray())
+            {
+                images[key].Dispose();
+                images.Remove(key);
+            }
+            artworkGeneration = artwork.Generation;
+        }
         if (bounds.IsEmpty)
         {
             return;

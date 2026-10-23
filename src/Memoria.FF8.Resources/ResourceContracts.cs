@@ -8,7 +8,7 @@ public enum GameDataEdition
     Remastered
 }
 
-public sealed record ResourceSourceDescriptor(string Id, GameDataEdition Edition, ImmutableArray<string> Layouts);
+public sealed record ResourceSourceDescriptor(string Id, GameDataEdition Edition, ImmutableArray<string> Layouts, string Language = "en");
 
 /// <summary>A game-relative identity, independent of its archive and installation.</summary>
 public readonly record struct ResourceKey

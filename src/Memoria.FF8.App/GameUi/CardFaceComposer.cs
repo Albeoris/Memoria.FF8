@@ -8,27 +8,32 @@ namespace Memoria.FF8.GameUi;
 internal sealed class CardFaceComposer(string fontFamily)
 {
     public const int Size = 256;
-    private const int Scale = Size / 64;
-    private readonly Dictionary<int, PixelImage> ranks = [];
+    private readonly Dictionary<(int Value, int Scale), PixelImage> ranks = [];
 
     public PixelImage Compose(PixelImage artwork, TripleTriadCard card, int owner, PixelImage? element)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(owner);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(owner, 1);
-        PixelImage result = new(Size, Size);
+        int size = Math.Max(Size, artwork.Width);
+        if (artwork.Width != artwork.Height || artwork.Width % 64 != 0)
+        {
+            throw new InvalidDataException("Card artwork must preserve its square native canvas at an integer scale.");
+        }
+        int scale = size / 64;
+        PixelImage result = new(size, size);
         // Native 53A512 fills C75AD0's inset square before drawing the transparent card artwork.
         Rgba32 top = owner == 0 ? new(192, 224, 255) : new(255, 192, 224);
         Rgba32 bottom = owner == 0 ? new(48, 64, 128) : new(128, 48, 64);
-        for (int y = Scale; y < Size - Scale; y++)
+        for (int y = scale; y < size - scale; y++)
         {
-            float amount = (y - Scale) / (float)(Size - 2 * Scale - 1);
+            float amount = (y - scale) / (float)(size - 2 * scale - 1);
             Rgba32 color = new((byte)(top.R + (bottom.R - top.R) * amount), (byte)(top.G + (bottom.G - top.G) * amount), (byte)(top.B + (bottom.B - top.B) * amount));
-            for (int x = Scale; x < Size - Scale; x++)
+            for (int x = scale; x < size - scale; x++)
             {
                 result[x, y] = color;
             }
         }
-        Overlay(result, artwork, 0, 0, Size, Size);
+        Overlay(result, artwork, 0, 0, size, size);
         // Native 53A100: C75B10 rank quads, in top/bottom/left/right order.
         Rank(card.Top, 6, 2);
         Rank(card.Bottom, 6, 18);
@@ -36,27 +41,27 @@ internal sealed class CardFaceComposer(string fontFamily)
         Rank(card.Right, 10, 10);
         if (element is not null)
         {
-            Overlay(result, element, 44 * Scale, 4 * Scale, 16 * Scale, 16 * Scale);
+            Overlay(result, element, 44 * scale, 4 * scale, 16 * scale, 16 * scale);
         }
         return result;
 
         void Rank(int value, int x, int y)
         {
-            if (!ranks.TryGetValue(value, out PixelImage? rank))
+            if (!ranks.TryGetValue((value, scale), out PixelImage? rank))
             {
-                rank = RasterizeRank(value);
-                ranks.Add(value, rank);
+                rank = RasterizeRank(value, scale);
+                ranks.Add((value, scale), rank);
             }
-            Overlay(result, rank, x * Scale, y * Scale, 12 * Scale, 12 * Scale);
+            Overlay(result, rank, x * scale, y * scale, 12 * scale, 12 * scale);
         }
     }
 
-    private PixelImage RasterizeRank(int value)
+    private PixelImage RasterizeRank(int value, int scale)
     {
-        using Bitmap mask = SystemTextLayout.Rasterize(value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture), 32, float.PositiveInfinity, fontFamily);
-        PixelImage rank = new(12 * Scale, 12 * Scale);
-        int height = 9 * Scale;
-        int width = Math.Min(8 * Scale, Math.Max(1, (int)MathF.Round(mask.Width * height / (float)mask.Height)));
+        using Bitmap mask = SystemTextLayout.Rasterize(value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture), 8 * scale, float.PositiveInfinity, fontFamily);
+        PixelImage rank = new(12 * scale, 12 * scale);
+        int height = 9 * scale;
+        int width = Math.Min(8 * scale, Math.Max(1, (int)MathF.Round(mask.Width * height / (float)mask.Height)));
         int left = (rank.Width - width) / 2;
         int top = (rank.Height - height) / 2;
         for (int y = 0; y < height; y++)

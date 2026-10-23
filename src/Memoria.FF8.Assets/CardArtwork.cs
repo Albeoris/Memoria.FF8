@@ -36,7 +36,7 @@ public sealed class CardArtwork
     }
 
     /// <summary>Loads the original mc00.TEX through mc09.TEX atlases from menu.fs without extracting or modifying them.</summary>
-    public static CardArtwork Load(string gameDirectory)
+    public static CardArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
@@ -55,7 +55,7 @@ public sealed class CardArtwork
             {
                 throw new NotSupportedException($"Original Triple Triad atlas {name} must be {AtlasSize}x{AtlasSize}, but is {atlas.Width}x{atlas.Height}.");
             }
-            atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), atlas);
+            atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), atlas, resources: resources);
             for (int cell = 0; cell < CardsPerAtlas; cell++)
             {
                 fronts[atlasIndex * CardsPerAtlas + cell] = CropCell(atlas, cell);

@@ -8,7 +8,7 @@ namespace Memoria.FF8.Mods;
 public sealed record DemasterInspection(IReadOnlySet<string> UsablePackageIds, IReadOnlyList<ModDiagnostic> Diagnostics);
 
 /// <summary>Semantic addressing only; the selected source must explicitly publish a compatible layout.</summary>
-public sealed class DemasterTextureResolver : ITextureReplacementResolver
+public sealed partial class DemasterTextureResolver : ITextureReplacementResolver
 {
     private readonly ModCatalogSnapshot catalog;
 
@@ -32,6 +32,7 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
             }
             string stem = path[..^extension.Length];
             bool supported = TryWorldTarget(stem, "textures/world/dat/texl/texl_", out int texlId) && texlId >= 1 && HasLayout(source, "classic-world-texl");
+            supported |= HasLayout(source, "demaster-card-artwork") && IsCardArtworkTarget(stem);
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset_", out int page))
             {
                 supported |= page == 29 && HasLayout(source, "classic-world-road-region");
@@ -56,6 +57,10 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == "native-artwork" && HasLayout(context.Source, "demaster-card-artwork"))
+        {
+            return ResolveCardArtwork(context);
+        }
         foreach (string path in CandidatePaths(context))
         {
             ModFile? file = catalog.FindAll(ModFormat.Demaster, path).FirstOrDefault();

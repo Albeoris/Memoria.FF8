@@ -6,10 +6,10 @@ namespace Memoria.FF8.Assets;
 /// <summary>Resolves edition artwork before composing native sprite parts.</summary>
 internal static class NativeArtworkTexture
 {
-    public static PixelImage Resolve(IResourceSource source, ResourceKey owner, PixelImage original, int palette = 0, string subresource = "atlas")
+    public static PixelImage Resolve(IResourceSource source, ResourceKey owner, PixelImage original, int palette = 0, string subresource = "atlas", ResourceService? resources = null)
     {
-        TextureBuildContext context = new(new TextureKey(owner, subresource, palette), source.Descriptor, 1, "native-artwork", original.Width, original.Height, () => original);
-        return (source as ITextureReplacementResolver)?.Resolve(context)?.Image ?? original;
+        TextureBuildContext context = new(new TextureKey(owner, subresource, palette), resources?.Source ?? source.Descriptor, 1, "native-artwork", original.Width, original.Height, () => original);
+        return resources is null ? (source as ITextureReplacementResolver)?.Resolve(context)?.Image ?? original : resources.GetTexture(context).Value.Image;
     }
 
     public static int Scale(PixelImage image, int logicalWidth, int logicalHeight)

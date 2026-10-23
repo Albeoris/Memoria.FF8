@@ -2,11 +2,12 @@ using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Loads original artwork on demand; menu panels remain procedural.</summary>
-internal sealed class MenuArtworkProvider(string gameDirectory)
+internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService? resources = null)
 {
     private NativeMenuArtwork? portraits;
     private CardArtwork? cards;
@@ -19,21 +20,34 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
     private PixelImage? silverCrest;
     private readonly Dictionary<(int Id, int Owner, bool Grayscale), PixelImage> cardFaces = [];
 
+    private long artworkGeneration = -1;
+
+    public long Generation => resources?.Generation ?? 0;
+
+    internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
+
     public PixelImage Read(UiImageSource source, string fontFamily = SystemFontCatalog.DefaultFamily)
     {
+        if (artworkGeneration != Generation)
+        {
+            cards = null;
+            tripleTriad = null;
+            cardFaces.Clear();
+            artworkGeneration = Generation;
+        }
         return source.Kind switch
         {
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetCharacterPortrait(source.Id),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetGuardianForcePortrait(source.Id),
             UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).AngeloPortrait,
-            UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory)).GetFront(source.Id),
-            UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).GetElement((TripleTriadElement)source.Id),
+            UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory, resources)).GetFront(source.Id),
+            UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).GetElement((TripleTriadElement)source.Id),
             UiImageKind.CardFace => ReadCardFace(source.Id, source.Palette, fontFamily),
             UiImageKind.CardFaceGrayscale => ReadCardFace(source.Id, source.Palette, fontFamily, grayscale: true),
-            UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Back,
-            UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).Background,
-            UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory)).BoardBackground,
+            UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Back,
+            UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Background,
+            UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).BoardBackground,
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetIcon(source.Id, source.Palette),
             UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory)).Read(source.Id),
             UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory)).GetImage(source.Id),
@@ -77,7 +91,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
                 cardFaces.Add((cardId, owner, true), image);
                 return image;
             }
-            tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory);
+            tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources);
             cardDefinitions ??= TripleTriadCatalog.Load(gameDirectory);
             var card = cardDefinitions.Cards[cardId];
             PixelImage? element = card.Element == TripleTriadElement.None ? null : tripleTriad.GetElement(card.Element);

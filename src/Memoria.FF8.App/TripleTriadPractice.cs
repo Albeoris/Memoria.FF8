@@ -179,10 +179,11 @@ internal static class TripleTriadPractice
             Save();
             Console.WriteLine($"Triple Triad practice: {match.Outcome}, {match.PlayerScore}:{match.OpponentScore}, round {match.Round}.");
         }
+        using GameResourceHost? resourceHost = preview is not null || !autoPlay ? new GameResourceHost(gameDirectory) : null;
         if (preview is not null)
         {
             using Bitmap bitmap = new(960, 672, PixelFormat.Format32bppArgb);
-            using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
+            using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory, resourceHost?.Resources))
             {
                 UiView view = controller.BuildView();
                 view.Resize(960, 672);
@@ -204,7 +205,7 @@ internal static class TripleTriadPractice
                 }
                 controller.RestoreMatch(TripleTriadMatch.Restore(catalog.Cards, restored.Match));
                 randomState = restored.RandomState;
-            });
+            }, resourceHost);
             game.Run();
             Save();
         }
