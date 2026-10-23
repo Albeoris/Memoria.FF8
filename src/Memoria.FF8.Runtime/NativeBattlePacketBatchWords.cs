@@ -50,18 +50,42 @@ public static class NativeBattlePacketBatchWords
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(word * 4), primitive.Words[word]);
             }
-            for (int offset = 4; offset < bytes.Length; offset++)
+            for (int command = 4; command < bytes.Length;)
             {
-                bytes[offset] = attempt.WriteMask[offset] switch
+                // Resolve the opcode before deciding which fields its consumer reads.
+                byte opcode = ReadByte(command + 3);
+                bool polygon = (opcode & 0xE0) == 0x20;
+                int corners = (opcode & 8) != 0 ? 4 : 3;
+                bool gouraud = (opcode & 16) != 0;
+                bool textured = (opcode & 4) != 0;
+                int stride = (gouraud ? 1 : 0) + 1 + (textured ? 1 : 0);
+                int length = polygon ? 4 * (corners * stride + (gouraud ? 0 : 1)) : opcode == 0 || opcode is >= 0xE1 and <= 0xE6 ? 4 : bytes.Length - command;
+                if (length > bytes.Length - command)
                 {
-                    NativeBattleGfPacketByteState.Known => attempt.Data[offset],
-                    NativeBattleGfPacketByteState.Untouched => ReadObserved(address + offset),
-                    NativeBattleGfPacketByteState.Unknown => throw new NotSupportedException("Native command consumes an unobserved packet byte."),
-                    _ => throw new InvalidDataException("Native packet has an unsupported store mask.")
-                };
+                    throw new InvalidDataException("Native logical packet ends inside its polygon command.");
+                }
+                for (int offset = 0; offset < length; offset++)
+                {
+                    int word = offset / 4;
+                    bool colorPadding = polygon && gouraud && word > 0 && word % stride == 0 && offset % 4 == 3;
+                    int uv = word - 2;
+                    bool uvPadding = polygon && textured && uv >= 2 * stride && uv % stride == 0 && offset % 4 >= 2;
+                    // Logical words project consumed fields only. Ignored bytes are canonical;
+                    // ordered physical stores and their unknownness remain in the receipt.
+                    bytes[command + offset] = colorPadding || uvPadding ? (byte)0 : offset == 3 ? opcode : ReadByte(command + offset);
+                }
+                command += length;
             }
             ImmutableArray<uint> words = Enumerable.Range(0, primitive.Words.Length).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(word * 4))).ToImmutableArray();
             attempts[index] = attempt with { Primitive = primitive with { Words = words } };
+
+            byte ReadByte(int offset) => attempt.WriteMask[offset] switch
+            {
+                NativeBattleGfPacketByteState.Known => attempt.Data[offset],
+                NativeBattleGfPacketByteState.Untouched => ReadObserved(address + offset),
+                NativeBattleGfPacketByteState.Unknown => throw new NotSupportedException("Native command consumes an unobserved packet byte."),
+                _ => throw new InvalidDataException("Native packet has an unsupported store mask.")
+            };
         }
         return batch with { Attempts = attempts.ToImmutable() };
 
