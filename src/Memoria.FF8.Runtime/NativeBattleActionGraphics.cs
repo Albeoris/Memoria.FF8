@@ -290,6 +290,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleBoomerangSword304Resources? BoomerangSword304Resources { get; init; }
     public NativeBattleEffect303Resources? Effect303Resources { get; init; }
     public NativeBattleEffect283Resources? Effect283Resources { get; init; }
+    public NativeBattleEffect315Resources? Effect315Resources { get; init; }
     public NativeBattleEffect298Resources? Effect298Resources { get; init; }
     public NativeBattleMegaSpark279Resources? MegaSpark279Resources { get; init; }
     public NativeBattleResonance49Resources? Resonance49Resources { get; init; }

@@ -132,6 +132,10 @@ public sealed partial class BattleSession
                 {
                     graphics = completedBlaster;
                 }
+                else if (TryWriteNativeEffect315Completion(graphics, address, value, out NativeBattleGraphicsState completedEffect315))
+                {
+                    graphics = completedEffect315;
+                }
                 else if (TryWriteNativeCannonBlow151Completion(graphics, address, value, out NativeBattleGraphicsState completedCannon))
                 {
                     graphics = completedCannon;
