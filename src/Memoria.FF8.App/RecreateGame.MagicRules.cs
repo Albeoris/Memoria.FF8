@@ -68,6 +68,10 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        if (NewGameSettings.IsLocked(action.SubjectId, ReadCurrentUiPreferences().Difficulty))
+        {
+            throw new InvalidOperationException("Hardcore gameplay rules must remain enabled.");
+        }
         bool enabled = action.Value switch { "On" => true, "Off" => false, _ => throw new ArgumentException("Magic rules require On or Off.") };
         GameplayPreferences current = session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
         GameplayPreferences next = action.SubjectId switch
@@ -89,6 +93,34 @@ internal sealed partial class RecreateGame
         EnsureMagicRuleBoundary();
         MagicModePreview preview = session.PreviewGameplayPreferences(next);
         if (current.SharedMagicStock != next.SharedMagicStock)
+        {
+            gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview));
+        }
+        else
+        {
+            session.ApplyGameplayPreferences(preview);
+        }
+        return true;
+    }
+
+    private bool ApplyHardcoreMenuAction(MenuAction action)
+    {
+        if (action.Kind != "config" || action.SubjectId != "Difficulty" || action.Value != "Hardcore" || session.State.Scene == SceneKind.Title)
+        {
+            return false;
+        }
+        if (session.State.GameplayPreferences.Difficulty == BattleDifficulty.Hardcore)
+        {
+            throw new InvalidOperationException("Hardcore is permanent.");
+        }
+        if (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null)
+        {
+            throw new InvalidOperationException("Hardcore can be enabled only between battles.");
+        }
+        EnsureMagicRuleBoundary();
+        GameplayPreferences preferences = ((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { Difficulty = BattleDifficulty.Hardcore }).NormalizeForDifficulty();
+        MagicModePreview preview = session.PreviewGameplayPreferences(preferences);
+        if (preferences.SharedMagicStock != session.State.GameplayPreferences.SharedMagicStock)
         {
             gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview));
         }

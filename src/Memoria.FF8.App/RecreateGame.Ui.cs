@@ -128,6 +128,7 @@ internal sealed partial class RecreateGame
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         GameplayPreferences magicPreferences = session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+        magicPreferences = (magicPreferences with { Difficulty = ReadCurrentUiPreferences().Difficulty }).NormalizeForDifficulty();
         data.Settings["Shared magic stock"] = magicPreferences.SharedMagicStock ? "On" : "Off";
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
         data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
@@ -135,6 +136,9 @@ internal sealed partial class RecreateGame
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");
+        data.SupportedActions.UnionWith(["config:Weapon magazine required", "config:Weapon upgrade order"]);
+        data.Settings["Weapon magazine required"] = ReadCurrentUiPreferences().WeaponMagazineRequired ? "On" : "Off";
+        data.Settings["Weapon upgrade order"] = ReadCurrentUiPreferences().WeaponUpgradeOrder ? "On" : "Off";
         data.Settings["Card Mod once"] = ReadCurrentUiPreferences().CardModOnce ? "On" : "Off";
         data.SupportedActions.Add("config:Card Mod once");
         data.Settings["Draw once per spell"] = ReadCurrentUiPreferences().DrawOncePerSpell ? "On" : "Off";
@@ -223,6 +227,10 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (ApplyHardcoreMenuAction(action))
+        {
+            return;
+        }
         if (ApplyMagicRulesMenuAction(action))
         {
             return;
@@ -391,7 +399,7 @@ internal sealed partial class RecreateGame
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
         GameplayPreferences gameplay = session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
-        return current with { CardModOnce = session.State.Scene == SceneKind.Title ? uiPreferences.CardModOnce : gameplay.CardModOnce, LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
+        return current with { WeaponMagazineRequired = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponMagazineRequired : gameplay.WeaponMagazineRequired, WeaponUpgradeOrder = session.State.Scene == SceneKind.Title ? uiPreferences.WeaponUpgradeOrder : gameplay.WeaponUpgradeOrder, CardModOnce = session.State.Scene == SceneKind.Title ? uiPreferences.CardModOnce : gameplay.CardModOnce, LimitOncePerTurn = session.State.Scene == SceneKind.Title ? uiPreferences.LimitOncePerTurn : gameplay.LimitOncePerTurn, DrawOncePerSpell = session.State.Scene == SceneKind.Title ? uiPreferences.DrawOncePerSpell : gameplay.DrawOncePerSpell, Difficulty = session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : gameplay.Difficulty, AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : gameplay.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : gameplay.GunbladeMode, GuardianFormsEnabled = session.State.Scene == SceneKind.Title ? uiPreferences.GuardianFormsEnabled : gameplay.GuardianFormsEnabled };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -420,10 +428,10 @@ internal sealed partial class RecreateGame
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
         }
-        if (session.State.Scene != SceneKind.Title && key is "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
+        if (session.State.Scene != SceneKind.Title && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "GF Transformations")
         {
             world ??= CreateWorld();
-            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { CardModOnce = preferences.CardModOnce, LimitOncePerTurn = preferences.LimitOncePerTurn, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
+            world.ConfigureGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { WeaponMagazineRequired = preferences.WeaponMagazineRequired, WeaponUpgradeOrder = preferences.WeaponUpgradeOrder, CardModOnce = preferences.CardModOnce, LimitOncePerTurn = preferences.LimitOncePerTurn, DrawOncePerSpell = preferences.DrawOncePerSpell, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, GuardianFormsEnabled = preferences.GuardianFormsEnabled });
         }
         if (key == "Difficulty" && debugBattle is not null)
         {

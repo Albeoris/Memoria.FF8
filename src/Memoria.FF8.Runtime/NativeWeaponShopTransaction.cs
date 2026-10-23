@@ -5,8 +5,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeWeaponShopTransaction([property: JsonRequired] int RawArgument, [property: JsonRequired] NativeWeaponShopDefinitions Definitions, [property: JsonRequired] string InitOutSha256, [property: JsonRequired] ImmutableArray<byte> Counts, [property: JsonRequired] uint Gil, [property: JsonRequired] bool Past, [property: JsonRequired] byte EligibleMask, [property: JsonRequired] int SelectedCharacter, [property: JsonRequired] ushort RemodelRate, [property: JsonRequired] ImmutableArray<byte> AvailableRecipes)
 {
-    public static (NativeCharacterVitals Vitals, NativeEconomy Economy, NativeWeaponShopTransaction Shop, NativeWeaponRecipes Recipes) Begin(int rawArgument, NativeWeaponShopDefinitions definitions, NativeEconomy economy, NativeCharacterVitals vitals, NativeWeaponRecipes recipes)
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WeaponMagazineRequired { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WeaponUpgradeOrder { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint ObtainedWeaponsBits { get; init; }
+
+    public static (NativeCharacterVitals Vitals, NativeEconomy Economy, NativeWeaponShopTransaction Shop, NativeWeaponRecipes Recipes) Begin(int rawArgument, NativeWeaponShopDefinitions definitions, NativeEconomy economy, NativeCharacterVitals vitals, NativeWeaponRecipes recipes, GameplayPreferences? preferences = null)
     {
+        preferences ??= new GameplayPreferences();
+        preferences.Validate();
         definitions.Validate();
         economy.Validate();
         vitals.Validate();
@@ -15,6 +26,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         {
             throw new NotSupportedException("Native weapon shop requires its actual argument mapping and matching original saved/stat inputs.");
         }
+        recipes = recipes.RecordEquippedWeapons(vitals);
         NativeEconomy normalized = NativeShopTransaction.NormalizeInventory(economy);
         NativeCharacterVitals prepared = vitals.DeepCopy();
         for (int weapon = 0; weapon < 30; weapon++)
@@ -35,7 +47,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
                     continue;
                 }
                 uint bit = 1u << weapon;
-                if ((known & bit) != 0 || CanRemodel(recipe, counts, gil))
+                if ((known & bit) != 0 || !preferences.WeaponMagazineRequired && CanRemodel(recipe, counts, gil))
                 {
                     known |= bit;
                     eligible |= (byte)(1 << recipe.Character);
@@ -55,7 +67,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
                 }
                 uint bit = 1u << weapon;
                 byte flags = (known & bit) != 0 ? (byte)0x40 : (byte)0;
-                if (CanRemodel(recipe, counts, gil))
+                if ((!preferences.WeaponMagazineRequired || (known & bit) != 0) && (!preferences.WeaponUpgradeOrder || HasPreviousWeapon(definitions, weapon, recipes)) && CanRemodel(recipe, counts, gil))
                 {
                     known |= bit;
                     flags |= 0x80;
@@ -76,9 +88,41 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
                 prepared = prepared.PreviewWeaponShopRow(character, prepared.Records[character].Weapon);
             }
         }
-        NativeWeaponShopTransaction shop = new(rawArgument, definitions, prepared.InitOutSha256, counts, gil, prepared.DreamEnabled, eligible, selected, rate, available.ToImmutable());
+        NativeWeaponShopTransaction shop = new(rawArgument, definitions, prepared.InitOutSha256, counts, gil, prepared.DreamEnabled, eligible, selected, rate, available.ToImmutable())
+        {
+            WeaponMagazineRequired = preferences.WeaponMagazineRequired,
+            WeaponUpgradeOrder = preferences.WeaponUpgradeOrder,
+            ObtainedWeaponsBits = recipes.ObtainedWeaponsBits
+        };
         shop.Validate();
         return (prepared, normalized, shop, recipes with { Bits = known });
+    }
+
+    private static bool HasPreviousWeapon(NativeWeaponShopDefinitions definitions, int recipeId, NativeWeaponRecipes recipes)
+    {
+        byte character = definitions.Recipes[recipeId].Character;
+        for (int prior = recipeId - 1; prior >= 0; prior--)
+        {
+            if (definitions.Recipes[prior].Character == character)
+            {
+                return (recipes.ObtainedWeaponsBits & 1u << prior) != 0;
+            }
+        }
+        return true;
+    }
+
+    public bool MissingPreviousUpgrade(int recipeId)
+    {
+        if ((uint)recipeId >= 28)
+        {
+            throw new ArgumentOutOfRangeException(nameof(recipeId));
+        }
+        return WeaponUpgradeOrder && !HasPreviousWeapon(Definitions, recipeId, new NativeWeaponRecipes(InitOutSha256, 0) { ObtainedWeaponsBits = ObtainedWeaponsBits });
+    }
+
+    private bool CanUseRecipe(int recipeId, NativeWeaponRecipes recipes)
+    {
+        return (!WeaponMagazineRequired || (recipes.Bits & 1u << recipeId) != 0) && (!WeaponUpgradeOrder || HasPreviousWeapon(Definitions, recipeId, recipes));
     }
 
     private static bool CanRemodel(NativeWeaponRecipe recipe, ImmutableArray<byte> counts, uint gil)
@@ -128,17 +172,20 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
             }
             uint bit = 1u << weapon;
             byte flags = (known & bit) != 0 ? (byte)0x40 : (byte)0;
-            if (CanRemodel(recipe, Counts, Gil))
+            if ((!WeaponMagazineRequired || (known & bit) != 0) && CanRemodel(recipe, Counts, Gil))
             {
                 known |= bit;
-                flags |= 0x80;
+                if (!WeaponUpgradeOrder || HasPreviousWeapon(Definitions, weapon, recipes))
+                {
+                    flags |= 0x80;
+                }
             }
             if (flags != 0)
             {
                 offers.Add((byte)(flags | weapon));
             }
         }
-        return (this with { SelectedCharacter = character, AvailableRecipes = offers.ToImmutable() }, recipes with { Bits = known });
+        return (this with { SelectedCharacter = character, AvailableRecipes = offers.ToImmutable(), ObtainedWeaponsBits = recipes.ObtainedWeaponsBits }, recipes with { Bits = known });
     }
 
     /// <summary>4EAE46/68/8D debit local gil/materials and immediately equip the selected recipe.</summary>
@@ -152,7 +199,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
             throw new InvalidDataException("Weapon remodeling changed its actual saved inputs.");
         }
         accepted = false;
-        if ((uint)recipeId >= 28 || Past || Definitions.Recipes[recipeId].Character != SelectedCharacter || vitals.Records[SelectedCharacter].Weapon == recipeId || !AvailableRecipes.Any(offer => (offer & 0x3F) == recipeId && (offer & 0x80) != 0) || !CanRemodel(Definitions.Recipes[recipeId], Counts, Gil))
+        if ((uint)recipeId >= 28 || Past || Definitions.Recipes[recipeId].Character != SelectedCharacter || vitals.Records[SelectedCharacter].Weapon == recipeId || !AvailableRecipes.Any(offer => (offer & 0x3F) == recipeId && (offer & 0x80) != 0) || !CanUseRecipe(recipeId, recipes) || !CanRemodel(Definitions.Recipes[recipeId], Counts, Gil))
         {
             return (this, vitals, recipes);
         }
@@ -167,6 +214,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         NativeCharacterVitals equipped = vitals.DeepCopy();
         equipped.Records[SelectedCharacter] = equipped.Records[SelectedCharacter] with { Weapon = (byte)recipeId };
         NativeWeaponShopTransaction charged = this with { Counts = counts.ToImmutable(), Gil = Gil - Price(recipeId) };
+        recipes = recipes with { ObtainedWeaponsBits = recipes.ObtainedWeaponsBits | 1u << recipeId };
         var refreshed = charged.SelectCharacter(SelectedCharacter, recipes);
         accepted = true;
         return (refreshed.Shop, equipped, refreshed.Recipes);
@@ -174,7 +222,7 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
 
     public void Validate()
     {
-        if (Definitions is null || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)) || Counts.IsDefault || Counts.Length != 200 || AvailableRecipes.IsDefault || (EligibleMask & ~0x3F) != 0 || SelectedCharacter < -1 || SelectedCharacter >= 6 || (SelectedCharacter == -1) != (EligibleMask == 0) || SelectedCharacter >= 0 && (EligibleMask & 1 << SelectedCharacter) == 0 || RemodelRate is not (750 or 1000))
+        if ((ObtainedWeaponsBits & 0xF0000000u) != 0 || Definitions is null || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)) || Counts.IsDefault || Counts.Length != 200 || AvailableRecipes.IsDefault || (EligibleMask & ~0x3F) != 0 || SelectedCharacter < -1 || SelectedCharacter >= 6 || (SelectedCharacter == -1) != (EligibleMask == 0) || SelectedCharacter >= 0 && (EligibleMask & 1 << SelectedCharacter) == 0 || RemodelRate is not (750 or 1000))
         {
             throw new InvalidDataException("Native weapon shop lost its actual constructor/cache/selection inputs.");
         }

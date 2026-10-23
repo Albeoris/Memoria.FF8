@@ -7,6 +7,10 @@ internal sealed partial class GameWorld
     public void ConfigureGameplayPreferences(GameplayPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(preferences);
+        if (session.State.GameplayPreferences.Difficulty != BattleDifficulty.Hardcore)
+        {
+            preferences = preferences.NormalizeForDifficulty();
+        }
         if (battle is not null && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");

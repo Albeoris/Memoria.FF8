@@ -2,7 +2,7 @@
 
 Memoria saves its current state as a standalone snapshot. Player saves use a compact compressed format and retain their `.json` filenames; the loader detects the format and also reads older plain JSON snapshots. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
 
-Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** requires a Memoria destination because original FF8 save files cannot retain this choice.
+Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** require a Memoria destination because original FF8 save files cannot retain this choice.
 
 ## Player saves
 
@@ -87,3 +87,13 @@ When enabled, Card Mod produces one normal recipe batch per unique card ID durin
 Successful conversions are recorded permanently in that save, including conversions while the option is Off. Disabling and re-enabling the option, losing a card or acquiring it again never clears its history. While Off, ordinary Card Mod consumes cards and may repeat as usual. A new game starts with an empty history. Existing saves without this history start empty; past conversions cannot be reconstructed.
 
 The enabled option or any recorded conversion requires a Memoria save slot. Original FF8 save files cannot preserve this history, so exporting to them is refused even after the option is disabled.
+
+## Weapon upgrade restrictions
+
+**Weapon magazine required** and **Weapon upgrade order** default to **Off**. Enable either before **Begin** in New Game or under **Config → Gameplay → Exploration and saving**. The choices are stored in each game; Title sets defaults for future games. Hardcore enables and locks both.
+
+The magazine restriction uses the same saved known-recipe flag that normally makes a weapon visible without enough materials. While enabled, materials alone cannot discover or unlock a recipe. Recipes already discovered before enabling the restriction remain known.
+
+The upgrade-order restriction requires the previous weapon in the character's recipe sequence to have been obtained. This sequence comes from the recipe data. Equipped weapons and successful remodels are remembered even while the restriction is off; changing weapons or toggling the mode does not erase that history. Existing saves without history start with their currently equipped weapons when entering a workshop; earlier ownership cannot be recovered.
+
+Both settings and retained weapon history require a Memoria save. Original FF8 saves cannot preserve them.

@@ -61,6 +61,25 @@ public sealed class BattleDifficultyTests
         Assert.Equal(JsonSerializer.Serialize(normal.Capture().Random), JsonSerializer.Serialize(hard.Capture().Random));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Hardcore_keeps_hard_enemy_magic_damage_and_cannot_be_downgraded(bool native)
+    {
+        BattleSession hard = Create(false, true, native);
+        BattleSession hardcore = Create(false, true, native);
+        hard.SetDifficulty(BattleDifficulty.Hard);
+        hardcore.SetDifficulty(BattleDifficulty.Hardcore);
+        hard.QueueAction("caster", "target", BattleAbility.Magic, 1);
+        hardcore.QueueAction("caster", "target", BattleAbility.Magic, 1);
+        Complete(hard);
+        Complete(hardcore);
+        Assert.Equal(Assert.Single(hard.Events, item => item.Kind == "Damage").Amount, Assert.Single(hardcore.Events, item => item.Kind == "Damage").Amount);
+        BattleSession restored = RoundTrip(hardcore);
+        Assert.Equal(BattleDifficulty.Hardcore, restored.Difficulty);
+        Assert.Throws<InvalidOperationException>(() => restored.SetDifficulty(BattleDifficulty.Hard));
+    }
+
     private static BattleSession Create(bool casterPlayer, bool targetPlayer, bool native)
     {
         BattleNativeAction magic = new(2, 1, 1, 1)

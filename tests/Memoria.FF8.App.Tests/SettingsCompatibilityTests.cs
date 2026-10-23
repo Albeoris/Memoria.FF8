@@ -39,14 +39,14 @@ public sealed class SettingsCompatibilityTests
     }
 
     [Fact]
-    public void New_game_projection_keeps_the_frozen_order_and_only_begin_starts()
+    public void New_game_projection_uses_shared_metadata_and_only_begin_starts()
     {
         MenuData data = new();
         data.SupportedActions.UnionWith(["config", "new-game-start"]);
         List<MenuAction> actions = [];
         MenuController menus = new(() => data, actions.Add);
         menus.Open("new-game-options");
-        Assert.Equal(["Difficulty", "Battle ATB mode", "Limit once per turn", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations", "Rare card markers", "begin"], menus.Entries.Select(entry => entry.Id));
+        Assert.Equal(NewGameSettings.Ids.Concat(["begin"]), menus.Entries.Select(entry => entry.Id));
         UiChoiceRow atb = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiChoiceRow>(), row => row.Id == "Battle ATB mode");
         Assert.Equal("ATB mode", atb.Text);
         menus.SelectEntry("new-game-options", "Rare card markers");

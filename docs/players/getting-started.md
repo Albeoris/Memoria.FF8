@@ -68,8 +68,9 @@ Choose **Difficulty** before pressing **Begin** in New Game, or change it later 
 
 - **Normal** preserves reduced enemy magic damage and hidden random idle turns.
 - **Hard** removes the enemy magic damage reduction and hidden random idle turns. Explicit scripted do-not-attack actions and state-dependent waits remain.
+- **Hardcore** includes the Hard rules and permanently enables all optional New Game rules for that game. These rules and the difficulty selector are locked. ATB mode and rare-card markers remain editable; choosing Hardcore leaves their current choices unchanged. New optional New Game rules are included automatically.
 
-Both difficulties use the same initial ATB calculation for party members and enemies, including each participant's current Speed. Status restrictions and equipped initiative abilities still apply. Hard requires a Memoria save slot so the choice survives loading.
+All difficulties use the same initial ATB calculation for party members and enemies, including each participant's current Speed. Status restrictions and equipped initiative abilities still apply. Hard and Hardcore require a Memoria save slot so the choice survives loading.
 
 ## If startup fails
 

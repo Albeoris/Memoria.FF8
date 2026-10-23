@@ -71,6 +71,8 @@ public sealed partial class MenuController
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
             "Limit once per turn" => preferences.LimitOncePerTurn ? "On" : "Off",
             "Card Mod once" => preferences.CardModOnce ? "On" : "Off",
+            "Weapon magazine required" => preferences.WeaponMagazineRequired ? "On" : "Off",
+            "Weapon upgrade order" => preferences.WeaponUpgradeOrder ? "On" : "Off",
             "Draw once per spell" => preferences.DrawOncePerSpell ? "On" : "Off",
             "Difficulty" => preferences.Difficulty.ToString(),
             "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",

@@ -8,6 +8,18 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeWeaponShopUiTests
 {
+    [Fact]
+    public void Known_recipe_explains_missing_previous_upgrade_and_cannot_be_selected()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes();
+        recipes = recipes with { Bits = recipes.Bits | 1u << 2 };
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), assets.ReadNewGameCharacterVitals(), recipes, new() { WeaponUpgradeOrder = true });
+        MenuData data = NativeWeaponShopMenuProjection.Build(prepared.Shop, prepared.Vitals);
+        Assert.Contains("Previous weapon upgrade not obtained", Assert.Single(data.Items, item => item.Id == "weapon-2").Description);
+        Assert.DoesNotContain("weapon-remodel:weapon-2", data.SupportedActions);
+    }
+
     [Theory]
     [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, -1)]
     [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, 6)]

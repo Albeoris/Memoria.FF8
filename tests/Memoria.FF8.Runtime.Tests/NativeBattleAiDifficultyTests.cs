@@ -4,6 +4,23 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAiDifficultyTests
 {
+    [Fact]
+    public void Hardcore_keeps_hard_random_idle_suppression_and_explicit_do_not_attack()
+    {
+        foreach (byte[] script in new byte[][] { [2, 2, 3, 0, 0, 0, 1, 0, 0, 15, 96, 7, 0], [11, 0, 253, 0, 0] })
+        {
+            for (byte seed = 0; seed < 24; seed++)
+            {
+                BattleSession hard = Create(script, BattleDifficulty.Hard, seed);
+                BattleSession hardcore = Create(script, BattleDifficulty.Hardcore, seed);
+                hard.Tick();
+                hardcore.Tick();
+                Assert.Equal(hard.Capture().NativeAiVariables, hardcore.Capture().NativeAiVariables);
+                Assert.Equal(hard.QueuedActions.Count, hardcore.QueuedActions.Count);
+                AssertRandomEqual(hard.Capture().Random!, hardcore.Capture().Random!);
+            }
+        }
+    }
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

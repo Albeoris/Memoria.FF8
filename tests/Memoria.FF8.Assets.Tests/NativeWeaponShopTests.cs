@@ -176,4 +176,96 @@ public sealed class NativeWeaponShopTests
         Assert.Equal(before, JsonSerializer.Serialize(original));
         Assert.Throws<NotSupportedException>(() => NativeWeaponShopTransaction.Begin(0, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes()));
     }
+
+    [Theory]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, false)]
+    public void OptionalRulesCombineExistingRecipeKnowledgeWithPreviousOwnership(bool magazine, bool order, bool known, bool expected)
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = EconomyWithMaterials(assets, definitions, 2);
+        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes() with { Bits = known ? 1u << 2 : 0u };
+        GameplayPreferences preferences = new() { WeaponMagazineRequired = magazine, WeaponUpgradeOrder = order };
+        var prepared = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), recipes, preferences);
+        Assert.Equal(expected, prepared.Shop.AvailableRecipes.Any(offer => (offer & 0x3F) == 2 && (offer & 0x80) != 0));
+        Assert.Equal(order, prepared.Shop.MissingPreviousUpgrade(2));
+        Assert.Equal(known || !magazine, (prepared.Recipes.Bits & 1u << 2) != 0);
+        NativeWeaponShopTransaction forged = prepared.Shop with { SelectedCharacter = 0, EligibleMask = 1, AvailableRecipes = [(byte)0xC2] };
+        forged.Remodel(2, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.Equal(expected, accepted);
+    }
+
+    [Fact]
+    public void DisabledRulesStillRecordObtainedWeaponsAcrossDowngradeAndSerialization()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = EconomyWithMaterials(assets, definitions, 0, 1, 2);
+        var prepared = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes());
+        var upgraded = prepared.Shop.Remodel(1, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.True(accepted);
+        var downgraded = upgraded.Shop.Remodel(0, upgraded.Vitals, upgraded.Recipes, out accepted);
+        Assert.True(accepted);
+        Assert.Equal(0, downgraded.Vitals.Records[0].Weapon);
+        NativeWeaponRecipes recipes = JsonSerializer.Deserialize<NativeWeaponRecipes>(JsonSerializer.Serialize(downgraded.Recipes))!;
+        Assert.Equal(3u, recipes.ObtainedWeaponsBits & 3u);
+        var strict = NativeWeaponShopTransaction.Begin(34, definitions, downgraded.Shop.Commit(economy), downgraded.Vitals, recipes, new GameplayPreferences { WeaponUpgradeOrder = true, WeaponMagazineRequired = true });
+        NativeWeaponShopTransaction restored = JsonSerializer.Deserialize<NativeWeaponShopTransaction>(JsonSerializer.Serialize(strict.Shop))!;
+        Assert.True(restored.WeaponUpgradeOrder);
+        Assert.True(restored.WeaponMagazineRequired);
+        Assert.False(restored.MissingPreviousUpgrade(2));
+        restored.Remodel(2, strict.Vitals, strict.Recipes, out accepted);
+        Assert.True(accepted);
+    }
+
+    [Fact]
+    public void LegacyRecipeStateDefaultsHistoryAndLearnsOnlyEquippedWeapons()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeWeaponRecipes original = assets.ReadNewGameWeaponRecipes();
+        string legacy = $$"""{"InitOutSha256":"{{original.InitOutSha256}}","Bits":{{original.Bits}}}""";
+        NativeWeaponRecipes recipes = JsonSerializer.Deserialize<NativeWeaponRecipes>(legacy)!;
+        Assert.Equal(0u, recipes.ObtainedWeaponsBits);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.Records[0] = vitals.Records[0] with { Weapon = 1 };
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), vitals, recipes, new GameplayPreferences { WeaponUpgradeOrder = true });
+        Assert.NotEqual(0u, prepared.Recipes.ObtainedWeaponsBits & 2u);
+        Assert.Equal(0u, prepared.Recipes.ObtainedWeaponsBits & 4u);
+        Assert.False(prepared.Shop.MissingPreviousUpgrade(2));
+    }
+
+    [Fact]
+    public void MagazineRuleRetainsExistingAffordabilityDiscoveryAndPreventsNewDiscovery()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = EconomyWithMaterials(assets, definitions, 1);
+        NativeWeaponRecipes original = assets.ReadNewGameWeaponRecipes();
+        var discovered = NativeWeaponShopTransaction.Begin(34, definitions, economy, assets.ReadNewGameCharacterVitals(), original);
+        var strict = NativeWeaponShopTransaction.Begin(34, definitions, economy, discovered.Vitals, discovered.Recipes, new GameplayPreferences { WeaponMagazineRequired = true });
+        Assert.Contains((byte)0xC1, strict.Shop.AvailableRecipes);
+        var unread = NativeWeaponShopTransaction.Begin(34, definitions, economy, discovered.Vitals, original, new GameplayPreferences { WeaponMagazineRequired = true });
+        Assert.DoesNotContain(unread.Shop.AvailableRecipes, offer => (offer & 0x3F) == 1);
+        Assert.Equal(0u, unread.Recipes.Bits & 2u);
+    }
+
+    private static NativeEconomy EconomyWithMaterials(GameAssets assets, NativeWeaponShopDefinitions definitions, params int[] recipeIds)
+    {
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy() with { Gil = 100000 };
+        byte[] items = recipeIds.SelectMany(id => definitions.Recipes[id].Materials).Where(material => material.ItemId != 0).Select(material => material.ItemId).Distinct().ToArray();
+        Array.Fill(economy.Items, new NativeItemStock(0, 0));
+        for (int slot = 0; slot < items.Length; slot++)
+        {
+            economy.Items[slot] = new NativeItemStock(items[slot], 100);
+        }
+        return economy;
+    }
+
 }

@@ -8,6 +8,39 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativePcSaveConverterTests
 {
     [Theory]
+    [InlineData(true, false, 0u)]
+    [InlineData(false, true, 0u)]
+    [InlineData(false, false, 1u)]
+    public void Original_export_rejects_weapon_rules_and_retained_history(bool magazine, bool order, uint history)
+    {
+        GameState source = Defaults();
+        source = source with
+        {
+            GameplayPreferences = new() { WeaponMagazineRequired = magazine, WeaponUpgradeOrder = order },
+            WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 0) { ObtainedWeaponsBits = history }
+        };
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(source));
+    }
+
+    [Fact]
+    public void Original_import_does_not_inherit_hardcore_or_weapon_history_from_defaults()
+    {
+        GameState source = Defaults();
+        byte[] original = NativePcSaveConverter.Export(source);
+        GameState defaults = source with
+        {
+            GameplayPreferences = new GameplayPreferences { Difficulty = BattleDifficulty.Hardcore }.NormalizeForDifficulty(),
+            WeaponRecipes = new NativeWeaponRecipes(source.CharacterVitals!.InitOutSha256, 0) { ObtainedWeaponsBits = 0xFF }
+        };
+        GameState imported = NativePcSaveConverter.Import(original, defaults, _ => "fixture");
+        Assert.Equal(BattleDifficulty.Normal, imported.GameplayPreferences.Difficulty);
+        Assert.False(imported.GameplayPreferences.WeaponMagazineRequired);
+        Assert.False(imported.GameplayPreferences.WeaponUpgradeOrder);
+        Assert.Equal(0u, imported.WeaponRecipes!.ObtainedWeaponsBits);
+        imported.GameplayPreferences.Validate();
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Original_export_rejects_card_history_even_when_mode_is_off(bool enabled)

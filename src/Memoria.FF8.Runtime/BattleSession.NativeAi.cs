@@ -96,7 +96,7 @@ public sealed partial class BattleSession
                         int skip = ReadAiWord(code, ref pc);
                         bool passed = EvaluateNativeAiCondition(actor, subject, selector, comparison, value);
                         int falsePc = checked(pc + skip);
-                        if (callback == 1 && Difficulty == BattleDifficulty.Hard && subject == 2)
+                        if (callback == 1 && Difficulty >= BattleDifficulty.Hard && subject == 2)
                         {
                             // Only side-effect-free random exits are omitted; state guards and reaction callbacks retain their authored control flow.
                             bool trueReturns = NativeAiPathOnlyReturns(code, pc);

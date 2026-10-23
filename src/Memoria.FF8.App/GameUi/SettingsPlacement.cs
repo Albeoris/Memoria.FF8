@@ -40,7 +40,7 @@ internal static class SettingsPlacement
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations"]),
         ["config-exploration"] = new("Exploration and saving", "Exploration: encounter rules and rare-card markers. Saving: rotating quick-save retention.",
-            ["Random encounters", "Rare card markers", "Card Mod once", "Quick saves"])
+            ["Random encounters", "Rare card markers", "Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
     };
 
     internal static readonly IReadOnlyList<SettingPlacement> All = Create();
@@ -63,6 +63,8 @@ internal static class SettingsPlacement
             ["ATB"] = "native-atb",
             ["Limit once per turn"] = "limit-once-per-turn",
             ["Card Mod once"] = "card-mod-once",
+            ["Weapon magazine required"] = "weapon-magazine-required",
+            ["Weapon upgrade order"] = "weapon-upgrade-order",
             ["Draw once per spell"] = "draw-once-per-spell",
             ["Difficulty"] = "difficulty",
             ["Battle ATB mode"] = "atb-mode",
@@ -113,7 +115,7 @@ internal static class SettingsPlacement
             string scope = setting.Id switch
             {
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => "Game / Title session",
-                "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
+                "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
             string target = setting.Id switch
@@ -129,6 +131,8 @@ internal static class SettingsPlacement
                 "Cursor" => "UiPreferences.CursorMemory",
                 "Limit once per turn" => "GameplayPreferences.LimitOncePerTurn",
                 "Card Mod once" => "GameplayPreferences.CardModOnce",
+                "Weapon magazine required" => "GameplayPreferences.WeaponMagazineRequired",
+                "Weapon upgrade order" => "GameplayPreferences.WeaponUpgradeOrder",
                 "Draw once per spell" => "GameplayPreferences.DrawOncePerSpell",
                 "Difficulty" => "GameplayPreferences.Difficulty",
                 "Battle ATB mode" => "GameplayPreferences.AtbMode",

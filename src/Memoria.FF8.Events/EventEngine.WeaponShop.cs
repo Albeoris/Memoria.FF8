@@ -19,7 +19,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native weapon shop cannot publish its genuine recipe discovery owner.");
         }
-        return NativeWeaponShopTransaction.Begin(raw, definitions, services.Economy!, services.CharacterVitals!, recipes);
+        return NativeWeaponShopTransaction.Begin(raw, definitions, services.Economy!, services.CharacterVitals!, recipes, services.GameplayPreferences);
     }
 
     private bool CloseNativeWeaponShop()

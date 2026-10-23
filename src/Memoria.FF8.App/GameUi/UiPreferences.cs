@@ -62,6 +62,8 @@ internal sealed record UiPreferences
     public bool LimitOncePerTurn { get; init; }
     public bool DrawOncePerSpell { get; init; }
     public bool CardModOnce { get; init; }
+    public bool WeaponMagazineRequired { get; init; }
+    public bool WeaponUpgradeOrder { get; init; }
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
@@ -100,12 +102,17 @@ internal sealed record UiPreferences
                 _ => preferences.FieldFps
             }
         };
+        preferences = NewGameSettings.Normalize(preferences);
         preferences.Validate();
         return preferences;
     }
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (NewGameSettings.IsLocked(key, Difficulty))
+        {
+            throw new InvalidOperationException("Hardcore is permanent and its gameplay rules cannot be changed.");
+        }
         if (key == "UI presentation")
         {
             return value switch
@@ -240,6 +247,24 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Limit once per turn requires On or Off.")
             };
         }
+        if (key == "Weapon magazine required")
+        {
+            return value switch
+            {
+                "On" => this with { WeaponMagazineRequired = true },
+                "Off" => this with { WeaponMagazineRequired = false },
+                _ => throw new ArgumentException("Weapon magazine required requires On or Off.")
+            };
+        }
+        if (key == "Weapon upgrade order")
+        {
+            return value switch
+            {
+                "On" => this with { WeaponUpgradeOrder = true },
+                "Off" => this with { WeaponUpgradeOrder = false },
+                _ => throw new ArgumentException("Weapon upgrade order requires On or Off.")
+            };
+        }
         if (key == "Card Mod once")
         {
             return value switch
@@ -264,7 +289,8 @@ internal sealed record UiPreferences
             {
                 "Normal" => this with { Difficulty = BattleDifficulty.Normal },
                 "Hard" => this with { Difficulty = BattleDifficulty.Hard },
-                _ => throw new ArgumentException("Difficulty requires Normal or Hard.")
+                "Hardcore" => NewGameSettings.Normalize(this with { Difficulty = BattleDifficulty.Hardcore }),
+                _ => throw new ArgumentException("Difficulty requires Normal, Hard or Hardcore.")
             };
         }
         if (key == "Battle ATB mode")
@@ -310,7 +336,7 @@ internal sealed record UiPreferences
 
     public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
     {
-        if (activeGame && key is "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
+        if (activeGame && key is "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters" or "GF Transformations")
         {
             return this;
         }

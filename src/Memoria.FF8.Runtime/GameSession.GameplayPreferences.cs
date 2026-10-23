@@ -7,6 +7,7 @@ public sealed partial class GameSession
 {
     public MagicModePreview PreviewGameplayPreferences(GameplayPreferences preferences)
     {
+        preferences = PrepareGameplayPreferences(preferences);
         if (State.CharacterVitals is null)
         {
             throw new InvalidOperationException("Magic mode migration requires an initialized party.");
@@ -17,7 +18,7 @@ public sealed partial class GameSession
     public void SetGameplayPreferences(GameplayPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(preferences);
-        preferences.Validate();
+        preferences = PrepareGameplayPreferences(preferences);
         RequireBattleGameplayPreferenceBoundary(preferences);
         if (State.Battle is not null || State.PendingBattleEncounter is not null)
         {
@@ -35,6 +36,8 @@ public sealed partial class GameSession
     public void ApplyGameplayPreferences(MagicModePreview preview)
     {
         ArgumentNullException.ThrowIfNull(preview);
+        _ = PrepareGameplayPreferences(preview.Preferences);
+        preview.Preferences.Validate();
         RequireBattleGameplayPreferenceBoundary(preview.Preferences);
         if (State.Battle is not null || State.PendingBattleEncounter is not null)
         {
@@ -79,6 +82,21 @@ public sealed partial class GameSession
     public void CancelPendingGameplayPreferences()
     {
         State = State with { PendingGameplayPreferences = null, PendingMagicModeReview = false };
+    }
+
+    private GameplayPreferences PrepareGameplayPreferences(GameplayPreferences preferences)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        if (State.GameplayPreferences.Difficulty == BattleDifficulty.Hardcore || State.PendingGameplayPreferences?.Difficulty == BattleDifficulty.Hardcore)
+        {
+            if (preferences.Difficulty != BattleDifficulty.Hardcore || GameplayPreferences.NewGameOptions.Any(option => !option.IsEnabled(preferences)))
+            {
+                throw new InvalidOperationException("Hardcore cannot be disabled and its gameplay rules must remain enabled.");
+            }
+        }
+        preferences = preferences.NormalizeForDifficulty();
+        preferences.Validate();
+        return preferences;
     }
 
     private void RequireBattleGameplayPreferenceBoundary(GameplayPreferences preferences)

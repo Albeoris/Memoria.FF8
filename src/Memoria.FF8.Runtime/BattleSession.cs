@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 /// <summary>
 /// Playable battle owner with original formation/AI contracts and declared scaffold
@@ -137,6 +137,10 @@ public sealed partial class BattleSession
         if (!Enum.IsDefined(difficulty))
         {
             throw new ArgumentOutOfRangeException(nameof(difficulty));
+        }
+        if (Difficulty == BattleDifficulty.Hardcore && difficulty != BattleDifficulty.Hardcore)
+        {
+            throw new InvalidOperationException("Hardcore difficulty cannot be disabled.");
         }
         Difficulty = difficulty;
     }
