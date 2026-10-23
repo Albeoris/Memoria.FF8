@@ -500,6 +500,10 @@ internal sealed partial class RecreateGame
             NativeBattleScanTextFrame text = scan.Text.ReadFrame(services.Flags942);
             NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224)), new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), active.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
         }
+        if (active.NativeExamTimer is { DisplayEnabled: true } timer)
+        {
+            DrawTimerUi(bounds, timer);
+        }
     }
 
     private void DrawBattleDebugUi(Rectangle bounds)
