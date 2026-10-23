@@ -2,11 +2,39 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleHudNativeLimitTests
 {
+    [Fact]
+    public void Limit_arrow_uses_native_artwork_and_blinks_without_advancing_battle_or_rerolling()
+    {
+        BattleSession battle = Create();
+        BattleHudController hud = Hud(battle);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        BattleUiTests.TestCanvas first = new();
+        view.Draw(first, new UiTheme());
+        var arrow = Assert.Single(first.Images, image => image.Source.Id == 6);
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 5), arrow.Source);
+        Assert.DoesNotContain(first.Texts, text => text.Contains('>'));
+        Assert.Equal("Attack", hud.ChoiceLabels[0]);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / BattleSession.FramesPerSecond));
+        BattleUiTests.TestCanvas next = new();
+        view.Draw(next, new UiTheme());
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 0), Assert.Single(next.Images).Source);
+        Assert.Equal(arrow.Bounds, Assert.Single(next.Images).Bounds);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        hud.Navigate(MenuInput.Right);
+        BattleUiTests.TestCanvas selected = new();
+        view.Draw(selected, new UiTheme());
+        Assert.Empty(selected.Images);
+        Assert.Equal("Renzokuken", hud.ChoiceLabels[0]);
+    }
+
     [Fact]
     public void Named_standalone_continues_command_selection_and_restores_without_an_extra_draw()
     {

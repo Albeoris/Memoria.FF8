@@ -8,6 +8,22 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeMenuArtworkTests
 {
     [Fact]
+    public void LimitArrowKeepsNativeShapeAcrossBothBlinkPalettes()
+    {
+        NativeMenuArtwork artwork = NativeMenuArtwork.Load(InstalledGameDirectory());
+        PixelImage first = artwork.GetIcon(6, 0);
+        PixelImage second = artwork.GetIcon(6, 5);
+        Assert.Equal(8, first.Width);
+        Assert.Equal(16, first.Height);
+        Assert.Equal(first.Width, second.Width);
+        Assert.Equal(first.Height, second.Height);
+        Assert.NotEqual(Hash(first), Hash(second));
+        Assert.Equal(first.Pixels.Select(pixel => pixel.A), second.Pixels.Select(pixel => pixel.A));
+        Assert.Contains(first.Pixels, pixel => pixel.A != 0);
+        Assert.Same(second, artwork.GetIcon(6, 5));
+    }
+
+    [Fact]
     public void OriginalPcPortraitsKeepEveryNativeCharacterAndGuardianForceIdentity()
     {
         string gameDirectory = InstalledGameDirectory();

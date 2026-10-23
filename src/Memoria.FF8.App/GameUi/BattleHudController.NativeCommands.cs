@@ -41,8 +41,7 @@ public sealed partial class BattleHudController
         {
             return session.GetNativeLimitCommandName(actor.Id);
         }
-        string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
-        return command == BattleAbility.Attack && NativeLimitAvailable ? label + "  >" : label;
+        return command == BattleAbility.GuardianForce ? "GF" : command.ToString();
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);

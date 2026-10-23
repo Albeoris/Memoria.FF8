@@ -23,7 +23,7 @@ public sealed partial class BattleHudController
             return session.InfiniteMagic ? $"{quote.Available}/{quote.Capacity}" : (SelectedActor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0).ToString();
         }
         int? itemId = action.NativeAction is { Command: 14 } shot ? shot.ActionId + 101 : SelectedCommand == BattleAbility.Item ? action.Id : null;
-        return itemId is int id ? (session.Items.FirstOrDefault(item => item.Id == id)?.Count ?? 0).ToString() : CanOpenGuardianFormActions(action) ? ">" : "";
+        return itemId is int id ? (session.Items.FirstOrDefault(item => item.Id == id)?.Count ?? 0).ToString() : "";
     }
 
     internal UiImageSource? MagicOwnerIcon(BattleActionDefinition action)

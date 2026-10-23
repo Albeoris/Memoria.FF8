@@ -8,6 +8,38 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleHudGuardianFormTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Guardian_form_submenu_uses_the_same_native_blinking_arrow(bool enabled)
+    {
+        BattleSession battle = Create(enabled);
+        BattleHudController hud = Hud(battle, []);
+        hud.Choose(1);
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        BattleUiTests.TestCanvas first = new();
+        view.Draw(first, new UiTheme());
+        Assert.DoesNotContain(first.Texts, text => text.Contains('>'));
+        if (!enabled)
+        {
+            Assert.Empty(first.Images);
+            return;
+        }
+        var arrow = Assert.Single(first.Images);
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 5), arrow.Source);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / BattleSession.FramesPerSecond));
+        BattleUiTests.TestCanvas next = new();
+        view.Draw(next, new UiTheme());
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 0), Assert.Single(next.Images).Source);
+        Assert.Equal(arrow.Bounds, Assert.Single(next.Images).Bounds);
+        hud.Navigate(MenuInput.Right);
+        BattleUiTests.TestCanvas submenu = new();
+        view.Draw(submenu, new UiTheme());
+        Assert.Empty(submenu.Images);
+        Assert.Equal("Summon", Assert.Single(hud.ChoiceLabels));
+    }
+
     [Fact]
     public void FinisherSkipUsesRemappableEscapeLeftWithoutDedicatedShortcut()
     {
@@ -83,7 +115,7 @@ public sealed class BattleHudGuardianFormTests
         BattleHudController hud = Hud(battle, inputs);
         hud.Choose(1);
         Assert.Equal("Renamed GF", Assert.Single(hud.ChoiceLabels));
-        Assert.Equal(enabled ? ">" : "", hud.ChoiceValue(hud.SelectedAction!));
+        Assert.Empty(hud.ChoiceValue(hud.SelectedAction!));
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
         hud.Navigate(MenuInput.Confirm);

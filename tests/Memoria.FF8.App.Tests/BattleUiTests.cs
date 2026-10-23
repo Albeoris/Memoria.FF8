@@ -582,8 +582,9 @@ public sealed class BattleUiTests
         debug.Select(debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == label).index, true);
     }
 
-    private sealed class TestCanvas : IUiCanvas
+    internal sealed class TestCanvas : IUiCanvas
     {
+        public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
         public List<string> Texts { get; } = [];
         public List<(string Text, UiRect Bounds, UiColor Color)> TextDraws { get; } = [];
         public List<UiRect> Pointers { get; } = [];
@@ -611,6 +612,7 @@ public sealed class BattleUiTests
 
         public void Image(UiImageSource source, UiRect bounds)
         {
+            Images.Add((source, bounds));
         }
 
         public void MenuPointer(UiRect bounds)

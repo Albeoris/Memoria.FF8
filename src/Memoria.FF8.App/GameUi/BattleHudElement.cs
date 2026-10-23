@@ -79,6 +79,10 @@ internal sealed partial class BattleHudElement : UiElement
         string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
         IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
+        bool[] rightArrows = Enumerable.Range(0, choices.Count).Select(index => actions.Count > index
+            ? controller.CanOpenGuardianFormActions(actions[index])
+            : !controller.SelectingAction && !controller.HasGuardianFormCommands && controller.NativeLimitAvailable && controller.Commands.ElementAtOrDefault(index) == BattleAbility.Attack).ToArray();
+        float arrowWidth = rightArrows.Any(value => value) ? 22 : 0;
         float fontSize = (ShowingMagicList ? 18 : 20) * controller.TextScale;
         float valueWidth = 0;
         float ownerWidth = ShowingMagicList && actions.Any(action => controller.MagicOwnerIcon(action).HasValue) ? 30 : 0;
@@ -95,7 +99,7 @@ internal sealed partial class BattleHudElement : UiElement
             }
             else
             {
-                float fixedWidth = 38 + ownerWidth + (valueWidth > 0 ? 12 : 0);
+                float fixedWidth = 38 + ownerWidth + arrowWidth + (valueWidth > 0 ? 12 : 0);
                 float textWidth = nameWidth + valueWidth;
                 float fit = Math.Min(1, Math.Min(24 / fontSize, (440 - fixedWidth) / Math.Max(1, textWidth)));
                 fontSize *= fit;
@@ -138,7 +142,7 @@ internal sealed partial class BattleHudElement : UiElement
                     theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
                 bool unavailable = actions.Count > start + row && (!actions[start + row].Available || controller.SelectedCommand == BattleAbility.Magic && controller.SelectedActor is { } caster && !session.QuoteMagic(caster.Id, actions[start + row].Id).Allowed);
-                float valueLeft = 30 + CommandWidth - 8 - valueWidth;
+                float valueLeft = 30 + CommandWidth - 8 - valueWidth - arrowWidth;
                 float ownerLeft = valueLeft - (valueWidth > 0 ? 12 : 0) - ownerWidth;
                 UiImageSource? ownerIcon = ShowingMagicList && actions.Count > start + row ? controller.MagicOwnerIcon(actions[start + row]) : null;
                 if (ownerIcon is { } portrait)
@@ -146,6 +150,13 @@ internal sealed partial class BattleHudElement : UiElement
                     canvas.Image(portrait, Rect(ownerLeft, y, 26, 26));
                 }
                 ChoiceText(canvas, theme, choices[start + row], 60, y, Math.Max(0, ownerLeft - 60), fontSize / controller.TextScale, unavailable);
+                if (rightArrows[start + row])
+                {
+                    // Native row flag4 uses icon6 and alternates CLUT offsets0/5 every two UI frames.
+                    int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond);
+                    int palette = (phase & 2) != 0 ? 0 : 5;
+                    canvas.Image(new UiImageSource(UiImageKind.Icon, 6, palette), Rect(30 + CommandWidth - 24, y + 1, 12, 24));
+                }
                 if (values.Length > start + row)
                 {
                     float width = canvas.MeasureText(values[start + row], fontSize * Scale, 4096 * Scale).Width / Scale;
