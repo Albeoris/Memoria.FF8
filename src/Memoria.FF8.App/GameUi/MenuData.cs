@@ -24,6 +24,7 @@ public sealed class MenuData
     public List<MenuMagic> Magic { get; } = [];
     public List<MenuCard> Cards { get; } = [];
     public List<MenuRecipe> Recipes { get; } = [];
+    public List<string> RefinementAbilities { get; } = [];
     public List<MenuSaveSlot> SaveSlots { get; } = [];
     public List<MenuBattleTarget> BattleTargets { get; } = [];
     public MenuBattleRewards? BattleRewards { get; set; }
@@ -197,6 +198,7 @@ public sealed record MenuRecipe(string Id, string Ability, string IngredientId, 
     public int? NativeRecipeIndex { get; init; }
     public byte? NativeKind { get; init; }
     public string? IngredientName { get; init; }
+    public int? IngredientStock { get; init; }
     public IReadOnlyDictionary<int, int> OutputCapacity { get; init; } = new Dictionary<int, int>();
     public IReadOnlyDictionary<int, int> MaximumBatches { get; init; } = new Dictionary<int, int>();
 }

@@ -49,21 +49,34 @@ public sealed class CardModOnceSettingsTests
     }
 
     [Fact]
-    public void Native_card_quantity_help_describes_preservation_and_one_use()
+    public void One_use_card_selection_dispatches_one_batch_without_quantity_screen()
     {
         MenuData data = new();
-        data.Settings["Card Mod once"] = "On";
-        data.Recipes.Add(new MenuRecipe("native-refine-115-0", "Card Mod", "card-0", 1, "item-1", "Item", 5) { NativeAbility = 115, NativeRecipeIndex = 0, NativeKind = 4, CardModOnce = true, IngredientName = "Card", MaximumBatches = new Dictionary<int, int> { [0] = 1 } });
-        MenuController menu = new(() => data);
+        MenuRecipe recipe = new("native-refine-115-0", "Card Mod", "card-0", 1, "item-1", "Screw", 5) { NativeAbility = 115, NativeRecipeIndex = 0, NativeKind = 4, CardModOnce = true, IngredientName = "Geezard", IngredientStock = 2, MaximumBatches = new Dictionary<int, int> { [0] = 1 } };
+        data.RefinementAbilities.Add("Card Mod");
+        data.Recipes.Add(recipe);
+        data.SupportedActions.Add("native-refine");
+        List<MenuAction> actions = [];
+        MenuController menu = new(() => data, action =>
+        {
+            actions.Add(action);
+            data.Recipes.Clear();
+        });
         menu.Open("ability");
         menu.Navigate(MenuInput.Confirm);
+        Assert.Contains("Cards are kept", Assert.Single(menu.Entries).Help);
         menu.Navigate(MenuInput.Confirm);
-        MenuEntry entry = Assert.Single(menu.Entries, entry => entry.Enabled);
-        Assert.Contains("Cards are kept", entry.Help);
-        Assert.Contains("once per game", entry.Help);
+        Assert.Equal(new MenuAction("native-refine", "115:0", "0", "1"), Assert.Single(actions));
+        Assert.Equal("ability-recipes", menu.ScreenId);
+        Assert.Empty(menu.Entries);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("Card Mod", Assert.Single(menu.Entries).Label);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Empty(menu.Entries);
     }
+
     [Fact]
-    public void Exhausted_native_card_recipe_cannot_dispatch_a_conversion()
+    public void Exhausted_native_card_recipe_is_hidden()
     {
         MenuData data = new();
         data.Recipes.Add(new MenuRecipe("native-refine-115-0", "Card Mod", "card-0", 1, "item-1", "Item", 5) { NativeAbility = 115, NativeRecipeIndex = 0, NativeKind = 4, CardModOnce = true, CardAlreadyRefined = true, MaximumBatches = new Dictionary<int, int> { [0] = 0 } });
@@ -71,15 +84,8 @@ public sealed class CardModOnceSettingsTests
         MenuController menu = new(() => data, actions.Add);
         menu.Open("ability");
         menu.Navigate(MenuInput.Confirm);
-        menu.Navigate(MenuInput.Confirm);
-        actions.Clear();
-        Assert.All(menu.Entries, entry =>
-        {
-            Assert.False(entry.Enabled);
-            Assert.Contains("Already refined", entry.Help);
-        });
+        Assert.Empty(menu.Entries);
         menu.Navigate(MenuInput.Confirm);
         Assert.Empty(actions);
     }
-
 }

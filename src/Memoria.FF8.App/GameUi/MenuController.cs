@@ -123,6 +123,7 @@ public sealed partial class MenuController
         {
             _magicId = "";
             _recipeId = "";
+            _refinementAbility = "";
         }
         IsDemo = demo;
         _liveData = null;
@@ -571,6 +572,11 @@ public sealed partial class MenuController
         if (!entry.Enabled)
         {
             Message = entry.Help;
+            if (ScreenId.StartsWith("ability", StringComparison.Ordinal))
+            {
+                SoundRequested?.Invoke(MenuSound.Error);
+            }
+            _view = null;
             return;
         }
         if (ScreenId == "main" && (entry.Destination is "junction" or "status" || entry.Destination == "magic" && !Data.SharedMagicStock))
@@ -728,8 +734,13 @@ public sealed partial class MenuController
             case "select-card":
                 _cardId = action.SubjectId;
                 return;
+            case "select-refinement-ability":
+                _refinementAbility = action.SubjectId;
+                _recipeId = Data.Recipes.FirstOrDefault(recipe => recipe.Ability == _refinementAbility)?.Id ?? "";
+                return;
             case "select-recipe":
                 _recipeId = action.SubjectId;
+                _refinementAbility = Recipe?.Ability ?? "";
                 return;
             case "select-exchange":
                 _exchangeId = action.SubjectId;
@@ -825,6 +836,10 @@ public sealed partial class MenuController
             };
             _liveAction(action);
             _liveData = null;
+            if (action.Kind == "native-refine" && ScreenId == "ability-recipes")
+            {
+                _selections[ScreenId] = Math.Clamp(SelectedIndex, 0, Math.Max(0, Entries.Count - 1));
+            }
             if (action.Kind == "item-use" && !Data.Items.Any(item => item.Id == action.SubjectId && item.Quantity > 0))
             {
                 while (_history.Count > 0 && _history.Peek() != "item-use")
@@ -849,7 +864,7 @@ public sealed partial class MenuController
                 ScreenOpened?.Invoke(ScreenId);
                 _view = null;
             }
-            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-gf-reassign" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" ? "" : "Request sent to the live owner.";
+            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-gf-reassign" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" or "native-refine" ? "" : "Request sent to the live owner.";
             return;
         }
         ApplyDemo(action);

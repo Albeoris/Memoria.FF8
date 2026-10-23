@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeRefinementUiTests
 {
     [Fact]
-    public void OriginalRecipesProjectAllKindsOnlyForLearnedAbilitiesWithoutMutation()
+    public void OwnedRecipesProjectOnlyForLearnedAbilitiesWithoutMutation()
     {
         using GameAssets assets = InstalledAssets();
         NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
@@ -24,8 +24,8 @@ public sealed class NativeRefinementUiTests
         string before = JsonSerializer.Serialize(state);
         MenuData data = new();
         NativeRefinementMenuProjection.Augment(data, state, definitions, catalog);
-        Assert.Equal(Enumerable.Range(97, 19), data.Recipes.Select(recipe => recipe.NativeAbility!.Value).Distinct());
-        Assert.Equal(new byte[] { 0, 1, 2, 3, 4 }, data.Recipes.Select(recipe => recipe.NativeKind!.Value).Distinct().Order());
+        Assert.Equal(19, data.RefinementAbilities.Count);
+        Assert.All(data.Recipes, recipe => Assert.True(recipe.IngredientStock > 0));
         foreach (MenuRecipe recipe in data.Recipes)
         {
             NativeRefinementRecipe native = definitions.Recipe(recipe.NativeAbility!.Value, recipe.NativeRecipeIndex!.Value);

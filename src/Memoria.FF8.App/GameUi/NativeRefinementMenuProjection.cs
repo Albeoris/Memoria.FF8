@@ -16,17 +16,23 @@ public static class NativeRefinementMenuProjection
         foreach (int abilityId in definitions.LearnedAbilities(vitals))
         {
             NativeRefinementAbility ability = definitions.Abilities[abilityId - 92];
+            data.RefinementAbilities.Add(ability.Name);
             for (int index = ability.First; index <= ability.Last; index++)
             {
                 NativeRefinementRecipe recipe = definitions.Recipe(abilityId, index);
+                int ingredientStock = ability.Kind == 4 ? state.CardInventory?.AvailableCount(recipe.Ingredient) ?? 0 : ability.Kind == 2 ? Enumerable.Range(0, 8).Where(row => vitals.IsMenuCharacterAvailable(row, state.WorldControls)).Select(row => MagicInventoryResolver.Resolve(vitals, row)).DistinctBy(inventory => inventory.BankId).Sum(inventory => inventory.Count(recipe.Ingredient)) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Ingredient)?.Count ?? 0;
+                if (ingredientStock <= 0 || ability.Kind == 4 && state.GameplayPreferences.CardModOnce && state.RefinedCardIds.Contains(recipe.Ingredient))
+                {
+                    continue;
+                }
                 bool magicOutput = ability.Kind is 0 or 2;
                 string ingredientName = ability.Kind == 4 ? catalog.CardName(recipe.Ingredient) ?? $"Card {recipe.Ingredient}" : ability.Kind == 2 ? catalog.MagicName(recipe.Ingredient) ?? $"Magic {recipe.Ingredient}" : catalog.ItemName(recipe.Ingredient) ?? $"Item {recipe.Ingredient}";
                 string resultName = magicOutput ? catalog.MagicName(recipe.Output) ?? $"Magic {recipe.Output}" : catalog.ItemName(recipe.Output) ?? $"Item {recipe.Output}";
                 Dictionary<int, int> maxima = (magicOutput ? Enumerable.Range(0, 8) : [0]).ToDictionary(row => row, row => magicOutput && (!vitals.IsMenuCharacterAvailable(row, state.WorldControls) || vitals.Records[row].HitPoints.Minimum != vitals.Records[row].HitPoints.Maximum) ? 0 : definitions.MaximumBatches(vitals, economy, state.CardInventory, abilityId, index, row, state.GameplayPreferences.CardModOnce, state.RefinedCardIds));
-                data.Recipes.Add(new MenuRecipe($"native-refine-{abilityId}-{index}", ability.Name, $"{(ability.Kind == 4 ? "card" : ability.Kind == 2 ? "magic" : "item")}-{recipe.Ingredient}", recipe.IngredientCount, $"{(magicOutput ? "magic" : "item")}-{recipe.Output}", resultName, recipe.OutputCount) { CardModOnce = ability.Kind == 4 && state.GameplayPreferences.CardModOnce, CardAlreadyRefined = ability.Kind == 4 && state.RefinedCardIds.Contains(recipe.Ingredient), NativeAbility = abilityId, NativeRecipeIndex = index, NativeKind = ability.Kind, IngredientName = ingredientName, MaximumBatches = maxima, OutputCapacity = magicOutput ? Enumerable.Range(0, 8).ToDictionary(row => row, row => 100 - vitals.GetMagicCount(row, recipe.Output)) : new Dictionary<int, int>() });
+                data.Recipes.Add(new MenuRecipe($"native-refine-{abilityId}-{index}", ability.Name, $"{(ability.Kind == 4 ? "card" : ability.Kind == 2 ? "magic" : "item")}-{recipe.Ingredient}", recipe.IngredientCount, $"{(magicOutput ? "magic" : "item")}-{recipe.Output}", resultName, recipe.OutputCount) { CardModOnce = ability.Kind == 4 && state.GameplayPreferences.CardModOnce, CardAlreadyRefined = ability.Kind == 4 && state.RefinedCardIds.Contains(recipe.Ingredient), NativeAbility = abilityId, NativeRecipeIndex = index, NativeKind = ability.Kind, IngredientName = ingredientName, IngredientStock = ingredientStock, MaximumBatches = maxima, OutputCapacity = magicOutput ? Enumerable.Range(0, 8).ToDictionary(row => row, row => 100 - vitals.GetMagicCount(row, recipe.Output)) : new Dictionary<int, int>() });
             }
         }
-        if (data.Recipes.Count > 0)
+        if (data.RefinementAbilities.Count > 0)
         {
             data.SupportedActions.Add("native-refine");
         }

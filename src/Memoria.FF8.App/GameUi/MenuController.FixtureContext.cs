@@ -43,7 +43,7 @@ public sealed partial class MenuController
             Message = "Preview / Fixture: " + action.SubjectId + " = " + action.Value;
             return true;
         }
-        if (action.Kind is "menu-back" or "demo-reset" or "select-character" or "select-gf" or "select-item" or "select-magic" or "select-card" or "select-recipe" or "select-slot" or "select-command-slot" or "select-ability-slot" or "select-exchange" or "select-save-slot" or "test-answer" or "test-reset" || action.Kind.StartsWith("controls-", StringComparison.Ordinal) || action.Kind.StartsWith("font-", StringComparison.Ordinal))
+        if (action.Kind is "menu-back" or "demo-reset" or "select-character" or "select-gf" or "select-item" or "select-magic" or "select-card" or "select-recipe" or "select-refinement-ability" or "select-slot" or "select-command-slot" or "select-ability-slot" or "select-exchange" or "select-save-slot" or "test-answer" or "test-reset" || action.Kind.StartsWith("controls-", StringComparison.Ordinal) || action.Kind.StartsWith("font-", StringComparison.Ordinal))
         {
             return false;
         }

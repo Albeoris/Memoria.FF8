@@ -211,22 +211,29 @@ public sealed partial class MenuController
 
     private UiElement BuildSecondaryAbility()
     {
-        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.1f, 1], 5);
-        Place(page, SecondaryHeader("Ability", ScreenId == "ability" ? "Select an ability" : Recipe?.Ability ?? "Select an item", ScreenId == "ability" ? "Select a menu ability." : "Select an item to refine."), 0, 0, 1, 2);
+        var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.35f, 1], 5);
+        Place(page, SecondaryHeader("Ability", ScreenId == "ability" ? "Select an ability" : RefinementAbility, ScreenId == "ability" ? "Select a menu ability." : SelectedEntry?.Help ?? "Select an item to refine."), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
+        if (ScreenId == "ability-recipes")
+        {
+            commands.Items = Entries.Select(entry => entry.Label).ToList();
+            commands.SecondaryItems = Entries.Select(entry => Data.Recipes.First(recipe => recipe.Id == entry.Id)).Select(RefinementStock).ToList();
+            commands.AutoSecondaryWidth = true;
+            commands.SecondaryAlignment = UiAlignment.End;
+        }
         Place(page, Panel(ScreenId == "ability" ? null : "ITEM", commands), 1);
         string[] details;
         if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {
             details = [Card?.Name ?? "--", "Owned   " + (Card?.Quantity.ToString() ?? "--"), "Result", Card?.RefinementItemName ?? Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", "Quantity   " + Number(Card?.RefinementQuantity)];
         }
-        else if (Recipe is { } recipe && ScreenId != "ability")
+        else if (HighlightedRefinementRecipe is { } recipe && ScreenId != "ability")
         {
-            details = [Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", Character?.Name ?? "--"];
+            details = [recipe.IngredientName ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", "Owned   " + RefinementStock(recipe), .. (recipe.NativeKind is 0 or 2 ? new[] { Character?.Name ?? "--" } : Array.Empty<string>())];
         }
         else
         {
-            details = ["Choose a refinement ability."];
+            details = [ScreenId == "ability" ? "Choose a refinement ability." : "No items to refine."];
         }
         Place(page, Panel(null, Lines(details, 24)), 1, 1);
         return page;
