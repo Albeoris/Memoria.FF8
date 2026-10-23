@@ -327,7 +327,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsResource refreshResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
                 model = refreshResource.PoseSource is { } bodySource
-                    ? NativeBattleBodyBoneMatrices.Publish508C90(model, bodySource)
+                    ? NativeBattleBodyBoneMatrices.Publish508F60(model, bodySource, refreshResource.LinkedPoseSource)
                     : model with { CurrentBodyBoneMatrices = null };
             }
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)

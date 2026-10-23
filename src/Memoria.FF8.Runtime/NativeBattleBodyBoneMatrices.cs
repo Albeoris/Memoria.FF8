@@ -24,6 +24,28 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
         return model with { CurrentBodyBoneMatrices = ReadLoadedSkeleton(source) };
     }
 
+    public static NativeBattleGraphicsModel PublishLoadedSkeletons(NativeBattleGraphicsModel model, NativeBattlePoseSource bodySource, NativeBattlePoseSource? linkedSource)
+    {
+        model = PublishLoadedSkeleton(model, bodySource);
+        return model with { CurrentLinkedBoneMatrices = linkedSource is null ? null : ReadLoadedSkeleton(linkedSource) };
+    }
+
+    public static NativeBattleGraphicsModel PublishLinked508C90(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        source.Validate();
+        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native linked508C90 requires its actual decoded linked pose owner.");
+        NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, source);
+        NativeBattleBodyBoneMatrices publication = new(Identity(source), NativeBattlePoseMatrices.StageBoneMatrices(source, pose));
+        publication.Validate();
+        return model with { CurrentLinkedBoneMatrices = publication };
+    }
+
+    public static NativeBattleGraphicsModel Publish508F60(NativeBattleGraphicsModel model, NativeBattlePoseSource bodySource, NativeBattlePoseSource? linkedSource)
+    {
+        model = Publish508C90(model, bodySource);
+        return linkedSource is null ? model : PublishLinked508C90(model, linkedSource);
+    }
+
     public static NativeBattleBodyBoneMatrices ReadLoadedSkeleton(NativeBattlePoseSource source)
     {
         source.Validate();

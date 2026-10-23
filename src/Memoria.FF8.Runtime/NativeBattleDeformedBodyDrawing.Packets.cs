@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public static partial class NativeBattleAcid317ModelDrawing
+public static partial class NativeBattleDeformedBodyDrawing
 {
     private static (NativeBattleEffectArena Temporary, NativeBattleGeometryRegisterStep Registers, NativeBattleGfGeometryAttempt Attempt) DrawFace(byte[] source, bool quad, NativeBattleEffectArena scratch, int vertexCount, NativeBattleEffectArena temporary, NativeBattleGeometryRegisterStep registers, NativeBattleScriptedGraphicsMemory controls, int tableBaseBucket, byte depthShift, int offset)
     {

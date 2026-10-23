@@ -278,6 +278,14 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { DisolvingAcid132Resources = ReadNativeDisolvingAcid132Resources() };
             }
+            if (binding.Effect == 128)
+            {
+                if (binding.Entry != NativeBattleGastricJuice128Profile.Entry || binding.Initializer != NativeBattleGastricJuice128Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag127.tim", NativeBattleGastricJuice128Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("GastricJuice requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { GastricJuice128Resources = ReadNativeGastricJuice128Resources() };
+            }
             if (binding.Effect == 138)
             {
                 if (binding.Entry != NativeBattleSaliva138Profile.Entry || binding.Initializer != NativeBattleSaliva138Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag137.tim", NativeBattleSaliva138Profile.InitializerGlobal) || binding.InitializerResources is not null)

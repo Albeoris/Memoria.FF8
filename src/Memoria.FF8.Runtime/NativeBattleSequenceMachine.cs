@@ -47,7 +47,7 @@ public static class NativeBattleSequenceMachine
         if (AdvancePose())
         {
             flags = (ushort)((flags & ~0xC) | 4);
-            PublishBodyPose508C90();
+            PublishCurrentPose508F60();
         }
         else
         {
@@ -88,6 +88,7 @@ public static class NativeBattleSequenceMachine
                 if (resource.LinkedPoseSource is { } linkedSource && nextLinked.Frame != 0 && nextLinked != linked)
                 {
                     state = state with { LinkedDecodedPose = linkedSource.Sample(nextLinked.Pose, nextLinked.Frame, nextLinked.Flags) };
+                    model = NativeBattleBodyBoneMatrices.PublishLinked508C90(model with { SequenceState = state }, linkedSource);
                 }
             }
             byte frame = state.PoseFrame114 ?? throw new InvalidDataException("Native sequence reads a pose counter before its original selection.");
@@ -104,6 +105,13 @@ public static class NativeBattleSequenceMachine
             }
             PublishBodyPose508C90();
             return false;
+        }
+
+        void PublishCurrentPose508F60()
+        {
+            model = resource.PoseSource is { } bodySource
+                ? NativeBattleBodyBoneMatrices.Publish508F60(model with { SequenceState = state }, bodySource, resource.LinkedPoseSource)
+                : model with { CurrentBodyBoneMatrices = null };
         }
 
         void PublishBodyPose508C90()

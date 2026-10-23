@@ -381,7 +381,7 @@ public sealed partial class BattleSession
         }
         NativeBattleGraphicsState loaded = graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) };
         NativeBattlePoseSource loadedSkeleton = NativeGraphicsPoseResource(loaded, index).PoseSource ?? throw new NotSupportedException("Native model completion requires its actual loaded body rig bytes.");
-        model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(model, loadedSkeleton);
+        model = NativeBattleBodyBoneMatrices.PublishLoadedSkeletons(model, loadedSkeleton, NativeGraphicsPoseResource(loaded, index).LinkedPoseSource);
         return loaded with { Models = loaded.Models.SetItem(index, model) };
     }
 
