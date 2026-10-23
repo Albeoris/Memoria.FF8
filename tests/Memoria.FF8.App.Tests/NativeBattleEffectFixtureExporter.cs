@@ -13,6 +13,7 @@ internal sealed record NativeEffectFixtureRequest(string Id, ushort Effect, byte
     public bool OrdinaryMagicAdmission { get; init; }
     public bool DeferredGuardianFormulaAdmission { get; init; }
     public int PartyModelId { get; init; }
+    public int[]? AdditionalPartyModelIds { get; init; }
     public byte? CrisisLevel { get; init; }
     public bool HealingContact { get; init; }
     public ushort? ControlledContactValue { get; init; }
@@ -70,6 +71,10 @@ internal static class NativeBattleEffectFixtureExporter
         if (request.PartyModelId is < 0 or > 10)
         {
             throw new InvalidDataException("The fresh component requires an explicit original party model index.");
+        }
+        if (request.AdditionalPartyModelIds is { } additional && (additional.Length > 2 || additional.Any(model => model is < 0 or > 10) || additional.Length > 0 && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact || request.ControlledDrainContact)))
+        {
+            throw new InvalidDataException("Additional original party fixtures require at most two original model indices and the controlled post-formula producer.");
         }
         if (request.EncounterId is < 0 or >= 1024 || request.CasterActorIndex is not (0 or >= 3 and <= 6) || request.CasterActorIndex >= 4 && !request.PreserveOriginalFormationEnemies || request.CasterActorIndex != 0 && (request.OrdinaryMagicAdmission || request.DeferredGuardianFormulaAdmission || request.RevivalContact))
         {
@@ -199,6 +204,10 @@ internal static class NativeBattleEffectFixtureExporter
                 File.WriteAllText(Path.Combine(outputDirectory, "original-formation.json"), JsonSerializer.Serialize(new { formation.Id, formation.StageId, Enemies = enemyPlacements }));
             }
             File.WriteAllText(Path.Combine(outputDirectory, "original-enemy-names.json"), JsonSerializer.Serialize(enemyPlacements.Select(enemy => new { enemy.Slot, enemy.ModelId, RawSceneLevel = enemy.Level, OriginalName = assets.ReadEnemyName(enemy.ModelId), ComponentName = ComponentEnemyName(assets.ReadEnemyName(enemy.ModelId), enemy.ModelId) })));
+            if (request.AdditionalPartyModelIds is { Length: > 0 } additionalParty)
+            {
+                actors = [actors[0], .. additionalParty.Select((model, index) => new BattleCombatantDefinition { Id = $"party-{index + 1}", Name = "Party", IsPlayer = true, ModelId = model, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == model).Id, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 }), .. actors.Where(actor => !actor.IsPlayer)];
+            }
             if (request.ControlledDrainContact)
             {
                 actors = actors.Select(actor => actor.IsPlayer ? actor : actor with { NativeStatusResistances = assets.ReadEnemyNativeStatusData(actor.ModelId).Resistances.ToArray() }).ToArray();

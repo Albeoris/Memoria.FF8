@@ -569,6 +569,14 @@ public sealed partial class GameAssets
             {
                 binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
             }
+            if (binding.Effect == 190)
+            {
+                if (binding.Entry != NativeBattleChainGun190Profile.Entry || binding.Initializer != NativeBattleChainGun190Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag149.tim", NativeBattleChainGun190Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Chain Gun requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { ChainGun190Resources = ReadNativeChainGun190Resources() };
+            }
             if (binding.Effect == 182)
             {
                 if (binding.Entry != NativeBattleAdditional182Profile.Entry || binding.Initializer != NativeBattleAdditional182Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag181.tim", NativeBattleAdditional182Profile.InitializerGlobal) || binding.InitializerResources is not null)
