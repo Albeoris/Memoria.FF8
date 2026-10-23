@@ -32,7 +32,9 @@ public sealed class MagicPreferenceAvailabilityTests
         UiView view = menu.BuildView();
         Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == reason);
         UiChoiceRow row = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
-        Assert.False(row.Enabled);
+        Assert.True(row.Enabled);
+        Assert.True(row.ReadOnly);
+        Assert.Same(row, view.FocusedElement);
         view.Pointer(row.ValueBounds.Right - 5, row.Bounds.Y + row.Bounds.Height / 2, true);
         Assert.Empty(actions);
         Assert.Equal("Off", data.Settings[setting]);

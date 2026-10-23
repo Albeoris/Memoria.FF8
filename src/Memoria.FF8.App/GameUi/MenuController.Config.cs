@@ -181,6 +181,7 @@ public sealed partial class MenuController
             {
                 Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id),
                 Items = setting.Values,
+                ReadOnly = !entry.Enabled,
                 OptionGap = 12 * TextScale,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),
                 LabelWidthRatio = 0.52f,
@@ -191,7 +192,7 @@ public sealed partial class MenuController
                 SelectionChanged = selected => Execute(new MenuAction("config", setting.Id, Value: setting.Values[selected]))
             };
         }
-        row.Enabled = entry.Enabled;
+        row.Enabled = row is UiChoiceRow || entry.Enabled;
         row.Id = entry.Id;
         row.FocusChanged = focused => SelectConfigRow(focused, index);
         return row;

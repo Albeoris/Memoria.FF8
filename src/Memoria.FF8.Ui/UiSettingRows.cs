@@ -130,6 +130,8 @@ public sealed class UiChoiceRow : UiSettingRow
         set => _selectedIndex = Items.Count == 0 ? 0 : Math.Clamp(value, 0, Items.Count - 1);
     }
 
+    /// <summary>Keeps the row focusable and its selected value visible while rejecting value changes.</summary>
+    public bool ReadOnly { get; set; }
     public Action<int>? SelectionChanged { get; set; }
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
@@ -167,22 +169,22 @@ public sealed class UiChoiceRow : UiSettingRow
         {
             float inset = Math.Min(20, values.Width / 4);
             UiRect option = new(values.X + inset, values.Y, Math.Max(0, values.Width - inset * 2), values.Height);
-            canvas.Text(Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
-            DrawArrow(canvas, values.X + inset / 2, values.Y + values.Height / 2, -1, Enabled && SelectedIndex > 0 ? theme.Foreground : theme.Muted);
-            DrawArrow(canvas, values.Right - inset / 2, values.Y + values.Height / 2, 1, Enabled && SelectedIndex < Items.Count - 1 ? theme.Foreground : theme.Muted);
+            canvas.Text(Items[SelectedIndex], FontSize > 0 ? FontSize : theme.FontSize, option, theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+            DrawArrow(canvas, values.X + inset / 2, values.Y + values.Height / 2, -1, Enabled && !ReadOnly && SelectedIndex > 0 ? theme.Foreground : theme.Muted);
+            DrawArrow(canvas, values.Right - inset / 2, values.Y + values.Height / 2, 1, Enabled && !ReadOnly && SelectedIndex < Items.Count - 1 ? theme.Foreground : theme.Muted);
             return;
         }
 
         for (int index = 0; index < Items.Count; index++)
         {
             UiRect option = new(values.X + index * (width + gap), values.Y, width, values.Height);
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, Enabled && index == SelectedIndex ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, option, index == SelectedIndex ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
         }
     }
 
     public override bool Key(UiKey key)
     {
-        if (!Enabled || Items.Count == 0 || key is not (UiKey.Left or UiKey.Right or UiKey.Confirm))
+        if (!Enabled || ReadOnly || Items.Count == 0 || key is not (UiKey.Left or UiKey.Right or UiKey.Confirm))
         {
             return false;
         }
@@ -195,7 +197,7 @@ public sealed class UiChoiceRow : UiSettingRow
     public override void Pointer(float x, float y)
     {
         UiRect values = ValueBounds;
-        if (!Enabled || Items.Count == 0 || !values.Contains(x, y))
+        if (!Enabled || ReadOnly || Items.Count == 0 || !values.Contains(x, y))
         {
             return;
         }

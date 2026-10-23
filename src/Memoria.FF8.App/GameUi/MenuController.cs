@@ -646,6 +646,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteHardcoreConfirmation(ref action))
+        {
+            return;
+        }
         if (ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action))
         {
             return;

@@ -4,6 +4,31 @@ namespace Memoria.FF8.Ui.Tests;
 
 public sealed class SettingRowTests
 {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    public void Read_only_choices_keep_focus_and_selected_value_visible_without_changing(int count)
+    {
+        UiChoiceRow row = new() { Items = Enumerable.Range(0, count).Select(index => "Value " + index).ToList(), SelectedIndex = 1, ReadOnly = true };
+        int changes = 0;
+        row.SelectionChanged = _ => changes++;
+        UiView view = new(row);
+        view.Resize(800, 40);
+        view.Focus(row);
+        RecordingCanvas canvas = new();
+        UiTheme theme = new();
+        row.Draw(canvas, theme);
+        Assert.Equal(theme.Foreground, Assert.Single(canvas.Texts, text => text.Text == "Value 1").Color);
+        Assert.All(canvas.Texts.Where(text => text.Text.StartsWith("Value ") && text.Text != "Value 1"), text => Assert.Equal(theme.Muted, text.Color));
+        row.Key(UiKey.Left);
+        row.Key(UiKey.Right);
+        row.Key(UiKey.Confirm);
+        row.Pointer(row.ValueBounds.Right - 1, 20);
+        Assert.Same(row, view.FocusedElement);
+        Assert.Equal(1, row.SelectedIndex);
+        Assert.Equal(0, changes);
+    }
+
     [Fact]
     public void ConstrainedChoicesReserveColumnGapAndShowOneMeasuredOptionWithWorkingNavigation()
     {

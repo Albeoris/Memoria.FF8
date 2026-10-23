@@ -307,7 +307,9 @@ public sealed class ConfigSettingsTests
         Assert.Empty(actions);
         UiView view = controller.BuildView();
         UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
-        Assert.False(choice.Enabled);
+        Assert.True(choice.Enabled);
+        Assert.True(choice.ReadOnly);
+        Assert.Same(choice, view.FocusedElement);
         view.Pointer(choice.ValueBounds.Right - 5, choice.Bounds.Y + choice.Bounds.Height / 2, true);
         Assert.Empty(actions);
     }
