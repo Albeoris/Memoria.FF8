@@ -16,7 +16,17 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
             memory.Dword(node + 0x170, resource);
             if (kind == 5)
             {
-                Morph881540(resource, Pointer(memory.ContextDword(0x230), ByteCurve(0x130)), Pointer(memory.ContextDword(0x230), ByteCurve(0x134)), WordCurve(0x138));
+                uint firstShape = Pointer(memory.ContextDword(0x230), ByteCurve(0x130));
+                uint secondShape = Pointer(memory.ContextDword(0x230), ByteCurve(0x134));
+                short ratio = WordCurve(0x138);
+                if (inputs.MorphResource is { } morph)
+                {
+                    morph(resource, firstShape, secondShape, ratio);
+                }
+                else
+                {
+                    Morph881540(resource, firstShape, secondShape, ratio);
+                }
             }
             if (inputs.ResourceUpdate is { } update)
             {

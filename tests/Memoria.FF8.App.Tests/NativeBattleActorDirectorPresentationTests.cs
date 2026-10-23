@@ -74,6 +74,17 @@ public sealed class NativeBattleActorDirectorPresentationTests
         HashSet<int> salivaPacketBanks = [];
         bool oilOpeningRestored = false;
         HashSet<string> breath157Boundaries = [];
+        HashSet<string> magma48Boundaries = [];
+        HashSet<uint> magma48Callbacks = [];
+        HashSet<int> magma48PacketBanks = [];
+        HashSet<uint> magma48ChangedXYZ = [];
+        HashSet<uint> magma48ChangedUV = [];
+        HashSet<byte> magma48Opcodes = [];
+        List<object> magma48Observations = [];
+        bool magma48EmittersSeen = false;
+        bool magma48GeometrySeen = false;
+        bool magma48ColorPairsSeen = false;
+        bool magma48DepthPacketsSeen = false;
         HashSet<string> resonance49Boundaries = [];
         HashSet<uint> resonance49Callbacks = [];
         HashSet<int> resonance49ProgrammeActors = [];
@@ -453,6 +464,15 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.NotNull(original.Sonic139Resources);
                 Assert.True(source.NativeEffectMemory!.Sonic139!.PendingColdSources);
                 Assert.Null(source.NativeEffectMemory.Sonic139.OriginalFrames);
+            }
+            if (effectId == 48)
+            {
+                Assert.Equal((byte)3, caster);
+                Assert.Equal((byte)0, contactActor);
+                Assert.NotNull(original.MagmaBreath48Resources);
+                Assert.Equal(false, source.NativeEffectMemory!.MagmaBreath48!.SourcesLoaded);
+                Assert.All(source.NativeEffectMemory.MagmaBreath48.InactiveBanks, bank => Assert.NotNull(bank));
+                Assert.Equal((byte)0, header.ReadByte(17));
             }
             if (effectId == 49)
             {
@@ -1246,6 +1266,167 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             sonic139Opcodes.Add(command.Opcode);
                         }
                     }
+                }
+                if (effectId == 48 && after?.ReturnedDescriptor is > 0)
+                {
+                    NativeBattleMagmaBreath48State magma = current.NativeEffectMemory!.MagmaBreath48!;
+                    NativeBattleMagmaBreath48Resources magmaResources = original.MagmaBreath48Resources!;
+                    Assert.Equal(true, magma.SourcesLoaded);
+                    Assert.Equal(1u, magma.ReadDword(NativeBattleMagmaBreath48Profile.SourceAddress));
+                    Assert.Equal(6, after.Pools.Length);
+                    Assert.All(magma.InactiveBanks, bank => Assert.Null(bank));
+                    for (int poolIndex = 0; poolIndex < 6; poolIndex++)
+                    {
+                        NativeBattleCureFamilyPool expected = NativeBattleMagmaBreath48Profile.Pools[poolIndex];
+                        NativeBattleEffectTaskPool actual = after.Pools[poolIndex];
+                        Assert.Equal(expected.Descriptor, actual.DescriptorAddress);
+                        Assert.Equal(expected.Bank, actual.BankAddress);
+                        Assert.Equal(expected.Stride, actual.Stride);
+                        Assert.Equal((int)expected.Capacity, actual.Slots.Length);
+                        magma48Callbacks.UnionWith(actual.Slots.Where(task => (task.Flags & 1) != 0).Select(task => task.Callback));
+                    }
+                    NativeBattleModulePoolTask magmaRoot = Assert.Single(after.Pools[0].Slots, task => (task.Flags & 1) != 0);
+                    int magmaPhase = magmaRoot.ReadByte(0x29);
+                    string magmaBoundary = "root-phase-" + magmaPhase;
+                    if (magma48Boundaries.Add(magmaBoundary))
+                    {
+                        magma48Observations.Add(new { Boundary = magmaBoundary, Root = magmaRoot, Globals = magma.Globals });
+                        ColdNext(magmaBoundary, current);
+                    }
+                    if (before?.Pools.Length == 6)
+                    {
+                        NativeBattleModulePoolTask oldRoot = before.Pools[0].Slots[0];
+                        if (oldRoot.ReadByte(0x29) == 5)
+                        {
+                            Assert.Equal(unchecked((ushort)(oldRoot.ReadWord(0x60) - 1)), magmaRoot.ReadWord(0x60));
+                        }
+                        if (oldRoot.ReadByte(0x29) == 6 && oldRoot.ReadWord(0x5E) == 0)
+                        {
+                            Assert.Equal((byte)7, magmaRoot.ReadByte(0x29));
+                        }
+                    }
+                    foreach (NativeBattleMagmaBreath48Range channel in NativeBattleMagmaBreath48Profile.ChannelRegions)
+                    {
+                        Assert.Equal(new byte[channel.Length], magma.Read(channel.Address, channel.Length));
+                    }
+                    foreach (NativeBattleStaticMeshResource seed in magmaResources.MeshSeeds)
+                    {
+                        NativeBattleStaticMeshResource currentMesh = magma.ReadMesh(magmaResources, seed.Address);
+                        for (int vertex = 0; vertex < 182; vertex++)
+                        {
+                            Assert.Equal(seed.Bytes.AsSpan().Slice(14 + vertex * 8, 2).ToArray(), currentMesh.Bytes.AsSpan().Slice(14 + vertex * 8, 2).ToArray());
+                        }
+                        if (!seed.Bytes.AsSpan().Slice(8, 182 * 8).SequenceEqual(currentMesh.Bytes.AsSpan().Slice(8, 182 * 8)) && magma48ChangedXYZ.Add(seed.Address))
+                        {
+                            ColdNext("current-XYZ6-W-retained-" + seed.Address.ToString("X"), current);
+                        }
+                        if (!seed.Bytes.AsSpan().Slice(1464).SequenceEqual(currentMesh.Bytes.AsSpan().Slice(1464)) && magma48ChangedUV.Add(seed.Address))
+                        {
+                            ColdNext("current-face-UV-" + seed.Address.ToString("X"), current);
+                        }
+                    }
+                    uint emitterPointer = magma.ReadDword(NativeBattleMagmaBreath48Profile.EmitterPointerGlobal);
+                    uint geometryPointer = magma.ReadDword(NativeBattleMagmaBreath48Profile.GeometryPointerGlobal);
+                    if (emitterPointer != 0)
+                    {
+                        Assert.Equal(emitterPointer + 0x870, geometryPointer);
+                        int emitterOffset = checked((int)(emitterPointer - 0x20DFAB8u));
+                        int geometryOffset = checked((int)(geometryPointer - 0x20DFAB8u));
+                        Assert.InRange(magma.ReadWord(NativeBattleMagmaBreath48Profile.EmitterScanCursorGlobal), (ushort)0, (ushort)19);
+                        Assert.InRange(magma.ReadWord(NativeBattleMagmaBreath48Profile.GeometryScanCursorGlobal), (ushort)0, (ushort)99);
+                        bool liveEmitter = Enumerable.Range(0, 20).Any(index => current.NativeEffectMemory.Arena!.Read(emitterOffset + index * 108 + 0x69, 1)[0] != 0);
+                        bool liveGeometry = Enumerable.Range(0, 100).Any(index => current.NativeEffectMemory.Arena!.Read(geometryOffset + index * 672 + 0x1D7, 1)[0] != 0);
+                        if (liveEmitter && !magma48EmittersSeen)
+                        {
+                            magma48EmittersSeen = true;
+                            ColdNext("literal20-emitter-list-live", current);
+                        }
+                        if (liveGeometry && !magma48GeometrySeen)
+                        {
+                            magma48GeometrySeen = true;
+                            ColdNext("literal100-geometry-list-live", current);
+                        }
+                    }
+                    NativeBattleModulePoolTask? magmaEngine = after.Pools[3].Slots.FirstOrDefault(task => (task.Flags & 1) != 0 && task.ReadByte(0x29) == 1);
+                    if (magmaEngine is not null && before?.Pools.Length == 6)
+                    {
+                        NativeBattleVector mouth = BladeShot12PointOracle(prior, 3, [0x15]);
+                        Assert.Equal(unchecked((uint)(mouth.X << 16)), magmaEngine.ReadDword(0x228));
+                        Assert.Equal(unchecked((uint)(mouth.Y << 16)), magmaEngine.ReadDword(0x22C));
+                        Assert.Equal(unchecked((uint)(unchecked((short)(mouth.Z + 256)) << 16)), magmaEngine.ReadDword(0x230));
+                        Assert.Equal(magmaEngine.ReadDword(0x228), magmaEngine.ReadDword(0x238));
+                        Assert.Equal(0u, magmaEngine.ReadDword(0x23C));
+                        Assert.Equal(magmaEngine.ReadDword(0x230), magmaEngine.ReadDword(0x240));
+                        if (magma48Boundaries.Add("current-caster-bone15-twice"))
+                        {
+                            NativeBattleVector casterF1 = BladeShot12PointOracle(prior, 3, [0xF1]);
+                            NativeBattleVector targetF1 = BladeShot12PointOracle(prior, 0, [0xF1]);
+                            NativeBattleVector targetF0 = BladeShot12PointOracle(prior, 0, [0xF0]);
+                            Assert.Equal(new[] { unchecked((uint)(casterF1.X << 16)), unchecked((uint)(casterF1.Y << 16)), unchecked((uint)(casterF1.Z << 16)) }, new[] { magmaEngine.ReadDword(0x218), magmaEngine.ReadDword(0x21C), magmaEngine.ReadDword(0x220) });
+                            Assert.Equal(new[] { unchecked((uint)(targetF1.X << 16)), unchecked((uint)(targetF1.Y << 16)), unchecked((uint)(targetF1.Z << 16)) }, new[] { magmaEngine.ReadDword(0x108), magmaEngine.ReadDword(0x10C), magmaEngine.ReadDword(0x110) });
+                            Assert.Equal(new[] { unchecked((uint)(targetF0.X << 16)), unchecked((uint)(targetF0.Y << 16)), unchecked((uint)(targetF0.Z << 16)) }, new[] { magmaEngine.ReadDword(0x148), magmaEngine.ReadDword(0x14C), magmaEngine.ReadDword(0x150) });
+                            magma48Observations.Add(new { Boundary = "current-caster-bone15-twice", Mouth = mouth, CasterF1 = casterF1, TargetF1 = targetF1, TargetF0 = targetF0, Engine = magmaEngine });
+                            ColdNext("current-caster-bone15-twice", current);
+                        }
+                    }
+                    DirectedNodePacketState magmaPackets = Director(current);
+                    if (magmaPackets.SecondaryDrawCursor is int magmaLimit && magmaPackets.PrimaryDrawCursor is int magmaEnd)
+                    {
+                        int magmaStart = magmaLimit - magmaPackets.DrawStep;
+                        if (magma48PacketBanks.Add(magmaStart - magmaPackets.SourceArenaOffset))
+                        {
+                            ColdNext("magma6000-bank-" + (magmaStart - magmaPackets.SourceArenaOffset).ToString("X"), current);
+                        }
+                        NativeBattleLogicalCommand[] commands = Resonance49Commands(current).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= magmaStart && command.Packet.ByteOffset < magmaEnd).ToArray();
+                        foreach (NativeBattleLogicalCommand command in commands)
+                        {
+                            byte[] physical = current.NativeEffectMemory.Arena!.Read(command.Packet.ByteOffset + command.WordOffset * 4, command.Words.Length * 4);
+                            for (int word = 0; word < command.Words.Length; word++)
+                            {
+                                uint mask = Additional182ConsumedMask(command.Opcode, word);
+                                Assert.Equal(command.Words[word] & mask, BinaryPrimitives.ReadUInt32LittleEndian(physical.AsSpan(word * 4, 4)) & mask);
+                            }
+                            magma48Opcodes.Add(command.Opcode);
+                            magma48DepthPacketsSeen |= command.Opcode is >= 0x34 and <= 0x3F && command.VertexPayload4.Any(value => value > 0);
+                            if (command.Opcode == 0xE1 && command.Words.Length == 1 && command.Words[0] == 0xE100002A)
+                            {
+                                Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(current.NativeEffectMemory.Arena.Read(command.Packet.ByteOffset + 8, 4)));
+                                NativeBattleLogicalCommand quad = Assert.Single(commands, candidate => candidate.Packet.ByteOffset + 24 == command.Packet.ByteOffset && candidate.WordOffset == 1 && candidate.Opcode == 0x2A);
+                                Assert.Equal((int?)7, quad.OrderingBucket);
+                                Assert.Equal((int?)7, command.OrderingBucket);
+                                Assert.Equal(new[] { 0, 0, 0, 0 }, command.VertexPayload4.ToArray());
+                                magma48ColorPairsSeen = true;
+                            }
+                        }
+                        if (commands.Any(command => command.Opcode is >= 0x34 and <= 0x37) && magma48Boundaries.Add("native-GT3-F0-current-SZ"))
+                        {
+                            Assert.Contains(commands, command => command.Opcode is >= 0x34 and <= 0x37 && command.VertexPayload4.Length == 4);
+                            ColdNext("native-GT3-F0-current-SZ", current);
+                        }
+                    }
+                    NativeBattleModulePoolTask? magmaTarget = after.Pools[1].Slots.FirstOrDefault(task => (task.Flags & 1) != 0);
+                    if (magmaTarget is not null && magmaTarget.ReadWord(0x24) is 28 or 55 && magma48Boundaries.Add("before-target-old" + magmaTarget.ReadWord(0x24)))
+                    {
+                        ColdNext("before-target-old" + magmaTarget.ReadWord(0x24), current);
+                    }
+                }
+                if (effectId == 48 && before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0 && magma48Boundaries.Add("all-six-banks-and-node-lists-drained"))
+                {
+                    NativeBattleMagmaBreath48State magma = current.NativeEffectMemory!.MagmaBreath48!;
+                    Assert.Empty(after.Pools);
+                    for (int bank = 0; bank < 6; bank++)
+                    {
+                        NativeBattleCureFamilyPool pool = NativeBattleMagmaBreath48Profile.Pools[bank];
+                        for (int slot = 0; slot < pool.Capacity; slot++)
+                        {
+                            Assert.Equal(0, BinaryPrimitives.ReadUInt16LittleEndian(magma.InactiveBanks[bank]!.Read(slot * pool.Stride, 2)) & 1);
+                        }
+                    }
+                    int emitterOffset = checked((int)(magma.ReadDword(NativeBattleMagmaBreath48Profile.EmitterPointerGlobal) - 0x20DFAB8u));
+                    int geometryOffset = checked((int)(magma.ReadDword(NativeBattleMagmaBreath48Profile.GeometryPointerGlobal) - 0x20DFAB8u));
+                    Assert.All(Enumerable.Range(0, 20), index => Assert.Equal((byte)0, current.NativeEffectMemory.Arena!.Read(emitterOffset + index * 108 + 0x69, 1)[0]));
+                    Assert.All(Enumerable.Range(0, 100), index => Assert.Equal((byte)0, current.NativeEffectMemory.Arena!.Read(geometryOffset + index * 672 + 0x1D7, 1)[0]));
+                    ColdNext("all-six-banks-and-node-lists-drained", current);
                 }
                 if (effectId == 49 && after?.ReturnedDescriptor is > 0)
                 {
@@ -4786,7 +4967,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     }
                     else if (effectId != 183)
                     {
-                        Assert.Equal(JsonSerializer.Serialize(original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
+                        Assert.Equal(JsonSerializer.Serialize(original.MagmaBreath48Resources?.Camera ?? original.Resonance49Resources?.Camera ?? original.BladeShot12Resources?.Camera ?? original.Acid170Resources?.Camera ?? original.Morph172Resources?.Camera ?? original.PoisonGas171Resources?.Camera ?? original.Additional181Resources?.Camera ?? original.ChainGun190Resources?.Camera ?? original.Additional182Resources?.Camera((contact.Primary.HitFlags3 & 4) != 0) ?? original.Blaster186Resources?.Camera ?? original.CannonBlow151Resources?.Camera ?? original.GatlingGun150Resources?.Camera ?? original.Breath129Resources?.Camera ?? original.BadBreath131Resources?.Camera ?? original.Sonic139Resources?.Camera ?? original.ReflectBeam135Resources?.Camera ?? original.Breath157Resources?.Camera ?? original.WildCannonBlow156Resources?.Camera ?? original.SandStorm155Resources?.Camera ?? original.GastricJuice128Resources?.Camera ?? original.DisolvingAcid132Resources?.Camera ?? original.OilShot136Resources?.Camera ?? original.OilBlast137Resources?.Camera ?? original.Saliva138Resources?.Camera ?? original.MeltEye158Resources?.Camera ?? original.EnergyBomber217Resources?.Camera ?? original.Effect101Resources?.Camera ?? original.BeamLaser134Resources?.Camera ?? original.Hypnotize133Resources?.Camera ?? original.NeedlesFamilyResources?.Camera ?? original.LaserEye71Resources?.Camera ?? original.EerieSoundWave130Resources?.Camera ?? original.PetrifyStare127Resources?.Camera ?? original.RayBomb307Resources?.Camera ?? original.UltraWaves184Resources?.Camera ?? original.ElectricDischarge126Resources?.Camera ?? original.Electrocute275Resources?.Camera ?? original.Acid317Resources?.Camera ?? original.GatlingGun305Resources?.Camera ?? original.Degenerator306Resources?.Camera ?? original.BadBreath300Resources?.Camera ?? original.MicroMissiles299Resources?.Camera ?? original.WhiteWind297Resources?.Camera ?? original.DeathResources?.Animation ?? original.Curse47Resources?.Animation ?? original.Doom8Resources?.Camera ?? original.Absorb56Resources?.Animation ?? original.Devour62Resources?.Animation ?? original.MeltingBubble43Resources?.Animation ?? original.WindBlast29Resources?.Animation ?? original.Effect60Resources?.Animation ?? original.PsychoBlast23Resources?.Animation ?? original.Effect20Resources?.Animation ?? original.Raldo19Resources?.Animation ?? original.DrinkMagic37Resources?.Animation ?? original.MightyGuardResources?.Animation ?? original.ActorDirectorResources!.Animation), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation!.Source));
                     }
                     if (effectId == 126)
                     {
@@ -4861,7 +5042,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             peakOwnership = effectId is 19 or 184
                                 ? JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, Ownership = effectId == 184 ? "Fixed native PRIVATE packets, warp quads and capture plus matched COMMON prefix before ordinary actor submission" : "Matched common packets before the complete first actor allocation", Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() })
                                 : JsonSerializer.Serialize(new { Effect = effectId, current.Frame, NativeCallback = current.NativeGraphics.Callback, PrivateBank = packetState.PacketBank, PrivateStart = packetState.SecondaryDrawCursor!.Value - packetState.DrawStep, PrivateEnd = packetState.PrimaryDrawCursor!.Value, Packets = owned.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset).ToArray() });
-                            if (effectId is not (8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
+                            if (effectId is not (48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260))
                             {
                                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership);
                                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", current, pixels);
@@ -4918,6 +5099,30 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.False(stageChanged);
             }
             Assert.Equal(1, completions);
+            if (effectId == 48)
+            {
+                Assert.Equal(new[] { 0, 0x6000 }, magma48PacketBanks.Order().ToArray());
+                Assert.Equal(new uint[] { NativeBattleMagmaBreath48Profile.MeshAAddress, NativeBattleMagmaBreath48Profile.MeshBAddress }, magma48ChangedXYZ.Order().ToArray());
+                Assert.Equal(new uint[] { NativeBattleMagmaBreath48Profile.MeshAAddress, NativeBattleMagmaBreath48Profile.MeshBAddress }, magma48ChangedUV.Order().ToArray());
+                Assert.True(magma48EmittersSeen);
+                Assert.True(magma48GeometrySeen);
+                Assert.True(magma48ColorPairsSeen);
+                Assert.True(magma48DepthPacketsSeen);
+                foreach (uint callback in new uint[] { 0x824E40, 0x825050, 0x825170, 0x825220, 0x8253B0, 0x82A6A0 })
+                {
+                    Assert.Contains(callback, magma48Callbacks);
+                }
+                foreach (string magmaBoundary in new[] { "root-phase-5", "root-phase-6", "before-target-old28", "before-target-old55", "current-caster-bone15-twice", "native-GT3-F0-current-SZ", "all-six-banks-and-node-lists-drained" })
+                {
+                    Assert.Contains(magmaBoundary, magma48Boundaries);
+                }
+                for (int group = 0; group < 4; group++)
+                {
+                    Assert.Equal((short)0, completed.NativeStage!.Groups[group].ColorDepth);
+                    Assert.Equal(source.NativeStage!.Groups[group].ColorFlags & 0xFF000000u, completed.NativeStage.Groups[group].ColorFlags);
+                }
+                File.WriteAllText(Path.Combine(output!, "magma-breath48-native-observations.json"), JsonSerializer.Serialize(new { Boundaries = magma48Boundaries.Order().ToArray(), Callbacks = magma48Callbacks.Order().ToArray(), PacketBanks = magma48PacketBanks.Order().ToArray(), CurrentXYZ = magma48ChangedXYZ.Order().ToArray(), CurrentUV = magma48ChangedUV.Order().ToArray(), Opcodes = magma48Opcodes.Order().ToArray(), Observations = magma48Observations }));
+            }
             if (effectId == 49)
             {
                 Assert.Equal(new[] { 3, 4 }, resonance49ProgrammeActors.Order().ToArray());
@@ -5676,7 +5881,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.True(completed.Events.Count(item => item.NativeModuleSound is not null) > initialSounds, "The selected component published no original module sound.");
             Assert.True(Released(completed), "The original returned task, active effect and action104 descriptor must release through native execution.");
-            if (effectId is 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
+            if (effectId is 48 or 8 or 19 or 20 or 23 or 29 or 37 or 43 or 47 or 56 or 60 or 62 or 71 or 73 or 74 or 78 or 101 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 127 or 130 or 133 or 134 or 177 or 178 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 184 or 260 && peakSnapshot is not null)
             {
                 File.WriteAllText(Path.Combine(output!, "visible-packet-ownership.json"), peakOwnership ?? throw new InvalidDataException("The peak node packet ownership was not retained."));
                 NativeBattleRestorationPresentationTests.Publish(output!, "visible", peakSnapshot, peakPixels ?? throw new InvalidDataException("The peak node pixels were not retained."));
@@ -5840,7 +6045,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             return wavesCommon.Union(graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.Packet).Where(packet => packet.Buffer == 0 && packet.Bank is "22DB3C4" or "22BE8E8" or "D34868"));
         }
         DirectedNodePacketState state = Director(current);
-        if (state.Effect is 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
+        if (state.Effect is 48 or 135 or 131 or 128 or 155 or 156 or 157 or 12 or 49 or 170 or 172 or 171 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129 or 132 or 136 or 137 or 138 or 158 or 217 or 101 or 71 or 130 or 127 or 8 or 20 or 23 or 29 or 43 or 47 or 56 or 60 or 62 or 297 or 299 or 300 or 305 or 306 or 317 or 126 or 275 or 184 or 307 or 260 && (state.PrimaryDrawCursor is null || state.SecondaryDrawCursor is null))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -5850,7 +6055,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         int end = state.PrimaryDrawCursor ?? throw new InvalidDataException("The actor director sprite span requires its actual current primary end.");
         Assert.InRange(start, state.SourceArenaOffset, state.SourceArenaOffset + state.DrawStep);
         Assert.InRange(end, start, secondary);
-        IEnumerable<NativeBattlePrimitiveReference> sprites = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank == state.PacketBank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && (state.Effect == 139 || command.Opcode is >= 0x20 and < 0x80 || (state.Effect is 136 or 137 or 138 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129) && command.Opcode == 0xE2 || state.Effect is 136 or 190 && command.Opcode == 0xE1 || state.Effect == 131 && command.Opcode is 0xE1 or 0xE2)).Select(command => command.Packet);
+        IEnumerable<NativeBattlePrimitiveReference> sprites = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank == state.PacketBank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && (state.Effect == 48 && command.Opcode == 0xE1 || state.Effect == 139 || command.Opcode is >= 0x20 and < 0x80 || (state.Effect is 136 or 137 or 138 or 181 or 182 or 183 or 190 or 150 or 151 or 186 or 139 or 129) && command.Opcode == 0xE2 || state.Effect is 136 or 190 && command.Opcode == 0xE1 || state.Effect == 131 && command.Opcode is 0xE1 or 0xE2)).Select(command => command.Packet);
         if (state.Effect == 172)
         {
             NativeBattlePrimitiveProcess process = current.NativeEffectMemory!.PrimitiveProcess!;
@@ -5876,6 +6081,18 @@ public sealed class NativeBattleActorDirectorPresentationTests
     private static DirectedNodePacketState Director(BattleSnapshot snapshot)
     {
         ushort effect = snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect;
+        if (effect == 48)
+        {
+            NativeBattleMagmaBreath48State magma = snapshot.NativeEffectMemory!.MagmaBreath48!;
+            uint source = magma.ReadDword(NativeBattleMagmaBreath48Profile.InitializerGlobal);
+            uint cursor = magma.ReadDword(NativeBattleMagmaBreath48Profile.PrimaryCursorGlobal);
+            uint limit = magma.ReadDword(NativeBattleMagmaBreath48Profile.SecondaryCursorGlobal);
+            if (source == 0 || cursor == 0 || limit == 0 || snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor == 0)
+            {
+                return new(effect, 0, null, null, 0x6000, false);
+            }
+            return new(effect, checked((int)(source - 0x20DFAB8u)), checked((int)(cursor - 0x20DFAB8u)), checked((int)(limit - 0x20DFAB8u)), 0x6000, false);
+        }
         if (effect == 49)
         {
             NativeBattleResonance49State state = snapshot.NativeEffectMemory!.Resonance49!;
@@ -7407,6 +7624,16 @@ public sealed class NativeBattleActorDirectorPresentationTests
 
     private static bool CrossedContactGate(BattleSnapshot prior, BattleSnapshot current, ushort effect)
     {
+        if (effect == 48)
+        {
+            NativeBattleOriginalEffectState? magmaBefore = prior.NativeGraphics!.OriginalEffect;
+            NativeBattleOriginalEffectState? magmaAfter = current.NativeGraphics!.OriginalEffect;
+            if (magmaBefore?.Pools.Length != 6 || magmaAfter?.Pools.Length != 6)
+            {
+                return false;
+            }
+            return magmaBefore.Pools[1].Slots.Select((task, slot) => (task, slot)).Any(item => (item.task.Flags & 1) != 0 && item.task.Callback == 0x825170 && item.task.ReadByte(0x29) == 2 && unchecked((short)item.task.ReadWord(0x24)) >= 55 && magmaAfter.Pools[1].Slots[item.slot].Callback == item.task.Callback && magmaAfter.Pools[1].Slots[item.slot].ReadByte(0x29) == 3 && (magmaAfter.Pools[1].Slots[item.slot].ReadByte(0x26) & 1) != 0 && magmaAfter.Pools[1].Slots[item.slot].ReadWord(0x24) == unchecked((ushort)(item.task.ReadWord(0x24) + 1)));
+        }
         if (effect == 49)
         {
             NativeBattleOriginalEffectState? resonanceBefore = prior.NativeGraphics!.OriginalEffect;
