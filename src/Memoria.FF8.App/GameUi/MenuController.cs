@@ -243,6 +243,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (NavigateMagicJunction(input))
+        {
+            return;
+        }
         if (NavigateNativeSwitch(input))
         {
             return;
@@ -346,6 +350,31 @@ public sealed partial class MenuController
                 Back();
                 break;
         }
+    }
+
+    private bool NavigateMagicJunction(MenuInput input)
+    {
+        if (ScreenId is not ("junction-magic" or "junction-element" or "junction-status") || input is not (MenuInput.Left or MenuInput.Right))
+        {
+            return false;
+        }
+        string destination = (ScreenId, input) switch
+        {
+            ("junction-magic", MenuInput.Left) => "junction-element",
+            ("junction-element", MenuInput.Left) => "junction-status",
+            ("junction-element", MenuInput.Right) => "junction-magic",
+            ("junction-status", MenuInput.Right) => "junction-element",
+            _ => ScreenId
+        };
+        if (destination != ScreenId)
+        {
+            ScreenId = destination;
+            Message = "";
+            _view = null;
+            SoundRequested?.Invoke(MenuSound.Move);
+            ScreenOpened?.Invoke(ScreenId);
+        }
+        return true;
     }
 
     public void Push(string screenId)

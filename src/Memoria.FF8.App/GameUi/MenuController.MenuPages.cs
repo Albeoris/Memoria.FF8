@@ -175,6 +175,13 @@ public sealed partial class MenuController
 
     private UiElement BuildMagicJunction()
     {
+        if (IsEffectJunctionPage)
+        {
+            var effectPage = Grid([1.35f, 6.3f], [1], 4);
+            Place(effectPage, NativeMenuHeader("Junction", Label("Magic", 25)), 0);
+            Place(effectPage, BuildEffectJunction(false), 1);
+            return effectPage;
+        }
         var page = Grid([1.35f, 0.8f, 5.5f], [1], 4);
         Place(page, NativeMenuHeader("Junction", Label("Magic", 25)), 0);
         Place(page, Panel(null, Label($"{Character?.Name ?? "--"}    Lv {Number(Character?.Level)}    HP {(Character is null ? "--" : Hp(Character))}", 24)), 1);
@@ -182,7 +189,7 @@ public sealed partial class MenuController
         Place(page, body, 2);
         bool choosingSpell = ScreenId == "junction-stock";
         Place(body, Panel(choosingSpell ? "MAGIC STOCK" : "JUNCTION", Commands(29, 21)), 0, choosingSpell ? 1 : 0);
-        IReadOnlyDictionary<string, int>? preview = choosingSpell && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
+        IReadOnlyDictionary<string, int>? preview = choosingSpell && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
         var details = Grid([0.7f, 5, 0.65f], [1], 2);
         string selection = choosingSpell ? $"{_junctionSlot}    {SelectedEntry?.Label ?? "--"}" : SelectedEntry?.Label ?? "--";
         Place(details, Label(selection, 21), 0);
@@ -211,7 +218,7 @@ public sealed partial class MenuController
             Place(row, label, 0, 2);
         }
         Place(details, stats, 1);
-        Place(details, Label(choosingSpell ? "Current → Preview    Confirm to apply" : "Select a stat to choose its magic", 17), 2);
+        Place(details, choosingSpell ? Label("Current → Preview    Confirm to apply", 17) : JunctionAbilityPageLink(), 2);
         Place(body, Panel("STATUS", details), 0, choosingSpell ? 0 : 1);
         return page;
     }

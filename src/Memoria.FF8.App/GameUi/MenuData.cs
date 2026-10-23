@@ -67,12 +67,19 @@ public sealed class MenuCharacter
     public List<string> GuardianForceIds { get; } = [];
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<string, string, IReadOnlyDictionary<string, int>>? JunctionPreview { get; set; }
+    public MenuJunctionEffects? JunctionEffects { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<string, string, MenuJunctionEffects>? JunctionEffectsPreview { get; set; }
     public Dictionary<string, int> Stats { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> Junctions { get; } = new(StringComparer.Ordinal);
     public List<MenuLimitMove> LimitMoves { get; } = [];
     public Dictionary<string, string> LimitSettings { get; } = new(StringComparer.Ordinal);
     public List<string> SlotPreview { get; } = [];
 }
+
+public sealed record MenuJunctionPercentage(string Name, int Attack, int Defense);
+
+public sealed record MenuJunctionEffects(IReadOnlyList<MenuJunctionPercentage> Elements, IReadOnlyList<MenuJunctionPercentage> Statuses);
 
 public sealed class MenuLimitMove
 {

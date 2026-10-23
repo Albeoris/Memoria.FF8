@@ -177,8 +177,18 @@ public sealed partial class MenuController
         Place(header, VectorHeader("Junction", "Junction magic to strengthen your attributes."), 0);
         Place(header, BuildVectorJunctionTabs(), 0, 1);
         Place(page, new VectorRuleContainer(header, bottom: true), 0);
-        var body = Grid([1], ScreenId == "junction-stock" ? [2.5f, 3.3f, 3.6f] : [2.65f, 4.8f, 1.95f], 10);
+        UiElement body = IsEffectJunctionPage ? BuildEffectJunction(true) : BuildVectorJunctionBody();
         Place(page, body, 1);
+        var footer = Grid([1], [1.7f, 1], 16);
+        Place(footer, VectorLabel(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 13, true), 0);
+        Place(footer, VectorPrompts(), 0, 1);
+        Place(page, new VectorRuleContainer(footer), 2);
+        return page;
+    }
+
+    private UiElement BuildVectorJunctionBody()
+    {
+        var body = Grid([1], ScreenId == "junction-stock" ? [2.5f, 3.3f, 3.6f] : [2.65f, 4.8f, 1.95f], 10);
         Place(body, VectorCharacterSummary(), 0);
         bool stats = ScreenId is "junction" or "junction-magic";
         if (stats)
@@ -198,14 +208,10 @@ public sealed partial class MenuController
                 selection = Commands(30, 19);
             }
             Place(body, VectorPanel(ScreenId == "junction-stock" ? "M A G I C   S T O C K" : "J U N C T I O N", selection, 12), 0, 1);
-            IReadOnlyDictionary<string, int>? preview = ScreenId == "junction-stock" && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
+            IReadOnlyDictionary<string, int>? preview = ScreenId == "junction-stock" && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
             Place(body, ScreenId == "junction-stock" ? VectorAttributes(false, preview) : VectorPanel("D E T A I L S", ScreenId.StartsWith("junction-gf", StringComparison.Ordinal) ? JunctionSelectionDetails() : Details(), 12), 0, 2);
         }
-        var footer = Grid([1], [1.7f, 1], 16);
-        Place(footer, VectorLabel(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 13, true), 0);
-        Place(footer, VectorPrompts(), 0, 1);
-        Place(page, new VectorRuleContainer(footer), 2);
-        return page;
+        return body;
     }
 
     private UiElement BuildVectorJunctionTabs()
@@ -263,8 +269,12 @@ public sealed partial class MenuController
     private UiElement VectorAttributes(bool interactive, IReadOnlyDictionary<string, int>? preview = null)
     {
         string[] names = ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"];
-        var table = VectorRows([24, 0], [1], 5);
-        Place(table, new VectorReadouts([("S T A T       M A G I C", "V A L U E")], 12), 0);
+        var table = VectorRows(interactive ? [24, 24, 0] : [24, 0], [1], 5);
+        if (interactive)
+        {
+            Place(table, JunctionAbilityPageLink(), 0);
+        }
+        Place(table, new VectorReadouts([("S T A T       M A G I C", "V A L U E")], 12), interactive ? 1 : 0);
         var rows = Grid(Enumerable.Repeat(1f, names.Length).ToArray(), [1], 0);
         for (int index = 0; index < names.Length; index++)
         {
@@ -287,7 +297,7 @@ public sealed partial class MenuController
             }
             Place(rows, row, index);
         }
-        Place(table, rows, 1);
+        Place(table, rows, interactive ? 2 : 1);
         return VectorPanel("A T T R I B U T E   J U N C T I O N S", table, 16);
     }
 

@@ -127,11 +127,14 @@ public static class LiveMenuData
                 if (catalog is not null)
                 {
                     int characterRow = row;
-                    foreach (var stat in Statistics(catalog.ReadStatRules(vitals, row), native, vitals.GetMagicInventory(row)))
+                    BattleNativePlayerStatRules rules = catalog.ReadStatRules(vitals, row);
+                    IReadOnlyList<NativeMagicStock> inventory = vitals.GetMagicInventory(row);
+                    foreach (var stat in Statistics(rules, native, inventory))
                     {
                         character.Stats.Add(stat.Key, stat.Value);
                     }
-                    character.JunctionPreview = (slotName, spellId) =>
+                    character.JunctionEffects = JunctionEffects(rules, native, inventory);
+                    NativeCharacterVitals Preview(string slotName, string spellId)
                     {
                         int slot = Enumerable.Range(0, 19).Single(index => JunctionSlotName(index) == slotName);
                         string prefix = $"magic-{characterRow}-";
@@ -140,8 +143,17 @@ public static class LiveMenuData
                             throw new ArgumentException("Junction preview requires the selected character's stock.", nameof(spellId));
                         }
                         int spell = spellId == "0" ? 0 : int.Parse(spellId.AsSpan(prefix.Length), System.Globalization.CultureInfo.InvariantCulture);
-                        NativeCharacterVitals preview = vitals.SetJunctionMagic(characterRow, slot, spell, true);
+                        return vitals.SetJunctionMagic(characterRow, slot, spell, true);
+                    }
+                    character.JunctionPreview = (slotName, spellId) =>
+                    {
+                        NativeCharacterVitals preview = Preview(slotName, spellId);
                         return Statistics(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
+                    };
+                    character.JunctionEffectsPreview = (slotName, spellId) =>
+                    {
+                        NativeCharacterVitals preview = Preview(slotName, spellId);
+                        return JunctionEffects(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                     };
                 }
                 for (int slot = 0; slot < native.Junction.MagicJunctions.Length; slot++)
@@ -300,6 +312,22 @@ public static class LiveMenuData
             ["Hit"] = stats.Hit,
             ["Luck"] = stats.Luck
         };
+    }
+
+    internal static MenuJunctionEffects JunctionEffects(BattleNativePlayerStatRules rules, NativeCharacterVital character, IReadOnlyList<NativeMagicStock> inventory)
+    {
+        BattleNativePlayerStatistics stats = rules.Project(inventory, new BattleNativeCharacterGrowth(character.HitPointBonus, character.StatBonuses.ToImmutableArray()));
+        ImmutableArray<byte> resistances = rules.ProjectStatusResistances(inventory);
+        string[] names = ["Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy"];
+        MenuJunctionPercentage[] elements = names.Select((name, index) => new MenuJunctionPercentage(name, (stats.ElementAttack & (1 << index)) != 0 ? stats.ElementAttackPercent : 0, stats.ElementDefenses[index] - 800)).ToArray();
+        (int Index, string Name)[] statuses = [(0, "Death"), (1, "Poison"), (2, "Petrify"), (3, "Darkness"), (4, "Silence"), (5, "Berserk"), (6, "Zombie"), (8, "Sleep"), (10, "Slow"), (11, "Stop"), (17, "Curse"), (22, "Confuse"), (23, "Drain")];
+        int spellId = rules.MagicJunctions[10];
+        ImmutableArray<byte> spell = rules.MagicRecords[spellId];
+        int quantity = spellId == 0 ? 0 : inventory.FirstOrDefault(stock => stock.SpellId == spellId)?.Count ?? 0;
+        int attackMask = spell[38] | spell[39] << 8;
+        int attackPercent = spell[36] * quantity / 100;
+        MenuJunctionPercentage[] statusEffects = statuses.Select((status, index) => new MenuJunctionPercentage(status.Name, (attackMask & (1 << index)) != 0 ? attackPercent : 0, resistances[status.Index] - 100)).ToArray();
+        return new MenuJunctionEffects(elements, statusEffects);
     }
 
     internal static string JunctionSlotName(int slot)
