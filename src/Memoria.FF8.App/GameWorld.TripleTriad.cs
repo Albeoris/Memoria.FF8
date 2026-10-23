@@ -167,7 +167,7 @@ internal sealed partial class GameWorld
         else
         {
             session.SetTripleTriadPlay(play with { Prompt = prompt, RandomState = prompt.RandomState });
-            CaptureTripleTriad();
+            // Prompt callbacks change only the card module; retain the suspended field snapshot.
         }
     }
 
