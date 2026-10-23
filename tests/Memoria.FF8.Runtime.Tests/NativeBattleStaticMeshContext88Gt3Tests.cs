@@ -106,7 +106,20 @@ public sealed class NativeBattleStaticMeshContext88Gt3Tests
         NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(drawn))!;
         NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step current) => Draw(Mesh(6), current.Context, current.Memory);
         Assert.Equal(JsonSerializer.Serialize(Next(drawn)), JsonSerializer.Serialize(Next(restored)));
-        Assert.Throws<NotSupportedException>(() => Draw(Mesh(6), Context(0).MarkUnknown(9, 1)));
+    }
+
+    [Fact]
+    public void Unfaded_GT3_preserves_unknown_FAR_lane_until_depth_cue_consumes_it()
+    {
+        NativeBattleStaticMeshContext88Step drawn = Draw(Mesh(6), Context(0).MarkUnknown(9, 1));
+        Assert.Equal(Assert.Single(Draw(Mesh(6), Context(0)).Batch.Attempts).Primitive!.Words, Assert.Single(drawn.Batch.Attempts).Primitive!.Words);
+        Assert.Equal(0x120u, drawn.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
+        Assert.Null(drawn.Memory.PrimitiveProcess.ModelRendererRegisters.FarGreen);
+        Assert.Equal(0x560u, drawn.Memory.PrimitiveProcess.ModelRendererRegisters.FarBlue);
+        Assert.Throws<NotSupportedException>(() => drawn.Context.Read(9, 1));
+        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(drawn))!;
+        Assert.Equal(JsonSerializer.Serialize(Draw(Mesh(6), drawn.Context, drawn.Memory)), JsonSerializer.Serialize(Draw(Mesh(6), restored.Context, restored.Memory)));
+        Assert.Throws<NotSupportedException>(() => Draw(Mesh(6), Context(0xC3).MarkUnknown(9, 1)));
     }
 
     private const uint Address = 0xCE2CE4;
