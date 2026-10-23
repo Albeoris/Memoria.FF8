@@ -47,9 +47,16 @@ public sealed partial class BattleSession
 
         NativeBattleAdditional181PointStep Anchor(NativeBattleAdditional181Frame current, int actor)
         {
-            NativeBattleModuleAnchor anchor = ReadNativeModelAnchor(graphics, actor);
-            NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Additional effect181 anchor requires its actual model WORD36.");
-            return new(current, Point(new(anchor.X, anchor.Y, anchor.Z)).Write(6, BitConverter.GetBytes(transform.Angle36)));
+            NativeBattleGraphicsModel model = graphics.Models[actor];
+            NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Additional effect181 anchor requires its actual model transform.");
+            if ((model.Flags0 & 2) == 0)
+            {
+                return new(current, Point(transform.Position28).Write(6, BitConverter.GetBytes(transform.Angle36)));
+            }
+            NativeBattleAdditional181PointStep first = Bone(current, actor, 0xF0, 0);
+            NativeBattleAdditional181PointStep second = Bone(first.Frame, actor, 0xF1, 0);
+            short Average(int offset) => unchecked((short)((BinaryPrimitives.ReadInt16LittleEndian(first.Point8.Read(offset, 2)) + BinaryPrimitives.ReadInt16LittleEndian(second.Point8.Read(offset, 2))) / 2));
+            return new(second.Frame, Point(new(Average(0), Average(2), Average(4))).Write(6, BitConverter.GetBytes(transform.Angle36)));
         }
 
         static NativeBattleEffectArena Point(NativeBattleVector point) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
