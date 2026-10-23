@@ -289,7 +289,11 @@ internal sealed partial class RecreateGame
         try
         {
             GuardianForceAbilityPreparedApply prepared = session.PrepareGuardianForceAbilities(preview, guardianSourceRevision, catalog.Generation);
-            return new(true, Diagnostics: GuardianForceAbilityProfileCoordinator.MissingLayerDiagnostics(catalog, context.Current?.GuardianForceProfile).AddRange(composed.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => new ModDiagnostic("Memoria.GuardianForceConflict", outcome.Message, outcome.PackageId, GuardianForceAbilityMods.PayloadPath))), Commit: () => session.CommitPreparedGuardianForceAbilities(prepared));
+            return new(true, Diagnostics: GuardianForceAbilityProfileCoordinator.MissingLayerDiagnostics(catalog, context.Current?.GuardianForceProfile).AddRange(composed.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => new ModDiagnostic("Memoria.GuardianForceConflict", outcome.Message, outcome.PackageId, GuardianForceAbilityMods.PayloadPath))), Commit: () =>
+            {
+                session.CommitPreparedGuardianForceAbilities(prepared);
+                gameMenus?.InvalidateLiveData();
+            });
         }
         catch (InvalidOperationException exception)
         {
