@@ -12,7 +12,7 @@ public enum ModelBrowserMode
 }
 
 /// <summary>Renderer-independent model catalog, viewer and interchange controls.</summary>
-public sealed class ModelBrowserController
+public sealed partial class ModelBrowserController
 {
     public const int RowsPerPage = 12;
     private readonly Action close;
@@ -49,7 +49,7 @@ public sealed class ModelBrowserController
     public float Zoom { get; private set; } = 1;
     public string Message { get; private set; } = "";
     public string Hints { get; private set; } = "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant";
-    public UiRect PreviewBounds => Mode == ModelBrowserMode.Catalog ? new UiRect(18, 134, 390, 390) : new UiRect(18, 92, 924, 432);
+    public UiRect PreviewBounds => AssetsOpen ? new UiRect(18, 92, 480, 360) : Mode == ModelBrowserMode.Catalog ? new UiRect(18, 134, 390, 390) : new UiRect(18, 92, 924, 432);
 
     public UiView BuildView()
     {
@@ -132,19 +132,31 @@ public sealed class ModelBrowserController
 
     public void SetSearchFocused(bool focused)
     {
-        SearchFocused = focused && Mode == ModelBrowserMode.Catalog;
+        SearchFocused = focused && (Mode == ModelBrowserMode.Catalog || AssetsOpen);
     }
 
     public void TextInput(char character)
     {
         if (SearchFocused && !char.IsControl(character))
         {
-            SetSearch(Search + character);
+            if (AssetsOpen)
+            {
+                SetAssetSearch(AssetSearch + character);
+            }
+            else
+            {
+                SetSearch(Search + character);
+            }
         }
     }
 
     public void Backspace()
     {
+        if (SearchFocused && AssetsOpen)
+        {
+            SetAssetSearch(AssetSearch.Length > 0 ? AssetSearch[..^1] : "");
+            return;
+        }
         if (SearchFocused && Search.Length > 0)
         {
             SetSearch(Search[..^1]);
@@ -165,6 +177,7 @@ public sealed class ModelBrowserController
 
     private void ResetModel()
     {
+        CloseAssetPanel();
         VariantIndex = 0;
         RotationX = 0;
         RotationY = 0;
@@ -174,6 +187,7 @@ public sealed class ModelBrowserController
 
     public void SelectVariant(int index)
     {
+        CloseAssetPanel();
         VariantIndex = Math.Clamp(index, 0, Math.Max(0, (Selected?.Variants.Count ?? 0) - 1));
     }
 
@@ -248,6 +262,11 @@ public sealed class ModelBrowserController
     public void Cancel()
     {
         SoundRequested?.Invoke(MenuSound.Cancel);
+        if (AssetsOpen)
+        {
+            CloseAssetPanel();
+            return;
+        }
         if (Mode == ModelBrowserMode.Commands)
         {
             Mode = ModelBrowserMode.Viewer;
@@ -267,6 +286,11 @@ public sealed class ModelBrowserController
         if (input == MenuInput.Cancel)
         {
             Cancel();
+            return;
+        }
+        if (AssetsOpen)
+        {
+            NavigateAssets(input);
             return;
         }
         if (Mode == ModelBrowserMode.Commands)

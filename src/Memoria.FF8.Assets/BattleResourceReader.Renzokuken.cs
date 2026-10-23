@@ -33,6 +33,9 @@ public sealed partial class BattleAssets
 {
     public BattleRenzokukenModels ReadNativeRenzokukenModels(BattleNativeRenzokukenResource resource, BattleModel body, BattleModel? weapon)
     {
-        return BattleResourceReader.ReadRenzokukenModels(resource, body, weapon);
+        BattleRenzokukenModels result = BattleResourceReader.ReadRenzokukenModels(resource, body with { EditableOverride = null }, weapon is null ? null : weapon with { EditableOverride = null });
+        BattleModel changedBody = modelOverrides?.ApplyBattleBank("battle/" + body.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", result.Body) ?? result.Body;
+        BattleModel? changedWeapon = result.Weapon is { } decodedWeapon ? modelOverrides?.ApplyBattleBank("battle/" + decodedWeapon.Name.ToLowerInvariant(), $"renzokuken-{resource.MagicId}", decodedWeapon) ?? decodedWeapon : null;
+        return new(changedBody, changedWeapon);
     }
 }

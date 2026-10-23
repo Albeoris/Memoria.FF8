@@ -1,0 +1,305 @@
+using System.Numerics;
+using Memoria.FF8.Assets;
+using Memoria.FF8.GameUi;
+using Memoria.FF8.Mods;
+
+namespace Memoria.FF8;
+
+internal sealed partial class RecreateGame
+{
+    private readonly Dictionary<string, EditableModel> browserImportOriginals = new(StringComparer.Ordinal);
+    private readonly List<string> browserImportWarnings = [];
+
+    private void OpenBrowserImport(ModelBrowserEntry entry, ModelBrowserVariant variant)
+    {
+        try
+        {
+            string? path = ModelBrowserDialogs.Import(Window.Handle);
+            if (path is null)
+            {
+                return;
+            }
+            if (new FileInfo(path).Length > 256 * 1024 * 1024)
+            {
+                throw new InvalidDataException("The GLB must be no larger than 256 MiB.");
+            }
+            byte[] bytes = File.ReadAllBytes(path);
+            ModelAssetImportInventory inventory = ModelAssetExchange.InspectGlb(bytes);
+            string edition = resourceHost!.Resources.Source.Edition.ToString();
+            if (inventory.Edition != "unspecified" && inventory.Edition != edition)
+            {
+                throw new InvalidDataException($"This GLB targets {inventory.Edition}; the selected installation is {edition}.");
+            }
+            if (inventory.Objects.Count == 0)
+            {
+                if (!ModelBrowserDialogs.Confirm(Window.Handle, "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to " + entry.Id + "?", "Map GLB target", "Use this target?"))
+                {
+                    return;
+                }
+                EditableModel original = ReadBrowserModel(entry, variant);
+                ModelExchangeImportResult legacy = ModelExchange.ImportGlb(bytes, original);
+                EditableModel model = legacy.Model;
+                ModelAssetObject item = new(entry.Id, "mapped", "", entry.Id, model);
+                ModelAssetClip[] clips = model.Animations.Select((animation, index) => new ModelAssetClip(ModelAssetDiscoveryBindings.ClipTarget(entry.Id, "embedded", index), entry.Id, entry.Id, "mapped/" + index, "mapped", "", animation, animation.Channels.Select(channel => channel.Times.Length).DefaultIfEmpty(1).Max(), 1f / original.NativeFramesPerSecond)).ToArray();
+                inventory = new([item], clips, legacy.Warnings) { Edition = edition };
+            }
+            browserAssetReader?.Dispose();
+            browserAssetReader = null;
+            browserAssetsComplete = true;
+            browserImportOriginals.Clear();
+            browserImportWarnings.Clear();
+            browserImportWarnings.AddRange(inventory.Warnings);
+            browserImport = inventory;
+            modelPreviewIdentity = entry.Id + "\0" + variant.Id;
+            modelPreview = ReadBrowserModel(entry, variant);
+            browserAssemblyIdentity = null;
+            modelBrowser!.ResetAssets();
+            foreach (ModelAssetObject item in inventory.Objects.Where(item => item.GeometrySelected))
+            {
+                AddImportRow("object:" + item.Target, item.Model.Name, item.Target, false, item.Target, "embedded", item.Model, fingerprint: item.Fingerprint);
+            }
+            foreach (ModelAssetClip clip in inventory.Clips)
+            {
+                ParseClipAddress(clip.Target, out string target, out string bank, out int slot);
+                ModelAssetObject owner = inventory.Objects.Single(item => item.Target == clip.ModelTarget);
+                AddImportRow(clip.Target, clip.Animation.Name, clip.GroupId, true, target, bank, owner.Model, slot, clip.Fingerprint);
+            }
+            foreach (string warning in inventory.Warnings.Where(warning => warning.Contains("mapping", StringComparison.OrdinalIgnoreCase)))
+            {
+                modelBrowser.AddAsset(new("unmapped:" + warning, "Needs mapping", "Unresolved content", false, false, warning, false));
+            }
+            modelBrowser.SetDiscoveryStatus("Import inventory: actual surviving objects and channels");
+            modelBrowser.OpenAssetPanel(CompleteBrowserImport, importing: true);
+            modelBrowser.SetHints("Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nUnchecked leaves unchanged · Rigs are validation context · Back: cancel without installation");
+        }
+        catch (Exception exception) when (IsModelBrowserError(exception))
+        {
+            modelBrowser?.SetMessage(exception.Message);
+        }
+        finally
+        {
+            keyboard.SuppressHeldNameInput();
+            modelBrowserDialogInputDrain = true;
+        }
+    }
+
+    private void AddImportRow(string id, string name, string group, bool clip, string target, string bank, EditableModel imported, int slot = -1, string fingerprint = "")
+    {
+        string status = "Matched: " + target + (clip ? $" / {bank} / {slot}" : " / geometry");
+        bool supported = true;
+        try
+        {
+            EditableModel original = ReadImportOriginal(target, bank);
+            int before = original.Bones.Count(bone => bone.IsJoint);
+            int after = imported.Bones.Count(bone => bone.IsJoint);
+            if (before != after)
+            {
+                browserImportWarnings.Add($"{target}: native joint count changed from {before} to {after}.");
+            }
+            ValidateImportRig(original, imported);
+            if (fingerprint.Length != 0 && !Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ModelExchange.ExportGlb(original))).Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                browserImportWarnings.Add($"{target} / {bank}: source revision differs from the exported provider; retained target content is resolved from the current mod stack.");
+                status = "Warning: source revision differs · " + target;
+            }
+            if (clip && (uint)slot >= original.Animations.Count)
+            {
+                throw new NotSupportedException("The selected native clip slot does not exist. Adding gameplay slots is unsupported.");
+            }
+        }
+        catch (Exception exception) when (IsModelBrowserError(exception))
+        {
+            supported = false;
+            status = "Unsupported: " + target + " · " + exception.Message;
+        }
+        modelBrowser!.AddAsset(new(id, name, group, clip, supported, status, supported));
+    }
+
+    private EditableModel ReadImportOriginal(string target, string bank)
+    {
+        string key = target + "/" + bank;
+        if (browserImportOriginals.TryGetValue(key, out EditableModel? model))
+        {
+            return model;
+        }
+        if (!ModelMods.IsModelId(target))
+        {
+            throw new NotSupportedException("The logical target is unavailable and needs explicit catalog mapping.");
+        }
+        ModelCatalogEntry entry = modelCatalog.GetValueOrDefault(target) ?? CatalogEntryForTarget(target);
+        if (bank == "embedded")
+        {
+            model = modelBrowserAssets!.LoadCatalogModel(entry);
+        }
+        else
+        {
+            ModelAssetDiscoveryItem item = modelBrowserAssets!.DiscoverModelAssets(entry).FirstOrDefault(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && ClipModelTarget(item.Id) == target) ?? throw new NotSupportedException("No loader binds this external bank to the target.");
+            model = item.Load!();
+        }
+        model = resourceHost!.ModelMods.Resolve(target, model, bank: bank);
+        browserImportOriginals.Add(key, model);
+        return model;
+    }
+
+    private static ModelCatalogEntry CatalogEntryForTarget(string target)
+    {
+        string[] parts = target.Split('/');
+        return parts[0] switch
+        {
+            "field" => new(target, target, "Field", $"field/{parts[1]}/chara.one", target, ModelIndex: int.Parse(parts[2])),
+            "world" when parts.Length == 2 => new(target, target, "World character", "world/chara.one", target, ModelIndex: int.Parse(parts[1])),
+            "world" => new(target, target, "World static", "world/wmsetus.obj", target, ModelIndex: int.Parse(parts[2])),
+            "battle" => new(target, target, parts[1].StartsWith("a0stg", StringComparison.Ordinal) ? "Battle stage" : parts[1].Length > 2 && parts[1][0] == 'd' && parts[1][2] == 'w' ? "Battle weapon" : "Battle model", target, target),
+            _ => throw new NotSupportedException("Unknown model domain.")
+        };
+    }
+
+    private static void ParseClipAddress(string address, out string target, out string bank, out int slot)
+    {
+        target = ClipModelTarget(address);
+        string suffix = address[(target.Length + 7)..];
+        int separator = suffix.LastIndexOf('/');
+        if (separator < 1 || !int.TryParse(suffix[(separator + 1)..], out slot) || slot < 0)
+        {
+            throw new InvalidDataException("The clip replacement address is invalid.");
+        }
+        bank = suffix[..separator];
+        if (!ModelMods.IsBank(bank))
+        {
+            throw new InvalidDataException("The clip bank address is unsupported.");
+        }
+    }
+
+    private static void ValidateImportRig(EditableModel original, EditableModel imported)
+    {
+        int[] before = ModelExchange.NativeJointOrder(original);
+        int[] after = ModelExchange.NativeJointOrder(imported);
+        if (before.Length != after.Length)
+        {
+            throw new NotSupportedException("Retaining the target rig requires the same native joint set; rig replacement is a separate operation.");
+        }
+        for (int index = 0; index < before.Length; index++)
+        {
+            EditableBone a = original.Bones[before[index]];
+            EditableBone b = imported.Bones[after[index]];
+            int parentA = Array.IndexOf(before, a.Parent);
+            int parentB = Array.IndexOf(after, b.Parent);
+            if (parentA != parentB || Vector3.Distance(a.Translation, b.Translation) > 0.001f || MathF.Abs(Quaternion.Dot(a.Rotation, b.Rotation)) < 0.99999f || Vector3.Distance(a.Scale, b.Scale) > 0.001f)
+            {
+                throw new NotSupportedException("The changed joint hierarchy or rest transform cannot retain the target rig and its other clips.");
+            }
+        }
+    }
+
+    private ModelAssetSelection BrowserImportSelection(bool preview)
+    {
+        ModelAssetImportInventory inventory = browserImport!;
+        List<ModelAssetObject> objects = [];
+        List<ModelAssetClip> clips = [];
+        string? activeAlternative = inventory.Objects.FirstOrDefault(item => "object:" + item.Target == modelBrowser!.ActiveObject && item.AlternativeGroup is not null)?.Target ?? inventory.Objects.FirstOrDefault(item => item.AlternativeGroup is not null)?.Target;
+        string? activeGroup = inventory.Clips.FirstOrDefault(clip => clip.Target == modelBrowser!.ActiveClip)?.GroupId;
+        foreach (ModelAssetObject item in inventory.Objects)
+        {
+            if (preview && item.AlternativeGroup is not null && item.Target != activeAlternative)
+            {
+                continue;
+            }
+            bool geometry = modelBrowser!.SelectedAssets.Contains("object:" + item.Target);
+            ModelAssetClip[] chosen = inventory.Clips.Where(clip => clip.ModelTarget == item.Target && modelBrowser.SelectedAssets.Contains(clip.Target) && (!preview || activeGroup is null || clip.GroupId == activeGroup)).ToArray();
+            if (!geometry && chosen.Length == 0)
+            {
+                continue;
+            }
+            EditableModel original = ReadImportOriginal(item.Target, "embedded");
+            EditableModel model = preview ? ModelMods.Preview(original, new(item.Target, item.Model, geometry, []) { PreserveNativeParts = PreservedImportParts(inventory.Objects, item) }) : item.Model;
+            objects.Add(item with { Model = model, GeometrySelected = preview ? model.Meshes.Count != 0 : geometry });
+            foreach (ModelAssetClip clip in chosen)
+            {
+                if (!preview)
+                {
+                    clips.Add(clip);
+                    continue;
+                }
+                ParseClipAddress(clip.Target, out _, out string bank, out int slot);
+                EditableModel aligned = ModelMods.Preview(ReadImportOriginal(item.Target, bank), new(item.Target, item.Model, false, [new(bank, slot, clip.Animation)]));
+                clips.Add(clip with { Animation = aligned.Animations[slot] });
+            }
+        }
+        return new(objects, clips) { Edition = inventory.Edition };
+    }
+
+    private IReadOnlyList<int> PreservedImportParts(IEnumerable<ModelAssetObject> objects, ModelAssetObject owner)
+    {
+        return objects.Where(item => item.Target != owner.Target && item.RigId == owner.RigId && item.GeometrySelected && modelBrowser!.SelectedAssets.Contains("object:" + item.Target) && item.ReplacedPart?.StartsWith("mesh/", StringComparison.Ordinal) == true).Select(item => int.TryParse(item.ReplacedPart![5..], out int part) && part is >= 0 and < 256 ? part : throw new InvalidDataException("Invalid native replacement part.")).Distinct().ToArray();
+    }
+
+    private void CompleteBrowserImport()
+    {
+        try
+        {
+            ModelAssetSelection selection = BrowserImportSelection(preview: false);
+            List<ModelModReplacement> replacements = [];
+            List<string> warnings = [.. browserImportWarnings];
+            foreach (ModelAssetObject item in selection.Objects)
+            {
+                ModelAssetClip[] clips = selection.Clips.Where(clip => clip.ModelTarget == item.Target).ToArray();
+                if (!item.GeometrySelected && clips.Length == 0)
+                {
+                    continue;
+                }
+                ModelModClipReplacement[] selectedClips = clips.Select(clip =>
+                {
+                    ParseClipAddress(clip.Target, out _, out string bank, out int slot);
+                    EditableModel original = ReadImportOriginal(item.Target, bank);
+                    if (MathF.Abs(original.Animations[slot].Duration - clip.Animation.Duration) > 0.0001f)
+                    {
+                        warnings.Add($"{clip.Target}: clip duration changed; game scripts may rely on native frame positions.");
+                    }
+                    return new ModelModClipReplacement(bank, slot, clip.Animation);
+                }).ToArray();
+                ModelModReplacement replacement = new(item.Target, item.Model, item.GeometrySelected, selectedClips) { PreserveNativeParts = PreservedImportParts(selection.Objects, item) };
+                foreach (string bank in selectedClips.Select(clip => clip.Bank).Append("embedded").Distinct())
+                {
+                    _ = ModelMods.Preview(ReadImportOriginal(item.Target, bank), replacement with { ReplaceGeometry = item.GeometrySelected && bank == "embedded", Clips = selectedClips.Where(clip => clip.Bank == bank).ToArray() });
+                }
+                replacements.Add(replacement);
+            }
+            if (replacements.Count == 0)
+            {
+                throw new InvalidDataException("Select at least one matched object or clip component.");
+            }
+            ModelModInstallPlan plan = ModelModInstaller.Plan(replacements);
+            if (warnings.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, string.Join("\n", warnings.Distinct())))
+            {
+                return;
+            }
+            string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
+            string? destination = ModelBrowserDialogs.Destination(Window.Handle, root);
+            if (destination is null)
+            {
+                return;
+            }
+            IReadOnlyList<string> conflicts = plan.GetConflicts(root, destination);
+            if (conflicts.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, $"{conflicts.Count} selected replacement files already exist. Unselected files and package settings will be retained.", "Replace selected mod content", "Replace these files?"))
+            {
+                return;
+            }
+            ModelModInstaller.Install(root, destination, plan);
+            resourceHost.Mods.RequestRefresh();
+            bool published = resourceHost.Pump(true);
+            modelBrowser!.CloseAssetPanel();
+            RefreshModelBrowserEntries(refreshVariants: true);
+            modelPreviewIdentity = null;
+            modelBrowser.SetMessage(published ? "Selected replacements installed. Reload the scene to apply them." : "Files installed; inspect Mods diagnostics before use.");
+        }
+        catch (Exception exception) when (IsModelBrowserError(exception))
+        {
+            modelBrowser?.SetMessage(exception.Message);
+        }
+        finally
+        {
+            keyboard.SuppressHeldNameInput();
+            modelBrowserDialogInputDrain = true;
+        }
+    }
+}

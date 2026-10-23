@@ -24,7 +24,7 @@ public sealed partial class BattleAssets
         if (modelId >= 16 && !linked)
         {
             NativeBattleArchiveFile enemy = ReadNativeBattleFile(checked((ushort)(modelId + 150)));
-            return new(modelId, false, 0, checked((short)enemy.FileId), enemy.Name, enemy.Bytes);
+            return ApplyNativeModelAnimationOverride(new(modelId, false, 0, checked((short)enemy.FileId), enemy.Name, enemy.Bytes));
         }
         if (modelId >= 11 || linked && modelId == 7)
         {
@@ -45,6 +45,6 @@ public sealed partial class BattleAssets
         NativeBattleArchiveFile file = ReadNativeBattleFile(checked((ushort)fileId));
         NativeBattleModelDatSource result = new(modelId, linked, observedSelector, fileId, file.Name, file.Bytes);
         _ = result.Section(0);
-        return result;
+        return ApplyNativeModelAnimationOverride(result);
     }
 }

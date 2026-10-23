@@ -11,6 +11,9 @@ public interface IModelOverrideSource
 {
     FieldModel Apply(string modelId, FieldModel original);
     BattleModel Apply(string modelId, BattleModel original);
+    BattleModel ApplyBattleBank(string modelId, string bank, BattleModel original) => original;
+    IReadOnlyList<string> BattleBanks(string modelId) => [];
+    bool HasModelOverride(string modelId) => false;
     BattleStage Apply(string modelId, BattleStage original);
     WorldStaticModel Apply(string modelId, WorldStaticModel original);
 }

@@ -77,10 +77,10 @@ internal static class ModelBrowserDialogs
         return true;
     }
 
-    public static bool Confirm(nint owner, string warning)
+    public static bool Confirm(nint owner, string warning, string title = "Model import warning", string question = "Import this model anyway?")
     {
         using DpiScope dpi = new();
-        return MessageBoxW(owner, warning + "\n\nImport this model anyway?", "Model import warning", 0x134) == 6;
+        return MessageBoxW(owner, warning + "\n\n" + question, title, 0x134) == 6;
     }
 
     private sealed class DpiScope : IDisposable

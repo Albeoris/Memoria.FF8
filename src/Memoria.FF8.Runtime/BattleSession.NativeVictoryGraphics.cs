@@ -59,7 +59,7 @@ public sealed partial class BattleSession
             NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native503040 requires its current physical CPU resource owners."), model, row, directory);
             NativeFileStaging = binding.Staging;
             row = binding.NextRow;
-            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(index, binding.Model) }, index, 1);
+            graphics = SelectNativeHeaderSequence(graphics with { Models = graphics.Models.SetItem(index, binding.Model with { ActiveAnimationBank = "victory-" + selected.Section }) }, index, 1);
         }
         graphics = StartNativeVictoryCamera5064F0(graphics);
         return (graphics, step.Phase, true);

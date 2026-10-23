@@ -15,7 +15,7 @@ internal sealed partial class RecreateGame
     private IEnumerator<ModelCatalogEntry>? modelCatalogReader;
     private bool modelCatalogComplete;
     private readonly Dictionary<string, ModelCatalogEntry> modelCatalog = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, ModFile> browserModelFiles = new(StringComparer.OrdinalIgnoreCase);
+    private ModelMods browserInstalledModelMods = ModelMods.Empty;
     private GpuTriangleRenderer? modelPreviewGpu;
     private EditableModel? modelPreview;
     private string? modelPreviewIdentity;
@@ -47,7 +47,7 @@ internal sealed partial class RecreateGame
         modelPreviewIdentity = null;
         try
         {
-            modelBrowserAssets ??= new GameAssets(options.GameDirectory, resources: resourceHost.Resources);
+            modelBrowserAssets ??= new GameAssets(options.GameDirectory);
             if (!modelCatalogComplete && modelCatalogReader is null)
             {
                 modelCatalogReader = modelBrowserAssets.EnumerateModelCatalog().GetEnumerator();
@@ -66,6 +66,13 @@ internal sealed partial class RecreateGame
 
     private void CloseModelBrowser()
     {
+        browserAssetReader?.Dispose();
+        browserAssetReader = null;
+        browserAssets.Clear();
+        browserAssetModels.Clear();
+        browserAssetFingerprints.Clear();
+        browserImportOriginals.Clear();
+        browserImport = null;
         modelBrowser = null;
         modelPreview = null;
         modelPreviewIdentity = null;
@@ -84,15 +91,15 @@ internal sealed partial class RecreateGame
         if (refreshVariants || modelBrowserModGeneration != resourceHost.Mods.Catalog.Generation)
         {
             modelBrowserModGeneration = resourceHost.Mods.Catalog.Generation;
-            browserModelFiles.Clear();
-            foreach (ModFile file in resourceHost.Mods.ReadInstalledFiles(ModFormat.Memoria).Where(file => file.RelativePath.StartsWith("models/", StringComparison.OrdinalIgnoreCase) && file.RelativePath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase)))
+            ModCatalogSnapshot installed = new(modelBrowserModGeneration, resourceHost.Mods.Catalog.Packages, resourceHost.Mods.ReadInstalledFiles(ModFormat.Memoria));
+            if (!ModelMods.TryPrepare(installed, out browserInstalledModelMods, out IReadOnlyList<ModDiagnostic> diagnostics))
             {
-                browserModelFiles.TryAdd(file.PackageId + ":" + file.RelativePath, file);
+                modelBrowser.SetMessage(string.Join(" · ", diagnostics.Select(item => item.Message)));
             }
             modelPreviewIdentity = null;
         }
         modelBrowser.Refresh(modelCatalog.Values.Select(entry => new ModelBrowserEntry(entry.Id, entry.Name, entry.Category, entry.SearchText,
-            new[] { new ModelBrowserVariant("original", "Original") }.Concat(browserModelFiles.Where(item => item.Value.RelativePath.Equals("models/" + entry.Id + ".glb", StringComparison.OrdinalIgnoreCase)).Select(item => new ModelBrowserVariant(item.Key, item.Value.PackageId + (resourceHost.Mods.Catalog.Packages.Any(package => package.Id == item.Value.PackageId && package.Status == ModEffectiveStatus.Disabled) ? " (disabled)" : "")))).ToArray(),
+            new[] { new ModelBrowserVariant("original", "Original"), new ModelBrowserVariant("resolved", "Resolved") }.Concat(browserInstalledModelMods.Variants.Select(item => item.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).Select(id => new ModelBrowserVariant(id, id + (resourceHost.Mods.Catalog.Packages.Any(package => package.Id == id && package.Status == ModEffectiveStatus.Disabled) ? " (disabled)" : "")))).ToArray(),
             [entry.ResourcePath, entry.LoadError ?? entry.Id])));
     }
 
@@ -134,6 +141,8 @@ internal sealed partial class RecreateGame
             return false;
         }
         ReadMoreModelCatalogEntries();
+        ReadMoreBrowserAssets();
+        modelBrowser.AdvancePlayback((float)Math.Min(elapsed.TotalSeconds, 0.1));
         if (resourceHost is not null && modelBrowserModGeneration != resourceHost.Mods.Catalog.Generation)
         {
             RefreshModelBrowserEntries();
@@ -155,11 +164,11 @@ internal sealed partial class RecreateGame
         {
             browser.Navigate(MenuInput.Cancel);
         }
-        else if (input.Confirm || enter && !previousModelBrowserEnter)
+        else if (!browser.SearchFocused && (input.Confirm || enter && !previousModelBrowserEnter))
         {
             browser.Navigate(MenuInput.Confirm);
         }
-        else if (browser.Mode == ModelBrowserMode.Viewer)
+        else if (browser.Mode == ModelBrowserMode.Viewer && (!browser.AssetsOpen || browser.PreviewFocused))
         {
             float delta = (float)Math.Min(elapsed.TotalSeconds, 0.1);
             browser.Rotate(input.Horizontal * delta * 2, input.Vertical * delta * 2);
@@ -167,15 +176,25 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            if (input.MenuVertical != 0)
+            if (!browser.SearchFocused && input.MenuVertical != 0)
             {
                 browser.Navigate(input.MenuVertical > 0 ? MenuInput.Down : MenuInput.Up);
             }
-            if (input.MenuPage != 0)
+            if (browser.AssetsOpen && !browser.SearchFocused && input.MenuHorizontal != 0)
+            {
+                browser.Navigate(input.MenuHorizontal > 0 ? MenuInput.Right : MenuInput.Left);
+            }
+            if (!browser.SearchFocused && input.MenuPage != 0)
             {
                 browser.Navigate(input.MenuPage > 0 ? MenuInput.PageDown : MenuInput.PageUp);
             }
         }
+        bool space = IsActive && keys.IsKeyDown(Keys.Space);
+        if (browser.AssetsOpen && !browser.SearchFocused && !browser.PreviewFocused && space && !previousBrowserSpace)
+        {
+            browser.Navigate(MenuInput.Confirm);
+        }
+        previousBrowserSpace = space;
         previousModelBrowserEnter = enter;
         previousModelBrowserEscape = escape;
         if (modelBrowser is null)
@@ -192,7 +211,7 @@ internal sealed partial class RecreateGame
         }
         ushort pressed = (ushort)(keyboard.HeldControlButtons & ~previousModelBrowserButtons);
         previousModelBrowserButtons = keyboard.HeldControlButtons;
-        if ((pressed & 3) != 0 && browser.Mode != ModelBrowserMode.Commands)
+        if ((pressed & 3) != 0 && browser.Mode != ModelBrowserMode.Commands && !browser.AssetsOpen)
         {
             browser.StepModel((pressed & 2) != 0 ? 1 : -1);
         }
@@ -201,7 +220,11 @@ internal sealed partial class RecreateGame
         previousModelBrowserWheel = mouse.ScrollWheelValue;
         if (IsActive && wheel != 0)
         {
-            if (browser.Mode == ModelBrowserMode.Catalog)
+            if (browser.AssetsOpen && !browser.PreviewFocused)
+            {
+                browser.SelectAssetRow(browser.AssetIndex - Math.Sign(wheel) * 3, true);
+            }
+            else if (browser.Mode == ModelBrowserMode.Catalog)
             {
                 browser.Select(browser.SelectedIndex - Math.Sign(wheel) * 3);
             }
@@ -221,12 +244,7 @@ internal sealed partial class RecreateGame
     private EditableModel ReadBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
         EditableModel original = modelBrowserAssets!.LoadCatalogModel(modelCatalog[entry.Id]);
-        if (variant.Id == "original")
-        {
-            return original;
-        }
-        ModFile mod = browserModelFiles[variant.Id];
-        return ModelExchange.ImportGlb(mod.ReadBytes(), original, allowBoneCountChange: true).Model;
+        return ResolveBrowserModel(entry.Id, original, variant);
     }
 
     private void RenderModelBrowserPreview(TimeSpan time)
@@ -244,6 +262,7 @@ internal sealed partial class RecreateGame
                 modelPreviewIdentity = identity;
                 modelPreview = null;
                 modelPreview = ReadBrowserModel(entry, variant);
+                ResetBrowserAssets(entry, variant);
                 modelBrowser.SetMessage($"{modelPreview.Bones.Count(bone => bone.IsJoint)} bones · {modelPreview.Meshes.Count} meshes · {modelPreview.Animations.Count} animations");
             }
             if (modelPreview is null)
@@ -252,7 +271,8 @@ internal sealed partial class RecreateGame
             }
             Rectangle rectangle = ModelBrowserPreviewBounds(GraphicsDevice.Viewport.Bounds);
             modelPreviewGpu ??= new GpuTriangleRenderer(GraphicsDevice);
-            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.RotationY, modelBrowser.RotationX, modelBrowser.Zoom, (float)time.TotalSeconds);
+            UpdateBrowserAssemblyPreview();
+            ModelPreviewRenderer.Render(modelPreviewGpu, modelPreview, rectangle.Width, rectangle.Height, modelBrowser.RotationY, modelBrowser.RotationX, modelBrowser.Zoom, modelBrowser.AssetsOpen ? modelBrowser.PlaybackSeconds : (float)time.TotalSeconds, modelBrowser.AssetsOpen && modelPreview.Animations.Count == 0 ? -1 : 0, !modelBrowser.AssetsOpen || modelBrowser.Loop);
             modelPreviewRendered = true;
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
@@ -289,105 +309,17 @@ internal sealed partial class RecreateGame
 
     private void ExportBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
-        try
+        if (browserImport is not null || browserAssetIdentity != entry.Id + "\0" + variant.Id)
         {
-            EditableModel model = ReadBrowserModel(entry, variant);
-            string? path = ModelBrowserDialogs.Export(Window.Handle, entry.Id.Replace('/', '_'));
-            if (path is not null)
-            {
-                File.WriteAllBytes(path, ModelExchange.ExportGlb(model));
-                modelBrowser?.SetMessage("Model exported to GLB.");
-            }
+            ResetBrowserAssets(entry, variant);
         }
-        catch (Exception exception) when (IsModelBrowserError(exception))
-        {
-            modelBrowser?.SetMessage(exception.Message);
-        }
-        finally
-        {
-            keyboard.SuppressHeldNameInput();
-            modelBrowserDialogInputDrain = true;
-        }
+        modelBrowser!.OpenAssetPanel(CompleteBrowserExport);
+        modelBrowser.SetHints("Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · Back: cancel selection");
     }
 
     private void ImportBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
-        try
-        {
-            string? path = ModelBrowserDialogs.Import(Window.Handle);
-            if (path is null)
-            {
-                return;
-            }
-            EditableModel original = modelBrowserAssets!.LoadCatalogModel(modelCatalog[entry.Id]);
-            if (new FileInfo(path).Length > 256 * 1024 * 1024)
-            {
-                throw new InvalidDataException("The GLB must be no larger than 256 MiB.");
-            }
-            byte[] bytes = File.ReadAllBytes(path);
-            ModelExchangeImportResult imported = ModelExchange.ImportGlb(bytes, original);
-            if (imported.Warnings.Count != 0 || imported.RequiresBoneCountApproval)
-            {
-                string warning = string.Join("\n", imported.Warnings);
-                if (imported.RequiresBoneCountApproval)
-                {
-                    warning = "The number of bones changed. Existing game animations or attachments may be incompatible.\n" + warning;
-                }
-                if (!ModelBrowserDialogs.Confirm(Window.Handle, warning))
-                {
-                    return;
-                }
-                imported = ModelExchange.ImportGlb(bytes, original, allowBoneCountChange: true);
-            }
-            byte[] converted = ModelExchange.ExportGlb(imported.Model);
-            string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
-            string? folder = ModelBrowserDialogs.Destination(Window.Handle, root);
-            if (folder is null)
-            {
-                return;
-            }
-            string destination = Path.Combine(folder, "models", entry.Id.Replace('/', Path.DirectorySeparatorChar) + ".glb");
-            if (!ModelBrowserDialogs.IsPackageDirectory(root, Path.GetDirectoryName(destination)!))
-            {
-                throw new InvalidDataException("The model destination must remain inside Mods/Memoria.");
-            }
-            if (File.Exists(destination) && !ModelBrowserDialogs.Confirm(Window.Handle, "This package already contains a replacement for this model. It will be overwritten."))
-            {
-                return;
-            }
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                File.WriteAllBytes(temporary, converted);
-                File.Move(temporary, destination, overwrite: true);
-            }
-            finally
-            {
-                File.Delete(temporary);
-            }
-            resourceHost.Mods.RequestRefresh();
-            bool published = resourceHost.Pump(true);
-            RefreshModelBrowserEntries(refreshVariants: true);
-            modelPreviewIdentity = null;
-            string importedVariant = "Memoria/" + Path.GetFileName(folder) + ":models/" + entry.Id + ".glb";
-            int index = modelBrowser!.Selected!.Variants.ToList().FindIndex(item => item.Id.Equals(importedVariant, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0)
-            {
-                modelBrowser.SelectVariant(index);
-            }
-            bool active = resourceHost.ModelMods.Variants.Any(item => (item.PackageId + ":" + item.RelativePath).Equals(importedVariant, StringComparison.OrdinalIgnoreCase));
-            modelBrowser.SetMessage(active ? "Imported as a model mod. Reload the scene to apply it to existing actors." : published ? "Imported into a disabled package. Enable it in Mods, then reload the scene." : "GLB saved; mod publication failed. Inspect Mods diagnostics.");
-        }
-        catch (Exception exception) when (IsModelBrowserError(exception))
-        {
-            modelBrowser?.SetMessage(exception.Message);
-        }
-        finally
-        {
-            keyboard.SuppressHeldNameInput();
-            modelBrowserDialogInputDrain = true;
-        }
+        OpenBrowserImport(entry, variant);
     }
 
     private static bool IsModelBrowserError(Exception exception) => exception is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException or ArgumentException or OverflowException or IndexOutOfRangeException or KeyNotFoundException or InvalidOperationException or System.Text.Json.JsonException;
@@ -463,6 +395,8 @@ internal sealed partial class RecreateGame
 
     private void DisposeModelBrowser()
     {
+        browserAssetReader?.Dispose();
+        browserAssetReader = null;
         modelCatalogReader?.Dispose();
         modelCatalogReader = null;
         modelBrowserAssets?.Dispose();

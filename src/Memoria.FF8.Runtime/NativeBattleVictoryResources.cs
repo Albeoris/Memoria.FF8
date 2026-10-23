@@ -41,7 +41,7 @@ public static class NativeBattleVictoryResources
             state = state with { Locals = state.Locals.SetItem(7, state.Default2), Default2 = 1 };
         }
         model = model with { Flags2 = (ushort)((model.Flags2 ?? throw new NotSupportedException("Native5022C0 requires model WORD2.")) | 8), ActiveResourceRow100 = null, ActiveStagedResourceRow100 = row, LinkedStagedResourceRow = linkedRow, SequenceState = state };
-        return (model, next);
+        return (model with { ActiveAnimationDirectory = directory, ActiveAnimationBank = null }, next);
 
         void Copy(NativeBattleResourceRowReference original, uint destination, byte mask)
         {
@@ -80,6 +80,7 @@ public static class NativeBattleVictoryResources
         NativeBattlePoseSource pose = new(Skeleton(row), Block(checked(row + 8)));
         NativeBattlePoseSource? linked = model.LinkedStagedResourceRow is uint linkedRow ? new(Skeleton(linkedRow), Block(checked(linkedRow + 8))) : original.LinkedPoseSource;
         NativeBattleGraphicsResource resource = original with { SequenceSection = Block(checked(row + 12)), PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), LinkedPoseSource = linked, LinkedAnimationFrames = linked is null ? [] : NativeBattlePoseDecoder.ReadFrameCounts(linked.Animations.AsSpan()) };
+        resource = resource.ApplyAnimationBankOverrides(model.ActiveAnimationBank, model.ActiveAnimationDirectory);
         resource.Validate();
         return resource;
 

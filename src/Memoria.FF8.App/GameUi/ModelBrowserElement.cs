@@ -2,7 +2,7 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-internal sealed class ModelBrowserElement : UiElement
+internal sealed partial class ModelBrowserElement : UiElement
 {
     private readonly ModelBrowserController controller;
     private static readonly UiRect SearchBounds = new(440, 94, 490, 34);
@@ -27,7 +27,10 @@ internal sealed class ModelBrowserElement : UiElement
         theme.Panel(canvas, new UiRect(10, 10, 940, 66));
         Label(canvas, "MODEL BROWSER", 24, new UiRect(24, 20, 700, 28), theme.Foreground);
         theme.Panel(canvas, new UiRect(10, 530, 940, 132));
-        Button(canvas, theme, VariantBounds, "Variant: " + (controller.CurrentVariant?.Name ?? "Unavailable"));
+        if (!controller.AssetsOpen)
+        {
+            Button(canvas, theme, VariantBounds, "Variant: " + (controller.CurrentVariant?.Name ?? "Unavailable"));
+        }
         Button(canvas, theme, BackBounds, controller.Mode == ModelBrowserMode.Catalog ? "Close" : "Back");
         Label(canvas, controller.Message, 13, new UiRect(24, 578, 384, 32), theme.Foreground);
         Label(canvas, controller.Hints, 12, new UiRect(24, 619, 790, 36), theme.Muted);
@@ -37,7 +40,14 @@ internal sealed class ModelBrowserElement : UiElement
         }
         else
         {
-            DrawViewer(canvas, theme);
+            if (controller.AssetsOpen)
+            {
+                DrawAssets(canvas, theme);
+            }
+            else
+            {
+                DrawViewer(canvas, theme);
+            }
         }
         if (controller.Mode == ModelBrowserMode.Commands)
         {
@@ -111,6 +121,11 @@ internal sealed class ModelBrowserElement : UiElement
 
     public override void Pointer(float x, float y)
     {
+        if (controller.AssetsOpen)
+        {
+            AssetsPointer(x, y);
+            return;
+        }
         if (controller.Mode == ModelBrowserMode.Commands)
         {
             for (int index = 0; index < 2; index++)

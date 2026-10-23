@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 /// <summary>Fits the selected model to a stable orbit preview without advancing the game.</summary>
 internal static class ModelPreviewRenderer
 {
-    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, float yaw, float pitch, float zoom, float seconds)
+    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, float yaw, float pitch, float zoom, float seconds, int animation = 0, bool loop = true)
     {
         IReadOnlyList<Vector3[]> rest = ModelExchange.Pose(model, 0, 0);
         Vector3 minimum = new(float.PositiveInfinity);
@@ -25,8 +25,8 @@ internal static class ModelPreviewRenderer
         }
         float size = Math.Min(width, height) * 0.43f * zoom / radius;
         Matrix4x4 rotation = Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateRotationX(pitch);
-        float duration = model.Animations.Count > 0 ? model.Animations[0].Duration : 0;
-        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(model, 0, duration > 0 ? seconds % duration : 0);
+        float duration = (uint)animation < model.Animations.Count ? model.Animations[animation].Duration : 0;
+        IReadOnlyList<Vector3[]> pose = ModelExchange.Pose(model, animation, duration > 0 ? loop ? seconds % duration : Math.Clamp(seconds, 0, duration) : 0);
         renderer.Begin(width, height, new Vector4(0.055f, 0.065f, 0.09f, 1));
         try
         {

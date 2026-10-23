@@ -6,15 +6,25 @@ using Albeoris.Games.FF8.Imaging;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Editable glTF-space model. Positions use a right-handed, Y-up coordinate system.</summary>
-public sealed record EditableModel(string Name, string Kind, IReadOnlyList<EditableBone> Bones, IReadOnlyList<EditableMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<EditableAnimation> Animations, JsonElement NativeMetadata);
+public sealed record EditableModel(string Name, string Kind, IReadOnlyList<EditableBone> Bones, IReadOnlyList<EditableMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<EditableAnimation> Animations, JsonElement NativeMetadata)
+{
+    public float NativeFramesPerSecond { get; init; } = FramesPerSecondDefault;
+    private const float FramesPerSecondDefault = 30;
+    public string? ExchangeManifest { get; init; }
+}
 public sealed record EditableBone(string Name, int Parent, Vector3 Translation, Quaternion Rotation, Vector3 Scale, bool IsJoint = true)
 {
     public int NativeIndex { get; init; } = -1;
+    public string? RigId { get; init; }
+    public string? StableId { get; init; }
 }
 public readonly record struct EditableVertex(Vector3 Position, Vector3 Normal, Vector2 Uv, Vector4 Joints, Vector4 Weights, Vector4 Color);
 public sealed record EditableMesh(string Name, IReadOnlyList<EditableVertex> Vertices, IReadOnlyList<int> Indices, int Texture, Matrix4x4 Transform)
 {
     public int Node { get; init; } = -1;
+    public int NativePart { get; init; } = -1;
+    public string? ObjectTarget { get; init; }
+    public string? RigId { get; init; }
     public bool Skinned { get; init; }
     public IReadOnlyDictionary<int, Matrix4x4>? InverseBindMatrices { get; init; }
     public bool Transparent { get; init; }
@@ -30,11 +40,12 @@ public sealed record ModelExchangeImportResult(EditableModel Model, IReadOnlyLis
 public static partial class ModelExchange
 {
     public const float FramesPerSecond = 30;
+    public const float WorldFramesPerSecond = 30.5f;
     private static readonly Matrix4x4 NativeToGltf = Matrix4x4.CreateRotationX(-MathF.PI / 2);
     private static readonly Matrix4x4 GltfToNative = Matrix4x4.CreateRotationX(MathF.PI / 2);
     private static readonly JsonSerializerOptions MetadataOptions = new() { IncludeFields = true, Converters = { new NativeArrayConverterFactory() } };
 
-    public static EditableModel FromField(FieldModel model)
+    public static EditableModel FromField(FieldModel model, float framesPerSecond = FramesPerSecond)
     {
         if (model.EditableOverride is { } edited)
         {
@@ -68,8 +79,8 @@ public static partial class ModelExchange
                 local.Translation = new Vector3(0, 0, model.Bones[parent].Length);
             }
             return ConvertTransform(local);
-        })).ToArray();
-        return new EditableModel(model.Name, "field", bones, meshes, model.Textures, animations, Metadata(model));
+        }, framesPerSecond)).ToArray();
+        return new EditableModel(model.Name, "field", bones, meshes, model.Textures, animations, Metadata(model)) { NativeFramesPerSecond = framesPerSecond };
     }
 
     public static EditableModel FromBattle(BattleModel model)
@@ -214,7 +225,7 @@ public static partial class ModelExchange
     internal static Vector3 ToNative(Vector3 value) => Vector3.Transform(value, GltfToNative);
     internal static Matrix4x4 ConvertTransform(Matrix4x4 value) => GltfToNative * value * NativeToGltf;
 
-    private static Vector4 Sample(EditableAnimationChannel channel, float seconds)
+    internal static Vector4 Sample(EditableAnimationChannel channel, float seconds)
     {
         int index = Array.BinarySearch(channel.Times, seconds);
         if (index < 0)
@@ -283,7 +294,7 @@ public static partial class ModelExchange
         return new EditableBone($"bone_{index}", parent, translation, rotation, scale) { NativeIndex = index };
     }
 
-    internal static int[] NativeJointOrder(EditableModel model)
+    public static int[] NativeJointOrder(EditableModel model)
     {
         int NativeIndex(int index)
         {
@@ -352,8 +363,9 @@ public static partial class ModelExchange
     private static List<EditableMesh> BattleMeshes(IReadOnlyList<BattleMesh> source, IReadOnlyList<PixelImage> textures, Matrix4x4[] bind, float scale, bool skinned)
     {
         List<EditableMesh> result = [];
-        foreach (BattleMesh mesh in source)
+        for (int part = 0; part < source.Count; part++)
         {
+            BattleMesh mesh = source[part];
             foreach (IGrouping<int, BattleFace> group in mesh.Faces.GroupBy(face => face.Texture))
             {
                 List<EditableVertex> vertices = [];
@@ -363,7 +375,7 @@ public static partial class ModelExchange
                     Vector4 color = new(Math.Min(1, face.Color.R / 128f), Math.Min(1, face.Color.G / 128f), Math.Min(1, face.Color.B / 128f), face.Color.A / 255f);
                     AddFace(vertices, indices, face.Vertices.Select((index, corner) => Vertex(mesh.Vertices[index].Position * scale, skinned ? mesh.Vertices[index].Bone : -1, face.Uv[corner] / ResourceTextureList.LogicalSize(textures, face.Texture), color * (face.VertexColors?[corner] ?? Vector4.One), bind)).ToArray(), true);
                 }
-                result.Add(new EditableMesh($"mesh_{result.Count}", vertices, indices, group.Key, Matrix4x4.Identity) { Skinned = skinned });
+                result.Add(new EditableMesh($"mesh_{result.Count}", vertices, indices, group.Key, Matrix4x4.Identity) { Skinned = skinned, NativePart = part });
             }
         }
         return result;
@@ -372,17 +384,35 @@ public static partial class ModelExchange
     private static IReadOnlyList<BattleMesh> NativeBattleMeshes(EditableModel model)
     {
         IReadOnlyList<Vector3[]> pose = Pose(model, -1, 0);
-        return model.Meshes.Select((mesh, meshIndex) =>
+        if (model.Meshes.Any(mesh => mesh.NativePart > 4095))
         {
-            BattleVertex[] vertices = pose[meshIndex].Select(position => new BattleVertex(ToNative(position), 0)).ToArray();
-            List<BattleFace> faces = [];
-            for (int index = 0; index < mesh.Indices.Count; index += 3)
+            throw new InvalidDataException("Native geometry part index exceeds supported limits.");
+        }
+        List<BattleMesh> parts = [];
+        int nextPart = model.Meshes.Where(mesh => mesh.NativePart >= 0).Select(mesh => mesh.NativePart + 1).DefaultIfEmpty(0).Max();
+        var groups = model.Meshes.Select((mesh, index) => (mesh, index, part: mesh.NativePart >= 0 ? mesh.NativePart : nextPart++)).GroupBy(item => item.part).OrderBy(group => group.Key);
+        foreach (var group in groups)
+        {
+            while (parts.Count < group.Key)
             {
-                int[] triangle = [mesh.Indices[index], mesh.Indices[index + 1], mesh.Indices[index + 2]];
-                faces.Add(new BattleFace(triangle, triangle.Select(value => mesh.Vertices[value].Uv * ResourceTextureList.LogicalSize(model.Textures, mesh.Texture)).ToArray(), mesh.Texture, new Rgba32(128, 128, 128)) { VertexColors = triangle.Select(value => mesh.Vertices[value].Color).ToArray() });
+                parts.Add(new BattleMesh([], []));
             }
-            return new BattleMesh(vertices, faces);
-        }).ToArray();
+            List<BattleVertex> vertices = [];
+            List<BattleFace> faces = [];
+            foreach (var item in group)
+            {
+                EditableMesh mesh = item.mesh;
+                int offset = vertices.Count;
+                vertices.AddRange(pose[item.index].Select(position => new BattleVertex(ToNative(position), 0)));
+                for (int index = 0; index < mesh.Indices.Count; index += 3)
+                {
+                    int[] triangle = [mesh.Indices[index], mesh.Indices[index + 1], mesh.Indices[index + 2]];
+                    faces.Add(new BattleFace(triangle.Select(value => value + offset).ToArray(), triangle.Select(value => mesh.Vertices[value].Uv * ResourceTextureList.LogicalSize(model.Textures, mesh.Texture)).ToArray(), mesh.Texture, new Rgba32(128, 128, 128)) { VertexColors = triangle.Select(value => mesh.Vertices[value].Color).ToArray() });
+                }
+            }
+            parts.Add(new BattleMesh(vertices, faces));
+        }
+        return parts;
     }
 
     private static EditableModel WithFallbackTexture(EditableModel model)
@@ -399,14 +429,14 @@ public static partial class ModelExchange
         };
     }
 
-    private static EditableAnimation Animation(string name, IReadOnlyList<EditableBone> bones, int count, Func<int, int, Matrix4x4> read)
+    private static EditableAnimation Animation(string name, IReadOnlyList<EditableBone> bones, int count, Func<int, int, Matrix4x4> read, float framesPerSecond = FramesPerSecond)
     {
         List<EditableAnimationChannel> channels = [];
         if (count == 0)
         {
             return new EditableAnimation(name, channels);
         }
-        float[] times = Enumerable.Range(0, count).Select(frame => frame / FramesPerSecond).ToArray();
+        float[] times = Enumerable.Range(0, count).Select(frame => frame / framesPerSecond).ToArray();
         for (int bone = 0; bone < bones.Count; bone++)
         {
             Vector4[] translations = new Vector4[count];
@@ -415,6 +445,11 @@ public static partial class ModelExchange
             for (int frame = 0; frame < count; frame++)
             {
                 Matrix4x4.Decompose(read(bone, frame), out Vector3 scale, out Quaternion rotation, out Vector3 translation);
+                rotation = Quaternion.Normalize(rotation);
+                if (frame > 0 && Vector4.Dot(rotations[frame - 1], new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W)) < 0)
+                {
+                    rotation = new Quaternion(-rotation.X, -rotation.Y, -rotation.Z, -rotation.W);
+                }
                 translations[frame] = new Vector4(translation, 0);
                 rotations[frame] = new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W);
                 scales[frame] = new Vector4(scale, 0);

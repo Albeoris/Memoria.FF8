@@ -174,7 +174,7 @@ public sealed partial class GameAssets
         }
         if (entry.Category == "World character")
         {
-            return ModelExchange.FromField(WorldAssetReader.ReadWorldCharacter(bytes, entry.ModelIndex));
+            return ModelExchange.FromField(WorldAssetReader.ReadWorldCharacter(bytes, entry.ModelIndex), ModelExchange.WorldFramesPerSecond);
         }
         if (entry.Category == "World static")
         {

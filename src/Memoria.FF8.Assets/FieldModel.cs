@@ -48,7 +48,7 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
     {
         if (EditableOverride is { } edited)
         {
-            return ModelExchange.Pose(edited, animationId, frameNumber / ModelExchange.FramesPerSecond).SelectMany(mesh => mesh).Select(position => ModelExchange.ToNative(position) + new Vector3(0, 0, rootTranslationZ)).ToArray();
+            return ModelExchange.Pose(edited, animationId, frameNumber / edited.NativeFramesPerSecond).SelectMany(mesh => mesh).Select(position => ModelExchange.ToNative(position) + new Vector3(0, 0, rootTranslationZ)).ToArray();
         }
         Matrix4x4[] transforms = BuildTransforms(animationId, frameNumber, firstControlRotation, rootTranslationZ);
         return TransformVertices(transforms, skinTranslations);

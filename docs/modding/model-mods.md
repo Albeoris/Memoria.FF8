@@ -13,7 +13,7 @@ In the viewer:
 | Arrows / movement stick | Rotate the model. |
 | World camera rotation buttons | Zoom. The mouse wheel also zooms. |
 | Battle escape left / right buttons | Previous / next model in the filtered list. |
-| Card / Alternate or the Variant button | Cycle the original and installed mod files, including disabled packages. |
+| Card / Alternate or the Variant button | Cycle Original, Resolved and individual installed providers, including disabled packages. |
 | Confirm or Commands | Open the command menu. |
 | Cancel | Close commands, return to the catalog, then return to Debug Room. |
 
@@ -21,24 +21,36 @@ On-screen hints follow the current keyboard/controller bindings. Preview animati
 
 ## Export
 
-**Export to Blender** opens the standard Windows save dialog and writes a self-contained `.glb`. It contains triangulated geometry, UVs, embedded textures, vertex colors, skeleton, skin weights and available animation clips. Native model data is retained as metadata for round trips; this does not convert every original rendering or gameplay contract into a Blender feature.
+**Export to Blender** opens the asset selection panel before the Windows save dialog. Objects select geometry; Clips select independent skeletal tracks. Selecting a clip does not select its mesh. Required rigs, materials and textures are dependencies. A clip-only file retains editable rigs without geometry.
 
-In Blender, set the scene frame rate to **30 FPS**, import **glTF 2.0**, edit the model, then export **glTF Binary (.glb)**. Export all animation actions and enable **Custom Properties** to preserve `FF8_bone_index` joint identifiers. Retain `bone_<index>` bone names and `animation_<index>` action names where possible. Original quads are triangulated for exchange. Skeleton changes may break original attachments even when the number of bones stays the same.
+The panel discovers loader-proved weapon alternatives and animation banks, including supported external banks. Field main-character movements retain their separate field/entry replacement addresses. Unsupported or unavailable sources appear as diagnostics; the status never claims complete animation coverage for unresolved banks. Exporting before discovery finishes requires confirmation.
+
+Click a row label to preview an object or clip group, and its checkbox to select export content. Select all includes filtered-out rows; Select visible selects only matching rows; Clear all clears user selections. Group checkboxes show partial selection. Filtering leaves selection unchanged, and manual selection prevents later discoveries from becoming selected automatically. Only one weapon alternative is visible in preview, independently of export selection. Tab switches list/preview focus; arrows navigate the list or rotate the preview. Space toggles the focused checkbox. Playback provides pause, frame stepping, scrubbing, loop and speed controls. Preview speed and loop do not edit exported data.
+
+The result is one self-contained GLB with standard meshes, skins, embedded textures and editable skeletal animations. Body and standard weapon retain independent rigs and synchronized clip components with their own durations. Reduced weapons share the owner's rig and retain the replaced body-part relationship. Selected weapon alternatives can overlap in Blender; hide unused alternatives while editing.
+
+Use the verified [Blender settings and round-trip helper](../developers/model-linked-glb.md). Enable Custom Properties, preserve the metadata root, native joint identifiers and qualified action/NLA tokens, and use NLA Tracks without merging separate clips. Set the native sample rate before importing: field/battle clips use 30 samples per second; world character clips use 30.5. The helper derives this rate from exported timing. Blender is not required to run Memoria.
 
 ## Import as a mod
 
-**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB. It validates geometry, buffers/accessors, textures, skeleton, transforms and animation data before offering a destination. A changed bone count requires explicit confirmation. Other compatibility warnings are also shown before writing. Canceling a dialog leaves model files unchanged.
+**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A GLB without preserved identities requires explicit mapping to the selected catalog target. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
 
 Choose or create a package folder directly inside the displayed `Mods/Memoria` directory. The folder picker starts there; paths outside it, nested package roots and directory links are rejected, and the picker offers another attempt. Existing replacements require overwrite confirmation. All dialogs use the current monitor's DPI context.
 
-Imported GLBs are normalized into the engine's editable representation and stored as:
+Selected geometry and clip slots are normalized into independent native mod outputs, for example:
 
 ```text
-Mods/Memoria/<Package>/models/field/<field-name>/<model-index>.glb
-Mods/Memoria/<Package>/models/battle/<original-filename>.glb
-Mods/Memoria/<Package>/models/world/<shape-id>.glb
-Mods/Memoria/<Package>/models/world/static/<shape-id>.glb
+Mods/Memoria/<Package>/models/battle/<original-filename>.geometry.glb
+Mods/Memoria/<Package>/models/battle/<original-filename>.clips/embedded/<slot>.glb
+Mods/Memoria/<Package>/models/battle/<original-filename>.clips/<external-bank>/<slot>.glb
+Mods/Memoria/<Package>/models/field/<field-name>/<entry>.geometry.glb
+Mods/Memoria/<Package>/models/field/<field-name>/<entry>.clips/embedded/<slot>.glb
 ```
+
+World targets use `models/world/<shape-id>` or `models/world/static/<shape-id>` with the same suffixes. Legacy full-model `<target>.glb` replacements remain supported. Geometry-only replacements retain the target rig and clips; per-slot replacements retain all other clips. Changing rigs, adding gameplay slots, cross-character retargeting and action/script export are outside this selection workflow.
+
+Installation stages and validates all selected files, shows conflicts and rolls back touched files on failure. Unselected assets, unrelated files and package enable/priority settings are retained. Original game archives are never rewritten. A field occurrence's clip affects that exact entry, including every actor using that entry; it does not replace identical clips in other fields.
+
 
 The normal mod precedence and enable settings apply. Disabled packages can be previewed without activation. Reload an already loaded scene or battle to apply a changed model to existing actors.
 

@@ -71,10 +71,7 @@ public static partial class ModelExchange
         {
             EditableBone bone = model.Bones[index];
             JsonObject node = TransformNode(bone.Name, bone.Translation, bone.Rotation, bone.Scale);
-            if (bone.NativeIndex >= 0)
-            {
-                node["extras"] = new JsonObject { ["FF8_bone_index"] = bone.NativeIndex };
-            }
+            node["extras"] = new JsonObject { ["FF8_bone_index"] = bone.NativeIndex, ["memoria_rig"] = bone.RigId, ["memoria_joint"] = bone.StableId, ["memoria_is_joint"] = bone.IsJoint };
             int[] children = Enumerable.Range(0, model.Bones.Count).Where(child => model.Bones[child].Parent == index).ToArray();
             if (children.Length != 0)
             {
@@ -113,9 +110,11 @@ public static partial class ModelExchange
             }
             int materialIndex = materials.Count;
             materials.Add(material);
-            JsonObject node = new() { ["name"] = mesh.Name, ["mesh"] = meshes.Count };
+            JsonObject node = new() { ["name"] = mesh.Name, ["mesh"] = meshes.Count, ["extras"] = new JsonObject { ["memoria_native_part"] = mesh.NativePart, ["memoria_target"] = mesh.ObjectTarget, ["memoria_rig"] = mesh.RigId } };
             if (mesh.Skinned)
             {
+                jointBones = Enumerable.Range(0, model.Bones.Count).Where(index => model.Bones[index].IsJoint && (mesh.RigId is null || model.Bones[index].RigId == mesh.RigId)).ToArray();
+                jointSlots = jointBones.Select((bone, slot) => (bone, slot)).ToDictionary(value => value.bone, value => value.slot);
                 attributes["JOINTS_0"] = IntegerAccessor(mesh.Vertices.SelectMany(vertex => Enumerable.Range(0, 4).Select(slot => vertex.Weights[slot] == 0 ? 0 : jointSlots[(int)vertex.Joints[slot]])).ToArray(), 4, true);
                 attributes["WEIGHTS_0"] = Accessor(mesh.Vertices.SelectMany(vertex => new[] { vertex.Weights.X, vertex.Weights.Y, vertex.Weights.Z, vertex.Weights.W }).ToArray(), 4);
                 float[] matrices = jointBones.SelectMany(bone =>
@@ -124,7 +123,12 @@ public static partial class ModelExchange
                     return MatrixValues(inverse);
                 }).ToArray();
                 node["skin"] = skins.Count;
-                skins.Add(new JsonObject { ["joints"] = JsonSerializer.SerializeToNode(jointBones), ["inverseBindMatrices"] = Accessor(matrices, 16) });
+                JsonObject skin = new() { ["joints"] = JsonSerializer.SerializeToNode(jointBones), ["inverseBindMatrices"] = Accessor(matrices, 16) };
+                if (mesh.RigId is not null)
+                {
+                    skin["skeleton"] = Enumerable.Range(0, model.Bones.Count).First(index => model.Bones[index].RigId == mesh.RigId && model.Bones[index].Parent < 0);
+                }
+                skins.Add(skin);
             }
             else
             {
@@ -147,6 +151,18 @@ public static partial class ModelExchange
             }
             nodes.Add(node);
         }
+        // Unused skins deliberately identify clip-only joint hierarchies to Blender.
+        // The installed importer creates armatures from skins even without mesh users.
+        foreach (string rig in model.Bones.Where(bone => bone.IsJoint && bone.RigId is not null).Select(bone => bone.RigId!).Distinct(StringComparer.Ordinal))
+        {
+            if (model.Meshes.Any(mesh => mesh.Skinned && mesh.RigId == rig))
+            {
+                continue;
+            }
+            int[] rigJoints = Enumerable.Range(0, model.Bones.Count).Where(index => model.Bones[index].IsJoint && model.Bones[index].RigId == rig).ToArray();
+            int rigRoot = Enumerable.Range(0, model.Bones.Count).First(index => model.Bones[index].RigId == rig && model.Bones[index].Parent < 0);
+            skins.Add(new JsonObject { ["name"] = rig, ["skeleton"] = rigRoot, ["joints"] = JsonSerializer.SerializeToNode(rigJoints) });
+        }
         foreach (EditableAnimation animation in model.Animations.Where(animation => animation.Channels.Count != 0))
         {
             JsonArray samplers = [];
@@ -162,7 +178,7 @@ public static partial class ModelExchange
         // A string custom property survives Blender's import/export custom-property option.
         string metadata = model.NativeMetadata.ValueKind == JsonValueKind.Undefined ? "{}" : model.NativeMetadata.GetRawText();
         int metadataNode = nodes.Count;
-        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1 } });
+        nodes.Add(new JsonObject { ["name"] = model.Name, ["extras"] = new JsonObject { ["FF8_kind"] = model.Kind, ["FF8_native"] = metadata, ["FF8_schema"] = 1, ["memoria_fps"] = model.NativeFramesPerSecond, ["memoria_ff8"] = model.ExchangeManifest } });
         roots.Add(metadataNode);
         while (binary.Position % 4 != 0)
         {
@@ -170,7 +186,7 @@ public static partial class ModelExchange
         }
         JsonObject document = new()
         {
-            ["asset"] = new JsonObject { ["version"] = "2.0", ["generator"] = "Memoria FF8 model exchange" },
+            ["asset"] = new JsonObject { ["version"] = "2.0", ["generator"] = "Memoria FF8 model exchange", ["extras"] = new JsonObject { ["memoria_ff8"] = model.ExchangeManifest } },
             ["scene"] = 0,
             ["scenes"] = new JsonArray(new JsonObject { ["name"] = model.Name, ["nodes"] = JsonSerializer.SerializeToNode(roots) }),
             ["nodes"] = nodes,

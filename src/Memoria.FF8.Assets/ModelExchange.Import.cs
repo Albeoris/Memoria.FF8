@@ -65,6 +65,10 @@ public static partial class ModelExchange
 
     public static void Validate(EditableModel model)
     {
+        if (!float.IsFinite(model.NativeFramesPerSecond) || model.NativeFramesPerSecond <= 0)
+        {
+            throw new InvalidDataException("Native clip sample rate must be finite and positive.");
+        }
         if (model.Bones.Count > 4096 || model.Meshes.Count > 4096 || model.Textures.Count > 1024)
         {
             throw new InvalidDataException("The model exceeds supported resource limits.");
@@ -261,6 +265,7 @@ public static partial class ModelExchange
             string name = original?.Name ?? "Imported model";
             string kind = original?.Kind ?? "model";
             JsonElement metadata = original?.NativeMetadata ?? default;
+            float nativeFramesPerSecond = original?.NativeFramesPerSecond ?? FramesPerSecond;
             for (int index = 0; index < nodes.GetArrayLength(); index++)
             {
                 JsonElement node = nodes[index];
@@ -282,12 +287,13 @@ public static partial class ModelExchange
                     }
                 }
                 int nativeIndex = node.TryGetProperty("extras", out JsonElement boneExtras) && boneExtras.TryGetProperty("FF8_bone_index", out JsonElement nativeId) ? nativeId.GetInt32() : -1;
-                bones.Add(new EditableBone(String(node, "name", $"node_{index}"), parents[index], translation, rotation, scale, joints.Contains(index)) { NativeIndex = nativeIndex });
+                bones.Add(new EditableBone(String(node, "name", $"node_{index}"), parents[index], translation, rotation, scale, joints.Contains(index) || node.TryGetProperty("extras", out JsonElement jointExtras) && jointExtras.TryGetProperty("memoria_is_joint", out JsonElement isJoint) && isJoint.ValueKind == JsonValueKind.True) { NativeIndex = nativeIndex, RigId = Property(node, "memoria_rig"), StableId = Property(node, "memoria_joint") });
                 if (node.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty("FF8_native", out JsonElement payload) && payload.ValueKind == JsonValueKind.String)
                 {
                     using JsonDocument native = JsonDocument.Parse(payload.GetString()!, new JsonDocumentOptions { MaxDepth = 128 });
                     metadata = native.RootElement.Clone();
                     kind = String(extras, "FF8_kind", kind);
+                    nativeFramesPerSecond = extras.TryGetProperty("memoria_fps", out JsonElement fps) ? fps.GetSingle() : nativeFramesPerSecond;
                     name = String(node, "name", name);
                 }
             }
@@ -444,7 +450,7 @@ public static partial class ModelExchange
                     {
                         indices = Enumerable.Range(0, positions.Length).ToArray();
                     }
-                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, DoubleSided = doubleSided });
+                    meshes.Add(new EditableMesh(String(mesh, "name", $"mesh_{meshes.Count}"), vertices, indices, texture, globals[nodeIndex]) { Node = skinJoints.Length == 0 ? nodeIndex : -1, Skinned = skinJoints.Length != 0, InverseBindMatrices = inverseBind, Transparent = transparent, DoubleSided = doubleSided, NativePart = node.TryGetProperty("extras", out JsonElement meshExtras) && meshExtras.TryGetProperty("memoria_native_part", out JsonElement nativePart) ? nativePart.GetInt32() : -1, ObjectTarget = Property(node, "memoria_target"), RigId = Property(node, "memoria_rig") });
                 }
             }
             List<EditableAnimation> animations = [];
@@ -479,10 +485,11 @@ public static partial class ModelExchange
             {
                 _warnings.Add("Animation names no longer identify the original game animation slots. Preserve animation_<index> names to keep gameplay animation identifiers compatible.");
             }
-            EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata);
-            if (meshes.Count == 0)
+            string? manifest = nodes.EnumerateArray().Select(node => Property(node, "memoria_ff8")).FirstOrDefault(value => value is not null);
+            EditableModel result = new(name, kind, bones, meshes, textures, animations, metadata) { ExchangeManifest = manifest, NativeFramesPerSecond = nativeFramesPerSecond };
+            if (meshes.Count == 0 && animations.Count == 0)
             {
-                throw new InvalidDataException("The GLB contains no triangle meshes.");
+                throw new InvalidDataException("The GLB contains no triangle meshes or animation channels.");
             }
             Validate(result);
             int oldCount = original?.Bones.Count(bone => bone.IsJoint) ?? joints.Count;
@@ -504,6 +511,11 @@ public static partial class ModelExchange
                 _warnings.Add("Native attachment bone identifiers are missing on some joints. Preserve FF8_bone_index custom properties or the bone_<index> names for native-pose compatibility.");
             }
             return new ModelExchangeImportResult(result, _warnings.Distinct().ToArray(), mismatch && !allowBoneCountChange);
+        }
+
+        private static string? Property(JsonElement node, string key)
+        {
+            return node.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
         }
 
         private List<PixelImage> ReadTextures()

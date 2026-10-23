@@ -31,6 +31,9 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public FieldModel Apply(string modelId, FieldModel original) => ModelMods.Apply(modelId, original);
     public BattleModel Apply(string modelId, BattleModel original) => ModelMods.Apply(modelId, original);
+    public BattleModel ApplyBattleBank(string modelId, string bank, BattleModel original) => ModelMods.ApplyBattleBank(modelId, bank, original);
+    public IReadOnlyList<string> BattleBanks(string modelId) => ModelMods.BattleBanks(modelId);
+    public bool HasModelOverride(string modelId) => ModelMods.HasModelOverride(modelId);
     public BattleStage Apply(string modelId, BattleStage original) => ModelMods.Apply(modelId, original);
     public WorldStaticModel Apply(string modelId, WorldStaticModel original) => ModelMods.Apply(modelId, original);
 

@@ -27,6 +27,7 @@ public sealed record BattleAnimation(IReadOnlyList<BattlePose> Frames);
 public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<BattleAnimation> Animations, float Scale)
 {
     public EditableModel? EditableOverride { get; init; }
+    public IReadOnlyList<BattleMesh>? NativeControlMeshes { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
 
     public BattleSequenceSet? Sequences { get; init; }
