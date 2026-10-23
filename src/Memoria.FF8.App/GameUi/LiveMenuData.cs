@@ -87,6 +87,7 @@ public static class LiveMenuData
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
                 };
+                catalog?.ProjectLimit(character, native.Weapon, state);
                 if (native.Status != 0)
                 {
                     character.Conditions.Add($"Native status 0x{native.Status:X4}");

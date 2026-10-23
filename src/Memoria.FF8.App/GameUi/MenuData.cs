@@ -55,6 +55,7 @@ public sealed class MenuCharacter
     public int? NextLevelExperience { get; set; }
     public string Weapon { get; set; } = "Unavailable";
     public string LimitBreak { get; set; } = "Unavailable";
+    public int? NativeLimitCommand { get; set; }
     public float? AtbProgress { get; set; }
     public List<string> Conditions { get; } = [];
     public List<string> Commands { get; } = [];

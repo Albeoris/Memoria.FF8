@@ -50,7 +50,7 @@ public static class MenuCatalog
         Add("status", "Status", "Character status pages and Limit Breaks.", true, _ => [Link("status-stats", "Stats", "View stats and equipped junctions."), Link("status-info", "Information", "Weapon, experience and conditions."), Link("status-limit", "Limit Break", "Limit Break overview. S opens this page.")], Stats, MenuLayout.Character, true);
         Add("status-stats", "Status · Stats", "Browse current projected character stats.", true, _ => [], Stats, MenuLayout.Character);
         Add("status-info", "Status · Information", "Character experience and equipment.", true, _ => [], CharacterDetails, MenuLayout.Character);
-        Add("status-limit", "Status · Limit Break", "Browse Limit Break information; setup requires native contracts.", true, c => c.Character?.LimitBreak switch
+        Add("status-limit", "Status · Limit Break", "Browse character Limit Break information.", true, c => LimitFamily(c.Character) switch
         {
             "Renzokuken" => [Link("status-renzokuken", "Renzokuken", "Gunblade trigger and finishing move options.")],
             "Combine" => [Link("status-angelo", "Angelo", "Angelo learned moves and progress."), Link("status-angel-wing", "Angel Wing", "Angel Wing details.")],
@@ -59,16 +59,12 @@ public static class MenuCatalog
             "Blue Magic" => [Link("status-blue-magic", "Blue Magic", "Learned Blue Magic overview.")],
             "Shot" => [Link("status-shot", "Shot", "Ammo and shooting overview.")],
             _ => []
-        }, c => [$"Limit: {c.Character?.LimitBreak ?? "Unavailable"}", "Learned moves / limit conditions require native data.", .. Boundary(c)], MenuLayout.Character);
-        Add("status-renzokuken", "Limit · Renzokuken", "Auto / Indicator setup and finishing moves.", true, c =>
-        {
-            var owner = LimitCharacter(c, "Renzokuken");
-            return [.. new[] { "Auto", "Indicator" }.Select(setting => Action(setting, $"{setting}   {owner?.LimitSettings.GetValueOrDefault(setting, "Unavailable") ?? "Unavailable"}", "Toggle the isolated fixture option.", "limit-setting", setting, owner?.Id ?? "", owner?.LimitSettings.GetValueOrDefault(setting) == "On" ? "Off" : "On")), .. LimitEntries(c, "Renzokuken")];
-        }, c => LimitDetails(c, "Renzokuken"), MenuLayout.Character);
-        Add("status-angelo", "Limit · Angelo", "Inspect learned trick progress; choose a fixture learning target.", true, c => LimitEntries(c, "Combine", learn: true), c => LimitDetails(c, "Combine"), MenuLayout.Character);
-        Add("status-angel-wing", "Limit · Angel Wing", "Inspect Angel Wing's separate state.", true, c => [Action("wing", "Angel Wing preview", "Toggle the explicit fixture mode; no battle state changes.", "limit-setting", "Angel Wing", LimitCharacter(c, "Combine")?.Id ?? "", LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing") == "On" ? "Off" : "On")], c => [$"Fixture mode: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", c.IsDemo ? "Off" : "Unavailable") ?? "Unavailable"}", "Native story availability and battle behavior unsupported.", .. Boundary(c)], MenuLayout.Character);
-        Add("status-duel", "Limit · Duel", "Inspect learned moves and their explicit fixture input sequences.", true, c => LimitEntries(c, "Duel"), c => LimitDetails(c, "Duel"), MenuLayout.Character);
-        Add("status-slot", "Limit · Slot", "Inspect a spell preview, Select or Do Over.", true, c => [Action("select", "Select", "Select only the fixture preview; no spell is cast.", "slot-select"), Action("do-over", "Do Over", "Advance the deterministic fixture preview.", "slot-do-over", target: LimitCharacter(c, "Slot")?.Id ?? "")], SlotDetails, MenuLayout.Character);
+        }, LimitOverview, MenuLayout.Character);
+        Add("status-renzokuken", "Limit · Renzokuken", "Auto / Indicator setup and finishing moves.", true, RenzokukenEntries, c => LimitDetails(c, "Renzokuken"), MenuLayout.Character);
+        Add("status-angelo", "Limit · Angelo", "Inspect learned Angelo tricks.", true, c => LimitEntries(c, "Combine", learn: c.IsDemo), c => LimitDetails(c, "Combine"), MenuLayout.Character);
+        Add("status-angel-wing", "Limit · Angel Wing", "Inspect Angel Wing's separate state.", true, c => c.IsDemo ? [Action("wing", "Angel Wing preview", "Toggle the explicit fixture mode; no battle state changes.", "limit-setting", "Angel Wing", LimitCharacter(c, "Combine")?.Id ?? "", LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing") == "On" ? "Off" : "On")] : [], c => !c.IsDemo ? ["Angel Wing", $"Availability: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", "Unavailable") ?? "Unavailable"}"] : [$"Fixture mode: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", c.IsDemo ? "Off" : "Unavailable") ?? "Unavailable"}", "Native story availability and battle behavior unsupported.", .. Boundary(c)], MenuLayout.Character);
+        Add("status-duel", "Limit · Duel", "Inspect learned Duel moves.", true, c => LimitEntries(c, "Duel"), c => LimitDetails(c, "Duel"), MenuLayout.Character);
+        Add("status-slot", "Limit · Slot", "Inspect Slot magic.", true, c => !c.IsDemo ? LimitEntries(c, "Slot") : [Action("select", "Select", "Select only the fixture preview; no spell is cast.", "slot-select"), Action("do-over", "Do Over", "Advance the deterministic fixture preview.", "slot-do-over", target: LimitCharacter(c, "Slot")?.Id ?? "")], c => c.IsDemo ? SlotDetails(c) : LimitDetails(c, "Slot"), MenuLayout.Character);
         Add("status-blue-magic", "Limit · Blue Magic", "Inspect the explicit learned-skill list.", true, c => LimitEntries(c, "Blue Magic"), c => LimitDetails(c, "Blue Magic"), MenuLayout.Character);
         Add("status-shot", "Limit · Shot", "Inspect ammo stocks and shot controls.", true, c => LimitEntries(c, "Shot"), c => LimitDetails(c, "Shot"), MenuLayout.Character);
 
@@ -229,7 +225,45 @@ public static class MenuCatalog
         var recipe = c.Recipe;
         return recipe == null ? ["No recipes are projected.", .. Boundary(c)] : [recipe.Ability, $"Ingredient: {recipe.IngredientQuantity} x {recipe.IngredientName ?? c.Data.Items.FirstOrDefault(i => i.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId}", $"Result: {recipe.ResultQuantity} x {recipe.ResultName}", "Recipient: " + (recipe.NativeKind is 1 or 3 or 4 ? "Inventory" : c.Character?.Name ?? "Unavailable"), recipe.CardModOnce ? recipe.CardAlreadyRefined ? "Already refined in this game." : "Cards are kept; this card ID can be refined once per game." : recipe.NativeAbility.HasValue ? "Original recipe; final batch output caps at 100." : "Fixture recipe.", .. Boundary(c)];
     }
-    private static MenuCharacter? LimitCharacter(MenuController c, string family) => c.Character?.LimitBreak == family ? c.Character : c.IsDemo ? c.Data.Characters.FirstOrDefault(ch => ch.LimitBreak == family) : c.Character;
+    private static IReadOnlyList<MenuEntry> RenzokukenEntries(MenuController c)
+    {
+        var owner = LimitCharacter(c, "Renzokuken");
+        if (!c.IsDemo)
+        {
+            return (owner?.LimitMoves ?? []).Select(move => new MenuEntry(move.Id, move.Name, move.Description)).ToArray();
+        }
+        List<MenuEntry> entries = [];
+        foreach (string setting in new[] { "Auto", "Indicator" })
+        {
+            string value = owner?.LimitSettings.GetValueOrDefault(setting, "Unavailable") ?? "Unavailable";
+            entries.Add(Action(setting, $"{setting}   {value}", "Toggle the isolated fixture option.", "limit-setting", setting, owner?.Id ?? "", value == "On" ? "Off" : "On"));
+        }
+        entries.AddRange(LimitEntries(c, "Renzokuken"));
+        return entries;
+    }
+
+    private static string? LimitFamily(MenuCharacter? character) => character?.NativeLimitCommand switch
+    {
+        5 => "Renzokuken",
+        11 => "Duel",
+        14 => "Shot",
+        15 => "Blue Magic",
+        16 => "Slot",
+        19 => "Combine",
+        _ => character?.LimitBreak
+    };
+
+    private static IReadOnlyList<string> LimitOverview(MenuController c)
+    {
+        var owner = c.Character;
+        if (c.IsDemo)
+        {
+            return [$"Limit: {owner?.LimitBreak ?? "Unavailable"}", "Learned moves / limit conditions require native data.", .. Boundary(c)];
+        }
+        return [$"Limit: {owner?.LimitBreak ?? "Unavailable"}", .. owner?.LimitSettings.Select(setting => $"{setting.Key}: {setting.Value}") ?? [], .. owner?.LimitMoves.Select(move => $"{move.Name}   {(move.Learned == true ? owner.NativeLimitCommand is 5 or 14 ? "Available" : "Learned" : move.Learned == false ? "--" : "Unavailable")}") ?? []];
+    }
+
+    private static MenuCharacter? LimitCharacter(MenuController c, string family) => LimitFamily(c.Character) == family ? c.Character : c.IsDemo ? c.Data.Characters.FirstOrDefault(ch => ch.LimitBreak == family) : c.Character;
     private static IReadOnlyList<MenuEntry> LimitEntries(MenuController c, string family, bool learn = false)
     {
         var owner = LimitCharacter(c, family);
@@ -239,6 +273,26 @@ public static class MenuCatalog
     {
         var owner = LimitCharacter(c, family);
         var move = owner?.LimitMoves.FirstOrDefault(m => m.Id == c.SelectedEntry?.Id) ?? owner?.LimitMoves.FirstOrDefault();
+        if (!c.IsDemo)
+        {
+            if (move is null)
+            {
+                return LimitOverview(c);
+            }
+            List<string> details = [move.Name, move.Description, $"{(owner?.NativeLimitCommand is 5 or 14 ? "Available" : "Learned")}: {(move.Learned.HasValue ? move.Learned.Value ? "Yes" : "No" : "Unavailable")}"];
+            if (move.Stock is int stock)
+            {
+                details.Add($"Ammo stock: {stock}");
+            }
+            if (family == "Renzokuken")
+            {
+                foreach (string setting in new[] { "Auto", "Indicator" })
+                {
+                    details.Add($"{setting}: {owner?.LimitSettings.GetValueOrDefault(setting, "Unavailable") ?? "Unavailable"}");
+                }
+            }
+            return details;
+        }
         return move == null ? ["No learned-move owner is projected.", .. Boundary(c)] : [$"{owner!.Name} · {move.Name}", $"Learned: {(move.Learned.HasValue ? move.Learned.Value ? "Yes" : "No" : "Unavailable")}", $"Progress: {(move.LearningProgress.HasValue ? move.LearningProgress + "%" : "Unavailable")}", "Inputs: " + move.InputSequence, $"Ammo stock: {MenuController.Number(move.Stock)}", "Learning: " + owner.LimitSettings.GetValueOrDefault("Learning", "--"), "Fixture state and sequences; native parity unproved.", .. Boundary(c)];
     }
     private static IReadOnlyList<string> SlotDetails(MenuController c)

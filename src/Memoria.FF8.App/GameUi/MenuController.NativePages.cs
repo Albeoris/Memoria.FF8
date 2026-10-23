@@ -104,7 +104,7 @@ public sealed partial class MenuController
     private UiElement BuildNativeStatus()
     {
         bool primary = ScreenId is "status" or "status-stats" or "status-info";
-        var page = NativeCollectionPage("Status", Entries.Count > 0 ? NativePageCommands(true, 34, 23) : null);
+        var page = NativeCollectionPage("Status", Entries.Count > 0 ? NativePageCommands(true, 34, ScreenId == "status-renzokuken" && !IsDemo ? 20 : 23) : null);
         var body = Grid([2.6f, 1.05f, 2.4f], [1.1f, 0.9f], 3);
         var identity = Grid([1], [1, 2.3f], 12);
         Place(identity, Portrait(Character), 0, 0);
