@@ -69,6 +69,38 @@ public abstract class UiSettingRow : UiElement
     }
 }
 
+/// <summary>A setting value whose editor opens on activation.</summary>
+public sealed class UiActionSettingRow : UiSettingRow
+{
+    public string Value { get; set; } = string.Empty;
+    public Action? Click { get; set; }
+
+    protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
+    {
+        DrawLabel(canvas, theme);
+        canvas.Text(Value, FontSize > 0 ? FontSize : theme.FontSize, ValueBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+    }
+
+    public override bool Key(UiKey key)
+    {
+        if (!Enabled || key != UiKey.Confirm)
+        {
+            return false;
+        }
+
+        Click?.Invoke();
+        return true;
+    }
+
+    public override void Pointer(float x, float y)
+    {
+        if (Enabled && Bounds.Contains(x, y))
+        {
+            Click?.Invoke();
+        }
+    }
+}
+
 /// <summary>A discrete value with all choices visible in aligned, equally spaced columns.</summary>
 public sealed class UiChoiceRow : UiSettingRow
 {

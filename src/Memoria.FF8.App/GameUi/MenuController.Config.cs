@@ -117,8 +117,25 @@ public sealed partial class MenuController
 
     private UiElement BuildConfigRow(MenuEntry entry, int index)
     {
+        if (entry.Id == "Quick saves")
+        {
+            return new UiActionSettingRow
+            {
+                Id = entry.Id,
+                Text = entry.Label,
+                Value = ConfigValue(entry.Id) + "…",
+                FontSize = 24 * TextScale,
+                PointerSize = 20 * TextScale,
+                TextInset = 35 * TextScale,
+                LabelWidthRatio = 0.52f,
+                ColumnGap = 12 * TextScale,
+                Enabled = entry.Enabled,
+                FocusChanged = focused => SelectConfigRow(focused, index),
+                Click = () => Activate(index)
+            };
+        }
         MenuSetting? setting = MenuSettings.Definitions.FirstOrDefault(candidate => candidate.Id == entry.Id);
-        if (setting is null || entry.Id is "Quick saves" or "UI font" or "Dialogue font")
+        if (setting is null || entry.Id is "UI font" or "Dialogue font")
         {
             return new UiButton
             {

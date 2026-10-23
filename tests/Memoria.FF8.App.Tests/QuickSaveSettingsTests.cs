@@ -105,6 +105,40 @@ public sealed class QuickSaveSettingsTests
         Assert.Equal(0, commits);
     }
 
+    [Theory]
+    [InlineData(9, false)]
+    [InlineData(2048, true)]
+    public void Config_count_opens_editor_without_changing_the_saved_limit(int count, bool pointer)
+    {
+        MenuData data = new();
+        string value = count.ToString(CultureInfo.InvariantCulture);
+        data.Settings["Quick saves"] = value;
+        data.SupportedActions.Add("config:Quick saves");
+        MenuController controller = new(() => data, _ => throw new InvalidOperationException("Unexpected live write"));
+        controller.Open("config-exploration");
+        controller.SelectEntry("config-exploration", "Quick saves");
+        UiActionSettingRow row = Assert.Single(Descendants(controller.BuildView().Root).OfType<UiActionSettingRow>());
+        Assert.Equal(value + "…", row.Value);
+
+        if (pointer)
+        {
+            row.Pointer(row.Bounds.X + row.Bounds.Width / 2, row.Bounds.Y + row.Bounds.Height / 2);
+        }
+        else
+        {
+            controller.Navigate(MenuInput.Confirm);
+        }
+
+        Assert.Equal("quick-save-editor", controller.ScreenId);
+        Assert.Contains(value, controller.Entries[0].Label);
+        controller.Navigate(MenuInput.Left);
+        controller.Navigate(MenuInput.Cancel);
+        Assert.Equal("config-exploration", controller.ScreenId);
+        Assert.Equal(value, data.Settings["Quick saves"]);
+        row = Assert.Single(Descendants(controller.BuildView().Root).OfType<UiActionSettingRow>());
+        Assert.Equal(value + "…", row.Value);
+    }
+
     [Fact]
     public void Retention_deletion_requires_exact_count_confirmation_and_reports_owner_result()
     {
