@@ -63,12 +63,14 @@ public sealed class ModelModSelectiveTests
         Assert.Throws<NotSupportedException>(() => mods.Resolve("battle/test.dat", model));
     }
 
-    [Fact]
-    public void InstallPreservesSettingsAndUnselectedFilesAndRollsBackOnFailure()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InstallPreservesSettingsAndUnselectedFilesAndRollsBackOnFailure(bool externalDestination)
     {
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.ModelInstall", Guid.NewGuid().ToString("N"));
         string allowed = Path.Combine(temporary, "Mods", "Memoria");
-        string destination = Path.Combine(allowed, "Sample");
+        string destination = externalDestination ? Path.Combine(temporary, "Exports", "Nested", "Sample") : Path.Combine(allowed, "Sample");
         try
         {
             Directory.CreateDirectory(destination);
@@ -78,7 +80,14 @@ public sealed class ModelModSelectiveTests
             File.WriteAllText(unrelated, "retained");
             EditableModel model = ModelExchange.FromBattle(Battle());
             ModelModInstallPlan plan = ModelModInstaller.Plan([new("battle/test.dat", model, true, [new("embedded", 1, model.Animations[1])])]);
+            Assert.Empty(plan.GetConflicts(allowed, destination));
             ModelModInstaller.Install(allowed, destination, plan);
+            Assert.Equal(plan.Files.Count, plan.GetConflicts(allowed, destination).Count);
+            if (externalDestination)
+            {
+                Assert.False(Directory.Exists(allowed));
+            }
+            Assert.Empty(Directory.EnumerateDirectories(destination, ".model-stage-*"));
             byte[] old = File.ReadAllBytes(Path.Combine(destination, plan.Files[0].RelativePath));
             string failure = Path.Combine(destination, plan.Files[1].RelativePath);
             File.Delete(failure);
@@ -88,7 +97,10 @@ public sealed class ModelModSelectiveTests
             Assert.Equal(old, File.ReadAllBytes(Path.Combine(destination, plan.Files[0].RelativePath)));
             Assert.Equal("enabled=0\npriority=3\n", File.ReadAllText(settings));
             Assert.Equal("retained", File.ReadAllText(unrelated));
-            Assert.Throws<InvalidDataException>(() => ModelModInstaller.Install(allowed, allowed + "-sibling", plan));
+            Assert.Empty(Directory.EnumerateDirectories(destination, ".model-stage-*"));
+            ModelModInstallPlan escaping = new([new("models/../../escaped.glb", plan.Files[0].Content)]);
+            Assert.Throws<InvalidDataException>(() => ModelModInstaller.Install(allowed, destination, escaping));
+            Assert.False(File.Exists(Path.Combine(temporary, "escaped.glb")));
         }
         finally
         {

@@ -80,7 +80,7 @@ public static class ModelModInstaller
         }
         List<(string Target, byte[]? Original)> written = [];
         List<string> createdDirectories = [];
-        string stage = Path.Combine(Path.GetFullPath(allowedRoot), ".model-stage-" + Guid.NewGuid().ToString("N"));
+        string stage = Path.Combine(root, ".model-stage-" + Guid.NewGuid().ToString("N"));
         try
         {
             foreach (ModelModOutput file in plan.Files)
@@ -138,13 +138,7 @@ public static class ModelModInstaller
 
     private static string ValidateDestination(string allowedRoot, string destination)
     {
-        string allowed = Path.TrimEndingDirectorySeparator(Path.GetFullPath(allowedRoot));
         string target = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination));
-        if (!target.StartsWith(allowed + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("Select a package directory inside Mods/Memoria.");
-        }
-        RejectReparsePoints(allowed);
         RejectReparsePoints(target);
         return target;
     }
@@ -156,7 +150,8 @@ public static class ModelModInstaller
             throw new InvalidDataException("The install plan contains an invalid replacement path.");
         }
         string path = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
-        if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        string prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("A replacement escapes the selected package.");
         }

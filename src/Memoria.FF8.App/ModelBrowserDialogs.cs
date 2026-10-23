@@ -37,52 +37,13 @@ internal static class ModelBrowserDialogs
     {
         Directory.CreateDirectory(root);
         using DpiScope dpi = new();
-        while (true)
+        OpenFolderDialog dialog = new()
         {
-            OpenFolderDialog dialog = new()
-            {
-                Title = "Choose a mod package folder inside Mods/Memoria (or create one)",
-                InitialDirectory = root,
-                Multiselect = false
-            };
-            if (dialog.ShowDialog() != true)
-            {
-                return null;
-            }
-            if (IsPackageDirectory(root, dialog.FolderName) && string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(dialog.FolderName))), Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase))
-            {
-                return Path.GetFullPath(dialog.FolderName);
-            }
-            MessageBoxW(owner, "Choose a mod package directly inside Mods/Memoria. Nested folders and directory links cannot be used as package roots.", "Model import", 0x30);
-        }
-    }
-
-    internal static bool IsPackageDirectory(string root, string path)
-    {
-        string fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        string prefix = Path.EndsInDirectorySeparator(fullRoot) ? fullRoot : fullRoot + Path.DirectorySeparatorChar;
-        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || string.Equals(fullPath, fullRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        // Check every existing ancestor, including the root, to prevent junction escapes.
-        for (DirectoryInfo? directory = new(fullPath); directory is not null; directory = directory.Parent)
-        {
-            try
-            {
-                FileAttributes attributes = File.GetAttributes(directory.FullName);
-                if (directory.LinkTarget is not null || (attributes & FileAttributes.ReparsePoint) != 0 || (attributes & FileAttributes.Directory) == 0)
-                {
-                    return false;
-                }
-            }
-            catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
-            {
-                // A not-yet-created package is permitted; existing links are rejected above.
-            }
-        }
-        return true;
+            Title = "Choose a mod package folder (or create one)",
+            InitialDirectory = root,
+            Multiselect = false
+        };
+        return dialog.ShowDialog() == true ? Path.GetFullPath(dialog.FolderName) : null;
     }
 
     public static bool Confirm(nint owner, string warning, string title = "Model import warning", string question = "Import this model anyway?")

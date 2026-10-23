@@ -273,15 +273,15 @@ public sealed partial class MenuController
         }
         if (!guardianLocal && !substituted && !guardianWithoutLayer)
         {
-            if (guardianPackage is null)
+            ModPackage? selectedPackage = GuardianInstalledPackage;
+            if (selectedPackage is null)
             {
                 layers.Add(new("Selected draft", draft));
             }
             else
             {
-                string selectedPackage = modService!.Catalog.Packages.Single(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase)).Id;
-                int insertion = layers.FindIndex(layer => CompareGuardianPackageOrder(layer.PackageId, selectedPackage) > 0);
-                layers.Insert(insertion < 0 ? layers.Count : insertion, new(selectedPackage, draft));
+                int insertion = layers.FindIndex(layer => CompareGuardianPackageOrder(layer.PackageId, selectedPackage.Id) > 0);
+                layers.Insert(insertion < 0 ? layers.Count : insertion, new(selectedPackage.Id, draft));
             }
         }
         foreach (GuardianForceAbilityPatchDocument document in context.LocalDocuments)
@@ -305,6 +305,8 @@ public sealed partial class MenuController
         }
         return GuardianForceAbilityComposer.Compose(source, layers, context.Source.MenuDefinitions.AbilityPoints);
     }
+
+    private ModPackage? GuardianInstalledPackage => guardianPackage is null ? null : modService?.Catalog.Packages.SingleOrDefault(package => Path.GetFullPath(package.RootDirectory).Equals(guardianPackage.PackageDirectory, StringComparison.OrdinalIgnoreCase));
 
     private int CompareGuardianPackageOrder(string left, string right)
     {
@@ -468,7 +470,12 @@ public sealed partial class MenuController
                 Push("mods-gf-select");
                 break;
             case 14:
-                guardianReview = reviewGuardianPackageOwnership!(guardianDraft.ExportDocument);
+                if (GuardianInstalledPackage is null || reviewGuardianPackageOwnership is null)
+                {
+                    Message = "Install this package in a discovered mod directory before using it.";
+                    break;
+                }
+                guardianReview = reviewGuardianPackageOwnership(guardianDraft.ExportDocument);
                 Push("gf-ability-review");
                 break;
         }

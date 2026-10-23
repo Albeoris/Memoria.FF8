@@ -132,7 +132,7 @@ public sealed partial class MenuController
             {
                 Add("tool:10", "Apply to this playthrough", "Review progression and junction consequences; does not save the package.", readGuardianEditor!().Current is not null);
                 Add("tool:12", "Save as new mod", "Write an independent package.");
-                Add("tool:14", "Use package", "Review local ownership and reactivate the saved package contribution.", guardianPackage is not null && reviewGuardianPackageOwnership is not null);
+                Add("tool:14", "Use package", "Review local ownership and reactivate the saved package contribution.", GuardianInstalledPackage is not null && reviewGuardianPackageOwnership is not null);
             }
             Add("search", "Search abilities", "Type using a keyboard. Controller users can use category and paging.");
             Add("clear", "Clear search", "Show all names in the selected category.", guardianSearch.Length > 0);
@@ -287,7 +287,7 @@ public sealed partial class MenuController
         {
             return readGuardianEditor!().Current?.GuardianForceOpaqueBaseline == true ? "Opaque external baseline; prior attribution is baked into source." : "Loaded source before managed authored layers.";
         }
-        if (guardianPreviewMode == 2 && guardianPackage is null && !guardianLocal)
+        if (guardianPreviewMode == 2 && GuardianInstalledPackage is null && !guardianLocal)
         {
             return "Simulated candidate · Provisional position: after native layers, before local changes.";
         }
@@ -442,7 +442,7 @@ public sealed partial class MenuController
             guardianEditorView = (guardianSubject, guardianRowCursor, guardianCatalogCursor, guardianFocus);
             guardianPreview = true;
             guardianPreviewMode = 2;
-            bool active = guardianLocal || guardianPackage is null || readGuardianEditor!().Layers.Any(layer => layer.Document.DocumentId == guardianDraft!.ExportDocument.DocumentId);
+            bool active = guardianLocal || GuardianInstalledPackage is null || readGuardianEditor!().Layers.Any(layer => layer.Document.DocumentId == guardianDraft!.ExportDocument.DocumentId);
             guardianWithoutLayer = !active;
             GuardianFocus("rows");
         }

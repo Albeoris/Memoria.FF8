@@ -152,6 +152,50 @@ public sealed class GuardianForceAbilityEditorTests : IDisposable
     }
 
     [Fact]
+    public void SavedExternalPackagePreviewsAsASelectedDraftAndCannotBeActivated()
+    {
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Fixture fixture = Create(runtime);
+        fixture.Menu.ConnectGuardianPackageOwnership(_ => throw new InvalidOperationException("External package must not be activated."), _ => throw new InvalidOperationException());
+        fixture.Menu.Execute(new("gf-editor-target", "new"));
+        fixture.SaveDirectory = Path.Combine(root, "exports", "nested", "package");
+        ClickAbility(fixture.Menu, 4, catalog: true);
+        Click(fixture.Menu, "Add");
+        Click(fixture.Menu, "Save mod");
+        Assert.NotNull(Field<GuardianForceAbilityPackageDocument>(fixture.Menu, "guardianPackage"));
+        Assert.False(Draft(fixture.Menu).Dirty);
+        string playthrough = JsonSerializer.Serialize(fixture.Session.State);
+        fixture.Menu.Navigate(MenuInput.Actions);
+        Assert.False(Assert.Single(fixture.Menu.Entries, entry => entry.Label == "Use package").Enabled);
+        fixture.Menu.Execute(new("gf-editor-command", "tool:14"));
+        Assert.Equal("gf-ability-editor", fixture.Menu.ScreenId);
+        Assert.Contains("Install this package", fixture.Menu.Message);
+        Click(fixture.Menu, "Preview");
+        Assert.Contains(Render(fixture.Menu).Texts, text => text.Value == "Ability4");
+        Assert.Contains(Render(fixture.Menu).Texts, text => text.Value.Contains("Provisional position", StringComparison.Ordinal));
+        Assert.Equal(playthrough, JsonSerializer.Serialize(fixture.Session.State));
+    }
+
+    [Fact]
+    public void InstalledPackageRetainsTheUsePackageAction()
+    {
+        string package = Path.Combine(root, "Mods", "Memoria", "installed");
+        Directory.CreateDirectory(Path.Combine(package, "gameplay"));
+        File.WriteAllBytes(Path.Combine(package, GuardianForceAbilityMods.PayloadPath), GuardianForceAbilityMods.Serialize(new()
+        {
+            DocumentId = "installed-document"
+        }));
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        Fixture fixture = Create(runtime);
+        fixture.Menu.ConnectGuardianPackageOwnership(_ => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
+        fixture.Menu.Execute(new("gf-editor-target", "Memoria/installed"));
+        fixture.Menu.Navigate(MenuInput.Actions);
+        Assert.True(Assert.Single(fixture.Menu.Entries, entry => entry.Label == "Use package").Enabled);
+    }
+
+    [Fact]
     public void RebuildingTheViewRetainsRowFocusAndUndoKeepsSessionPure()
     {
         Fixture fixture = Create();
@@ -570,7 +614,11 @@ public sealed class GuardianForceAbilityEditorTests : IDisposable
         fixture.Menu.ConnectGuardianForceEditor(() => new(source, session.CharacterVitals, layers.IsDefault ? [] : layers, [], []), id => "GF" + id, id => "Ability" + id, id => "Description" + id, action => action.ToString(),
             (document, resets, explicitResets) => new(session.PreviewGuardianForceAbilities(GuardianForceAbilityComposer.Compose(source.ResolveGuardianForceTemplates(), [new("Selected", document)], source.MenuDefinitions.AbilityPoints).Templates), document, resets),
             review => { session.ApplyGuardianForceAbilities(review.Preview); return "Applied"; },
-            (document, package, independent) => { fixture.Saved = document; return null; });
+            (document, package, independent) =>
+            {
+                fixture.Saved = document;
+                return fixture.SaveDirectory is null ? null : new(fixture.SaveDirectory, document, "saved-revision");
+            });
         fixture.Menu.Open("gf-ability-targets");
         return fixture;
     }
@@ -579,6 +627,7 @@ public sealed class GuardianForceAbilityEditorTests : IDisposable
     {
         public MenuController Menu { get; } = menu;
         public GameSession Session { get; } = session;
+        public string? SaveDirectory { get; set; }
         public GuardianForceAbilityPatchDocument? Saved
         {
             get; set;

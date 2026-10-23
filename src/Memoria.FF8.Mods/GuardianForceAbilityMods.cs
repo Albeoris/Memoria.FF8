@@ -128,13 +128,8 @@ public static class GuardianForceAbilityPackageStore
 
     public static string ValidateDestination(string primaryModsDirectory, string packageDirectory)
     {
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(primaryModsDirectory, "Memoria")));
         string destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(packageDirectory));
-        if (!string.Equals(Path.GetDirectoryName(destination), root, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("Select a direct package directory inside the configured Mods/Memoria directory.");
-        }
-        RejectLinks(Path.GetPathRoot(root)!, destination);
+        RejectLinks(Path.GetPathRoot(destination)!, destination);
         return destination;
     }
 
@@ -142,8 +137,11 @@ public static class GuardianForceAbilityPackageStore
     {
         byte[] bytes = GuardianForceAbilityMods.Serialize(document);
         string destination = ValidateDestination(primaryModsDirectory, packageDirectory);
+        string primaryPackageRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(primaryModsDirectory, "Memoria")));
         string packageId = "Memoria/" + Path.GetFileName(destination);
-        ModPackage? owner = catalog?.Packages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+        ModPackage? owner = string.Equals(Path.GetDirectoryName(destination), primaryPackageRoot, StringComparison.OrdinalIgnoreCase)
+            ? catalog?.Packages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase))
+            : null;
         if (owner is not null && !Path.GetFullPath(owner.RootDirectory).TrimEnd(Path.DirectorySeparatorChar).Equals(destination, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("A package in another mod root owns this identity; use a new package name.");

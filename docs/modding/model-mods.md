@@ -21,7 +21,7 @@ On-screen hints follow the current keyboard/controller bindings. Preview animati
 
 ## Export
 
-**Export to Blender** opens the asset selection panel before the Windows save dialog. Objects select geometry; Clips select independent skeletal tracks. Selecting a clip does not select its mesh. Required rigs, materials and textures are dependencies. A clip-only file retains editable rigs without geometry.
+**Export to Blender** opens the asset selection panel before the Windows save dialog, where you can choose any destination folder. Objects select geometry; Clips select independent skeletal tracks. Selecting a clip does not select its mesh. Required rigs, materials and textures are dependencies. A clip-only file retains editable rigs without geometry.
 
 The panel discovers loader-proved weapon alternatives and animation banks, including supported external banks. Field main-character movements retain their separate field/entry replacement addresses. Unsupported or unavailable sources appear as diagnostics; the status never claims complete animation coverage for unresolved banks. Exporting before discovery finishes requires confirmation.
 
@@ -33,9 +33,9 @@ Use the verified [Blender settings and round-trip helper](../developers/model-li
 
 ## Import as a mod
 
-**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A single-object GLB without preserved identities requires explicit confirmation of the selected catalog target. Unidentified multi-object or multi-rig files require restored identities before import; this workflow does not merge them into one replacement. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
+**Import from Blender (as mod)** accepts a self-contained GLB up to 256 MiB from any folder. It inventories actual surviving geometry and animation channels before offering a destination. Matched targets can be checked independently; unchecked means leave unchanged. Missing metadata never recreates deleted content. A single-object GLB without preserved identities requires explicit confirmation of the selected catalog target. Unidentified multi-object or multi-rig files require restored identities before import; this workflow does not merge them into one replacement. Unresolved items remain disabled with an explanation. Source revision and duration changes produce warnings. Native joint-count changes are reported; impossible rig mappings and unsupported native deformations remain blocked. Canceling the selection or a dialog leaves model files unchanged.
 
-Choose or create a package folder directly inside the displayed `Mods/Memoria` directory. The folder picker starts there; paths outside it, nested package roots and directory links are rejected, and the picker offers another attempt. Existing replacements require overwrite confirmation. All dialogs use the current monitor's DPI context.
+The package folder picker creates the default `Mods/Memoria` directory if needed and opens there. You can navigate freely and choose or create any package folder, including an external or nested folder. To use a package saved elsewhere, place it directly inside a discovered mod root such as `Mods/Memoria`. Existing replacements require overwrite confirmation. All dialogs use the current monitor's DPI context.
 
 Selected geometry and clip slots are normalized into independent native mod outputs, for example:
 

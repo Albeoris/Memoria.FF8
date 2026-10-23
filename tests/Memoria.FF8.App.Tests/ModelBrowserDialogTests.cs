@@ -5,54 +5,8 @@ using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class ModelBrowserDialogTests : IDisposable
+public sealed class ModelBrowserDialogTests
 {
-    private readonly string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8.ModelBrowserTests-" + Guid.NewGuid().ToString("N"));
-
-    [Fact]
-    public void Package_destination_accepts_only_normalized_strict_descendants()
-    {
-        string root = Path.Combine(temporary, "Mods", "Memoria");
-        Directory.CreateDirectory(root);
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, root));
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, root + Path.DirectorySeparatorChar));
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, root + "-sibling"));
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, Path.Combine(root, "..", "outside")));
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, Path.Combine(root, "package", "..")));
-        Assert.True(ModelBrowserDialogs.IsPackageDirectory(root, Path.Combine(root, "new-package")));
-        Assert.True(ModelBrowserDialogs.IsPackageDirectory(root + Path.DirectorySeparatorChar, Path.Combine(root, "new-package", "models")));
-        Assert.True(ModelBrowserDialogs.IsPackageDirectory(root, Path.Combine(root, "package", "..", "new-package")));
-    }
-
-    [Fact]
-    public void Filesystem_root_supports_descendants_without_accepting_itself()
-    {
-        Directory.CreateDirectory(temporary);
-        string root = Path.GetPathRoot(temporary)!;
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, root));
-        Assert.True(ModelBrowserDialogs.IsPackageDirectory(root, temporary));
-    }
-
-    [Fact]
-    public void Package_destination_rejects_reparse_points_in_destination_root_and_ancestors()
-    {
-        string root = Path.Combine(temporary, "Mods", "Memoria");
-        string outside = Path.Combine(temporary, "outside");
-        Directory.CreateDirectory(root);
-        Directory.CreateDirectory(outside);
-        string destinationLink = Path.Combine(root, "linked-package");
-        CreateLink(destinationLink, outside);
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, destinationLink));
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(root, Path.Combine(destinationLink, "new-models")));
-        string rootLink = Path.Combine(temporary, "linked-root");
-        CreateLink(rootLink, root);
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(rootLink, Path.Combine(rootLink, "new-package")));
-        string parentLink = Path.Combine(temporary, "linked-parent");
-        CreateLink(parentLink, Path.Combine(temporary, "Mods"));
-        string linkedRoot = Path.Combine(parentLink, "Memoria");
-        Assert.False(ModelBrowserDialogs.IsPackageDirectory(linkedRoot, Path.Combine(linkedRoot, "new-package")));
-    }
-
     [Fact]
     public void Preview_centers_transformed_geometry_and_applies_zoom_rotation_uv_and_color()
     {
@@ -107,26 +61,6 @@ public sealed class ModelBrowserDialogTests : IDisposable
         ];
         EditableMesh mesh = new("triangle", vertices, [0, 1, 2], -1, Matrix4x4.CreateTranslation(7, -4, 2));
         return new EditableModel("synthetic", "field", [], [mesh], [], [], JsonSerializer.SerializeToElement(new { }));
-    }
-
-    private static void CreateLink(string link, string target)
-    {
-        try
-        {
-            Directory.CreateSymbolicLink(link, target);
-        }
-        catch (Exception exception) when (exception is UnauthorizedAccessException or PlatformNotSupportedException || exception is IOException && (exception.HResult & 0xFFFF) == 1314)
-        {
-            Assert.Skip("Creating symbolic links is unavailable in this test environment.");
-        }
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(temporary))
-        {
-            Directory.Delete(temporary, true);
-        }
     }
 
     private sealed class RecordingRenderer : ITriangleRenderer

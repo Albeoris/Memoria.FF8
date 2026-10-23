@@ -215,11 +215,11 @@ internal sealed partial class RecreateGame
         string? revision = original?.Revision;
         string localOwnerId = document.DocumentId;
         bool exportedIndependent = false;
-        if (saveAs || destination is null || !ModAuthoringFolderDialog.IsDirectPackage(root, destination))
+        if (saveAs || destination is null)
         {
             try
             {
-                destination = ModAuthoringFolderDialog.Choose(Window.Handle, root);
+                destination = ModelBrowserDialogs.Destination(Window.Handle, root);
             }
             finally
             {
@@ -238,7 +238,8 @@ internal sealed partial class RecreateGame
             revision = null;
         }
         string packageId = "Memoria/" + Path.GetFileName(destination);
-        if (gameMenus is not null && !gameMenus.ReviewGuardianPackagePlacement(packageId, document))
+        bool installedDestination = string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination))), Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase) || resourceHost.Mods.Catalog.Packages.Any(package => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(package.RootDirectory)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination)), StringComparison.OrdinalIgnoreCase));
+        if (installedDestination && gameMenus is not null && !gameMenus.ReviewGuardianPackagePlacement(packageId, document))
         {
             return null;
         }

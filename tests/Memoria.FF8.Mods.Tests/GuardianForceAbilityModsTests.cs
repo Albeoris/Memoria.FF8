@@ -10,16 +10,18 @@ public sealed class GuardianForceAbilityModsTests
     private static GuardianForceAbilityPatchOperation Op(string id, GuardianForceAbilityOperationKind kind, int ability = 1) => new() { Id = id, Kind = kind, GuardianForce = 0, Ability = ability };
     private static GuardianForceAbilityPatchLayer Layer(string id, params GuardianForceAbilityPatchOperation[] operations) => new("Memoria/" + id, new() { DocumentId = id, Operations = operations.ToImmutableArray() });
 
-    [Fact]
-    public void PackageAndPayloadJunctionsCannotEscapeDestination()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PackageAndPayloadJunctionsCannotEscapeDestination(bool externalDestination)
     {
         Assert.SkipWhen(!OperatingSystem.IsWindows(), "Directory junctions require Windows.");
         string root = Path.Combine(Path.GetTempPath(), "gf-links-" + Guid.NewGuid().ToString("N"));
         string outside = Path.Combine(Path.GetTempPath(), "gf-outside-" + Guid.NewGuid().ToString("N"));
-        string destination = Path.Combine(root, "Memoria", "package");
+        string destination = Path.Combine(root, externalDestination ? "Exports" : "Memoria", "package");
         try
         {
-            Directory.CreateDirectory(Path.Combine(root, "Memoria"));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             Directory.CreateDirectory(outside);
             using (System.Diagnostics.Process process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe") { Arguments = $"/c mklink /J \"{destination}\" \"{outside}\"", CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true })!)
             {
@@ -227,13 +229,49 @@ public sealed class GuardianForceAbilityModsTests
             Assert.Equal("unchanged", File.ReadAllText(Path.Combine(destination, "models", "untouched.txt")));
             Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(root, destination, document, saved.Revision));
             Assert.NotEqual(document.DocumentId, GuardianForceAbilityPackageStore.IndependentCopy(document).DocumentId);
-            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.ValidateDestination(root, Path.Combine(root, "MemoriaSibling", "test")));
-            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.ValidateDestination(root, Path.Combine(root, "Memoria")));
-            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.ValidateDestination(root, Path.Combine(destination, "nested")));
         }
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("exports", "test")]
+    [InlineData("Mods", "Memoria", "collection", "test")]
+    public void SaveAsAllowsExternalAndNestedPackagesWithoutClaimingInstalledIdentity(params string[] segments)
+    {
+        string temporary = Path.Combine(Path.GetTempPath(), "gf-export-" + Guid.NewGuid().ToString("N"));
+        string primaryMods = Path.Combine(temporary, "Mods");
+        string destination = Path.Combine(new[] { temporary }.Concat(segments).ToArray());
+        string installed = Path.Combine(primaryMods, "Memoria", "test");
+        try
+        {
+            var document = Layer("test", Op("add", GuardianForceAbilityOperationKind.EnsureAbility, 4)).Document;
+            ModPackage owner = new("Memoria/test", "test", ModFormat.Memoria, false, false, ModEffectiveStatus.Disabled, installed);
+            ModCatalogSnapshot catalog = new(1, [owner], []);
+            var saved = GuardianForceAbilityPackageStore.Save(primaryMods, destination, document, catalog: catalog);
+            Assert.Equal(Path.GetFullPath(destination), saved.PackageDirectory);
+            ModPackage exported = owner with { RootDirectory = destination };
+            var reopened = GuardianForceAbilityPackageStore.Open(exported);
+            Assert.Equal(saved.Revision, reopened.Revision);
+            Assert.Equal(document.DocumentId, reopened.Document.DocumentId);
+            if (segments[0] == "exports")
+            {
+                Assert.False(Directory.Exists(primaryMods));
+            }
+            ModCatalogSnapshot conflictingCatalog = new(1, [owner with { RootDirectory = Path.Combine(temporary, "OtherMods", "Memoria", "test") }], []);
+            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primaryMods, installed, document, catalog: conflictingCatalog));
+            Assert.False(Directory.Exists(installed));
+            Assert.Throws<InvalidDataException>(() => GuardianForceAbilityPackageStore.Save(primaryMods, destination, document));
+            Assert.Empty(Directory.EnumerateFiles(Path.Combine(destination, "gameplay"), ".gf-*.tmp"));
+        }
+        finally
+        {
+            if (Directory.Exists(temporary))
+            {
+                Directory.Delete(temporary, true);
+            }
         }
     }
 }
