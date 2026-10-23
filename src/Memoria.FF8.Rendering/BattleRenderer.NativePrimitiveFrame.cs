@@ -53,6 +53,15 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
+            if (command.Opcode == 0x02)
+            {
+                if (resolved.Pass != 1 || command.Words.Length != 3)
+                {
+                    throw new InvalidDataException("Native VRAM fill presentation requires its executed first-pass command and three payload DWORDs.");
+                }
+                //The absolute VRAM fill has already executed through NativeBattleSoftwarePrimitiveExecution and emits no viewport primitive.
+                continue;
+            }
             if (command.Opcode is 0x40 or 0x42 or 0x50 or 0x52)
             {
                 DrawNativePrimitiveLine(frame, resolved);

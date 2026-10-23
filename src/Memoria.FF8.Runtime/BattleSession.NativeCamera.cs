@@ -116,6 +116,10 @@ public sealed partial class BattleSession
                 {
                     graphics = graphics with { Descriptors = graphics.Descriptors.WriteCompletion501A70(address, value) };
                 }
+                else if (TryWriteNativeSonic139Completion(graphics, address, value, out NativeBattleGraphicsState completedSonic))
+                {
+                    graphics = completedSonic;
+                }
                 else if (TryWriteNativeBreath157Completion(graphics, address, value, out NativeBattleGraphicsState completedBreath))
                 {
                     graphics = completedBreath;
