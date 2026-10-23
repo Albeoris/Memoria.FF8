@@ -159,6 +159,23 @@ public sealed class NativeBattleWaterMeshPreparationTests
     }
 
     [Fact]
+    public void Projection_preserves_shared_depth_tail_and_unknown_bytes_across_independent_json_restore()
+    {
+        NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(Fixture(), Bank, 0, 1, 216);
+        int end = NativeBattleScriptedGraphicsMemory.DepthLength;
+        NativeBattleEffectArena depths = Depths().Write(0x2A8, [1, 2, 3, 4]).MarkUnknown(0x300, 8).Write(end - 4, [5, 6, 7, 8]);
+        NativeBattleWaterMeshProjected projected = NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, depths);
+        NativeBattleWaterMeshProjected cold = JsonSerializer.Deserialize<NativeBattleWaterMeshProjected>(JsonSerializer.Serialize(projected))!;
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, cold.DepthOwner.Read(0x2A8, 4));
+        Assert.Equal(new byte[] { 5, 6, 7, 8 }, cold.DepthOwner.Read(end - 4, 4));
+        Assert.Throws<NotSupportedException>(() => cold.DepthOwner.Read(0x300, 8));
+        Assert.Equal(3000u, BinaryPrimitives.ReadUInt32LittleEndian(cold.DepthOwner.Read(0, 4)));
+        NativeBattleWaterMeshProjected next = NativeBattleWaterMeshPreparation.MorphProject(prepared with { Frame = cold.Frame }, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, cold.DepthOwner);
+        Assert.Equal(JsonSerializer.Serialize(projected), JsonSerializer.Serialize(next));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, depths.MarkUnknown(end, 1)));
+    }
+
+    [Fact]
     public void Projection_reads_each_current_XYZ_before_overlapping_record_writes_instead_of_snapshotting_vertices()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
@@ -268,7 +285,7 @@ public sealed class NativeBattleWaterMeshPreparationTests
         NativeBattleWaterMeshPrepared extraScale = prepared with { Frame = prepared.Frame.WriteTemporaryDword(0x40, 1) };
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshPreparation.MorphProject(extraScale, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, Depths()));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 100, Projection(), 0, 0, Depths()));
-        Assert.Throws<InvalidDataException>(() => NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, Depths().Write(0x2A8, [1])));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterMeshPreparation.MorphProject(prepared, Bank, 0, Resources, Map, 0x218, Projection(), 0, 0, Depths().Write(NativeBattleScriptedGraphicsMemory.DepthLength, [1])));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture()

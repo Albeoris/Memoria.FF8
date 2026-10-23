@@ -15,7 +15,8 @@ public sealed record NativeBattleWaterMeshSubmission(NativeBattleWaterExecutionF
 /// <summary>The selected ordinary mesh wrappers over actual resource, work and separate depth owners.</summary>
 public static class NativeBattleWaterMeshPreparation
 {
-    public const int DepthLength = 0x2A8;
+    // Water overwrites its current vertex prefix of the process-retained shared workspace.
+    public const int DepthLength = NativeBattleScriptedGraphicsMemory.DepthLength;
 
     public static NativeBattleWaterMeshPrepared PrepareWrapper(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, byte wrapper, short globalFocal)
     {
@@ -305,7 +306,7 @@ public static class NativeBattleWaterMeshPreparation
         depths.Validate();
         if (depths.Regions.Any(region => region.Offset > DepthLength - region.Data.Length) || depths.UnknownRegions.Any(region => region.Offset > DepthLength - region.Length))
         {
-            throw new InvalidDataException("Native Water depth storage leaves its separate physical table.");
+            throw new InvalidDataException("Native Water depth workspace leaves its mapped process bounds.");
         }
     }
 
