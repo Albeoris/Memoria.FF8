@@ -67,8 +67,8 @@ public sealed partial class MenuController
             Id = "mods-create",
             Title = "Mods · Create Mods",
             Help = "Create a native gameplay mod or edit a compatible GF package.",
-            Entries = _ => [new("installed", "Installed Mods", "Installed packages and enablement.", Destination: "mods"), new("gf", "GF Abilities", "Edit existing abilities for all sixteen learnable GFs. Classic only.", Destination: "gf-ability-targets", Enabled: GuardianEditorEditionSupported)],
-            Details = _ => ["GF ability templates and earned progress have separate owners.", "Classic native Memoria gameplay packages.", "Summon-only entities have no learnable ability table."],
+            Entries = _ => CreateModEntries(),
+            Details = _ => ["GF Abilities", "Create or edit one GF ability contribution. Package activation is managed in Installed Mods."],
             BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage())
         });
         Register(new()
@@ -120,17 +120,19 @@ public sealed partial class MenuController
 
     private Func<string>? acceptGuardianModReview;
 
-    private UiElement BuildCreateModsPage()
+    private IReadOnlyList<MenuEntry> CreateModEntries()
     {
-        UiGrid page = Grid([1, 1.2f, 5], [1], 8);
-        UiGrid tabs = Grid([1], [1, 1], 8);
-        Place(tabs, new UiButton { Id = "installed", Text = "Installed Mods", FontSize = 22 * TextScale, Click = () => Activate(0) }, 0, 0);
-        Place(tabs, new UiButton { Id = "create-current", Text = "Create Mods", FontSize = 22 * TextScale, Click = () => { } }, 0, 1);
-        Place(page, tabs, 0);
-        Place(page, new UiButton { Id = "gf", Text = "GF Abilities", FontSize = 24 * TextScale, Enabled = GuardianEditorEditionSupported, Click = () => Activate(1) }, 1);
-        Place(page, Details(), 2);
-        return page;
+        bool playthroughLoaded = readGuardianEditor?.Invoke().Current is not null;
+        return
+        [
+            new("mods-installed-tab", "Installed Mods", "Installed packages and enablement.", Destination: "mods"),
+            new("mods-create-new", "Create new mod", "Open an independent GF mod draft. No file is written until Save mod.", Action: new("gf-editor-target", "new"), Enabled: GuardianEditorEditionSupported),
+            new("mods-edit-existing", "Edit existing GF mod", "Choose a compatible GF payload, including disabled packages.", Destination: "mods-gf-packages", Enabled: GuardianEditorEditionSupported),
+            new("mods-edit-playthrough", "Edit this playthrough", playthroughLoaded ? "Edit this playthrough's local GF contribution." : "Load a game to edit this playthrough.", Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded)
+        ];
     }
+
+    private UiElement BuildCreateModsPage() => new CreateModsElement(this);
 
     private IReadOnlyList<string> GuardianReviewDetails()
     {

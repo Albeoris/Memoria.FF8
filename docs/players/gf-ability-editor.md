@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / Players
 
-Open **Mods → Create Mods → GF Abilities**. Choose **Create new mod**, **Edit existing mod** (enabled or disabled packages), or **Edit this playthrough**. Creating a mod opens an independent untitled draft immediately; its name and destination are chosen when saving. This gameplay tool supports Classic resources. The sixteen learnable GFs are available whether acquired or not; summon-only entities have no learning table.
+Open **Mods → Create Mods**. Under **GF Abilities**, choose **Create new mod**, **Edit existing GF mod** (enabled or disabled packages), or **Edit this playthrough**. Creating a mod opens an independent untitled draft immediately; its name and destination are chosen when saving. This gameplay tool supports Classic resources. The sixteen learnable GFs are available whether acquired or not; summon-only entities have no learning table.
 
 The catalog occupies the left pane, with separate ability, AP cost and Present fields. Search has a visible caret, Clear button and category filter. Enter finishes text entry and focuses results without editing. Escape retains the query. Controller users can reach the complete catalog through categories and pages without entering text.
 

@@ -5,6 +5,7 @@ public interface IModService
     ModCatalogSnapshot Catalog { get; }
     /// <summary>Installed package preferences and activation status, including packages whose publication failed.</summary>
     IReadOnlyList<ModPackage> InstalledPackages => Catalog.Packages;
+    ModServiceView View => ModServiceView.Create(Catalog, InstalledPackages, AutoEnableNewMods, IsReloadPending, Diagnostics);
     bool AutoEnableNewMods { get; }
     bool IsReloadPending { get; }
     IReadOnlyList<ModDiagnostic> Diagnostics { get; }

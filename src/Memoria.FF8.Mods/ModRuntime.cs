@@ -18,10 +18,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly TimeSpan debounce;
     private readonly List<Action<ModCatalogSnapshot>> subscribers = [];
     private readonly Dictionary<string, FileEntry> fileEntries = new(StringComparer.Ordinal);
+    private Dictionary<string, FileEntry> committedFileEntries = new(StringComparer.Ordinal);
     private readonly List<(string ModsDirectory, FileSystemWatcher Watcher)> watchers = [];
     private readonly Queue<string> watcherErrors = [];
     private ModCatalogSnapshot catalog = new(0, [], []);
     private IReadOnlyList<ModPackage> installedPackages = Array.Empty<ModPackage>();
+    private ModUpdateOutcome updateOutcome = ModUpdateOutcome.Updating;
+    private readonly HashSet<string> changedPackageIds = new(StringComparer.OrdinalIgnoreCase);
     private ModCatalogSnapshot? pending;
     private ModPreparationResult? pendingPreparation;
     private IReadOnlyList<ModDiagnostic> diagnostics = Array.Empty<ModDiagnostic>();
@@ -90,6 +93,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
             lock (gate)
             {
                 return installedPackages;
+            }
+        }
+    }
+
+    public ModServiceView View
+    {
+        get
+        {
+            lock (gate)
+            {
+                return ModServiceView.Create(catalog, installedPackages, autoEnable, reloadRequested || pending is not null, diagnostics, updateOutcome, changedPackageIds);
             }
         }
     }
@@ -164,7 +178,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             try
             {
+                ValidatePreferenceTarget(package);
                 ModConfiguration.WriteBoolean(ConfigurationPath(package.RootDirectory, package.Format), "enabled", enabled);
+                installedPackages = Array.AsReadOnly(installedPackages.Select(item => item.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase) ? item with { ExplicitEnabled = enabled, RequestedEnabled = enabled } : item).ToArray());
                 RequestRefreshCore(DateTime.MinValue);
                 return ModOperationResult.Completed;
             }
@@ -198,6 +214,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 ModConfiguration.WriteBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods", enabled);
                 autoEnable = enabled;
+                ReconcilePreferences();
                 RequestRefreshCore(DateTime.MinValue);
                 return ModOperationResult.Completed;
             }
@@ -222,6 +239,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                         errors.Add(new("configuration-rollback-failed", rollbackException.Message));
                     }
                 }
+                updateOutcome = ModUpdateOutcome.Failed;
+                ReconcilePreferences(errors);
                 diagnostics = Array.AsReadOnly(errors.ToArray());
                 return new(false, exception.Message);
             }
@@ -269,6 +288,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             ThrowIfDisposed();
             diagnostics = Array.AsReadOnly(diagnostics.Append(diagnostic).ToArray());
+            updateOutcome = ModUpdateOutcome.Failed;
             ScheduleRetry();
         }
     }
@@ -302,11 +322,24 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 ConfigureWatcher();
                 ModCatalogSnapshot candidate = Discover(out bool nextAutoEnable, out string identity);
+                changedPackageIds.Clear();
+                foreach (string id in candidate.Packages.Select(package => package.Id).Concat(catalog.Packages.Select(package => package.Id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    IEnumerable<(string Path, FileStamp Stamp)> before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
+                    IEnumerable<(string Path, FileStamp Stamp)> after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
+                    if (!before.SequenceEqual(after))
+                    {
+                        changedPackageIds.Add(id);
+                    }
+                }
                 installedPackages = Array.AsReadOnly(candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active ? package with { Status = ModEffectiveStatus.ReloadFailure } : package).ToArray());
                 autoEnable = nextAutoEnable;
                 if (identity == lastIdentity)
                 {
                     installedPackages = catalog.Packages;
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code == "subscriber-failed")).Distinct().ToArray());
+                    updateOutcome = ModUpdateOutcome.Idle;
+                    changedPackageIds.Clear();
                     return false;
                 }
                 ModPreparationResult result = prepare(candidate);
@@ -314,6 +347,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (!result.Success)
                 {
                     diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
+                    updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
                     return false;
                 }
@@ -327,6 +361,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics);
                 }
                 autoEnable = nextAutoEnable;
+                installedPackages = candidate.Packages;
+                updateOutcome = ModUpdateOutcome.Updating;
                 pending = candidate;
                 pendingPreparation = result;
                 pendingIdentity = identity;
@@ -336,6 +372,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 ModTextureLoadException? textureFailure = exception as ModTextureLoadException;
                 diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId, textureFailure?.RelativePath) });
+                updateOutcome = ModUpdateOutcome.Failed;
                 ScheduleRetry();
                 return false;
             }
@@ -368,10 +405,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("reload-failed", exception.Message) });
                 pending = null;
                 pendingPreparation = null;
+                updateOutcome = ModUpdateOutcome.Failed;
                 ScheduleRetry();
                 return false;
             }
             catalog = pending;
+            committedFileEntries = new(fileEntries, StringComparer.Ordinal);
+            updateOutcome = ModUpdateOutcome.Idle;
+            changedPackageIds.Clear();
             installedPackages = catalog.Packages;
             committed = catalog;
             afterCommit = pendingPreparation?.AfterCommit;
@@ -630,6 +671,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
             firstRequestedAt = time;
         }
         reloadRequested = true;
+        updateOutcome = ModUpdateOutcome.Updating;
+        diagnostics = Array.AsReadOnly(diagnostics.Where(diagnostic => diagnostic.Code is not ("reload-failed" or "configuration-write-failed" or "configuration-rollback-failed" or "Memoria.GuardianForceReview" or "Memoria.GuardianForceBoundary")).ToArray());
         requestedAt = time;
         retryAttempt = 0;
         retryDue = DateTime.MinValue;
@@ -701,8 +744,55 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
     }
 
+    private void ReconcilePreferences(List<ModDiagnostic>? errors = null)
+    {
+        try
+        {
+            autoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
+            installedPackages = Array.AsReadOnly(installedPackages.Select(package =>
+            {
+                bool? enabled = ModConfiguration.ReadBoolean(ConfigurationPath(package.RootDirectory, package.Format), "enabled");
+                return package with { ExplicitEnabled = enabled, RequestedEnabled = enabled ?? autoEnable };
+            }).ToArray());
+        }
+        catch (Exception exception) when (IsFileError(exception))
+        {
+            errors?.Add(new("configuration-read-failed", exception.Message));
+        }
+    }
+
+    private void ValidatePreferenceTarget(ModPackage package)
+    {
+        if ((!Directory.Exists(package.RootDirectory) && !File.Exists(package.RootDirectory)) || (File.GetAttributes(package.RootDirectory) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException("The discovered package directory changed. Refresh mods before changing its setting.");
+        }
+        if (catalog.Packages.Any(committed => committed.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase) && committed.RootDirectory.Equals(package.RootDirectory, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+        foreach ((string key, FileEntry entry) in fileEntries.Where(item => item.Value.File.PackageId.Equals(package.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            string path = key.Split('\0')[1];
+            FileInfo file = new(path);
+            if (!file.Exists || new FileStamp(file.Length, file.LastWriteTimeUtc.Ticks) != entry.Stamp)
+            {
+                throw new IOException("The discovered package content changed. Refresh mods before changing its setting.");
+            }
+            if (package.Format == ModFormat.Junction)
+            {
+                ValidateJunctionVersion(package.RootDirectory, path, entry.Stamp);
+            }
+            else if (IsWithin(package.RootDirectory, path))
+            {
+                ValidateContentPath(package.RootDirectory, path);
+            }
+        }
+    }
+
     private ModOperationResult OperationFailed(Exception exception, string? packageId = null)
     {
+        updateOutcome = ModUpdateOutcome.Failed;
         diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("configuration-write-failed", exception.Message, packageId) });
         return new(false, exception.Message);
     }

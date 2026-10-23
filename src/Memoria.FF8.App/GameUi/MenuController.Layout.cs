@@ -36,12 +36,12 @@ public sealed partial class MenuController
         root.Children.Add(anchored);
         anchored.Children.Add(PresentationProvider.Compose(this));
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = PresentationProvider.DesignWidth(this), DesignHeight = PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { ViewportMode = IsGuardianAbilityEditor || ScreenId is "mods" or "mods-create" ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = ScreenId is "mods" or "mods-create" ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = ScreenId is "mods" or "mods-create" ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
         string commandListId = ScreenId == "shop-junk" && SelectedIndex < Data.Characters.Count ? "weapon-characters" : "commands";
-        _view.Focus(IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == commandListId) ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
+        _view.Focus(ScreenId == "mods" ? focusables.FirstOrDefault(element => element.Id == modFocusedControlId) ?? focusables.FirstOrDefault(element => element.Id == "commands") : ScreenId == "mods-create" ? focusables.FirstOrDefault(element => element.Id == createModsFocusedControlId && element.Enabled) ?? focusables.FirstOrDefault(element => element.Enabled) : IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == commandListId) ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
         return _view;
     }
 

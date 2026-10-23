@@ -48,6 +48,7 @@ internal sealed class KeyboardInput
     public bool NamingNavigationEnabled { get; set; }
     public bool TextEntryEnabled { get; set; }
     public bool GuardianEditorEnabled { get; set; }
+    public bool ModsManagerEnabled { get; set; }
     public bool SpeedToggleRequested { get; private set; }
     public bool DebugRoomRequested { get; private set; }
     public bool GameMenuRequested { get; private set; }
@@ -160,7 +161,7 @@ internal sealed class KeyboardInput
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
         bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || effectiveMatches.Any(match => match.Action == action && match.Device == ControlDevice.Keyboard));
-        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled || ModsManagerEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
         if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)
@@ -206,7 +207,7 @@ internal sealed class KeyboardInput
         UiSwitchColumnRequested = GuardianEditorEnabled && !TextEntryEnabled && Pressed(ControlAction.GuardianSwitchColumn);
         bool switchColumnHeld = GuardianEditorEnabled && !TextEntryEnabled && Down(ControlAction.GuardianSwitchColumn);
         bool tabRequested = !switchColumnHeld && (Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab));
-        UiReverseTabRequested = GuardianEditorEnabled && tabRequested && (current.IsKeyDown(Keys.LeftShift) || current.IsKeyDown(Keys.RightShift));
+        UiReverseTabRequested = (GuardianEditorEnabled || ModsManagerEnabled) && tabRequested && (current.IsKeyDown(Keys.LeftShift) || current.IsKeyDown(Keys.RightShift));
         UiTabRequested = tabRequested && !UiReverseTabRequested;
         UiPaneFocus = Pressed(ControlAction.CameraLeft) ? -1 : Pressed(ControlAction.CameraRight) ? 1 : 0;
         UiCharacterPage = (Pressed(ControlAction.RotateRight) ? 1 : 0) - (Pressed(ControlAction.RotateLeft) ? 1 : 0);

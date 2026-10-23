@@ -205,6 +205,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (NavigateModManager(input))
+        {
+            return;
+        }
         if (NavigateGuardianEditor(input))
         {
             return;
@@ -442,6 +446,12 @@ public sealed partial class MenuController
         if (ScreenId == "mods" && SelectedEntry?.Action is { Kind: "mod-toggle" } modAction)
         {
             selectedModId = modAction.SubjectId;
+            modSelectedOrdinal = Math.Max(0, Array.FindIndex(FilteredModViews(), view => view.Package.Id.Equals(selectedModId, StringComparison.OrdinalIgnoreCase)));
+            modFocusedControlId = "commands";
+        }
+        else if (ScreenId == "mods" && SelectedEntry is { } modEntry)
+        {
+            modFocusedControlId = modEntry.Id;
         }
         _view = null;
     }
