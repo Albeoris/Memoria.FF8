@@ -25,17 +25,11 @@ public static partial class NativeBattleShotgun281Controller
     public static NativeBattleShotgun281PointStep ReadAnchor67E550(NativeBattleShotgun281Frame frame, uint model, int selector, NativeBattleEffectArena retainedPoint8, NativeBattleShotgun281Inputs inputs)
     {
         (frame, uint temporary) = Allocate(frame, 20);
-        int bone = selector >= 0xF0 ? inputs.ReadBoneAlias(frame, model, selector) : selector;
-        if (inputs.ReadBoneParent(frame, model, bone) < 0)
+        NativeBattleBoneAnchor67E550Step result = NativeBattleBoneAnchor67E550.Query(selector, Context(frame, temporary, 20), retainedPoint8, value => inputs.ReadBoneAlias(frame, model, value), bone => inputs.ReadBoneParent(frame, model, bone), bone => inputs.ReadCurrentBoneMatrix(frame, model, bone), () => inputs.ReadModelWorld(frame, model));
+        if (result.Result == 0)
         {
-            return new(Release(frame, 20), retainedPoint8, 1);
+            frame = PublishContext(frame, temporary, result.Temporary20, 20);
         }
-        NativeBattleActionMatrix current = inputs.ReadCurrentBoneMatrix(frame, model, bone).ReadMatrix();
-        NativeBattleActionMatrix world = inputs.ReadModelWorld(frame, model).ReadMatrix();
-        (int x, int y, int z) = NativeBattleGfMatrices.RotateLong56C600(world, current.X, current.Y, current.Z);
-        NativeBattleEffectArena context = Context(frame, temporary, 20).Write(0, BitConverter.GetBytes(x)).Write(4, BitConverter.GetBytes(y)).Write(8, BitConverter.GetBytes(z));
-        frame = PublishContext(frame, temporary, context, 20);
-        NativeBattleEffectArena point = retainedPoint8.Write(0, BitConverter.GetBytes(unchecked((short)(x + world.X)))).Write(2, BitConverter.GetBytes(unchecked((short)(y + world.Y)))).Write(4, BitConverter.GetBytes(unchecked((short)(z + world.Z))));
-        return new(Release(frame, 20), point, 0);
+        return new(Release(frame, 20), result.Point8, result.Result);
     }
 }

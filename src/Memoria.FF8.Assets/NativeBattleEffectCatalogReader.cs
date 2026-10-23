@@ -569,6 +569,14 @@ public sealed partial class GameAssets
             {
                 binding = binding with { FunguarLaser277Resources = ReadNativeFunguarLaser277Resources() };
             }
+            if (binding.Effect == 282)
+            {
+                if (binding.Entry != NativeBattleEvilEye282Profile.Entry || binding.Initializer != NativeBattleEvilEye282Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag281.tim", NativeBattleEvilEye282Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Evil-Eye requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { EvilEye282Resources = ReadNativeEvilEye282Resources() };
+            }
             if (binding.Effect == 281)
             {
                 if (binding.Entry != NativeBattleShotgun281Profile.Entry || binding.Initializer != NativeBattleShotgun281Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag280.tim", NativeBattleShotgun281Profile.InitializerGlobal) || binding.InitializerResources is not null)
