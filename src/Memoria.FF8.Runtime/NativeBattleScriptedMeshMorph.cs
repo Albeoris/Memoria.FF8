@@ -18,6 +18,19 @@ public static class NativeBattleScriptedMeshMorph
         uint reference = services.ResolveBone(frame, Word(tuple));
         uint start = services.ResolveShape(frame, Word(unchecked(tuple + 2)));
         uint end = services.ResolveShape(frame, Word(unchecked(tuple + 4)));
+        if (frame.Arena.Transaction is not null)
+        {
+            return MorphResolved(frame, reference, start, end);
+        }
+        using NativeBattleEffectArenaTransaction transaction = new(frame.Arena);
+        NativeBattleWaterExecutionFrame result = MorphResolved(frame with { Arena = transaction.View }, reference, start, end);
+        return result with { Arena = transaction.Freeze() };
+
+        short Word(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2));
+    }
+
+    private static NativeBattleWaterExecutionFrame MorphResolved(NativeBattleWaterExecutionFrame frame, uint reference, uint start, uint end)
+    {
         for (int lane = 0; lane < 3; lane++)
         {
             frame = frame.WriteTemporaryDword(0xE0 + 4 * lane, unchecked((uint)(int)Word(unchecked(reference + 0x94u + (uint)(2 * lane)))));

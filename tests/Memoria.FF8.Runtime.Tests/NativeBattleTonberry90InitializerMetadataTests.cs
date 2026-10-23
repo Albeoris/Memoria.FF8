@@ -6,6 +6,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleTonberry90InitializerMetadataTests
 {
     [Fact]
+    public void Named_Tonberry_checkpoint_continues_through_original_resource_initialization()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_CASTER_CHECKPOINT");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_CASTER_EVIDENCE");
+        Assert.SkipUnless(path is not null && output is not null, "Select a standalone guardian checkpoint and a distinct evidence directory.");
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
+        BattleSession first = BattleSession.Restore(snapshot);
+        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        first.Tick();
+        independent.Tick();
+        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal((ushort)90, first.NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.NotNull(first.NativeEffectMemory!.Tonberry90);
+        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(independent.Capture()));
+        Directory.CreateDirectory(output!);
+        File.WriteAllText(Path.Combine(output!, "tonberry-after-initializer.battle.json"), JsonSerializer.Serialize(first.Capture()));
+    }
+
+    [Fact]
     public void Original_ordered_metadata_survives_json_and_loads_each_TIM_once()
     {
         NativeBattleOriginalEffectState selected = Effect();

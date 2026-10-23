@@ -149,6 +149,87 @@ public sealed class NativeBattleScriptedMeshMorphTests
         Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshMorph.Morph(Fixture(0, 2), Services));
     }
 
+    [Fact]
+    public void Morph_publishes_an_immutable_arena_and_resolvers_receive_the_original_frame()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(2, 2);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x50006, 2) };
+        string original = JsonSerializer.Serialize(frame);
+        NativeBattleScriptedMeshMorphServices services = new((current, selector) =>
+        {
+            Assert.Same(frame, current);
+            return Services.ResolveBone(current, selector);
+        }, (current, id) =>
+        {
+            Assert.Same(frame, current);
+            return Services.ResolveShape(current, id);
+        });
+
+        NativeBattleWaterExecutionFrame result = NativeBattleScriptedMeshMorph.Morph(frame, services);
+
+        Assert.Null(result.Arena.Transaction);
+        Assert.Equal((short)10, Read(result, 0x50000));
+        Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x50006, 2));
+        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
+        Assert.Equal((short)11, Read(restored, 0x50008));
+    }
+
+    [Fact]
+    public void Morph_reuses_an_active_transaction_and_reads_its_pending_aliasing_stores()
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(1, 2).WriteTemporaryDword(0x7C, Base + 0x10072);
+        string original = JsonSerializer.Serialize(frame);
+        NativeBattleWaterExecutionFrame expectedFrame = frame;
+        for (int lane = 0; lane < 3; lane++)
+        {
+            expectedFrame = Word(expectedFrame, 0x4094 + 2 * lane, 128);
+        }
+        NativeBattleWaterExecutionFrame expected = NativeBattleScriptedMeshMorph.Morph(expectedFrame, Services);
+        using NativeBattleEffectArenaTransaction transaction = new(frame.Arena);
+        NativeBattleWaterExecutionFrame current = frame with { Arena = transaction.View };
+        for (int lane = 0; lane < 3; lane++)
+        {
+            current = Word(current, 0x4094 + 2 * lane, 128);
+        }
+
+        NativeBattleWaterExecutionFrame result = NativeBattleScriptedMeshMorph.Morph(current, Services);
+
+        Assert.Same(transaction.View, result.Arena);
+        Assert.Equal(new short[] { 5, 6, 7 }, Enumerable.Range(0, 3).Select(lane => Read(result, 0x10072 + 2 * lane)));
+        NativeBattleEffectArena published = transaction.Freeze();
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result with { Arena = published }));
+        Word(result, 0x10072, 99);
+        Assert.Equal((short)99, Read(result, 0x10072));
+        Assert.Equal((short)5, BinaryPrimitives.ReadInt16LittleEndian(published.Read(0x10072, 2)));
+        Assert.Equal(original, JsonSerializer.Serialize(frame));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Failed_morph_preserves_immutable_input_and_leaves_ordered_stores_in_its_callers_transaction(bool activeTransaction)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(1, 2);
+        frame = frame with { Arena = frame.Arena.MarkUnknown(0x10074, 2) };
+        string original = JsonSerializer.Serialize(frame);
+        using NativeBattleEffectArenaTransaction? transaction = activeTransaction ? new(frame.Arena) : null;
+        NativeBattleWaterExecutionFrame current = transaction is null ? frame : frame with { Arena = transaction.View };
+        Exception expected = Assert.Throws<NotSupportedException>(() => frame.Arena.Read(0x10074, 2));
+
+        Exception actual = Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshMorph.Morph(current, Services));
+
+        Assert.Equal(expected.Message, actual.Message);
+        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        if (transaction is not null)
+        {
+            Assert.Equal((short)10, Read(current, 0x50000));
+            Assert.Equal((short)0, Read(current, 0x50002));
+            Word(current, 0x50002, 99);
+            Assert.Equal((short)99, Read(current, 0x50002));
+        }
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(int count, uint flags)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryDword(0x4C, Base + 0x3000).WriteTemporaryDword(0x7C, Base + 0x50000).WriteTemporaryDword(0x80, Base + 0x60000);

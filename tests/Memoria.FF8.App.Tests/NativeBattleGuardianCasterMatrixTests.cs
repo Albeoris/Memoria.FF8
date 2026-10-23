@@ -8,11 +8,29 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
 {
     public static IEnumerable<object[]> SupportedCasters()
     {
+        string? selection = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_CASTER_CASES");
+        HashSet<(int Character, int Slot)>? selected = null;
+        if (!string.IsNullOrEmpty(selection))
+        {
+            selected = [];
+            foreach (string cell in selection.Split(','))
+            {
+                string[] coordinates = cell.Split(':');
+                if (coordinates.Length != 2 || !int.TryParse(coordinates[0], out int character) || !int.TryParse(coordinates[1], out int slot) || character is < 0 or > 10 || slot is < 0 or > 2)
+                {
+                    throw new InvalidDataException("Guardian caster selection requires character:slot pairs in the native ranges0..10 and0..2.");
+                }
+                selected.Add((character, slot));
+            }
+        }
         for (int character = 0; character <= 10; character++)
         {
             for (int slot = 0; slot < 3; slot++)
             {
-                yield return [character, slot];
+                if (selected is null || selected.Contains((character, slot)))
+                {
+                    yield return [character, slot];
+                }
             }
         }
     }
