@@ -43,7 +43,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
     }
 
     [Fact]
-    public void Reached_first_view_observes_exact_main_clear_saved_flags_heads_only_particles_and_target_records()
+    public void Reached_first_view_observes_full_task_pool_clear_and_partial_particle_bank_initialization()
     {
         Fixture fixture = new();
         fixture.CaptureBeforeMain = true;
@@ -75,7 +75,16 @@ public sealed class NativeBattleShockwavePulsar260RootTests
         Assert.Equal((byte)0, captured.Memory.Arena.Read(PuffsOffset + 15, 1)[0]);
         Assert.Equal(new byte[] { 0, 0, 0xA5 }, captured.Memory.Arena.Read(SecondaryParticlesOffset, 3));
         Assert.Equal(0, captured.Memory.EffectIo!.BaseOffset);
-        Assert.Equal(new byte[] { 0xA5, 0xA5 }, captured.Effect.Pools[2].Slots[0].ReadBytes(0xC, 2));
+        Assert.All(captured.Effect.Pools[2].Slots, task =>
+        {
+            Assert.Equal((ushort)0, task.Flags);
+            Assert.Equal((ushort)0, task.State);
+            Assert.Equal(0u, task.Callback);
+            Assert.Null(task.Next);
+            Assert.Null(task.ResourcePointers);
+            Assert.Null(task.UnknownPayloadRanges);
+            Assert.All(task.Payload, value => Assert.Equal((byte)0, value));
+        });
         Assert.Throws<NotSupportedException>(() => captured.Memory.Arena.Read(ChildrenOffset + 12, 1));
         Assert.Equal(new byte[] { 0, 0, 0, 0 }, captured.Effect.Pools[1].Slots[0].ReadBytes(0x1294, 4));
     }

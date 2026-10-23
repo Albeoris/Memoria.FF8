@@ -124,8 +124,8 @@ public static partial class NativeBattleShockwavePulsar260Controller
         }
         frame = frame with { Memory = frame.Memory with { Arena = arena }, State = frame.State.WriteDword(0x2508614, working + PuffsOffset).WriteDword(0x2508618, working + SecondaryParticlesOffset) };
         frame = frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, workingOffset) };
-        NativeBattleEffectTaskPool mains = RootResetPool(frame, MainDescriptor, working + MainOffset, MainStride, 1);
-        NativeBattleEffectTaskPool children = RootResetPool(frame, ChildDescriptor, working + ChildrenOffset, ChildStride, ChildCount);
+        NativeBattleEffectTaskPool mains = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
+        NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, working + ChildrenOffset, ChildStride, ChildCount);
         (mains, int mainSlot) = mains.Append(MainCallback);
         mains = mains with { Slots = mains.Slots.SetItem(mainSlot, mains.Slots[mainSlot].WriteBytes(0xC, new byte[0x4A3 * 4])) };
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], mains, children] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [mains, children]) };
@@ -193,30 +193,6 @@ public static partial class NativeBattleShockwavePulsar260Controller
         return frame;
     }
 
-    private static NativeBattleEffectTaskPool RootResetPool(NativeBattleShockwavePulsar260Frame frame, uint descriptor, uint address, ushort stride, ushort count)
-    {
-        NativeBattleEffectTaskPool? retained = frame.Effect.Pools.SingleOrDefault(pool => pool.BankAddress == address && pool.Stride == stride && pool.Slots.Length == count);
-        if (retained is not null)
-        {
-            return retained with { DescriptorAddress = descriptor, Slots = retained.Slots.Select(task => task with { Flags = 0 }).ToImmutableArray(), Head = null, Tail = null };
-        }
-        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, address, stride, count);
-        for (int slot = 0; slot < pool.Slots.Length; slot++)
-        {
-            int offset = Offset(checked(address + (uint)(slot * pool.Stride) + 12), pool.Stride - 12);
-            (byte[] bytes, bool[] known) = Arena(frame).ReadSnapshot(offset, pool.Stride - 12);
-            NativeBattleModulePoolTask task = pool.Slots[slot].WriteBytes(12, bytes);
-            for (int index = 0; index < known.Length; index++)
-            {
-                if (!known[index])
-                {
-                    task = task.MarkPayloadUnknown(12 + index, 1);
-                }
-            }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
-        }
-        return pool;
-    }
 
     private static NativeBattleShockwavePulsar260Frame RootApplyStageFactor(NativeBattleShockwavePulsar260Frame frame, NativeBattleShockwavePulsar260Inputs inputs, uint currentAddress, uint previousAddress, ushort groups)
     {

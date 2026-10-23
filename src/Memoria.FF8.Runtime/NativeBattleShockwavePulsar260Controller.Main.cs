@@ -31,7 +31,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             }
             if (elapsed == 0)
             {
-                frame = WithPool(frame, 2, RootResetPool(frame, ChildDescriptor, frame.State.ReadDword(WorkingGlobal) + ChildrenOffset, ChildStride, ChildCount));
+                frame = WithPool(frame, 2, NativeBattleEffectTaskPool.Initialize(ChildDescriptor, frame.State.ReadDword(WorkingGlobal) + ChildrenOffset, ChildStride, ChildCount));
                 for (int actor = 0; actor < 7; actor++)
                 {
                     if ((inputs.ReadModel(actor).Flags0 & 2) != 0)

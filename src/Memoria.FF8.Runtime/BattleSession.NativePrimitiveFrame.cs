@@ -317,6 +317,14 @@ public sealed partial class BattleSession
             NativeBattleEffectArena packets = reference.Bank switch { "24224D4" => state.Packets, "24059F8" => state.Quads, _ => state.CapturePackets };
             return packets.Read(reference.ByteOffset, count);
         }
+        if (reference.Bank == NativeBattleSandStorm155Profile.PacketBankId)
+        {
+            if (reference.Buffer != 0 || reference.ByteOffset < 0 || count < 0 || reference.ByteOffset > NativeBattleSandStorm155Profile.PacketLength - count)
+            {
+                throw new InvalidDataException("Sand Storm packet read leaves its actual contiguous executable banks.");
+            }
+            return (memory.SandStorm155 ?? throw new NotSupportedException("Sand Storm requires its retained executable packet banks.")).Packets.Read(reference.ByteOffset, count);
+        }
         if (reference.Bank == "2368580")
         {
             if (reference.Buffer != 0)

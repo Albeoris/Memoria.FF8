@@ -144,40 +144,4 @@ public static partial class NativeBattleSaliva138Controller
         return task.WriteBytes(offset, workspace.Initialize7016B0(source, size).Data.AsSpan());
     }
 
-    private static NativeBattleEffectTaskPool ResetPool(NativeBattleSaliva138Frame frame, uint descriptor, uint address, ushort stride, ushort count)
-    {
-        NativeBattleEffectTaskPool? retained = frame.Effect.Pools.SingleOrDefault(pool => pool.BankAddress == address && pool.Stride == stride && pool.Slots.Length == count);
-        if (retained is not null)
-        {
-            return retained with { DescriptorAddress = descriptor, Slots = retained.Slots.Select(task => task with { Flags = 0 }).ToImmutableArray(), Head = null, Tail = null };
-        }
-        NativeBattleEffectTaskPool result = NativeBattleEffectTaskPool.Initialize(descriptor, address, stride, count);
-        for (int slot = 0; slot < count; slot++)
-        {
-            int offset = Offset(checked(address + (uint)(slot * stride) + 12), stride - 12);
-            (byte[] bytes, bool[] known) = Arena(frame).ReadSnapshot(offset, stride - 12);
-            NativeBattleModulePoolTask task = result.Slots[slot].WriteBytes(12, bytes);
-            for (int index = 0; index < known.Length; index++)
-            {
-                if (!known[index])
-                {
-                    task = task.MarkPayloadUnknown(index + 12, 1);
-                }
-            }
-            NativeBattleEffectArena arena = Arena(frame);
-            var pointers = arena.Transaction is { } transaction ? transaction.ResourcePointers : arena.ResourcePointers;
-            if (pointers is not null)
-            {
-                foreach (int field in pointers.Keys.Where(field => field >= offset && field + 4L <= offset + stride - 12L))
-                {
-                    if (arena.ReadResourcePointer(field) is { } pointer)
-                    {
-                        task = task.WriteResourcePointer(checked(field - offset + 12), pointer);
-                    }
-                }
-            }
-            result = result with { Slots = result.Slots.SetItem(slot, task) };
-        }
-        return result;
-    }
 }

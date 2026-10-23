@@ -63,11 +63,11 @@ public static partial class NativeBattleElectricDischarge126Controller
         byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
         if (root.ReadWord(12) == 1 && root.ReadByte(15) == 0)
         {
-            NativeBattleEffectTaskPool main = ResetPool(frame, MainDescriptor, working + MainOffset, MainStride, 1);
-            NativeBattleEffectTaskPool world = ResetPool(frame, WorldTrailDescriptor, working + WorldOffset, WorldStride, WorldCount);
-            NativeBattleEffectTaskPool bone = ResetPool(frame, BoneTrailDescriptor, working + BoneOffset, BoneStride, BoneCount);
-            NativeBattleEffectTaskPool sprite = ResetPool(frame, SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
-            NativeBattleEffectTaskPool act = ResetPool(frame, ActDescriptor, working, ActStride, ActCount);
+            NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
+            NativeBattleEffectTaskPool world = NativeBattleEffectTaskPool.Initialize(WorldTrailDescriptor, working + WorldOffset, WorldStride, WorldCount);
+            NativeBattleEffectTaskPool bone = NativeBattleEffectTaskPool.Initialize(BoneTrailDescriptor, working + BoneOffset, BoneStride, BoneCount);
+            NativeBattleEffectTaskPool sprite = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
+            NativeBattleEffectTaskPool act = NativeBattleEffectTaskPool.Initialize(ActDescriptor, working, ActStride, ActCount);
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, world, bone, sprite, act] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, world, bone, sprite, act]) };
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
             frame = WriteArena(WriteArena(frame, working + BonePointsOffset, new byte[0x5000]), working + WorldPointsOffset, new byte[0x5000]);

@@ -69,11 +69,11 @@ public static partial class NativeBattleOilShot136Controller
         if (root.ReadWord(12) == 1)
         {
             frame = Write(frame, address, Read(frame, address).WriteWord(14, 1));
-            NativeBattleEffectTaskPool main = ResetPool(frame, MainDescriptor, working + MainOffset, MainStride, 1);
-            NativeBattleEffectTaskPool moving = ResetPool(frame, MovingSpriteDescriptor, working + MovingSpriteOffset, MovingSpriteStride, MovingSpriteCount);
-            NativeBattleEffectTaskPool emitter = ResetPool(frame, EmitterDescriptor, working + EmitterOffset, EmitterStride, EmitterCount);
-            NativeBattleEffectTaskPool simple = ResetPool(frame, SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
-            NativeBattleEffectTaskPool large = ResetPool(frame, LargeParticleDescriptor, working + LargeParticleOffset, LargeParticleStride, LargeParticleCount);
+            NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
+            NativeBattleEffectTaskPool moving = NativeBattleEffectTaskPool.Initialize(MovingSpriteDescriptor, working + MovingSpriteOffset, MovingSpriteStride, MovingSpriteCount);
+            NativeBattleEffectTaskPool emitter = NativeBattleEffectTaskPool.Initialize(EmitterDescriptor, working + EmitterOffset, EmitterStride, EmitterCount);
+            NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
+            NativeBattleEffectTaskPool large = NativeBattleEffectTaskPool.Initialize(LargeParticleDescriptor, working + LargeParticleOffset, LargeParticleStride, LargeParticleCount);
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, moving, emitter, simple, large] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, moving, emitter, simple, large]) };
             (frame, uint child) = Append(frame, 1, MainCallback);
             if (child == 0)

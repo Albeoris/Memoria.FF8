@@ -1,0 +1,169 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+using static Memoria.FF8.Runtime.NativeBattleSandStorm155Profile;
+
+namespace Memoria.FF8.Runtime;
+
+public static partial class NativeBattleSandStorm155Controller
+{
+    public static NativeBattleModulePoolTask Read(NativeBattleSandStorm155Frame frame, uint address)
+    {
+        foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools)
+        {
+            uint offset = unchecked(address - pool.BankAddress);
+            if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
+            {
+                return pool.Slots[(int)(offset / pool.Stride)];
+            }
+        }
+        throw new InvalidDataException("Sand Storm task pointer leaves its canonical physical pools.");
+    }
+
+    public static NativeBattleSandStorm155Frame Write(NativeBattleSandStorm155Frame frame, uint address, NativeBattleModulePoolTask task)
+    {
+        for (int index = 0; index < frame.Effect.Pools.Length; index++)
+        {
+            NativeBattleEffectTaskPool pool = frame.Effect.Pools[index];
+            uint offset = unchecked(address - pool.BankAddress);
+            if (offset < (uint)(pool.Stride * pool.Slots.Length) && offset % pool.Stride == 0)
+            {
+                int slot = (int)(offset / pool.Stride);
+                return WithPool(frame, index, pool with { Slots = pool.Slots.SetItem(slot, task with { Next = pool.Slots[slot].Next }) });
+            }
+        }
+        throw new InvalidDataException("Sand Storm task write leaves its canonical physical pools.");
+    }
+
+    public static (NativeBattleSandStorm155Frame Frame, uint Address) Append(NativeBattleSandStorm155Frame frame, uint callback)
+    {
+        NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
+        if (pool.Slots.All(task => (task.Flags & 1) != 0))
+        {
+            return (frame, 0);
+        }
+        (pool, int slot) = pool.Append(callback);
+        return (WithPool(frame, 1, pool), checked(pool.BankAddress + (uint)(slot * pool.Stride)));
+    }
+
+    public static NativeBattleSandStorm155Frame LoadMatrix(NativeBattleSandStorm155Frame frame, NativeBattlePackedMatrix32 packed)
+    {
+        packed.Validate();
+        NativeBattleGeometryRegisters geometry = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), packed.ReadMatrix(), true, true, null);
+        geometry = geometry with { Rotation20 = Enumerable.Range(0, 20).Select(index => packed.Known[index] ? (byte?)packed.Bytes[index] : null).ToImmutableArray() };
+        return frame with { Memory = frame.Memory with { GeometryRegisters = geometry } };
+    }
+    public static NativeBattleEffectArena PackedArena(NativeBattlePackedMatrix32 packed)
+    {
+        packed.Validate();
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, packed.Bytes.AsSpan());
+        for (int index = 0; index < 32; index++)
+        {
+            if (!packed.Known[index])
+            {
+                result = result.MarkUnknown(index, 1);
+            }
+        }
+        return result;
+    }
+    private static NativeBattleFileStaging RequireStaging(NativeBattleSandStorm155Frame frame) => frame.Staging ?? throw new NotSupportedException("Sand Storm requires its actual addressed temporary memory.");
+    private static (NativeBattleSandStorm155Frame Frame, uint Address) Allocate(NativeBattleSandStorm155Frame frame, int length)
+    {
+        NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), length);
+        return (frame with { Staging = allocation.Staging }, allocation.Address);
+    }
+    private static NativeBattleSandStorm155Frame Release(NativeBattleSandStorm155Frame frame, int length) => frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), length) };
+    public static NativeBattleEffectArena Context(NativeBattleSandStorm155Frame frame, uint address, int length) => NativeBattleEffectNodeContextMemory.Copy(NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    public static NativeBattleSandStorm155Frame PublishContext(NativeBattleSandStorm155Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
+    public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
+    {
+        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.Payload.AsSpan().Slice(offset - 12, length));
+        if (task.UnknownPayloadRanges is { } ranges)
+        {
+            foreach (NativeBattleEffectUnknownRegion range in ranges)
+            {
+                int first = Math.Max(offset, range.Offset);
+                int end = Math.Min(offset + length, range.Offset + range.Length);
+                if (first < end)
+                {
+                    view = view.MarkUnknown(first - offset, end - first);
+                }
+            }
+        }
+        return view;
+    }
+
+    public static NativeBattleEffectArena PointView(NativeBattleVector point, short? w = null)
+    {
+        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));
+        return w is { } value ? result.Write(6, BitConverter.GetBytes(value)) : result;
+    }
+    public static NativeBattleSandStorm155Frame DrawRandom(NativeBattleSandStorm155Frame frame, out ushort value) => frame with { Random = frame.Random.Draw(out value) };
+    private static NativeBattleSandStorm155Frame WithPool(NativeBattleSandStorm155Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };
+    private static NativeBattleEffectParameters Parameters(NativeBattleSandStorm155Frame frame) => frame.Effect.Parameters ?? throw new NotSupportedException("Sand Storm requires its captured action parameters.");
+    private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
+    private static short Word(NativeBattleSandStorm155Frame frame, uint address) => unchecked((short)frame.State.ReadWord(address));
+    private static NativeBattleSandStorm155Frame Word(NativeBattleSandStorm155Frame frame, uint address, int value) => frame with { State = frame.State.WriteWord(address, unchecked((ushort)value)) };
+    private static NativeBattleSandStorm155Frame Dword(NativeBattleSandStorm155Frame frame, uint address, uint value) => frame with { State = frame.State.WriteDword(address, value) };
+    private static NativeBattleSandStorm155Frame Copy(NativeBattleSandStorm155Frame frame, uint source, uint destination, int length) => frame with { State = frame.State.WriteView(destination, frame.State.ReadView(source, length), length) };
+    private static void RequireBinding(NativeBattleSandStorm155Frame frame)
+    {
+        if (frame.Effect.RequestedEffect != 155 || frame.Effect.Binding.Entry != 0x606CF0 || frame.Effect.Binding.Initializer != 0x606CD0)
+        {
+            throw new InvalidDataException("Sand Storm requires its original selected entry.");
+        }
+    }
+
+    private static NativeBattleEffectTaskPool ResetPool(NativeBattleSandStorm155Frame frame, uint descriptor, uint bank, ushort stride, ushort count)
+    {
+        if (!frame.Effect.Pools.IsEmpty)
+        {
+            throw new InvalidDataException("Sand Storm activation requires its retained bank owners and no active task pools.");
+        }
+        frame.State.Validate();
+        _ = (bank == RootBank ? frame.State.RootBankStorage : frame.State.ChildBankStorage) ?? throw new NotSupportedException("Sand Storm activation requires its retained physical task bank; older snapshots require migration.");
+        return NativeBattleEffectTaskPool.Initialize(descriptor, bank, stride, count);
+    }
+
+    private static NativeBattleSandStorm155Frame DetachBanks(NativeBattleSandStorm155Frame frame)
+    {
+        if (frame.Effect.ReturnedDescriptor != 0 || frame.Effect.Pools.Length != 2 || frame.Effect.Pools.Any(pool => pool.Head is not null || pool.Slots.Any(task => (task.Flags & 1) != 0)) || frame.State.RootBankStorage is not null || frame.State.ChildBankStorage is not null)
+        {
+            throw new InvalidDataException("Sand Storm bank transfer requires the actual closed queue and exclusive inactive task owners.");
+        }
+        NativeBattleEffectArena[] storage = new NativeBattleEffectArena[2];
+        for (int bank = 0; bank < 2; bank++)
+        {
+            NativeBattleEffectTaskPool pool = frame.Effect.Pools[bank];
+            pool.Validate();
+            NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+            for (int slot = 0; slot < pool.Slots.Length; slot++)
+            {
+                NativeBattleModulePoolTask task = pool.Slots[slot];
+                byte[] bytes = new byte[pool.Stride];
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes, task.Flags);
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), task.State);
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), task.Next is int next ? checked(pool.BankAddress + (uint)(next * pool.Stride)) : 0);
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), task.Callback);
+                task.Payload.AsSpan().CopyTo(bytes.AsSpan(12));
+                int offset = slot * pool.Stride;
+                arena = arena.Write(offset, bytes);
+                if (task.UnknownPayloadRanges is { } unknown)
+                {
+                    foreach (NativeBattleEffectUnknownRegion range in unknown)
+                    {
+                        arena = arena.MarkUnknown(offset + range.Offset, range.Length);
+                    }
+                }
+                if (task.ResourcePointers is { } pointers)
+                {
+                    foreach ((int field, NativeBattleResourcePointer pointer) in pointers)
+                    {
+                        arena = arena.WriteResourcePointer(offset + field, pointer);
+                    }
+                }
+            }
+            storage[bank] = arena;
+        }
+        return frame with { Effect = frame.Effect with { Pools = [] }, State = frame.State with { RootBankStorage = storage[0], ChildBankStorage = storage[1] } };
+    }
+}

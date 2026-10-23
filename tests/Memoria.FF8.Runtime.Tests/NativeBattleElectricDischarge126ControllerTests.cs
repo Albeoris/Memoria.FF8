@@ -168,7 +168,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Root_warm_reclaim_preserves_transferred_resource_row_metadata_and_unknown_numeric_bytes(bool cpuRow)
+    public void Root_warm_508300_reinitialization_clears_transferred_resource_metadata_and_unknown_payload(bool cpuRow)
     {
         Fixture f = new();
         NativeBattleResourceRowReference row = cpuRow ? new(8, null) : new(null, 0x1939018);
@@ -191,16 +191,15 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         frame = f.Root(frame, 1, false, 0);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         NativeBattleModulePoolTask reclaimed = frame.Effect.Pools[3].Slots[slot];
-        Assert.Equal(row, reclaimed.ReadResourceRowReference(36));
         Assert.Equal((ushort)0, reclaimed.Flags);
-        if (cpuRow)
-        {
-            Assert.Throws<NotSupportedException>(() => reclaimed.ReadDword(36));
-        }
-        else
-        {
-            Assert.Equal(0x1939018u, reclaimed.ReadDword(36));
-        }
+        Assert.Equal((ushort)0, reclaimed.State);
+        Assert.Equal(0u, reclaimed.Callback);
+        Assert.Null(reclaimed.Next);
+        Assert.Null(reclaimed.ResourcePointers);
+        Assert.Null(reclaimed.UnknownPayloadRanges);
+        Assert.All(reclaimed.Payload, value => Assert.Equal((byte)0, value));
+        Assert.Equal(0u, reclaimed.ReadDword(36));
+
     }
 
     private sealed class Fixture

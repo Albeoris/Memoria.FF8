@@ -60,10 +60,10 @@ public static partial class NativeBattleSaliva138Controller
         if (root.ReadWord(12) == 1)
         {
             frame = Write(frame, address, Read(frame, address).WriteWord(14, 1));
-            NativeBattleEffectTaskPool main = ResetPool(frame, MainDescriptor, working + MainOffset, MainStride, 1);
-            NativeBattleEffectTaskPool curves = ResetPool(frame, CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
-            NativeBattleEffectTaskPool moving = ResetPool(frame, MovingSpriteDescriptor, working + MovingSpriteOffset, MovingSpriteStride, MovingSpriteCount);
-            NativeBattleEffectTaskPool simple = ResetPool(frame, SimpleSpriteDescriptor, working, SimpleSpriteStride, SimpleSpriteCount);
+            NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
+            NativeBattleEffectTaskPool curves = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
+            NativeBattleEffectTaskPool moving = NativeBattleEffectTaskPool.Initialize(MovingSpriteDescriptor, working + MovingSpriteOffset, MovingSpriteStride, MovingSpriteCount);
+            NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working, SimpleSpriteStride, SimpleSpriteCount);
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, curves, moving, simple] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, curves, moving, simple]) };
             (frame, uint child) = Append(frame, 1, MainCallback);
             if (child == 0)

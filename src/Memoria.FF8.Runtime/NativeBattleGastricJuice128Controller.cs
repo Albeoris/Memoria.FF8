@@ -58,9 +58,9 @@ public static partial class NativeBattleGastricJuice128Controller
             {
                 frame = Put(frame, 0, slot, Task(frame, 0, slot).WriteByte(15, 1));
                 uint working = Working(frame);
-                NativeBattleEffectTaskPool targets = ResetPool(frame, MainDescriptor, working + 0x1280, 616, 1);
-                NativeBattleEffectTaskPool trails = ResetPool(frame, CurveDescriptor, working + 0x1000, 80, 8);
-                NativeBattleEffectTaskPool particles = ResetPool(frame, SpriteDescriptor, working, 32, 128);
+                NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + 0x1280, 616, 1);
+                NativeBattleEffectTaskPool trails = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + 0x1000, 80, 8);
+                NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working, 32, 128);
                 frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], targets, trails, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [targets, trails, particles]) };
                 for (int index = 0; index < PointCount; index++)
                 {

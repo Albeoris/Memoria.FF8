@@ -60,9 +60,9 @@ public static partial class NativeBattleOilBlast137Controller
             NativeBattleActionHeaderSlot header = Header(frame, inputs);
             int firstContact = header.FirstContactIndex ?? throw new NotSupportedException("Oil Blast requires its first captured contact.");
             uint target = ModelAddress(inputs.Packets.ReadContact(firstContact).Primary.ActorIndex);
-            NativeBattleEffectTaskPool main = ResetPool(frame, MainDescriptor, checked(working + MainOffset), MainStride, 1);
-            NativeBattleEffectTaskPool secondary = ResetPool(frame, SecondaryDescriptor, checked(working + SecondaryOffset), SecondaryStride, SecondaryCount);
-            NativeBattleEffectTaskPool particles = ResetPool(frame, ParticleDescriptor, working, ParticleStride, ParticleCount);
+            NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, checked(working + MainOffset), MainStride, 1);
+            NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, checked(working + SecondaryOffset), SecondaryStride, SecondaryCount);
+            NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);
             (main, int slot) = main.Append(MainCallback);
             main = main with { Slots = main.Slots.SetItem(slot, main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]).WriteDword(16, target)) };
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, secondary, particles]) };
@@ -117,29 +117,4 @@ public static partial class NativeBattleOilBlast137Controller
 
     private static NativeBattleActionHeaderSlot Header(NativeBattleOilBlast137Frame frame, NativeBattleOilBlast137Inputs inputs) => inputs.Packets.Headers[Parameters(frame).HeaderIndex7C];
 
-    private static NativeBattleEffectTaskPool ResetPool(NativeBattleOilBlast137Frame frame, uint descriptor, uint address, ushort stride, ushort count)
-    {
-        NativeBattleEffectTaskPool? retained = frame.Effect.Pools.SingleOrDefault(pool => pool.BankAddress == address && pool.Stride == stride && pool.Slots.Length == count);
-        if (retained is not null)
-        {
-            return retained with { DescriptorAddress = descriptor, Slots = retained.Slots.Select(task => task with { Flags = 0 }).ToImmutableArray(), Head = null, Tail = null };
-        }
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Oil Blast requires its actual working allocation.");
-        NativeBattleEffectTaskPool result = NativeBattleEffectTaskPool.Initialize(descriptor, address, stride, count);
-        for (int index = 0; index < count; index++)
-        {
-            int offset = checked((int)(address - NativeBattleEffectNodeMemory.ArenaAddress) + index * stride + 12);
-            (byte[] bytes, bool[] known) = arena.ReadSnapshot(offset, stride - 12);
-            NativeBattleModulePoolTask task = result.Slots[index].WriteBytes(12, bytes);
-            for (int octet = 0; octet < known.Length; octet++)
-            {
-                if (!known[octet])
-                {
-                    task = task.MarkPayloadUnknown(octet + 12, 1);
-                }
-            }
-            result = result with { Slots = result.Slots.SetItem(index, task) };
-        }
-        return result;
-    }
 }

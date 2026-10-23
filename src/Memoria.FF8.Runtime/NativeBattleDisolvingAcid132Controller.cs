@@ -62,11 +62,11 @@ public static partial class NativeBattleDisolvingAcid132Controller
             if (root.ReadBytes(15, 1)[0] == 0)
             {
                 frame = Write(frame, address, Read(frame, address).WriteBytes(15, [1]));
-                NativeBattleEffectTaskPool main = ResetPool(frame, MainDescriptor, working + MainOffset, MainStride, MainCount);
-                NativeBattleEffectTaskPool act = ResetPool(frame, ActDescriptor, working + ActOffset, ActStride, ActCount);
-                NativeBattleEffectTaskPool simple = ResetPool(frame, SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
-                NativeBattleEffectTaskPool curves = ResetPool(frame, CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
-                NativeBattleEffectTaskPool sprites = ResetPool(frame, SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
+                NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, MainCount);
+                NativeBattleEffectTaskPool act = NativeBattleEffectTaskPool.Initialize(ActDescriptor, working + ActOffset, ActStride, ActCount);
+                NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
+                NativeBattleEffectTaskPool curves = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
+                NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
                 frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, act, simple, curves, sprites] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, act, simple, curves, sprites]) };
                 for (int index = 0; index < PointCount; index++)
                 {
