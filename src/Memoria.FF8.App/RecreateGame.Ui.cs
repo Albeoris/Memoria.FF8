@@ -371,7 +371,7 @@ internal sealed partial class RecreateGame
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a supported game-owned command.");
     }
 
-    private string CommitQuickSaveRetention(int count, int confirmedRemovalCount)
+    private QuickSaveCleanupResult CommitQuickSaveRetention(int count, int confirmedRemovalCount)
     {
         UiPreferences accepted = uiPreferences.WithInstallationSetting("Quick saves", count.ToString(System.Globalization.CultureInfo.InvariantCulture), session.State.Scene != SceneKind.Title);
         QuickSaveCleanupResult result = playerSaves.CommitQuickSaveCount(count, confirmedRemovalCount, () =>
@@ -380,7 +380,7 @@ internal sealed partial class RecreateGame
             uiPreferences = accepted;
         });
         gameMenus?.InvalidateLiveData();
-        return result.Message;
+        return result;
     }
 
     private UiPreferences ReadCurrentUiPreferences()

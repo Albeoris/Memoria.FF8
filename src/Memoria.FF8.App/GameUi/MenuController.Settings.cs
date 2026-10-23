@@ -95,7 +95,7 @@ public sealed partial class MenuController
                 pendingEncounterPolicy = false;
                 Back();
                 _writePreferences?.Invoke(new("config", "Battle policy", Value: "Instant victory"));
-                Message = "Encounter execution applied. Save normally to retain game changes.";
+                Message = "";
             }
             return true;
         }
@@ -111,7 +111,7 @@ public sealed partial class MenuController
                 throw new ArgumentException("Unsupported debug battle outcome.");
             }
             _completeActiveBattle(action.Value == "Victory");
-            Message = "Battle ended with " + action.Value.ToLowerInvariant() + ".";
+            Message = "";
             return true;
         }
         if (action.Kind != "host-config")
@@ -135,7 +135,7 @@ public sealed partial class MenuController
             return true;
         }
         _writePreferences(action with { Kind = "config" });
-        Message = "Encounter execution applied. Save normally to retain game changes.";
+        Message = "";
         return true;
     }
 }

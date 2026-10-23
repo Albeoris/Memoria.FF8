@@ -337,7 +337,7 @@ public sealed class PlayerSaveTests : IDisposable
         menu.Open(PlayerSaveMenuMode.Load);
         menu.Update(new InputFrame(0, 0, false, false, false, true), slot => store.Save(slot, session), _ => throw new InvalidOperationException());
         Assert.True(menu.IsOpen);
-        Assert.Equal("Quick saved.", menu.Message);
+        Assert.Null(menu.Message);
         Assert.True(Assert.Single(menu.Entries, entry => entry.Slot == 0).CanLoad);
         Assert.Equal(42, store.Load(0).X);
         menu.Update(new InputFrame(0, 0, false, false, false, false, QuickLoad: true), _ => throw new InvalidOperationException(), _ => throw new InvalidDataException("Invalid VM continuation"));

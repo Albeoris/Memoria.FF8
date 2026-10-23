@@ -774,7 +774,8 @@ internal sealed partial class RecreateGame : Game
         {
             playerSaves.Save(slot, session, ValidatePlayerState);
         }
-        ShowSaveNotice(slot == 0 ? "Quick saved." : $"Saved in {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
+        saveNotice = null;
+        saveNoticeSeconds = 0;
     }
 
     private void LoadPlayerSlot(int slot)
@@ -782,7 +783,8 @@ internal sealed partial class RecreateGame : Game
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
         RestorePlayerState(state);
-        ShowSaveNotice(slot <= 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.", slot <= 0 ? 1 : 5);
+        saveNotice = null;
+        saveNoticeSeconds = 0;
     }
 
 

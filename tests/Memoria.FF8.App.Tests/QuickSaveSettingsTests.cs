@@ -89,7 +89,7 @@ public sealed class QuickSaveSettingsTests
         }, (count, removals) =>
         {
             commits++;
-            return "Saved";
+            return new QuickSaveCleanupResult(0, 0, null);
         });
         controller.Open("config-exploration");
         controller.Execute(new MenuAction("quick-save-open"));
@@ -152,7 +152,7 @@ public sealed class QuickSaveSettingsTests
             Assert.Equal(3, removals);
             commits++;
             data.Settings["Quick saves"] = "8";
-            return "Limit saved; cleanup incomplete.";
+            return new QuickSaveCleanupResult(0, 3, "Cleanup failed.");
         });
         controller.Open("config-exploration");
         controller.Execute(new MenuAction("quick-save-open"));
@@ -167,7 +167,7 @@ public sealed class QuickSaveSettingsTests
         controller.Execute(new MenuAction("quick-save-commit"));
         Assert.Equal(1, commits);
         Assert.Equal("8", data.Settings["Quick saves"]);
-        Assert.Equal("Limit saved; cleanup incomplete.", controller.Message);
+        Assert.Contains("Cleanup failed.", controller.Message);
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public sealed class QuickSaveSettingsTests
             Assert.Equal(int.MaxValue, count);
             Assert.Equal(0, removals);
             commits++;
-            return "Saved";
+            return new QuickSaveCleanupResult(0, 0, null);
         });
         controller.Open("config-exploration");
         controller.Execute(new MenuAction("quick-save-open"));
@@ -191,6 +191,7 @@ public sealed class QuickSaveSettingsTests
         controller.Execute(new MenuAction("quick-save-review"));
         Assert.Equal(1, commits);
         Assert.Equal("config-exploration", controller.ScreenId);
+        Assert.Empty(controller.Message);
     }
 
     [Fact]

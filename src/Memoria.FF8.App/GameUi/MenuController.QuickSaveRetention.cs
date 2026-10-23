@@ -6,11 +6,11 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     private Func<int, int>? previewQuickSaveRetention;
-    private Func<int, int, string>? commitQuickSaveRetention;
+    private Func<int, int, QuickSaveCleanupResult>? commitQuickSaveRetention;
     private int quickSaveDraft;
     private int quickSaveRemovalCount;
 
-    internal void ConnectQuickSaveRetention(Func<int, int> preview, Func<int, int, string> commit)
+    internal void ConnectQuickSaveRetention(Func<int, int> preview, Func<int, int, QuickSaveCleanupResult> commit)
     {
         previewQuickSaveRetention = preview;
         commitQuickSaveRetention = commit;
@@ -132,11 +132,11 @@ public sealed partial class MenuController
                 Message = $"This will remove {removalCount} older quick saves.";
                 return true;
             }
-            string result;
+            QuickSaveCleanupResult result;
             if (IsFixtureContext)
             {
                 Data.Settings["Quick saves"] = quickSaveDraft.ToString(CultureInfo.InvariantCulture);
-                result = "Fixture quick-save limit updated.";
+                result = new QuickSaveCleanupResult(0, 0, null);
             }
             else
             {
@@ -148,7 +148,8 @@ public sealed partial class MenuController
             }
             Back();
             _liveData = null;
-            Message = result;
+            Console.WriteLine(result.Message);
+            Message = result.Error is not null || result.Remaining > 0 ? result.Message : "";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {

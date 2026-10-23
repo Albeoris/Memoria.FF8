@@ -16,7 +16,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Open(PlayerSaveMenuMode.Save);
         menu.Update(Confirm(), _ => throw new OperationCanceledException(), _ => Assert.Fail("Unexpected load."));
         Assert.True(menu.IsOpen);
-        Assert.Equal("Save cancelled.", menu.Message);
+        Assert.Null(menu.Message);
         Assert.False(menu.ConfirmOverwrite);
         Assert.Equal(new[] { MenuSound.Cancel }, sounds);
     }
@@ -175,7 +175,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
         Assert.True(menu.IsOpen);
         Assert.False(menu.IsTransferring);
         Assert.Equal((0, 1), (menu.Bank, menu.SelectedSlot));
-        Assert.Contains("Copied", menu.Message);
+        Assert.Null(menu.Message);
         Assert.Equal(source, File.ReadAllBytes(store.GetPath(1)));
         Assert.Equal(new[] { MenuSound.Confirm, MenuSound.Move, MenuSound.Move, MenuSound.Confirm }, sounds);
     }
@@ -251,6 +251,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Update(Confirm(), UnexpectedSave, UnexpectedLoad, (_, _) => copies++);
         Assert.Equal(1, copies);
         Assert.False(menu.IsTransferring);
+        Assert.Null(menu.Message);
     }
 
     [Fact]
@@ -273,7 +274,7 @@ public sealed class PlayerSaveMenuTests : IDisposable
         menu.Update(Card(), UnexpectedSave, UnexpectedLoad);
         Assert.False(menu.IsTransferring);
         Assert.Equal((0, 3), (menu.Bank, menu.SelectedSlot));
-        Assert.Equal("Bank selection cancelled.", menu.Message);
+        Assert.Null(menu.Message);
     }
 
     [Fact]

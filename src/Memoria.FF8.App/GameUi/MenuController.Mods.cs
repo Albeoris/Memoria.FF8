@@ -366,7 +366,7 @@ public sealed partial class MenuController
             default:
                 throw new NotSupportedException($"Unknown mod action {action.Kind}.");
         }
-        Message = result.Success ? "Change queued; current resources remain active until validation succeeds." : result.Error ?? "The change could not be saved.";
+        Message = result.Success ? "" : result.Error ?? "The change could not be saved.";
         RestoreModSelection();
         return true;
     }

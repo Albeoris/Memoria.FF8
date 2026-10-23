@@ -429,7 +429,7 @@ public sealed partial class MenuController
                         _writeName!(_nameTarget!.Subject, name);
                         Back();
                         _liveData = null;
-                        Message = "Name changed. Save the game to keep it.";
+                        Message = "";
                     }
                     SoundRequested?.Invoke(MenuSound.Confirm);
                 }

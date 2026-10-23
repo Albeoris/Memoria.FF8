@@ -317,7 +317,7 @@ public sealed partial class MenuController
                 if (WriteControls(() => CurrentControls.ResetControllerSettings()))
                 {
                     Back();
-                    Message = "Controller settings restored.";
+                    Message = "";
                 }
                 return true;
             case "controls-setting":
@@ -374,7 +374,7 @@ public sealed partial class MenuController
                         _pendingBindingsReset = false;
                         Back();
                         Back();
-                        Message = $"{ControlsOwnerName} restored.";
+                        Message = "";
                     }
                     return true;
                 }
@@ -382,7 +382,7 @@ public sealed partial class MenuController
                 {
                     _pendingChord = null;
                     Back();
-                    Message = "Binding saved.";
+                    Message = "";
                     ReturnFromControlsCapture();
                 }
                 return true;
@@ -397,7 +397,7 @@ public sealed partial class MenuController
                 if (WriteControls(() => CurrentControls.ResetBindings(_controlsDevice, _developerControls)))
                 {
                     Back();
-                    Message = $"{ControlsDeviceName} defaults restored.";
+                    Message = "";
                 }
                 return true;
             default:
@@ -471,7 +471,7 @@ public sealed partial class MenuController
             {
                 _writeControls!(next);
             }
-            Message = IsDemoControls ? "Demo binding updated." : "Binding saved.";
+            Message = "";
             _view = null;
             return true;
         }
@@ -529,7 +529,7 @@ public sealed partial class MenuController
         _captureControls = false;
         _capturedChord = null;
         _drainControls = true;
-        Message = "Capture cancelled; binding unchanged.";
+        Message = "";
         ReturnFromControlsCapture();
         _view = null;
     }

@@ -79,7 +79,7 @@ public sealed class ControlsMenuTests
         menus.UpdateControlsCapture(default, default, true);
         Assert.Equal("config-keyboard", menus.ScreenId);
         Assert.Equal(nameof(ControlAction.MoveUp), menus.SelectedEntry?.Id);
-        Assert.Equal("Binding saved.", menus.Message);
+        Assert.Empty(menus.Message);
         Assert.Equal(Keys.K, profile.GetBindings(ControlAction.MoveUp, ControlDevice.Keyboard).Single().Keys.Single());
         Assert.True(menus.UpdateControlsCapture(new(Keys.K), default, true));
         Assert.True(menus.UpdateControlsCapture(default, default, true));
@@ -127,7 +127,7 @@ public sealed class ControlsMenuTests
         menus.Navigate(MenuInput.Alternate);
         Capture(menus, new(Keys.K));
         Assert.Equal("config-keyboard-choice", menus.ScreenId);
-        Assert.Equal("Binding saved.", menus.Message);
+        Assert.Empty(menus.Message);
         menus.Navigate(MenuInput.Cancel);
         Assert.Equal("config-keyboard", menus.ScreenId);
     }

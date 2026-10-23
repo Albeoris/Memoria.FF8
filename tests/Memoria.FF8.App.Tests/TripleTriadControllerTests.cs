@@ -76,6 +76,7 @@ public sealed class TripleTriadControllerTests
         controller.RestoreMatch(match);
         Assert.Equal([0, 1, 2, 3, 4], controller.Deck);
         Assert.Equal(2, controller.Match!.Board[4]!.CardId);
+        Assert.Equal("Opponent is thinking\u2026", controller.Message);
     }
 
     [Fact]

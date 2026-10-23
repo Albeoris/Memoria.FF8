@@ -156,7 +156,7 @@ public sealed partial class TripleTriadController
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         SelectFirstHand();
-        Message = "Match loaded.";
+        Message = Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? "Choose a card, then a square." : "Opponent is thinking\u2026";
     }
 
     public void RestoreDeck(IReadOnlyList<int> selected)

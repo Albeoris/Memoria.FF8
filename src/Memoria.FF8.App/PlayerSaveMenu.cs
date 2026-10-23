@@ -188,7 +188,7 @@ internal sealed class PlayerSaveMenu
         if (IsOpen && IsTransferring)
         {
             RestoreTransferSource();
-            Message = "Copy cancelled.";
+            Message = null;
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
     }
@@ -221,7 +221,7 @@ internal sealed class PlayerSaveMenu
                 else
                 {
                     save(0);
-                    Message = "Quick saved.";
+                    Message = null;
                     int selected = SelectedSlot;
                     RefreshEntries();
                     SetSelectedSlot(selected);
@@ -245,7 +245,7 @@ internal sealed class PlayerSaveMenu
             else if (IsTransferring)
             {
                 RestoreTransferSource();
-                Message = "Copy cancelled.";
+                Message = null;
             }
             else
             {
@@ -306,7 +306,7 @@ internal sealed class PlayerSaveMenu
                     transfer(source, entry.Slot);
                 }
                 RestoreTransferSource();
-                Message = $"Copied to {entry.Label}.";
+                Message = null;
             }
             else
             {
@@ -325,7 +325,7 @@ internal sealed class PlayerSaveMenu
         catch (OperationCanceledException)
         {
             ConfirmOverwrite = false;
-            Message = IsTransferring ? "Copy cancelled." : "Save cancelled.";
+            Message = IsTransferring ? TransferPrompt() : null;
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
         catch (Exception exception)
@@ -393,7 +393,7 @@ internal sealed class PlayerSaveMenu
         {
             if (BeforeBankChange?.Invoke(bank) == false)
             {
-                Message = "Bank selection cancelled.";
+                Message = null;
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return false;
             }

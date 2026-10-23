@@ -36,7 +36,7 @@ public sealed class ModMenuTests : IDisposable
         menu.Execute(new("mod-toggle", "Demaster/example"));
         Assert.Contains("enabled = 0", File.ReadAllText(Path.Combine(root, "Mods/Demaster/example/mod.ini")));
         Assert.True(runtime.Catalog.Packages[0].RequestedEnabled);
-        Assert.Contains("queued", menu.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(menu.Message);
         Assert.Contains("In use: Active \u00b7 disabling\u2026", menu.CurrentScreen.Details(menu));
         Publish(runtime);
         Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label == "example" && entry.Help == "Disabled");

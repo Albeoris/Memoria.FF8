@@ -864,7 +864,7 @@ public sealed partial class MenuController
                 ScreenOpened?.Invoke(ScreenId);
                 _view = null;
             }
-            Message = action.Kind is "config" or "junction-magic" or "junction-gf" or "junction-gf-reassign" or "junction-off" or "junction-auto" or "weapon-character" or "weapon-remodel" or "native-refine" ? "" : "Request sent to the live owner.";
+            Message = "";
             return;
         }
         ApplyDemo(action);

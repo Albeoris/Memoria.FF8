@@ -72,20 +72,6 @@ internal sealed partial class RecreateGame
             DrawWindowView(nativePartyWindowUi, bounds);
             return;
         }
-        string message = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind switch
-        {
-            NativeFieldMenuKind.Normal => "Opening menu",
-            NativeFieldMenuKind.Save => "Opening save menu",
-            NativeFieldMenuKind.Shop => "Opening shop",
-            NativeFieldMenuKind.WeaponShop => "Opening junk shop",
-            _ => "Opening party menu"
-        };
-        if (nativePartyWindowUi is null || nativePartyWindowKey != message)
-        {
-            nativePartyWindowUi = new UiView(new GameUi.NoticeElement(message));
-            nativePartyWindowKey = message;
-        }
-        DrawWindowView(nativePartyWindowUi, bounds);
     }
     private void DrawNoticeUi(Rectangle bounds, string message, bool bottom)
     {
