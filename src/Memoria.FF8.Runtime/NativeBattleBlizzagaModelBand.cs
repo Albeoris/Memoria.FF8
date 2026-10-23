@@ -35,8 +35,9 @@ public static class NativeBattleBlizzagaModelBand
                 }
                 NativeBattleActionMatrix matrix = matrices[vertex.Bone];
                 NativeBattleModuleProjectedVertex result = NativeBattleModuleProjection.Project45FE10(matrix, vertex.Position, projection);
+                ushort depth = result.ReadDepth45E250();
                 ushort flags;
-                if (result.Depth == 0)
+                if (depth == 0)
                 {
                     flags = 0x10;
                 }
@@ -57,7 +58,7 @@ public static class NativeBattleBlizzagaModelBand
                     flags |= x < 0 ? (ushort)1 : x >= 320 * 8 ? (ushort)2 : (ushort)0;
                     flags |= y < 0 ? (ushort)4 : y >= 216 * 8 ? (ushort)8 : (ushort)0;
                 }
-                NativeBattleProjectedVertex stored = new(result.Screen, result.Depth | (uint)flags << 16);
+                NativeBattleProjectedVertex stored = new(result.Screen, depth | (uint)flags << 16);
                 SkinWrites writes = new(8, projected.Count * 8);
                 writes.Word(0, stored.Screen);
                 writes.Word(4, stored.DepthAndClip);

@@ -48,11 +48,12 @@ public static class NativeBattleBreak117Cut
             ReadOnlySpan<byte> raw = selected.AsSpan().Slice(index * 8);
             NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(raw), BinaryPrimitives.ReadInt16LittleEndian(raw[2..]), BinaryPrimitives.ReadInt16LittleEndian(raw[4..]));
             NativeBattleModuleProjectedVertex p = NativeBattleModuleProjection.Project45FE10(matrix, point, projection);
-            byte flags = Clip(p);
-            vertices[index] = new(point, p.Screen, p.Depth, flags, 0, 0);
+            ushort depth = p.ReadDepth45E250();
+            byte flags = Clip(p with { Depth = depth });
+            vertices[index] = new(point, p.Screen, depth, flags, 0, 0);
             Span<byte> output = projectedBytes.AsSpan(index * 8, 8);
             BinaryPrimitives.WriteUInt32LittleEndian(output, p.Screen);
-            BinaryPrimitives.WriteUInt16LittleEndian(output[4..], p.Depth);
+            BinaryPrimitives.WriteUInt16LittleEndian(output[4..], depth);
             output[6] = flags;
             if (flags != 16)
             {

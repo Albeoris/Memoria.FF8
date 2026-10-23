@@ -130,7 +130,7 @@ public static class NativeBattleBlizzagaRibbon
             observeInput?.Invoke(node + source);
             NativeBattleModuleProjectedVertex vertex = project(new(I16(node + source), I16(node + source + 2), I16(node + source + 4)));
             BinaryPrimitives.WriteUInt32LittleEndian(next.AsSpan(node + destination), vertex.Screen);
-            BinaryPrimitives.WriteUInt32LittleEndian(next.AsSpan(node + destination + 4), vertex.Depth);
+            BinaryPrimitives.WriteUInt32LittleEndian(next.AsSpan(node + destination + 4), vertex.ReadDepth45E250());
         }
     }
 

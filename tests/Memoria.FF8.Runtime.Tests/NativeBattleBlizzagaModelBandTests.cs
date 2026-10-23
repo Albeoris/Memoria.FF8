@@ -8,6 +8,33 @@ public sealed class NativeBattleBlizzagaModelBandTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void ProjectionStoresQuarterDepthBeforePacketOrderingAndProxyExpansion(bool quad)
+    {
+        NativeBattleRawMesh mesh = new([new(new(0, 0, 0), 0), new(new(10000, 0, 0), 0), new(new(0, 10000, 0), 0), new(new(10000, 10000, 0), 0)], [new(quad, Polygon(quad, [3, 4, 5, 6]))]);
+        NativeBattleBlizzagaModelBandResult batch = NativeBattleBlizzagaModelBand.Emit6D8D80([mesh], [Matrix(0, 65535)], Projection, 0, 1, -1, 1);
+        Assert.All(batch.VertexScratchWrites, write => Assert.Equal((ushort)16383, BinaryPrimitives.ReadUInt16LittleEndian(write.Data.AsSpan().Slice(4, 2))));
+        NativeBattleGeometryPrimitive packet = Assert.Single(batch.Primitives);
+        Assert.InRange(packet.Bucket, 0, NativeBattlePrimitiveOrdering.BattleTableLength - 1);
+        Assert.Equal(65532, packet.VertexPayload4[0]);
+        Assert.Single(NativeBattleLogicalOrdering.Clear().Prepend(packet.Bucket, new("COMMON", 0, 0), packet.Words, 0, packet.VertexPayload4).Packets);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(3, 0)]
+    [InlineData(4, 1)]
+    [InlineData(17500, 4375)]
+    [InlineData(65535, 16383)]
+    public void DepthRead45E250PreservesTheRawProjectionRegister(ushort raw, ushort stored)
+    {
+        NativeBattleModuleProjectedVertex vertex = new(0, raw, 0);
+        Assert.Equal(stored, vertex.ReadDepth45E250());
+        Assert.Equal(raw, vertex.Depth);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void BandOverridePreservesVAndSourceSemiflagAndUsesExplicitDepthProxies(bool quad)
     {
         ImmutableArray<byte> polygon = Polygon(quad, [64, 127, 63, 128]);

@@ -6,6 +6,23 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleBlizzagaRibbonTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BothNativeRibbonEntriesStoreQuarterDepthAndKeepFarSegmentsBounded(bool sharedEntry)
+    {
+        ImmutableArray<byte> nodes = Nodes((0, 0, 128), (10, 0, 128), (0, 10, 128), (10, 10, 128)).ToImmutableArray();
+        NativeBattleActionMatrix matrix = Matrix with { Z = 65535 };
+        NativeBattleBlizzagaRibbonResult result = sharedEntry
+            ? NativeBattleBlizzagaRibbon.Emit6F1290(2, nodes, 0, matrix, false, 17, 2, point => NativeBattleModuleProjection.Project45FE10(matrix, point, Projection))
+            : NativeBattleBlizzagaRibbon.Emit6D9A40(2, nodes, 0, matrix, Projection);
+        Assert.Equal(16383u, U32(result.Nodes, 0x14));
+        Assert.Equal(16383u, U32(result.Nodes, 0x1C));
+        NativeBattleGeometryPrimitive packet = Assert.Single(result.Packets.Attempts).Primitive!;
+        Assert.Equal(4112, packet.Bucket);
+        Assert.Single(NativeBattleLogicalOrdering.Clear().Prepend(packet.Bucket, new("COMMON", 0, 0), packet.Words, 0, packet.VertexPayload4).Packets);
+    }
+
     private static NativeBattleActionMatrix Matrix => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
     private static NativeBattleCameraProjection Projection => new(Matrix, 128, 0, 0);
 
@@ -75,13 +92,13 @@ public sealed class NativeBattleBlizzagaRibbonTests
         Assert.Equal(0x00B87F40u, packet.Words[6]);
         Assert.Equal(0x7F5Fu, packet.Words[9]);
         Assert.Equal(0x405Fu, packet.Words[12]);
-        Assert.Equal(new[] { 580, 580, 580, 1092 }, packet.VertexPayload4.ToArray());
-        Assert.Equal(57, packet.Bucket);
+        Assert.Equal(new[] { 196, 196, 196, 324 }, packet.VertexPayload4.ToArray());
+        Assert.Equal(27, packet.Bucket);
         Assert.All(result.Packets.Attempts[0].WriteMask, state => Assert.Equal(NativeBattleGfPacketByteState.Known, state));
     }
 
     [Fact]
-    public void Backfaces_and_screen_clip_are_not_rejected_but_signed_depth_WORD_is()
+    public void Backfaces_screen_clip_and_far_depth_remain_admitted_in_quarter_depth_units()
     {
         byte[] backwards = Nodes((0, 0, 128), (-10, 0, 128), (0, 10, 128), (-10, 10, 128));
         Assert.Equal(52, Emit(2, backwards, 0).Packets.AllocationBytes);
@@ -89,8 +106,8 @@ public sealed class NativeBattleBlizzagaRibbonTests
         Assert.Equal(52, Emit(2, outside, 0).Packets.AllocationBytes);
         NativeBattleActionMatrix far = Matrix with { Z = 32768 };
         NativeBattleBlizzagaRibbonResult rejected = NativeBattleBlizzagaRibbon.Emit6D9A40(2, backwards.ToImmutableArray(), -8, far, Projection);
-        Assert.Equal(0, rejected.Packets.AllocationBytes);
-        Assert.Equal(32896u, U32(rejected.Nodes, 0x14));
+        Assert.Equal(52, rejected.Packets.AllocationBytes);
+        Assert.Equal(8224u, U32(rejected.Nodes, 0x14));
         Assert.Equal(15, rejected.Nodes[0x20]);
     }
 

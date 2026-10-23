@@ -39,10 +39,11 @@ public static class NativeBattleBreak117Body
                     throw new InvalidDataException("Native Break actor vertex leaves its actual posed bone bank.");
                 }
                 NativeBattleModuleProjectedVertex p = NativeBattleModuleProjection.Project45FE10(bones[vertex.Bone], vertex.Position, projection);
+                ushort depth = p.ReadDepth45E250();
                 short x = unchecked((short)p.Screen);
                 short y = unchecked((short)(p.Screen >> 16));
-                int flags = unchecked((short)p.Depth) <= 0 ? 16 : (x < 0 ? 1 : x >= 2560 ? 2 : 0) | (y < 0 ? 4 : y >= 1728 ? 8 : 0);
-                return new NativeBattleProjectedVertex(p.Screen, p.Depth | (uint)flags << 16);
+                int flags = unchecked((short)depth) <= 0 ? 16 : (x < 0 ? 1 : x >= 2560 ? 2 : 0) | (y < 0 ? 4 : y >= 1728 ? 8 : 0);
+                return new NativeBattleProjectedVertex(p.Screen, depth | (uint)flags << 16);
             }).ToArray();
             byte[] bytes = new byte[projected.Length * 8];
             for (int vertex = 0; vertex < projected.Length; vertex++)

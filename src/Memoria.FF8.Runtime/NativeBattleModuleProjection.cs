@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public readonly record struct NativeBattleModuleProjectedVertex(uint Screen, ushort Depth, uint Flags)
 {
+    //45E250 stores SZ3 in quarter-depth units; the projection register itself remains unscaled.
+    public ushort ReadDepth45E250() => (ushort)(Depth >> 2);
+
     // Bulk projected records reserve the low WORD for depth; GTE screen-clamp flags13/14 are separate registers.
     public static implicit operator NativeBattleProjectedVertex(NativeBattleModuleProjectedVertex vertex) => new(vertex.Screen, vertex.Depth | (vertex.Flags & 0xFFFF0000));
 }

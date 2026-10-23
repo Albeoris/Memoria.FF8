@@ -114,7 +114,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
     {
         if ((uint)bucket >= tableLength || string.IsNullOrWhiteSpace(reference.Bank) || reference.Buffer > 1 || reference.ByteOffset < 0 || (reference.ByteOffset & 3) != 0 || words.IsDefaultOrEmpty || words.Length < 1 + (words[0] >> 24) || vertexPayload4.IsDefault || vertexPayload4.Length is not (0 or 4))
         {
-            throw new InvalidDataException("Native logical primitive insertion lacks its original bounded packet or bank identity.");
+            throw new InvalidDataException($"Native logical primitive insertion lacks its original bounded packet or bank identity: bucket {bucket}/{tableLength}, bank '{reference.Bank}', buffer {reference.Buffer}, byte offset {reference.ByteOffset}, words {(words.IsDefault ? -1 : words.Length)}, header {(words.IsDefaultOrEmpty ? 0 : words[0]):X8}, vertex payload {(vertexPayload4.IsDefault ? -1 : vertexPayload4.Length)}.");
         }
     }
 
