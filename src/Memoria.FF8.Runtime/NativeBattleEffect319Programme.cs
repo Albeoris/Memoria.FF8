@@ -100,7 +100,7 @@ public static class NativeBattleEffect319Programme
             context = Put319(context, 8, node.Color32);
         }
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, vertices, offset =>
+        (NativeBattleVector Vertex, short? W) ReadRow(int offset)
         {
             NativeBattleEffectArena row = morph ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8));
             (byte[] bytes, bool[] known) = row.ReadSnapshot(0, 8);
@@ -109,8 +109,9 @@ public static class NativeBattleEffect319Programme
                 throw new NotSupportedException("The selected programme vertex requires its current XYZ bytes.");
             }
             return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4))), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(6)) : (short?)null);
-        });
-        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
+        }
+        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, offset => ReadRow(offset).Vertex, offset => ReadRow(offset).W, 17, 2);
+        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect319DrawBatch(draw.Batch, 0x25053A4));
         return Release(frame, 88);
 

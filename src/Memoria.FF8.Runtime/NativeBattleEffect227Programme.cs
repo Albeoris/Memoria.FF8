@@ -88,12 +88,14 @@ public static class NativeBattleEffect227Programme
             context = Put(context, 8, node.Color32);
         }
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, vertices, offset =>
+        NativeBattleVector ReadVertex(int offset)
         {
-            ReadOnlySpan<byte> row = source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8);
-            return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..])), (short?)BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
-        });
-        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
+            ReadOnlySpan<byte> row = source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 6);
+            return new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
+        }
+        short? ReadW(int offset) => BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset + 6, 2));
+        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, source, checked((int)(geometry - source.Address)), context, inputs.ReadProjection(frame), inputs.Colors, ReadVertex, ReadW, 17, 2);
+        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect227DrawBatch(draw.Batch, CursorGlobal));
         return Release(frame, 88);
     }

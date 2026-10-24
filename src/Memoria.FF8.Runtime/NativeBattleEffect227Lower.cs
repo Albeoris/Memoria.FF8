@@ -33,8 +33,8 @@ public static class NativeBattleEffect227Lower
         int fade = age > 10 ? ((age - 10) << 12) / 6 : age < 3 ? (3 - age) << 10 : 0;
         NativeBattleEffectArena context = Put(Put(Put(Put(Put(Context(frame, temporary, 88), 0, 0x112DAA8), 8, 0), 12, unchecked((uint)fade)), 0x18, unchecked((uint)-128)), 0x1C, 0xF3);
         frame = PublishContext(frame, temporary, context, 88);
-        NativeBattleStaticMeshContext88Step draw = NativeBattleStaticMeshContext88.DrawLoaded(frame.Memory, resources.ReadMesh(0x112DAA8), inputs.ReadProjection(frame), context, inputs.Colors, 17, 2);
-        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context, 88);
+        NativeBattleDefaultActMeshStep draw = NativeBattleDefaultActMesh.Draw(frame.Memory, resources.ReadMesh(0x112DAA8).Bytes, 0x112DAA8, 0, context, inputs.ReadProjection(frame), inputs.Colors, tableBaseBucket: 17, depthShift: 2);
+        frame = PublishContext(frame with { Memory = draw.Memory }, temporary, draw.Context88, 88);
         frame = inputs.Execute(frame, new NativeBattleEffect227DrawBatch(draw.Batch, CursorGlobal));
         frame = Release(frame, 88);
         task = Read(frame, address);
