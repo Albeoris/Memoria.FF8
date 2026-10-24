@@ -96,7 +96,8 @@ public sealed partial class BattleSession
         NativeBattlePoseSource pose = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect79 anchor requires its current caster skeleton.");
         NativeBattleGraphicsModel temporary = model with { Transform = transform with { Position28 = new(0, 0, 0) }, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() };
         NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(temporary, pose, 0xF1, 0);
-        NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(frame.Memory, producer);
+        frame = ObserveNativeEffect79BoneAnchor(frame, producer);
+        NativeBattleEffectMemory observed = frame.Memory;
         NativeBattleVector point = producer.Enabled ? new(unchecked((short)observed.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)observed.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
         NativeBattleEffectArena destination = NativeBattleEffect79Controller.ReadBytes(frame, contextAddress + 0x70, 8);
         destination = destination.Write(0, BitConverter.GetBytes(point.X)).Write(2, BitConverter.GetBytes(point.Y)).Write(4, BitConverter.GetBytes(point.Z));

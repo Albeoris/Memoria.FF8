@@ -99,12 +99,12 @@ public sealed partial class BattleSession
             {
                 case NativeBattleEffect79ObserveBone bone:
                     NativeBattleBoneAnchorProducer observed = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[bone.Actor], Pose(bone.Actor), bone.Selector, 0);
-                    return current with { Memory = ObserveNativeBoneAnchor(current.Memory, observed) };
+                    return ObserveNativeEffect79BoneAnchor(current, observed);
                 case NativeBattleEffect79UpdateCaster8DC740 caster:
-                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect79Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
+                    NativeBattleModulePoolTask casterTask = NativeBattleEffectModelHelpers.UpdateCaster8DC740(NativeBattleEffect79Controller.Read(current, caster.TaskAddress), current.Effect.Parameters!, graphics.Models, Pose, producer => current = ObserveNativeEffect79BoneAnchor(current, producer));
                     return NativeBattleEffect79Controller.Write(current, caster.TaskAddress, casterTask);
                 case NativeBattleEffect79UpdateTarget8DC610 target:
-                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect79Controller.Read(current, target.TaskAddress), graphics.Models, Pose, producer => current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) });
+                    NativeBattleModulePoolTask targetTask = NativeBattleEffectModelHelpers.UpdateTarget8DC610(NativeBattleEffect79Controller.Read(current, target.TaskAddress), graphics.Models, Pose, producer => current = ObserveNativeEffect79BoneAnchor(current, producer));
                     return NativeBattleEffect79Controller.Write(current, target.TaskAddress, targetTask);
                 case NativeBattleEffect79UpdateBounds8DC870 bounds:
                     NativeBattleModulePoolTask boundsTask = NativeBattleEffect79Controller.Read(current, bounds.TaskAddress);
@@ -122,7 +122,7 @@ public sealed partial class BattleSession
                 case NativeBattleEffect79Point502170 point:
                     int pointActor = NativeBattleEffect79Controller.Read(current, point.TaskAddress).ReadByte(0x2C);
                     NativeBattleBoneAnchorProducer producer = NativeBattlePoseMatrices.ResolveBoneAnchor502170(graphics.Models[pointActor], Pose(pointActor), checked((byte)point.Selector), 0);
-                    current = current with { Memory = ObserveNativeBoneAnchor(current.Memory, producer) };
+                    current = ObserveNativeEffect79BoneAnchor(current, producer);
                     NativeBattleVector vector = producer.Enabled ? new(unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[0]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[1]!.Value), unchecked((short)current.Memory.ScriptedColorRegisters!.Mac[2]!.Value)) : producer.DisabledPosition;
                     return NativeBattleEffect79Controller.Write(current, point.TaskAddress, NativeBattleEffect79Controller.Read(current, point.TaskAddress).WriteWord(0x1C, unchecked((ushort)vector.X)).WriteWord(0x1E, unchecked((ushort)vector.Y)).WriteWord(0x20, unchecked((ushort)vector.Z)));
                 case NativeBattleEffect79UploadTim upload:
@@ -251,5 +251,12 @@ public sealed partial class BattleSession
             NativeBattleModelCpuResourceRow row = (NativeModelCpuResources ?? throw new NotSupportedException("Effect79 requires its current CPU skeleton owner.")).Rows[model.ActiveResourceRow100 ?? throw new NotSupportedException("Effect79 requires its current physical resource row.")];
             return new(row.Require(12), null, row.Lengths.TryGetValue(12, out int length) ? length : null);
         }
+    }
+
+    private NativeBattleEffect79Frame ObserveNativeEffect79BoneAnchor(NativeBattleEffect79Frame frame, NativeBattleBoneAnchorProducer producer)
+    {
+        NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect79 bone observation requires its current temporary memory.");
+        NativeBattleEffectMemory observed = ObserveNativeBoneAnchor(frame.Memory, producer);
+        return frame with { Memory = observed, Staging = NativeFileStaging };
     }
 }
