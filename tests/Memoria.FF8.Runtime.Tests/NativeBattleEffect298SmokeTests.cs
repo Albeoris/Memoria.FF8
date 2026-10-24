@@ -209,8 +209,12 @@ public sealed class NativeBattleEffect298SmokeTests
         Assert.Equal(10, packet.Words.Length);
         Assert.Equal(9u, packet.Words[0] >> 24);
         Assert.Equal(0x2Cu, packet.Words[1] >> 24);
-        Assert.Equal(0xA5A5FFFAu, packet.Words[7]);
-        Assert.Equal(0xA5A5FFFFu, packet.Words[9]);
+        Assert.Equal(0x0000FFFAu, packet.Words[7]);
+        Assert.Equal(0x0000FFFFu, packet.Words[9]);
+        foreach (int offset in new[] { 30, 31, 38, 39 })
+        {
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, Assert.Single(batch.Attempts).WriteMask[offset]);
+        }
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, written.Memory.Arena!.Read(cursor + 30, 2));
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, written.Memory.Arena.Read(cursor + 38, 2));
         Assert.Equal(new[] { 2000, 2000, 2000, 2000 }, Assert.Single(written.Ordering.Proxies).VertexPayload4);
