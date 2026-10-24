@@ -943,7 +943,7 @@ public sealed partial class GameSession : IEventServices
             {
                 gardenFoot.RequireNativeGroundState();
                 gardenFoot.GardenDismount?.Validate(garden);
-                if (gardenFoot.StationTrains is not null || gardenFoot.NormalObjects is not null || gardenFoot.GardenDismount?.Transfer.LastLoweringFrame > world.Frame || gardenFoot.GroundYaw != garden.GroundYaw || gardenFoot.AnimationVariant != garden.AnimationVariant || gardenFoot.MapDisplayMode != garden.MapDisplayMode || gardenFoot.CameraOffsetY != garden.ProjectionCamera.OffsetY || gardenFoot.CameraOffsetZ != garden.ProjectionCamera.OffsetZ || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(gardenFoot.GroundCache), JsonSerializer.SerializeToElement(garden.GroundCache)) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(gardenFoot.Forest), JsonSerializer.SerializeToElement(garden.Forest)))
+                if (gardenFoot.StationTrains is not null || gardenFoot.NormalObjects is not null || gardenFoot.GardenDismount?.Transfer.LastLoweringFrame > world.Frame || gardenFoot.GroundYaw != garden.GroundYaw || gardenFoot.AnimationVariant != garden.AnimationVariant || gardenFoot.MapDisplayMode != garden.MapDisplayMode || gardenFoot.CameraOffsetY != garden.ProjectionCamera.OffsetY || gardenFoot.CameraOffsetZ != garden.ProjectionCamera.OffsetZ || !NativeWorldGroundCacheState.ContentEquals(gardenFoot.GroundCache, garden.GroundCache) || !NativeWorldForestState.ContentEquals(gardenFoot.Forest, garden.Forest))
                 {
                     throw new InvalidDataException("Parked Garden and controlled foot state disagree on their shared physical ground, forest or camera owners.");
                 }

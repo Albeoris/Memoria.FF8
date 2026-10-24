@@ -52,6 +52,9 @@ public sealed partial class EventEngine
     private static readonly JsonSerializerOptions CheckpointOptions = new() { IncludeFields = true, Converters = { new JsonStringEnumConverter() } };
     private string programHash = "";
 
+    /// <summary>Materializes live host-owned modal state immediately before a checkpoint is captured.</summary>
+    public event Action? PreparingCheckpoint;
+
     /// <summary>Captures the complete cooperative VM, including typed waits and its deterministic random stream.</summary>
     public JsonElement Capture()
     {
@@ -59,6 +62,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("No field has been loaded.");
         }
+        PreparingCheckpoint?.Invoke();
         CaptureNativeEyeProcessOwners();
         Checkpoint snapshot = new(
             1, FieldId, programHash, Frame, accumulatedSeconds, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,

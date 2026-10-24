@@ -113,6 +113,7 @@ internal sealed partial class GameWorld : IDisposable
             clock.ResolveGameFile = resolveGameFile;
         }
         Events = new EventEngine(session);
+        Events.PreparingCheckpoint += CaptureNativeTutorialPlayback;
         Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
         Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, clock.ToolsDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioWindow, audioEnabled)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
@@ -162,7 +163,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private GameState PrepareSnapshot(GameState state)
     {
-        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null)
+        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null || tutorial is not null)
         {
             // Suspended exploration publishes its current shared owners and battle callbacks only for persistence.
             return state with { EventState = Events.Capture() };
@@ -508,6 +509,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         finally
         {
+            Events.PreparingCheckpoint -= CaptureNativeTutorialPlayback;
             Events.OperationCompleted -= ObservePendingBattle;
             spuAudio?.Dispose();
             if (ownsMovieClock)

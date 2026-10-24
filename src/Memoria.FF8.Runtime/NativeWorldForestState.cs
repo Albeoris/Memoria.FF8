@@ -52,6 +52,23 @@ public sealed partial record NativeWorldForestState
     [JsonRequired]
     public required NativeWorldForestParticle[] Particles { get; init; }
 
+    public static bool ContentEquals(NativeWorldForestState? left, NativeWorldForestState? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+        if (left.SeedCounter != right.SeedCounter || left.RandomCursor != right.RandomCursor || left.RandomOffset != right.RandomOffset || left.CameraPitch != right.CameraPitch || left.CameraCooldown != right.CameraCooldown)
+        {
+            return false;
+        }
+        if (left.Particles is null || right.Particles is null)
+        {
+            return left.Particles is null && right.Particles is null;
+        }
+        return left.Particles.SequenceEqual(right.Particles);
+    }
+
     public static NativeWorldForestState Create(uint counter, int cooldown)
     {
         //53F310 samples4022C0 for cursor/offset;

@@ -9,6 +9,44 @@ public sealed class GuardianForceAbilityDraftTests
     private static GuardianForceAbilityDraft Draft(GuardianForceAbilityPatchDocument? document = null) => new(Enumerable.Range(0, 16).Select(_ => ImmutableArray.Create(new GuardianForceAbilityTemplate(1, false, 10, LearningPriority: 0), new GuardianForceAbilityTemplate(2, false, 20, LearningPriority: 1), new GuardianForceAbilityTemplate(3, true, 30, LearningPriority: 2))).ToImmutableArray(), Enumerable.Range(0, 116).Select(id => (byte)(id is >= 1 and <= 3 ? id * 10 : id)).ToImmutableArray(), document ?? new() { DocumentId = "draft" });
 
     [Fact]
+    public void DirtyReadsAllocateNothingUntilAnEditAndFollowUndoAcceptDiscardAndRebase()
+    {
+        var draft = Draft();
+        Assert.False(draft.Dirty);
+        draft.Append(0, 4);
+        Assert.True(draft.Dirty);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        bool dirty = true;
+        for (int read = 0; read < 1000; read++)
+        {
+            dirty &= draft.Dirty;
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(dirty);
+        Assert.Equal(0L, allocated);
+
+        draft.Undo(0, 4);
+        Assert.False(draft.Dirty);
+        draft.Append(0, 4);
+        Assert.True(draft.Dirty);
+        draft.Accept(draft.ExportDocument);
+        Assert.False(draft.Dirty);
+        draft.RestoreInherited(0, 4);
+        Assert.True(draft.Dirty);
+        draft.DiscardChanges();
+        Assert.False(draft.Dirty);
+        draft.Toggle(0, 4);
+        Assert.True(draft.Dirty);
+        var rebasedInput = Draft();
+        rebasedInput.Toggle(1, 1);
+        draft.RebaseInput(rebasedInput.Preview.Templates);
+        Assert.True(draft.Dirty);
+        draft.DiscardChanges();
+        Assert.False(draft.Dirty);
+    }
+
+    [Fact]
     public void ReturningSavedGuardedContributionToInheritedValueRemovesItsNetOperation()
     {
         GuardianForceAbilityPatchDocument saved = new()

@@ -11,6 +11,81 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTutorialWorldTests
 {
     [Fact]
+    public void RestoringTheSameTutorialRequestDiscardsTheAdvancedPlayerBeforeCapture()
+    {
+        (string directory, GameState source) = Source();
+        GameSession session = new(source);
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        world.Events.Step();
+        FocusOriginalRequest(world, 4);
+        Assert.NotNull(world.Tutorial);
+        JsonElement before = world.Events.Capture();
+        var original = world.Tutorial;
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 30)).Accepted);
+        Assert.False(JsonElement.DeepEquals(before.GetProperty("Scene").GetProperty("NativeTutorialPlayback"), world.Tutorial.Capture()));
+        world.Events.Restore(before);
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        Assert.NotSame(original, world.Tutorial);
+        Assert.True(JsonElement.DeepEquals(before.GetProperty("Scene").GetProperty("NativeTutorialPlayback"), world.Tutorial!.Capture()));
+    }
+
+    [Fact]
+    public void TutorialCallbacksRetainTheirSnapshotAndDirectSaveCapturesCurrentPlayback()
+    {
+        (string directory, GameState source) = Source();
+        GameSession session = new(source);
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        world.Events.Step();
+        FocusOriginalRequest(world, 4);
+        Assert.NotNull(world.Tutorial);
+        for (int callback = 0; callback < 3000 && !world.Tutorial.WaitingForInput; callback++)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.True(world.Tutorial.WaitingForInput);
+        world.Events.Capture();
+        JsonElement retained = world.Events.Scene.NativeTutorialPlayback!.Value;
+        long heldFrame = world.Events.Frame;
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        for (int callback = 0; callback < 120; callback++)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+            Assert.True(retained.Equals(world.Events.Scene.NativeTutorialPlayback!.Value));
+        }
+        timer.Stop();
+        long callbackBytes = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        double callbackMilliseconds = timer.Elapsed.TotalMilliseconds;
+        allocated = GC.GetAllocatedBytesForCurrentThread();
+        timer.Restart();
+        for (int callback = 0; callback < 120; callback++)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+            _ = world.Tutorial.Capture();
+        }
+        timer.Stop();
+        Console.WriteLine($"Tutorial 120 held callbacks: deferred {callbackMilliseconds:F3}ms/{callbackBytes} bytes; explicit per-callback snapshot {timer.Elapsed.TotalMilliseconds:F3}ms/{GC.GetAllocatedBytesForCurrentThread() - allocated} bytes.");
+        Assert.True(retained.Equals(world.Events.Scene.NativeTutorialPlayback!.Value));
+        Assert.Equal(heldFrame, world.Events.Frame);
+
+        string snapshot = TestResources.ArtifactFile("tutorial-deferred-playback.json");
+        session.Save(snapshot, compact: true);
+        Assert.False(retained.Equals(world.Events.Scene.NativeTutorialPlayback!.Value));
+        GameSession independent = new(GameSession.Load(snapshot));
+        using GameWorld restored = new(independent, directory);
+        restored.EnsureField();
+        Assert.NotNull(restored.Tutorial);
+        Assert.True(JsonElement.DeepEquals(world.Tutorial.Capture(), restored.Tutorial.Capture()));
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        PlayerAction next = new(PlayerActionKind.Wait);
+        Assert.True(world.Apply(next).Accepted);
+        Assert.True(restored.Apply(next).Accepted);
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+    }
+
+    [Fact]
     public void OriginalField159RequestRestoresPlaybackAndKeepsLivePartyIsolated()
     {
         (string directory, GameState source) = Source();

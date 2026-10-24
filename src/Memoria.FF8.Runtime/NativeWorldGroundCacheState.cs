@@ -57,6 +57,55 @@ public sealed record NativeWorldGroundCacheState
     [JsonRequired]
     public required NativeWorldGroundAlternative[] Alternatives { get; init; }
 
+    public static bool ContentEquals(NativeWorldGroundCacheState? left, NativeWorldGroundCacheState? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+        if (left.Version != right.Version || left.Rule != right.Rule)
+        {
+            return false;
+        }
+        if (left.Alternatives is null || right.Alternatives is null)
+        {
+            return left.Alternatives is null && right.Alternatives is null;
+        }
+        if (left.Alternatives.Length != right.Alternatives.Length)
+        {
+            return false;
+        }
+        for (int index = 0; index < left.Alternatives.Length; index++)
+        {
+            NativeWorldGroundAlternative? first = left.Alternatives[index];
+            NativeWorldGroundAlternative? second = right.Alternatives[index];
+            if (first is null || second is null)
+            {
+                if (first is not null || second is not null)
+                {
+                    return false;
+                }
+                continue;
+            }
+            if (first.PreferredGroup != second.PreferredGroup || first.FailedSelections != second.FailedSelections || first.CurrentGround != second.CurrentGround || first.PreviousGround != second.PreviousGround)
+            {
+                return false;
+            }
+            if (first.Entries is null || second.Entries is null)
+            {
+                if (first.Entries is not null || second.Entries is not null)
+                {
+                    return false;
+                }
+            }
+            else if (!first.Entries.SequenceEqual(second.Entries))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static NativeWorldGroundCacheState CreateFresh(NativeWorldGroundIdentity initialGround, NativeWorldGroundCacheState? retainedSelection = null, NativeWorldGroundSelectionState? processSelection = null)
     {
         initialGround.Validate();

@@ -13,6 +13,7 @@ internal sealed class GuardianForceAbilityDraft
     private readonly List<Command> commands = [];
     private GuardianForceAbilityPatchDocument checkpoint;
     private GuardianForceAbilityPatchDocument? cachedDocument;
+    private bool? cachedDirty;
     private GuardianForceAbilityComposition? cachedPreview;
     private Dictionary<(int Gf, int Ability), string>? cachedHandles;
     private ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> checkpointTemplates;
@@ -51,7 +52,7 @@ internal sealed class GuardianForceAbilityDraft
             return resets.ToImmutableArray();
         }
     }
-    public bool Dirty => JsonSerializer.Serialize(Document) != JsonSerializer.Serialize(checkpoint);
+    public bool Dirty => cachedDirty ??= JsonSerializer.Serialize(Document) != JsonSerializer.Serialize(checkpoint);
     public string Handle(int gf, int ability) => CurrentHandles().GetValueOrDefault((gf, ability), $"source-{gf}-{ability}");
 
     public bool RowDirty(int gf, int ability)
@@ -358,6 +359,7 @@ internal sealed class GuardianForceAbilityDraft
     private void Invalidate()
     {
         cachedDocument = null;
+        cachedDirty = null;
         cachedPreview = null;
         cachedHandles = null;
     }

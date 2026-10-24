@@ -8,6 +8,15 @@ internal sealed partial class GameWorld
     private NativeTutorialPlayer? tutorial;
     private NativeTutorialRequest? tutorialRequest;
     private NativeMenuTutorialRequest? menuTutorialRequest;
+    private SceneEventState? tutorialScene;
+
+    private void CaptureNativeTutorialPlayback()
+    {
+        if (tutorial is not null && ReferenceEquals(tutorialScene, Events.Scene) && tutorialRequest == Events.Scene.NativeTutorial && menuTutorialRequest == Events.Scene.NativeMenuTutorial)
+        {
+            Events.Scene.NativeTutorialPlayback = tutorial.Capture();
+        }
+    }
 
     public NativeTutorialPlayer? Tutorial
     {
@@ -20,15 +29,17 @@ internal sealed partial class GameWorld
                 tutorial = null;
                 tutorialRequest = null;
                 menuTutorialRequest = null;
+                tutorialScene = null;
                 return null;
             }
-            if (tutorial is null || tutorialRequest != request || menuTutorialRequest != menuRequest)
+            if (tutorial is null || !ReferenceEquals(tutorialScene, Events.Scene) || tutorialRequest != request || menuTutorialRequest != menuRequest)
             {
                 //4B3216..4B3224 clamp the unsigned native tutorial selection to8.
                 int id = menuRequest?.TutorialId ?? Math.Min(request!.TutorialId!.Value, (byte)8);
                 tutorial = new NativeTutorialPlayer(assets.ReadNativeTutorialCatalog(), FieldItemCatalog, id, Events.Scene.NativeTutorialPlayback, Events.Scene.Names);
                 tutorialRequest = request;
                 menuTutorialRequest = menuRequest;
+                tutorialScene = Events.Scene;
                 Events.Scene.NativeTutorialPlayback = tutorial.Capture();
             }
             return tutorial;
@@ -71,7 +82,6 @@ internal sealed partial class GameWorld
             accepted = (action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Cancel or PlayerActionKind.Wait) && player.Apply(action);
             if (accepted)
             {
-                Events.Scene.NativeTutorialPlayback = player.Capture();
                 if (player.IsComplete)
                 {
                     if (Events.Scene.NativeMenuTutorial is not null)
@@ -85,6 +95,7 @@ internal sealed partial class GameWorld
                     tutorial = null;
                     tutorialRequest = null;
                     menuTutorialRequest = null;
+                    tutorialScene = null;
                 }
             }
         }
