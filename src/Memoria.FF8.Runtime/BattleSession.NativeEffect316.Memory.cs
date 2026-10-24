@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Effect316 model read crosses a physical model row.");
             }
-            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect210Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+            return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.Models[actor]), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
         for (int actor = 0; actor < graphics.Models.Length; actor++)
         {
