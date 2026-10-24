@@ -17,7 +17,7 @@ public static class NativeBattleShockwavePulsar260Mesh
         }
         uint geometryAddress = checked(source.Address + (uint)geometryOffset);
         uint flags = U32(context88, 0x1C);
-        if (U32(context88, 0) != geometryAddress || flags is not (0x30 or 0x2000 or 0x2030 or 0x20C0 or 0x20F0))
+        if (U32(context88, 0) != geometryAddress || flags is not (0x10 or 0x30 or 0x2000 or 0x2030 or 0x20C0 or 0x20F0))
         {
             throw new NotSupportedException("Shockwave Pulsar requires its selected original ACT geometry and addressed vertex owner.");
         }
