@@ -25,6 +25,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
         Assert.True(Directory.Exists(directory));
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
+        if (effectId == 323)
+        {
+            NativeBattleEffect323PresentationTests.RunComponent(directory!, output!);
+            return;
+        }
         if (effectId == 322)
         {
             NativeBattleEffect322PresentationTests.RunComponent(directory!, output!);
