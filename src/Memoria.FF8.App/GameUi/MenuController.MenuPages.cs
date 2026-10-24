@@ -311,7 +311,24 @@ public sealed partial class MenuController
         for (int index = 0; index < captions.Length; index++)
         {
             string destination = destinations[index];
-            strip.Children.Add(new UiButton { Text = captions[index], FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
+            strip.Children.Add(new UiButton
+            {
+                Text = captions[index],
+                FontSize = 24 * TextScale,
+                DrawBackground = false,
+                HighlightSelection = false,
+                Click = () =>
+                {
+                    if (!magic && destination == "item")
+                    {
+                        Execute(new MenuAction("item-sort"));
+                    }
+                    else
+                    {
+                        Push(destination);
+                    }
+                }
+            });
         }
         return strip;
     }

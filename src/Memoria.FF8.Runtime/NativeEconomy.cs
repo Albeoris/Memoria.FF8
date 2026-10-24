@@ -86,6 +86,34 @@ public sealed record NativeEconomy
         return this with { ItemOrder = order };
     }
 
+    /// <summary>Compacts the saved inventory in ascending item ID order using the last occupied count for each ID.</summary>
+    public NativeEconomy SortItems()
+    {
+        Validate();
+        if (Items.Any(item => item.ItemId >= 202 && item.Count != 0))
+        {
+            throw new NotSupportedException("Item sorting requires IDs within the native quantity lookup.");
+        }
+        byte[] counts = new byte[202];
+        foreach (NativeItemStock item in Items)
+        {
+            if (item.ItemId != 0 && item.Count != 0)
+            {
+                counts[item.ItemId] = item.Count;
+            }
+        }
+        NativeItemStock[] items = Enumerable.Repeat(new NativeItemStock(0, 0), ItemSlotCount).ToArray();
+        int index = 0;
+        for (int id = 1; id <= ItemSlotCount; id++)
+        {
+            if (counts[id] != 0)
+            {
+                items[index++] = new NativeItemStock((byte)id, counts[id]);
+            }
+        }
+        return this with { Items = items, ItemOrder = ItemOrder?.ToArray() };
+    }
+
     public NativeEconomy AddItem(int itemId, int quantity, out int nativeResult)
     {
         NativeEconomy next = DeepCopy();

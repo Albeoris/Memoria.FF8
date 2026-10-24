@@ -313,6 +313,16 @@ internal sealed partial class RecreateGame
             fieldSeconds = 0;
             return;
         }
+        if (action.Kind == "item-sort" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
+        {
+            NativeEconomy economy = session.State.Economy ?? throw new NotSupportedException("Item sorting requires the saved inventory.");
+            session.SetEconomy(economy.SortItems());
+            if (session.State.Scene == SceneKind.Field)
+            {
+                session.SetEventState(events!.Capture());
+            }
+            return;
+        }
         if (action.Kind is "item-use" or "item-battle" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
         {
             int itemId = int.Parse(action.SubjectId.AsSpan("item-".Length), System.Globalization.CultureInfo.InvariantCulture);
