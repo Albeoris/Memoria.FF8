@@ -47,6 +47,11 @@ public static class NativeBattleEffect65ResourcesReader
         fronts.Add(ScaleAddress, Bytes(ScaleAddress, 12));
         fronts.Add(0x133AB98, Bytes(0x133AB98, 16));
         fronts.Add(0x133ABB0, Bytes(0x133ABB0, 16));
+        for (int index = 0; index < 8; index++)
+        {
+            uint color = checked(0x133ABC0u + (uint)(index * 16));
+            fronts.Add(color, Bytes(color, 8));
+        }
         fronts.Add(0x1342D2C, Bytes(0x1342D2C, 20));
         fronts.Add(DistanceAddress, Bytes(DistanceAddress, 16384));
         fronts.Add(TrigonometryAddress, Bytes(TrigonometryAddress, 16384));

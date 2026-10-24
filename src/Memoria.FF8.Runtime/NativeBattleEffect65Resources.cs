@@ -25,7 +25,7 @@ public sealed record NativeBattleEffect65Resources(NativeBattleEffectInitializer
                 return bytes.AsSpan().Slice(checked((int)(address - start)), length).ToArray().ToImmutableArray();
             }
         }
-        throw new NotSupportedException("Effect65 static reads exclude current mutable literals and COMMON file data.");
+        throw new NotSupportedException($"Effect65 static read at {address:X8} for {length} bytes leaves its readonly resource fronts.");
     }
 
     public uint ReadSound(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(ReadStatic(address, 4).AsSpan());
@@ -64,6 +64,10 @@ public sealed record NativeBattleEffect65Resources(NativeBattleEffectInitializer
         if (!ReadStatic(ScaleAddress, 12).AsSpan().SequenceEqual(new int[] { 2048, 2048, 2048 }.SelectMany(BitConverter.GetBytes).ToArray()) || ReadStatic(DistanceAddress, 16384).Length != 16384 || ReadStatic(TrigonometryAddress, 16384).Length != 16384)
         {
             throw new InvalidDataException("Effect65 lookup or scale fronts changed.");
+        }
+        for (int index = 0; index < 8; index++)
+        {
+            _ = ReadStatic(checked(0x133ABC0u + (uint)(index * 16)), 8);
         }
         foreach ((uint start, ImmutableArray<byte> bytes) in StaticFronts)
         {

@@ -18,6 +18,12 @@ public sealed class NativeBattleEffect65ResourceTests
         Assert.Equal(new short[] { 360, 361, 362, 391, 392, 393, 394 }, resources.Files.Keys.Order().ToArray());
         Assert.Equal((short)37, BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(0x133ABB6, 2).AsSpan()));
         Assert.Equal((short)38, BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(0x133ABBE, 2).AsSpan()));
+        for (int index = 0; index < 8; index++)
+        {
+            uint address = checked(0x133ABC0u + (uint)(index * 16));
+            Assert.Equal(8, resources.ReadStatic(address, 8).Length);
+            Assert.Throws<NotSupportedException>(() => resources.ReadStatic(address, 9));
+        }
         foreach ((uint address, int length) in LiteralRanges)
         {
             Assert.Throws<NotSupportedException>(() => resources.ReadStatic(address, length));

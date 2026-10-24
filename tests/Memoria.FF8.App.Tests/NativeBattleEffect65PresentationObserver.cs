@@ -91,7 +91,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
             {
                 Mark("effect65-main-age-" + age, current, cold);
             }
-            if (age >= 472 && effect.Pools.Length == 3)
+            if (age >= 473 && effect.Pools.Length == 3)
             {
                 NativeBattleEffectTaskPool child = effect.Pools[2];
                 Assert.Null(child.Head);

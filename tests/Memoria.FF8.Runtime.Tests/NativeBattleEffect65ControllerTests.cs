@@ -156,6 +156,40 @@ public sealed class NativeBattleEffect65ControllerTests
         Assert.Equal(128, live);
     }
 
+    [Fact]
+    public void Orbit_initializer_reads_each_preceding_color_pair_including_the_first_sparse_front()
+    {
+        NativeBattleEffect65Frame frame = Frame();
+        frame = frame with { State = frame.State.WriteWord(0x133ABCC, 0x1234).WriteWord(0x133ABCE, 0x5678) };
+        ImmutableDictionary<uint, ImmutableArray<byte>>.Builder fronts = ImmutableDictionary.CreateBuilder<uint, ImmutableArray<byte>>();
+        for (uint bank = 1; bank < 8; bank++)
+        {
+            fronts.Add(0x133ABC0 + bank * 16, BitConverter.GetBytes(0x04030200u + bank).Concat(BitConverter.GetBytes(0x20070604u + bank)).ToImmutableArray());
+        }
+        NativeBattleEffect65Resources missingFirst = Resources() with { StaticFronts = fronts.ToImmutable() };
+        Assert.Throws<NotSupportedException>(() => InitializeOrbitRows(frame, missingFirst));
+        fronts.Add(0x133ABC0, BitConverter.GetBytes(0x04030200u).Concat(BitConverter.GetBytes(0x20070604u)).ToImmutableArray());
+        NativeCrtRandomState expected = frame.Random;
+        for (int index = 0; index < 1024 * 5; index++)
+        {
+            expected = expected.Draw(out _);
+        }
+        NativeBattleEffect65Frame result = InitializeOrbitRows(frame, Resources() with { StaticFronts = fronts.ToImmutable() });
+        Assert.Equal(expected, result.Random);
+        Assert.Equal(0x1234, result.State.ReadWord(0x133ABCC));
+        Assert.Equal(0x5678, result.State.ReadWord(0x133ABCE));
+        for (uint bank = 0; bank < 8; bank++)
+        {
+            NativeBattleEffectArena first = ReadBytes(result, ArenaAddress + 0xDB8 + bank * 128 * 16, 16);
+            uint color = BinaryPrimitives.ReadUInt32LittleEndian(first.Read(8, 4));
+            uint alpha = BinaryPrimitives.ReadUInt32LittleEndian(first.Read(12, 4));
+            Assert.Equal(0x00030200u + bank, color & 0xFFFFFF);
+            Assert.Equal(0x00070604u + bank, alpha & 0xFFFFFF);
+            Assert.Equal(0, result.State.ReadWord(0x133ABC8 + bank * 16));
+            Assert.Equal(0, result.State.ReadWord(0x133ABCA + bank * 16));
+        }
+    }
+
     [Theory]
     [InlineData(31, null)]
     [InlineData(166, 0)]
