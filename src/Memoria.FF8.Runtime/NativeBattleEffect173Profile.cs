@@ -1,0 +1,67 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleEffect173Profile
+{
+    public const ushort Effect = 173;
+    public const uint Entry = 0x5D74B0;
+    public const uint Initializer = 0x5D7490;
+    public const uint RootCallback = 0x5D9BF0;
+    public const uint MainCallback = 0x5D7570;
+    public const uint CleanupCallback = 0x5D9C70;
+    public const uint BaseAddress = 0x2397278;
+    public const uint LengthGlobal = 0x2397278;
+    public const uint TargetGlobal = 0x239727C;
+    public const uint RootBank = 0x23972B0;
+    public const uint RootDescriptor = 0x23972D0;
+    public const uint FirstRecordsAddress = 0x23972E0;
+    public const int FirstRecordStride = 24;
+    public const int FirstRecordCount = 100;
+    public const uint ChildDescriptor = 0x2397C40;
+    public const uint ChildBank = 0x2397C50;
+    public const int ChildStride = 36;
+    public const int ChildCount = 100;
+    public const uint TargetPointAddress = 0x2398A60;
+    public const uint DirectionAddress = 0x2398A68;
+    public const uint ParametersGlobal = 0x2398A78;
+    public const uint LowerDirectionAddress = 0x2398A80;
+    public const uint CenterAddress = 0x2398A90;
+    public const uint CasterGlobal = 0x2398A98;
+    public const uint InitializerGlobal = 0x2398A9C;
+    public const uint AnchorAddress = 0x2398AA0;
+    public const uint ArenaGlobal = 0x239A8C8;
+    public const uint CursorGlobal = 0x239A8CC;
+    public const uint CommonDescriptor = 0x239A8D0;
+    public const int CommonQueueLength = 8;
+    public const int CommonBankOffset = 0x18000;
+    public const int CommonStride = 0x11C;
+    public const int CommonCount = 64;
+    public const uint TextureNameAddress = 0xD61E1C;
+    public const int TextureLength = 264224;
+    public const uint CameraAddress = 0xD5E67C;
+    public const int CameraLength = 208;
+    public const uint ProgrammeAddress = 0xD61AD4;
+    public const int ProgrammeLength = 688;
+    public const int ProgrammeWorkspaceOffset = 28;
+    public const int ProgrammeWorkspaceLength = 64;
+    public const uint ProgrammeGeometryAddress = 0xD61AE0;
+    public const int ProgrammeGeometryLength = 564;
+    public const uint PaletteAddress = 0xD61DB0;
+    public const uint MeshSourcesAddress = 0xD61DF0;
+    public const uint FaceRecordDirectoryAddress = 0xD61E04;
+    public const uint ProgrammeFlagsAddress = 0xD61E18;
+    public const uint BirthRowsAddress = 0xD61D90;
+    public const uint SoundAddress = 0xD61D84;
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> FixedPools = [new(RootDescriptor, RootBank, 16, 2), new(ChildDescriptor, ChildBank, ChildStride, ChildCount)];
+    public static ImmutableArray<NativeBattleCureFamilyPool> Pools => FixedPools;
+    public static readonly ImmutableArray<uint> FaceRecordAddresses = [0x2398AA8, 0x2399A08, 0x2399F48, 0x239A488, 0x239A6A8];
+    public static readonly ImmutableArray<int> FaceRecordLengths = [3936, 1344, 1344, 544, 544];
+    public static readonly ImmutableArray<(uint Address, int Length)> OwnedRanges = [(LengthGlobal, 4), (TargetGlobal, 4), (FirstRecordsAddress, 2400), (TargetPointAddress, 8), (DirectionAddress, 12), (ParametersGlobal, 4), (LowerDirectionAddress, 12), (CenterAddress, 8), (CasterGlobal, 8), (AnchorAddress, 8), (0x2398AA8, 3936), (0x2399A08, 1344), (0x2399F48, 1344), (0x239A488, 544), (0x239A6A8, 544), (ArenaGlobal, 8)];
+    public static readonly ImmutableArray<uint> MeshAddresses = [0xD5ED20, 0xD5F710, 0xD5FB00, 0xD60AFC, 0xD6108C, 0xD6161C, 0xD61878];
+    public static readonly ImmutableArray<int> MeshLengths = [2544, 1008, 4092, 1424, 1424, 604, 604];
+    public static readonly ImmutableArray<uint> SpriteAddresses = [0xD5E74C, 0xD5EAA4, 0xD5E8F8];
+    public static readonly ImmutableArray<int> SpriteLengths = [428, 636, 428];
+    public static readonly ImmutableArray<int> SpriteFrameCounts = [16, 24, 16];
+    public static readonly ImmutableArray<(uint Address, int Length)> StaticRanges = [(SoundAddress, 8), (BirthRowsAddress, 32), (PaletteAddress, 64), (MeshSourcesAddress, 20), (FaceRecordDirectoryAddress, 20), (ProgrammeFlagsAddress, 4)];
+}

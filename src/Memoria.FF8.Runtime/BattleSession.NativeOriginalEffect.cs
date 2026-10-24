@@ -154,6 +154,10 @@ public sealed partial class BattleSession
         {
             return RunNativeEffect166(graphics, true);
         }
+        if (effect.Binding.Entry == NativeBattleEffect173Profile.Entry)
+        {
+            return RunNativeEffect173(graphics, true);
+        }
         if (effect.Binding.Entry == NativeBattleEffect167Profile.Entry)
         {
             return RunNativeEffect167(graphics, true);
