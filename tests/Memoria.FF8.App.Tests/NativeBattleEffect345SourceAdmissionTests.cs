@@ -77,6 +77,8 @@ public sealed class NativeBattleEffect345SourceAdmissionTests
             banks.Add(new { Index = index, pool.Bank, pool.Stride, pool.Capacity, Bytes = length });
         }
         NativeBattleFileStaging staging = session.NativeFileStaging ?? throw new NotSupportedException("The source requires its current physical temporary owner.");
+        Assert.NotEmpty(staging.LoaderZeroRanges);
+        Assert.Equal(new byte[2], staging.Read(0x255FEC2, 2));
         NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(staging, NativeBattleTemporaryMemory.Address, NativeBattleTemporaryMemory.ReachedLength);
         (byte[] temporaryBytes, bool[] temporaryKnown) = temporary.ReadSnapshot(0, NativeBattleTemporaryMemory.ReachedLength);
         uint currentCursor = BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(NativeBattleTemporaryMemory.Cursor, 4));
@@ -86,6 +88,6 @@ public sealed class NativeBattleEffect345SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh original-resource input and physical owner admission only; no effect callback, ordinary AI admission, target eligibility, first appearance shadow index or later runtime draw claim", source.Frame, source.NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, ActorBones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, model.SequenceState, OriginalKernelAction = 124, OriginalKernelEffect = 345, Sequence11 = sequence, EffectModelBones = 28, SelectedEffectModelFrames = new[] { 24, 18 }, ColdBanks = banks, CurrentTemporaryAddress = NativeBattleTemporaryMemory.Address, CurrentCursor = currentCursor, CurrentHighWord46 = highWord46, TemporaryBytes = temporaryBytes, TemporaryKnown = temporaryKnown, SnapshotUnchanged = true, FirstAppearanceShadowIndex = "runtime first-draw admission pending" }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh original-resource input and physical owner admission only; no effect callback, ordinary AI admission, target eligibility, first appearance shadow index or later runtime draw claim", source.Frame, source.NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, ActorBones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, model.SequenceState, OriginalKernelAction = 124, OriginalKernelEffect = 345, Sequence11 = sequence, EffectModelBones = 28, SelectedEffectModelFrames = new[] { 24, 18 }, ColdBanks = banks, CurrentTemporaryAddress = NativeBattleTemporaryMemory.Address, CurrentCursor = currentCursor, CurrentHighWord46 = highWord46, TemporaryBytes = temporaryBytes, TemporaryKnown = temporaryKnown, LoaderZeroRanges = staging.LoaderZeroRanges, ReachedPhysicalWord = 0x255FEC2, SnapshotUnchanged = true, FirstAppearanceShadowIndex = "runtime first-draw admission pending" }));
     }
 }

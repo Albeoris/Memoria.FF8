@@ -5,6 +5,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleFileStagingUnknownTests
 {
     [Fact]
+    public void Symbolic_pointer_replacement_removes_loader_zero_raw_bytes_without_erasing_neighbors()
+    {
+        const uint address = 0x255FEC2;
+        NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess().Write(address, [1, 2, 3, 4]);
+        NativeBattleResourcePointer pointer = new(null, null) { CpuRow = 3 };
+        NativeBattleFileStaging symbolic = cold.WriteResourcePointer(address, pointer);
+        symbolic.Validate();
+        NativeBattleFileStaging contradictory = symbolic with { LoaderZeroRanges = cold.LoaderZeroRanges };
+        Assert.Throws<InvalidDataException>(() => contradictory.Validate());
+        Assert.Equal(pointer, symbolic.ReadResourcePointer(address));
+        Assert.All(symbolic.ReadSnapshot(address, 4).Known, value => Assert.False(value));
+        Assert.Throws<NotSupportedException>(() => symbolic.Read(address, 4));
+        Assert.Equal(new byte[1], symbolic.Read(address - 1, 1));
+        Assert.Equal(new byte[1], symbolic.Read(address + 4, 1));
+        NativeBattleFileStaging absent = symbolic.WriteResourcePointer(address, null);
+        Assert.Null(absent.ReadResourcePointer(address));
+        Assert.Throws<NotSupportedException>(() => absent.Read(address, 4));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, cold.Read(address, 4));
+    }
+
+    [Fact]
     public void Unknown_copy_padding_removes_only_its_bytes_and_overlapping_pointer_metadata()
     {
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x24F9950, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }).WriteResourcePointer(0x24F9954, new(null, 0xE2B518));

@@ -166,6 +166,10 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             }
         }
         NativeBattleFileStaging result = current with { KnownRanges = ranges.OrderBy(range => range.Offset).ToImmutableArray(), Transaction = null };
+        foreach (uint address in changed)
+        {
+            result = result.ForgetLoaderZero(address, PageLength);
+        }
         result.Validate();
         return result;
     }

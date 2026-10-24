@@ -38,7 +38,7 @@ public sealed partial record NativeBattleFileStaging
             else
             {
                 int first = checked((int)(address - BaseAddress));
-                if (KnownRanges.Any(range => range.Offset < first + 4 && range.Offset + range.Data.Length > first))
+                if (IntersectsLoaderZero(address, 4) || KnownRanges.Any(range => range.Offset < first + 4 && range.Offset + range.Data.Length > first))
                 {
                     throw new InvalidDataException("A symbolic or unknown native pointer cannot also own fabricated numeric bytes.");
                 }
@@ -112,7 +112,7 @@ public sealed partial record NativeBattleFileStaging
                     ranges.Add(new(end, range.Data.Slice(end - range.Offset, rangeEnd - end)));
                 }
             }
-            current = (current with { KnownRanges = ranges.ToImmutable() }).InvalidateResourcePointers(address, 4);
+            current = (current with { KnownRanges = ranges.ToImmutable() }).ForgetLoaderZero(address, 4).InvalidateResourcePointers(address, 4);
         }
         return current with { ResourcePointers = current.ResourcePointers.SetItem(address, pointer) };
     }

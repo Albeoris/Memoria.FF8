@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleFatedCircle162Trail(NativeBattleGfGeometryBatch Batch, int CursorAdvance) : NativeBattleFatedCircle162Operation;
@@ -83,45 +81,7 @@ public static partial class NativeBattleFatedCircle162Controller
         return padding is ushort observed ? WriteWord(staging, address + 6, observed) : Forget(staging, address + 6, 2);
     }
 
-    private static NativeBattleFileStaging Copy(NativeBattleFileStaging staging, uint source, uint target, int length)
-    {
-        int sourceOffset = checked((int)(source - staging.BaseAddress));
-        NativeBattleEffectMemoryRegion[] slices = staging.KnownRanges.Select(region =>
-        {
-            int first = Math.Max(sourceOffset, region.Offset);
-            int end = Math.Min(sourceOffset + length, region.Offset + region.Data.Length);
-            return end <= first ? null : new NativeBattleEffectMemoryRegion(first - sourceOffset, region.Data.AsSpan().Slice(first - region.Offset, end - first).ToArray().ToImmutableArray());
-        }).Where(region => region is not null).Select(region => region!).ToArray();
-        staging = Forget(staging, target, length);
-        foreach (NativeBattleEffectMemoryRegion slice in slices)
-        {
-            staging = staging.Write(checked(target + (uint)slice.Offset), slice.Data.AsSpan());
-        }
-        return staging;
-    }
+    private static NativeBattleFileStaging Copy(NativeBattleFileStaging staging, uint source, uint target, int length) => staging.CopyMemory(source, target, length);
 
-    private static NativeBattleFileStaging Forget(NativeBattleFileStaging staging, uint address, int length)
-    {
-        int first = checked((int)(address - staging.BaseAddress));
-        int end = checked(first + length);
-        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-        foreach (NativeBattleEffectMemoryRegion region in staging.KnownRanges)
-        {
-            int regionEnd = checked(region.Offset + region.Data.Length);
-            if (regionEnd <= first || region.Offset >= end)
-            {
-                ranges.Add(region);
-                continue;
-            }
-            if (region.Offset < first)
-            {
-                ranges.Add(new(region.Offset, region.Data.AsSpan(0, first - region.Offset).ToArray().ToImmutableArray()));
-            }
-            if (regionEnd > end)
-            {
-                ranges.Add(new(end, region.Data.AsSpan().Slice(end - region.Offset).ToArray().ToImmutableArray()));
-            }
-        }
-        return staging with { KnownRanges = ranges.ToImmutable() };
-    }
+    private static NativeBattleFileStaging Forget(NativeBattleFileStaging staging, uint address, int length) => staging.MarkUnknown(address, length);
 }

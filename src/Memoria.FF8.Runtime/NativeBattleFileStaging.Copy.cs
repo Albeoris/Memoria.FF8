@@ -11,7 +11,7 @@ public sealed partial record NativeBattleFileStaging
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         NativeBattleFileStaging current = Rebase(Math.Min(BaseAddress, Math.Min(source, destination)));
-        if (current.Transaction is not null)
+        if (current.Transaction is not null || current.IntersectsLoaderZero(source, length) || current.IntersectsLoaderZero(destination, length))
         {
             (byte[] data, bool[] known) = current.ReadSnapshot(source, length);
             current = current.MarkUnknown(destination, length);

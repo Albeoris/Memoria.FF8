@@ -40,6 +40,6 @@ public sealed partial record NativeBattleFileStaging
                 known.Add(new(end, region.Data.Slice(end - region.Offset, regionEnd - end)));
             }
         }
-        return (current with { KnownRanges = known.ToImmutable() }).InvalidateResourcePointers(address, length);
+        return (current with { KnownRanges = known.ToImmutable() }).ForgetLoaderZero(address, length).InvalidateResourcePointers(address, length);
     }
 }

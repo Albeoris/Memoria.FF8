@@ -44,15 +44,20 @@ public static class NativeBattleTemporaryMemory
         }
         staging.Validate();
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleEffectArena.Length);
-        foreach (NativeBattleEffectMemoryRegion region in staging.KnownRanges)
+        (byte[] data, bool[] known) = staging.ReadSnapshot(address, length);
+        for (int index = 0; index < length;)
         {
-            ulong first = Math.Max(address, (ulong)staging.BaseAddress + (uint)region.Offset);
-            ulong end = Math.Min((ulong)address + (uint)length, (ulong)staging.BaseAddress + (uint)region.Offset + (uint)region.Data.Length);
-            if (end > first)
+            if (!known[index])
             {
-                int source = checked((int)(first - staging.BaseAddress - (uint)region.Offset));
-                result = result.Write(checked((int)(first - address)), region.Data.AsSpan().Slice(source, checked((int)(end - first))));
+                index++;
+                continue;
             }
+            int first = index++;
+            while (index < length && known[index])
+            {
+                index++;
+            }
+            result = result.Write(first, data.AsSpan(first, index - first));
         }
         return result;
     }

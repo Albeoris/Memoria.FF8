@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -37,30 +36,7 @@ public static partial class NativeBattleLionHeart165Controller
         return WriteWord(WriteWord(WriteWord(staging, address, unchecked((ushort)point.X)), address + 2, unchecked((ushort)point.Y)), address + 4, unchecked((ushort)point.Z));
     }
 
-    private static NativeBattleFileStaging Forget(NativeBattleFileStaging staging, uint address, int length)
-    {
-        int first = checked((int)(address - staging.BaseAddress));
-        int end = checked(first + length);
-        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-        foreach (NativeBattleEffectMemoryRegion region in staging.KnownRanges)
-        {
-            int regionEnd = checked(region.Offset + region.Data.Length);
-            if (regionEnd <= first || region.Offset >= end)
-            {
-                ranges.Add(region);
-                continue;
-            }
-            if (region.Offset < first)
-            {
-                ranges.Add(new(region.Offset, region.Data.AsSpan(0, first - region.Offset).ToArray().ToImmutableArray()));
-            }
-            if (regionEnd > end)
-            {
-                ranges.Add(new(end, region.Data.AsSpan().Slice(end - region.Offset).ToArray().ToImmutableArray()));
-            }
-        }
-        return staging with { KnownRanges = ranges.ToImmutable() };
-    }
+    private static NativeBattleFileStaging Forget(NativeBattleFileStaging staging, uint address, int length) => staging.MarkUnknown(address, length);
 
     private static NativeBattleFileStaging CopyTaskToStaging(NativeBattleFileStaging staging, uint destination, NativeBattleModulePoolTask task, int source, int length)
     {

@@ -76,7 +76,7 @@ public sealed class NativeBattleFileStagingTests
     }
 
     [Fact]
-    public void Retained_memory_carries_the_same_shared_staging_across_the_battle_boundary_without_cold_tail_defaults()
+    public void Retained_memory_preserves_unknown_imports_and_explicit_cold_loader_provenance()
     {
         uint address = NativeBattleFileStaging.Address;
         NativeBattleFileStaging memory = NativeBattleFileStaging.Unknown().Write(address + 8, new byte[] { 2, 3 });
@@ -88,9 +88,11 @@ public sealed class NativeBattleFileStagingTests
         Assert.Throws<NotSupportedException>(() => restored.Read(address, 1));
         NativeBattleFileStaging cold = Assert.IsType<NativeBattleFileStaging>(NativeBattleRetainedMemory.FromColdProcess().FileStaging);
         Assert.Equal(new byte[4], cold.Read(0x1D999C0, 4));
-        Assert.Throws<NotSupportedException>(() => cold.Read(address, 1));
-        Assert.Throws<NotSupportedException>(() => cold.Read(0x1D999BF, 1));
-        Assert.Throws<NotSupportedException>(() => cold.Read(0x1D999C4, 1));
+        Assert.Equal(new byte[1], cold.Read(address, 1));
+        Assert.Equal(new byte[1], cold.Read(0x1D999BF, 1));
+        Assert.Equal(new byte[4], cold.Read(0x1D999C4, 4));
+        Assert.Single(cold.LoaderZeroRanges);
+        Assert.Empty(restored.LoaderZeroRanges);
     }
 
     private static byte[] Directory()

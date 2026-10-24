@@ -8,6 +8,19 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLionHeart165ControllerTests
 {
     [Fact]
+    public void Inactive_raw_position_copy_invalidates_loader_zero_without_healing_its_unknown_owner()
+    {
+        const uint address = 0x23C6744;
+        NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess();
+        NativeBattleFileStaging result = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(cold, address, new(1, 0));
+        Assert.All(result.ReadSnapshot(address, 8).Known, value => Assert.False(value));
+        Assert.Throws<NotSupportedException>(() => result.Read(address, 8));
+        Assert.Equal(new byte[1], result.Read(address - 1, 1));
+        Assert.Equal(new byte[1], result.Read(address + 8, 1));
+        Assert.Equal(new byte[8], cold.Read(address, 8));
+    }
+
+    [Fact]
     public void OpeningRawPositionCopyPreservesUnknownInactiveRowsAndCompleteActiveWords()
     {
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x23C6744, Enumerable.Repeat((byte)0xA5, 16).ToArray());

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Observed bytes in the shared field/battle resource memory. Unobserved tails stay unknown.</summary>
+/// <summary>Retained physical bytes and explicit loader-zero provenance in shared field/battle memory.</summary>
 public sealed partial record NativeBattleFileStaging([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges) : IJsonOnSerializing
 {
     public const uint Address = 0x199B018;
@@ -34,6 +34,7 @@ public sealed partial record NativeBattleFileStaging([property: JsonRequired] Im
             throw new InvalidDataException("Native shared staging origin cannot exclude its original battle resource address.");
         }
         NativeKnownByteRanges.Validate(KnownRanges, checked((int)Math.Min(int.MaxValue, (ulong)uint.MaxValue - BaseAddress + 1)));
+        ValidateLoaderZeroRanges();
         ValidateResourcePointers();
     }
 
@@ -63,7 +64,20 @@ public sealed partial record NativeBattleFileStaging([property: JsonRequired] Im
         {
             throw new InvalidDataException("Native retained memory access exceeds its offset representation.");
         }
-        return Transaction is { } transaction ? transaction.Read(address, length) : NativeKnownByteRanges.Read(KnownRanges, offset, length);
+        if (Transaction is { } transaction)
+        {
+            return transaction.Read(address, length);
+        }
+        if (!IntersectsLoaderZero(address, length))
+        {
+            return NativeKnownByteRanges.Read(KnownRanges, offset, length);
+        }
+        if (!HasKnownStorage(address, length))
+        {
+            throw new NotSupportedException("Native retained memory read reaches unobserved bytes.");
+        }
+        (byte[] data, _) = ReadSnapshotStorage(address, length);
+        return data;
     }
 
     public NativeBattleFileStaging Write(uint address, ReadOnlySpan<byte> bytes)

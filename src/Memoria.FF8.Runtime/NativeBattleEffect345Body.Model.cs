@@ -134,8 +134,10 @@ public static partial class NativeBattleEffect345Body
                     vertexOffset += 8;
                 }
             }
+            int faceOrdinal = 0;
             foreach (NativeBattleRawPolygon face in mesh.Polygons)
             {
+                int currentFace = faceOrdinal++;
                 if (face.Bytes.Length != (face.Quad ? 20 : 16))
                 {
                     throw new NotSupportedException("Effect345 appearance requires its selected FT3 and FT4 model records.");
@@ -154,7 +156,21 @@ public static partial class NativeBattleEffect345Body
                     }
                     return inputs.ReadPhysical(frame, pointAddress, length);
                 }
-                if (!AdmitEarlyCorners7067EE(temporary, indices, face.Quad, index => Word345(ReadPoint(index, 2, 2), 0)))
+                short ReadEarlyY(uint index)
+                {
+                    try
+                    {
+                        return Word345(ReadPoint(index, 2, 2), 0);
+                    }
+                    catch (Exception error) when (error is NotSupportedException or InvalidDataException)
+                    {
+                        (byte[] oldBytes, bool[] oldKnown) = temporary.ReadSnapshot(0x44, 4);
+                        string oldIndex = oldKnown.All(value => value) ? $"0x{BinaryPrimitives.ReadUInt32LittleEndian(oldBytes):X8}" : $"unresolved({Convert.ToHexString(oldBytes)},known={string.Concat(oldKnown.Select(value => value ? '1' : '0'))})";
+                        uint yAddress = unchecked(projected + index * 8 + 2);
+                        throw new NotSupportedException($"Effect345 appearance early-Y input is unavailable: task=0x{address:X8}, object={objectIndex}, face={currentFace}, quad={face.Quad}, index=0x{index:X8}, Y=0x{yAddress:X8}, projected=0x{projected:X8}, projectedLength=0x{projectedLength:X}, temporary=0x{temporaryAddress:X8}, oldFourthAddress=0x{unchecked(temporaryAddress + 0x44):X8}, oldFourth={oldIndex}, poseAge={task.ReadWord(0x136)}. The reached unmasked index and physical WORD require their current owner.", error);
+                    }
+                }
+                if (!AdmitEarlyCorners7067EE(temporary, indices, face.Quad, ReadEarlyY))
                 {
                     continue;
                 }

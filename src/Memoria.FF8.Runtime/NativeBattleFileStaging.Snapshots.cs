@@ -20,6 +20,15 @@ public sealed partial record NativeBattleFileStaging
         }
         byte[] data = new byte[length];
         bool[] known = new bool[length];
+        foreach (NativeBattleLoaderZeroRegion region in LoaderZeroRanges)
+        {
+            ulong start = Math.Max(address, region.Address);
+            ulong last = Math.Min((ulong)address + (uint)length, (ulong)region.Address + (uint)region.Length);
+            if (last > start)
+            {
+                Array.Fill(known, true, checked((int)(start - address)), checked((int)(last - start)));
+            }
+        }
         long first = (long)address - BaseAddress;
         long end = first + length;
         foreach (NativeBattleEffectMemoryRegion range in KnownRanges)

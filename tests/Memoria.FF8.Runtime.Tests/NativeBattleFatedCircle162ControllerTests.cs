@@ -7,6 +7,21 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleFatedCircle162ControllerTests
 {
+    [Fact]
+    public void First_trail_sample_transports_unknown_padding_over_loader_zero_history_and_gathers()
+    {
+        (NativeBattleFatedCircle162Frame frame, NativeBattleEffectTaskPool pool) = Frame(0);
+        frame = frame with { Staging = NativeBattleFileStaging.FromColdProcess().Write(0x23D0D74, BitConverter.GetBytes(42)) };
+        NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
+        NativeBattleFatedCircle162ChildStep result = NativeBattleFatedCircle162Controller.Advance5F99C0(frame, pool, 0, Inputs(0, 0), _ => new(new(10, 20, 30), 0, 0, 4096, null, null), view, new(null, 288, 160, 108), null, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        foreach (uint padding in new uint[] { 0x23D0CF2, 0x23D0CFA, 0x23CE58E, 0x23CE5CE })
+        {
+            Assert.Throws<NotSupportedException>(() => result.Frame.Staging.Read(padding, 2));
+        }
+        Assert.Equal(new byte[] { 10, 0, 20, 0, 30, 0 }, result.Frame.Staging.Read(0x23CE588, 6));
+        Assert.Equal(new byte[2], result.Frame.Staging.Read(0x23CE590, 2));
+    }
+
     [Theory]
     [InlineData(1u, 0, 17)]
     [InlineData(0x200u, -1, 17)]

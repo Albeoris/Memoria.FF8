@@ -4,6 +4,54 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleFieldRegistrationTests
 {
+    [Fact]
+    public void Registration_snapshot_copies_loader_zero_knownness_and_publishes_only_changed_holes()
+    {
+        const uint origin = 0x1900000;
+        NativeBattleFileStaging source = new([]) { BaseAddress = origin, LoaderZeroRanges = [new(origin, 4096)] };
+        source = source.Write(origin + 4, [0xA7]).MarkUnknown(origin + 16, 2);
+        NativeFieldRegistrationMemory memory = new(source, origin, origin + 64);
+        Assert.Equal(new byte[4], memory.Read(origin, 4));
+        Assert.Equal(new byte[] { 0xA7 }, memory.Read(origin + 4, 1));
+        memory.Forget(origin + 8, 2);
+        memory.Write32(origin + 12, 0x12345678);
+        memory.Copy(origin + 16, origin + 24, 2);
+        NativeBattleFileStaging result = memory.Finish();
+        Assert.Throws<NotSupportedException>(() => result.Read(origin + 8, 2));
+        Assert.Throws<NotSupportedException>(() => result.Read(origin + 16, 2));
+        Assert.Throws<NotSupportedException>(() => result.Read(origin + 24, 2));
+        Assert.Equal(0x12345678u, BitConverter.ToUInt32(result.Read(origin + 12, 4)));
+        Assert.Equal(new byte[2], result.Read(origin + 4094, 2));
+        Assert.Equal(new byte[2], source.Read(origin + 8, 2));
+        Assert.Equal(5, result.KnownRanges.Sum(range => range.Data.Length));
+        Assert.Throws<InvalidDataException>(() => memory.Read(origin + 64, 1));
+    }
+
+    [Fact]
+    public void Registration_cpu_import_publishes_its_known_bytes_and_unknown_masks_over_loader_zero()
+    {
+        const uint origin = 0x196B018;
+        const int length = 3 * NativeBattleModelCpuBank.Length;
+        NativeBattleFileStaging source = new([]) { BaseAddress = origin, LoaderZeroRanges = [new(origin, length + 64)] };
+        NativeBattleResourcePointer pointer = new(null, 0x12345678, 64);
+        source = source.WriteResourcePointer(origin + 4, pointer);
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
+        cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, cpu.Cpu.Banks[0].Write(4, BitConverter.GetBytes(0x12345678u))).SetItem(1, cpu.Cpu.Banks[1].Write(7, [0xC9])) } };
+        NativeFieldRegistrationMemory memory = new(source, origin, origin + length + 16);
+        memory.ObserveCpuBanks(cpu);
+        Assert.Equal(0x12345678u, BitConverter.ToUInt32(memory.Read(origin + 4, 4)));
+        Assert.Throws<NotSupportedException>(() => memory.Read(origin, 1));
+        NativeBattleFileStaging result = memory.Finish();
+        Assert.Equal(0x12345678u, BitConverter.ToUInt32(result.Read(origin + 4, 4)));
+        Assert.Equal(pointer, result.ReadResourcePointer(origin + 4));
+        Assert.Equal(new byte[] { 0xC9 }, result.Read(origin + NativeBattleModelCpuBank.Length + 7, 1));
+        Assert.Throws<NotSupportedException>(() => result.Read(origin, 1));
+        Assert.Throws<NotSupportedException>(() => result.Read(origin + 2 * NativeBattleModelCpuBank.Length, 1));
+        Assert.Equal(new byte[2], result.Read(origin + length + 32, 2));
+        Assert.Equal(new byte[1], source.Read(origin, 1));
+        Assert.Equal(5, result.KnownRanges.Sum(range => range.Data.Length));
+    }
+
     [Theory]
     [InlineData(0x1DCA328u, 0xC00)]
     [InlineData(0x1DCB0F0u, 0x100)]

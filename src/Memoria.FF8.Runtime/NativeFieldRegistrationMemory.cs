@@ -11,6 +11,7 @@ internal sealed class NativeFieldRegistrationMemory
     private readonly byte[] bytes;
     private readonly bool[] known;
     private readonly bool[] changed;
+    private readonly List<(int First, int End)> observedCpuRanges = [];
     private const uint PartyCpuAddress = 0x196B018;
 
     internal NativeFieldRegistrationMemory(NativeBattleFileStaging source, uint first, uint end)
@@ -19,14 +20,10 @@ internal sealed class NativeFieldRegistrationMemory
         origin = this.source.BaseAddress;
         ulong last = Math.Max(end, this.source.KnownRanges.IsEmpty ? origin : (ulong)origin + (uint)this.source.KnownRanges[^1].Offset + (uint)this.source.KnownRanges[^1].Data.Length);
         int length = checked((int)(last - origin));
-        bytes = new byte[length];
-        known = new bool[length];
+        (byte[] data, bool[] observed) = this.source.ReadSnapshot(origin, length);
+        bytes = data;
+        known = observed;
         changed = new bool[length];
-        foreach (NativeBattleEffectMemoryRegion range in this.source.KnownRanges)
-        {
-            range.Data.AsSpan().CopyTo(bytes.AsSpan(range.Offset));
-            Array.Fill(known, true, range.Offset, range.Data.Length);
-        }
     }
 
     internal void ObserveCpuBanks(NativeBattleModelCpuResources? cpu)
@@ -39,6 +36,7 @@ internal sealed class NativeFieldRegistrationMemory
         for (int bank = 0; bank < 3; bank++)
         {
             int first = Index(checked(PartyCpuAddress + (uint)bank * NativeBattleModelCpuBank.Length), NativeBattleModelCpuBank.Length);
+            observedCpuRanges.Add((first, checked(first + NativeBattleModelCpuBank.Length)));
             Array.Fill(known, false, first, NativeBattleModelCpuBank.Length);
             foreach (NativeBattleEffectMemoryRegion range in cpu.Cpu.Banks[bank].KnownRanges)
             {
@@ -176,22 +174,7 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal NativeBattleFileStaging Finish()
     {
-        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-        for (int index = 0; index < known.Length;)
-        {
-            if (!known[index])
-            {
-                index++;
-                continue;
-            }
-            int first = index++;
-            while (index < known.Length && known[index])
-            {
-                index++;
-            }
-            ranges.Add(new(first, bytes.AsSpan(first, index - first).ToArray().ToImmutableArray()));
-        }
-        NativeBattleFileStaging result = source with { KnownRanges = ranges.ToImmutable() };
+        List<(int First, int End)> publish = [.. observedCpuRanges];
         for (int index = 0; index < changed.Length;)
         {
             if (!changed[index])
@@ -204,7 +187,41 @@ internal sealed class NativeFieldRegistrationMemory
             {
                 index++;
             }
-            result = result.InvalidateResourcePointers(checked(origin + (uint)first), index - first);
+            publish.Add((first, index));
+        }
+        publish.Sort((left, right) => left.First.CompareTo(right.First));
+        NativeBattleFileStaging result = source;
+        for (int range = 0; range < publish.Count; range++)
+        {
+            int index = publish[range].First;
+            int end = publish[range].End;
+            while (range + 1 < publish.Count && publish[range + 1].First <= end)
+            {
+                range++;
+                end = Math.Max(end, publish[range].End);
+            }
+            while (index < end)
+            {
+                int first = index++;
+                bool observed = known[first];
+                while (index < end && known[index] == observed)
+                {
+                    index++;
+                }
+                uint address = checked(origin + (uint)first);
+                int length = index - first;
+                result = observed ? result.Write(address, bytes.AsSpan(first, length)) : result.MarkUnknown(address, length);
+            }
+        }
+        foreach ((uint address, NativeBattleResourcePointer? pointer) in source.ResourcePointers)
+        {
+            long offset = (long)address - origin;
+            int first = checked((int)Math.Clamp(offset, 0, changed.Length));
+            int end = checked((int)Math.Clamp(offset + 4, 0, changed.Length));
+            if (!changed.AsSpan(first, end - first).Contains(true))
+            {
+                result = result with { ResourcePointers = result.ResourcePointers.SetItem(address, pointer) };
+            }
         }
         return result;
     }

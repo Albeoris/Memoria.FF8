@@ -6,6 +6,20 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleRoughDivide163ControllerTests
 {
     [Fact]
+    public void First_trail_sample_transports_unknown_padding_over_loader_zero_history_and_gathers()
+    {
+        (NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool) = Frame(0);
+        frame = frame with { Staging = NativeBattleFileStaging.FromColdProcess() };
+        NativeBattleRoughDivide163ChildStep result = NativeBattleRoughDivide163Controller.Advance5F5FE0(frame, pool, 0, Inputs(0, []), _ => new(new(10, 20, 30), 0, 0, 4096, null, null), NativeBattleCuragaMatrices.Identity8DD770(), new(null, 288, 160, 108), null, NativeBattleGteColorInterpolation.CodeConstants45F270);
+        foreach (uint padding in new uint[] { 0x23CE292, 0x23CE29A, 0x23CA126, 0x23CA166 })
+        {
+            Assert.Throws<NotSupportedException>(() => result.Frame.Staging.Read(padding, 2));
+        }
+        Assert.Equal(new byte[] { 10, 0, 20, 0, 30, 0 }, result.Frame.Staging.Read(0x23CA120, 6));
+        Assert.Equal(new byte[2], result.Frame.Staging.Read(0x23CA128, 2));
+    }
+
+    [Fact]
     public void PausedControllerStillComposesItsCapturedMatrixButDoesNotAdvance()
     {
         (NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool) = Frame(51);
