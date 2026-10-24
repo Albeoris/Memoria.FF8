@@ -1,0 +1,62 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleEffect54Profile
+{
+    public const ushort Effect = 54;
+    public const uint Entry = 0x80CAB0;
+    public const uint Initializer = 0x80CA90;
+    public const uint RootCallback = 0x80CBE0;
+    public const uint DriverCallback = 0x80CEF0;
+    public const uint ModelCallback = 0x80D000;
+    public const uint FadeCallback = 0x80CDD0;
+    public const uint FadeInCallback = FadeCallback;
+    public const uint FadeOutCallback = 0x811E20;
+    public const uint BaseAddress = 0x2616420;
+    public const uint InitializerGlobal = BaseAddress;
+    public const uint PrimaryCursorGlobal = 0x2616424;
+    public const uint CursorGlobal = PrimaryCursorGlobal;
+    public const uint EmitterCounter = 0x2616428;
+    public const uint SecondaryCursorGlobal = 0x2616440;
+    public const uint ViewPointerGlobal = 0x2616444;
+    public const uint RootDescriptor = 0x2616510;
+    public const uint RootBank = 0x2616448;
+    public const uint EmitterHintGlobal = 0x2616520;
+    public const uint EntryControlGlobal = 0x2616524;
+    public const uint EvenSecondaryPacketGlobal = 0x2616528;
+    public const uint OddSecondaryPacketGlobal = 0x261652C;
+    public const uint ModelDescriptor = 0x2616D20;
+    public const uint ModelBank = 0x2616530;
+    public const uint FadeDescriptor = 0x2616FB0;
+    public const uint FadeBank = 0x2616D30;
+    public const uint DriverDescriptor = 0x2616FC0;
+    public const uint DriverBank = 0x2616FD0;
+    public const uint EvenPrimaryPacketGlobal = 0x2617130;
+    public const uint OddPrimaryPacketGlobal = 0x2617134;
+    public const uint DrawCounter = 0x2617138;
+    public const uint DrawVisitCounter = 0x261713A;
+    public const uint EmitterRecordsGlobal = 0x261713C;
+    public const uint DrawHintGlobal = 0x2617148;
+    public const uint EmitterVisitCounter = 0x261714A;
+    public const uint ScratchPointerGlobal = 0x2617150;
+    public const uint ScratchCursorGlobal = ScratchPointerGlobal;
+    public const uint DrawRecordsGlobal = 0x2617154;
+    public const uint EntryZeroGlobal = 0x2617158;
+    public const uint AllocationCursorGlobal = 0x261715C;
+    public const uint CurrentContextGlobal = 0x2617160;
+    public const uint TextureNameAddress = 0x15A76B0;
+    public const uint CameraAddress = 0x15A7600;
+    public const uint SoundAddress = 0x15A75FC;
+    public const uint SourceAddress = 0x17AA304;
+    public const uint FirstSpriteAddress = 0x17AA408;
+    public const uint SecondSpriteAddress = 0x17AA614;
+    public const int EmitterStride = 108;
+    public const int EmitterCount = 30;
+    public const int ReachableEmitterCount = 29;
+    public const int DrawStride = 672;
+    public const int DrawCount = 60;
+    public const int ReachableDrawCount = 59;
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, 100, 2), new(DriverDescriptor, DriverBank, 88, 4), new(ModelDescriptor, ModelBank, 676, 3), new(FadeDescriptor, FadeBank, 64, 10)];
+    public static readonly ImmutableArray<(uint Address, int Length)> OwnedRanges = [(BaseAddress, 10), (SecondaryCursorGlobal, 8), (0x2616520, 2), (0x2616524, 12), (0x2617130, 16), (0x2617148, 4), (ScratchPointerGlobal, 20)];
+}
