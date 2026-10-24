@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -18,12 +19,17 @@ public sealed record NativeBattleDuel274Resources(ImmutableArray<byte> StaticDat
 
     public ImmutableArray<byte> Read(uint address, int length)
     {
+        return ImmutableCollectionsMarshal.AsImmutableArray(ReadSpan(address, length).ToArray());
+    }
+
+    internal ReadOnlySpan<byte> ReadSpan(uint address, int length)
+    {
         long offset = (long)address - Address;
         if (StaticData.IsDefault || StaticData.Length != EndAddress - Address || offset < 0 || length < 0 || offset > StaticData.Length - length)
         {
             throw new NotSupportedException("Native Duel opening read leaves its retained executable resource owner.");
         }
-        return StaticData.AsSpan().Slice((int)offset, length).ToArray().ToImmutableArray();
+        return StaticData.AsSpan().Slice((int)offset, length);
     }
 
     public NativeBattleGfAnimationSource Hierarchy(uint address) => new(address, Read(address, checked((int)(EndAddress - address))));

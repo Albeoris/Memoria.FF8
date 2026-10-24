@@ -6,6 +6,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleDuelEchoPacketsTests
 {
     [Fact]
+    public void CornerObserverSeesBothDwordsWithExactUnknownMaskAndRetainedPredecessors()
+    {
+        NativeBattleModulePoolTask original = Context(1, 0);
+        List<NativeBattleModulePoolTask> observed = [];
+        NativeBattleDuelEchoPackets.Emit68AAE0(original, 12, Faces().AsSpan(0, 16).ToArray().ToImmutableArray(), _ => new(0xAABBCCDD, 0x1234, 16) { KnownBytesMask = 0xC5 }, 17, 0, 0x155, 0x100, (task, offset, length) =>
+        {
+            if (offset == 40 && length == 8)
+            {
+                observed.Add(task);
+                Assert.Equal(0xDD, task.ReadByte(40));
+                Assert.Equal(0xBB, task.ReadByte(42));
+                Assert.Equal(16, task.ReadWord(46));
+                Assert.Throws<NotSupportedException>(() => task.ReadByte(41));
+                Assert.Throws<NotSupportedException>(() => task.ReadWord(44));
+            }
+        });
+        Assert.Single(observed);
+        Assert.Equal(0u, original.ReadDword(40));
+        Assert.Equal(16, observed[0].ReadWord(46));
+    }
+
+    [Fact]
     public void NativeEchoRetainsRawPacketTailsAndClearsOnlyTheTpageBlendBit()
     {
         NativeBattleModulePoolTask context = Context(1, 1);

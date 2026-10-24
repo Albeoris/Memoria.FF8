@@ -97,8 +97,8 @@ public static class NativeBattleDuel274Hierarchy
             {
                 throw new InvalidDataException("Native Duel hierarchy selected a vertex outside its actual shape.");
             }
-            byte[] bytes = morphed ? (frame.Memory.Arena ?? throw new NotSupportedException("Native Duel morph publication disappeared.")).Read(NativeBattleWaterExecutionFields.ArenaOffset(checked(selected + (uint)offset), 6), 6) : resources.Read(unchecked(selected + (uint)offset), 6).ToArray();
-            return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+            ReadOnlySpan<byte> bytes = morphed ? (frame.Memory.Arena ?? throw new NotSupportedException("Native Duel morph publication disappeared.")).Read(NativeBattleWaterExecutionFields.ArenaOffset(checked(selected + (uint)offset), 6), 6) : resources.ReadSpan(unchecked(selected + (uint)offset), 6);
+            return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(4)));
         }
     }
 }

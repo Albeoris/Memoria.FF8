@@ -27,6 +27,7 @@ public static class NativeBattleDuelEchoPackets
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
         int source = 0;
+        Span<byte> projectedBytes = stackalloc byte[8];
         for (int group = 0; group < 2; group++)
         {
             int countOffset = offset + 8 + group * 2;
@@ -46,7 +47,10 @@ public static class NativeBattleDuelEchoPackets
                     NativeBattleDuelEchoProjectedVertex selected = readVertex(vertex);
                     vertices[corner] = selected;
                     int target = offset + 28 + corner * 8;
-                    context = context.WriteDword(target, selected.Screen).WriteDword(target + 4, selected.Depth | (uint)selected.Clip << 16);
+                    BinaryPrimitives.WriteUInt32LittleEndian(projectedBytes, selected.Screen);
+                    BinaryPrimitives.WriteUInt16LittleEndian(projectedBytes.Slice(4), selected.Depth);
+                    BinaryPrimitives.WriteUInt16LittleEndian(projectedBytes.Slice(6), selected.Clip);
+                    context = context.WriteBytes(target, projectedBytes);
                     for (int current = 0; current < 8; current++)
                     {
                         if ((selected.KnownBytesMask & (1 << current)) == 0)
