@@ -144,7 +144,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
                 }
             }
         }
-        NativeBattleLogicalCommand[] ribbons = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Opcode == 0x3E && command.Words.Length == 12 && command.VertexPayload4.Length == 4 && command.OrderingBucket >= 17 && command.Words[2] == 0x3E14C048 && command.Words[5] == 0x00B9C078 && (command.Words[8] & 0xFFFF) == 0xC048 && (command.Words[11] & 0xFFFF) == 0xC078).ToArray();
+        NativeBattleLogicalCommand[] ribbons = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "off_B6D070" && command.Opcode == 0x3E && command.Words.Length == 12 && command.VertexPayload4.Length == 4 && command.OrderingBucket >= 17 && command.Words[2] == 0x3E14C048 && command.Words[5] == 0x00B9C078 && (command.Words[8] & 0xFFFF) == 0xC048 && (command.Words[11] & 0xFFFF) == 0xC078).ToArray();
         if (ribbons.Length > 0)
         {
             Assert.All(ribbons.SelectMany(command => command.VertexPayload4), depth => Assert.InRange(depth, 0, 65535));
