@@ -80,6 +80,10 @@ public sealed partial class BattleSession
 
     private byte ReadNativeScanTextByte(uint address)
     {
+        if (address == NativeBattleEffect68Profile.ResultEmptyAddress)
+        {
+            return (NativeEffectMemory?.Effect68 ?? throw new NotSupportedException("Effect68 text requires its retained result header.")).Read(address, 1)[0];
+        }
         NativeBattleScanProcess process = NativeEffectMemory?.Scan ?? throw new NotSupportedException("Native Scan text requires its retained process.");
         return NativeBattleScanResults.ReadByte(process.Results, address, ReadExternal);
 

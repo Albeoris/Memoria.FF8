@@ -27,7 +27,7 @@ public static class NativeBattleScanResults
     public const uint EmptyAddress = 0x279CC94;
     public const uint EnemyExtraAddress = 0x1D28F28;
 
-    public static NativeBattleScanResultMemory BuildB68390(NativeBattleScanResultMemory memory, int actor, NativeBattleScanResultServices services)
+    public static NativeBattleScanResultMemory BuildB68390(NativeBattleScanResultMemory memory, int actor, NativeBattleScanResultServices services, uint emptyAddress = EmptyAddress)
     {
         memory.Validate();
         ArgumentNullException.ThrowIfNull(services);
@@ -84,7 +84,7 @@ public static class NativeBattleScanResults
                 slots.Add(services.ReadMiscText(0x24));
                 while (slots.Count < 4)
                 {
-                    slots.Add(ReadString(EmptyAddress));
+                    slots.Add(ReadString(emptyAddress));
                 }
                 ConcatSlots(slots);
                 StorePage();
@@ -123,7 +123,7 @@ public static class NativeBattleScanResults
                 }
                 while (slots.Count < 9)
                 {
-                    slots.Add(ReadString(EmptyAddress));
+                    slots.Add(ReadString(emptyAddress));
                 }
                 ConcatSlots(slots);
                 StorePage();
@@ -145,7 +145,7 @@ public static class NativeBattleScanResults
             ImmutableArray<byte>.Builder bytes = ImmutableArray.CreateBuilder<byte>();
             while (true)
             {
-                byte value = ReadByte(memory, pointer, _ => throw new NotSupportedException("Native Scan result string leaves its actual owned scratch, ring or empty byte."));
+                byte value = ReadByte(memory, pointer, _ => throw new NotSupportedException("Native Scan result string leaves its actual owned scratch, ring or empty byte."), emptyAddress);
                 bytes.Add(value);
                 pointer = unchecked(pointer + 1);
                 if (value == 0)
@@ -250,7 +250,7 @@ public static class NativeBattleScanResults
 
     public static uint PageB68810(NativeBattleScanResultMemory memory, int actor, int index) => memory.Pages32.ReadDword((index & 0xFF) * 4);
 
-    public static byte ReadByte(NativeBattleScanResultMemory memory, uint pointer, Func<uint, byte> readOriginalByte)
+    public static byte ReadByte(NativeBattleScanResultMemory memory, uint pointer, Func<uint, byte> readOriginalByte, uint emptyAddress = EmptyAddress)
     {
         uint scratch = unchecked(pointer - ScratchAddress);
         if (scratch < 48)
@@ -266,6 +266,6 @@ public static class NativeBattleScanResults
         {
             return memory.Cursor;
         }
-        return pointer == EmptyAddress ? memory.Empty : readOriginalByte(pointer);
+        return pointer == emptyAddress ? memory.Empty : readOriginalByte(pointer);
     }
 }

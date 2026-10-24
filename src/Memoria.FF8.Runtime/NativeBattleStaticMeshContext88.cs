@@ -65,7 +65,7 @@ public static class NativeBattleStaticMeshContext88
             {
                 continue;
             }
-            if (group == 1 ? flags is not (0 or 0xC3) : flags == 0xF0 ? group is not (0 or 2 or 3 or 5 or 6 or 7) : group is not (0 or 2 or 3 or 4 or 5 or 6 or 7))
+            if (group == 1 && flags is not (0 or 0xC3 or 0xF0))
             {
                 throw new NotSupportedException("Masamune mesh requires an unproved primitive group.");
             }
