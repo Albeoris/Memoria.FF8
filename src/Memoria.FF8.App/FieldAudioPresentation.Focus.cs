@@ -12,6 +12,7 @@ internal sealed partial class FieldAudioPresentation
             return;
         }
         focusPaused = paused;
+        TryOutput(() => PauseExternalMusic(paused || nativeMidiPaused));
         foreach (Voice voice in voices.Values)
         {
             if (paused)

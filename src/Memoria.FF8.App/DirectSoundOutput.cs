@@ -106,6 +106,7 @@ internal sealed class DirectSoundOutput : IDisposable
             }
         }
         public void Volume(int hundredthDecibels) => WindowsAudioCom.Check(WindowsAudioCom.Method<SetValue>(handle, 15)(handle, hundredthDecibels));
+        public void Position(int pcmByteOffset) => WindowsAudioCom.Check(WindowsAudioCom.Method<SetValue>(handle, 13)(handle, pcmByteOffset));
         public void Pan(int hundredthDecibels) => WindowsAudioCom.Check(WindowsAudioCom.Method<SetValue>(handle, 16)(handle, hundredthDecibels));
         public void Dispose()
         {

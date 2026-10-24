@@ -113,7 +113,7 @@ internal sealed partial class RecreateGame : Game
         fieldTexture = new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height);
         if (options.AudioEnabled)
         {
-            fieldAudio = new FieldAudioPresentation(Window.Handle, options.GameDirectory, movieClock.ToolsDirectory);
+            fieldAudio = new FieldAudioPresentation(Window.Handle, options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
         }
         InitializeGameUi();
         if (options.ControlDirectory is not null)

@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 /// <summary>Device output is transient. Executed VM audio receipts keep their deterministic headless contract.</summary>
-internal sealed partial class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory) : IDisposable
+internal sealed partial class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory, Func<ModCatalogSnapshot>? modCatalog = null) : IDisposable
 {
     private readonly GameFileResources gameFiles = new(gameDirectory);
     private readonly Dictionary<int, PcmAudio> samples = [];
@@ -48,6 +49,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                 voice.Primary.Volume(gain);
                 voice.Loop?.Volume(gain);
             }
+            UpdateExternalGain(MusicKind.Midi, Math.Clamp((int)midiVolume, 0, 127));
+            UpdateExternalGain(MusicKind.Stream, Math.Clamp((int)streamVolume, 0, 127));
             if (music is not null)
             {
                 music.Volume(OutputGain(Catalog.MusicVolume(Math.Clamp((int)midiVolume, 0, 127)), musicPreference));
@@ -157,7 +160,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
                     SetAllVoiceVolumes(volume.FirstVoice, volume.VoiceCount, volume.Volume, volume.DurationMilliseconds);
                     break;
                 case NativeMusicPlayRequest { ConsumedPending: true } play:
-                    ExecuteMusicPlayback(play.Playback, play.FieldId, play.SkipPosition ?? 0, choiceMask: play.ChoiceMask);
+                    ExecuteMusicPlayback(play.Playback, play.FieldId, play.SkipPosition ?? 0, choiceMask: play.ChoiceMask, noIntro: play.SkipPosition is not null);
                     break;
                 case NativeMusicReplayRequest replay:
                     ExecuteMusicPlayback(replay.Playback, replay.FieldId);
@@ -338,7 +341,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
-    private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false)
+    private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false, bool noIntro = false)
     {
         if (volume is not (>= 0 and <= 127))
         {
@@ -353,7 +356,12 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             return;
         }
         StopMusicSlot(slot);
-        string path = gameFiles.ResolveInstallationFile(Catalog.MusicFileResolved(track));
+        string selectedFilename = Catalog.MusicFileResolved(track);
+        if (PlayExternalMusic(selectedFilename, slot, track, volume.Value, noIntro || startPoint != 0))
+        {
+            return;
+        }
+        string path = gameFiles.ResolveInstallationFile(selectedFilename);
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
             Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
@@ -413,12 +421,14 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         {
             if (midi)
             {
+                UpdateExternalGain(MusicKind.Midi, value);
                 midiVolume = value;
                 midiRamp = null;
                 music?.Volume(OutputGain(Catalog.MusicVolume(value), musicPreference));
             }
             if (stream)
             {
+                UpdateExternalGain(MusicKind.Stream, value);
                 streamVolume = value;
                 streamRamp = null;
                 streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(value), musicPreference));
@@ -463,6 +473,10 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         }
         TryOutput(() =>
         {
+            foreach (ExternalMusicOutput? output in externalMusic)
+            {
+                output?.Update();
+            }
             foreach (Voice voice in voices.Values)
             {
                 if (!voice.LoopStarted && voice.Loop is not null && voice.Clock.Elapsed.TotalMilliseconds >= voice.LoopDelay)
@@ -498,6 +512,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             if (midiRamp is Ramp transition)
             {
                 midiVolume = transition.Value;
+                UpdateExternalGain(MusicKind.Midi, Math.Clamp((int)midiVolume, 0, 127));
                 music?.Volume(OutputGain(Catalog.MusicVolume(Math.Clamp((int)midiVolume, 0, 127)), musicPreference));
                 if (transition.Finished)
                 {
@@ -507,6 +522,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             if (streamRamp is Ramp streamTransition)
             {
                 streamVolume = streamTransition.Value;
+                UpdateExternalGain(MusicKind.Stream, Math.Clamp((int)streamVolume, 0, 127));
                 streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)), musicPreference));
                 if (streamTransition.Finished)
                 {
@@ -558,6 +574,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         MusicKind kind = musicKinds[slot];
         try
         {
+            StopExternalMusic(kind);
             // Native46C060 chooses the process-wide MIDI or WAV backend by this slot's type.
             if (kind == MusicKind.Midi)
             {
