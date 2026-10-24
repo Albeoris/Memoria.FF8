@@ -192,7 +192,7 @@ internal sealed partial class RecreateGame : Game
         keyboard.ControllerGeneration = controller.Generation;
         bool wasCapturing = gameMenus?.IsCapturingControls == true;
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
-        UpdateMenuPresentationHotkey(keys, wasCapturing || capturing);
+        UpdateMenuPresentationHotkey(keys, wasCapturing || capturing || DuelOwnsInput);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
         bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true || gameMenus?.IsModSearchEditing == true;
@@ -205,6 +205,7 @@ internal sealed partial class RecreateGame : Game
         }
         keyboard.TextEntryEnabled = typingName;
         keyboard.NamingNavigationEnabled = namingNavigation;
+        keyboard.NativeButtonsOwnInput = DuelOwnsInput;
         InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
         var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
         if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !IsActive)
@@ -246,7 +247,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (!SlotsModalBlocksGameplay && keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
+        if (!BattleModalBlocksGameplay && keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
         {
             gameplayClock.ToggleSpeed();
         }
@@ -281,7 +282,7 @@ internal sealed partial class RecreateGame : Game
         {
             fieldAudio?.PlayTitleMusic();
         }
-        if (!SlotsModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
+        if (!BattleModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -289,7 +290,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (!SlotsModalBlocksGameplay && (UpdateTripleTriadUi(gameTime.ElapsedGameTime, input) || UpdateGameUi(gameTime.ElapsedGameTime, input)))
+        if (!BattleModalBlocksGameplay && (UpdateTripleTriadUi(gameTime.ElapsedGameTime, input) || UpdateGameUi(gameTime.ElapsedGameTime, input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -297,7 +298,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (!SlotsModalBlocksGameplay && UpdatePlayerSaves(input))
+        if (!BattleModalBlocksGameplay && UpdatePlayerSaves(input))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -580,6 +581,10 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        if (DuelOwnsInput)
+        {
+            return;
+        }
         if (IsActive && modelBrowser?.SearchFocused == true)
         {
             if (args.Character == '\b')
@@ -1256,7 +1261,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawSalaryUi(bounds, salary);
         }
-        if (!SlotsModalBlocksGameplay && sceneInspector is null && events?.PartyMenu is not null)
+        if (!BattleModalBlocksGameplay && sceneInspector is null && events?.PartyMenu is not null)
         {
             DrawPartyMenu(bounds);
         }

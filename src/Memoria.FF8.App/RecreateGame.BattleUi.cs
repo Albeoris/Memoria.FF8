@@ -24,6 +24,8 @@ internal sealed partial class RecreateGame
     private bool previousBattleMouse;
     private bool slotsInputReleasePending;
     private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
+    private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetNativeDuel(actor.Id) is not null);
+    private bool BattleModalBlocksGameplay => SlotsModalBlocksGameplay || DuelOwnsInput;
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
@@ -86,6 +88,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        bool duelOwned = DuelOwnsInput;
         bool slotsOwned = SlotsModalBlocksGameplay;
         bool confirmHeld = (keyboard.HeldFieldButtons & 0x40) != 0;
         bool mouseHeld = Mouse.GetState().LeftButton == ButtonState.Pressed;
@@ -99,8 +102,8 @@ internal sealed partial class RecreateGame
             slotsInputReleasePending = false;
         }
         slotsOwned |= SlotsModalBlocksGameplay;
-        bool skipInput = !slotsOwned && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
-        bool boostInput = !slotsOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
+        bool skipInput = !slotsOwned && !duelOwned && keyboard.GuardianFormSkipRequested && active.CanSkipGuardianFormFinisher;
+        bool boostInput = !slotsOwned && !duelOwned && keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null && (active.NativeGraphics?.UiServices is { } boostUi ? (boostUi.Flags942 & 1) != 0 : (keyboard.HeldFieldButtons & 0x100) != 0);
         if (boostInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
@@ -109,8 +112,8 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
-        active.PublishNativeEscapeButtons(slotsOwned ? (ushort)0 : keyboard.HeldControlButtons);
-        active.PublishNativeScanMappedButtons(slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
+        active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeGraphicsPresentation(elapsed);
         if (ReferenceEquals(active, world?.Battle))
         {
@@ -120,44 +123,44 @@ internal sealed partial class RecreateGame
                 return true;
             }
         }
-        active.AdvanceComponentGuardianBoostPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        active.AdvanceComponentGuardianBoostPresentation(elapsed, slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         if (ActiveBattle is null || battleHud is null)
         {
             return true;
         }
-        battleHud.SetNativeCommandButtons(keyboard.HeldFieldButtons);
+        battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeShotPresentation(elapsed);
         active.AdvanceNativeDuelPresentation(elapsed, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
-        bool shotInput = !slotsOwned && keyboard.GunbladeTriggerRequested && shotActor is not null;
+        bool shotInput = !slotsOwned && !duelOwned && keyboard.GunbladeTriggerRequested && shotActor is not null;
         if (shotInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.ShotTrigger, ActorId: shotActor!.Id));
         }
-        bool gunbladeInput = !slotsOwned && !shotInput && keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
+        bool gunbladeInput = !slotsOwned && !duelOwned && !shotInput && keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
         if (gunbladeInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GunbladeTrigger));
         }
-        if (!slotsOwned && keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
+        if (!slotsOwned && !duelOwned && keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
         }
-        else if (!slotsOwned && keyboard.BattleAdvanceTurnRequested && active.Mode == BattleAtbMode.TurnBased && active.Outcome == BattleOutcome.Active)
+        else if (!slotsOwned && !duelOwned && keyboard.BattleAdvanceTurnRequested && active.Mode == BattleAtbMode.TurnBased && active.Outcome == BattleOutcome.Active)
         {
             battleHud!.AdvanceTurn();
         }
         else
         {
-            if (!slotsOwned && keyboard.GameMenuRequested)
+            if (!slotsOwned && !duelOwned && keyboard.GameMenuRequested)
             {
                 battleHud!.CycleCommandActor();
             }
-            if (!slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
+            if (!duelOwned && !slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
             {
                 NavigateBattleView(battleHud!.Navigate, input, slotsOwned || gunbladeInput || shotInput || boostInput || skipInput);
             }
@@ -166,9 +169,13 @@ internal sealed partial class RecreateGame
                 return true;
             }
         }
-        if (!slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
+        if (!duelOwned && !slotsInputReleasePending && (!slotsOwned || battleHud!.CardSlotsOwnsInput))
         {
             PointerBattleView(battleHud!.BuildView());
+        }
+        if (duelOwned)
+        {
+            previousBattleMouse = mouseHeld;
         }
         if (ActiveBattle is null)
         {

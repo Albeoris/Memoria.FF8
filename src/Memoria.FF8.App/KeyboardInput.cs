@@ -44,6 +44,19 @@ internal sealed class KeyboardInput
         get => Profile.Controller.Presentation == ControllerPresentation.Automatic ? connectedPresentation : Profile.Controller.Presentation;
         set => connectedPresentation = value == ControllerPresentation.Automatic ? ControllerPresentation.Generic : value;
     }
+    private bool nativeButtonsOwnInput;
+    public bool NativeButtonsOwnInput
+    {
+        get => nativeButtonsOwnInput;
+        set
+        {
+            if (nativeButtonsOwnInput && !value)
+            {
+                SuppressHeldUiInput();
+            }
+            nativeButtonsOwnInput = value;
+        }
+    }
     public bool RecoveryNavigationEnabled { get; set; }
     public bool NamingNavigationEnabled { get; set; }
     public bool TextEntryEnabled { get; set; }
@@ -160,8 +173,8 @@ internal sealed class KeyboardInput
         var effectiveMatches = matches.Where(match => !match.Chord.Keys.Any(disarmedKeys.Contains) && !match.Chord.Buttons.Any(disarmedButtons.Contains) && (match.Chord.Count > 1 || ControlsProfile.IsPermanentBinding(match.Action, match.Device, match.Chord) || !match.Chord.Keys.Any(consumedKeys.Contains) && !match.Chord.Buttons.Any(consumedButtons.Contains))).ToArray();
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
-        bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || effectiveMatches.Any(match => match.Action == action && match.Device == ControlDevice.Keyboard));
-        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled || ModsManagerEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool Pressed(ControlAction action) => !NativeButtonsOwnInput && Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || effectiveMatches.Any(match => match.Action == action && match.Device == ControlDevice.Keyboard));
+        bool RecoveryPressed(Keys key) => !NativeButtonsOwnInput && active && (RecoveryNavigationEnabled || NamingNavigationEnabled || TextEntryEnabled || ModsManagerEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
         if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)
@@ -214,7 +227,7 @@ internal sealed class KeyboardInput
         UiDetailRequested = Pressed(ControlAction.Card);
         UiConfirmRequested = Pressed(ControlAction.Confirm);
         UiCancelRequested = Pressed(ControlAction.Cancel);
-        CancelHeld = Down(ControlAction.Cancel);
+        CancelHeld = !NativeButtonsOwnInput && Down(ControlAction.Cancel);
         if (CancelHeld)
         {
             CancelBindingHint = effectiveMatches.First(match => match.Action == ControlAction.Cancel).Chord.FormatDisplayName(ControllerPresentation);
@@ -244,7 +257,7 @@ internal sealed class KeyboardInput
         previousActive = active;
         hasSampledInput = true;
         profileChanged = false;
-        return input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal), CardChallenge = UiDetailRequested };
+        return NativeButtonsOwnInput ? default : input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal), CardChallenge = UiDetailRequested };
     }
 
     private static bool IsArrowKey(Keys key) => key is Keys.Up or Keys.Down or Keys.Left or Keys.Right;
