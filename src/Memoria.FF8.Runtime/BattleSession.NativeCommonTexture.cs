@@ -37,6 +37,15 @@ public sealed partial class BattleSession
             QueueNativeFileIo482610(resource.Data.Length, 0x508470);
             return;
         }
+        if (destination == NativeBattleEffect321PacketArena.FirstAddress)
+        {
+            NativeBattleEffectMemory retained = NativeEffectMemory ?? throw new NotSupportedException("Effect321 texture restore requires its current process memory.");
+            NativeBattleEffect321State state = retained.Effect321 ?? throw new NotSupportedException("Effect321 texture restore requires its physical destination.");
+            NativeEffectIoResult = -1;
+            NativeEffectMemory = retained with { Effect321 = state.Write(destination, resource.Data.AsSpan()) };
+            QueueNativeFileIo482610(resource.Data.Length, 0x508470);
+            return;
+        }
         int offset = CommonTextureOffset(destination);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native5084B0 requires its current destination memory.");
         NativeEffectIoResult = -1;
@@ -63,6 +72,12 @@ public sealed partial class BattleSession
         if (source == 0x24224D4)
         {
             (textures, _) = textures.EnqueueArenaTim505E30((memory.UltraWaves154 ?? throw new NotSupportedException("Native Ultra Waves texture restore lost its private TIM bytes.")).Packets, 0);
+            NativeEffectMemory = memory with { Textures = textures };
+            return;
+        }
+        if (source == NativeBattleEffect321PacketArena.FirstAddress)
+        {
+            (textures, _) = textures.EnqueueArenaTim505E30((memory.Effect321 ?? throw new NotSupportedException("Effect321 texture restore requires its actual mutable TIM bytes.")).ReadView(source, NativeBattleEffect321PacketArena.BankLength), 0);
             NativeEffectMemory = memory with { Textures = textures };
             return;
         }
