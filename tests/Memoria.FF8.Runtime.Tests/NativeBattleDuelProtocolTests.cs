@@ -6,6 +6,25 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuelProtocolTests
 {
+    [Fact]
+    public void PresentationConsumesOneSixtiethAndPreservesFractionalTimeAcrossJson()
+    {
+        BattleSession session = Fixture();
+        States(session).Add("party", new(0, 8, 400, 1, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254 });
+        session.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(83333), 0);
+        Assert.Equal(1, States(session)["party"].RemainingTimer);
+        BattleSession cold = Fixture();
+        States(cold).Add("party", JsonSerializer.Deserialize<BattleNativeDuelState>(JsonSerializer.Serialize(States(session)["party"]))!);
+        foreach (BattleSession current in new[] { session, cold })
+        {
+            current.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(83334), 0);
+            Assert.Equal(0, States(current)["party"].RemainingTimer);
+            Assert.Equal(BattleNativeDuelPhase.Finisher, States(current)["party"].Phase);
+            Assert.Equal((byte)255, States(current)["party"].Selection1D28DEF);
+        }
+        Assert.Equal(JsonSerializer.Serialize(States(session)["party"]), JsonSerializer.Serialize(States(cold)["party"]));
+    }
+
     [Theory]
     [InlineData(3, 2, BattleNativeDuelPhase.AwaitingEffect)]
     [InlineData(17, 7, BattleNativeDuelPhase.Finisher)]

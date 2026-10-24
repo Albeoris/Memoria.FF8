@@ -70,6 +70,11 @@ internal sealed partial class BattleHudElement : UiElement
             }
             return;
         }
+        if (controller.NativeDuelState is { } duel)
+        {
+            DrawNativeDuel(canvas, theme, duel);
+            return;
+        }
         if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(240, 12, 480, 84));

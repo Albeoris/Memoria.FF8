@@ -24,6 +24,7 @@ public sealed record BattleNativeDuelState(byte MoveSetId, ushort TargetMask, sh
 
 public sealed partial class BattleSession
 {
+    public const int NativeDuelTicksPerSecond = 60;
     private readonly Dictionary<string, BattleNativeDuelState> nativeDuelProcesses = new(StringComparer.Ordinal);
 
     public BattleNativeDuelState? GetNativeDuel(string actorId)
@@ -240,8 +241,8 @@ public sealed partial class BattleSession
         (string actorId, BattleNativeDuelState state) = nativeDuelProcesses.Single();
         ushort pulse = (ushort)(heldButtons & ~state.PreviousButtons);
         ushort pending = state.Phase == BattleNativeDuelPhase.Ready ? (ushort)(state.PendingPulse | pulse) : (ushort)0;
-        //TODO(TD-009): Native UI callbacks currently use the host30Hz presentation clock; preserve its fractional owner independently of gameplay ticks.
-        long ticks = state.UiSubframeTicks + elapsed.Ticks * FramesPerSecond;
+        // TODO(TD-009): Project nominal timer units onto elapsed time until the original widget publication scheduler is owned.
+        long ticks = state.UiSubframeTicks + elapsed.Ticks * NativeDuelTicksPerSecond;
         int frames = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeDuelProcesses[actorId] = state with { PreviousButtons = heldButtons, PendingPulse = frames == 0 ? pending : (ushort)0, UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };
         if (frames != 0)

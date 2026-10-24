@@ -72,8 +72,12 @@ public sealed class BattleHudNativeCommandTests
         Assert.Equal(queued, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queued)!).Capture()));
     }
 
-    [Fact]
-    public void Duel_displays_current_native_bindings_and_accepts_raw_edges_without_advancing_gameplay()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Duel_displays_current_native_bindings_and_accepts_raw_edges_without_advancing_gameplay(bool vector, bool hiddenCommands)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -91,14 +95,47 @@ public sealed class BattleHudNativeCommandTests
         }
         Assert.Equal(BattleNativeDuelPhase.Ready, session.GetNativeDuel("zell")!.Phase);
         BattleNativeDuelChoice choice = session.GetNativeDuelChoices("zell").First(candidate => candidate.Learned);
+        hud.SetNativeCommandButtons(hiddenCommands ? (ushort)0x100 : (ushort)0);
+        Assert.Equal(hiddenCommands, hud.CommandMenuHidden);
+        Assert.Null(hud.SelectedActor);
         string before = JsonSerializer.Serialize(session.Capture());
 
+        UiView view = hud.BuildView();
         hud.BuildView();
-        hud.BuildView();
+        BattleUiTests.TestCanvas canvas = new();
+        UiTheme theme = vector ? new VectorUiTheme() : new UiTheme();
+        view.Draw(canvas, theme);
 
         Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
         Assert.Empty(hud.Commands);
         Assert.Contains(choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => ButtonPromptText.Mark($"Key{button:X4}"))), hud.ChoiceLabels);
+        Assert.Contains(choice.Name, canvas.Texts);
+        foreach (ushort button in choice.Buttons)
+        {
+            Assert.Contains(ButtonPromptText.Mark($"Key{button:X4}"), canvas.Texts);
+        }
+        int remaining = session.GetNativeDuel("zell")!.RemainingTimer;
+        AssertDuelTimer(canvas, remaining);
+        Assert.Empty(canvas.Pointers);
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_RESULT_UI_OUTPUT");
+        if (output is not null)
+        {
+            Directory.CreateDirectory(output);
+            using System.Drawing.Bitmap bitmap = new(1920, 1080);
+            using (BattlePreviewCanvas preview = new(bitmap, game.GameDirectory))
+            {
+                view.Resize(bitmap.Width, bitmap.Height);
+                view.Draw(preview, theme);
+            }
+            bitmap.Save(Path.Combine(output, $"duel-{(vector ? "vector" : "classic")}-{hiddenCommands}.png"), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        view.Resize(960, 672);
+        session.AdvanceNativeDuelUi();
+        canvas = new();
+        view.Draw(canvas, theme);
+        remaining--;
+        Assert.Equal(remaining, session.GetNativeDuel("zell")!.RemainingTimer);
+        AssertDuelTimer(canvas, remaining);
         long gameplayFrame = session.Frame;
         foreach (ushort button in choice.Buttons)
         {
@@ -109,6 +146,27 @@ public sealed class BattleHudNativeCommandTests
         Assert.Equal(gameplayFrame, session.Frame);
         Assert.Equal((ushort)choice.ActionId, Assert.Single(session.QueuedActions).NativeAction!.ActionId);
         Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, session.GetNativeDuel("zell")!.Phase);
+        before = JsonSerializer.Serialize(session.Capture());
+        canvas = new();
+        view.Draw(canvas, theme);
+        AssertDuelTimer(canvas, session.GetNativeDuel("zell")!.RemainingTimer);
+        Assert.DoesNotContain(choice.Name, canvas.Texts);
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+    }
+
+    private static void AssertDuelTimer(BattleUiTests.TestCanvas canvas, int remaining)
+    {
+        int seconds = remaining / 60;
+        int hundredths = 100 * (remaining % 60) / 60;
+        (UiImageSource Source, UiRect Bounds)[] expected =
+        [
+            (new(UiImageKind.Icon, 111), new(777, 525, 72, 24)),
+            (new(UiImageKind.Icon, 56 + seconds / 10), new(777, 558, 45, 96)),
+            (new(UiImageKind.Icon, 56 + seconds % 10), new(825, 558, 45, 96)),
+            (new(UiImageKind.Icon, 56 + hundredths / 10), new(876, 588, 24, 48)),
+            (new(UiImageKind.Icon, 56 + hundredths % 10), new(900, 588, 24, 48))
+        ];
+        Assert.Equal(expected, canvas.Images);
     }
 
     [Fact]
