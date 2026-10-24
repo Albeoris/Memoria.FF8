@@ -11,6 +11,13 @@ public sealed record NativeBattleQuezacotlPathStep(NativeBattleEffectMemory Memo
 /// <summary>6C7800's four source steps, same-pass recursive producers, row decay, draw and head trimming.</summary>
 public static class NativeBattleQuezacotlPathCallbacks
 {
+    public static uint ResolveInitialOutlineDirection(NativeBattleExecutionStack stack, byte entryLifecycle)
+    {
+        //67AB70 saves its local vector pointer before6C3940 and the secondary pool passes.
+        //Its saved argument aliases6C79A0's direction scratch;6C8850 enters12 bytes below that vector.
+        return NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(stack, entryLifecycle).AddressAtOffset(12);
+    }
+
     public static NativeBattleQuezacotlPathStep Advance6C7800(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleEffectTaskPool pool, int index, NativeBattleLogicalOrdering ordering, NativeBattleCameraProjection projection, ImmutableArray<int?> incomingDepthFifo4 = default, uint? incomingOutlineDirectionDword = null)
     {
         NativeBattleQuezacotlPathResources? resources = effect.Binding.NativeQuezacotlResources?.Paths;

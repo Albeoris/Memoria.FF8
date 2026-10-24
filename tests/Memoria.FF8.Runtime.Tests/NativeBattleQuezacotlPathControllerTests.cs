@@ -217,9 +217,10 @@ public sealed class NativeBattleQuezacotlPathControllerTests
     }
 
     [Theory]
+    [InlineData(0, 0x001A5064u)]
     [InlineData(1, 0u)]
     [InlineData(2, 0x0211BD34u)]
-    public void Preceding_particle_saved_EDI_initializes_degenerate_paused_paths_and_restores_identically(int particleCount, uint expected)
+    public void Earlier_frame_stack_writes_initialize_degenerate_paused_paths_and_restore_identically(int particleCount, uint expected)
     {
         var (memory, effect, paths) = Fixture();
         NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
@@ -233,6 +234,8 @@ public sealed class NativeBattleQuezacotlPathControllerTests
             (particles, _) = particles.Append(0x6C7EA0);
         }
         var pass = NativeBattleQuezacotlParticleCallbacks.AdvancePool(particles, (current, _) => new(current, 0));
+        NativeBattleExecutionStack stack = new(0x1A50DC, 0x569C3D, NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('A', 64), 1, 1);
+        uint direction = pass.PathOutlineDirectionDword ?? NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(stack, 4);
         NativeBattleQuezacotlPathStep actual = Continue(memory, effect);
         NativeBattleQuezacotlPathStep restored = Continue(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!, JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(effect))!);
         Assert.Equal(expected, actual.FinalOutlineDirectionDword);
@@ -241,7 +244,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
 
         NativeBattleQuezacotlPathStep Continue(NativeBattleEffectMemory currentMemory, NativeBattleOriginalEffectState currentEffect)
         {
-            return NativeBattleQuezacotlPathCallbacks.Advance6C7800(currentMemory, currentEffect, currentEffect.Pools[0], 0, NativeBattleLogicalOrdering.Clear(), new(null, 216, 160, 108), default, pass.PathOutlineDirectionDword);
+            return NativeBattleQuezacotlPathCallbacks.Advance6C7800(currentMemory, currentEffect, currentEffect.Pools[0], 0, NativeBattleLogicalOrdering.Clear(), new(null, 216, 160, 108), default, direction);
         }
     }
 

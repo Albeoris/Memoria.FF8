@@ -24,6 +24,16 @@ public sealed class NativeBattleExecutionStackTests
     }
 
     [Fact]
+    public void Quezacotl_empty_preceding_pools_retain_the_current_normalizer_argument_after_restore()
+    {
+        NativeBattleExecutionStack profile = Profile();
+        NativeBattleExecutionStack independent = JsonSerializer.Deserialize<NativeBattleExecutionStack>(JsonSerializer.Serialize(profile))!;
+        Assert.Equal(0x1A5064u, NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent, 4));
+        Assert.Equal(0x1B5064u, NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent with { FrameCallbackEsp = independent.FrameCallbackEsp + 0x10000 }, 4));
+        Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent, 1));
+    }
+
+    [Fact]
     public void Cdecl_keeps_saved_registers_and_pending_arguments_distinct_at_every_actual_callsite()
     {
         NativeBattleStackFrame battleFrame = Profile().ReadCommonFrame();

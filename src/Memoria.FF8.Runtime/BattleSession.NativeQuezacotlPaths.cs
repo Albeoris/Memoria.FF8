@@ -14,6 +14,10 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (incomingOutlineDirectionDword is null && memory.ExecutionStack is { } stack)
+        {
+            incomingOutlineDirectionDword = NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(stack, graphics.EntryLifecycle);
+        }
         using NativeBattleEffectArenaTransaction transaction = new(memory.Arena ?? throw new NotSupportedException("Native secondary pool requires its retained arena."));
         using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Native secondary pool requires its retained ordering frame.")).Pending);
         memory = memory with { Arena = transaction.View };

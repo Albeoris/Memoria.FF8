@@ -22,7 +22,8 @@ public sealed class NativeBattleExecutionStackMigrationTests
         BattleAtbMode mode = battle.Mode;
         TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
-        for (int frame = 0; frame < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); frame++)
+        bool activeSummon = battle.NativeGraphics?.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 };
+        for (int frame = 0; !activeSummon && frame < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); frame++)
         {
             battle.AdvanceNativeGraphicsPresentation(elapsed);
             world.SynchronizeBattlePresentation();
@@ -33,9 +34,12 @@ public sealed class NativeBattleExecutionStackMigrationTests
             }
         }
         int completed = battle.Events.Count(item => item.Kind == "ActionComplete");
-        BattleCombatant caster = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0));
-        BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive);
-        world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: caster.Id, TargetId: target.Id, Ability: BattleAbility.GuardianForce, ActionId: 0));
+        if (!activeSummon)
+        {
+            BattleCombatant caster = battle.Combatants.First(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0));
+            BattleCombatant target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive);
+            world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: caster.Id, TargetId: target.Id, Ability: BattleAbility.GuardianForce, ActionId: 0));
+        }
         bool materialized = false;
         bool restored = false;
         try
