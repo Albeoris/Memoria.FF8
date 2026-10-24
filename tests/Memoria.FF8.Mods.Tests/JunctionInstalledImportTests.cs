@@ -4,6 +4,31 @@ namespace Memoria.FF8.Mods.Tests;
 
 public sealed class JunctionInstalledImportTests
 {
+    [Fact]
+    public void OptionalInstalledWrapperDirectoriesLoadWithoutLooseManifests()
+    {
+        string? catalogPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_FIXTURE_CATALOG");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(catalogPath) && File.Exists(catalogPath), "Configure an optional external fixture catalog.");
+        Dictionary<string, string> catalog = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(catalogPath)) ?? throw new InvalidDataException("External fixture catalog must contain an object.");
+        Assert.SkipUnless(catalog.TryGetValue("junction-installed-mods-directory", out string? configured), "External fixture catalog has no installed wrapper directory.");
+        string modsDirectory = Path.GetFullPath(configured!, Path.GetDirectoryName(Path.GetFullPath(catalogPath))!);
+        Assert.True(Directory.Exists(Path.Combine(modsDirectory, "Junction")));
+        using ModRuntime runtime = new(watch: false, modsDirectory: modsDirectory);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        ModPackage[] packages = runtime.Catalog.Packages.Where(package => package.Format == ModFormat.Junction).ToArray();
+        Assert.NotEmpty(packages);
+        Assert.Contains(packages, package => package.Id.Count(character => character == '/') > 1);
+        Assert.All(packages, package =>
+        {
+            Assert.Equal(ModEffectiveStatus.Active, package.Status);
+            Assert.True(File.Exists(package.RootDirectory));
+            Assert.Contains(runtime.Catalog.Files, file => file.PackageId == package.Id);
+            Console.WriteLine($"junction-installed=Active id={package.Id} name={package.Name}");
+        });
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-import-failed");
+    }
+
     [Theory]
     [InlineData("junction-video-base")]
     [InlineData("junction-video-layer")]

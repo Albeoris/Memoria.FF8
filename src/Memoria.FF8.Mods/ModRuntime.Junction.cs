@@ -10,11 +10,11 @@ public sealed partial class ModRuntime
     private void DiscoverJunction(bool nextAutoEnable, List<ModPackage> packages, List<ModFile> files, List<ModDiagnostic> notices, List<string> identities, HashSet<string> visitedFiles)
     {
         HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
-        IEnumerable<string> roots = ModsDirectories.Select(directory => Path.Combine(directory, "Junction")).Where(Directory.Exists).SelectMany(directory => Directory.EnumerateFileSystemEntries(directory).Where(path => Directory.Exists(path) || path.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase)).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase);
-        foreach (string root in roots)
+        IEnumerable<(string Root, string Name)> roots = ModsDirectories.Select(directory => Path.Combine(directory, "Junction")).Where(Directory.Exists).SelectMany(directory => EnumerateJunctionRoots(directory).Select(path => (Root: path, Name: Path.GetRelativePath(directory, path).Replace('\\', '/')))).OrderBy(package => package.Name, StringComparer.OrdinalIgnoreCase);
+        foreach ((string root, string relativeName) in roots)
         {
             string name = Path.GetFileName(root);
-            string id = $"Junction/{name}";
+            string id = $"Junction/{relativeName}";
             if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             {
                 notices.Add(new("package-link-rejected", "Junction package roots must not be links.", id));
@@ -98,6 +98,46 @@ public sealed partial class ModRuntime
             packages.Add(new(id, name, ModFormat.Junction, explicitEnabled, requested, status, root) { JunctionMetadata = manifestMetadata });
         }
         ApplyJunctionRelationships(packages, files, notices);
+    }
+
+    private static IEnumerable<string> EnumerateJunctionRoots(string directory)
+    {
+        foreach (string path in Directory.EnumerateFileSystemEntries(directory).OrderBy(path => Path.GetFileName(path), PathOrder))
+        {
+            if (!Directory.Exists(path))
+            {
+                if (path.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return path;
+                }
+                continue;
+            }
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0)
+            {
+                string[] files;
+                try
+                {
+                    files = Directory.GetFiles(path);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    files = [];
+                }
+                if (!files.Any(file => Path.GetFileName(file).Equals("mod.xml", StringComparison.OrdinalIgnoreCase)))
+                {
+                    string[] archives = files.Where(file => file.EndsWith(".iroj", StringComparison.OrdinalIgnoreCase)).OrderBy(file => Path.GetFileName(file), PathOrder).ToArray();
+                    if (archives.Length > 0)
+                    {
+                        foreach (string archive in archives)
+                        {
+                            yield return archive;
+                        }
+                        continue;
+                    }
+                }
+            }
+            yield return path;
+        }
     }
 
     private static void ApplyJunctionRelationships(List<ModPackage> packages, List<ModFile> files, List<ModDiagnostic> notices)

@@ -59,6 +59,44 @@ public sealed class JunctionRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void WrapperDirectoriesDiscoverArchivesWithIndependentSettingsAndRefresh()
+    {
+        string first = Path.Combine(root, "Mods", "Junction", "Download", "First.iroj");
+        string second = Path.Combine(root, "Mods", "Junction", "Download", "Second.IROJ");
+        WriteArchive(first, ("mod.xml", Metadata("First")), ("Assets/movies/intro.cam", "first"));
+        WriteArchive(second, ("mod.xml", Metadata("Second")), ("Assets/movies/intro.cam", "second"));
+        Write("Junction/Download/complete.json", "{}");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        Assert.Equal(new[] { "Junction/Download/First.iroj", "Junction/Download/Second.IROJ" }, runtime.Catalog.Packages.Select(package => package.Id));
+        Assert.All(runtime.Catalog.Packages, package => Assert.Equal(ModEffectiveStatus.Active, package.Status));
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-import-failed");
+        ModFile old = runtime.Catalog.Files.First(file => file.PackageId.EndsWith("First.iroj", StringComparison.Ordinal));
+        Assert.True(runtime.SetEnabled("Junction/Download/Second.IROJ", false).Success);
+        Publish(runtime);
+        Assert.Contains("enabled = 0", File.ReadAllText(second + ".ini"));
+        Assert.Equal("first", Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        WriteArchive(first, ("mod.xml", Metadata("First")), ("Assets/movies/intro.cam", "updated first"));
+        Assert.Throws<IOException>(() => old.CopyTo(new MemoryStream()));
+        runtime.RequestRefresh();
+        Publish(runtime);
+        Assert.Equal("updated first", Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        Assert.False(runtime.Catalog.Packages.Single(package => package.Id.EndsWith("Second.IROJ", StringComparison.Ordinal)).RequestedEnabled);
+    }
+
+    [Fact]
+    public void UnpackedManifestTakesPrecedenceOverArchivesInsideThePackage()
+    {
+        WritePackage("Unpacked", "Unpacked");
+        Write("Junction/Unpacked/Assets/movies/intro.cam", "unpacked");
+        WriteArchive(Path.Combine(root, "Mods", "Junction", "Unpacked", "Backup.iroj"), ("mod.xml", Metadata("Backup")), ("Assets/movies/intro.cam", "backup"));
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        Assert.Equal("Junction/Unpacked", Assert.Single(runtime.Catalog.Packages).Id);
+        Assert.Equal("unpacked", Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+    }
+
+    [Fact]
     public void RootsAreDeduplicatedAndGamePackagesWinInNameOrder()
     {
         string game = Path.Combine(root, "game");
