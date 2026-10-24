@@ -48,62 +48,12 @@ public static partial class NativeBattleGravija214Controller
                 rows[corner] = ReadBytes(frame, row, 12);
                 context = NativeBattleEffectNodeContextMemory.Copy(rows[corner], 0, context, 24 + corner * 12, 12);
             }
-            int commonClip = 255;
-            foreach (NativeBattleEffectArena row in rows)
+            NativeBattleScreenMeshFace drawn = NativeBattleScreenMeshPackets.EmitFace(frame.Memory, frame.State.ReadView(cursor, quad ? 24 : 20), rows.ToImmutableArray(), quad, textured, textured ? unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(context.Read(8, 4))) : 0, textured ? unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(context.Read(12, 4))) : 0, bucket, inputs.Colors);
+            frame = frame with { Memory = drawn.Memory };
+            if (drawn.Attempt is { } attempt)
             {
-                commonClip &= row.Read(8, 1)[0];
-            }
-            if (!textured || commonClip == 0)
-            {
-                int length = textured ? (quad ? 40 : 32) : (quad ? 36 : 28);
-                byte[] bytes = new byte[length];
-                NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[length];
-                void Store(int offset, ReadOnlySpan<byte> data)
-                {
-                    data.CopyTo(bytes.AsSpan(offset));
-                    Array.Fill(mask, NativeBattleGfPacketByteState.Known, offset, data.Length);
-                }
-                void Dword(int offset, uint value) => Store(offset, BitConverter.GetBytes(value));
-                Dword(0, (uint)(length / 4 - 1) << 24);
-                if (textured)
-                {
-                    Dword(4, quad ? 0x2E808080u : 0x26808080u);
-                    int u0 = BinaryPrimitives.ReadUInt16LittleEndian(rows[0].Read(4, 2));
-                    int ubase = u0 & 0xC0;
-                    int x = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(context.Read(8, 4)) + u0);
-                    int y = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(context.Read(12, 4)));
-                    ushort page = unchecked((ushort)(((x >> 6) & 15) | (((y & 0x200) | 0x40) << 2) | ((y >> 4) & 0x10)));
-                    Store(22, BitConverter.GetBytes(page));
-                    for (int corner = 0; corner < corners; corner++)
-                    {
-                        Dword(8 + corner * 8, BinaryPrimitives.ReadUInt32LittleEndian(rows[corner].Read(0, 4)));
-                        byte u = unchecked((byte)(BinaryPrimitives.ReadUInt16LittleEndian(rows[corner].Read(4, 2)) - ubase));
-                        byte v = rows[corner].Read(6, 1)[0];
-                        Store(12 + corner * 8, new byte[] { u, v });
-                    }
-                }
-                else
-                {
-                    NativeBattleScriptedColorRegisters colors = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Gravija color pass requires its current arithmetic owner.");
-                    NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Gravija color pass requires its current far-color owner.");
-                    NativeBattleModelRendererRegisters far = process.ModelRendererRegisters ?? throw new NotSupportedException("Gravija color pass requires its current far-color controls.");
-                    uint cue = colors.Ir0 ?? throw new NotSupportedException("Gravija color pass requires its current IR0.");
-                    for (int corner = 0; corner < corners; corner++)
-                    {
-                        uint color = frame.State.ReadDword(cursor + (uint)(corner == 0 ? 0 : 8 + corner * 4));
-                        colors = NativeBattleScriptedDpcs.Transform45F270(colors, color, cue, far, inputs.Colors).Registers;
-                        uint shaded = colors.Rgb[2] ?? throw new InvalidDataException("Gravija DPCS did not publish RGB2.");
-                        if (corner == 0)
-                        {
-                            shaded = (shaded & 0xFFFFFF) | (quad ? 0x3A000000u : 0x32000000u);
-                        }
-                        Dword(4 + corner * 8, shaded);
-                        Dword(8 + corner * 8, BinaryPrimitives.ReadUInt32LittleEndian(rows[corner].Read(4, 4)));
-                    }
-                    frame = frame with { Memory = frame.Memory with { ScriptedColorRegisters = colors } };
-                }
                 frame = PublishContext(frame, temporary, context, 72);
-                frame = Deliver214(frame, inputs, bytes, mask, bucket, 1);
+                frame = Deliver214(frame, inputs, attempt.Data.ToArray(), attempt.WriteMask.ToArray(), bucket, 1);
             }
             cursor += (uint)(quad ? 24 : 20);
             context = context.Write(16, BitConverter.GetBytes(cursor));

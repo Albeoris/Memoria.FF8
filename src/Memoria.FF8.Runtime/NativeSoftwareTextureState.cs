@@ -36,10 +36,8 @@ public static class NativeSoftwareTexturePreparation
         ArgumentNullException.ThrowIfNull(state);
         ushort encoded = (ushort)(clut & 0x7FFF);
         int offset = encoded * 32;
-        if (imageLength < 0 || offset + 512L > imageLength)
-        {
-            throw new NotSupportedException("Native software CLUT requires its complete256-entry palette inside the actual image owner.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(imageLength);
+        // Pointer preparation does not read palette entries; indexed spans validate their actual reads.
         return state with { EncodedClut = encoded, PaletteByteOffset = offset, PalettePointerIsNull = false };
     }
 }

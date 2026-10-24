@@ -75,6 +75,21 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
     }
 
     [Fact]
+    public void NormalDirectColorPreparationRetainsTheUnusedClutPointerAcrossJsonRestore()
+    {
+        NativeBattleSoftwarePrimitiveExecution original = Capture();
+        NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.SetOrigin45B5E0(original.State.Environment, 0, 0);
+        NativeBattleSoftwarePrimitiveState state = JsonSerializer.Deserialize<NativeBattleSoftwarePrimitiveState>(JsonSerializer.Serialize(original.State with { Environment = environment, ViewportInputs = new(640, 480, 0, 0) }))!;
+        NativeBattleSoftwarePrimitiveExecution execution = new(state, original.Textures, Table(), true, original.Cache!);
+        NativeBattleLogicalCommand command = new(new("test", 0, 0), 1, 0x24, [0x24000000, 0, 0xFFFF0000, 0, 0x011C0000, 0, 0], 1, [], null);
+        execution.ExecuteNormal(command, new(0x11C), 1);
+        Assert.Equal<int?>(2, execution.State.Texture.Depth);
+        Assert.Equal<ushort?>(0x7FFF, execution.State.Texture.EncodedClut);
+        Assert.Equal<int?>(1048544, execution.State.Texture.PaletteByteOffset);
+        Assert.False(execution.State.Texture.PalettePointerIsNull);
+    }
+
+    [Fact]
     public void StateCommandsPublishTheSameRawDrawEnvironmentAndPreserveItsOtherBytes()
     {
         NativeBattleSoftwarePrimitiveExecution execution = Capture();

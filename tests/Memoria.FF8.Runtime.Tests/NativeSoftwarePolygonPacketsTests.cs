@@ -112,7 +112,7 @@ public sealed class NativeSoftwarePolygonPacketsTests
     }
 
     [Fact]
-    public void Depth3DiagnosticOccursOnlyOnChangedPageAndClutUsesMaskedWordAndCompleteActualOwner()
+    public void Depth3DiagnosticOccursOnlyOnChangedPageAndClutPreparationRetainsTheMaskedPointerWithoutReadingIt()
     {
         NativeSoftwareTexturePagePreparation prepared = NativeSoftwareTexturePreparation.PrepareTPage45B960(Cache(), 0x180);
         Assert.True(prepared.Depth3Diagnostic);
@@ -121,7 +121,26 @@ public sealed class NativeSoftwarePolygonPacketsTests
         NativeSoftwareTextureState clut = NativeSoftwareTexturePreparation.PrepareClut45B920(prepared.State, 0x8001, 1024);
         Assert.Equal<ushort?>(1, clut.EncodedClut);
         Assert.Equal<int?>(32, clut.PaletteByteOffset);
-        Assert.Throws<NotSupportedException>(() => NativeSoftwareTexturePreparation.PrepareClut45B920(clut, 0x7FFF, 1024 * 1024));
+        NativeSoftwareTextureState edge = NativeSoftwareTexturePreparation.PrepareClut45B920(clut, 0xFFFF, 1024 * 1024);
+        Assert.Equal<ushort?>(0x7FFF, edge.EncodedClut);
+        Assert.Equal<int?>(1048544, edge.PaletteByteOffset);
+        Assert.False(edge.PalettePointerIsNull);
+    }
+
+    [Fact]
+    public void DirectColorDrawingRetainsUnusedClutAndIndexedDrawingRejectsAnActualOutOfOwnerPaletteRead()
+    {
+        byte[] packet = VisibleTriangle(0x24);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0xE), 0xFFFF);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0x16), 0x100);
+        byte[] image = Image();
+        NativeSoftwarePolygonPacketDraw direct = Draw(image, Cache(), 0x24, packet);
+        Assert.Equal<int?>(2, direct.Texture.Depth);
+        Assert.Equal<ushort?>(0x7FFF, direct.Texture.EncodedClut);
+        Assert.Equal<int?>(1048544, direct.Texture.PaletteByteOffset);
+        Assert.Contains(image.AsSpan(4 * 2048).ToArray(), value => value != 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0x16), 0x80);
+        Assert.Throws<NotSupportedException>(() => Draw(Image(), Cache(), 0x24, packet));
     }
 
     [Theory]
