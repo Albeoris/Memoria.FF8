@@ -31,7 +31,9 @@ public sealed partial class BattleSession
         staging = staging.Write(copy.Destination, Read(copy.Source, copy.Length));
         NativeFileStaging = staging;
         byte[] currentFile = Read(loadedFile, resources.ReadFile(37).Data.Length);
-        NativeBattleStageSource decoded = (resources.DecodeReloadStage ?? throw new NotSupportedException("Native stage reload requires its current byte decoder."))(currentFile);
+        // Decoder code belongs to the host; the active source bytes remain in the current arena.
+        Func<byte[], NativeBattleStageSource> decode = resources.DecodeReloadStage ?? nativeEffectResourceResolver?.Invoke(NativeBattleEffect69Profile.Effect).Effect69Resources?.DecodeReloadStage ?? throw new NotSupportedException("Native stage reload requires its host byte decoder.");
+        NativeBattleStageSource decoded = decode(currentFile);
         stage = stage.Reload512AC0(index, decoded);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native stage reload requires its current scratch capacity.");
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native stage reload requires its retained scratch maximum.");

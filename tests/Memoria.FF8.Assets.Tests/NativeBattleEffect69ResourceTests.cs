@@ -95,6 +95,22 @@ public sealed class NativeBattleEffect69ResourceTests
         Assert.Throws<NotSupportedException>(() => resources.ReadFile(38));
     }
 
+    [Fact]
+    public void Selected_catalog_retains_resources_for_the_empty_RET_initializer()
+    {
+        using GameAssets game = Open();
+        NativeBattleEffect69Resources resources = game.ReadNativeEffect69Resources();
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([69])[68];
+        Assert.Equal(Entry, binding.Entry);
+        Assert.Equal(Initializer, binding.Initializer);
+        Assert.True(binding.InitializerIsRet);
+        Assert.Null(binding.InitializerAsset);
+        Assert.Null(binding.InitializerResource);
+        Assert.Same(resources, binding.Effect69Resources);
+        Assert.NotNull(binding.Effect69Resources!.DecodeReloadStage);
+        Assert.Same(resources.StageFile37, binding.Effect69Resources.ReadFile(37));
+    }
+
     private static GameAssets Open()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");

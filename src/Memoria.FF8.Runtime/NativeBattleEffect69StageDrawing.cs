@@ -51,10 +51,9 @@ public static class NativeBattleEffect69StageDrawing
                 for (int index = start; index < vertex; index++)
                 {
                     uint row = checked(source.ScratchAddress + (uint)(index * 16));
-                    NativeBattleVector point = Vector(Staging(frame).Read(row + 8, 6));
-                    (byte[] wBytes, bool[] wKnown) = Staging(frame).ReadSnapshot(row + 14, 2);
-                    short? w = wKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(wBytes) : null;
-                    registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, point, w), inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
+                    (byte[] packedVector, bool[] vectorKnown) = Staging(frame).ReadSnapshot(row + 8, 8);
+                    registers = registers with { Colors = registers.Colors with { NormalInput = packedVector.ToImmutableArray(), NormalInputKnown = vectorKnown.ToImmutableArray() } };
+                    registers = NativeBattleGeometry.ProjectSingle(registers, inputs.ReadProjection(frame), controls.Dqa, controls.Dqb);
                     uint screen = registers.Geometry.Sxy[2] ?? throw new NotSupportedException("Effect69 stage projection requires its current SXY2.");
                     ushort depth = unchecked((ushort)((registers.Geometry.Sz[3] ?? throw new NotSupportedException("Effect69 stage projection requires its current SZ3.")) >> 2));
                     context = Dword(Dword(context, 0x20, screen), 0x24, depth);

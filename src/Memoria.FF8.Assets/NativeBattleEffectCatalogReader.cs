@@ -584,6 +584,7 @@ public sealed partial class GameAssets
                     throw new InvalidDataException("Effect69 requires its original entry and empty initializer contract.");
                 }
                 binding = binding with { Effect69Resources = ReadNativeEffect69Resources() };
+                catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 79)
             {

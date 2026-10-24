@@ -128,6 +128,23 @@ public sealed class NativeBattleEffect69StageTests
     }
 
     [Fact]
+    public void Stage_projection_loads_each_retained_W_byte_with_its_actual_knownness()
+    {
+        Harness harness = new();
+        NativeBattleEffect69Frame frame = harness.Frame();
+        frame = frame with { Staging = frame.Staging!.Write(ScratchAddress + 2 * 16 + 14, [(byte)0xCA]) };
+        NativeBattleEffect69Frame result = NativeBattleEffect69StageDrawing.StageDraw6FF6E0(frame, 1, 0, 63, Metric, harness.Inputs()).Frame;
+        NativeBattleScriptedColorRegisters registers = result.Memory.ScriptedColorRegisters!;
+        Assert.Equal((byte)0xCA, registers.NormalInput!.Value[6]);
+        Assert.True(registers.NormalInputKnown!.Value[6]);
+        Assert.False(registers.NormalInputKnown.Value[7]);
+        (byte[] bytes, bool[] known) = result.Staging!.ReadSnapshot(ScratchAddress + 2 * 16 + 14, 2);
+        Assert.Equal((byte)0xCA, bytes[0]);
+        Assert.True(known[0]);
+        Assert.False(known[1]);
+    }
+
+    [Fact]
     public void Stage_scratch_and_source_indices_fail_at_the_actual_selected_bounds()
     {
         Harness harness = new();
