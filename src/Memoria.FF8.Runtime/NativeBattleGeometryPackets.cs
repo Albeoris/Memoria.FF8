@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGeometryPacket(int Bucket, NativeBattlePrimitivePacket Packet, ImmutableArray<int> VertexPayload4);
@@ -12,6 +13,8 @@ public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<ui
 /// <summary>50FDF0's original FT3/FT4 packet emission; inputs are original records, never float-renderer depth estimates.</summary>
 public static class NativeBattleGeometryPackets
 {
+    private static readonly ImmutableArray<NativeBattleGfPacketByteState> TriangleMask = PhysicalMask(false);
+    private static readonly ImmutableArray<NativeBattleGfPacketByteState> QuadMask = PhysicalMask(true);
     public static NativeBattleGeometryPacket? Emit50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, uint packetAddress, short? colorDepth36 = null, NativeBattleSummonColors? colorRules = null)
     {
         NativeBattleGeometryPrimitive? primitive = EmitRaw50FDF0(polygon, vertices, quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules);
@@ -29,7 +32,7 @@ public static class NativeBattleGeometryPackets
         ushort first = BinaryPrimitives.ReadUInt16LittleEndian(polygon);
         int bias = (first >> 12) - 8;
         int count = quad ? 4 : 3;
-        NativeBattleProjectedVertex[] corners = new NativeBattleProjectedVertex[count];
+        Span<NativeBattleProjectedVertex> corners = stackalloc NativeBattleProjectedVertex[4];
         BattleSceneScreenPoint[]? coordinates = projectedCoordinates is null ? null : new BattleSceneScreenPoint[count];
         if (projectedCoordinates is not null && projectedCoordinates.Count != vertices.Count)
         {
@@ -97,20 +100,26 @@ public static class NativeBattleGeometryPackets
             words[8] = corners[3].Screen;
             words[9] = BinaryPrimitives.ReadUInt16LittleEndian(polygon[18..]);
         }
-        ImmutableArray<int> depths = corners.Select(vertex => bias + vertex.Depth).ToImmutableArray();
-        if (!quad)
+        int[] depths = new int[4];
+        for (int corner = 0; corner < count; corner++)
         {
-            depths = depths.Add(0);
+            depths[corner] = bias + corners[corner].Depth;
         }
-        NativeBattleGfPacketByteState[] physicalMask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, words.Length * 4).ToArray();
-        physicalMask[30] = NativeBattleGfPacketByteState.Untouched;
-        physicalMask[31] = NativeBattleGfPacketByteState.Untouched;
+        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths)) { PhysicalWriteMask = quad ? QuadMask : TriangleMask, ProjectedCoordinates = coordinates is null ? null : ImmutableCollectionsMarshal.AsImmutableArray(coordinates) };
+    }
+
+    private static ImmutableArray<NativeBattleGfPacketByteState> PhysicalMask(bool quad)
+    {
+        NativeBattleGfPacketByteState[] mask = new NativeBattleGfPacketByteState[quad ? 40 : 32];
+        Array.Fill(mask, NativeBattleGfPacketByteState.Known);
+        mask[30] = NativeBattleGfPacketByteState.Untouched;
+        mask[31] = NativeBattleGfPacketByteState.Untouched;
         if (quad)
         {
-            physicalMask[38] = NativeBattleGfPacketByteState.Untouched;
-            physicalMask[39] = NativeBattleGfPacketByteState.Untouched;
+            mask[38] = NativeBattleGfPacketByteState.Untouched;
+            mask[39] = NativeBattleGfPacketByteState.Untouched;
         }
-        return new(checked(tableBaseBucket + (minDepth >> depthShift)), words.ToImmutableArray(), depths) { PhysicalWriteMask = physicalMask.ToImmutableArray(), ProjectedCoordinates = coordinates?.ToImmutableArray() };
+        return ImmutableCollectionsMarshal.AsImmutableArray(mask);
     }
 
     private static bool AcceptExpanded(BattleSceneScreenPoint a, BattleSceneScreenPoint b, BattleSceneScreenPoint c)

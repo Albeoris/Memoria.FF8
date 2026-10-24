@@ -27,7 +27,7 @@ public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference P
 public sealed record NativeBattleLogicalResolvedCommand(NativeBattleLogicalCommand Command, NativeBattlePrimitiveDrawMode DrawMode, byte Pass);
 
 /// <summary>45CC80/45C8E0/45C870 links using logical bank references with the same physical alias and capacity behavior.</summary>
-public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrimitiveLink> Table, ImmutableArray<NativeBattleLogicalProxy> Proxies, ImmutableArray<NativeBattleLogicalPacket> Packets) : IJsonOnSerializing
+public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrimitiveLink> Table, ImmutableArray<NativeBattleLogicalProxy> Proxies, ImmutableArray<NativeBattleLogicalPacket> Packets) : IJsonOnSerializing
 {
     [JsonIgnore]
     internal NativeBattleLogicalOrderingTransaction? Transaction { get; init; }
@@ -132,7 +132,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         private readonly ImmutableArray<NativeBattleLogicalProxy>.Builder proxies;
         private readonly ImmutableArray<NativeBattleLogicalPacket>.Builder packets;
         private readonly Dictionary<NativeBattlePrimitiveReference, int> packetIndices;
-        private readonly Dictionary<(string Bank, byte Buffer), SortedSet<(int Offset, int Index)>> packetRanges = [];
+        private readonly Dictionary<(string Bank, byte Buffer), PacketRangeIndex> packetRanges = [];
         private int maximumPacketBytes;
         private readonly byte tableBuffer;
         private readonly ImmutableArray<NativeBattlePrimitiveLink>? otherTable;
@@ -148,7 +148,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
         private readonly List<(int Index, NativeBattlePrimitiveLink Value)> tableUndo = [];
         private readonly List<(int Index, NativeBattleLogicalProxy Value)> proxyUndo = [];
         private readonly List<(int Index, NativeBattleLogicalPacket Value)> packetUndo = [];
-        private readonly List<(SortedSet<(int Offset, int Index)> Ranges, (int Offset, int Index) Value)> rangeUndo = [];
+        private readonly List<(PacketRangeIndex Ranges, (int Offset, int Index) Value)> rangeUndo = [];
 
         public Builder(NativeBattleLogicalOrdering source)
         {
@@ -196,14 +196,15 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
                 return;
             }
             reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
-            if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out SortedSet<(int Offset, int Index)>? ranges))
+            if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out PacketRangeIndex? ranges))
             {
                 return;
             }
             int minimum = Math.Max(0, reference.ByteOffset - maximumPacketBytes + 1);
             int maximum = checked(reference.ByteOffset + length - 1);
-            foreach ((int _, int index) in ranges.GetViewBetween((minimum, int.MinValue), (maximum, int.MaxValue)))
+            for (PacketRangeIndex.Node? node = ranges.FirstAtOrAfter((minimum, int.MinValue)); node is not null && node.Key.Offset <= maximum; node = ranges.Next(node))
             {
+                int index = node.Key.Index;
                 NativeBattleLogicalPacket packet = packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
                 if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
@@ -225,9 +226,9 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             }
             NativeBattlePrimitiveReference reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
             var key = (reference.Bank, reference.Buffer);
-            if (!packetRanges.TryGetValue(key, out SortedSet<(int Offset, int Index)>? ranges))
+            if (!packetRanges.TryGetValue(key, out PacketRangeIndex? ranges))
             {
-                ranges = [];
+                ranges = new();
                 packetRanges.Add(key, ranges);
             }
             if (ranges.Add((reference.ByteOffset, index)) && checkpointActive)
