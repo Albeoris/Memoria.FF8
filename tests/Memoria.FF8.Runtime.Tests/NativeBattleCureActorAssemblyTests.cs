@@ -5,6 +5,45 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCureActorAssemblyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Relocated_enemy_geometry_preserves_material_bytes_without_applying_the_original_row_map_again(bool cura)
+    {
+        var fixture = Fixture();
+        byte[] face = Mesh(11).Polygons[0].Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(10), 230 << 6);
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(14), 13);
+        face[7] = 145;
+        NativeBattleRawMesh mesh = Mesh(11) with { Polygons = [new(false, face.ToImmutableArray())] };
+        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [mesh], LinkedGeometry = [], GeometryRelocated507550 = true };
+        NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
+        NativeBattleCameraProjection projection = new(camera, 216, 20, 15);
+        NativeBattleCureActorPacketBatch batch = cura
+            ? NativeBattleCureActorAssembly.Emit88BDA0(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0)
+            : NativeBattleCureActorAssembly.Emit8D7110(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0);
+        NativeBattleGeometryPrimitive body = Assert.Single(batch.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process)).Primitive;
+        Assert.Equal((ushort)(230 << 6), (ushort)(body.Words[3] >> 16));
+        Assert.Equal((ushort)13, (ushort)(body.Words[5] >> 16));
+        Assert.Equal((byte)145, (byte)(body.Words[7] >> 8));
+        Assert.Equal(face, mesh.Polygons[0].Bytes.ToArray());
+        Assert.Throws<NotSupportedException>(() => Emit(fixture.Model, resource with { GeometryRelocated507550 = false }));
+    }
+
+    [Fact]
+    public void Relocated_body_keeps_separately_owned_linked_geometry_material_relocation()
+    {
+        var fixture = Fixture();
+        byte[] face = Mesh(11).Polygons[0].Bytes.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(10), 230 << 6);
+        NativeBattleRawMesh bodyMesh = Mesh(11) with { Polygons = [new(false, face.ToImmutableArray())] };
+        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [bodyMesh], LinkedGeometry = [Mesh(33)], LinkedGeometryUsesBodySkeleton = false, GeometryRelocated507550 = true };
+        NativeBattleCureAllocatedPrimitive[] body = Emit(fixture.Model, resource).Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process).ToArray();
+        Assert.Equal(2, body.Length);
+        Assert.Equal((ushort)(230 << 6), (ushort)(body[0].Primitive.Words[3] >> 16));
+        Assert.Equal((ushort)(226 << 6), (ushort)(body[1].Primitive.Words[3] >> 16));
+    }
+
     [Fact]
     public void Shared_weapon_replaces_body_directory_slot_one_and_keeps_its_distinct_material_binding()
     {

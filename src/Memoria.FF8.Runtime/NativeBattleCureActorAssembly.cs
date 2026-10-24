@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>8D8280 replaces the shared actor context's model pointer and target selector.</summary>
 public sealed record NativeBattleCureActorContext(byte Target);
 
-public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding);
+public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding, bool AlreadyRelocated = false);
 
 public static class NativeBattleCureActorAssembly
 {
@@ -32,13 +32,13 @@ public static class NativeBattleCureActorAssembly
         ImmutableArray<NativeBattleCureAllocatedPrimitive>.Builder result = ImmutableArray.CreateBuilder<NativeBattleCureAllocatedPrimitive>();
         foreach (NativeBattleCureActorGeometry geometry in SelectGeometry8D7110(model, resource, sequence.MeshMask124))
         {
-            Emit(geometry.Mesh, geometry.Binding);
+            Emit(geometry.Mesh, geometry.AlreadyRelocated ? null : geometry.Binding);
         }
         return new(result.ToImmutable(), processBytes, effectBytes);
 
         void Emit(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding)
         {
-            NativeBattleCureActorPacketBatch batch = NativeBattleCureActorPackets.Emit8D7430([mesh], bones, matrices.MainCamera, matrices.OverlayCamera, projection, 1, color, overlayColor, texture, contextF4 is short known ? unchecked((ushort)known) : null, binding ?? throw new NotSupportedException("Native8D7430 requires the executed507400 material relocation."), 17);
+            NativeBattleCureActorPacketBatch batch = NativeBattleCureActorPackets.Emit8D7430([mesh], bones, matrices.MainCamera, matrices.OverlayCamera, projection, 1, color, overlayColor, texture, contextF4 is short known ? unchecked((ushort)known) : null, binding, 17);
             foreach (NativeBattleCureAllocatedPrimitive allocation in batch.Primitives)
             {
                 int offset = allocation.Bank == NativeBattleCurePacketBank.Process ? processBytes : effectBytes;
@@ -64,7 +64,7 @@ public static class NativeBattleCureActorAssembly
             if ((mask & (1u << (index & 31))) != 0)
             {
                 bool weapon = shared && index == 1;
-                Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots);
+                Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots, !weapon && resource.GeometryRelocated507550);
             }
         }
         if (!shared)
@@ -79,9 +79,9 @@ public static class NativeBattleCureActorAssembly
         }
         return selected.ToImmutable();
 
-        void Add(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding)
+        void Add(NativeBattleRawMesh mesh, NativeBattleModelTextureBinding? binding, bool alreadyRelocated = false)
         {
-            selected.Add(new(mesh, binding ?? throw new NotSupportedException("Native actor drawing requires its executed material relocation.")));
+            selected.Add(new(mesh, binding ?? throw new NotSupportedException("Native actor drawing requires its executed material relocation."), alreadyRelocated));
         }
     }
 
