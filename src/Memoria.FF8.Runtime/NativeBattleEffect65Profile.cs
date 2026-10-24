@@ -1,0 +1,61 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static class NativeBattleEffect65Profile
+{
+    public const ushort Effect = 65;
+    public const uint Entry = 0x6E0350;
+    public const uint Initializer = 0x6E0360;
+    public const uint RootCallback = 0x6E03F0;
+    public const uint MainCallback = 0x6E07D0;
+    public const uint ChildCallback = 0x6E50A0;
+    public const uint BaseAddress = 0x2544F60;
+    public const uint InitializerGlobal = BaseAddress;
+    public const uint ScaleGlobal = 0x2544F64;
+    public const uint ControlGlobal = 0x2544F68;
+    public const uint ParametersGlobal = 0x2544F6C;
+    public const uint CasterGlobal = 0x2544F70;
+    public const uint RootDescriptor = 0x2544F98;
+    public const uint RootBank = 0x2544FA8;
+    public const int RootBankLength = 20;
+    public const uint MainDescriptor = 0x2544F88;
+    public const int MainOffset = 0;
+    public const int MainStride = 0xDB8;
+    public const int MainCount = 1;
+    public const uint ChildDescriptor = 0x2544F78;
+    public const int ChildQueueLength = 8;
+    public const int ChildOffset = 0x3D430;
+    public const int ChildStride = 0x1B8;
+    public const int ChildCount = 8;
+    public const uint CursorGlobal = 0x2544FD4;
+    public const uint CasterPointAddress = 0x2544FD8;
+    public const uint CenterAddress = 0x2544FE0;
+    public const uint RandomGlobal = 0x2544FF0;
+    public const uint ArenaGlobal = 0x2544FF4;
+    public const uint ArenaAddress = 0x20DFAB8;
+    public const uint SavedFlagsAddress = 0x2544FF8;
+    public const int FirstPacketOffset = 0x7648;
+    public const int SecondPacketOffset = 0x17648;
+    public const int IoOffset = 0x27648;
+    public const int FileOffset = 0x27690;
+    public const uint TextureNameAddress = 0x1342D20;
+    public const int TextureLength = 138272;
+    public const uint VibrationAddress = 0x1334D70;
+    public const int VibrationLength = 410;
+    public const uint SpriteAddress = 0x1334F0C;
+    public const int SpriteLength = 240;
+    public const uint ScaleAddress = 0x133AB88;
+    public const uint LiteralBase = 0x133ABC8;
+    public const uint DistanceAddress = 0x133AD20;
+    public const uint TrigonometryAddress = 0x133ED20;
+    public static readonly ImmutableArray<uint> MeshAddresses = [0x1334FFC, 0x1336924, 0x133822C, 0x133A0FC];
+    public static readonly ImmutableArray<int> MeshLengths = [6440, 6408, 7888, 2672];
+    public static readonly ImmutableDictionary<int, int> CurrentMeshLengths = new Dictionary<int, int> { [0x36620] = 3896, [0x37558] = 3896, [0x38490] = 3896, [0x393C8] = 2616 }.ToImmutableDictionary();
+    public static readonly ImmutableArray<short> FileIds = [360, 361, 362, 391, 392, 393, 394];
+    public static readonly ImmutableDictionary<short, int> BundleLengths = new Dictionary<short, int> { [393] = 94152, [394] = 81568 }.ToImmutableDictionary();
+    public static readonly ImmutableDictionary<short, ImmutableArray<int>> BundleProgrammeOffsets = new Dictionary<short, ImmutableArray<int>> { [393] = [28, 3232, 4224, 6100, 7976, 9868], [394] = [32, 996, 1928, 2860, 7776, 8332, 9528] }.ToImmutableDictionary();
+    public static readonly ImmutableArray<NativeBattleCureFamilyPool> Pools = [new(RootDescriptor, RootBank, RootBankLength, 1), new(MainDescriptor, MainOffset, MainStride, MainCount), new(ChildDescriptor, ChildOffset, ChildStride, ChildCount)];
+    public static readonly ImmutableArray<(uint Address, int Length)> LiteralRanges = Enumerable.Range(0, 8).Select(index => (LiteralBase + (uint)(index * 16), 8)).Concat(Enumerable.Range(0, 4).Select(index => (0x133AC52u + (uint)(index * 20), 2))).Concat(Enumerable.Range(0, 4).Select(index => (0x133AC9Cu + (uint)(index * 36), 2))).Concat(Enumerable.Range(0, 4).Select(index => (0x133ACACu + (uint)(index * 36), 6))).OrderBy(range => range.Item1).ToImmutableArray();
+    public static readonly ImmutableArray<(uint Address, int Length)> OwnedRanges = [(BaseAddress, 20), (0x2544FBC, 20), (0x2544FD0, 4), (CursorGlobal, 4), (CasterPointAddress, 8), (CenterAddress, 8), (0x2544FE8, 8), (RandomGlobal, 4), (ArenaGlobal, 4), (SavedFlagsAddress, 28)];
+}

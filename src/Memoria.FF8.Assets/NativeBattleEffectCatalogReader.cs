@@ -595,6 +595,15 @@ public sealed partial class GameAssets
                 binding = binding with { Effect64Resources = ReadNativeEffect64Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 65)
+            {
+                if (binding.Entry != NativeBattleEffect65Profile.Entry || binding.Initializer != NativeBattleEffect65Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag064.tim", NativeBattleEffect65Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect65 requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { Effect65Resources = ReadNativeEffect65Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 80)
             {
                 if (binding.Entry != NativeBattleEffect80Profile.Entry || binding.Initializer != NativeBattleEffect80Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag079.tim", NativeBattleEffect80Profile.InitializerGlobal) || binding.InitializerResources is not null)

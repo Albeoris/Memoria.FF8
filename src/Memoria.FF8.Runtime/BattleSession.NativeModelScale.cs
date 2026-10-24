@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -19,6 +21,12 @@ public sealed partial class BattleSession
         {
             NativeBattleEffect79State state = NativeEffectMemory?.Effect79 ?? throw new NotSupportedException("Native502AB0 requires effect79's current scale vector.");
             return new NativeBattleModelScaleVector(unchecked((int)state.ReadDword(pointer)), unchecked((int)state.ReadDword(pointer + 4)), unchecked((int)state.ReadDword(pointer + 8)));
+        }
+        if (effect.Binding.Effect == NativeBattleEffect65Profile.Effect && pointer == NativeBattleEffect65Profile.ScaleAddress)
+        {
+            NativeBattleEffect65Resources resources = effect.Binding.Effect65Resources ?? throw new NotSupportedException("Native502AB0 requires effect65's original scale vector.");
+            ReadOnlySpan<byte> vector = resources.ReadStatic(pointer, 12).AsSpan();
+            return new NativeBattleModelScaleVector(BinaryPrimitives.ReadInt32LittleEndian(vector), BinaryPrimitives.ReadInt32LittleEndian(vector.Slice(4)), BinaryPrimitives.ReadInt32LittleEndian(vector.Slice(8)));
         }
         if (effect.Binding.Effect != 40 || pointer < 0x30)
         {

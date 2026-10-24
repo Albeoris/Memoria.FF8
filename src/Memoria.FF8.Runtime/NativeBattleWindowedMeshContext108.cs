@@ -11,9 +11,13 @@ public static class NativeBattleWindowedMeshContext108
     {
         context.Validate();
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0x2030 or 0x20F0) || depthShift > 31 || context.Regions.Any(region => region.Offset > 108 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 108 - region.Length))
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0xC or 0x2000 or 0x200C or 0x20C0 or 0x20CC or 0x2030 or 0x203C or 0x20F0 or 0x20FC or 0x800C or 0x8030) || depthShift > 31 || context.Regions.Any(region => region.Offset > 108 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 108 - region.Length))
         {
             throw new InvalidDataException("Windowed mesh requires its actual bounded windowed context.");
+        }
+        if ((flags & 0x2000) == 0)
+        {
+            context = Put(context, 4, checked(mesh.Address + 8));
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4));
         if (maximumVertices < 1 || count < 1 || count > maximumVertices)
@@ -151,6 +155,11 @@ public static class NativeBattleWindowedMeshContext108
                         throw new InvalidDataException("Windowed mesh selected vertex leaves its current packed rows.");
                     }
                     _ = Dword(context, 4);
+                    if ((flags & 0x2000) == 0)
+                    {
+                        ReadOnlySpan<byte> row = Read(checked(8 + offset), 8);
+                        return (new NativeBattleVector(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..])), BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
+                    }
                     return readSelectedVertex(offset);
                 }
             }
