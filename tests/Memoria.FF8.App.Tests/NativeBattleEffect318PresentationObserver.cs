@@ -285,9 +285,10 @@ internal sealed class NativeBattleEffect318PresentationObserver
         NativeBattleGraphicsModel baseline = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(entering, pose, projection.View!, eye);
         NativeBattleModelTextureBinding? material = resource.GeometryRelocated507550 ? null : entering.BodyTextureSlots;
         uint color = current.NativeGraphics!.Models[3].Color40!.Value;
+        uint objectMask = current.NativeGraphics.Models[3].SequenceState!.MeshMask124;
         NativeBattleGeometryViewport viewport = new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8);
-        ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0(geometry, scaled.CurrentBodyBoneMatrices!.Matrices, projection, color, 1, null, 17, 4, material, viewport: viewport);
-        ImmutableArray<NativeBattleGeometryPrimitive> unmodified = NativeBattleRawGeometryPackets.Emit5099D0(geometry, baseline.CurrentBodyBoneMatrices!.Matrices, projection, color, 1, null, 17, 4, material, viewport: viewport);
+        ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0(geometry, scaled.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);
+        ImmutableArray<NativeBattleGeometryPrimitive> unmodified = NativeBattleRawGeometryPackets.Emit5099D0(geometry, baseline.CurrentBodyBoneMatrices!.Matrices, projection, color, objectMask, null, 17, 4, material, viewport: viewport);
         NativeBattleLogicalCommand[] commands = current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank != "20DFAB8" && command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E).ToArray();
         return expected.Any(packet => !unmodified.Any(original => original.Bucket == packet.Bucket && original.Words.SequenceEqual(packet.Words) && original.VertexPayload4.SequenceEqual(packet.VertexPayload4)) && commands.Any(command => MatchesBodyPacket(command, packet)));
     }

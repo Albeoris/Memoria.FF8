@@ -12,6 +12,7 @@ public sealed class NativeBattleEffect318LowerTests
     public void Oriented_sprite_integrates_velocity_before_position_but_terminal_draw_skips_both(int phase, int result, int x, int velocity)
     {
         Fixture fixture = new(0x65F100);
+        fixture.Frame = fixture.Frame with { Memory = fixture.Frame.Memory with { ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) } };
         fixture.Task(task => task.WriteWord(12, (ushort)phase).WriteWord(0x10, 100).WriteWord(0x14, 4000).WriteWord(0x18, 10).WriteWord(0x20, 3));
         NativeBattleEffect318Step step = NativeBattleEffect318Lower.Advance(fixture.Frame, fixture.Address, fixture.Resources, fixture.Inputs());
         NativeBattleModulePoolTask task = Read(step.Frame, fixture.Address);
