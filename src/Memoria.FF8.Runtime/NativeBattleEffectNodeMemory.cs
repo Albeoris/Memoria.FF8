@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One callback's byte-faithful view of the two original cleared auxiliary ranges; unknown bytes stay unknown until a native store.</summary>
 internal sealed record NativeBattleEffectNodeMemoryWrite(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
 
-internal class NativeBattleEffectNodeMemory
+internal partial class NativeBattleEffectNodeMemory
 {
     internal const uint ArenaAddress = 0x20DFAB8;
     internal const int ContextOffset = 0x34;
