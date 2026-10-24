@@ -6,6 +6,57 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectTaskUnknownPayloadTests
 {
     [Fact]
+    public void KnownScalarReadsBesideUnknownSuffixDoNotAllocatePerAccess()
+    {
+        NativeBattleModulePoolTask task = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 1).Slots[0].WriteDword(20, 7).MarkPayloadUnknown(80, 4);
+        _ = task.ReadDword(20);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        uint total = 0;
+        for (int index = 0; index < 10000; index++)
+        {
+            total += task.ReadDword(20);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(70000u, total);
+        Assert.True(allocated < 1024, $"Known task scalar reads allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void ScalarWritesOwnTheirPayloadAndRetainDisjointUnknownMetadataWithoutCopyingIt()
+    {
+        NativeBattleModulePoolTask source = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 1).Slots[0].MarkPayloadUnknown(80, 4);
+        NativeBattleModulePoolTask bytes = source.WriteBytes(20, new byte[] { 1, 2, 3, 4 });
+        NativeBattleModulePoolTask dword = bytes.WriteDword(24, 0x12345678);
+        NativeBattleModulePoolTask word = dword.WriteWord(28, 0xABCD);
+        NativeBattleModulePoolTask value = word.WriteByte(30, 0xEF);
+        Assert.Equal(source.UnknownPayloadRanges, value.UnknownPayloadRanges);
+        Assert.Equal(0u, source.ReadDword(20));
+        Assert.Equal(0u, bytes.ReadDword(24));
+        Assert.Equal(0, dword.ReadWord(28));
+        Assert.Equal(0, word.ReadByte(30));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, value.ReadBytes(20, 4));
+        Assert.Equal(0x12345678u, value.ReadDword(24));
+        Assert.Equal(0xABCD, value.ReadWord(28));
+        Assert.Equal(0xEF, value.ReadByte(30));
+        Assert.Throws<NotSupportedException>(() => value.ReadByte(80));
+    }
+
+    [Fact]
+    public void RepeatedDwordWritesAllocateOneOwnedPayloadPerStore()
+    {
+        NativeBattleModulePoolTask task = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 4096, 1).Slots[0].MarkPayloadUnknown(4000, 4);
+        task = task.WriteDword(20, 1);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (uint value = 0; value < 1000; value++)
+        {
+            task = task.WriteDword(20, value);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 5_000_000, $"Scalar task writes allocated {allocated} bytes.");
+        Assert.Equal(999u, task.ReadDword(20));
+    }
+
+    [Fact]
     public void UnresolvedStackPaddingRejectsOnlyOverlappingReadsAndExactWritesResolveOnlyTheirBytes()
     {
         NativeBattleModulePoolTask task = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 48, 1).Slots[0].WriteWord(20, 0x1234).MarkPayloadUnknown(22, 2);

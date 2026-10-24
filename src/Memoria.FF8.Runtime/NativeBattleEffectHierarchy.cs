@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -165,7 +166,7 @@ public static class NativeBattleEffectTaskPayload
         task.RequirePayloadRange(offset, 1);
         byte[] bytes = task.Payload.ToArray();
         bytes[offset - 12] = value;
-        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 1).WithoutUnknownPayload(offset, 1);
+        return (task with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(bytes) }).WithoutResourcePointers(offset, 1).WithoutUnknownPayload(offset, 1);
     }
 
     public static NativeBattleModulePoolTask WriteDword(this NativeBattleModulePoolTask task, int offset, uint value)
@@ -173,6 +174,6 @@ public static class NativeBattleEffectTaskPayload
         task.RequirePayloadRange(offset, 4);
         byte[] bytes = task.Payload.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12), value);
-        return (task with { Payload = bytes.ToImmutableArray() }).WithoutResourcePointers(offset, 4).WithoutUnknownPayload(offset, 4);
+        return (task with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(bytes) }).WithoutResourcePointers(offset, 4).WithoutUnknownPayload(offset, 4);
     }
 }

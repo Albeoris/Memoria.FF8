@@ -94,16 +94,31 @@ public static class NativeBattleDuelEchoDrawing
             NativeBattleFileStaging staging = readStaging(frame);
             int end = checked(offset + length);
             int cursor = offset;
-            while (cursor < end)
+            if (current.UnknownPayloadRanges is { } ranges)
             {
-                bool unknown = current.UnknownPayloadRanges is { } ranges && ranges.Any(range => cursor >= range.Offset && cursor < range.Offset + range.Length);
-                int first = cursor++;
-                while (cursor < end && (current.UnknownPayloadRanges is { } following && following.Any(range => cursor >= range.Offset && cursor < range.Offset + range.Length)) == unknown)
+                foreach (NativeBattleEffectUnknownRegion range in ranges)
                 {
-                    cursor++;
+                    int unknownStart = Math.Max(cursor, range.Offset);
+                    int unknownEnd = Math.Min(end, range.Offset + range.Length);
+                    if (unknownStart >= end)
+                    {
+                        break;
+                    }
+                    if (unknownEnd <= cursor)
+                    {
+                        continue;
+                    }
+                    if (unknownStart > cursor)
+                    {
+                        staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.Payload.AsSpan().Slice(cursor - 12, unknownStart - cursor));
+                    }
+                    staging = staging.MarkUnknown(checked(temporary.Address + (uint)(unknownStart - 12)), unknownEnd - unknownStart);
+                    cursor = unknownEnd;
                 }
-                uint address = checked(temporary.Address + (uint)(first - 12));
-                staging = unknown ? staging.MarkUnknown(address, cursor - first) : staging.Write(address, current.Payload.AsSpan().Slice(first - 12, cursor - first));
+            }
+            if (cursor < end)
+            {
+                staging = staging.Write(checked(temporary.Address + (uint)(cursor - 12)), current.Payload.AsSpan().Slice(cursor - 12, end - cursor));
             }
             frame = writeStaging(frame, staging);
         }

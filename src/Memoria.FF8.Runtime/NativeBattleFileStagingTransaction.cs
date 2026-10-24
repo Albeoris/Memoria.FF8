@@ -7,7 +7,10 @@ namespace Memoria.FF8.Runtime;
 internal sealed class NativeBattleFileStagingTransaction : IDisposable
 {
     private const int PageLength = 4096;
-    private sealed record Page(byte[] Data, bool[] Known);
+    private sealed record Page(byte[] Data, bool[] Known)
+    {
+        public bool Dirty { get; set; }
+    }
     private readonly NativeBattleFileStaging source;
     private readonly Dictionary<uint, Page> pages = [];
     private bool disposed;
@@ -27,10 +30,28 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
 
     public byte[] Read(uint address, int length)
     {
-        (byte[] data, bool[] known) = ReadSnapshot(address, length);
-        if (known.Contains(false))
+        RequireRange(address, length);
+        for (int offset = 0; offset < length;)
         {
-            throw new NotSupportedException("Native retained memory read reaches unobserved bytes.");
+            uint current = checked(address + (uint)offset);
+            uint pageAddress = current / PageLength * PageLength;
+            int first = checked((int)(current - pageAddress));
+            int count = Math.Min(length - offset, PageLength - first);
+            if (CachedPage(pageAddress).Known.AsSpan(first, count).Contains(false))
+            {
+                throw new NotSupportedException("Native retained memory read reaches unobserved bytes.");
+            }
+            offset += count;
+        }
+        byte[] data = new byte[length];
+        for (int offset = 0; offset < length;)
+        {
+            uint current = checked(address + (uint)offset);
+            uint pageAddress = current / PageLength * PageLength;
+            int first = checked((int)(current - pageAddress));
+            int count = Math.Min(length - offset, PageLength - first);
+            pages[pageAddress].Data.AsSpan(first, count).CopyTo(data.AsSpan(offset));
+            offset += count;
         }
         return data;
     }
@@ -38,18 +59,17 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     public (byte[] Data, bool[] Known) ReadSnapshot(uint address, int length)
     {
         RequireRange(address, length);
-        (byte[] data, bool[] known) = source.ReadSnapshotStorage(address, length);
+        byte[] data = new byte[length];
+        bool[] known = new bool[length];
         for (int offset = 0; offset < length;)
         {
             uint current = checked(address + (uint)offset);
             uint pageAddress = current / PageLength * PageLength;
             int first = checked((int)(current - pageAddress));
             int count = Math.Min(length - offset, PageLength - first);
-            if (pages.TryGetValue(pageAddress, out Page? page))
-            {
-                page.Data.AsSpan(first, count).CopyTo(data.AsSpan(offset));
-                page.Known.AsSpan(first, count).CopyTo(known.AsSpan(offset));
-            }
+            Page page = CachedPage(pageAddress);
+            page.Data.AsSpan(first, count).CopyTo(data.AsSpan(offset));
+            page.Known.AsSpan(first, count).CopyTo(known.AsSpan(offset));
             offset += count;
         }
         return (data, known);
@@ -64,7 +84,8 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             uint pageAddress = current / PageLength * PageLength;
             int first = checked((int)(current - pageAddress));
             int count = Math.Min(bytes.Length - offset, PageLength - first);
-            Page page = WritablePage(pageAddress);
+            Page page = CachedPage(pageAddress);
+            page.Dirty = true;
             bytes.Slice(offset, count).CopyTo(page.Data.AsSpan(first));
             Array.Fill(page.Known, true, first, count);
             offset += count;
@@ -80,7 +101,8 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             uint pageAddress = current / PageLength * PageLength;
             int first = checked((int)(current - pageAddress));
             int count = Math.Min(length - offset, PageLength - first);
-            Page page = WritablePage(pageAddress);
+            Page page = CachedPage(pageAddress);
+            page.Dirty = true;
             Array.Clear(page.Data, first, count);
             Array.Fill(page.Known, false, first, count);
             offset += count;
@@ -96,7 +118,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         }
         NativeBattleFileStaging rebased = source.Rebase(current.BaseAddress);
         List<NativeBattleEffectMemoryRegion> ranges = [];
-        uint[] changed = pages.Keys.Order().ToArray();
+        uint[] changed = pages.Where(pair => pair.Value.Dirty).Select(pair => pair.Key).Order().ToArray();
         foreach (NativeBattleEffectMemoryRegion region in rebased.KnownRanges)
         {
             int cursor = region.Offset;
@@ -148,7 +170,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         return result;
     }
 
-    private Page WritablePage(uint address)
+    private Page CachedPage(uint address)
     {
         if (!pages.TryGetValue(address, out Page? page))
         {

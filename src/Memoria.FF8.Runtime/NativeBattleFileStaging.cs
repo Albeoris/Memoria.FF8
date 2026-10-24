@@ -56,7 +56,15 @@ public sealed partial record NativeBattleFileStaging([property: JsonRequired] Im
         return this with { KnownRanges = KnownRanges.Select(range => range with { Offset = checked(range.Offset + shift) }).ToImmutableArray(), BaseAddress = lowerAddress };
     }
 
-    public byte[] Read(uint address, int length) => Transaction is { } transaction ? transaction.Read(address, length) : NativeKnownByteRanges.Read(KnownRanges, Offset(address), length);
+    public byte[] Read(uint address, int length)
+    {
+        int offset = Offset(address);
+        if (length < 0 || offset > int.MaxValue - length)
+        {
+            throw new InvalidDataException("Native retained memory access exceeds its offset representation.");
+        }
+        return Transaction is { } transaction ? transaction.Read(address, length) : NativeKnownByteRanges.Read(KnownRanges, offset, length);
+    }
 
     public NativeBattleFileStaging Write(uint address, ReadOnlySpan<byte> bytes)
     {

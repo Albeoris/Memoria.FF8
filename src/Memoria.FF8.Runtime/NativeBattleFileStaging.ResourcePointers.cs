@@ -52,7 +52,19 @@ public sealed partial record NativeBattleFileStaging
         {
             throw new ArgumentOutOfRangeException(nameof(length));
         }
-        return length == 0 ? this : this with { ResourcePointers = ResourcePointers.RemoveRange(ResourcePointers.Keys.Where(pointer => (ulong)pointer < (ulong)address + (uint)length && (ulong)pointer + 4 > address)) };
+        if (length == 0 || ResourcePointers.IsEmpty)
+        {
+            return this;
+        }
+        ImmutableDictionary<uint, NativeBattleResourcePointer?> pointers = ResourcePointers;
+        foreach (var entry in ResourcePointers)
+        {
+            if ((ulong)entry.Key < (ulong)address + (uint)length && (ulong)entry.Key + 4 > address)
+            {
+                pointers = pointers.Remove(entry.Key);
+            }
+        }
+        return ReferenceEquals(pointers, ResourcePointers) ? this : this with { ResourcePointers = pointers };
     }
 
     public NativeBattleResourcePointer? ReadResourcePointer(uint address)

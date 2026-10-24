@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -41,9 +42,20 @@ public sealed partial record NativeBattleModulePoolTask
     {
         RequirePayloadRange(offset, length);
         ValidateUnknownPayloadRanges();
-        if (length != 0 && UnknownPayloadRanges is { } ranges && ranges.Any(range => range.Offset < (long)offset + length && range.Offset + (long)range.Length > offset))
+        if (length == 0 || UnknownPayloadRanges is not { } ranges)
         {
-            throw new NotSupportedException($"Native task payload bytes at+0x{offset:X} are unresolved.");
+            return;
+        }
+        foreach (NativeBattleEffectUnknownRegion range in ranges)
+        {
+            if (range.Offset >= (long)offset + length)
+            {
+                break;
+            }
+            if (range.Offset + (long)range.Length > offset)
+            {
+                throw new NotSupportedException($"Native task payload bytes at+0x{offset:X} are unresolved.");
+            }
         }
     }
 
@@ -58,7 +70,7 @@ public sealed partial record NativeBattleModulePoolTask
         RequirePayloadRange(offset, data.Length);
         byte[] payload = Payload.ToArray();
         data.CopyTo(payload.AsSpan(offset - 12));
-        return (this with { Payload = payload.ToImmutableArray() }).WithoutResourcePointers(offset, data.Length).WithoutUnknownPayload(offset, data.Length);
+        return (this with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(payload) }).WithoutResourcePointers(offset, data.Length).WithoutUnknownPayload(offset, data.Length);
     }
 
     public NativeBattleModulePoolTask MarkPayloadUnknown(int offset, int length)
@@ -94,8 +106,25 @@ public sealed partial record NativeBattleModulePoolTask
         {
             return this;
         }
-        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
         int end = checked(offset + length);
+        bool overlaps = false;
+        foreach (NativeBattleEffectUnknownRegion range in ranges)
+        {
+            if (range.Offset >= end)
+            {
+                break;
+            }
+            if (range.Offset + range.Length > offset)
+            {
+                overlaps = true;
+                break;
+            }
+        }
+        if (!overlaps)
+        {
+            return this;
+        }
+        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
         foreach (NativeBattleEffectUnknownRegion range in ranges)
         {
             int rangeEnd = range.Offset + range.Length;

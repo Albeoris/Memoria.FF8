@@ -10,12 +10,19 @@ public sealed partial record NativeBattleModulePoolTask
 
     internal NativeBattleModulePoolTask WithoutResourcePointers(int offset, int length)
     {
-        if (ResourcePointers is null)
+        if (ResourcePointers is null || length == 0)
         {
             return this;
         }
-        ImmutableDictionary<int, NativeBattleResourcePointer> updated = ResourcePointers.RemoveRange(ResourcePointers.Keys.Where(field => field < (long)offset + length && field + 4L > offset));
-        return updated.Count == ResourcePointers.Count ? this : this with { ResourcePointers = updated.IsEmpty ? null : updated };
+        ImmutableDictionary<int, NativeBattleResourcePointer> updated = ResourcePointers;
+        foreach ((int field, _) in ResourcePointers)
+        {
+            if (field < (long)offset + length && field + 4L > offset)
+            {
+                updated = updated.Remove(field);
+            }
+        }
+        return ReferenceEquals(updated, ResourcePointers) ? this : this with { ResourcePointers = updated.IsEmpty ? null : updated };
     }
 
     internal void ValidateResourcePointers()

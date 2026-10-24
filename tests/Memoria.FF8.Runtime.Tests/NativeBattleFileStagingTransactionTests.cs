@@ -6,6 +6,37 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleFileStagingTransactionTests
 {
     [Fact]
+    public void Unknown_large_reads_refuse_before_allocating_the_requested_extent()
+    {
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, [1]);
+        using NativeBattleFileStagingTransaction transaction = new(source);
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<NotSupportedException>(() => transaction.View.Read(NativeBattleFileStaging.Address, 100_000_000));
+        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Assert.True(allocated < 1024 * 1024, $"Unobserved read allocated {allocated} bytes before refusing.");
+        Assert.Throws<NotSupportedException>(() => transaction.View.Read(NativeBattleFileStaging.Address - 1, 0));
+    }
+
+    [Fact]
+    public void Read_only_pages_do_not_publish_unknown_gaps_or_change_the_original_storage()
+    {
+        uint address = NativeBattleFileStaging.Address;
+        NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(address + 2, [1, 2, 3, 4]).Write(address + 8194, [9]);
+        using NativeBattleFileStagingTransaction transaction = new(source);
+        (byte[] data, bool[] known) = transaction.View.ReadSnapshot(address, 9000);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, data.AsSpan(2, 4).ToArray());
+        Assert.True(known[8194]);
+        Assert.False(known[8193]);
+        NativeBattleFileStaging unchanged = transaction.Freeze(transaction.View);
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(unchanged));
+        NativeBattleFileStaging current = transaction.View.Write(address + 3, [7]);
+        Assert.Equal(new byte[] { 1, 7, 3, 4 }, current.Read(address + 2, 4));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(address + 2, 4));
+        NativeBattleFileStaging published = transaction.Freeze(current);
+        Assert.Throws<NotSupportedException>(() => published.Read(address + 8193, 2));
+    }
+
+    [Fact]
     public void Ordered_stores_are_immediately_visible_to_callbacks_and_freeze_preserves_prior_publications()
     {
         uint address = NativeBattleFileStaging.Address;

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -18,7 +19,7 @@ public sealed partial record NativeBattleModulePoolTask([property: JsonRequired]
         RequirePayloadRange(offset, 2);
         byte[] payload = Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), value);
-        return (this with { Payload = payload.ToImmutableArray() }).WithoutResourcePointers(offset, 2).WithoutUnknownPayload(offset, 2);
+        return (this with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(payload) }).WithoutResourcePointers(offset, 2).WithoutUnknownPayload(offset, 2);
     }
 }
 

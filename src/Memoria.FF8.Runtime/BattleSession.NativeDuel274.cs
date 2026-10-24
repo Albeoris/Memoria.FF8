@@ -50,7 +50,10 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel opening requires its retained process owner.");
         using NativeBattleEffectArenaTransaction arena = new(memory.Arena ?? throw new NotSupportedException("Native Duel drawing requires its retained effect arena."));
         using NativeBattleFileStagingTransaction staging = new(NativeFileStaging ?? throw new NotSupportedException("Native Duel opening requires its retained shared byte owner."));
-        memory = memory with { Arena = arena.View };
+        using NativeBattleCommonPacketTransaction common = new(memory.PrimitiveProcess ?? throw new NotSupportedException("Native Duel drawing requires its retained common packet owner."));
+        using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Duel drawing requires its retained ordering frame.")).Pending);
+        memory = memory with { Arena = arena.View, PrimitiveProcess = common.View };
+        graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleDuel274Resources resources = memory.Duel274?.Resources ?? throw new NotSupportedException("Native Duel opening requires resources retained by its actual entry.");
         NativeBattleDuel274Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel opening requires its selected module."), staging.View, nativeCrtRandom ?? throw new NotSupportedException("Native Duel opening requires its retained CRT random owner."));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel opening requires its actual action parameters.");
@@ -66,7 +69,8 @@ public sealed partial class BattleSession
         try
         {
             frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
-            frame = frame with { Memory = frame.Memory with { Arena = arena.Freeze() }, Staging = staging.Freeze(frame.Staging) };
+            frame = frame with { Memory = frame.Memory with { Arena = arena.Freeze(), PrimitiveProcess = common.Freeze(frame.Memory.PrimitiveProcess!) }, Staging = staging.Freeze(frame.Staging) };
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
             Publish(frame);
             nativeCrtRandom = frame.Random;
             return graphics with { OriginalEffect = frame.Effect };
@@ -76,6 +80,14 @@ public sealed partial class BattleSession
             if (NativeEffectMemory is { Arena.Transaction: { } active } published && active == arena)
             {
                 NativeEffectMemory = published with { Arena = arena.Freeze() };
+            }
+            if (NativeEffectMemory is { PrimitiveProcess.CommonTransaction: { } activeCommon } publishedCommon && activeCommon == common)
+            {
+                NativeEffectMemory = publishedCommon with { PrimitiveProcess = common.Freeze(publishedCommon.PrimitiveProcess!) };
+            }
+            if (NativeGraphics is { PrimitiveFrame.Pending.Transaction: { } activeOrdering } publishedGraphics && activeOrdering == ordering)
+            {
+                NativeGraphics = publishedGraphics with { PrimitiveFrame = publishedGraphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
             }
             if (NativeFileStaging is { Transaction: { } activeStaging } publishedStaging && activeStaging == staging)
             {
