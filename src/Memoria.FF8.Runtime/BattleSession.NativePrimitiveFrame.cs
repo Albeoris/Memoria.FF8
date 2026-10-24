@@ -250,6 +250,15 @@ public sealed partial class BattleSession
     private byte[] ReadNativePhysicalPrimitive(NativeBattlePrimitiveReference reference, int count)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native retained packet alias requires its process arena owners.");
+        if (reference.Bank is "23BF038" or "D780A0")
+        {
+            if (reference.Buffer != 0)
+            {
+                throw new InvalidDataException("Effect166 static packets require their single physical owner.");
+            }
+            NativeBattleEffect166State state = memory.Effect166 ?? throw new NotSupportedException("Effect166 static packets require their retained physical storage.");
+            return reference.Bank == "D780A0" ? state.ReadCapturePacket().Read(reference.ByteOffset, count) : state.Read(checked(NativeBattleEffect166Profile.BaseAddress + (uint)reference.ByteOffset), count);
+        }
         if (reference.Bank == "1D9A020")
         {
             if (reference.Buffer != 0)

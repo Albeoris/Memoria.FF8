@@ -311,6 +311,10 @@ public sealed partial class BattleSession
                 {
                     graphics = effect79Completed;
                 }
+                else if (TryWriteNativeEffect166Completion(graphics, address, value, out NativeBattleGraphicsState effect166Completed))
+                {
+                    graphics = effect166Completed;
+                }
                 else if (TryWriteNativeEffect140Completion(address, value))
                 {
                 }
@@ -383,6 +387,10 @@ public sealed partial class BattleSession
                 {
                     if (TryWriteNativeEffect344Completion(target, value))
                     {
+                    }
+                    else if (TryWriteNativeEffect166Completion(graphics, target, value, out NativeBattleGraphicsState effect166Completed))
+                    {
+                        graphics = effect166Completed;
                     }
                     else if (TryWriteNativeEffect140Completion(target, value))
                     {
