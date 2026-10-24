@@ -19,6 +19,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
     private bool commonBody;
     private bool detached;
     private bool contactHandshake;
+    private bool spiralPacketsDelivered;
     private NativeCrtRandomState? initialRandom;
     private NativeCrtRandomState? lastRandom;
 
@@ -105,6 +106,22 @@ internal sealed class NativeBattleEffect83PresentationObserver
                 Mark("effect83-current-common-prefix", current, cold);
             }
             NativeBattleLogicalCommand[] commands = EffectCommands(prior, current);
+            if (effect.Pools[5].Slots.Any(task => task.Callback == 0x79D9B0 && (task.ReadByte(0x26) & 8) != 0))
+            {
+                NativeBattleLogicalCommand[] privateCommands = commands.Where(command => command.Packet.Bank == "20DFAB8").ToArray();
+                if (privateCommands.Length != 0)
+                {
+                    NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+                    int end = checked((int)(state.ReadDword(0x25C9F74) - 0x20DFAB8u));
+                    int linkedEnd = privateCommands.Max(command => command.Packet.ByteOffset + checked((1 + (int)(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(command.Packet.ByteOffset, 4)) >> 24)) * 4));
+                    Assert.Equal(end, linkedEnd);
+                    if (!spiralPacketsDelivered)
+                    {
+                        spiralPacketsDelivered = true;
+                        Mark("effect83-spiral-packets-delivered", current, cold);
+                    }
+                }
+            }
             foreach (NativeBattleLogicalCommand command in commands)
             {
                 opcodes.Add(command.Opcode);
@@ -136,6 +153,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
         Assert.True(decodedModel);
         Assert.True(commonBody);
         Assert.True(contactHandshake);
+        Assert.True(spiralPacketsDelivered);
         Assert.True(detached);
         Assert.Contains((byte)8, rootPhases);
         Assert.Contains((byte)4, mainPhases);

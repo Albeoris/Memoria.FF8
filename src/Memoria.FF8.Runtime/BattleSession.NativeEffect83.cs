@@ -166,7 +166,9 @@ public sealed partial class BattleSession
                 case NativeBattleEffect83TargetCapture79E590 capture:
                     return CaptureNativeEffect83Target(current, capture.TaskAddress, graphics);
                 case NativeBattleEffect83TargetDraw79DA20 draw:
-                    (graphics, current) = DrawNativeEffect83Target(graphics, current, draw.BodyAddress, Deliver);
+                    (NativeBattleGraphicsState bodyGraphics, NativeBattleEffect83Frame bodyFrame) = DrawNativeEffect83Target(graphics, current, draw.BodyAddress, Deliver);
+                    graphics = graphics with { Models = bodyGraphics.Models };
+                    current = bodyFrame;
                     return current;
                 case NativeBattleEffect83StageTransition transition:
                     return ApplyNativeEffect83StageTransition(current, transition);
