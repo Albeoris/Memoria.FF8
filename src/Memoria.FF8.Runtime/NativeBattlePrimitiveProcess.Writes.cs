@@ -19,12 +19,21 @@ public sealed partial record NativeBattlePrimitiveProcess
         bool changed = false;
         foreach (NativeBattleCommonPacketStore write in writes)
         {
-            if (write is null || write.Data.IsDefault || write.Mask.IsDefault || write.Data.Length != write.Mask.Length || write.Mask.Any(value => value is not (NativeBattleGfPacketByteState.Untouched or NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown)))
+            if (write is null || write.Data.IsDefault || write.Mask.IsDefault || write.Data.Length != write.Mask.Length)
             {
                 throw new InvalidDataException("Native common packet batch requires matching data and original byte masks.");
             }
+            bool writesBytes = false;
+            foreach (NativeBattleGfPacketByteState value in write.Mask.AsSpan())
+            {
+                if (value is not (NativeBattleGfPacketByteState.Untouched or NativeBattleGfPacketByteState.Known or NativeBattleGfPacketByteState.Unknown))
+                {
+                    throw new InvalidDataException("Native common packet batch requires matching data and original byte masks.");
+                }
+                writesBytes |= value != NativeBattleGfPacketByteState.Untouched;
+            }
             RequireCommonRange(write.Offset, write.Data.Length, CommonPacketWriteCapacity);
-            changed |= write.Mask.Any(value => value != NativeBattleGfPacketByteState.Untouched);
+            changed |= writesBytes;
         }
         if (!changed)
         {
@@ -41,7 +50,15 @@ public sealed partial record NativeBattlePrimitiveProcess
         {
             foreach (CommonSlice slice in CommonSlices(write.Offset, write.Data.Length))
             {
-                NativeBattleCommonPacketStore part = slice.Count == write.Data.Length ? write with { Offset = slice.Offset } : new(slice.Offset, write.Data.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray().ToImmutableArray(), write.Mask.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray().ToImmutableArray());
+                NativeBattleCommonPacketStore part;
+                if (slice.Count == write.Data.Length)
+                {
+                    part = slice.Offset == write.Offset ? write : write with { Offset = slice.Offset };
+                }
+                else
+                {
+                    part = new(slice.Offset, ImmutableCollectionsMarshal.AsImmutableArray(write.Data.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray()), ImmutableCollectionsMarshal.AsImmutableArray(write.Mask.AsSpan().Slice(slice.SourceOffset, slice.Count).ToArray()));
+                }
                 (slice.Bank == bank ? first : second).Add(part);
             }
         }
@@ -51,7 +68,23 @@ public sealed partial record NativeBattlePrimitiveProcess
 
     private NativeBattlePrimitiveProcess ApplyCommonSliceWrites(int bank, int capacity, ImmutableArray<NativeBattleCommonPacketStore> writes)
     {
-        if (!writes.Any(write => write.Mask.Any(value => value != NativeBattleGfPacketByteState.Untouched)))
+        bool changed = false;
+        foreach (NativeBattleCommonPacketStore write in writes.AsSpan())
+        {
+            foreach (NativeBattleGfPacketByteState value in write.Mask.AsSpan())
+            {
+                if (value != NativeBattleGfPacketByteState.Untouched)
+                {
+                    changed = true;
+                    break;
+                }
+            }
+            if (changed)
+            {
+                break;
+            }
+        }
+        if (!changed)
         {
             return this;
         }

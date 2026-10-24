@@ -75,7 +75,8 @@ public sealed class BattleSavedDuelPerformanceTests
             world.SynchronizeBattlePresentation();
             double synchronize = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             long synchronizeBytes = GC.GetAllocatedBytesForCurrentThread() - allocation;
-            samples.Add(new { Callback = callback, battle.Frame, Phase = battle.GetNativeDuel(actor.Id)?.Phase.ToString(), Moves = moves, Update = update, UpdateBytes = updateBytes, Synchronize = synchronize, SynchronizeBytes = synchronizeBytes });
+            NativeBattlePrimitiveFrame? primitiveFrame = battle.NativeGraphics?.PrimitiveFrame;
+            samples.Add(new { Callback = callback, battle.Frame, Phase = battle.GetNativeDuel(actor.Id)?.Phase.ToString(), Moves = moves, Update = update, UpdateBytes = updateBytes, Synchronize = synchronize, SynchronizeBytes = synchronizeBytes, Commands = primitiveFrame?.LastCommands.Length ?? 0, ModuleDraws = primitiveFrame?.LastCommands.Where(command => command.Command.ModuleDraw.HasValue).Select(command => command.Command.ModuleDraw).Distinct().Count() ?? 0, PendingPackets = primitiveFrame?.Pending.Packets.Length ?? 0 });
             battle.AdvanceNativeDuelPresentation(elapsed, 0);
             if (moves == 1 && ++firstMoveCallbacks == 16)
             {
@@ -101,7 +102,7 @@ public sealed class BattleSavedDuelPerformanceTests
                 File.WriteAllText(Path.Combine(output!, "duel-performance.json"), JsonSerializer.Serialize(samples));
                 Assert.True(target.CurrentHp < initialHp);
                 Assert.True(restoredMidAttack);
-                Assert.True(maximumMoveAllocation < 80 * 1024 * 1024, $"A Duel callback allocated {maximumMoveAllocation} bytes.");
+                Assert.True(maximumMoveAllocation < 32 * 1024 * 1024, $"A Duel callback allocated {maximumMoveAllocation} bytes.");
                 world.CaptureBattleState();
                 session.Save(Path.Combine(output!, "duel-performance-completed.json"), compact: true);
                 Receipt("duel-performance-completed");

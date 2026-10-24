@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -420,7 +421,12 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
             throw new InvalidDataException("Native logical OT requires its original4386 roots, proxy bank and command length table.");
         }
         Dictionary<NativeBattlePrimitiveReference, NativeBattleLogicalPacket> memory = Packets.ToDictionary(packet => NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference));
-        HashSet<(byte Bank, bool Proxy, int Index)> visited = [];
+        // Native OT banks and proxy links have bounded identities; addressed roots retain their full keys.
+        const int rootVisits = 2 * NativeBattlePrimitiveOrdering.BattleTableLength;
+        const int boundedVisits = rootVisits + NativeBattlePrimitiveOrdering.ProxyCapacity;
+        Span<ulong> visited = stackalloc ulong[(boundedVisits + 63) / 64];
+        visited.Clear();
+        HashSet<(byte Bank, bool Proxy, int Index)>? otherVisited = null;
         ImmutableArray<NativeBattleLogicalCommand>.Builder commands = ImmutableArray.CreateBuilder<NativeBattleLogicalCommand>();
         NativeBattlePrimitiveLink cursor = new(false, initialOrderingAddress is null ? Table.Length - 1 : -1);
         uint? addressedRoot = initialOrderingAddress;
@@ -430,7 +436,7 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
         {
             if (addressedRoot is uint rootAddress)
             {
-                if (!visited.Add((2, false, unchecked((int)rootAddress))))
+                if (!(otherVisited ??= []).Add((2, false, unchecked((int)rootAddress))))
                 {
                     throw new InvalidDataException("Native logical OT contains an addressed-root link cycle.");
                 }
@@ -440,7 +446,27 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
                 Follow(root.NextAddress);
                 continue;
             }
-            if (!visited.Add((cursor.Proxy ? byte.MaxValue : rootBuffer, cursor.Proxy, cursor.Index)))
+            int visit = -1;
+            if (cursor.Proxy && (uint)cursor.Index < NativeBattlePrimitiveOrdering.ProxyCapacity)
+            {
+                visit = rootVisits + cursor.Index;
+            }
+            else if (!cursor.Proxy && rootBuffer < 2 && (uint)cursor.Index < NativeBattlePrimitiveOrdering.BattleTableLength)
+            {
+                visit = rootBuffer * NativeBattlePrimitiveOrdering.BattleTableLength + cursor.Index;
+            }
+            bool repeated;
+            if (visit >= 0)
+            {
+                ulong bit = 1UL << (visit & 63);
+                repeated = (visited[visit >> 6] & bit) != 0;
+                visited[visit >> 6] |= bit;
+            }
+            else
+            {
+                repeated = !(otherVisited ??= []).Add((cursor.Proxy ? byte.MaxValue : rootBuffer, cursor.Proxy, cursor.Index));
+            }
+            if (repeated)
             {
                 throw new InvalidDataException("Native logical OT contains a shared-packet link cycle.");
             }
@@ -470,7 +496,12 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
                 Func<NativeBattlePrimitiveReference, int, byte[]> reader = readPhysical ?? throw new NotSupportedException("Native retained packet alias requires its current physical arena bytes.");
                 uint header = BinaryPrimitives.ReadUInt32LittleEndian(reader(packet.Reference, 4));
                 byte[] bytes = reader(packet.Reference, checked((1 + (int)(header >> 24)) * 4));
-                packet = packet with { Words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4 * index))).ToImmutableArray() };
+                uint[] words = new uint[bytes.Length / 4];
+                for (int index = 0; index < words.Length; index++)
+                {
+                    words[index] = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4 * index));
+                }
+                packet = packet with { Words = ImmutableCollectionsMarshal.AsImmutableArray(words) };
                 nextAddress = (header & 0xFFFFFFu) | (uint)(proxy.NextHigh22 ?? throw new NotSupportedException("Native retained proxy lacks its actual high link BYTE22.")) << 24;
             }
             else

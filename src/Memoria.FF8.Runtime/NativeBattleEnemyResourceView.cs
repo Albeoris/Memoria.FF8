@@ -6,6 +6,11 @@ public static class NativeBattleEnemyResourceView
 {
     public static NativeBattleGraphicsResource Resolve(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, int index, NativeBattleGraphicsResource original)
     {
+        return Resolve(cpu, staging, index, original, null);
+    }
+
+    internal static NativeBattleGraphicsResource Resolve(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, int index, NativeBattleGraphicsResource original, NativeBattleEnemyGeometryCache? geometryCache)
+    {
         NativeBattleModelCpuResourceRow row = cpu.Rows[index];
         NativeBattleModelCpuReference skeleton = row.Require(12);
         int boneCount = NativeBattleModelEnemyHeap.Read(cpu, staging, skeleton, 1)[0];
@@ -25,7 +30,29 @@ public static class NativeBattleEnemyResourceView
         {
             NativeBattleModelCpuReference reference = row.Require(16);
             byte[] bytes = NativeBattleModelEnemyHeap.Read(cpu, staging, reference, row.Lengths.TryGetValue(16, out int length) ? length : throw new NotSupportedException("Native enemy geometry extent remains unknown."));
-            return NativeBattleRawGeometryReader.Read(bytes, boneCount);
+            return geometryCache is null ? NativeBattleRawGeometryReader.Read(bytes, boneCount) : geometryCache.Read(bytes, boneCount);
         }
+    }
+}
+
+/// <summary>Memoize parsing only after comparing every currently observed geometry byte.</summary>
+internal sealed class NativeBattleEnemyGeometryCache
+{
+    private byte[]? source;
+    private int boneCount;
+    private ImmutableArray<NativeBattleRawMesh> geometry;
+
+    public ImmutableArray<NativeBattleRawMesh> Read(byte[] bytes, int bones)
+    {
+        if (source is not null && boneCount == bones && bytes.AsSpan().SequenceEqual(source))
+        {
+            return geometry;
+        }
+        byte[] owned = bytes.AsSpan().ToArray();
+        ImmutableArray<NativeBattleRawMesh> parsed = NativeBattleRawGeometryReader.Read(owned, bones);
+        source = owned;
+        boneCount = bones;
+        geometry = parsed;
+        return parsed;
     }
 }

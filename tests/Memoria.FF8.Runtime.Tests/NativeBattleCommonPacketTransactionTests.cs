@@ -6,6 +6,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketTransactionTests
 {
     [Fact]
+    public void WholeSliceStoresReuseImmutableReceiptsAndValidateMasksBeforeRanges()
+    {
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
+        NativeBattleCommonPacketStore store = new(0, [1, 2, 3, 4], Known(4));
+        ImmutableArray<NativeBattleCommonPacketStore> writes = Enumerable.Repeat(store, 1000).ToImmutableArray();
+        _ = source.ApplyCommonWrites([store]);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattlePrimitiveProcess result = source.ApplyCommonWrites(writes);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 40000, $"Whole-slice packet stores allocated {allocated} bytes.");
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, result.ReadCommonPacket(0, 4));
+        Assert.Null(source.CommonPacketMemory);
+        InvalidDataException invalidMask = Assert.Throws<InvalidDataException>(() => source.ApplyCommonWrites([new(int.MaxValue, [0], [(NativeBattleGfPacketByteState)255])]));
+        Assert.Contains("matching data and original byte masks", invalidMask.Message);
+        Assert.Same(source, source.ApplyCommonWrites([new(0, [0], [NativeBattleGfPacketByteState.Untouched])]));
+        Assert.Throws<InvalidDataException>(() => source.ApplyCommonWrites([new(int.MaxValue, [0], [NativeBattleGfPacketByteState.Untouched])]));
+    }
+
+    [Fact]
     public void PhysicalPacketReadsReuseValidatedImmutableBanksWithoutPerReadSliceCollections()
     {
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));
