@@ -5,15 +5,30 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Observed bytes in the shared field/battle resource memory. Unobserved tails stay unknown.</summary>
-public sealed partial record NativeBattleFileStaging([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges)
+public sealed partial record NativeBattleFileStaging([property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges) : IJsonOnSerializing
 {
     public const uint Address = 0x199B018;
     // Prior snapshots encode offsets from199B018. Rebasing changes coordinates while preserving every absolute byte.
     public uint BaseAddress { get; init; } = Address;
+    [JsonIgnore]
+    internal NativeBattleFileStagingTransaction? Transaction { get; init; }
     public static NativeBattleFileStaging Unknown() => new([]);
+
+    void IJsonOnSerializing.OnSerializing()
+    {
+        if (Transaction is not null)
+        {
+            throw new InvalidOperationException("Native staging must publish its private transaction before serialization.");
+        }
+    }
 
     public void Validate()
     {
+        if (Transaction is { } transaction)
+        {
+            transaction.RequireActive();
+            return;
+        }
         if (BaseAddress > Address)
         {
             throw new InvalidDataException("Native shared staging origin cannot exclude its original battle resource address.");
@@ -33,16 +48,26 @@ public sealed partial record NativeBattleFileStaging([property: JsonRequired] Im
         {
             return this;
         }
+        if (Transaction is not null)
+        {
+            return this with { BaseAddress = lowerAddress };
+        }
         int shift = checked((int)(BaseAddress - lowerAddress));
         return this with { KnownRanges = KnownRanges.Select(range => range with { Offset = checked(range.Offset + shift) }).ToImmutableArray(), BaseAddress = lowerAddress };
     }
 
-    public byte[] Read(uint address, int length) => NativeKnownByteRanges.Read(KnownRanges, Offset(address), length);
+    public byte[] Read(uint address, int length) => Transaction is { } transaction ? transaction.Read(address, length) : NativeKnownByteRanges.Read(KnownRanges, Offset(address), length);
 
     public NativeBattleFileStaging Write(uint address, ReadOnlySpan<byte> bytes)
     {
         NativeBattleFileStaging current = address < BaseAddress ? Rebase(address) : this;
-        return (current with { KnownRanges = NativeKnownByteRanges.Write(current.KnownRanges, current.Offset(address), bytes) }).InvalidateResourcePointers(address, bytes.Length);
+        if (current.Transaction is { } transaction)
+        {
+            transaction.Write(address, bytes);
+            return current.InvalidateResourcePointers(address, bytes.Length);
+        }
+        // Bound copy-on-write storage so scalar scratch stores do not clone adjacent resource images.
+        return (current with { KnownRanges = NativeKnownByteRanges.Write(current.KnownRanges, current.Offset(address), bytes, blockLength: 4096) }).InvalidateResourcePointers(address, bytes.Length);
     }
 
     public ImmutableArray<byte> ReadDat(uint address)

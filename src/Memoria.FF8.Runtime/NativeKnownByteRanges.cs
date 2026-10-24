@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -57,7 +58,7 @@ internal static class NativeKnownByteRanges
         return bytes;
     }
 
-    internal static ImmutableArray<NativeBattleEffectMemoryRegion> Write(ImmutableArray<NativeBattleEffectMemoryRegion> ranges, int offset, ReadOnlySpan<byte> bytes, int capacity = int.MaxValue)
+    internal static ImmutableArray<NativeBattleEffectMemoryRegion> Write(ImmutableArray<NativeBattleEffectMemoryRegion> ranges, int offset, ReadOnlySpan<byte> bytes, int capacity = int.MaxValue, int blockLength = int.MaxValue)
     {
         Validate(ranges, capacity);
         RequireRange(offset, bytes.Length, capacity);
@@ -66,16 +67,64 @@ internal static class NativeKnownByteRanges
             return ranges;
         }
         int writeEnd = offset + bytes.Length;
-        NativeBattleEffectMemoryRegion[] overlaps = ranges.Where(region => region.Offset <= writeEnd && region.Offset + region.Data.Length >= offset).ToArray();
-        int first = overlaps.Select(region => region.Offset).Append(offset).Min();
-        int end = overlaps.Select(region => region.Offset + region.Data.Length).Append(writeEnd).Max();
-        byte[] data = new byte[end - first];
-        foreach (NativeBattleEffectMemoryRegion region in overlaps)
+        int firstIndex = 0;
+        while (firstIndex < ranges.Length && (long)ranges[firstIndex].Offset + ranges[firstIndex].Data.Length < offset)
         {
-            region.Data.AsSpan().CopyTo(data.AsSpan(region.Offset - first));
+            firstIndex++;
         }
-        bytes.CopyTo(data.AsSpan(offset - first));
-        return ranges.Except(overlaps).Append(new(first, data.ToImmutableArray())).OrderBy(region => region.Offset).ToImmutableArray();
+        int afterIndex = firstIndex;
+        while (afterIndex < ranges.Length && ranges[afterIndex].Offset <= writeEnd)
+        {
+            NativeBattleEffectMemoryRegion region = ranges[afterIndex];
+            if (region.Offset <= offset && region.Offset + region.Data.Length >= writeEnd && region.Data.AsSpan().Slice(offset - region.Offset, bytes.Length).SequenceEqual(bytes))
+            {
+                return ranges;
+            }
+            afterIndex++;
+        }
+        int first = firstIndex < afterIndex ? Math.Min(offset, ranges[firstIndex].Offset) : offset;
+        int end = firstIndex < afterIndex ? Math.Max(writeEnd, ranges[afterIndex - 1].Offset + ranges[afterIndex - 1].Data.Length) : writeEnd;
+        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder result = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
+        result.AddRange(ranges.AsSpan(0, firstIndex));
+        int sourceIndex = firstIndex;
+        // Split only written blocks: eagerly paging untouched images makes every scalar store copy a large region list.
+        int firstWriteBlock = offset - offset % blockLength;
+        long afterWriteBlock = ((long)writeEnd + blockLength - 1) / blockLength * blockLength;
+        for (int start = first; start < end;)
+        {
+            long nextBoundary = start < firstWriteBlock ? firstWriteBlock : start >= afterWriteBlock ? end : (long)start + blockLength - start % blockLength;
+            int length = (int)(Math.Min(end, nextBoundary) - start);
+            int blockEnd = start + length;
+            while (sourceIndex < afterIndex && ranges[sourceIndex].Offset + ranges[sourceIndex].Data.Length <= start)
+            {
+                sourceIndex++;
+            }
+            if (sourceIndex < afterIndex && ranges[sourceIndex].Offset == start && ranges[sourceIndex].Data.Length == length && (blockEnd <= offset || start >= writeEnd))
+            {
+                result.Add(ranges[sourceIndex]);
+            }
+            else
+            {
+                byte[] data = new byte[length];
+                for (int index = sourceIndex; index < afterIndex && ranges[index].Offset < blockEnd; index++)
+                {
+                    NativeBattleEffectMemoryRegion region = ranges[index];
+                    int copyStart = Math.Max(start, region.Offset);
+                    int copyEnd = Math.Min(blockEnd, region.Offset + region.Data.Length);
+                    region.Data.AsSpan().Slice(copyStart - region.Offset, copyEnd - copyStart).CopyTo(data.AsSpan(copyStart - start));
+                }
+                int writtenStart = Math.Max(start, offset);
+                int writtenEnd = Math.Min(blockEnd, writeEnd);
+                if (writtenEnd > writtenStart)
+                {
+                    bytes.Slice(writtenStart - offset, writtenEnd - writtenStart).CopyTo(data.AsSpan(writtenStart - start));
+                }
+                result.Add(new(start, ImmutableCollectionsMarshal.AsImmutableArray(data)));
+            }
+            start = blockEnd;
+        }
+        result.AddRange(ranges.AsSpan(afterIndex, ranges.Length - afterIndex));
+        return result.ToImmutable();
     }
 
     private static void RequireRange(int offset, int length, int capacity)

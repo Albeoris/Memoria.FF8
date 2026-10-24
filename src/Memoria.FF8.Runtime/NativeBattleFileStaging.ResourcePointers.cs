@@ -75,6 +75,11 @@ public sealed partial record NativeBattleFileStaging
         }
         else
         {
+            if (current.Transaction is not null)
+            {
+                current = current.MarkUnknown(address, 4);
+                return current with { ResourcePointers = current.ResourcePointers.SetItem(address, pointer) };
+            }
             int first = checked((int)(address - current.BaseAddress));
             int end = checked(first + 4);
             ImmutableArray<NativeBattleEffectMemoryRegion>.Builder ranges = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();

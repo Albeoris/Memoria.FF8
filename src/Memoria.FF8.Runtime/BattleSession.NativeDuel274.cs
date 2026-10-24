@@ -48,8 +48,11 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeDuel274(NativeBattleGraphicsState graphics)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel opening requires its retained process owner.");
+        using NativeBattleEffectArenaTransaction arena = new(memory.Arena ?? throw new NotSupportedException("Native Duel drawing requires its retained effect arena."));
+        using NativeBattleFileStagingTransaction staging = new(NativeFileStaging ?? throw new NotSupportedException("Native Duel opening requires its retained shared byte owner."));
+        memory = memory with { Arena = arena.View };
         NativeBattleDuel274Resources resources = memory.Duel274?.Resources ?? throw new NotSupportedException("Native Duel opening requires resources retained by its actual entry.");
-        NativeBattleDuel274Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel opening requires its selected module."), NativeFileStaging ?? throw new NotSupportedException("Native Duel opening requires its retained shared byte owner."), nativeCrtRandom ?? throw new NotSupportedException("Native Duel opening requires its retained CRT random owner."));
+        NativeBattleDuel274Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel opening requires its selected module."), staging.View, nativeCrtRandom ?? throw new NotSupportedException("Native Duel opening requires its retained CRT random owner."));
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel opening requires its actual action parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Duel drawing requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Duel drawing requires its current projection.");
@@ -58,10 +61,28 @@ public sealed partial class BattleSession
         NativeBattleDuel274ActorServices actors = NativeDuel274Actors(() => graphics, value => graphics = value);
         NativeBattleDuel274MoveInputs moves = new(index => graphics.Models[index], WriteModel, (index, bone) => ReadNativeGraphicsBone(graphics, index, checked((byte)bone), 0), ReadBoneMatrix, DrawEcho, CaptureEcho, SubmitEffect, DrawSprite, DrawSecondary, Contact, Flash, Sound);
         NativeBattleDuel274SelectedServices selected = new(actors, index => graphics.Models[index], WriteModel, Anchor, Bind, Select, Camera, QueueFile, Contact, Texture, Variant, Stage, (current, amount) => SubmitEffect(current, NativeBattleDuel274Screen.Draw68D4B0(amount)));
-        frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
-        Publish(frame);
-        nativeCrtRandom = frame.Random;
-        return graphics with { OriginalEffect = frame.Effect };
+        NativeEffectMemory = memory;
+        NativeFileStaging = staging.View;
+        try
+        {
+            frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
+            frame = frame with { Memory = frame.Memory with { Arena = arena.Freeze() }, Staging = staging.Freeze(frame.Staging) };
+            Publish(frame);
+            nativeCrtRandom = frame.Random;
+            return graphics with { OriginalEffect = frame.Effect };
+        }
+        catch
+        {
+            if (NativeEffectMemory is { Arena.Transaction: { } active } published && active == arena)
+            {
+                NativeEffectMemory = published with { Arena = arena.Freeze() };
+            }
+            if (NativeFileStaging is { Transaction: { } activeStaging } publishedStaging && activeStaging == staging)
+            {
+                NativeFileStaging = staging.Freeze(publishedStaging);
+            }
+            throw;
+        }
 
         void WriteModel(int index, NativeBattleGraphicsModel model) => graphics = graphics with { Models = graphics.Models.SetItem(index, model) };
         NativeBattleModuleAnchor Anchor(int index) => ReadNativeModelAnchor(graphics, index) with { W = (graphics.Models[index].Transform ?? throw new NotSupportedException("Native Duel anchor requires actual model WORD36.")).Angle36 };

@@ -11,6 +11,26 @@ public sealed partial record NativeBattleFileStaging
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         NativeBattleFileStaging current = Rebase(Math.Min(BaseAddress, Math.Min(source, destination)));
+        if (current.Transaction is not null)
+        {
+            (byte[] data, bool[] known) = current.ReadSnapshot(source, length);
+            current = current.MarkUnknown(destination, length);
+            for (int index = 0; index < length;)
+            {
+                if (!known[index])
+                {
+                    index++;
+                    continue;
+                }
+                int firstKnown = index++;
+                while (index < length && known[index])
+                {
+                    index++;
+                }
+                current = current.Write(checked(destination + (uint)firstKnown), data.AsSpan(firstKnown, index - firstKnown));
+            }
+            return current;
+        }
         int first = checked((int)(destination - current.BaseAddress));
         int end = checked(first + length);
         int sourceFirst = checked((int)(source - current.BaseAddress));

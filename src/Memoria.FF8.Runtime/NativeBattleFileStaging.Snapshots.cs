@@ -4,7 +4,16 @@ public sealed partial record NativeBattleFileStaging
 {
     public (byte[] Data, bool[] Known) ReadSnapshot(uint address, int length)
     {
+        if (Transaction is { } transaction)
+        {
+            return transaction.ReadSnapshot(address, length);
+        }
         Validate();
+        return ReadSnapshotStorage(address, length);
+    }
+
+    internal (byte[] Data, bool[] Known) ReadSnapshotStorage(uint address, int length)
+    {
         if (length < 0 || (ulong)address + (uint)length > (ulong)uint.MaxValue + 1)
         {
             throw new InvalidDataException("Native shared memory snapshot leaves its physical address extent.");
