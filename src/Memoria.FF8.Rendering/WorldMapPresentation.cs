@@ -74,7 +74,7 @@ public static class WorldMapPresentation
                 triangles.Add(new(c, b, Convert(face.Vertices[3])));
             }
         }
-        return [new(11, 1, false, true, triangles.AsReadOnly())];
+        return [new(11, 0, false, true, triangles.AsReadOnly())];
     }
 
     public static IReadOnlyList<WorldMapLayer> Markers(byte mode, Vector2 nativePosition, float bodyHeading, float cameraHeading, long frame, bool showBodyMarker)

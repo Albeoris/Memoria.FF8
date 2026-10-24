@@ -60,7 +60,9 @@ public sealed class WorldMapPresentationTests
         WorldMapLayer right = Assert.Single(WorldMapPresentation.Create(1, new Vector2(131071, 98303), geometry));
         Assert.Equal(62, left.Triangles.Count);
         Assert.True(left.Wrap);
-        Assert.Equal(1, left.Palette);
+        Assert.Equal(0, left.Palette);
+        PixelImage texture = assets.ReadNativeSectionTexture(38, left.TextureMember, left.Palette);
+        Assert.Contains(texture.Pixels, pixel => pixel.R == 41 && pixel.G == 74 && pixel.B == 82);
         Assert.Equal(left.Triangles.Select(triangle => triangle.A.Position), right.Triangles.Select(triangle => triangle.A.Position));
         Assert.Contains(left.Triangles, triangle => triangle.A.Uv.X < 0 || triangle.A.Uv.Y < 0);
         Assert.Contains(right.Triangles, triangle => triangle.A.Uv.X > 1 || triangle.A.Uv.Y > 1);
@@ -82,6 +84,7 @@ public sealed class WorldMapPresentationTests
         Assert.True(capture.Count >= 6);
         Assert.All(capture.Materials, material => Assert.Equal(TriangleDepthComparison.Always, material.DepthComparison));
         Assert.Contains(capture.Materials, material => material.Texture is { Width: > 0, Height: > 0 });
+        Assert.Same(assets.ReadNativeSectionTexture(38, 11, mode == 2 ? 1 : 0), capture.Materials[0].Texture);
         renderer.TriangleRenderer = null;
         draw.Invoke(renderer, [frame]);
         byte[] pixels = (byte[])typeof(WorldTerrainRenderer).GetField("pixels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
