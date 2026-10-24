@@ -7,7 +7,7 @@ public sealed record NativeBattleWindowedMeshContext108Step(NativeBattleEffectMe
 
 public static class NativeBattleWindowedMeshContext108
 {
-    public static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null)
+    public static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null)
     {
         context.Validate();
         uint flags = Dword(context, 0x1C);
@@ -61,7 +61,7 @@ public static class NativeBattleWindowedMeshContext108
                 for (int corner = 0; corner < 3; corner++)
                 {
                     (NativeBattleVector vertex, short? w) = Vertex(corner);
-                    registers = NativeBattleGeometry.LoadVector(registers, corner, vertex, w);
+                    registers = LoadSelected(registers, corner, corner, vertex, w);
                 }
                 registers = NativeBattleGeometry.ProjectTriple(registers, projection, controls.Dqa, controls.Dqb);
                 uint firstFlags = registers.Colors.Flags!.Value;
@@ -86,7 +86,7 @@ public static class NativeBattleWindowedMeshContext108
                     if (corner == 3)
                     {
                         (NativeBattleVector vertex, short? w) = Vertex(corner);
-                        registers = NativeBattleGeometry.LoadVector(registers, 0, vertex, w);
+                        registers = LoadSelected(registers, 0, corner, vertex, w);
                         registers = NativeBattleGeometry.ProjectSingle(registers, projection, controls.Dqa, controls.Dqb);
                         projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
                         registers = NativeBattleGeometry.Average45E610(registers, controls.Zsf4 ?? throw new NotSupportedException("Windowed mesh quad requires its current ZSF4."));
@@ -146,6 +146,28 @@ public static class NativeBattleWindowedMeshContext108
                 allocated = checked(allocated + leaf.AllocationBytes);
                 cursor = checked(cursor + lengths[group]);
                 context = Put(context, 0x34, checked(mesh.Address + (uint)cursor));
+
+                NativeBattleGeometryRegisterStep LoadSelected(NativeBattleGeometryRegisterStep loaded, int slot, int corner, NativeBattleVector vertex, short? w)
+                {
+                    loaded = NativeBattleGeometry.LoadVector(loaded, slot, vertex, w);
+                    if (readSelectedPackedVertex is null || (flags & 0x2000) == 0)
+                    {
+                        return loaded;
+                    }
+                    int offset = BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2)) * 4;
+                    (byte[] bytes, bool[] known) = readSelectedPackedVertex(offset).ReadSnapshot(0, 8);
+                    if (!known.Take(6).All(value => value))
+                    {
+                        throw new NotSupportedException("Windowed mesh requires its selected packed XYZ bytes.");
+                    }
+                    ImmutableArray<byte?> packed = bytes.Select((value, index) => known[index] ? (byte?)value : null).ToImmutableArray();
+                    return slot switch
+                    {
+                        0 => loaded with { Colors = loaded.Colors with { NormalInput = bytes.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray() } },
+                        1 => loaded with { Geometry = loaded.Geometry with { V1 = packed } },
+                        _ => loaded with { Geometry = loaded.Geometry with { V2 = packed } }
+                    };
+                }
 
                 (NativeBattleVector Vertex, short? W) Vertex(int corner)
                 {
