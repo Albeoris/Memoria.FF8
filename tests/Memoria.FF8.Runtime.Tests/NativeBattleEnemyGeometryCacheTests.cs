@@ -59,7 +59,7 @@ public sealed class NativeBattleEnemyGeometryCacheTests
     public void RepeatedEqualReadsDoNotReparseOrCopyTheirOwnedKey()
     {
         NativeBattleEnemyGeometryCache cache = new();
-        byte[] bytes = Geometry(16);
+        byte[] bytes = Geometry(256);
         byte[] identical = bytes.ToArray();
         ImmutableArray<NativeBattleRawMesh> first = cache.Read(bytes, 1);
         _ = cache.Read(identical, 1);
