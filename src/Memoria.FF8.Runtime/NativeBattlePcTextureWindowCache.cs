@@ -29,15 +29,17 @@ public sealed record NativeBattlePcTextureWindowSelection([property: JsonRequire
 public sealed record NativeBattlePcTextureWindowResolve(NativeBattlePcTextureWindowCache Cache, NativeBattlePcTextureWindowSelection Selection);
 
 /// <summary>4647A0/464B60/464BD0/465CE0's96 page-depth rows, eight regions and retained global UV scales.</summary>
-public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] ImmutableArray<NativeBattlePcTextureWindowRow> Rows, [property: JsonRequired] float? ScaleU, [property: JsonRequired] float? ScaleV)
+public sealed partial record NativeBattlePcTextureWindowCache([property: JsonRequired] ImmutableArray<NativeBattlePcTextureWindowRow> Rows, [property: JsonRequired] float? ScaleU, [property: JsonRequired] float? ScaleV)
 {
+    public uint? SpriteTileCacheControl1CCFD90 { get; init; }
+
     private static readonly ConditionalWeakTable<NativeBattlePcTextureWindowCache, object> validated = new();
 
     public static NativeBattlePcTextureWindowCache Reset4647A0(NativeBattlePcTextureWindowCache? prior)
     {
         prior?.Validate();
         NativeBattlePcTextureWindowRow empty = new([], 0, 0, 0, 0);
-        return new(Enumerable.Repeat(empty, 96).ToImmutableArray(), prior?.ScaleU, prior?.ScaleV);
+        return new(Enumerable.Repeat(empty, 96).ToImmutableArray(), prior?.ScaleU, prior?.ScaleV) { SpriteTileCacheControl1CCFD90 = prior?.SpriteTileCacheControl1CCFD90 };
     }
 
     public void Validate()

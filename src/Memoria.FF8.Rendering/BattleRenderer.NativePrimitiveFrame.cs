@@ -81,6 +81,11 @@ public sealed partial class BattleRenderer
                 DrawNativePrimitiveTile(frame, resolved);
                 continue;
             }
+            if (command.Opcode is 0x64 or 0x66)
+            {
+                DrawNativePrimitiveSprite(frame, resolved, textures, capabilities, textureWindowCache, replacements, previousTextureOwner, sameReplacements);
+                continue;
+            }
             if ((command.Opcode & 0xE0) != 0x20)
             {
                 throw new NotSupportedException($"Native battle opcode{command.Opcode:X2} requires its original CPU rasterizer.");
@@ -112,49 +117,7 @@ public sealed partial class BattleRenderer
             PixelImage? texture = null;
             if (textured)
             {
-                ushort page = resolved.DrawMode.TexturePage ?? throw new NotSupportedException("Native textured polygon requires its executed texture page.");
-                _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
-                NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection ?? throw new NotSupportedException("Native465CE0 requires its executed PC window-cache selection; explicitly migrate the named snapshot.");
-                window.Validate();
-                NativeBattlePcTextureWindowPixels? retainedPixels;
-                if (resolved.DrawMode.TexturePixelSnapshot is int snapshot)
-                {
-                    ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots ?? throw new NotSupportedException("Native texture draw requires its executed resource pixel snapshots.");
-                    if ((uint)snapshot >= snapshots.Length)
-                    {
-                        throw new InvalidDataException("Native texture draw refers outside its retained resource pixel snapshots.");
-                    }
-                    retainedPixels = snapshots[snapshot];
-                    retainedPixels.ValidateMapping(window.Row, new(window.X, window.Y, window.Width, window.Height));
-                }
-                else
-                {
-                    retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
-                }
-                ushort clut = (ushort)(command.Words[2] >> 16);
-                byte? alternateShift = null;
-                if (resolved.DrawMode.BlendMode == 2)
-                {
-                    if (colorState.SubtractUsesNormalizedColor)
-                    {
-                        throw new NotSupportedException("Native PC ABR2 requires the selected alpha-palette device profile.");
-                    }
-                    alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
-                }
-                NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels);
-                if (!nativeTexturePages.TryGetValue(key, out texture))
-                {
-                    bool reusable = sameReplacements && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
-                    if (!reusable)
-                    {
-                        texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
-                        if (replacements is not null && alternateShift is null)
-                        {
-                            texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements);
-                        }
-                    }
-                    nativeTexturePages.Add(key, texture!);
-                }
+                texture = ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements);
             }
             PrimitiveVertex At(int corner)
             {
@@ -224,6 +187,56 @@ public sealed partial class BattleRenderer
                 }
             }
         }
+    }
+
+    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements)
+    {
+        NativeBattleLogicalCommand command = resolved.Command;
+        PixelImage? texture;
+        ushort page = resolved.DrawMode.TexturePage ?? throw new NotSupportedException("Native textured polygon requires its executed texture page.");
+        _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
+        NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection ?? throw new NotSupportedException("Native465CE0 requires its executed PC window-cache selection; explicitly migrate the named snapshot.");
+        window.Validate();
+        NativeBattlePcTextureWindowPixels? retainedPixels;
+        if (resolved.DrawMode.TexturePixelSnapshot is int snapshot)
+        {
+            ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots ?? throw new NotSupportedException("Native texture draw requires its executed resource pixel snapshots.");
+            if ((uint)snapshot >= snapshots.Length)
+            {
+                throw new InvalidDataException("Native texture draw refers outside its retained resource pixel snapshots.");
+            }
+            retainedPixels = snapshots[snapshot];
+            retainedPixels.ValidateMapping(window.Row, new(window.X, window.Y, window.Width, window.Height));
+        }
+        else
+        {
+            retainedPixels = textureWindowCache is not null ? textureWindowCache.PixelWords(window) : window.UsesRetainedPixelWords == false ? null : throw new NotSupportedException("Native texture selection requires its retained cache pixel owner.");
+        }
+        ushort clut = (ushort)(command.Words[2] >> 16);
+        byte? alternateShift = null;
+        if (resolved.DrawMode.BlendMode == 2)
+        {
+            if (colorState.SubtractUsesNormalizedColor)
+            {
+                throw new NotSupportedException("Native PC ABR2 requires the selected alpha-palette device profile.");
+            }
+            alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
+        }
+        NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels);
+        if (!nativeTexturePages.TryGetValue(key, out texture))
+        {
+            bool reusable = sameReplacements && previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
+            if (!reusable)
+            {
+                texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                if (replacements is not null && alternateShift is null)
+                {
+                    texture = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, textures!, page, clut, window.X, window.Y, retainedPixels, replacements);
+                }
+            }
+            nativeTexturePages.Add(key, texture!);
+        }
+        return texture!;
     }
 
     private bool NativeScreenQuadCoversProjection(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode)

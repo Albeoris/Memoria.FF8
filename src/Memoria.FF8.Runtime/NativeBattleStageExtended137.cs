@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleStage137State
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleStageVariant137State? Variants { get; init; }
+
     [System.Text.Json.Serialization.JsonRequired]
     public bool Deforming { get; init; } = true;
     [System.Text.Json.Serialization.JsonRequired]
@@ -33,7 +36,26 @@ public static class NativeBattleStage137
 {
     public const uint CallbackAddress = 0x50DFF0;
 
-    public static NativeBattleStage137State Initialize50DF10(NativeBattleStage137State state) => state with { Deforming = true, ShakeAmplitude = 0 };
+    public static NativeBattleStage137State Initialize50DF10(NativeBattleStage137State state, uint geometryAddress) => state with { Deforming = true, ShakeAmplitude = 0, Variants = (state.Variants ?? NativeBattleStageVariant137State.Unknown()) with { Index = 0, Counter = 300, GeometryAddress = geometryAddress } };
+
+    public static (NativeBattleStage137State State, short RotationSpeed) CompleteVariant50E3C0(NativeBattleStage137State state, short rotationSpeed, Func<uint> random, Func<int> globalRandom)
+    {
+        NativeBattleStageVariant137State variants = state.Variants ?? throw new NotSupportedException("Native stage variant rebuild requires its retained variant process.");
+        variants.Validate();
+        int index = variants.ReadIndex();
+        if ((uint)index >= 10)
+        {
+            throw new NotSupportedException("Native stage variant selection leaves its ten actual table entries.");
+        }
+        int next = (index + 1) % 10;
+        state = state with { Variants = variants with { Index = next, Counter = 200 } };
+        if (next == 0)
+        {
+            state = StartWave(state with { Deforming = false }, random, globalRandom);
+            rotationSpeed = 0;
+        }
+        return (state, rotationSpeed);
+    }
 
     public static NativeBattleStage137Step Advance50DFF0(NativeBattleStage137State state, short phase, uint flags, short rotationSpeed, short cameraShake, ushort graphicsFlags, ushort cameraMask, NativeBattleVector capturedEye, Func<uint> random, Func<int> globalRandom)
     {

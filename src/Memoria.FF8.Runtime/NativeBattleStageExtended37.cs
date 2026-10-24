@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleStageExtendedState([property: System.Text.Json.Serialization.JsonRequired] NativeBattleStage37State Stage37, [property: System.Text.Json.Serialization.JsonRequired] NativeBattleStage137State Stage137, [property: System.Text.Json.Serialization.JsonRequired] NativeBattleStage147State Stage147)
 {
-    public static NativeBattleStageExtendedState FromColdProcess() => new(new(), new(), new());
+    public static NativeBattleStageExtendedState FromColdProcess() => new(new(), new() { Variants = NativeBattleStageVariant137State.FromColdProcess() }, new());
 
     public void Validate()
     {
@@ -12,6 +12,7 @@ public sealed record NativeBattleStageExtendedState([property: System.Text.Json.
         {
             throw new InvalidDataException("Native specialized stage process requires its original counters and retained globals.");
         }
+        Stage137.Variants?.Validate();
     }
 }
 

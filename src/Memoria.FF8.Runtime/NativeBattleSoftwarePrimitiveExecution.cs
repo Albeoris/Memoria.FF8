@@ -150,14 +150,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             NativeSoftwareEnvironmentDerived environment = State.Environment.Derived ?? throw new NotSupportedException("Native normal drawing requires its published environment.");
             bool defaultEnvironment = environment.Mode == 1 && environment.Rectangle == new NativeSoftwareDrawingRectangle(0, 0, 320, 216) && environment.DrawPositionX == 0 && environment.DrawPositionY == 0;
             bool polygon = (command.Opcode & 0xE0) == 0x20;
-            if (!defaultEnvironment && (State.ViewportInputs is null || !polygon))
+            bool sprite = command.Opcode is 0x64 or 0x66;
+            if (!defaultEnvironment && (State.ViewportInputs is null || !polygon && !sprite))
             {
                 throw new NotSupportedException("Native normal geometry requires the viewport scale and offset outputs for this drawing environment.");
             }
-            if ((command.Opcode & 0xE4) == 0x24)
+            if ((command.Opcode & 0xE4) == 0x24 || sprite)
             {
                 ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured command requires its actual page WORD.");
-                NativeSoftwareTextureState prepared = NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, page).State;
+                NativeSoftwareTextureState prepared = sprite && pass == 0 ? State.Texture : NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, page).State;
                 ushort clut = unchecked((ushort)(command.Words[2] >> 16));
                 State = State with { Texture = NativeSoftwareTexturePreparation.PrepareClut45B920(prepared, clut, 1024 * 512 * 2) };
             }
@@ -176,9 +177,13 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalResolvedCommand command)
     {
+        if (command.Pass != 0 && (command.Command.Opcode is 0x64 or 0x66))
+        {
+            command = command with { DrawMode = command.DrawMode with { SpriteFilter = State.SpriteFilter } };
+        }
         NativeSoftwareNormalViewportDerived? normal = null;
         NativeSoftwareViewportInputs? inputs = null;
-        if (command.Pass != 0 && (command.Command.Opcode & 0xE0) is 0x20 or 0x40 && State.ViewportInputs is { } viewport)
+        if (command.Pass != 0 && ((command.Command.Opcode & 0xE0) is 0x20 or 0x40 || command.Command.Opcode is 0x64 or 0x66) && State.ViewportInputs is { } viewport)
         {
             if (!ReferenceEquals(normalEnvironment, State.Environment) || !ReferenceEquals(normalViewportInputs, viewport))
             {

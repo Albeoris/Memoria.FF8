@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleEffect66StageRegisters
 {
-    public static NativeBattleEffectMemory Publish5099D0(NativeBattleEffectMemory memory, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, ImmutableArray<byte> projectedScratch, uint color, NativeBattleEffectArena context44, NativeBattleSummonColors constants)
+    public static NativeBattleEffectMemory Publish5099D0(NativeBattleEffectMemory memory, NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, ImmutableArray<byte> projectedScratch, uint color, NativeBattleEffectArena context44, NativeBattleSummonColors constants, int tableBaseBucket = 17, byte depthShift = 4)
     {
         ImmutableArray<NativeBattleRawVertexGroup> groups = mesh.PackedVertexGroups ?? throw new NotSupportedException("Effect66 stage drawing requires its original bone group order, including empty groups.");
         NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? throw new NotSupportedException("Effect66 stage drawing requires its current geometry registers.");
@@ -33,7 +33,7 @@ public static class NativeBattleEffect66StageRegisters
         foreach (NativeBattleRawPolygon polygon in mesh.Polygons)
         {
             int baseLength = polygon.Quad ? 20 : 16;
-            if (polygon.Bytes.Length != baseLength + 4 || NativeBattleGeometryPackets.EmitRaw50FDF0(polygon.Bytes.AsSpan(), vertices, polygon.Quad, color, 17, 4, cue, constants) is null)
+            if (polygon.Bytes.Length != baseLength + 4 || NativeBattleGeometryPackets.EmitRaw50FDF0(polygon.Bytes.AsSpan(), vertices, polygon.Quad, color, tableBaseBucket, depthShift, cue, constants) is null)
             {
                 continue;
             }

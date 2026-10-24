@@ -34,8 +34,9 @@ public sealed partial class BattleSession
         }
         if (source.Callback?.Address == NativeBattleStage137.CallbackAddress)
         {
+            NativeModelCpuResources = physical.Reserve50DF10(NativeModelCpuResources);
             NativeBattleStageExtendedState extended = NativeStage.Extended ?? throw new NotSupportedException("Native50DF10 requires its retained stage process.");
-            NativeStage = NativeStage with { Extended = extended with { Stage137 = NativeBattleStage137.Initialize50DF10(extended.Stage137) } };
+            NativeStage = NativeStage with { Extended = extended with { Stage137 = NativeBattleStage137.Initialize50DF10(extended.Stage137, NativeStage.SourceAddress1D9A820 ?? throw new NotSupportedException("Native50DF10 requires its actual stage directory address.")) } };
         }
     }
 

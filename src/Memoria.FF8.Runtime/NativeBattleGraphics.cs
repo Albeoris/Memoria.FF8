@@ -11,10 +11,11 @@ public sealed record NativeBattlePrimitiveCapabilities([property: JsonRequired] 
 {
     public NativeBattlePcDirectTextureFormat? DirectTextureFormat { get; init; }
     public bool? HardwareEnabled { get; init; }
+    public uint? SpriteFilterStartupControl { get; init; }
     public NativeBattlePcFramebufferCaptureProfile? PcFramebufferCaptureProfile { get; init; }
     //The current PC RGBA renderer interpolates both diffuse RGB and alpha; this selects464220's4000-capable branch.
     //Its direct RGBA8 texture target preserves the original five-bit RGB channels through the explicit RGB555 conversion branch.
-    public static NativeBattlePrimitiveCapabilities PrimaryRgba8() => new(true) { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb555, HardwareEnabled = true, PcFramebufferCaptureProfile = NativeBattlePcFramebufferCaptureProfile.PrimaryRgba8() };
+    public static NativeBattlePrimitiveCapabilities PrimaryRgba8() => new(true) { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb555, HardwareEnabled = true, SpriteFilterStartupControl = 2, PcFramebufferCaptureProfile = NativeBattlePcFramebufferCaptureProfile.PrimaryRgba8() };
 }
 
 public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder)

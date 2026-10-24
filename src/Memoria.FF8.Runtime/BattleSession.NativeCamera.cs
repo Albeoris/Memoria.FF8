@@ -323,6 +323,10 @@ public sealed partial class BattleSession
                 {
                     graphics = effect174Completed;
                 }
+                else if (TryWriteNativeEffect209Completion(graphics, address, value, out NativeBattleGraphicsState effect209Completed))
+                {
+                    graphics = effect209Completed;
+                }
                 else if (TryWriteNativeEffect207Completion(graphics, address, value, out NativeBattleGraphicsState effect207Completed))
                 {
                     graphics = effect207Completed;
@@ -412,6 +416,10 @@ public sealed partial class BattleSession
                     {
                         graphics = effect174Completed;
                     }
+                    else if (TryWriteNativeEffect209Completion(graphics, target, value, out NativeBattleGraphicsState effect209Completed))
+                    {
+                        graphics = effect209Completed;
+                    }
                     else if (TryWriteNativeEffect207Completion(graphics, target, value, out NativeBattleGraphicsState effect207Completed))
                     {
                         graphics = effect207Completed;
@@ -476,6 +484,11 @@ public sealed partial class BattleSession
 
     private int ReadNativeCameraExternal(byte variable)
     {
+        if (variable == 35)
+        {
+            NativeBattleStageVariant137State variants = NativeStage?.Extended?.Stage137.Variants ?? throw new NotSupportedException("Native50E4E0 requires its retained stage variant index.");
+            return variants.SelectCamera50E4E0();
+        }
         if (variable == 23)
         {
             int active = nativeActionPackets.ActiveHeaderIndex ?? throw new NotSupportedException("Native50A6D0 requires its active104 action header.");

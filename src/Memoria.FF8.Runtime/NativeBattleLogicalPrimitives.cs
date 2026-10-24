@@ -675,18 +675,19 @@ public static class NativeBattleLogicalPasses
     private static (NativeBattleLogicalResolvedCommand Command, NativeBattlePcTextureWindowCache Cache) SelectTextureCommand(NativeBattleLogicalResolvedCommand command, NativeBattlePcTextureWindowCache cache)
     {
         NativeBattlePrimitiveDrawMode mode = ClearTextureSelection(command.DrawMode);
-        if ((command.Command.Opcode & 0xE4) == 0x24)
+        bool sprite = command.Command.Opcode is 0x64 or 0x66;
+        if ((command.Command.Opcode & 0xE4) == 0x24 || sprite)
         {
             ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured pass requires its executed texture page.");
             ushort clut = unchecked((ushort)(command.Command.Words[2] >> 16));
             if (command.Pass == 0)
             {
-                cache = cache.Preprocess462F90(page, clut);
+                cache = sprite ? cache.PreprocessSprite463120(command.Command.Opcode, page, clut) : cache.Preprocess462F90(page, clut);
             }
             else
             {
                 uint window = mode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained E2 window bits.");
-                NativeBattlePcTextureWindowResolve resolved = cache.Resolve465CE0(page, clut, window);
+                NativeBattlePcTextureWindowResolve resolved = sprite ? cache.ResolveSprite462DF0(command.Command.Opcode, page, clut, window) : cache.Resolve465CE0(page, clut, window);
                 cache = resolved.Cache;
                 mode = mode with { TextureSelection = resolved.Selection };
             }

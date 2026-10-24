@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired] NativeSoftwareDrawingEnvironmentState Environment, [property: JsonRequired] NativeSoftwareTextureState Texture, [property: JsonRequired] NativeSoftwarePolygonRasterState Raster, [property: JsonRequired] NativeSoftwareReciprocalTable Reciprocals)
 {
     public NativeSoftwareDrawingEnvironmentBuffers? EnvironmentBuffers { get; init; }
+    public NativeBattleSpriteFilterState? SpriteFilter { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public uint? DispatchFlags1CA8880 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -14,12 +15,19 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
 
     public NativeBattleSoftwarePrimitiveState Initialize500400() => this with { EnvironmentBuffers = NativeSoftwareDrawingEnvironmentBuffers.Initialize500400(EnvironmentBuffers?.CurrentGlobal) };
 
+    public NativeBattleSoftwarePrimitiveState SetViewport45B4C0(NativeSoftwareViewportInputs inputs)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        NativeBattleSpriteFilterState filter = SpriteFilter ?? throw new NotSupportedException("Native viewport publication requires its retained sprite-filter owner.");
+        return this with { ViewportInputs = inputs, SpriteFilter = filter.ApplyViewport45B4C0(inputs.Width, inputs.Height) };
+    }
+
     public static NativeBattleSoftwarePrimitiveState FromInitializedRenderer()
     {
         NativeSoftwareEdgeBuffers left = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
         NativeSoftwareEdgeBuffers right = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
         // The portable PC backend explicitly selects its45B4C0 viewport at initialization.
-        return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0), DispatchFlags1CA8880 = 0 };
+        return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0), SpriteFilter = NativeBattleSpriteFilterState.FromRendererStartup(NativeBattlePrimitiveCapabilities.PrimaryRgba8().SpriteFilterStartupControl!.Value).ApplyViewport45B4C0(640, 480), DispatchFlags1CA8880 = 0 };
     }
 
     public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] image, NativeBattleLogicalCommand command, NativeSoftwarePrimitiveTable table)

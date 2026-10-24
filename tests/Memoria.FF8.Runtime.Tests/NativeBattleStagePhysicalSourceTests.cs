@@ -8,6 +8,28 @@ public sealed class NativeBattleStagePhysicalSourceTests
 {
     [Theory]
     [InlineData(0)]
+    [InlineData(0x10F0)]
+    public void Variant_stage_load_reserves_the_full_rebuild_extent_without_writing_the_retained_gap(int directoryOffset)
+    {
+        NativeBattleStagePhysicalSource original = Source();
+        byte[] prefix = new byte[directoryOffset + original.Prefix.Length];
+        original.Prefix.AsSpan().CopyTo(prefix.AsSpan(directoryOffset));
+        NativeBattleStagePhysicalSource source = original with { DirectoryOffset = directoryOffset, Prefix = prefix.ToImmutableArray() };
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 216 };
+        (NativeBattleFileStaging staging, NativeBattleModelCpuResources published) = source.Publish500EA0(NativeBattleFileStaging.Unknown(), cpu);
+        NativeBattleModelCpuResources reserved = source.Reserve50DF10(published);
+        Assert.Equal(directoryOffset + 0x8000, reserved.EnemyCursor);
+        Assert.Same(published.Cpu, reserved.Cpu);
+        Assert.Equal(published.Rows, reserved.Rows);
+        Assert.Equal(published.ScratchMaximum, reserved.ScratchMaximum);
+        Assert.Equal(source.Prefix.ToArray(), staging.Read(source.Address, source.Prefix.Length));
+        Assert.Throws<NotSupportedException>(() => staging.Read(source.Address + (uint)source.Prefix.Length, 1));
+        NativeBattleModelCpuResources restored = JsonSerializer.Deserialize<NativeBattleModelCpuResources>(JsonSerializer.Serialize(reserved))!;
+        Assert.Equal(reserved.EnemyCursor, restored.EnemyCursor);
+    }
+
+    [Theory]
+    [InlineData(0)]
     [InlineData(0x1980)]
     public void Specialized_load_reserves_from_the_actual_directory_before_enemy_loads(int directoryOffset)
     {
