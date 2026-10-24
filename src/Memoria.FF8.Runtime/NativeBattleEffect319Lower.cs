@@ -29,25 +29,12 @@ public static class NativeBattleEffect319Lower
 
     public static NativeBattleEffect319Step AdvanceBone(NativeBattleEffect319Frame frame, uint address, NativeBattleEffect319Inputs inputs)
     {
-        NativeBattleModulePoolTask task = Read(frame, address);
-        short delay = unchecked((short)(Signed(task, 16) - 1));
-        task = task.WriteWord(16, unchecked((ushort)delay));
-        if (delay <= 0)
+        NativeBattleBoneScaleTaskStep step = NativeBattleBoneScaleTask65F2B0.Advance(Read(frame, address));
+        NativeBattleModulePoolTask task = step.Task;
+        frame = Write(frame, address, task);
+        if (step.Result == 2)
         {
-            short z = unchecked((short)(Signed(task, 18) + Signed(task, 20)));
-            short xy = unchecked((short)(Signed(task, 22) + Signed(task, 24)));
-            z = Math.Min(z, (short)4096);
-            xy = Math.Min(xy, (short)4096);
-            task = task.WriteWord(16, 0).WriteWord(18, unchecked((ushort)z)).WriteWord(22, unchecked((ushort)xy));
-            frame = Write(frame, address, task);
-            if (xy >= 4096 && z >= 4096)
-            {
-                return new(frame, 2);
-            }
-        }
-        else
-        {
-            frame = Write(frame, address, task);
+            return new(frame, 2);
         }
         frame = inputs.Execute(frame, new NativeBattleEffect319ScaleBone56BEF0(task.ReadDword(12), Signed(task, 22), Signed(task, 18)));
         return new(frame, 0);
