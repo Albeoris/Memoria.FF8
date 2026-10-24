@@ -357,7 +357,7 @@ public static class NativeBattleSequenceMachine
                         cues.Add(new(NativeBattleSequenceCueKind.RestoreStanding, 1));
                         RestoreStanding();
                         resource = inputs.OriginalResource ?? throw new InvalidDataException("Native AC requires its original resource-pointer owner.");
-                        model = model with { ResourceMagicId = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ActiveResourceRow100 = model.ActiveStagedResourceRow100 is not null ? model.OriginalResourceRow104 ?? throw new NotSupportedException("Native AC requires its actual original resource row104 before restoring a staged row.") : model.ActiveResourceRow100, Flags2 = (ushort)(RequireFlags2() & ~8) };
+                        model = model with { ResourceMagicId = null, ResourceRenzokukenTargetBank = null, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ActiveResourceRow100 = model.ActiveStagedResourceRow100 is not null ? model.OriginalResourceRow104 ?? throw new NotSupportedException("Native AC requires its actual original resource row104 before restoring a staged row.") : model.ActiveResourceRow100, Flags2 = (ushort)(RequireFlags2() & ~8) };
                         state = state with { Pending3 = 0, Callback42 = 0 };
                         SwitchSequence(restored);
                         //AC returns a null PC;504290 immediately re-enters the restored selected sequence in this callback.

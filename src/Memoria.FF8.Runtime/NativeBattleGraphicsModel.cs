@@ -27,6 +27,8 @@ public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ushort? RotationPadding18 { get; init; }
     public ushort? ResourceMagicId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public byte? ResourceRenzokukenTargetBank { get; init; }
     public uint? ActiveAnimationDirectory { get; init; }
     public string? ActiveAnimationBank { get; init; }
     public NativeBattleModelTransform? Transform { get; init; }
@@ -106,7 +108,7 @@ public static class NativeBattleGraphicsModels
             }
         }
         //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
-        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
+        return model with { CurrentBodyBoneMatrices = null, ScaleVectorAddress48 = 0, Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, MinimumY146 = 0, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, LinkedModelIndex140 = null, BlinkCountdown144 = (byte)(blink % 45 + 15), SequenceByte145 = sequenceByte145, Flags8 = projectedStatusFlags, Flags8KnownMask = 0, Flags8KnownBits = 0, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, ResourceRenzokukenTargetBank = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     private static byte InitializeSequenceByte145(byte information246)

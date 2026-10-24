@@ -195,7 +195,7 @@ public sealed partial class BattleSession
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
                 NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                 {
-                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), binding.Resource) : binding.Resource,
+                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), binding.Resource) : binding.Resource,
                     GlobalRandom = NextNativeGlobalRandom,
                     BindModelRing90 = (current, selector) =>
                     {

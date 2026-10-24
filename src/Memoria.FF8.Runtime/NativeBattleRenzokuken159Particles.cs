@@ -1,0 +1,82 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public static partial class NativeBattleRenzokuken159Controller
+{
+    /// <summary>602C90 draws every live slot before applying its original pause-gated state changes.</summary>
+    public static NativeBattleRenzokuken159Frame AdvanceParticles602C90(NativeBattleRenzokuken159Frame frame, NativeBattleRenzokuken159Resources resources, uint graphicsFlags, Func<NativeBattleRenzokuken159Frame, NativeBattleRenzokuken159Sprite, NativeBattleRenzokuken159SpriteStep> draw)
+    {
+        NativeBattleRenzokuken159State state = State(frame);
+        if (resources.ParticleSprites.IsDefault || resources.ParticleSprites.Length != 3 || resources.SpiralColors.IsDefault || resources.SpiralColors.Length != 24)
+        {
+            throw new InvalidDataException("Native602C90 requires its three actual sprite programs and24 color DWORDs.");
+        }
+        byte[][] banks = [state.Sparks.ToArray(), state.Debris.ToArray(), state.Spirals.ToArray()];
+        bool advance = (graphicsFlags & 0x201) == 0;
+        for (int bank = 0; bank < banks.Length; bank++)
+        {
+            byte[] bytes = banks[bank];
+            int stride = bank switch { 0 => 12, 1 => 20, _ => 16 };
+            for (int offset = 0; offset < bytes.Length; offset += stride)
+            {
+                short counter = Read(bytes, offset);
+                if (counter < 0)
+                {
+                    continue;
+                }
+                short scale = Read(bytes, offset + 2);
+                uint? color = null;
+                if (bank == 2)
+                {
+                    short colorIndex = Read(bytes, offset + 12);
+                    if ((uint)colorIndex >= 24)
+                    {
+                        throw new InvalidDataException("Native602C90 spiral color selector exceeds its original24 DWORDs.");
+                    }
+                    color = resources.SpiralColors[colorIndex];
+                }
+                NativeBattleVector position = new(Read(bytes, offset + 4), Read(bytes, offset + 6), Read(bytes, offset + 8));
+                NativeBattleRenzokuken159SpriteStep rendered = draw(frame, new(resources.ParticleSprites[bank], unchecked((ushort)counter), position, scale, color, bank == 2 ? (ushort)4 : (ushort)0));
+                frame = rendered.Frame;
+                if (!advance)
+                {
+                    continue;
+                }
+                Write(bytes, offset, counter + 1);
+                if (rendered.AnimationEnded)
+                {
+                    Write(bytes, offset, -1);
+                    continue;
+                }
+                if (bank == 1)
+                {
+                    Write(bytes, offset + 2, scale - (scale >> 5));
+                    Write(bytes, offset + 4, Read(bytes, offset + 4) + Read(bytes, offset + 12));
+                    Write(bytes, offset + 6, Read(bytes, offset + 6) + Read(bytes, offset + 14));
+                    Write(bytes, offset + 8, Read(bytes, offset + 8) + Read(bytes, offset + 16));
+                    for (int velocity = offset + 12; velocity <= offset + 16; velocity += 2)
+                    {
+                        short value = Read(bytes, velocity);
+                        Write(bytes, velocity, value - (value >> 3));
+                    }
+                }
+                if (bank == 2)
+                {
+                    Write(bytes, offset + 6, Read(bytes, offset + 6) + Read(bytes, offset + 10));
+                    short nextColor = unchecked((short)(Read(bytes, offset + 12) + 1));
+                    Write(bytes, offset + 12, nextColor >= 24 ? 0 : nextColor);
+                }
+            }
+        }
+        state = State(frame) with { Sparks = banks[0].ToImmutableArray(), Debris = banks[1].ToImmutableArray(), Spirals = banks[2].ToImmutableArray() };
+        return WriteState(frame, state);
+    }
+
+    private static short Read(byte[] bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
+    private static void Write(byte[] bytes, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), unchecked((short)value));
+    private static NativeBattleRenzokuken159State State(NativeBattleRenzokuken159Frame frame) => frame.Memory.Renzokuken159 ?? throw new NotSupportedException("Native159 requires its retained local module state.");
+
+    private static NativeBattleRenzokuken159Frame WriteState(NativeBattleRenzokuken159Frame frame, NativeBattleRenzokuken159State state) => frame with { Memory = frame.Memory with { Renzokuken159 = state } };
+}

@@ -885,6 +885,21 @@ public sealed partial class GameAssets
                 binding = binding with { Renzokuken141Resources = ReadNativeRenzokuken141Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 161)
+            {
+                NativeBattleModuleResource commonSprite = ReadNativeBattleModuleResources().Single(resource => resource.Id == 3);
+                binding = binding with
+                {
+                    RenzokukenSpecialResources = ReadNativeRenzokukenSpecial161Resources(),
+                    RenzokukenSpecialExtraSprites = [ReadNativeRenzokukenSpecial161TargetSprite(), new(commonSprite.Address, commonSprite.Bytes)]
+                };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 159)
+            {
+                binding = binding with { Renzokuken159Resources = ReadNativeRenzokuken159Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 160)
             {
                 binding = binding with { Renzokuken160Resources = ReadNativeRenzokuken160Resources() };

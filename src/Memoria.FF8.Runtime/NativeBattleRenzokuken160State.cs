@@ -55,6 +55,9 @@ public sealed partial record NativeBattleEffectMemory
 
 public sealed record NativeBattleRenzokuken160Resources(NativeBattleEffectHeapAllocation Animation, BattleNativeRenzokukenResource ActorResource, ImmutableArray<NativeBattleSearchSpriteResource> ParticleSprites, ImmutableArray<uint> SpiralColors, ImmutableArray<int> ContactLeadFrames, ImmutableArray<NativeBattleStaticMeshResource> Meshes, uint AppearanceSound, uint DefaultModelColor)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleVector? SpecialAlignmentAxis { get; init; }
+    public ImmutableArray<NativeBattleSearchSpriteResource> SpecialSprites { get; init; } = [];
     public ImmutableArray<int> ImpactAxis { get; init; } = [];
     public ImmutableArray<ushort> StreakAgeOffsets { get; init; } = [];
     public ImmutableArray<ushort> StreakPaletteOffsets { get; init; } = [];

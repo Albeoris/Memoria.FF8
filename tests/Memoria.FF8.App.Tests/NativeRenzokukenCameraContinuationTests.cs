@@ -42,7 +42,7 @@ public sealed class NativeRenzokukenCameraContinuationTests
                 before = battle.Capture();
                 battle.Tick();
                 Log("tick");
-                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect is 141 or 160 or 259 or 332 or 333)
+                if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && battle.GetNativeRenzokuken("party-0")?.MagicId == effect.Binding.Effect)
                 {
                     Assert.NotNull(battle.NativeEffectMemory!.Textures!.Animation);
                     Assert.Equal(JsonSerializer.Serialize(battle.NativeEffectMemory.Textures.Animation), JsonSerializer.Serialize(battle.NativeCamera!.ControlResource));

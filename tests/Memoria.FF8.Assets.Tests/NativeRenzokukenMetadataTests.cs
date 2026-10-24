@@ -47,9 +47,9 @@ public sealed class NativeRenzokukenMetadataTests
 
         var resources = game.ReadNativeRenzokukenResources();
 
-        Assert.Equal(5, resources.Length);
-        Assert.Equal(new[] { 4, 5, 6, 7, 8 }, resources.Select(resource => resource.Timeline.InputThresholds.Length));
-        Assert.Equal(new ushort[] { 160, 141, 259, 332, 333 }, resources.Select(resource => resource.MagicId));
+        Assert.Equal(16, resources.Length);
+        Assert.Equal(new[] { 4, 5, 6, 7, 8 }, resources.Take(5).Select(resource => resource.Timeline.InputThresholds.Length));
+        Assert.Equal(new ushort[] { 160, 141, 259, 332, 333, 159, 161, 334, 335, 336, 337, 339, 340, 341, 342, 343 }, resources.Select(resource => resource.MagicId));
         foreach (var resource in resources)
         {
             Assert.True(resource.GraphicsResource.Contains(1));
@@ -60,6 +60,55 @@ public sealed class NativeRenzokukenMetadataTests
             BattleSequenceSet programs = new(resource.GraphicsResource.SequenceSection.ToArray());
             Assert.Equal(resource.Segments, programs.ReadRenzokukenBlock(1, resource.AbOffset, resource.AnimationFrameCounts).Segments);
         }
+    }
+
+    [Fact]
+    public void Every_installed_enemy_selector_has_its_original_actor_and_target_resource_banks()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        Dictionary<ushort, BattleNativeRenzokukenResource> resources = game.ReadNativeRenzokukenResources().ToDictionary(resource => resource.MagicId);
+        HashSet<ushort> selected = [];
+        for (int model = 0; model < 144; model++)
+        {
+            foreach (ushort magic in assets.ReadNativeRenzokukenMagicIds(model).Skip(2))
+            {
+                Assert.True(resources.ContainsKey(magic), $"Enemy model {model} selects unavailable Renzokuken resource {magic}.");
+                selected.Add(magic);
+            }
+        }
+        Assert.Equal(resources.Keys.Order(), selected.Order());
+        (int Model, ushort Effect, uint ActorAddress, uint TargetAddress)[] special =
+        [
+            (92, 159, 0xEA3A28, 0xEA5D5C),
+            (91, 161, 0xE9B324, 0xE9DFD8),
+            (67, 334, 0xE71864, 0xE74CB0),
+            (77, 335, 0xE6CC48, 0xE6EC84),
+            (90, 336, 0xE640FC, 0xE673E4),
+            (117, 337, 0xE5DF7C, 0xE6093C),
+            (112, 339, 0xE567AC, 0xE58FCC),
+            (126, 340, 0xE5110C, 0xE53000),
+            (84, 341, 0xE4F048, 0xE505F0),
+            (124, 342, 0xE47704, 0xE49F98),
+            (122, 343, 0xE426D0, 0xE4421C)
+        ];
+        foreach (var row in special)
+        {
+            Assert.All(assets.ReadNativeRenzokukenMagicIds(row.Model).Skip(2), magic => Assert.Equal(row.Effect, magic));
+            BattleNativeRenzokukenResource actor = resources[row.Effect];
+            Assert.Equal(row.ActorAddress, actor.ResourceAddress);
+            Assert.Equal(row.Effect == 339 ? 2 : 1, actor.TargetResources.Length);
+            BattleNativeRenzokukenTargetResource target = actor.TargetResources[0];
+            Assert.Equal(row.TargetAddress, target.ResourceAddress);
+            BattleModel original = assets.LoadEnemy(row.Model);
+            NativeBattleGraphicsResource bound = target.BindGraphicsResource(original.NativePoseSource!);
+            Assert.Equal(original.NativePoseSource!.Skeleton, bound.PoseSource!.Skeleton);
+            Assert.Equal(target.AnimationFrameCounts, NativeBattlePoseDecoder.ReadFrameCounts(bound.PoseSource.Animations.AsSpan()));
+            Assert.True(bound.Contains(1));
+            Assert.Equal(original.Bones.Count, bound.PoseSource.Sample(0, 1, 0).Bones.Length);
+        }
+        Assert.Equal(0xE5CC50u, resources[339].TargetResources[1].ResourceAddress);
+        Assert.All(resources.Values.Where(resource => resource.MagicId is 160 or 141 or 259 or 332 or 333), resource => Assert.Empty(resource.TargetResources));
     }
 
     [Fact]

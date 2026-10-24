@@ -79,7 +79,7 @@ public sealed partial class BattleSession
             NativeBattleModelTextureCacheLoad load = cache.LoadPlayer(task.ModelId, task.PhysicalIndex, pack);
             cache = load.Cache;
             bodyRow = load.ResourceIndex;
-            model = model with { BodyTextureSlots = bind.TextureBinding, TextureResourceIndex = bodyRow, TextureAllocationMask = cache.Rows[bodyRow].TextureMask, ActiveResourceRow100 = bodyRow, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ResourceMagicId = null };
+            model = model with { BodyTextureSlots = bind.TextureBinding, TextureResourceIndex = bodyRow, TextureAllocationMask = cache.Rows[bodyRow].TextureMask, ActiveResourceRow100 = bodyRow, ActiveStagedResourceRow100 = null, LinkedStagedResourceRow = null, ResourceMagicId = null, ResourceRenzokukenTargetBank = null };
         }
         else
         {

@@ -59,6 +59,20 @@ public sealed partial class BattleSession
                 return IsNativeEffectArenaAddress(address) ? RequireWaterMemory().Arena!.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length) : staging.Read(address, length);
             }
         }
+        if (graphics.Models[index].ResourceRenzokukenTargetBank is byte targetBank)
+        {
+            ushort effect = graphics.Models[index].ResourceMagicId ?? throw new InvalidDataException("Native target animation bank lost its Renzokuken resource owner.");
+            BattleNativeRenzokukenResource resource = RenzokukenResource(effect);
+            if (targetBank >= resource.TargetResources.Length)
+            {
+                throw new InvalidDataException("Native target animation bank exceeds its Renzokuken resource directory.");
+            }
+            NativeBattleGraphicsResource original = graphics.Models[index].ModelId4 >= 16
+                ? ResolveNativeEnemyResource(graphics.Models[index].ActiveResourceRow100 ?? throw new NotSupportedException("Native target animation requires its loaded enemy resource row."), binding.Resource)
+                : binding.Resource;
+            NativeBattleGraphicsResource target = resource.TargetResources[targetBank].BindGraphicsResource(original.PoseSource ?? throw new NotSupportedException("Native target animation requires its original skeleton owner."));
+            return (original with { SequenceSection = target.SequenceSection, AnimationFrames = target.AnimationFrames, PoseSource = target.PoseSource }).ApplyAnimationBankOverrides($"renzokuken-{effect}-target-{targetBank}");
+        }
         if (graphics.Models[index].ModelId4 >= 16)
         {
             int enemyRow = graphics.Models[index].ActiveResourceRow100 ?? throw new NotSupportedException("Native enemy resource view requires its actually loaded physical row; migrate the named older snapshot explicitly.");

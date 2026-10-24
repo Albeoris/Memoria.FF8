@@ -76,7 +76,24 @@ public static partial class NativeBattleRenzokuken160Controller
 
     private static short Read(byte[] bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
     private static void Write(byte[] bytes, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), unchecked((short)value));
-    private static NativeBattleRenzokuken160State State(NativeBattleRenzokuken160Frame frame) => frame.Effect.Binding.Effect == 160 ? frame.Memory.Renzokuken160 ?? throw new NotSupportedException("Native160 requires its retained local module state.") : NativeBattleRenzokukenVariantController.ReadState(frame).Core;
+    private static NativeBattleRenzokuken160State State(NativeBattleRenzokuken160Frame frame)
+    {
+        return frame.Effect.Binding.Effect switch
+        {
+            160 => frame.Memory.Renzokuken160 ?? throw new NotSupportedException("Native160 requires its retained local module state."),
+            161 or >= 334 and <= 337 or >= 339 and <= 343 => NativeBattleRenzokukenSpecialController.ReadState(frame).Core,
+            _ => NativeBattleRenzokukenVariantController.ReadState(frame).Core
+        };
+    }
 
-    private static NativeBattleRenzokuken160Frame WriteState(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160State state) => frame.Effect.Binding.Effect == 160 ? frame with { Memory = frame.Memory with { Renzokuken160 = state } } : NativeBattleRenzokukenVariantController.WriteState(frame, state);
+    private static NativeBattleRenzokuken160Frame WriteState(NativeBattleRenzokuken160Frame frame, NativeBattleRenzokuken160State state)
+    {
+        return frame.Effect.Binding.Effect switch
+        {
+            160 => frame with { Memory = frame.Memory with { Renzokuken160 = state } },
+            161 or >= 334 and <= 337 or >= 339 and <= 343 => NativeBattleRenzokukenSpecialController.WriteState(frame, state),
+            _ => NativeBattleRenzokukenVariantController.WriteState(frame, state)
+        };
+    }
+
 }

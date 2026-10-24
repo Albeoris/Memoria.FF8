@@ -114,7 +114,9 @@ public static partial class NativeBattleRenzokuken160Controller
             }
             else
             {
-                frame = NativeBattleRenzokukenVariantController.MarkContactPaddingUnknown(frame, bank, index);
+                frame = frame.Effect.Binding.Effect is >= 334 and <= 337 or >= 339 and <= 343
+                    ? NativeBattleRenzokukenSpecialController.MarkContactPaddingUnknown(frame, bank, index)
+                    : NativeBattleRenzokukenVariantController.MarkContactPaddingUnknown(frame, bank, index);
             }
         }
 
