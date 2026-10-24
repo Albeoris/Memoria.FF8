@@ -58,7 +58,7 @@ public static class NativeBattleDuel274Target
             frame = inputs.Camera503520(frame, unchecked((byte)(category + 16 * (selector - 2))));
             task = frame.Effect.Pools[1].Slots[slot];
             task = task.WriteByte(17, resources.Read(checked(0x110E3E0u + selector), 1)[0]).WriteWord(12, 0);
-            frame = frame with { Staging = frame.Staging.Write(0x25084D8, [0]) };
+            frame = NativeBattleDuel274Controller.WriteRootTransition(frame, 0, selector);
             Store();
         }
         task = frame.Effect.Pools[1].Slots[slot];

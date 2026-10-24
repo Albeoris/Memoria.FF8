@@ -19,7 +19,8 @@ public static class NativeBattleDuel274Controller
         byte selector = parameters.Parameter80 ?? throw new NotSupportedException("Native Duel opening requires its actual selector BYTE80.");
         if (selector != 0)
         {
-            frame = frame with { Staging = frame.Staging.Write(0x25084D8, [1, selector]), Effect = frame.Effect with { ReturnedDescriptor = 0 } };
+            frame = WriteRootTransition(frame, 1, selector);
+            frame = frame with { Effect = frame.Effect with { ReturnedDescriptor = 0 } };
             return frame;
         }
         for (int index = 0; index < 7; index++)
@@ -33,7 +34,8 @@ public static class NativeBattleDuel274Controller
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1);
         (root, int slot) = root.Append(0x689990);
         root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[12]).WriteByte(16, 0).WriteByte(17, selector)) };
-        return frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = root.DescriptorAddress } };
+        frame = frame with { Effect = frame.Effect with { Pools = [root], ReturnedDescriptor = root.DescriptorAddress } };
+        return WriteRootTransition(frame, 0, selector);
     }
 
     public static NativeBattleDuel274Frame Advance689990(NativeBattleDuel274Frame frame, NativeBattleDuel274ActorServices actors, Func<int, int> readTarget, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274TaskStep> advanceTarget)
@@ -98,6 +100,7 @@ public static class NativeBattleDuel274Controller
                 task = task.WriteWord(12, count >= 10 ? (ushort)10 : unchecked((ushort)count));
             }
             root = frame.Effect.Pools[0];
+            task = task.WriteByte(16, root.Slots[slot].ReadByte(16)).WriteByte(17, root.Slots[slot].ReadByte(17));
             root = root with { Slots = root.Slots.SetItem(slot, task) };
             return new(root, result);
         });
@@ -159,6 +162,16 @@ public static class NativeBattleDuel274Controller
         pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         return new(frame, pool, 0);
+    }
+
+    public static NativeBattleDuel274Frame WriteRootTransition(NativeBattleDuel274Frame frame, byte pending, byte selector)
+    {
+        // The transition globals alias bytes 16/17 of the physical root task at 0x25084C8.
+        int index = NativeBattleDuel274Banks.Index(frame, 0x25084B8);
+        NativeBattleEffectTaskPool root = frame.Effect.Pools[index];
+        NativeBattleModulePoolTask task = root.Slots[0].WriteByte(16, pending).WriteByte(17, selector);
+        root = root with { Slots = root.Slots.SetItem(0, task) };
+        return frame with { Staging = frame.Staging.Write(0x25084D8, [pending, selector]), Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, root) } };
     }
 
     private static NativeBattleFileStaging Dword(NativeBattleFileStaging staging, uint address, uint value) => staging.Write(address, BitConverter.GetBytes(value));

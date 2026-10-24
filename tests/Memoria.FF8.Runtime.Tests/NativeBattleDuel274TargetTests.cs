@@ -17,6 +17,8 @@ public sealed class NativeBattleDuel274TargetTests
         Assert.Equal(1, task.ReadWord(12));
         Assert.Equal(49, task.ReadByte(17));
         Assert.Equal(0, step.Frame.Staging.Read(0x25084D8, 1)[0]);
+        Assert.Equal(0, step.Frame.Effect.Pools[0].Slots[0].ReadByte(16));
+        Assert.Equal(6, step.Frame.Effect.Pools[0].Slots[0].ReadByte(17));
         Assert.Equal(10, task.ReadWord(32));
         Assert.Equal(20, task.ReadWord(34));
         Assert.Equal(30, task.ReadWord(36));

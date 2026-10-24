@@ -68,13 +68,15 @@ public sealed class NativeBattleDuel274ControllerTests
     {
         Fixture fixture = new();
         NativeBattleDuel274Frame frame = fixture.Advance(fixture.Advance(fixture.Enter()));
-        string pools = JsonSerializer.Serialize(frame.Effect.Pools);
+        NativeBattleDuel274Frame previous = frame;
         byte[] flags = frame.Staging.Read(0x2508414, 28);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters! with { Parameter80 = 6 };
         frame = NativeBattleDuel274Controller.Enter6898B0(frame with { Effect = frame.Effect with { Parameters = parameters } }, fixture.Actors, _ => throw new InvalidOperationException("Direct selection must not enqueue initial texture."));
 
         Assert.Equal(new byte[] { 1, 6 }, frame.Staging.Read(0x25084D8, 2));
-        Assert.Equal(pools, JsonSerializer.Serialize(frame.Effect.Pools));
+        Assert.Equal(JsonSerializer.Serialize(previous.Effect.Pools[1]), JsonSerializer.Serialize(frame.Effect.Pools[1]));
+        Assert.Equal(1, frame.Effect.Pools[0].Slots[0].ReadByte(16));
+        Assert.Equal(6, frame.Effect.Pools[0].Slots[0].ReadByte(17));
         Assert.Equal(flags, frame.Staging.Read(0x2508414, 28));
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
         bool selected = false;
@@ -87,6 +89,43 @@ public sealed class NativeBattleDuel274ControllerTests
         Assert.True(selected);
         Assert.Equal(0, step.Result);
         Assert.Equal(1, step.Frame.Effect.Parameters!.Parameter81);
+    }
+
+    [Fact]
+    public void RootCounterPublicationPreservesTransitionBytesClearedByTargetCallback()
+    {
+        Fixture fixture = new();
+        NativeBattleDuel274Frame frame = fixture.Advance(fixture.Advance(fixture.Enter()));
+        frame = NativeBattleDuel274Controller.WriteRootTransition(frame, 1, 6);
+        frame = NativeBattleDuel274Controller.Advance689990(frame, fixture.Actors, _ => throw new InvalidOperationException(), (current, slot) =>
+        {
+            current = NativeBattleDuel274Controller.WriteRootTransition(current, 0, 6);
+            return new(current, current.Effect.Pools[1], 0);
+        });
+
+        Assert.Equal(new byte[] { 0, 6 }, frame.Staging.Read(0x25084D8, 2));
+        Assert.Equal(0, frame.Effect.Pools[0].Slots[0].ReadByte(16));
+        Assert.Equal(6, frame.Effect.Pools[0].Slots[0].ReadByte(17));
+        Assert.Equal(3, frame.Effect.Pools[0].Slots[0].ReadWord(12));
+    }
+
+    [Fact]
+    public void ReopeningClearsStaleClosingSelectorThroughPhysicalRootInitialization()
+    {
+        Fixture fixture = new();
+        NativeBattleDuel274Frame frame = fixture.Advance(fixture.Advance(fixture.Enter()));
+        frame = NativeBattleDuel274Controller.WriteRootTransition(frame, 0, 8);
+        frame = frame with { Memory = frame.Memory.BeginLoad(273), Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Parameter80 = 0, Parameter81 = 0 } } };
+        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleDuel274Controller.Enter6898B0(frame, fixture.Actors, current => current);
+
+        Assert.Equal(new byte[2], frame.Staging.Read(0x25084D8, 2));
+        Assert.Equal(0, frame.Effect.Pools[0].Slots[0].ReadByte(16));
+        Assert.Equal(0, frame.Effect.Pools[0].Slots[0].ReadByte(17));
+        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        frame = fixture.Advance(fixture.Advance(frame));
+        Assert.Equal(1, frame.Effect.Parameters!.Parameter81);
+        Assert.Equal(0, frame.Effect.Pools[1].Slots[0].ReadByte(15));
     }
 
     [Fact]
