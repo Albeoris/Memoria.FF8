@@ -66,7 +66,24 @@ public sealed partial record NativeBattleMusicProcessState
         return this with { LoadSource = new(checked(directoryAddress + (uint)first), checked(directoryAddress + (uint)second), end - second) };
     }
 
-    public NativeBattleMusicLoadStep AdvanceLoad501A70(NativeGlobalSoundProcess sound, NativeBattleFileStaging? staging, byte phase, uint completionAddress, Action<uint, byte>? writeCompletion = null)
+    public NativeBattleMusicProcessState StageLoad501A20(uint directoryAddress, Func<uint, int, byte[]> readSource)
+    {
+        Validate();
+        ArgumentNullException.ThrowIfNull(readSource);
+        byte[] directory = readSource(checked(directoryAddress + 4), 12);
+        int first = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(directory);
+        int second = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(directory.AsSpan(4));
+        int end = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(directory.AsSpan(8));
+        if (first < 0 || second < first || end < second)
+        {
+            throw new InvalidDataException("Native501A20 requires ordered current section offsets.");
+        }
+        NativeBattleMusicLoadPointers source = new(checked(directoryAddress + (uint)first), checked(directoryAddress + (uint)second), end - second);
+        source.Validate();
+        return this with { LoadSource = source };
+    }
+
+    public NativeBattleMusicLoadStep AdvanceLoad501A70(NativeGlobalSoundProcess sound, NativeBattleFileStaging? staging, byte phase, uint completionAddress, Action<uint, byte>? writeCompletion = null, Func<uint, int, byte[]>? readSource = null)
     {
         Validate();
         sound.Validate();
@@ -91,7 +108,7 @@ public sealed partial record NativeBattleMusicProcessState
                 _ => throw new NotSupportedException("Native501A70 cannot copy music into an uninitialized destination.")
             };
             NativeBattleMusicLoadPointers source = LoadSource ?? throw new NotSupportedException("Native501A70 requires501A20's retained original source pointers.");
-            byte[] music = (staging ?? throw new NotSupportedException("Native501A70 requires the actual shared199B018 bytes at its retained music pointer.")).Read(source.MusicAddress, source.MusicLength);
+            byte[] music = readSource is { } currentSource ? currentSource(source.MusicAddress, source.MusicLength) : (staging ?? throw new NotSupportedException("Native501A70 requires the actual shared199B018 bytes at its retained music pointer.")).Read(source.MusicAddress, source.MusicLength);
             NativeMusicProcessState buffers = Buffers.LoadBuffer(target, NativeBattleMusicLoadSource.ReadIdentity(music));
             NativeBattleMusicProcessState next = (this with { Buffers = buffers, ReturnBank = bank }).QueuePlay501A70();
             return new(next, sound with { MusicPlayback = playback }, 2, false);

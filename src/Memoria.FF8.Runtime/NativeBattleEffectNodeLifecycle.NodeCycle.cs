@@ -29,7 +29,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
     {
         if (memory.Word(node + 0x62) == 0)
         {
-            InitializeEmitter(node, source);
+            InitializeEmitter(node, source, ref random);
             memory.Word(node + 0x62, unchecked((ushort)(memory.Word(node + 0x62) + 1)));
         }
         switch (memory.Byte(node + 0x68))
@@ -44,6 +44,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         EmitGeometry(node, source, ref random);
         memory.Word(node + 0x60, unchecked((ushort)(memory.Word(node + 0x60) + 1)));
         AdvanceEmitterLifetime(memory, node);
+        inputs.EmitterAdvanced?.Invoke();
     }
 
     internal void EmitGeometry(int node, byte[] source, ref NativeCrtRandomState random)
@@ -81,7 +82,8 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         {
             case 0:
                 AdvanceSpriteAnimation(memory, node, unchecked((sbyte)source[0x16]));
-                if (CompleteGeometry(node, source))
+                bool complete = CompleteGeometry(node, source);
+                if (complete)
                 {
                     memory.Word(node + 0x1CC, unchecked((ushort)(memory.Word(node + 0x1CC) + 1)));
                     memory.Dword(node + 0x170, 0);
@@ -92,6 +94,7 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     AdvanceDrawable(node, source);
                     memory.Word(node + 0x1CA, unchecked((ushort)(memory.Word(node + 0x1CA) + 1)));
                 }
+                inputs.GeometryAdvanced?.Invoke(node, complete);
                 break;
             case 1:
                 memory.Unlink882960(node);

@@ -15,6 +15,11 @@ public sealed partial class BattleSession
             NativeBattleEffect101State state = NativeEffectMemory?.Effect101 ?? throw new NotSupportedException("Native502AB0 requires effect101's retained scale vector owner; migrate the selected older snapshot explicitly.");
             return new NativeBattleModelScaleVector(unchecked((int)state.ReadDword(pointer)), unchecked((int)state.ReadDword(pointer + 4)), unchecked((int)state.ReadDword(pointer + 8)));
         }
+        if (effect.Binding.Effect == NativeBattleEffect79Profile.Effect && pointer == NativeBattleEffect79Profile.BodyContextAddress + 0xAC)
+        {
+            NativeBattleEffect79State state = NativeEffectMemory?.Effect79 ?? throw new NotSupportedException("Native502AB0 requires effect79's current scale vector.");
+            return new NativeBattleModelScaleVector(unchecked((int)state.ReadDword(pointer)), unchecked((int)state.ReadDword(pointer + 4)), unchecked((int)state.ReadDword(pointer + 8)));
+        }
         if (effect.Binding.Effect != 40 || pointer < 0x30)
         {
             throw new NotSupportedException("Native502AB0 scale pointer requires its implemented live vector owner.");

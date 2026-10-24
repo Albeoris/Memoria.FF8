@@ -86,8 +86,13 @@ internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? Co
     public NativeBattleEffectNodeOrientation2Policy Orientation2Policy { get; init; }
     public Action<NativeBattleEffectNodeMemory, int, NativeBattleVector, NativeBattleVector>? LookBasis8DDA50 { get; init; }
     public NativeBattleEffectNodeSpawnOrigin? SpawnOrigin { get; init; }
+    public NativeBattleEffectNodeActorAnchor? ActorAnchor { get; init; }
+    public Action? EmitterAdvanced { get; init; }
+    public Action<int, bool>? GeometryAdvanced { get; init; }
 }
 internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodeMeshInstance(ImmutableArray<byte> resource, NativeBattleActionMatrix matrix);
 internal delegate NativeBattleEffectNodeMeshInstance NativeBattleEffectNodePrepareMesh(int node, byte[] source);
 
 internal delegate NativeBattleVector NativeBattleEffectNodeSpawnOrigin(ref NativeCrtRandomState random);
+
+internal delegate NativeBattleVector NativeBattleEffectNodeActorAnchor(int actor, ref NativeCrtRandomState random);

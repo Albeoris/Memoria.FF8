@@ -7,6 +7,16 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
 {
     internal void InitializeEmitter(int node, ReadOnlySpan<byte> source)
     {
+        if (inputs.ActorAnchor is not null)
+        {
+            throw new InvalidOperationException("Native actor-anchor initialization requires its current CRT owner.");
+        }
+        NativeCrtRandomState random = new(0);
+        InitializeEmitter(node, source, ref random);
+    }
+
+    internal void InitializeEmitter(int node, ReadOnlySpan<byte> source, ref NativeCrtRandomState random)
+    {
         memory.Byte(node + 0x68, source[0x11]);
         uint parentPointer = memory.Dword(node + 0x5C);
         sbyte orientation = unchecked((sbyte)source[0x1C]);
@@ -46,10 +56,10 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         switch (unchecked((sbyte)memory.Byte(node + 0x68)))
         {
             case 0:
-                SetAnchoredPosition(node, source, true);
+                SetAnchoredPosition(node, source, true, ref random);
                 break;
             case 1:
-                SetAnchoredPosition(node, source, false);
+                SetAnchoredPosition(node, source, false, ref random);
                 break;
             case 2:
             case 3:
@@ -62,10 +72,17 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         memory.Word(node + 0x64, unchecked((ushort)(short)(sbyte)source[0x12]));
     }
 
-    private void SetAnchoredPosition(int node, ReadOnlySpan<byte> source, bool target)
+    private void SetAnchoredPosition(int node, ReadOnlySpan<byte> source, bool target, ref NativeCrtRandomState random)
     {
         int selector = unchecked((sbyte)source[0x25]);
-        if (selector is >= 0 and <= 3)
+        if (!target && selector == 2 && inputs.ActorAnchor is not null)
+        {
+            NativeBattleVector point = inputs.ActorAnchor(unchecked((short)memory.ContextWord(0x1E)), ref random);
+            memory.Dword(node + 0x4C, unchecked((uint)(point.X << 16)));
+            memory.Dword(node + 0x50, unchecked((uint)(point.Y << 16)));
+            memory.Dword(node + 0x54, unchecked((uint)(point.Z << 16)));
+        }
+        else if (selector is >= 0 and <= 3)
         {
             int offset = target ? 0x94 + unchecked((sbyte)memory.Byte(node + 0x6B)) * 16 + selector * 0x40 : 0x1D4 + selector * 16;
             for (int component = 0; component < 4; component++)

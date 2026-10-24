@@ -189,7 +189,7 @@ public static class NativeBattleRaldo19BallRendering
         return new(temporaryA8, vertexScratch, registers, lighting, new(attempts.ToImmutable(), allocated));
     }
 
-    private static NativeBattleGeometryRegisterStep TransformLighting(NativeBattleGeometryRegisterStep registers, NativeBattleScriptedLightingMemory lighting, bool bone)
+    internal static NativeBattleGeometryRegisterStep TransformLighting(NativeBattleGeometryRegisterStep registers, NativeBattleScriptedLightingMemory lighting, bool bone)
     {
         NativeBattleActionMatrix matrix = (bone ? lighting.LightMatrix : lighting.ColorMatrix)?.ToActionMatrix() ?? throw new NotSupportedException("Raldo ball requires its current selected light/color matrix.");
         if (bone)
