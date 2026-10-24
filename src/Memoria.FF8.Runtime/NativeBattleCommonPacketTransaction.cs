@@ -38,6 +38,12 @@ internal sealed class NativeBattleCommonPacketTransaction : IDisposable
         return state.ReadCommonPacket(offset, count);
     }
 
+    public (byte[] Bytes, bool[] Known) ReadSnapshot(int offset, int count)
+    {
+        Materialize();
+        return state.ReadCommonPacketSnapshot(offset, count);
+    }
+
     public void MarkUnknown(int offset, int count)
     {
         Materialize();

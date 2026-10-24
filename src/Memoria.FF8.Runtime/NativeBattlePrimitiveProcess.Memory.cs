@@ -89,6 +89,26 @@ public sealed partial record NativeBattlePrimitiveProcess
         return result;
     }
 
+    public (byte[] Bytes, bool[] Known) ReadCommonPacketSnapshot(int offset, int count)
+    {
+        if (CommonTransaction is { } transaction)
+        {
+            return transaction.ReadSnapshot(offset, count);
+        }
+        ValidateCommonPacketMemory();
+        ImmutableArray<CommonSlice> slices = CommonSlices(offset, count);
+        byte[] bytes = new byte[count];
+        bool[] known = new bool[count];
+        foreach (CommonSlice slice in slices)
+        {
+            NativeBattleEffectArena memory = CommonArena(slice.Bank) ?? UnknownCommonArena(CommonPacketNominalCapacity);
+            (byte[] currentBytes, bool[] currentKnown) = memory.ReadSnapshot(slice.Offset, slice.Count);
+            currentBytes.CopyTo(bytes, slice.SourceOffset);
+            currentKnown.CopyTo(known, slice.SourceOffset);
+        }
+        return (bytes, known);
+    }
+
     private readonly record struct CommonSlice(int Bank, int Offset, int Count, int SourceOffset);
 
     private ImmutableArray<CommonSlice> CommonSlices(int offset, int count)

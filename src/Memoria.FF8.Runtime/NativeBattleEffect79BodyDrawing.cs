@@ -7,9 +7,9 @@ public sealed record NativeBattleEffect79BodyDrawingStep(NativeBattleEffectMemor
 
 public static class NativeBattleEffect79BodyDrawing
 {
-    public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4)
+    public static NativeBattleEffect79BodyDrawingStep Draw(NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleEffectArena temporary168, Func<uint, int, NativeBattleEffectArena> readGeometry, uint geometryAddress, ImmutableArray<NativeBattlePackedMatrix32> bones, uint color, uint mask, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls, NativeBattleEffectArena rows, int rowLength, NativeBattleSummonColors constants, byte depthShift = 4, int depthFieldOffset = 0xD0)
     {
-        if (depthShift > 29 || rowLength < 0 || rowLength % 16 != 0)
+        if (depthShift > 29 || rowLength < 0 || rowLength % 16 != 0 || depthFieldOffset is not (0xC0 or 0xD0))
         {
             throw new InvalidDataException("Effect79 requires its actual strided body workspace and depth shift.");
         }
@@ -18,7 +18,7 @@ public static class NativeBattleEffect79BodyDrawing
         temporary168 = Word(temporary168, 0x9E, Signed(context, 0xA0));
         temporary168 = Word(temporary168, 0x9C, 4096 - Signed(context, 0xA0));
         temporary168 = Copy(context, 0xA2, temporary168, 0xA0, 6);
-        temporary168 = Word(temporary168, 0xA6, Signed(context, 0xD0));
+        temporary168 = Word(temporary168, 0xA6, Signed(context, depthFieldOffset));
         temporary168 = Dword(temporary168, 0x90, (color & 0xFFFFFF) | 0x24000000);
         temporary168 = Dword(temporary168, 0x94, (color & 0xFFFFFF) | 0x2C000000);
         temporary168 = Dword(temporary168, 0x98, mask);

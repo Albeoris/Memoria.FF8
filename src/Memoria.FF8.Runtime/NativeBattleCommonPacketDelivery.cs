@@ -6,7 +6,11 @@ public static class NativeBattleCommonPacketDelivery
     {
         process.Validate();
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native COMMON delivery requires its current packet cursor.");
-        NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, process.CommonPacketWriteCapacity, address => process.ReadCommonPacket(address, 1)[0]);
+        NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(batch, cursor, process.CommonPacketWriteCapacity, address =>
+        {
+            (byte[] bytes, bool[] known) = process.ReadCommonPacketSnapshot(address, 1);
+            return (bytes[0], known[0]);
+        });
         return NativeBattleCommonPacketArena.Append(process, ordering, resolved, flags);
     }
 }

@@ -311,6 +311,10 @@ public sealed partial class BattleSession
                 {
                     graphics = effect79Completed;
                 }
+                else if (TryWriteNativeEffect80Completion(graphics, address, value, out NativeBattleGraphicsState effect80Completed))
+                {
+                    graphics = effect80Completed;
+                }
                 else if (TryWriteNativeEffect83Completion(graphics, address, value, out NativeBattleGraphicsState effect83Completed))
                 {
                     graphics = effect83Completed;

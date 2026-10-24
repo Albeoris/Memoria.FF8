@@ -7,6 +7,11 @@ public static class NativeBattlePacketBatchWords
 {
     public static NativeBattleGfGeometryBatch Resolve(NativeBattleGfGeometryBatch batch, int cursor, int capacity, Func<int, byte> readRetained)
     {
+        return ResolveWithKnownness(batch, cursor, capacity, address => (readRetained(address), true));
+    }
+
+    public static NativeBattleGfGeometryBatch ResolveWithKnownness(NativeBattleGfGeometryBatch batch, int cursor, int capacity, Func<int, (byte Value, bool Known)> readRetained)
+    {
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || cursor > capacity - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native packet allocation leaves its current physical owner.");
@@ -79,21 +84,25 @@ public static class NativeBattlePacketBatchWords
             ImmutableArray<uint> words = Enumerable.Range(0, primitive.Words.Length).Select(word => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(word * 4))).ToImmutableArray();
             attempts[index] = attempt with { Primitive = primitive with { Words = words } };
 
-            byte ReadByte(int offset) => attempt.WriteMask[offset] switch
+            byte ReadByte(int offset)
             {
-                NativeBattleGfPacketByteState.Known => attempt.Data[offset],
-                NativeBattleGfPacketByteState.Untouched => ReadObserved(address + offset),
-                NativeBattleGfPacketByteState.Unknown => throw new NotSupportedException("Native command consumes an unobserved packet byte."),
-                _ => throw new InvalidDataException("Native packet has an unsupported store mask.")
-            };
+                (byte Value, bool Known) value = attempt.WriteMask[offset] switch
+                {
+                    NativeBattleGfPacketByteState.Known => (attempt.Data[offset], true),
+                    NativeBattleGfPacketByteState.Untouched => ReadObserved(address + offset),
+                    NativeBattleGfPacketByteState.Unknown => (attempt.Data[offset], false),
+                    _ => throw new InvalidDataException("Native packet has an unsupported store mask.")
+                };
+                return value.Known ? value.Value : throw new NotSupportedException("Native command consumes an unobserved packet byte.");
+            }
         }
         return batch with { Attempts = attempts.ToImmutable() };
 
-        byte ReadObserved(int address)
+        (byte Value, bool Known) ReadObserved(int address)
         {
             if (observed.TryGetValue(address, out var value))
             {
-                return value.Known ? value.Value : throw new NotSupportedException("Native command consumes an unobserved preceding packet store.");
+                return value;
             }
             return readRetained(address);
         }
