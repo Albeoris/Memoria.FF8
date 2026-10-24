@@ -23,7 +23,7 @@ public static class NativeBattleStorm11Vertices
         return count;
     }
 
-    public static bool Find6CE880(ImmutableArray<NativeBattleRawMesh> meshes, uint mask, ImmutableArray<NativeBattleActionMatrix> matrices, ref int index, out NativeBattleVector position)
+    public static bool Find6CE880(ImmutableArray<NativeBattleRawMesh> meshes, uint mask, ImmutableArray<NativeBattleActionMatrix> matrices, ref int index, out NativeBattleVector position, Action<NativeBattleActionMatrix, NativeBattleVector>? observeSelected = null)
     {
         for (int mesh = 0; mesh < meshes.Length; mesh++)
         {
@@ -45,6 +45,7 @@ public static class NativeBattleStorm11Vertices
                 }
                 ReadOnlySpan<byte> bytes = group.Bytes.AsSpan().Slice(index * 6, 6);
                 NativeBattleVector local = new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
+                observeSelected?.Invoke(matrices[group.Bone], local);
                 position = NativeBattleGfMatrices.Transform460840(matrices[group.Bone], local);
                 return true;
             }
