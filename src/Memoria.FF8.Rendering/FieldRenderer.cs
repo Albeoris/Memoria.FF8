@@ -604,8 +604,9 @@ public sealed partial class FieldRenderer
         {
             return coverage;
         }
-        float x = Math.Clamp(uv.X - 0.5f, 0, texture.Width - 1);
-        float y = Math.Clamp(uv.Y - 0.5f, 0, texture.Height - 1);
+        // Smooth RGB treats integer source UVs as texel centers; cutout coverage stays at the original point sample.
+        float x = Math.Clamp(uv.X, 0, texture.Width - 1);
+        float y = Math.Clamp(uv.Y, 0, texture.Height - 1);
         int left = (int)x;
         int top = (int)y;
         int right = Math.Min(left + 1, texture.Width - 1);

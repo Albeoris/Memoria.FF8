@@ -81,7 +81,8 @@ PSOutput PixelMain(VSOutput input)
         float4 texel = tex2D(TextureSampler, uv);
         if (FogParameters.w > 0)
         {
-            float2 texelPosition = clamp(input.Uv.xy / input.Uv.z * TextureSize - 0.5, 0, TextureSize - 1);
+            // Integer source UVs are smooth RGB texel centers; texel above retains point-sampled cutout coverage.
+            float2 texelPosition = clamp(input.Uv.xy / input.Uv.z * TextureSize, 0, TextureSize - 1);
             float2 origin = floor(texelPosition);
             float2 weight = frac(texelPosition);
             float4 c00 = tex2D(TextureSampler, (origin + float2(0.5, 0.5)) / TextureSize);
