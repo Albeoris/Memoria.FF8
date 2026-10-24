@@ -73,8 +73,8 @@ public sealed class NativeBattleGuardianAnimationFinaleTests
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(116), memory));
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(185), memory));
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(325), memory));
-        Assert.False(NativeBattleGuardianAnimationFinale.IsSupported(205));
-        Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(205), memory));
+        Assert.False(NativeBattleGuardianAnimationFinale.IsSupported(28));
+        Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(28), memory));
     }
 
     private static NativeBattleOriginalEffectState Effect(int effectId) => new(checked((ushort)effectId), effectId - 1, new(checked((ushort)effectId), 0, 0), null, null);
