@@ -7,8 +7,15 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCommonPacketMemory([property: JsonRequired] NativeBattleEffectArena? Bank070Buffer0, [property: JsonRequired] NativeBattleEffectArena? Bank070Buffer1, [property: JsonRequired] NativeBattleEffectArena? Bank094Buffer0, [property: JsonRequired] NativeBattleEffectArena? Bank094Buffer1);
 
 /// <summary>Four unique half-slices of the two native common packet owners; observing a write never proves any other byte zero.</summary>
-public sealed partial record NativeBattlePrimitiveProcess
+public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
 {
+    void IJsonOnSerializing.OnSerializing()
+    {
+        if (CommonTransaction is not null)
+        {
+            throw new InvalidOperationException("Native common packet transactions must publish immutable bytes before serialization.");
+        }
+    }
     private static readonly ConditionalWeakTable<NativeBattlePrimitiveReference, NativeBattlePrimitiveReference> NormalizedCommonReferences = new();
     [JsonIgnore]
     internal NativeBattleCommonPacketTransaction? CommonTransaction { get; init; }

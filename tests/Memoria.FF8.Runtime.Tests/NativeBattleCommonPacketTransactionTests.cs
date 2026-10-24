@@ -6,6 +6,36 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketTransactionTests
 {
     [Fact]
+    public void ModelProducerStoresPublishOnceAndPreserveTheLatestRendererMetadata()
+    {
+        NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 65536).ToImmutableArray(), Known(65536));
+        string original = JsonSerializer.Serialize(source);
+        ImmutableArray<NativeBattleCommonPacketStore> stores = [new(20, [1, 2, 3, 4], Known(4))];
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattlePrimitiveProcess expected = source;
+        for (int producer = 0; producer < 16; producer++)
+        {
+            expected = expected.ApplyCommonWrites(stores) with { ByteCursor = producer * 4 };
+        }
+        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        using NativeBattleCommonPacketTransaction transaction = new(source);
+        NativeBattlePrimitiveProcess actual = transaction.View;
+        for (int producer = 0; producer < 16; producer++)
+        {
+            actual = actual.ApplyCommonWrites(stores) with { ByteCursor = producer * 4 };
+        }
+        NativeBattlePrimitiveProcess frozen = transaction.Freeze(actual);
+        long sharedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(sharedBytes < scalarBytes / 3, $"Shared producers allocated {sharedBytes} bytes versus {scalarBytes} bytes copying common banks.");
+        Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(frozen));
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(60, frozen.ByteCursor);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, frozen.ReadCommonPacket(20, 4));
+    }
+
+    [Fact]
     public void Canonical_buffer_zero_references_retain_identity_and_buffer_one_keeps_its_physical_alias()
     {
         NativeBattlePrimitiveReference canonical = new("off_B6D070", 0, 37);

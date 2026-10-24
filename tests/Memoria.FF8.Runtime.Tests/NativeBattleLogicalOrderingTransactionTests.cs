@@ -5,6 +5,47 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLogicalOrderingTransactionTests
 {
     [Fact]
+    public void ModelProducerBatchesShareOneIndexAndFreezeIndependentSerializablePackets()
+    {
+        NativeBattleLogicalOrdering.Builder seed = new(NativeBattleLogicalOrdering.Clear());
+        for (int index = 0; index < 512; index++)
+        {
+            seed.Prepend(20, new("20DFAB8", 0, index * 20), [0x04000000, 0x20010203, 1, 2, 3], 0, []);
+        }
+        NativeBattleLogicalOrdering source = seed.ToImmutable();
+        string original = JsonSerializer.Serialize(source);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        NativeBattleLogicalOrdering expected = AppendProducers(source);
+        long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        using NativeBattleLogicalOrderingTransaction transaction = new(source);
+        _ = AppendProducers(transaction.View);
+        NativeBattleLogicalOrdering frozen = transaction.Freeze();
+        long sharedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(sharedBytes < scalarBytes / 3, $"Shared producers allocated {sharedBytes} bytes versus {scalarBytes} bytes rebuilding indexes.");
+        Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(transaction.View));
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(frozen));
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        string completed = JsonSerializer.Serialize(frozen);
+        transaction.View.Prepend(21, new("20DFAB8", 0, 0), [0x04000000, 0x20030201, 4, 5, 6], 0, []);
+        Assert.Equal(completed, JsonSerializer.Serialize(frozen));
+
+        static NativeBattleLogicalOrdering AppendProducers(NativeBattleLogicalOrdering ordering)
+        {
+            for (int producer = 0; producer < 16; producer++)
+            {
+                NativeBattleLogicalOrdering.Builder builder = new(ordering);
+                for (int packet = 0; packet < 4; packet++)
+                {
+                    builder.Prepend(20, new("20DFAB8", 0, (512 + producer * 4 + packet) * 20), [0x04000000, 0x20010203, 1, 2, 3], 0, []);
+                }
+                ordering = builder.ToImmutable();
+            }
+            return ordering;
+        }
+    }
+
+    [Fact]
     public void Ordered_alias_invalidations_and_replacements_match_immutable_producers_across_callback_commit_and_rollback()
     {
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear();

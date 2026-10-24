@@ -49,6 +49,7 @@ public sealed class BattleSavedDuelHostPerformanceTests
             Assert.False(Get<bool>(host, "fieldFaulted"), Get<string?>(host, "error"));
             Assert.Equal(6, observer.Moves);
             Assert.True(observer.Windows.Count >= 3);
+            Assert.Equal(2, observer.CompletedWindows);
         }
         finally
         {
@@ -65,6 +66,7 @@ public sealed class BattleSavedDuelHostPerformanceTests
         private bool invoked = battle.GetNativeDuel(actor) is not null;
         private int ordinaryTurns;
         public int Moves { get; private set; }
+        public int CompletedWindows { get; private set; }
         public List<object> Windows { get; } = [];
 
         public override void Update(GameTime gameTime)
@@ -74,6 +76,11 @@ public sealed class BattleSavedDuelHostPerformanceTests
             {
                 previous = sample;
                 Windows.Add(new { gameTime.TotalGameTime.TotalSeconds, Moves, Phase = battle.GetNativeDuel(actor)?.Phase.ToString(), battle.Frame, Sample = sample });
+                if (Moves == 6 && battle.GetNativeDuel(actor) is null && ++CompletedWindows == 2)
+                {
+                    host.Exit();
+                    return;
+                }
             }
             if (!invoked && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.GuardianForceCasts.Count == 0)
             {

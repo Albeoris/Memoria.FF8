@@ -27,10 +27,17 @@ public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference P
 public sealed record NativeBattleLogicalResolvedCommand(NativeBattleLogicalCommand Command, NativeBattlePrimitiveDrawMode DrawMode, byte Pass);
 
 /// <summary>45CC80/45C8E0/45C870 links using logical bank references with the same physical alias and capacity behavior.</summary>
-public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrimitiveLink> Table, ImmutableArray<NativeBattleLogicalProxy> Proxies, ImmutableArray<NativeBattleLogicalPacket> Packets)
+public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrimitiveLink> Table, ImmutableArray<NativeBattleLogicalProxy> Proxies, ImmutableArray<NativeBattleLogicalPacket> Packets) : IJsonOnSerializing
 {
     [JsonIgnore]
     internal NativeBattleLogicalOrderingTransaction? Transaction { get; init; }
+    void IJsonOnSerializing.OnSerializing()
+    {
+        if (Transaction is not null)
+        {
+            throw new InvalidOperationException("Native ordering transactions must publish immutable packets before serialization.");
+        }
+    }
     public int? ProxyCursor { get; init; }
     public byte? TableBuffer { get; init; }
     public ImmutableArray<NativeBattlePrimitiveLink>? OtherTable { get; init; }
