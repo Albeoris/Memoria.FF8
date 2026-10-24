@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffectTaskTransfer(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
 
-public static class NativeBattleEffectTaskMemory
+public static partial class NativeBattleEffectTaskMemory
 {
     private const uint ArenaAddress = 0x20DFAB8;
 

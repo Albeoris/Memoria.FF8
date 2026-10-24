@@ -53,9 +53,9 @@ public sealed record NativeBattleEffectTaskPool([property: JsonRequired] uint De
         int? last = null;
         for (int? next = Head; next is int index; next = Slots[index].Next)
         {
-            if (!seen.Add(index) || (Slots[index].Flags & 1) == 0)
+            if (!seen.Add(index) || Slots[index].Callback == 0)
             {
-                throw new InvalidDataException("Native effect task links contain a cycle or an unallocated slot.");
+                throw new InvalidDataException("Native effect task links contain a cycle or an absent callback.");
             }
             last = index;
         }
