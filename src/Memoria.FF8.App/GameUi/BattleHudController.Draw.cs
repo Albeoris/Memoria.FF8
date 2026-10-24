@@ -97,8 +97,13 @@ public sealed partial class BattleHudController
         {
             return [];
         }
-        bool fixedSelf = action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return session.Combatants.Where(actor => actor.IsActive && !actor.Untargetable && (actor.IsPlayer == caster.IsPlayer) == action.Allies && BattleSession.HasValidTargetLifeState(action, actor) && (!fixedSelf || actor == caster)).ToArray();
+        IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
+        bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? ((caster.IsPlayer == action.Allies));
+        if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
+        {
+            players = candidates[0].IsPlayer;
+        }
+        return candidates.Where(target => target.IsPlayer == players).ToArray();
     }
 
     private bool CollectDrawTarget(BattleCombatant target)

@@ -227,7 +227,9 @@ internal sealed partial class BattleHudElement : UiElement
             float hpWidth = canvas.MeasureText($"{hp,4}", 22 * Scale * controller.TextScale, 4096 * Scale).Width / Scale;
             Text(canvas, theme, $"{hp,4}", 674, y, hpWidth, 30, 22, color: hpColor);
             Text(canvas, theme, $" / {maximumHp,4}", 674 + hpWidth, y, Math.Max(0, 150 - hpWidth), 30, 22, color: new UiColor(255, 255, 255));
-            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null);
+            BattleStatusPresentation statuses = session.ReadStatusPresentation(actor.Id);
+            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive, cast is not null, statuses.Battle);
+            DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
                 Text(canvas, theme, $"{(form.RemainingTicks + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond}s", 906, y - 5, 42, 18, 12);
@@ -259,7 +261,8 @@ internal sealed partial class BattleHudElement : UiElement
         float panelHeight = 4 * TargetRowHeight + TargetContentOffset + 12;
         float y = Math.Min(609 - 4 * TargetRowHeight, 660 - panelHeight);
         TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, panelHeight);
-        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), "TARGET", captionSize);
+        string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? "TARGET  < ALLIES >" : "TARGET  < ENEMIES >" : "TARGET";
+        theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), caption, captionSize);
         for (int index = 0; index < targets.Count; index++)
         {
             BattleCombatant actor = targets[index];
@@ -278,6 +281,7 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 canvas.PopClip();
             }
+            DrawStatuses(canvas, theme, controller.Session.ReadStatusPresentation(actor.Id), columnX + textInset, rowY + 25, textWidth);
         }
         string help = controller.SelectingTargetGroup ? controller.TargetGroupDescription : controller.PhysicalOverrideCaption;
         float actionHeight = canvas.MeasureText("Mg", 20 * Scale * controller.TextScale, float.PositiveInfinity).Height / Scale;
@@ -289,12 +293,26 @@ internal sealed partial class BattleHudElement : UiElement
         Text(canvas, theme, help, 68, helpY + 7 + actionHeight + 4, 412, helpHeight, 15, true);
     }
 
-    private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning)
+    private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive, bool summoning, uint statuses)
     {
         canvas.Fill(bounds, new UiColor(22, 22, 27));
         UiRect inner = bounds.Inset(2);
-        UiColor color = !alive ? new UiColor(75, 75, 80) : summoning ? new UiColor(64, 128, 255) : ready ? new UiColor(237, 211, 136) : new UiColor(169, 185, 204);
-        canvas.Fill(new UiRect(inner.X, inner.Y, inner.Width * Math.Clamp(ratio, 0, 1), inner.Height), color);
+        UiRect fill = new(inner.X, inner.Y, inner.Width * Math.Clamp(ratio, 0, 1), inner.Height);
+        if (!alive || summoning)
+        {
+            canvas.Fill(fill, !alive ? new UiColor(75, 75, 80) : new UiColor(64, 128, 255));
+            return;
+        }
+        (UiColor left, UiColor right) = AtbStatusColors(statuses, ready);
+        const int bands = 16;
+        for (int index = 0; index < bands; index++)
+        {
+            float amount = index / (float)(bands - 1);
+            UiColor color = new((byte)(left.R + (right.R - left.R) * amount), (byte)(left.G + (right.G - left.G) * amount), (byte)(left.B + (right.B - left.B) * amount));
+            float x = fill.X + fill.Width * index / bands;
+            float next = fill.X + fill.Width * (index + 1) / bands;
+            canvas.Fill(new UiRect(x, fill.Y, next - x, fill.Height), color);
+        }
     }
 
     public override bool Key(UiKey key)
@@ -358,6 +376,11 @@ internal sealed partial class BattleHudElement : UiElement
             {
                 controller.ConfirmResult();
             }
+            return;
+        }
+        if (controller.CanChangeTargetSide && Rect(TargetPanel.X, TargetPanel.Y - 12, TargetPanel.Width, TargetContentOffset + 12).Contains(x, y))
+        {
+            controller.ChangeTargetSide();
             return;
         }
         if (controller.SelectingTarget && Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height).Contains(x, y) || !controller.SelectingTarget && Rect(30, CommandPanelY, CommandWidth, Math.Max(132, CommandPanelHeight)).Contains(x, y))

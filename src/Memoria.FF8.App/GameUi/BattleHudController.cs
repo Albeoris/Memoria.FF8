@@ -119,12 +119,70 @@ public sealed partial class BattleHudController
                 return DrawTargets();
             }
             BattleActionDefinition? action = command == BattleAbility.Attack ? null : SelectedAction;
-            bool allies = action?.Allies == true;
-            bool fixedSelf = action?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-            string? actorId = fixedSelf ? SelectedActor?.Id : null;
-            return session.Combatants.Where(actor => actor.IsActive && !actor.Untargetable && actor.IsPlayer == allies && (!fixedSelf || actor.Id == actorId) && (action is not null ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive)).ToArray();
+            IReadOnlyList<BattleCombatant> candidates = SelectableTargets;
+            bool players = candidates.FirstOrDefault(target => target.Id == selectedTargetId)?.IsPlayer ?? (action?.Allies == true);
+            if (!candidates.Any(target => target.IsPlayer == players) && candidates.Count > 0)
+            {
+                players = candidates[0].IsPlayer;
+            }
+            return candidates.Where(target => target.IsPlayer == players).ToArray();
         }
     }
+    public IReadOnlyList<BattleCombatant> SelectableTargets
+    {
+        get
+        {
+            if (HasGuardianFormCommands)
+            {
+                return GuardianFormTargets();
+            }
+            if (SelectedCommand == BattleAbility.Draw && SelectingDrawSource)
+            {
+                return session.Combatants.Where(IsDrawSource).ToArray();
+            }
+            BattleActionDefinition? action = SelectedCommand == BattleAbility.Attack ? null : SelectedAction;
+            BattleCombatant? caster = SelectedActor;
+            return session.Combatants.Where(target => action is null ? target.IsActive && !target.Untargetable && target.IsAlive : caster is not null && BattleSession.IsValidSelectedActionTarget(caster, action, target)).ToArray();
+        }
+    }
+
+    public bool CanChangeTargetSide => SelectingTarget && !CardSlotsOwnsInput && !CommandMenuHidden && SelectedTarget is { } current && SelectableTargets.Any(target => target.IsPlayer != current.IsPlayer);
+
+    public void ChangeTargetSide()
+    {
+        if (!CanChangeTargetSide || SelectedTarget is not { } current)
+        {
+            return;
+        }
+        BattleCombatant? opposite = SelectableTargets.FirstOrDefault(target => target.IsPlayer != current.IsPlayer);
+        if (opposite is not null)
+        {
+            SelectTarget(opposite.Id, false);
+        }
+    }
+
+    private bool TryChangeTargetSide(MenuInput input)
+    {
+        if (input is not (MenuInput.Left or MenuInput.Right) || SelectedTarget is not { } current)
+        {
+            return false;
+        }
+        IReadOnlyList<BattleCombatant> targets = Targets;
+        int index = targets.ToList().FindIndex(target => target.Id == current.Id);
+        int column = index / 4;
+        int columns = (targets.Count + 3) / 4;
+        if (!SelectingTargetGroup && (input == MenuInput.Right ? column < columns - 1 : column > 0))
+        {
+            return false;
+        }
+        if (!CanChangeTargetSide)
+        {
+            return false;
+        }
+        ChangeTargetSide();
+        return true;
+    }
+
     public bool SelectingTargetGroup
     {
         get
@@ -282,7 +340,7 @@ public sealed partial class BattleHudController
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
-                if (SelectingTargetGroup)
+                if (TryChangeTargetSide(input) || SelectingTargetGroup)
                 {
                     return;
                 }
@@ -592,10 +650,15 @@ public sealed partial class BattleHudController
         {
             return;
         }
-        if (Targets.Any(actor => actor.Id == targetId))
+        if (SelectableTargets.Any(actor => actor.Id == targetId))
         {
             if (SelectingTargetGroup)
             {
+                if (SelectableTargets.First(actor => actor.Id == targetId).IsPlayer != SelectedTarget?.IsPlayer)
+                {
+                    selectedTargetId = targetId;
+                    SoundRequested?.Invoke(MenuSound.Move);
+                }
                 if (confirm && SelectingTarget)
                 {
                     Attack();

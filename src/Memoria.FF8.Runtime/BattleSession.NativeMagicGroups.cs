@@ -4,6 +4,24 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    public static bool CanSelectEitherTargetSide(BattleActionDefinition action)
+    {
+        return action.NativeAction?.TargetFlags is byte flags ? NativeBattleLimitRules.CanSelectEitherSide(flags) : !action.AllTargets;
+    }
+
+    public static bool IsValidSelectedActionTarget(BattleCombatant actor, BattleActionDefinition action, BattleCombatant target)
+    {
+        if (!target.IsActive || target.Untargetable || !HasValidTargetLifeState(action, target))
+        {
+            return false;
+        }
+        if (action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags))
+        {
+            return target.Id == actor.Id;
+        }
+        return CanSelectEitherTargetSide(action) || (target.IsPlayer == actor.IsPlayer) == action.Allies;
+    }
+
     public static bool HasValidTargetLifeState(BattleActionDefinition action, BattleCombatant target)
     {
         if (!target.IsActive)
@@ -58,7 +76,7 @@ public sealed partial class BattleSession
         foreach (string targetId in targets)
         {
             BattleCombatant target = GetActor(targetId);
-            if (!target.IsActive || target.Untargetable || (target.IsPlayer == actor.IsPlayer) != action.Allies || !HasValidTargetLifeState(action, target) || NativeBattleLimitRules.IsFixedAllyTarget(flags) && target.Id != actor.Id)
+            if (!IsValidSelectedActionTarget(actor, action, target))
             {
                 throw new InvalidOperationException("Every selected magic target must satisfy the original spell's target contract.");
             }

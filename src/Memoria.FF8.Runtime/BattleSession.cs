@@ -277,9 +277,9 @@ public sealed partial class BattleSession
         RequireNormalGuardianFormCommands(actorId);
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsAlive || target.Untargetable || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack))
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsActive || !target.IsAlive || target.Untargetable || !actor.Abilities.Contains(BattleAbility.Attack))
         {
-            throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living opponent in an active battle.");
+            throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living target in an active battle.");
         }
         if (actor.IsPlayer && PhysicalCommand(actor) == 12)
         {
@@ -1403,7 +1403,7 @@ public sealed partial class BattleSession
             }
         }
         bool formEntry = ability == BattleAbility.GuardianForce && actorId == targetId && GetGuardianForm(actorId) is { Phase: BattleGuardianFormPhase.Charging };
-        bool allies = formEntry || !native && ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
+        bool validTargetSide = native || formEntry || ability == BattleAbility.Attack || (ability == BattleAbility.Draw ? actor.IsPlayer != target.IsPlayer : CanSelectEitherTargetSide(FindAction(ability, actionId)) || (actor.IsPlayer == target.IsPlayer) == FindAction(ability, actionId).Allies);
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || (native ? ActionHasValidTarget(targetId, ability, actionId, nativeAction, nativeTargetMask) : target.IsAlive || IsRevive(ability, actionId));
         //4842B0 grows DWORD20 despite pending flags4/8; only the native clock/status/80 gates stop it.
@@ -1412,7 +1412,7 @@ public sealed partial class BattleSession
         //48E620's successful GF branch queues its FE input without494A60; its already-grown gauge survives before48E830.
         //Only the physical-bank caller can establish this preheader authority; ordinary managed queues cannot.
         bool retainedNativeGauge = (factualNativeAction || physicalQueuedNativeAction) && actor.NativeAtb is not null;
-        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability))
+        if (nativeHeaderIndex is null && !allowNativeQueuedState && !CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null && !retainedNativeGauge || !native && nativeTargetMask == 0 && !validTargetSide || !validTarget || !unique && !native && !factualNativeAction && !physicalQueuedNativeAction || !native && !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }

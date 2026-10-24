@@ -24,6 +24,12 @@ public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, 
 
 public static class NativeBattleLimitRules
 {
+    /// <summary>Native4AA1D0 permits changing sides only for target selection mode1.</summary>
+    public static bool CanSelectEitherSide(byte targetFlags)
+    {
+        return (targetFlags & 0x0C) == 4;
+    }
+
     public static bool IsFixedAllyTarget(byte targetFlags)
     {
         return (targetFlags & 0x4C) == 8 && (targetFlags & 0x30) == 0x10;

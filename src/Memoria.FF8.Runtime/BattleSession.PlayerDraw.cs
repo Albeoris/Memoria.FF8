@@ -34,8 +34,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Draw Cast requires its separately selected spell recipient.");
         }
         BattleCombatant recipient = GetActor(targetId);
-        bool fixedSelf = spell.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        if (!recipient.IsActive || recipient.Untargetable || (recipient.IsPlayer == actor.IsPlayer) != spell.Allies || !HasValidTargetLifeState(spell, recipient) || fixedSelf && recipient != actor)
+        if (!IsValidSelectedActionTarget(actor, spell, recipient))
         {
             throw new InvalidOperationException("Draw Cast recipient does not satisfy the selected spell's target contract.");
         }

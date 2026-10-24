@@ -108,9 +108,15 @@ public sealed class NativePlayerDrawTests
         BattleSession battle = Create();
         string before = JsonSerializer.Serialize(battle.Capture());
         Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party", "source", BattleAbility.Draw, 2, true));
-        Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party", "source", BattleAbility.Draw, 2, true, drawCastTargetId: "source"));
+        Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party", "source", BattleAbility.Draw, 2, true, drawCastTargetId: "fallen"));
         Assert.Throws<InvalidOperationException>(() => battle.QueueAction("party", "source", BattleAbility.Draw, 65, true, drawCastTargetId: "party"));
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        battle.QueueAction("party", "source", BattleAbility.Draw, 2, true, drawCastTargetId: "source");
+        BattleAttackCommand command = Assert.Single(battle.QueuedActions);
+        Assert.Equal("source", command.TargetId);
+        Assert.Equal("source", command.DrawCastTargetId);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal("source", Assert.Single(restored.QueuedActions).DrawCastTargetId);
     }
 
     [Fact]

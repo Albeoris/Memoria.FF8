@@ -45,30 +45,40 @@ public static class NativeBattleZombieOverlay
                 throw new InvalidDataException("Native Zombie overlay exceeds its actual loaded CPU projection maximum.");
             }
             NativeBattleProjectedVertex[] vertices = new NativeBattleProjectedVertex[mesh.Vertices.Length];
+            byte[] projected = new byte[checked(mesh.Vertices.Length * 8)];
+            int writeStart = 0;
             for (int index = 0; index < mesh.Vertices.Length; index++)
             {
                 NativeBattleRawVertex vertex = mesh.Vertices[index];
                 NativeBattleActionMatrix bone = vertex.Bone < bones.Length ? bones[vertex.Bone] : throw new InvalidDataException("Native Zombie overlay lost its actual selected bone.");
                 NativeBattleModuleDepthCueVertex native = NativeBattleModuleProjection.ProjectWithCue45FAA0(bone, vertex.Position, projection, dqa, dqb);
                 vertices[index] = Project(native, originX, wave, phase, amplitude);
-                uint address = checked(workspace + (uint)index * 8);
+                int offset = index * 8;
                 if (native.Projected.Depth == 0)
                 {
-                    byte[] flags = new byte[2];
-                    BinaryPrimitives.WriteUInt16LittleEndian(flags, 0x10);
-                    staging = staging.Write(address + 6, flags);
+                    // Rejected vertices only write their clip WORD; retain all six untouched bytes.
+                    Flush(offset);
+                    writeStart = offset + 6;
+                    BinaryPrimitives.WriteUInt16LittleEndian(projected.AsSpan(writeStart), 0x10);
                 }
                 else
                 {
-                    byte[] bytes = new byte[8];
-                    BinaryPrimitives.WriteUInt32LittleEndian(bytes, vertices[index].Screen);
-                    BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), vertices[index].DepthAndClip);
-                    staging = staging.Write(address, bytes);
+                    BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(offset), vertices[index].Screen);
+                    BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(offset + 4), vertices[index].DepthAndClip);
                 }
             }
+            Flush(projected.Length);
             NativeBattleGfGeometryBatch body = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, vertices, color | 0x02000000, binding, 17, 0);
             attempts.AddRange(body.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(allocated + attempt.ByteOffsetRelative) }));
             allocated = checked(allocated + body.AllocationBytes);
+
+            void Flush(int end)
+            {
+                if (end > writeStart)
+                {
+                    staging = staging.Write(checked(workspace + (uint)writeStart), projected.AsSpan(writeStart, end - writeStart));
+                }
+            }
         }
         return new(staging, new(attempts.ToImmutable(), allocated));
     }
