@@ -98,7 +98,7 @@ public sealed class JunctionRuntimeTests : IDisposable
     }
 
     [Fact]
-    public void UnsupportedPackageDoesNotHideOtherPackagesAndTheKnownDecoderSettingIsDiagnostic()
+    public void UnsupportedPackageDoesNotHideOtherPackagesAndEnablingFfmpegHasNoDiagnostic()
     {
         Write("Junction/Broken/mod.xml", Metadata("Broken", "<FFNxConfig><foo>1</foo></FFNxConfig>"));
         Write("Junction/Broken/Assets/movies/intro.cam", "broken");
@@ -110,7 +110,36 @@ public sealed class JunctionRuntimeTests : IDisposable
         Assert.Equal(ModEffectiveStatus.Active, runtime.Catalog.Packages.Single(package => package.Id == "Junction/Working").Status);
         Assert.Equal("Junction/Working", Assert.Single(runtime.Catalog.Files).PackageId);
         Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-import-failed" && diagnostic.PackageId == "Junction/Broken");
-        Assert.Contains(runtime.Diagnostics, diagnostic => diagnostic.Code == "junction-setting-ignored" && diagnostic.PackageId == "Junction/Working" && diagnostic.Message.Contains("enable_ffmpeg_videos", StringComparison.Ordinal));
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.PackageId == "Junction/Working");
+    }
+
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("<enable_ffmpeg_videos>1</enable_ffmpeg_videos>", false)]
+    [InlineData("<enable_ffmpeg_videos>true</enable_ffmpeg_videos>", false)]
+    [InlineData("<enable_ffmpeg_videos>0</enable_ffmpeg_videos>", true)]
+    [InlineData("<enable_ffmpeg_videos>false</enable_ffmpeg_videos>", true)]
+    [InlineData("<enable_ffmpeg_videos Enabled='0'>0</enable_ffmpeg_videos>", false)]
+    public void OnlyExplicitActiveFfmpegDisablingProducesAWarning(string setting, bool warningExpected)
+    {
+        Write("Junction/Example/mod.xml", Metadata("Example", $"<ConfigOption><ID>Enabled</ID><Type>Bool</Type><Default>1</Default></ConfigOption><FFNxConfig>{setting}<ffmpeg_video_ext>mp4</ffmpeg_video_ext></FFNxConfig>"));
+        Write("Junction/Example/Assets/movies/intro.mp4", "movie");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(runtime.Catalog.Packages).Status);
+        Assert.Equal("Junction/Example", Assert.Single(runtime.Catalog.Files).PackageId);
+        if (warningExpected)
+        {
+            ModDiagnostic diagnostic = Assert.Single(runtime.Diagnostics);
+            Assert.Equal("junction-setting-ignored", diagnostic.Code);
+            Assert.Equal("Junction/Example", diagnostic.PackageId);
+            Assert.Contains("disables FFmpeg videos, which is not supported", diagnostic.Message);
+            Assert.Contains("remains enabled", diagnostic.Message);
+        }
+        else
+        {
+            Assert.Empty(runtime.Diagnostics);
+        }
     }
 
     [Fact]

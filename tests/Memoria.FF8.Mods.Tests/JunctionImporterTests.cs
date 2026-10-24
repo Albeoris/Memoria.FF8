@@ -126,7 +126,7 @@ public sealed class JunctionImporterTests : IDisposable
         Assert.Equal("Actual title", package.Name);
         Assert.Equal(new[] { "movies/test.cam", "lang-en/movies/ending.avi" }, package.Files.Select(file => file.RelativePath));
         Assert.Equal("CRF/movies/test.cam", package.Files[0].SourcePath);
-        Assert.Single(package.Diagnostics);
+        Assert.Empty(package.Diagnostics);
         using MemoryStream bytes = new();
         package.Files[1].CopyTo(bytes);
         Assert.Equal(new byte[] { 2 }, bytes.ToArray());

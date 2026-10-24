@@ -126,7 +126,10 @@ public static partial class JunctionModImporter
             else
             {
                 metadata = metadata with { EnableFfmpegVideos = flag };
-                diagnostics.Add("Junction FFNx setting enable_ffmpeg_videos selects the engine's FFmpeg movie pipeline.");
+                if (flag == false)
+                {
+                    diagnostics.Add("Junction FFNx setting enable_ffmpeg_videos disables FFmpeg videos, which is not supported; the engine's FFmpeg movie pipeline remains enabled.");
+                }
             }
         }
         return metadata;
