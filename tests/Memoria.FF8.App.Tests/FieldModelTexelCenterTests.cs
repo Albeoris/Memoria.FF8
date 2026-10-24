@@ -45,9 +45,12 @@ public sealed class FieldModelTexelCenterTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void MirroredFacesKeepTheInternalAtlasSeamFreeOfThePrecedingDarkTexel(bool hardware)
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(true, 2)]
+    [InlineData(true, 4)]
+    [InlineData(true, 8)]
+    public void MirroredFacesKeepTheInternalAtlasSeamFreeOfThePrecedingDarkTexel(bool hardware, int samples)
     {
         FieldAssets field = Field(Texture(), Vector2.One);
         FieldModel model = field.Models[0];
@@ -62,7 +65,7 @@ public sealed class FieldModelTexelCenterTests
             new([1, 4, 2, 5], [new(1, 1), new(1, 1), new(2, 1), new(2, 1)], 0, true)
         ];
         field = field with { Models = [model with { Vertices = vertices, Faces = faces }] };
-        Color pixel = Render(field, ModelTextureSampling.Bilinear, hardware);
+        Color pixel = Render(field, ModelTextureSampling.Bilinear, hardware, samples: samples);
         // The probe is within one source texel of the mirrored seam. The preceding atlas column is black.
         Assert.InRange(pixel.R, (byte)170, (byte)200);
         Assert.InRange(pixel.G, (byte)80, (byte)105);
@@ -88,7 +91,7 @@ public sealed class FieldModelTexelCenterTests
         return new FieldAssets(100, "texel-center-component", [], [], [], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new Vector3(0, 0, 256), Vector2.Zero, 256), new FieldWalkmesh([]), [model]);
     }
 
-    private static Color Render(FieldAssets field, ModelTextureSampling sampling, bool hardware, bool showActor = true)
+    private static Color Render(FieldAssets field, ModelTextureSampling sampling, bool hardware, bool showActor = true, int samples = 0)
     {
         ActorVisual[] actors = showActor ? [new(0, 0, 0, 0, 0, 192, 0, 0, true, PolygonColor: new Vector3(128))] : [];
         FieldRenderer renderer = new(field, modelTextureSampling: sampling);
@@ -96,7 +99,7 @@ public sealed class FieldModelTexelCenterTests
         const int y = 112;
         if (hardware)
         {
-            using GpuTestDevice device = new();
+            using GpuTestDevice device = new(samples);
             using GpuTriangleRenderer gpu = new(device.Device);
             renderer.TriangleRenderer = gpu;
             renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero);

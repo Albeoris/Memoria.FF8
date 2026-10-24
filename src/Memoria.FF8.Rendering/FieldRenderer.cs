@@ -530,6 +530,7 @@ public sealed partial class FieldRenderer
             {
                 DepthComparison = primitiveTransparencyEnabled ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Less,
                 PerspectiveDepth = true,
+                CentroidTextureSampling = true,
                 Sampler = modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp
             };
             Vector4 color = new(polygonColor / 128, 1);

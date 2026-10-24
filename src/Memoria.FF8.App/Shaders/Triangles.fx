@@ -6,6 +6,7 @@ float3 FogColor;
 float4 ClipRectangle;
 float2 TextureSize;
 float DepthScale;
+bool CentroidTextureSampling;
 float4x4 WorldView;
 float3 WorldOffset;
 float WorldFocal;
@@ -13,13 +14,14 @@ float WorldNativeCurvature;
 texture SourceTexture;
 sampler TextureSampler = sampler_state { Texture = <SourceTexture>; };
 struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
-struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; };
+struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; };
 VSOutput VertexMain(VSInput input)
 {
     VSOutput output;
     output.Position = float4(input.Position.x * 2 / ViewportSize.x - 1, 1 - input.Position.y * 2 / ViewportSize.y, 0, 1);
     output.Color = input.Color;
     output.Uv = input.Uv;
+    output.TextureUv = input.Uv;
     output.Depth = input.Position.z;
     output.TextureScreenRectangle = input.TextureScreenRectangle;
     output.TextureTexelRectangle = input.TextureTexelRectangle;
@@ -52,6 +54,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
     output.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, camera.y * WorldFocal * 2 / ViewportSize.y, cameraZ - 1, cameraZ);
     output.Color = float4(1, 1, 1, 1);
     output.Uv = float3(input.Uv, 1);
+    output.TextureUv = output.Uv;
     output.Depth = cameraZ;
     output.TextureScreenRectangle = 0;
     output.TextureTexelRectangle = 0;
@@ -69,7 +72,11 @@ PSOutput PixelMain(VSOutput input)
     if (MaterialParameters.x > 0)
     {
         clip(input.Uv.z - 0.0000000001);
-        float2 uv = input.Uv.xy / input.Uv.z;
+        // A partially covered MSAA pixel can have its center outside the face.
+        // Keep model texture/alpha samples inside it; Uv remains centered for depth and fog.
+        float3 textureUv = CentroidTextureSampling ? input.TextureUv : input.Uv;
+        float2 interpolatedUv = textureUv.xy / textureUv.z;
+        float2 uv = interpolatedUv;
         if (input.TextureScreenRectangle.z > 0)
         {
             // Reconstruct local source pixels before adding the atlas origin.
@@ -82,7 +89,7 @@ PSOutput PixelMain(VSOutput input)
         if (FogParameters.w > 0)
         {
             // Integer source UVs are smooth RGB texel centers; texel above retains point-sampled cutout coverage.
-            float2 texelPosition = clamp(input.Uv.xy / input.Uv.z * TextureSize, 0, TextureSize - 1);
+            float2 texelPosition = clamp(interpolatedUv * TextureSize, 0, TextureSize - 1);
             float2 origin = floor(texelPosition);
             float2 weight = frac(texelPosition);
             float4 c00 = tex2D(TextureSampler, (origin + float2(0.5, 0.5)) / TextureSize);

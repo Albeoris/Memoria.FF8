@@ -52,6 +52,8 @@ public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlen
     public bool ColorWrite { get; init; } = true;
     public bool PreserveTargetAlpha { get; init; } = true;
     public bool PerspectiveDepth { get; init; }
+    /// <summary>Keep texture interpolation inside covered primitives at multisampled edges without moving the depth evaluation point.</summary>
+    public bool CentroidTextureSampling { get; init; }
     public Vector4? ClipRectangle { get; init; }
     public TriangleDepthMapping DepthMapping { get; init; }
     public float DepthScale { get; init; } = 1f / 65536;

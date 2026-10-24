@@ -194,6 +194,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         effect.Parameters["AlphaParameters"].SetValue(new Vector4(material.MinimumAlpha, material.MaximumAlpha, material.MinimumReciprocalW, multiplier));
         effect.Parameters["FogParameters"].SetValue(new Vector4(material.FogStart, material.FogEnd, material.PerspectiveDepth ? 1 : 0, material.Sampler == TriangleSampler.CutoutLinearClamp ? 1 : 0));
         effect.Parameters["DepthScale"].SetValue(material.DepthScale);
+        effect.Parameters["CentroidTextureSampling"].SetValue(material.CentroidTextureSampling);
         effect.Parameters["FogColor"].SetValue(new Vector3(material.FogColor.X, material.FogColor.Y, material.FogColor.Z));
         Vector4N clip = material.ClipRectangle ?? new Vector4N(0, 0, width, height);
         effect.Parameters["ClipRectangle"].SetValue(new Vector4(clip.X, clip.Y, clip.Z, clip.W));
