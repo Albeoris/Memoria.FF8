@@ -355,7 +355,8 @@ public sealed partial class WorldTerrainRenderer
 
     private void DrawTerrain(WorldTriangle triangle, Vector3 offset, bool transparent)
     {
-        Vector2 uvScale = triangle.Water ? new Vector2(1, 2) : Vector2.One;
+        // Road polygons also carry the water bit, but use the full-height road atlas.
+        Vector2 uvScale = triangle.Water && !triangle.Road ? new Vector2(1, 2) : Vector2.One;
         Vector3 TerrainPoint(Vector3 raw)
         {
             Vector3 point = raw / 16 + offset;

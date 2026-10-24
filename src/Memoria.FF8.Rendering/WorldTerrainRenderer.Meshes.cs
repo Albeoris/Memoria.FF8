@@ -44,7 +44,8 @@ public sealed partial class WorldTerrainRenderer
                 source = triangle;
                 runMinimum = Vector3.Min(runMinimum, Vector3.Min(triangle.A, Vector3.Min(triangle.B, triangle.C)) / 16);
                 runMaximum = Vector3.Max(runMaximum, Vector3.Max(triangle.A, Vector3.Max(triangle.B, triangle.C)) / 16);
-                Vector2 scale = triangle.Water ? new Vector2(1, 2) : Vector2.One;
+                // Road polygons also carry the water bit, but use the full-height road atlas.
+                Vector2 scale = triangle.Water && !triangle.Road ? new Vector2(1, 2) : Vector2.One;
                 vertices.Add(new WorldTerrainVertex(triangle.A / 16, triangle.UvA * scale));
                 vertices.Add(new WorldTerrainVertex(triangle.B / 16, triangle.UvB * scale));
                 vertices.Add(new WorldTerrainVertex(triangle.C / 16, triangle.UvC * scale));
