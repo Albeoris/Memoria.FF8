@@ -62,4 +62,3 @@ public sealed class NativeBattleZombieOverlayBatchTests
         Assert.All(staging.Read(workspace, 3200), value => Assert.Equal(0, value));
     }
 }
-
