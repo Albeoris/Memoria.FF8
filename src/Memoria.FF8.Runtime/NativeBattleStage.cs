@@ -17,7 +17,7 @@ public sealed record NativeBattleStageTask(NativeBattleStageCallback Callback, s
 public sealed record NativeBattleStageGroup([property: JsonRequired] byte Flags, [property: JsonRequired] short ColorDepth, [property: JsonRequired] uint ColorFlags, [property: JsonRequired] byte Animation, [property: JsonRequired] byte PoseFlags, [property: JsonRequired] byte Counter, [property: JsonRequired] byte FrameCount, [property: JsonRequired] NativeBattlePoseSource? Source, [property: JsonRequired] ImmutableArray<NativeBattleActionMatrix> Matrices);
 
 /// <summary>506C50/500EA0/500FD0's four physical44-byte stage rows and rotating group3 DWORD.</summary>
-public sealed record NativeBattleStageState([property: JsonRequired] uint Flags, [property: JsonRequired] int Rotation, [property: JsonRequired] short RotationSpeed, [property: JsonRequired] ImmutableArray<NativeBattleStageGroup> Groups)
+public sealed partial record NativeBattleStageState([property: JsonRequired] uint Flags, [property: JsonRequired] int Rotation, [property: JsonRequired] short RotationSpeed, [property: JsonRequired] ImmutableArray<NativeBattleStageGroup> Groups)
 {
     public NativeBattleStageTask? Task { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -28,10 +28,18 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
     public NativeBattleStagePaletteAllocation? PaletteAllocation { get; init; }
     public ImmutableArray<byte>? TextureAnimations { get; init; }
     public NativeBattleStageColors? ModelColors { get; init; }
-    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess(), Specialized = NativeBattleStageSpecializedState.FromColdProcess(), Extended = NativeBattleStageExtendedState.FromColdProcess() };
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? SourceAddress1D9A820 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ReloadColorSeed1D9A824 { get; init; }
+    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess(), Specialized = NativeBattleStageSpecializedState.FromColdProcess(), Extended = NativeBattleStageExtendedState.FromColdProcess(), SourceAddress1D9A820 = 0, ReloadColorSeed1D9A824 = 0 };
 
     public void Validate()
     {
+        if (SourceAddress1D9A820 is uint sourceAddress && (sourceAddress & 3) != 0)
+        {
+            throw new InvalidDataException("Native stage source pointer must preserve its actual DWORD alignment.");
+        }
         if (TextureAnimations is { IsDefault: true } || MutableGeometry is { IsDefault: true } || Task is { } task && (task.Callback is null || task.Callback.Address == 0 || task.Callback.UpdateTexture0 is null && !HasSpecializedService(task.Callback.Address)) || Groups.IsDefault || Groups.Length != 4 || Groups.Any(group => group is null || group.Matrices.IsDefault || group.Source is null && !group.Matrices.IsEmpty || group.Source is not null && group.Matrices.Length != group.Source.BoneCount || group.Counter > group.FrameCount))
         {
             throw new InvalidDataException("Native stage requires its four physical group rows, decoded counters and bone matrix banks.");
@@ -86,7 +94,7 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
             NativeBattleStageGroup group = groups[index];
             groups[index] = source.Groups[index] is { } pose ? Select509440(group with { Flags = (byte)(group.Flags | 7), Source = pose }) : group with { Flags = (byte)(group.Flags & 0xF8) };
         }
-        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors, MutableGeometry = source.Callback?.Address == 0x50DFF0 ? source.Geometry : null };
+        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors, MutableGeometry = source.Callback?.Address == 0x50DFF0 ? source.Geometry : null, SourceAddress1D9A820 = source.PhysicalSource is { } physical ? checked(physical.Address + (uint)physical.DirectoryOffset) : SourceAddress1D9A820 };
         result.Validate();
         return result;
     }

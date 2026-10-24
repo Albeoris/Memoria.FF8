@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWindowedMesh701DD0Result(NativeBattleFileStaging Staging, NativeBattleGfGeometryBatch Batch);
 
-/// <summary>701DD0's reached FT3/FT4/G3/G4/GT3/GT4 leaves and its physical context suffix.</summary>
+/// <summary>701DD0's eight physical polygon groups and context suffix.</summary>
 public static class NativeBattleWindowedMesh701DD0
 {
     public static NativeBattleWindowedMesh701DD0Result Emit(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEsunaMeshContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> readSelectedVertex)
@@ -25,6 +25,8 @@ public static class NativeBattleWindowedMesh701DD0
             NativeBattleModuleProjectedVertex?[] vertices = new NativeBattleModuleProjectedVertex?[4];
             NativeBattleGfGeometryBatch leaf = group switch
             {
+                0 => NativeBattleWindowedFlat701DD0.EmitF3_701F00(face, Project, context, colors, offset),
+                1 => NativeBattleWindowedFlat701DD0.EmitF4_702130(face, Project, context, colors, offset),
                 2 => EmitFt3_7023B0(face, Project, context, colors, offset),
                 3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, Project, context, colors, offset),
                 4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, Project, context, colors, offset),

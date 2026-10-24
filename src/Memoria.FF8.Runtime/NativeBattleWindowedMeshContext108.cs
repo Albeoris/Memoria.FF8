@@ -26,9 +26,9 @@ public static class NativeBattleWindowedMeshContext108
         for (int group = 0; group < 8; group++)
         {
             int faces = BinaryPrimitives.ReadInt32LittleEndian(Read(validation, 4));
-            if (faces < 0 || faces != 0 && group < 2)
+            if (faces < 0)
             {
-                throw new NotSupportedException("Windowed mesh requires its reached FT3, FT4, G3, G4, GT3 or GT4 group.");
+                throw new NotSupportedException("Windowed mesh requires nonnegative original polygon counts.");
             }
             validation = checked(validation + 4 + faces * lengths[group]);
             _ = Read(validation, 0);
@@ -101,6 +101,8 @@ public static class NativeBattleWindowedMeshContext108
                 NativeBattleEsunaMeshContext operands = new(flags, farColor, OptionalInt(context, 12), OptionalInt(context, 24) ?? 0, u, v, before, after, tableBaseBucket, depthShift);
                 NativeBattleGfGeometryBatch leaf = group switch
                 {
+                    0 => NativeBattleWindowedFlat701DD0.EmitF3_701F00(face, Project, operands, constants, allocated),
+                    1 => NativeBattleWindowedFlat701DD0.EmitF4_702130(face, Project, operands, constants, allocated),
                     2 => NativeBattleWindowedMesh701DD0.EmitFt3_7023B0(face, Project, operands, constants, allocated),
                     3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, Project, operands, constants, allocated),
                     4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, Project, operands, constants, allocated),

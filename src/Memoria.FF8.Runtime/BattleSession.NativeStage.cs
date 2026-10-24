@@ -20,7 +20,9 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native512500 requires its original full stage CLUT.");
             }
-            NativeStage = NativeStage with { FinalStage142 = specialized with { ClutSource = new(source.Texture.Identity + ":CLUT", source.Texture.Data.Slice(0x14, 8192)), GenericCursor = 0x1941998 } };
+            (NativeBattleModelCpuResources reservedCpu, uint genericCursor) = physical.Reserve512500(NativeModelCpuResources);
+            NativeModelCpuResources = reservedCpu;
+            NativeStage = NativeStage with { FinalStage142 = specialized with { ClutSource = new(source.Texture.Identity + ":CLUT", source.Texture.Data.Slice(0x14, 8192)), GenericCursor = genericCursor } };
         }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500FB0 requires its retained original texture upload owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native500FB0 requires the retained505E30 queue and VRAM.");

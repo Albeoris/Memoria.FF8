@@ -7,6 +7,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStagePhysicalSourceTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(0x1980)]
+    public void Specialized_load_reserves_from_the_actual_directory_before_enemy_loads(int directoryOffset)
+    {
+        NativeBattleStagePhysicalSource original = Source();
+        byte[] prefix = new byte[directoryOffset + original.Prefix.Length];
+        original.Prefix.AsSpan().CopyTo(prefix.AsSpan(directoryOffset));
+        NativeBattleStagePhysicalSource source = original with { DirectoryOffset = directoryOffset, Prefix = prefix.ToImmutableArray() };
+        NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 216 };
+        (NativeBattleFileStaging staging, NativeBattleModelCpuResources published) = source.Publish500EA0(NativeBattleFileStaging.Unknown(), cpu);
+        cpu = published;
+        (NativeBattleModelCpuResources reserved, uint cursor) = source.Reserve512500(cpu);
+        Assert.Equal(source.Address + (uint)directoryOffset + 0x7000, cursor);
+        Assert.Equal(directoryOffset + 0x7000, reserved.EnemyCursor);
+        Assert.Same(cpu.Cpu, reserved.Cpu);
+        Assert.Equal(cpu.Rows, reserved.Rows);
+        Assert.Equal(cpu.ScratchMaximum, reserved.ScratchMaximum);
+        Assert.Throws<NotSupportedException>(() => staging.Read(cursor - 1, 1));
+    }
+
+    [Theory]
     [InlineData(4, 12)]
     [InlineData(20, 20)]
     public void Load_reserves_stage_prefix_before_enemy_allocations_and_keeps_shared_tail(int previousMaximum, int expectedMaximum)

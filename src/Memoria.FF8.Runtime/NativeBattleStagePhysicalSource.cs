@@ -63,6 +63,13 @@ public sealed record NativeBattleStagePhysicalSource(uint Address, int Directory
         return (staging.Write(Address, Prefix.AsSpan()), cpu with { EnemyCursor = cursor, ScratchMaximum = maximum });
     }
 
+    public (NativeBattleModelCpuResources Cpu, uint Cursor) Reserve512500(NativeBattleModelCpuResources cpu)
+    {
+        Validate();
+        uint cursor = checked(Address + (uint)DirectoryOffset + 0x7000);
+        return (cpu with { EnemyCursor = checked((int)(cursor - NativeBattleModelCpuResources.EnemyAddress)) }, cursor);
+    }
+
     private (int Start, int End)? Geometry(int group)
     {
         if ((uint)group >= 4)
