@@ -288,7 +288,7 @@ internal sealed partial class RecreateGame
             PlayerActionResult result = world!.Apply(NativeRefinementMenuProjection.PlayerAction(action));
             if (!result.Accepted)
             {
-                throw new NotSupportedException(result.Detail ?? "The current owners cannot refine this recipe.");
+                ShowSaveNotice(result.Detail ?? "The current interaction does not permit refinement.");
             }
             fieldSeconds = 0;
             return;
@@ -548,7 +548,7 @@ internal sealed partial class RecreateGame
             {
                 gameMenus.Open("config", false);
             }
-            else if (session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events is { IsUserControlEnabled: true, CurrentDialogue: null } && events.Scene.MenuEnabled)
+            else if (session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events?.CanOpenFieldMenu == true)
             {
                 gameMenus.Open("main", false);
             }

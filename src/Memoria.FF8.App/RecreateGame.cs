@@ -1265,6 +1265,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawNoticeUi(bounds, error, true);
         }
+        DrawGameUi(bounds);
         if (saveMenu.IsOpen)
         {
             DrawPlayerSaveMenu(bounds, uiScale);
@@ -1273,7 +1274,6 @@ internal sealed partial class RecreateGame : Game
         {
             DrawNoticeUi(bounds, saveNotice, false);
         }
-        DrawGameUi(bounds);
         DrawAutoPlayStatus(bounds);
         if (userPaused && sceneInspector is null)
         {

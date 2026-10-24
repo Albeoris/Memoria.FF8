@@ -24,7 +24,7 @@ public sealed partial class EventEngine
     {
         (int recipe, int row) = NativeRefinementInput.Validate(action);
         bool activeMenu = partyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
-        if (!activeMenu && (partyMenu is not null || !CanAcceptFieldMovement || CurrentDialogue is not null || !Scene.MenuEnabled))
+        if (!activeMenu && !CanOpenFieldMenu)
         {
             return false;
         }

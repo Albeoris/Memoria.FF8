@@ -139,6 +139,10 @@ public sealed partial class EventEngine
             {
                 bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
                 accepted = ApplyRefinementAction(action);
+                if (!accepted)
+                {
+                    detail = "The current field interaction suspends refinement.";
+                }
                 if (accepted && menuCallback)
                 {
                     advanced = 1;

@@ -5,6 +5,9 @@ public sealed partial class EventEngine
     /// <summary>The same admission predicate used by an ordinary Move; it does not promise displacement.</summary>
     public bool CanAcceptMovementInput => CanAcceptPlayerMovement;
 
+    /// <summary>Field menu admission depends on the interface owner, independently of the player's rendered actor.</summary>
+    public bool CanOpenFieldMenu => program is not null && !transitionRequested && !services.IsMoviePlaying && IsUserControlEnabled && CurrentDialogue is null && Scene.MenuEnabled && !HasPendingBattle && PendingTripleTriad is null && NativeGameOver is null;
+
     private bool CanAcceptFieldMovement => !services.IsMoviePlaying && CanAcceptPlayerMovement;
 
     private bool CanAcceptPlayerMovement => Scene.NativeTutorial is null && IsUserControlEnabled && !IsMovementBlockedByDialogue && PlayerActor is { Active: true, Visible: true };

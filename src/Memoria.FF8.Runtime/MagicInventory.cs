@@ -74,9 +74,10 @@ public sealed partial record NativeCharacterVitals
         MagicJunctionChange[] removed = [];
         if (delta < 0)
         {
-            next = count == accepted ? MagicJunctionPolicy.Reconcile(next, out removed) : MagicJunctionPolicy.ClampHitPoints(next);
+            int? affectedRow = MagicSystem.SharedMagicStock ? null : bank;
+            next = count == accepted ? MagicJunctionPolicy.Reconcile(next, out removed, affectedRow) : MagicJunctionPolicy.ClampHitPoints(next, affectedRow);
         }
-        result = result with { AffectedRecords = Array.AsReadOnly(Enumerable.Range(0, 8).Where(row => row == bank || Records[row].Junction.MagicJunctions.Take(19).Contains((byte)spellId)).ToArray()), RemovedJunctions = Array.AsReadOnly(removed) };
+        result = result with { AffectedRecords = Array.AsReadOnly(Enumerable.Range(0, 8).Where(row => row == bank || MagicSystem.SharedMagicStock && Records[row].Junction.MagicJunctions.Take(19).Contains((byte)spellId)).ToArray()), RemovedJunctions = Array.AsReadOnly(removed) };
         return next;
     }
 

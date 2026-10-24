@@ -71,12 +71,16 @@ public static class MagicJunctionPolicy
         return ClampHitPoints(next);
     }
 
-    public static NativeCharacterVitals Reconcile(NativeCharacterVitals vitals, out MagicJunctionChange[] removed)
+    public static NativeCharacterVitals Reconcile(NativeCharacterVitals vitals, out MagicJunctionChange[] removed, int? physicalRow = null)
     {
+        if (physicalRow.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow.Value, 8u);
+        }
         NativeCharacterVitals next = vitals.DeepCopy();
         List<MagicJunctionChange> changes = [];
         HashSet<int> claimed = [];
-        IEnumerable<int> order = next.CombatParty.Where(row => row < 8).Select(row => (int)row).Concat(Enumerable.Range(0, 8)).Distinct();
+        IEnumerable<int> order = next.CombatParty.Where(row => row < 8).Select(row => (int)row).Concat(Enumerable.Range(0, 8)).Distinct().Where(row => !physicalRow.HasValue || row == physicalRow.Value);
         foreach (int row in order)
         {
             HashSet<int> local = [];
@@ -100,7 +104,7 @@ public static class MagicJunctionPolicy
             }
         }
         removed = changes.ToArray();
-        return ClampHitPoints(next);
+        return ClampHitPoints(next, physicalRow);
     }
 
     internal static int Maximum(NativeCharacterVitals vitals, int row)
@@ -110,9 +114,9 @@ public static class MagicJunctionPolicy
         return vitals.Definitions.CharacterMaximum(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), character.HitPointBonus, (byte)spell, GetEffectiveCount(vitals, row, spell), character.Junction.Abilities);
     }
 
-    internal static NativeCharacterVitals ClampHitPoints(NativeCharacterVitals vitals)
+    internal static NativeCharacterVitals ClampHitPoints(NativeCharacterVitals vitals, int? physicalRow = null)
     {
-        for (int row = 0; row < 8; row++)
+        foreach (int row in Enumerable.Range(physicalRow ?? 0, physicalRow.HasValue ? 1 : 8))
         {
             ushort maximum = (ushort)Maximum(vitals, row);
             NativeCharacterVital record = vitals.Records[row];
