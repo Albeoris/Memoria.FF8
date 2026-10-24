@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Immutable original resource sections; live501A20 retains pointers into the shared staging owner.</summary>
+/// <summary>Immutable original resource sections; live501A20 retains addressed pointers into its current source owner.</summary>
 public sealed record NativeBattleMusicLoadSource([property: JsonRequired] ImmutableArray<byte> SoundBank, [property: JsonRequired] ImmutableArray<byte> Music)
 {
     public static NativeBattleMusicLoadSource Read501A20(ImmutableArray<byte> directory)
@@ -42,7 +42,7 @@ public sealed record NativeBattleMusicLoadPointers([property: JsonRequired] uint
 {
     public void Validate()
     {
-        if (SoundBankAddress < NativeBattleFileStaging.Address || MusicAddress < SoundBankAddress || MusicLength < 0 || (ulong)MusicAddress + (uint)MusicLength > uint.MaxValue)
+        if (SoundBankAddress == 0 || MusicAddress < SoundBankAddress || MusicLength < 0 || (ulong)MusicAddress + (uint)MusicLength > uint.MaxValue)
         {
             throw new InvalidDataException("Native501A20 requires its actual retained source pointers and bounded copy extent.");
         }

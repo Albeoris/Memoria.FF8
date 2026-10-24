@@ -99,6 +99,16 @@ public sealed partial class BattleSession
         {
             return formBinding;
         }
+        return FindNativeOriginalGraphicsBinding(actorId);
+    }
+
+    private NativeBattleGraphicsBinding? FindNativeOriginalGraphicsBinding(string actorId)
+    {
+        if (definition.NativeGraphics is not { } graphics || !byId.TryGetValue(actorId, out BattleCombatant? actor))
+        {
+            return null;
+        }
+        NativeBattleGraphicsBinding? direct = graphics.Bindings.SingleOrDefault(binding => binding.ActorId == actorId);
         if (direct is not null || actor.SceneSlot is not int sceneSlot)
         {
             return direct;

@@ -7,6 +7,18 @@ namespace Memoria.FF8.Runtime;
 public sealed partial record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceSection)
 {
     public uint? SequenceSectionAddress { get; init; }
+    public ImmutableArray<string>? TextBank { get; init; }
+
+    public string ReadText91(int index)
+    {
+        ImmutableArray<string> bank = TextBank ?? throw new NotSupportedException("Native91 requires its original actor DAT text bank.");
+        if (bank.IsDefault || (uint)index >= bank.Length || bank[index] is null)
+        {
+            throw new InvalidDataException("Native91 text index leaves its original actor DAT bank.");
+        }
+        return bank[index];
+    }
+
     public ImmutableArray<byte> AnimationFrames { get; init; }
     public NativeBattlePoseSource? PoseSource { get; init; }
     public ImmutableArray<byte> LinkedAnimationFrames { get; init; } = [];

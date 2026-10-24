@@ -307,12 +307,8 @@ public sealed partial class BattleSession
                     BattleCombatant actor = GraphicsActor(graphics, index);
                     if (cue.Kind == NativeBattleSequenceCueKind.Text)
                     {
-                        NativeBattleAiDefinition ai = actor.NativeAi ?? throw new NotSupportedException("Native91 requires its actor-owned text bank.");
-                        if (cue.First >= ai.Texts.Length)
-                        {
-                            throw new InvalidDataException("Native91 exceeds the actor text bank.");
-                        }
-                        events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, cue.Second, ai.Texts[cue.First]) { NativeMessageMode = 3 });
+                        string text = (FindNativeOriginalGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native91 lost its original actor resource binding.")).Resource.ReadText91(cue.First);
+                        events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, cue.Second, text) { NativeMessageMode = 3 });
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.SuspendParticipant)
                     {

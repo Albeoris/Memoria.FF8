@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using Albeoris.Games.FF8.TextEncoding;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Runtime;
@@ -77,34 +77,7 @@ public sealed partial class BattleAssets
             }
             scripts[index] = bytes.AsSpan(start, finish - start).ToArray();
         }
-        string[] texts = new string[(text - textIndices) / 2];
-        byte[][] nameBuffers = new byte[texts.Length][];
-        string[] displayNames = new string[texts.Length];
-        for (int index = 0; index < texts.Length; index++)
-        {
-            int offset = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(textIndices + 2 * index));
-            if (offset == ushort.MaxValue)
-            {
-                texts[index] = "";
-                nameBuffers[index] = new byte[24];
-                displayNames[index] = "";
-                continue;
-            }
-            int start = checked(text + offset);
-            if (start >= end)
-            {
-                throw new InvalidDataException("Enemy AI text exceeds its original text bank.");
-            }
-            int terminator = bytes.AsSpan(start, end - start).IndexOf((byte)0);
-            if (terminator < 0)
-            {
-                throw new InvalidDataException("Enemy AI text has no original terminator.");
-            }
-            texts[index] = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, terminator));
-            //37 copies24 encoded bytes, before interpreting the copied display buffer as FF8 text.
-            nameBuffers[index] = start <= end - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
-            displayNames[index] = DecodeNativeNamePrefix(bytes.AsSpan(start, Math.Min(24, terminator)));
-        }
+        (string[] texts, byte[][] nameBuffers, string[] displayNames) = DecodeEnemyTextBank(bytes, textIndices, text, end);
         NativeBattleAiAbility[] abilities = new NativeBattleAiAbility[48];
         for (int index = 0; index < abilities.Length; index++)
         {
@@ -136,6 +109,62 @@ public sealed partial class BattleAssets
             tracks = System.Collections.Immutable.ImmutableArray.CreateRange(abilities.Select(ability => ability.Sequence).Where(sequence => sequence != 0).Distinct().Select(sequencePrograms.ReadLocalControlTrack).OfType<NativeBattleSequenceTrack>());
         }
         return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks };
+    }
+
+    private static System.Collections.Immutable.ImmutableArray<string> ReadEnemyGraphicsTextBank(byte[] bytes)
+    {
+        int sections = bytes.Length >= 16 ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : 0;
+        if (sections is not (2 or 11))
+        {
+            throw new InvalidDataException("Enemy graphics text requires its original DAT section directory.");
+        }
+        int section = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 32 : 8));
+        int end = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 36 : 12));
+        if (section < 0 || end > bytes.Length || end - section < 16 || BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section)) != 3)
+        {
+            throw new InvalidDataException("Enemy graphics text requires its bounded original script/text section.");
+        }
+        int textIndices = checked(section + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section + 8)));
+        int text = checked(section + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section + 12)));
+        if (textIndices < section + 16 || textIndices > text || text > end || (text - textIndices) % 2 != 0)
+        {
+            throw new InvalidDataException("Enemy graphics text directory leaves its original section.");
+        }
+        (string[] texts, _, _) = DecodeEnemyTextBank(bytes, textIndices, text, end);
+        return System.Collections.Immutable.ImmutableArray.CreateRange(texts);
+    }
+
+    private static (string[] Texts, byte[][] NameBuffers, string[] DisplayNames) DecodeEnemyTextBank(byte[] bytes, int textIndices, int text, int end)
+    {
+        string[] texts = new string[(text - textIndices) / 2];
+        byte[][] nameBuffers = new byte[texts.Length][];
+        string[] displayNames = new string[texts.Length];
+        for (int index = 0; index < texts.Length; index++)
+        {
+            int offset = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(textIndices + 2 * index));
+            if (offset == ushort.MaxValue)
+            {
+                texts[index] = "";
+                nameBuffers[index] = new byte[24];
+                displayNames[index] = "";
+                continue;
+            }
+            int start = checked(text + offset);
+            if (start >= end)
+            {
+                throw new InvalidDataException("Enemy AI text exceeds its original text bank.");
+            }
+            int terminator = bytes.AsSpan(start, end - start).IndexOf((byte)0);
+            if (terminator < 0)
+            {
+                throw new InvalidDataException("Enemy AI text has no original terminator.");
+            }
+            texts[index] = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, terminator));
+            //37 copies24 encoded bytes, before interpreting the copied display buffer as FF8 text.
+            nameBuffers[index] = start <= end - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
+            displayNames[index] = DecodeNativeNamePrefix(bytes.AsSpan(start, Math.Min(24, terminator)));
+        }
+        return (texts, nameBuffers, displayNames);
     }
 
     private static string DecodeNativeNamePrefix(ReadOnlySpan<byte> bytes)

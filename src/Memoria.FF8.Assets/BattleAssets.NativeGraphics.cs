@@ -37,7 +37,7 @@ public sealed partial class BattleAssets
         if (model == 127)
         {
             NativeBattleGraphicsResource shared = ReadEnemyNativeGraphicsResource(126);
-            return shared with { Geometry = [], TextureAnimations = [], BodyTexturePack = null, ModelLoadSources = [dat] };
+            return shared with { Geometry = [], TextureAnimations = [], BodyTexturePack = null, ModelLoadSources = [dat], TextBank = ReadEnemyGraphicsTextBank(bytes) };
         }
         int sections = BinaryPrimitives.ReadInt32LittleEndian(bytes);
         if (sections != 11)
@@ -68,7 +68,7 @@ public sealed partial class BattleAssets
         int cameraEnd = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
         int textureStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(44));
         int motionStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
-        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, motionStart - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()), BodyTexturePack = new($"c0m{model:000}.dat:body-textures", bytes.AsSpan(textureStart).ToArray().ToImmutableArray()), TextureAnimations = bytes.AsSpan(motionStart, start - motionStart).ToArray().ToImmutableArray(), ModelLoadSources = [dat], Geometry = LoadEnemy(model).NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(LoadEnemy(model).NativeControlMeshes ?? LoadEnemy(model).Meshes), LinkedGeometry = [], LinkedGeometryUsesBodySkeleton = false };
+        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { TextBank = ReadEnemyGraphicsTextBank(bytes), AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, motionStart - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()), BodyTexturePack = new($"c0m{model:000}.dat:body-textures", bytes.AsSpan(textureStart).ToArray().ToImmutableArray()), TextureAnimations = bytes.AsSpan(motionStart, start - motionStart).ToArray().ToImmutableArray(), ModelLoadSources = [dat], Geometry = LoadEnemy(model).NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(LoadEnemy(model).NativeControlMeshes ?? LoadEnemy(model).Meshes), LinkedGeometry = [], LinkedGeometryUsesBodySkeleton = false };
         BattleModel decoded = LoadEnemy(model);
         resource = resource with { PoseSource = decoded.NativePoseSource, AnimationFrames = decoded.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray() };
         resource.Validate();

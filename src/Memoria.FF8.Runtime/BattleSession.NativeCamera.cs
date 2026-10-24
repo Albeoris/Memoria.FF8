@@ -304,6 +304,9 @@ public sealed partial class BattleSession
                 {
                     graphics = psychoBlast23Completed;
                 }
+                else if (TryWriteNativeEffect344Completion(address, value))
+                {
+                }
                 else if (TryWriteNativeEffect79Completion(graphics, address, value, out NativeBattleGraphicsState effect79Completed))
                 {
                     graphics = effect79Completed;
@@ -367,7 +370,10 @@ public sealed partial class BattleSession
                 NativeBattleMusicProcessState music = NativeMusicProcess ?? throw new NotSupportedException("Native501A70 requires its current501A20 music process.");
                 NativeBattleMusicLoadStep loading = music.AdvanceLoad501A70(NativeGlobalSoundProcess ?? throw new NotSupportedException("Native501A70 requires its current sound process."), NativeFileStaging, phase, address, (target, value) =>
                 {
-                    if (TryWriteNativeEffect79Completion(graphics, target, value, out NativeBattleGraphicsState completed))
+                    if (TryWriteNativeEffect344Completion(target, value))
+                    {
+                    }
+                    else if (TryWriteNativeEffect79Completion(graphics, target, value, out NativeBattleGraphicsState completed))
                     {
                         graphics = completed;
                     }
