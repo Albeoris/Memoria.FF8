@@ -162,9 +162,9 @@ internal sealed partial class GameWorld : IDisposable
 
     private GameState PrepareSnapshot(GameState state)
     {
-        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null)
+        if (state.Scene == SceneKind.WorldMap && Field is not null && worldScene is not null || battle is not null && Events.PendingMenuBattle is not null)
         {
-            // The dormant VM remains frozen between publications; its services supply the current shared owners.
+            // Suspended exploration publishes its current shared owners and battle callbacks only for persistence.
             return state with { EventState = Events.Capture() };
         }
         return state;

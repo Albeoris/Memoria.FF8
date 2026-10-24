@@ -9,6 +9,41 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeMenuBattleHostTests
 {
     [Fact]
+    public void NamedMenuBattleDefersEventCaptureUntilSaveAndRestoresCurrentCallbacks()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone menu battle fixture is required.");
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        Assert.NotNull(world.Battle);
+        Assert.NotNull(world.Events.PendingMenuBattle);
+        JsonElement storedEvents = session.State.EventState!.Value;
+        int initialCallbacks = world.Events.PendingMenuBattle!.Callbacks;
+        world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick, 2));
+        Assert.True(world.Events.PendingMenuBattle.Callbacks > initialCallbacks);
+        // JsonElement equality checks the retained document identity, so an equivalent recapture also fails this assertion.
+        Assert.True(storedEvents.Equals(session.State.EventState!.Value));
+
+        string snapshot = TestResources.ArtifactFile("menu-battle-deferred-event-capture.json");
+        session.Save(snapshot);
+        GameSession restoredSession = new(GameSession.Load(snapshot));
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
+        restored.EnsureField();
+        Assert.Equal(world.Events.PendingMenuBattle, restored.Events.PendingMenuBattle);
+        Assert.Equal(world.Events.Scene.FieldCallbackClock, restored.Events.Scene.FieldCallbackClock);
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle!.Capture()), JsonSerializer.SerializeToElement(restored.Battle!.Capture())));
+
+        world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
+        restored.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
+        Assert.Equal(world.Events.PendingMenuBattle, restored.Events.PendingMenuBattle);
+        Assert.Equal(world.Events.Scene.FieldCallbackClock, restored.Events.Scene.FieldCallbackClock);
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle.Capture())));
+    }
+
+    [Fact]
     public void InstalledLampEntryRestoresAndDiagnosticVictoryReturnsWithOneItemSpent()
     {
         string game = TestResources.GameDirectory;

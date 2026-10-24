@@ -82,7 +82,10 @@ internal sealed partial class GameWorld
         }
         PublishBattleSnapshot(battle);
         CompleteNativeDefeatIfReady();
-        session.SetEventState(Events.Capture());
+        if (battle is null)
+        {
+            session.SetEventState(Events.Capture());
+        }
         return true;
     }
 
