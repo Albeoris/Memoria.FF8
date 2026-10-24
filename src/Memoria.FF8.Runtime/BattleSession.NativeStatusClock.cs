@@ -75,7 +75,20 @@ public sealed partial class BattleSession
                 {
                     Log("NativeStatusExpired", actor.Id, actor.Id, bit + 16, $"Native status {bit + 16} expired.");
                 }
-                RefreshNativePresentationStatus(actor);
+                if (bit != 10)
+                {
+                    actor.RefreshNativeHpStatusFlags();
+                    RefreshNativePresentationStatus(actor);
+                    if (NativeGraphics is { } graphics)
+                    {
+                        byte index = checked((byte)actor.NativeIndex);
+                        (ushort saved, uint battle) = NativeContactStatusMirror(actor);
+                        graphics = PublishNativeReadyStatus(graphics, new(index, 0, 0, 0, saved, 0, battle));
+                        //483470 ->47E250 refreshes the mirrors and queues50A070 through descriptor117.
+                        RefreshNativePresentationStatus(actor);
+                        NativeGraphics = QueueNativeDescriptor(graphics, 117, NativeParticipantAddress(index), index);
+                    }
+                }
             }
         }
     }

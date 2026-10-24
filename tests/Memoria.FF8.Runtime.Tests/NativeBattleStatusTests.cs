@@ -6,6 +6,62 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleStatusTests
 {
     [Theory]
+    [InlineData(0, 120, 0u)]
+    [InlineData(0, -1111, 1u)]
+    [InlineData(1, 120, 0x4001u)]
+    [InlineData(3, 120, 0x4001u)]
+    public void ContactClassClearsSleepAndConfuseBeforePhysicalMissButPreservesPermanentSleep(byte attackClass, short timer, uint expected)
+    {
+        BattleNativeAction native = Action(0, 0, 0) with { AttackType = 1, Power = 20, AttackFlags = attackClass, Hit = 0, Critical = 0 };
+        BattleSession battle = CreateBattle(native, initialBattle: 0x4021);
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatantSnapshot enemy = snapshot.Combatants.Single(actor => actor.Id == "enemy");
+        enemy.NativeStatus!.Timers[0] = timer;
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+
+        Hit(battle);
+
+        NativeBattleStatusSnapshot status = battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!;
+        Assert.Equal(expected, status.Battle & 0x4001);
+        Assert.Equal(0x20u, status.Battle & 0x20);
+        if (attackClass == 0 && timer != -1111)
+        {
+            Assert.Contains(battle.Events, item => item.Kind == "Miss");
+            Assert.Equal(enemy.CurrentHp, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+        }
+        if ((expected & 1) == 0 || timer == -1111)
+        {
+            Assert.Equal(-1111, status.Timers[0]);
+        }
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Assert.Equal(status.Battle, restored.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Battle);
+    }
+
+    [Fact]
+    public void TimerExpiryQueuesOriginalStatusDescriptorWithActorPointerAndSurvivesJson()
+    {
+        BattleSession battle = CreateBattle(Action(0, 0, 0), initialBattle: 1);
+        BattleSnapshot snapshot = battle.Capture();
+        snapshot.Combatants.Single(actor => actor.Id == "enemy").NativeStatus!.Timers[0] = 0;
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
+
+        typeof(BattleSession).GetMethod("DispatchNativeStatusTimers", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, null);
+
+        NativeBattleStatusSnapshot status = battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeStatus!;
+        Assert.Equal(0u, status.Battle);
+        Assert.Equal(0u, status.Presentation!.Battle);
+        NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorPacket packet = descriptors.Packets[Assert.Single(descriptors.Queue)];
+        Assert.Equal((ushort)117, packet.Command);
+        Assert.Equal((short)3, packet.Index);
+        Assert.Equal(0x1D27B10u + 208u * 3, packet.Argument);
+        NativeBattleDescriptorState restored = JsonSerializer.Deserialize<NativeBattleDescriptorState>(JsonSerializer.Serialize(descriptors))!;
+        restored.Validate();
+        Assert.Equal(packet.Bytes.ToArray(), restored.Packets[Assert.Single(restored.Queue)].Bytes.ToArray());
+    }
+
+    [Theory]
     [InlineData(249, 0, true, 2)]
     [InlineData(250, 0, true, 1)]
     [InlineData(250, 200, false, 1)]

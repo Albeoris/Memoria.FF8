@@ -40,7 +40,8 @@ public sealed partial class BattleSession
             if (packet.Command == 117)
             {
                 BattleCombatant source = combatants.SingleOrDefault(actor => actor.NativeIndex is >= 0 and < 7 && NativeParticipantAddress(actor.NativeIndex) == packet.Argument) ?? throw new NotSupportedException("Native50A070 requires its actual source participant pointer.");
-                flags = (previous & 0x1800000) | rules.Project(NativeSavedStatusBits(source), NativeBattleStatusBits(source));
+                (ushort saved, uint battle) = NativeContactStatusMirror(source);
+                flags = (previous & 0x1800000) | rules.Project(saved, battle);
             }
             else
             {

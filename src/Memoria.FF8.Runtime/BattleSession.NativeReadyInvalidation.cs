@@ -6,6 +6,11 @@ public sealed partial class BattleSession
     {
         //493D80 applies this half's cached HP before493840 and only then refreshes47E2D0.
         PublishNativePresentedContact(half);
+        return PublishNativeReadyStatus(graphics, half);
+    }
+
+    private NativeBattleGraphicsState PublishNativeReadyStatus(NativeBattleGraphicsState graphics, NativeBattleContactHalf half)
+    {
         if (half.ActorIndex >= 3)
         {
             return graphics;
