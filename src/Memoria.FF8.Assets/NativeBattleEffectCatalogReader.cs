@@ -676,6 +676,15 @@ public sealed partial class GameAssets
                 binding = binding with { Effect319Resources = ReadNativeEffect319Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 324)
+            {
+                if (binding.Entry != NativeBattleEffect324Profile.Entry || binding.Initializer != NativeBattleEffect324Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag323.tim", NativeBattleEffect324Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect324 requires its entry and texture initializer contract.");
+                }
+                binding = binding with { Effect324Resources = ReadNativeEffect324Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 227)
             {
                 if (binding.Entry != NativeBattleEffect227Profile.Entry || binding.Initializer != NativeBattleEffect227Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag226.tim", NativeBattleEffect227Profile.InitializerGlobal) || binding.InitializerResources is not null)
