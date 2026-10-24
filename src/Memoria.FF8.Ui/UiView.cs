@@ -460,7 +460,12 @@ public sealed class UiView
 
         private UiRect Map(UiRect bounds)
         {
-            return new UiRect(bounds.X * scale + offsetX, bounds.Y * scale + offsetY, bounds.Width * scale, bounds.Height * scale);
+            float left = bounds.X * scale + offsetX;
+            float top = bounds.Y * scale + offsetY;
+            float right = bounds.Right * scale + offsetX;
+            float bottom = bounds.Bottom * scale + offsetY;
+            // Transform shared edges identically so translucent fills neither overlap nor leave gaps.
+            return new UiRect(left, top, right - left, bottom - top);
         }
     }
 }

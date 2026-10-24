@@ -93,6 +93,32 @@ public sealed class UiPresentationTests
     }
 
     [Theory]
+    [InlineData(3440, 1334)]
+    [InlineData(1420, 1104)]
+    [InlineData(1280, 960)]
+    [InlineData(1920, 1080)]
+    [InlineData(1366, 768)]
+    public void Scaled_translucent_panel_bands_cover_each_pixel_once(int width, int height)
+    {
+        for (int y = 1; y < 60; y++)
+        {
+            UiAnchorPanel root = new();
+            root.Children.Add(new UiPanel { Anchors = new UiAnchors(14f / 320, y / 240f, 134f / 320, (y + 46.75f) / 240), Padding = 0, CaptionHeight = 0 });
+            UiView view = new(root) { DesignWidth = 320, DesignHeight = 240 };
+            view.Resize(width, height);
+            RecordingCanvas canvas = new();
+            view.Draw(canvas, new VectorUiTheme());
+            Assert.Equal(32, canvas.Fills.Count);
+            for (int index = 1; index < canvas.Fills.Count; index++)
+            {
+                UiRect previous = canvas.Fills[index - 1].Bounds;
+                UiRect current = canvas.Fills[index].Bounds;
+                Assert.Equal(MathF.Round(previous.Bottom), MathF.Round(current.Y));
+            }
+        }
+    }
+
+    [Theory]
     [InlineData((byte)0)]
     [InlineData((byte)128)]
     [InlineData((byte)255)]
