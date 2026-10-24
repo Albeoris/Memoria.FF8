@@ -16,6 +16,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     private readonly Dictionary<BattleEvent, double> firstFrames = [];
     private double frames;
     private double? idleOriginFrame;
+    private int? attackSequence;
 
     public void Advance(TimeSpan elapsed)
     {
@@ -98,7 +99,12 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     }
 
     public bool Melee { get; init; }
-    public int AttackSequence { get; init; } = definition.IsPlayer ? 13 : 0;
+    public Func<int>? AttackSequenceResolver { get; init; }
+    public int AttackSequence
+    {
+        get => attackSequence ??= AttackSequenceResolver?.Invoke() ?? (definition.IsPlayer ? 13 : 0);
+        init => attackSequence = value;
+    }
 
     internal BattleAnimationSample SampleNativeModel(NativeBattleGraphicsModel graphics)
     {

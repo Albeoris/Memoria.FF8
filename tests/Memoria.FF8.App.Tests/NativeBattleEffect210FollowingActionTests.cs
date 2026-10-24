@@ -43,7 +43,8 @@ public sealed class NativeBattleEffect210FollowingActionTests
         Assert.Equal((byte)54, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-        (packets, int header) = packets.Prepare(new(3, 8, 54, -1, 315, 210, null));
+        sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
+        (packets, int header) = packets.Prepare(new(3, 8, 54, cameraChoice, 315, 210, null));
         (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
@@ -55,6 +56,8 @@ public sealed class NativeBattleEffect210FollowingActionTests
         BattleSession battle = Restore(prepared);
         bool registered = false;
         bool completed = false;
+        bool cameraViewChanged = false;
+        NativeBattleEffect210Resources resources = game.ReadNativeEffect210Resources();
         HashSet<string> views = [];
         HashSet<int> bankSides = [];
         int completions = 0;
@@ -81,7 +84,12 @@ public sealed class NativeBattleEffect210FollowingActionTests
                 {
                     Assert.Null(state.CommonQueueStorage[pool.DescriptorAddress]);
                 }
-                if (!registered && current.NativeCamera.ControlCursor is not null)
+                bool runningCamera = current.NativeCamera.ControlResource?.Source.Identity == resources.Camera.Identity && current.NativeCamera.Variables[0] == 1 && current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+                if (runningCamera)
+                {
+                    cameraViewChanged |= JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778());
+                }
+                if (!registered && runningCamera)
                 {
                     NativeBattleEffectAnimationRegisters control = current.NativeCamera.ControlResource!;
                     Assert.Equal(8, control.StreamOffset);
@@ -119,9 +127,10 @@ public sealed class NativeBattleEffect210FollowingActionTests
         Assert.True(completed);
         Assert.Equal(1, completions);
         Assert.True(views.Count > 1);
+        Assert.True(cameraViewChanged);
         Assert.Equal(2, bankSides.Count);
         BattleSnapshot result = battle.Capture();
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original128 Amount0 action after effect210 cleanup; original82 companion, warm owners and resources preserved", Effect = 210, Registered = registered, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original128 Amount0 action after effect210 cleanup; original82 companion, warm owners and resources preserved", Effect = 210, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, CameraViewChanged = cameraViewChanged, Registered = registered, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
 
         BattleSession Restore(BattleSnapshot snapshot)
         {

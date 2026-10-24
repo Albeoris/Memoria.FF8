@@ -99,7 +99,7 @@ internal sealed partial class BattleScenePresentation
         BattleModel? weapon = playerResource && actor.WeaponId is int weaponId ? assets.ResolveWeaponModel(actor.ModelId, weaponId, model) : null;
         float ground = model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
         float height = model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - ground;
-        BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = playerResource ? 13 : modelId == -1 ? 0 : assets.ReadEnemyAttackSequence(modelId) };
+        BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequenceResolver = () => playerResource ? 13 : modelId == -1 ? 0 : assets.ReadEnemyAttackSequence(modelId) };
         models.Add(actor.Id, model);
         animations.Add(actor.Id, animation);
         groundOffsets.Add(actor.Id, ground);

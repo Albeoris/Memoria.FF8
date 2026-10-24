@@ -15,6 +15,7 @@ internal sealed class NativeBattleEffect210PresentationObserver
     private bool registered;
     private bool ioInitialized;
     private bool cameraControlAdvanced;
+    private bool cameraViewChanged;
     private bool earlyDetached;
     private bool overlayInitialized;
     private bool capture;
@@ -72,10 +73,15 @@ internal sealed class NativeBattleEffect210PresentationObserver
             Assert.Equal(24, animation.ModelTableOffset);
             Assert.Equal(animation.Source.Data.ToArray(), current.NativeCamera.ControlResource!.Source.Data.ToArray());
             registered = true;
-            cameraControlAdvanced |= current.NativeCamera.ControlCursor > 0;
+            bool runningCamera = current.NativeCamera.Variables[0] == 1 && current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            cameraControlAdvanced |= runningCamera;
+            if (runningCamera)
+            {
+                cameraViewChanged |= JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778());
+            }
             Mark("effect210-registered-camera-and-model-control", current, cold);
         }
-        if (age is 0 or 33 or 35 or 54 or 55 or 64 or 80 or 115 or 195 or 235 or 243 or 307)
+        if (age is 0 or 33 or 35 or 54 or 55 or 64 or 80 or 85 or 115 or 195 or 235 or 243 or 307)
         {
             Mark("effect210-before-main-age-" + age, current, cold);
         }
@@ -130,7 +136,7 @@ internal sealed class NativeBattleEffect210PresentationObserver
         }
         if (mainPair is { } currentMain)
         {
-            uint workspaceSource = currentMain.Value.ReadDword(0x170);
+            uint workspaceSource = currentMain.Value.ReadDword(0x168);
             if ((oldAge is >= 64 and < 79 or >= 115 and < 235) && resources.Programmes.ContainsKey(workspaceSource) && CurrentCommands.Any(command => command.Opcode is >= 0x20 and <= 0x3F))
             {
                 act = true;
@@ -143,7 +149,7 @@ internal sealed class NativeBattleEffect210PresentationObserver
                 Mark("effect210-current-original-companion-echo", current, cold);
             }
         }
-        if (oldAge == 80 && CurrentCommands.Any(command => command.Opcode is 0xE3 or 0xE4 or 0xE5) && CurrentCommands.Any(command => command.Opcode == 0x28 && command.Flags20 == 1))
+        if (oldAge == 85 && CurrentCommands.Any(command => command.Opcode is 0xE3 or 0xE4 or 0xE5) && CurrentCommands.Any(command => command.Opcode == 0x28 && command.Flags20 == 1))
         {
             capture = true;
             Mark("effect210-private-current-stage-capture", current, cold);
@@ -182,9 +188,11 @@ internal sealed class NativeBattleEffect210PresentationObserver
 
     public void Accept(BattleSnapshot completed, string output)
     {
+        File.WriteAllText(Path.Combine(output, "effect210-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Registered = registered, IoInitialized = ioInitialized, CameraControlAdvanced = cameraControlAdvanced, CameraViewChanged = cameraViewChanged, EarlyDetached = earlyDetached, OverlayInitialized = overlayInitialized, Capture = capture, Echo = echo, Ribbon = ribbon, Act = act, Motion = motion, Retired = retired, CursorSides = sides.Order(), SourceMeshes = sources.Order(), Contacts, ContactGlyphs, Observations = observations }));
         Assert.True(registered);
         Assert.True(ioInitialized);
         Assert.True(cameraControlAdvanced);
+        Assert.True(cameraViewChanged);
         Assert.True(earlyDetached);
         Assert.True(overlayInitialized);
         Assert.True(capture);
@@ -199,7 +207,6 @@ internal sealed class NativeBattleEffect210PresentationObserver
         Assert.Equal(1, ContactGlyphs);
         Assert.All(completed.NativeEffectMemory!.Effect210!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.All(completed.NativeEffectMemory.Effect210.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
-        File.WriteAllText(Path.Combine(output, "effect210-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Registered = registered, IoInitialized = ioInitialized, CameraControlAdvanced = cameraControlAdvanced, EarlyDetached = earlyDetached, OverlayInitialized = overlayInitialized, Capture = capture, Echo = echo, Ribbon = ribbon, Act = act, Motion = motion, Retired = retired, CursorSides = sides.Order(), SourceMeshes = sources.Order(), Contacts, ContactGlyphs, Observations = observations }));
     }
 
     private static bool MatchesSource(NativeBattleLogicalCommand command, Dictionary<(ushort Clut, ushort Page), HashSet<uint>> pairs)

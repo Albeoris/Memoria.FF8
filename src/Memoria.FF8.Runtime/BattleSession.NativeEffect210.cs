@@ -97,6 +97,14 @@ public sealed partial class BattleSession
     private static NativeBattleEffectArena CaptureNativeEffect210Model(NativeBattleGraphicsModel model)
     {
         NativeBattleEffectArena bytes = NativeBattleRaldo19ModelMemory.Capture(model);
+        if (model.GeometryWorldMatrix is { } world)
+        {
+            NativeBattlePackedMatrix32 matrix = NativeBattlePackedMatrix32.FromMatrix(world, null);
+            for (int index = 0; index < matrix.Bytes.Length; index++)
+            {
+                bytes = matrix.Known[index] ? bytes.Write(0x40 + index, matrix.Bytes.AsSpan().Slice(index, 1)) : bytes.MarkUnknown(0x40 + index, 1);
+            }
+        }
         if (model.Transform is { } transform)
         {
             bytes = bytes.Write(0x26, BitConverter.GetBytes(transform.Scale38));

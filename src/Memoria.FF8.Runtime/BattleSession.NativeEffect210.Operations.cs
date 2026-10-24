@@ -17,7 +17,17 @@ public sealed partial class BattleSession
                 NativeCamera = (NativeCamera ?? throw new NotSupportedException("Effect210 requires its camera process.")).RegisterControlResource(textures.Animation);
                 return current with { Memory = current.Memory with { Textures = textures } };
             case NativeBattleEffect210WriteModelBytes write:
-                graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, NativeBattleRaldo19ModelMemory.Apply(graphics.Models[write.Actor], write.Offset, write.Data, 0, write.Length)) };
+                NativeBattleGraphicsModel model = graphics.Models[write.Actor];
+                if (write.Offset == 0x1C && write.Length == 8)
+                {
+                    model = NativeBattleRaldo19ModelMemory.Apply(model, 0x1C, write.Data, 0, 4);
+                    model = NativeBattleRaldo19ModelMemory.Apply(model, 0x20, write.Data, 4, 4);
+                }
+                else
+                {
+                    model = NativeBattleRaldo19ModelMemory.Apply(model, write.Offset, write.Data, 0, write.Length);
+                }
+                graphics = graphics with { Models = graphics.Models.SetItem(write.Actor, model) };
                 return current;
             case NativeBattleEffect210StageFlags flags:
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect210 requires its current stage rows.");
