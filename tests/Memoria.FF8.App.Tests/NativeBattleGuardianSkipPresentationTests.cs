@@ -40,7 +40,7 @@ public sealed class NativeBattleGuardianSkipPresentationTests
 
         long initial = sliced.NativeGraphics!.Callback;
         sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1), TimeSpan.Zero);
-        Assert.Equal(initial + 1, sliced.NativeGraphics.Callback);
+        Assert.Equal(initial + 1, sliced.NativeGraphics!.Callback);
         Assert.True(sliced.GuardianAnimationSkipPending);
         Assert.Equal(visible, scene.Render(sliced, 320, 224).ToArray());
         BattleScenePresentation restoredScene = new(assets, definition, true);
@@ -54,21 +54,21 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         int slices = 1;
         while (slices < 4096 && sliced.GuardianAnimationSkipPending)
         {
-            long before = sliced.NativeGraphics.Callback;
+            long before = sliced.NativeGraphics!.Callback;
             sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromSeconds(1), TimeSpan.Zero);
-            Assert.Equal(before + 1, sliced.NativeGraphics.Callback);
+            Assert.Equal(before + 1, sliced.NativeGraphics!.Callback);
             slices++;
         }
         Assert.True(slices > 1);
         Assert.False(sliced.GuardianAnimationSkipPending);
-        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(sliced.NativeGraphics.OriginalEffect!, sliced.NativeEffectMemory!));
+        Assert.True(NativeBattleGuardianAnimationFinale.HasReachedFinale(sliced.NativeGraphics!.OriginalEffect!, sliced.NativeEffectMemory!));
         Assert.Equal(JsonSerializer.Serialize(synchronous.Capture()), JsonSerializer.Serialize(sliced.Capture()));
         byte[] finale = new BattleScenePresentation(assets, definition, true).Render(synchronous, 320, 224).ToArray();
         Assert.Equal(finale, scene.Render(sliced, 320, 224).ToArray());
         Assert.Equal(finale, restoredScene.Render(sliced, 320, 224).ToArray());
 
-        long firstFinale = sliced.NativeGraphics.Callback;
+        long firstFinale = sliced.NativeGraphics!.Callback;
         sliced.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30), TimeSpan.Zero);
-        Assert.Equal(firstFinale + 1, sliced.NativeGraphics.Callback);
+        Assert.Equal(firstFinale + 1, sliced.NativeGraphics!.Callback);
     }
 }
