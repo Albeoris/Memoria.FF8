@@ -101,9 +101,12 @@ public sealed class NativeBattleEffect210FollowingActionTests
                     registered = true;
                 }
             }
-            if (registered && prior.NativeGraphics!.OriginalEffect is { Binding.Effect: 210, ReturnedDescriptor: > 0 } && graphics.OriginalEffect is { Binding.Effect: 210, ReturnedDescriptor: 0 } && current.NativeEffectMemory!.Active == 0)
+            if (registered && prior.NativeGraphics!.OriginalEffect is { Binding.Effect: 210, ReturnedDescriptor: > 0 } && graphics.OriginalEffect is { Binding.Effect: 210, ReturnedDescriptor: 0 })
             {
                 completions++;
+            }
+            if (completions > 0 && graphics.OriginalEffect is { Binding.Effect: 210, ReturnedDescriptor: 0 } && current.NativeEffectMemory!.Active == 0)
+            {
                 Assert.Null(current.NativeCamera.ControlCursor);
                 Assert.Empty(current.NativeCamera.Order);
                 Assert.Null(current.ActiveAction);
@@ -123,14 +126,54 @@ public sealed class NativeBattleEffect210FollowingActionTests
             }
             prior = current;
         }
+        BattleSnapshot result = battle.Capture();
+        NativeBattleRestorationPresentationTests.Publish(output!, "following-action-last", result, null);
+        NativeBattleGraphicsState lastGraphics = result.NativeGraphics!;
+        var lastEffect = lastGraphics.OriginalEffect;
+        File.WriteAllText(Path.Combine(output!, "following-action-last-state.json"), JsonSerializer.Serialize(new
+        {
+            result.Frame,
+            Callbacks = callbacks,
+            lastGraphics.Callback,
+            lastGraphics.Flags,
+            Registered = registered,
+            Completed = completed,
+            Completions = completions,
+            HeaderIndex = header,
+            InitialActionCount = source.NativeActionPackets!.ActionCount,
+            InitialContactCount = source.NativeActionPackets.ContactCount,
+            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeaderIndex, PreparedHeader = result.NativeActionPackets.Headers[header] },
+            lastGraphics.ActionGraphics,
+            DescriptorQueue = lastGraphics.Descriptors.Queue,
+            Effect = lastEffect is null ? null : new
+            {
+                lastEffect.Binding.Effect,
+                lastEffect.ReturnedDescriptor,
+                Pools = lastEffect.Pools.Select(pool => new
+                {
+                    pool.DescriptorAddress,
+                    pool.BankAddress,
+                    pool.Stride,
+                    pool.Head,
+                    pool.Tail,
+                    CallbackCounts = pool.Slots.Where(task => task.Callback != 0).GroupBy(task => task.Callback).Select(group => new { Callback = group.Key, Count = group.Count() }),
+                    Tasks = pool.Slots.Select((task, index) => new { Task = task, Index = index }).Where(item => item.Task.Callback != 0).Take(12).Select(item => new { item.Index, item.Task.Flags, item.Task.State, item.Task.Next, item.Task.Callback, PayloadPrefix = Convert.ToHexString(item.Task.Payload.AsSpan()[..Math.Min(48, item.Task.Payload.Length)]), item.Task.UnknownPayloadRanges })
+                })
+            },
+            ActiveEffect = result.NativeEffectMemory!.Active,
+            result.NativeEffectMemory.EffectIo,
+            Camera = new { result.NativeCamera!.ControlCursor, result.NativeCamera.Variables, result.NativeCamera.Order, Tasks = result.NativeCamera.Tasks.Select(task => task is null ? null : new { task.Channel, task.ProgramOffset, task.Elapsed, task.Duration }) },
+            CameraViewChanged = cameraViewChanged,
+            DistinctViewMatrices = views.Count,
+            BankSides = bankSides.Order()
+        }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original128 Amount0 action after effect210 cleanup; original82 companion, warm owners and resources preserved", Effect = 210, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, CameraViewChanged = cameraViewChanged, Registered = registered, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
         Assert.True(registered);
         Assert.True(completed);
         Assert.Equal(1, completions);
         Assert.True(views.Count > 1);
         Assert.True(cameraViewChanged);
         Assert.Equal(2, bankSides.Count);
-        BattleSnapshot result = battle.Capture();
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original128 Amount0 action after effect210 cleanup; original82 companion, warm owners and resources preserved", Effect = 210, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, CameraViewChanged = cameraViewChanged, Registered = registered, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
 
         BattleSession Restore(BattleSnapshot snapshot)
         {

@@ -149,8 +149,9 @@ internal sealed class NativeBattleEffect210PresentationObserver
                 Mark("effect210-current-original-companion-echo", current, cold);
             }
         }
-        if (oldAge == 85 && CurrentCommands.Any(command => command.Opcode is 0xE3 or 0xE4 or 0xE5) && CurrentCommands.Any(command => command.Opcode == 0x28 && command.Flags20 == 1))
+        if (oldAge == 85)
         {
+            ObserveSoftwareCapture(prior, current);
             capture = true;
             Mark("effect210-private-current-stage-capture", current, cold);
         }
@@ -207,6 +208,63 @@ internal sealed class NativeBattleEffect210PresentationObserver
         Assert.Equal(1, ContactGlyphs);
         Assert.All(completed.NativeEffectMemory!.Effect210!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.All(completed.NativeEffectMemory.Effect210.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
+    }
+
+    private void ObserveSoftwareCapture(BattleSnapshot prior, BattleSnapshot current)
+    {
+        NativeBattleLogicalCommand area = Assert.Single(CurrentCommands, command => command.Opcode == 0xE3 && command.Words[0] == 0xE30402C0);
+        NativeBattleLogicalCommand areaEnd = Assert.Single(CurrentCommands, command => command.Packet == area.Packet && command.Opcode == 0xE4);
+        Assert.Equal(0xE407FF7Fu, areaEnd.Words[0]);
+        NativeBattleLogicalCommand offset = Assert.Single(CurrentCommands, command => command.Packet.Bank == area.Packet.Bank && command.Packet.Buffer == area.Packet.Buffer && command.Packet.ByteOffset == area.Packet.ByteOffset + 12 && command.Opcode == 0xE5);
+        Assert.Equal(0xE50802C0u, offset.Words[0]);
+        int blackOffset = checked(area.Packet.ByteOffset - 24);
+        NativeBattleEffectArena arena = current.NativeEffectMemory!.Arena!;
+        byte[] black = arena.Read(blackOffset, 24);
+        Assert.Equal(0x05000000u, BinaryPrimitives.ReadUInt32LittleEndian(black) & 0xFF000000u);
+        uint[] payload = Enumerable.Range(1, 5).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(black.AsSpan(index * 4))).ToArray();
+        Assert.Equal(new uint[] { 0x28000000, 0, 192, 256u << 16, 192u | (256u << 16) }, payload);
+        NativeBattlePrimitiveFrame primitiveFrame = current.NativeGraphics!.PrimitiveFrame!;
+        NativeBattleLogicalOrdering ordering = primitiveFrame.Pending;
+        int blackProxy = Assert.Single(Enumerable.Range(0, ordering.Proxies.Length), index => ordering.Proxies[index].Packet == new NativeBattlePrimitiveReference(area.Packet.Bank, area.Packet.Buffer, blackOffset));
+        Assert.Equal((ushort)1, ordering.Proxies[blackProxy].Flags20);
+        int areaProxy = Assert.Single(Enumerable.Range(0, ordering.Proxies.Length), index => ordering.Proxies[index].Packet == area.Packet);
+        uint areaLink = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(area.Packet.ByteOffset, 4)) & 0xFFFFFF;
+        uint offsetLink = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset.Packet.ByteOffset, 4)) & 0xFFFFFF;
+        Assert.Equal((0x1C48828u + checked((uint)blackProxy * 24)) & 0xFFFFFF, areaLink);
+        Assert.Equal((0x1C48828u + checked((uint)areaProxy * 24)) & 0xFFFFFF, offsetLink);
+        NativeBattleLogicalCommand[] restore = CurrentCommands.Where(command => command.Packet.Bank == area.Packet.Bank && command.Packet.Buffer == area.Packet.Buffer && command.Packet.ByteOffset == blackOffset - 64).ToArray();
+        Assert.Contains(restore, command => command.Opcode == 0xE3);
+        Assert.Contains(restore, command => command.Opcode == 0xE4);
+        Assert.Contains(restore, command => command.Opcode == 0xE5);
+        NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
+        Assert.Equal(0x4668F0u, definition.SoftwarePrimitiveTable!.Handler(0x28));
+        Assert.NotEqual((byte)0, definition.PrimitiveTables!.FlaggedCommands[0x28]);
+        NativeSoftwareDrawingEnvironmentState environment = prior.NativeEffectMemory!.PrimitiveProcess!.Software!.Environment;
+        environment = NativeSoftwareDrawingEnvironment.WriteE545BAD0(environment, offset.Words[0]);
+        environment = NativeSoftwareDrawingEnvironment.WriteE345BA30(environment, area.Words[0]);
+        environment = NativeSoftwareDrawingEnvironment.WriteE445BA60(environment, areaEnd.Words[0]).State;
+        Assert.Equal(2u, environment.Derived!.Mode);
+        Assert.Equal(new NativeSoftwareDrawingRectangle(704, 256, 192, 256), environment.Derived.Rectangle);
+        Assert.Equal(704, environment.Derived.DrawPositionX);
+        Assert.Equal(256, environment.Derived.DrawPositionY);
+        byte[] before = prior.NativeEffectMemory!.Textures!.ReadVram();
+        byte[] after = current.NativeEffectMemory!.Textures!.ReadVram();
+        int changed = 0;
+        for (int y = 256; y < 512; y++)
+        {
+            for (int x = 704; x < 896; x++)
+            {
+                int pixel = checked(2 * (y * 1024 + x));
+                Assert.Equal((byte)0, after[pixel]);
+                Assert.Equal((byte)0, after[pixel + 1]);
+                if (before[pixel] != after[pixel] || before[pixel + 1] != after[pixel + 1])
+                {
+                    changed++;
+                }
+            }
+        }
+        Assert.True(changed > 0, "The linked software capture must clear its actual current VRAM rectangle.");
+        observations.Add(new { CaptureSoftware = true, BlackPacketOffset = blackOffset, BlackProxy = blackProxy, AreaPacket = area.Packet, OffsetPacket = offset.Packet, Mode = environment.Derived.Mode, Rectangle = environment.Derived.Rectangle, ChangedVramWords = changed });
     }
 
     private static bool MatchesSource(NativeBattleLogicalCommand command, Dictionary<(ushort Clut, ushort Page), HashSet<uint>> pairs)
