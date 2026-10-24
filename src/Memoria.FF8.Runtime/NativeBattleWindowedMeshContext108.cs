@@ -11,7 +11,7 @@ public static class NativeBattleWindowedMeshContext108
     {
         context.Validate();
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0xC or 0x2000 or 0x200C or 0x20C0 or 0x20CC or 0x2030 or 0x203C or 0x20F0 or 0x20FC or 0x800C or 0x8030) || depthShift > 31 || context.Regions.Any(region => region.Offset > 108 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 108 - region.Length))
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0xC or 0xF0 or 0x2000 or 0x200C or 0x20C0 or 0x20CC or 0x2030 or 0x203C or 0x20F0 or 0x20FC or 0x800C or 0x8030) || depthShift > 31 || context.Regions.Any(region => region.Offset > 108 - region.Data.Length) || context.UnknownRegions.Any(region => region.Offset > 108 - region.Length))
         {
             throw new InvalidDataException("Windowed mesh requires its actual bounded windowed context.");
         }

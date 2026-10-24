@@ -31,6 +31,11 @@ public static class NativeBattleDuelEcho
         return Capture(task, offset, boneCount, readCurrentMatrix32, 1152);
     }
 
+    public static NativeBattleModulePoolTask Capture8200(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32)
+    {
+        return Capture(task, offset, boneCount, readCurrentMatrix32, 64);
+    }
+
     private static NativeBattleModulePoolTask Capture(NativeBattleModulePoolTask task, int offset, int boneCount, Func<int, (byte[] Data, bool[] Known)> readCurrentMatrix32, int historyStride)
     {
         if ((uint)boneCount > 128)

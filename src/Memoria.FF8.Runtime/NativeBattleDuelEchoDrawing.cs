@@ -14,7 +14,12 @@ public static class NativeBattleDuelEchoDrawing
         return Draw(frame, model, echoAddress, echoOffset, readEcho, storeEcho, sectionAddress, readSection, scratchMaximum, view, projection, writeCpu, readCpu, submitCommon, zsf3, zsf4, readStaging, writeStaging, 1152, 576);
     }
 
-    private static TFrame Draw<TFrame>(TFrame frame, NativeBattleGraphicsModel model, uint echoAddress, int echoOffset, Func<TFrame, NativeBattleModulePoolTask> readEcho, Func<TFrame, NativeBattleModulePoolTask, IReadOnlyList<(int Offset, int Length)>, TFrame> storeEcho, uint sectionAddress, Func<TFrame, int, int, byte[]> readSection, ushort scratchMaximum, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Func<TFrame, uint, ImmutableArray<byte>, TFrame> writeCpu, Func<TFrame, uint, int, (byte[] Data, bool[] Known)> readCpu, Func<TFrame, NativeBattleGfGeometryBatch, TFrame> submitCommon, short zsf3, short zsf4, Func<TFrame, NativeBattleFileStaging> readStaging, Func<TFrame, NativeBattleFileStaging, TFrame> writeStaging, int historyStride, int preparedOffset)
+    public static TFrame Draw7EE0<TFrame>(TFrame frame, NativeBattleGraphicsModel model, uint echoAddress, int echoOffset, Func<TFrame, NativeBattleModulePoolTask> readEcho, Func<TFrame, NativeBattleModulePoolTask, IReadOnlyList<(int Offset, int Length)>, TFrame> storeEcho, uint sectionAddress, Func<TFrame, int, int, byte[]> readSection, ushort scratchMaximum, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Func<TFrame, uint, ImmutableArray<byte>, TFrame> writeCpu, Func<TFrame, uint, int, (byte[] Data, bool[] Known)> readCpu, Func<TFrame, NativeBattleGfGeometryBatch, TFrame> submitCommon, short zsf3, short zsf4, Func<TFrame, NativeBattleFileStaging> readStaging, Func<TFrame, NativeBattleFileStaging, TFrame> writeStaging, bool frozen)
+    {
+        return Draw(frame, model, echoAddress, echoOffset, readEcho, storeEcho, sectionAddress, readSection, scratchMaximum, view, projection, writeCpu, readCpu, submitCommon, zsf3, zsf4, readStaging, writeStaging, 64, 32, !frozen);
+    }
+
+    private static TFrame Draw<TFrame>(TFrame frame, NativeBattleGraphicsModel model, uint echoAddress, int echoOffset, Func<TFrame, NativeBattleModulePoolTask> readEcho, Func<TFrame, NativeBattleModulePoolTask, IReadOnlyList<(int Offset, int Length)>, TFrame> storeEcho, uint sectionAddress, Func<TFrame, int, int, byte[]> readSection, ushort scratchMaximum, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, Func<TFrame, uint, ImmutableArray<byte>, TFrame> writeCpu, Func<TFrame, uint, int, (byte[] Data, bool[] Known)> readCpu, Func<TFrame, NativeBattleGfGeometryBatch, TFrame> submitCommon, short zsf3, short zsf4, Func<TFrame, NativeBattleFileStaging> readStaging, Func<TFrame, NativeBattleFileStaging, TFrame> writeStaging, int historyStride, int preparedOffset, bool completeHistory = true)
     {
         NativeBattleTemporaryAllocation temporary = NativeBattleTemporaryMemory.Allocate5082B0(readStaging(frame), 116);
         frame = writeStaging(frame, temporary.Staging);
@@ -76,6 +81,10 @@ public static class NativeBattleDuelEchoDrawing
             }, batch => frame = submitCommon(frame, batch), 17, 0, zsf3, zsf4, StoreContext, historyStride, preparedOffset);
         }
         frame = writeStaging(frame, NativeBattleTemporaryMemory.Release5082D0(readStaging(frame), 116));
+        if (!completeHistory)
+        {
+            return frame;
+        }
         bool decrement = echo.ReadByte(echoOffset) == 0 && echo.ReadByte(echoOffset + 1) != 0;
         echo = NativeBattleDuelEcho.CompleteDraw6A2760(echo, echoOffset);
         return storeEcho(frame, echo, decrement ? [(0, 2)] : [(0, 1)]);

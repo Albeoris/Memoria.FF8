@@ -59,16 +59,20 @@ public static class NativeBattleProjectedSpriteD8
         return DrawCore(head, readResource, projection, cameraRoll, tableBaseBucket, true, 2, false);
     }
 
-    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false)
+    internal static NativeBattleProjectedSpriteDraw DrawUnbiased571C80(NativeBattleEffectMemory memory, NativeBattleEffectArena temporary180, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, bool allowCallerScale = false, bool allowFirstPaletteOverride = false)
     {
-        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift, allowCallerScale);
+        return DrawCore(new(memory, temporary180), readResource, projection, cameraRoll, tableBaseBucket, false, depthShift, allowCallerScale, allowFirstPaletteOverride);
     }
 
-    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift, bool allowCallerScale)
+    private static NativeBattleProjectedSpriteDraw DrawCore(NativeBattleProjectedSpriteHead head, Func<uint, NativeBattleModuleResource> readResource, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, bool readD8DepthBias, byte depthShift, bool allowCallerScale, bool allowFirstPaletteOverride = false)
     {
         NativeBattleEffectArena temporary = head.TemporaryD8;
         ushort callerFlags = ReadWord(temporary, 0x24);
         int supportedFlags = readD8DepthBias ? 0x100 : allowCallerScale ? 0x10F : 0x10D;
+        if (!readD8DepthBias && allowFirstPaletteOverride)
+        {
+            supportedFlags |= 0x10;
+        }
         if ((callerFlags & ~supportedFlags) != 0)
         {
             throw new InvalidDataException("Projected sprite dispatcher requires its supported actual caller flags.");
@@ -125,9 +129,28 @@ public static class NativeBattleProjectedSpriteD8
             byte[] rgb = temporary.Read(0x1C, 3);
             tint = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
         }
-        temporary = temporary.Write(0x20, resource.Bytes.AsSpan().Slice(4, 4));
+        for (int index = 0; index < 4; index++)
+        {
+            if ((flags & (0x10 << index)) == 0)
+            {
+                temporary = temporary.Write(0x20 + index, [resource.Bytes[4 + index]]);
+            }
+        }
         temporary = Dword(Dword(Dword(Dword(Dword(temporary, 0xB0, (flags & 8) != 0 ? 1u : 0u), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 255) { Resource = resource, SpriteFrame = selected, Phase = phase, SpriteFlags = flags };
+        if ((flags & 0x10) != 0)
+        {
+            byte[] palettes = resource.Bytes.AsSpan().Slice(4, 4).ToArray();
+            for (int offset = 0; offset < selected.Quads.Length; offset += 20)
+            {
+                if ((BinaryPrimitives.ReadUInt16LittleEndian(selected.Quads.AsSpan().Slice(offset + 14, 2)) >> 12) == 0)
+                {
+                    palettes[0] = temporary.Read(0x20, 1)[0];
+                    break;
+                }
+            }
+            draw = draw with { SpritePaletteOffsets = palettes.ToImmutableArray() };
+        }
         if (tint is uint actualTint)
         {
             draw = draw with { SpriteColor = actualTint };
@@ -203,7 +226,7 @@ public static class NativeBattleProjectedSpriteD8
             }
             candidate[7] = quad[3];
             quad.Slice(4, 4).CopyTo(candidate.AsSpan(12));
-            int palette = unchecked((sbyte)resource.Bytes[4 + (quadFlags >> 12)]);
+            int palette = unchecked((sbyte)temporary.Read(0x20 + (quadFlags >> 12), 1)[0]);
             BinaryPrimitives.WriteUInt16LittleEndian(candidate.AsSpan(14), unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(quad.Slice(6)) + (palette << 6))));
             candidate[20] = candidate[36] = unchecked((byte)Math.Min(quad[4] + quad[0] - ((flags & 8) != 0 ? 1 : 0), 255));
             candidate[21] = quad[5];
