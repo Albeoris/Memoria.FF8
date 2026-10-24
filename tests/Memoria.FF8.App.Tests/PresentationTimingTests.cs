@@ -60,7 +60,29 @@ public sealed class PresentationTimingTests
     }
 
     [Fact]
-    public void Expensive_history_ages_out_after_two_updates_and_remaining_steps_catch_up_within_budget()
+    public void Two_light_callbacks_do_not_forget_the_preceding_expensive_callback()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        timing.Accumulate(PresentationTiming.SimulationStep * 9);
+        int updates = 0;
+        for (int display = 1; display <= 9; display++)
+        {
+            timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+            {
+                updates++;
+                clock.Advance(TimeSpan.FromMilliseconds(updates % 3 == 1 ? 25 : 3));
+                return true;
+            }, clock);
+            Assert.Equal(display, updates);
+            clock.Advance(TimeSpan.FromMilliseconds(1));
+        }
+        Assert.Equal(PresentationTiming.SimulationStep * 9, timing.SimulationTotal);
+        Assert.False(timing.TryStep());
+    }
+
+    [Fact]
+    public void Expensive_history_expires_by_elapsed_time_and_remaining_steps_catch_up_within_budget()
     {
         PresentationTiming timing = new();
         ManualTimeProvider clock = new();
@@ -69,6 +91,10 @@ public sealed class PresentationTimingTests
         int updates = 0;
         for (int display = 0; display < 4; display++)
         {
+            if (display == 2)
+            {
+                clock.Advance(PresentationTiming.MaximumElapsed);
+            }
             int before = updates;
             TimeSpan started = clock.GetElapsedTime(0);
             timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
@@ -85,6 +111,37 @@ public sealed class PresentationTimingTests
         }
         Assert.Equal(new[] { 1, 1, 5, 5 }, updatesPerDisplay);
         Assert.Equal(PresentationTiming.SimulationStep * 12, timing.SimulationTotal);
+        Assert.False(timing.TryStep());
+    }
+
+    [Fact]
+    public void Recent_cost_expires_at_the_wall_time_boundary_even_without_intervening_updates()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        timing.Accumulate(PresentationTiming.SimulationStep * 5);
+        int updates = 0;
+        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+        {
+            updates++;
+            clock.Advance(TimeSpan.FromMilliseconds(25));
+            return true;
+        }, clock);
+        clock.Advance(PresentationTiming.MaximumElapsed - TimeSpan.FromMilliseconds(1));
+        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+        {
+            updates++;
+            return true;
+        }, clock);
+        Assert.Equal(2, updates);
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+        {
+            updates++;
+            return true;
+        }, clock);
+        Assert.Equal(5, updates);
+        Assert.Equal(PresentationTiming.SimulationStep * 5, timing.SimulationTotal);
         Assert.False(timing.TryStep());
     }
 
@@ -111,6 +168,31 @@ public sealed class PresentationTimingTests
         }, clock);
         Assert.Equal(8, callbacks);
         Assert.Equal(PresentationTiming.SimulationStep + next * 7, timing.SimulationTotal);
+    }
+
+    [Fact]
+    public void Changing_the_cost_clock_preserves_steps_without_reusing_incomparable_timestamps()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider firstClock = new();
+        timing.Accumulate(PresentationTiming.SimulationStep * 6);
+        int updates = 0;
+        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+        {
+            updates++;
+            firstClock.Advance(TimeSpan.FromMilliseconds(25));
+            return true;
+        }, firstClock);
+        ManualTimeProvider nextClock = new();
+        timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+        {
+            updates++;
+            nextClock.Advance(TimeSpan.FromMilliseconds(3));
+            return true;
+        }, nextClock);
+        Assert.Equal(6, updates);
+        Assert.Equal(PresentationTiming.SimulationStep * 6, timing.SimulationTotal);
+        Assert.False(timing.TryStep());
     }
 
     private sealed class ManualTimeProvider : TimeProvider

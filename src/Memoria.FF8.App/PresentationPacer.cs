@@ -62,7 +62,7 @@ internal sealed class PresentationPacer : IDisposable
     {
         // A small overshoot must not permanently lower the selected display rate.
         double next = deadline + period;
-        return next > now ? next : now + period;
+        return next > now ? next : next + (Math.Floor((now - next) / period) + 1) * period;
     }
 
     public void Reset()
