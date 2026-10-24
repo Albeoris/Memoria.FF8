@@ -17,6 +17,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         }
     }
     private static readonly ConditionalWeakTable<NativeBattlePrimitiveReference, NativeBattlePrimitiveReference> NormalizedCommonReferences = new();
+    private static readonly ConditionalWeakTable<NativeBattleCommonPacketMemory, object> ValidatedCommonMemory = new();
     [JsonIgnore]
     internal NativeBattleCommonPacketTransaction? CommonTransaction { get; init; }
 
@@ -68,7 +69,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
             return this;
         }
         ValidateCommonPacketMemory();
-        ImmutableArray<CommonSlice> slices = CommonSlices(offset, length);
+        CommonSliceRange slices = CommonSlices(offset, length);
         NativeBattlePrimitiveProcess result = this;
         int capacity = CommonPacketNominalCapacity;
         foreach (CommonSlice slice in slices)
@@ -86,7 +87,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
             return transaction.Read(offset, count);
         }
         ValidateCommonPacketMemory();
-        ImmutableArray<CommonSlice> slices = CommonSlices(offset, count);
+        CommonSliceRange slices = CommonSlices(offset, count);
         byte[] result = new byte[count];
         foreach (CommonSlice slice in slices)
         {
@@ -103,7 +104,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
             return transaction.ReadSnapshot(offset, count);
         }
         ValidateCommonPacketMemory();
-        ImmutableArray<CommonSlice> slices = CommonSlices(offset, count);
+        CommonSliceRange slices = CommonSlices(offset, count);
         byte[] bytes = new byte[count];
         bool[] known = new bool[count];
         foreach (CommonSlice slice in slices)
@@ -118,21 +119,36 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
 
     private readonly record struct CommonSlice(int Bank, int Offset, int Count, int SourceOffset);
 
-    private ImmutableArray<CommonSlice> CommonSlices(int offset, int count)
+    private readonly record struct CommonSliceRange(int Bank, int Stride, int Offset, int Count)
+    {
+        public Enumerator GetEnumerator() => new(this);
+
+        public struct Enumerator(CommonSliceRange range)
+        {
+            private int cursor;
+            public CommonSlice Current { get; private set; }
+
+            public bool MoveNext()
+            {
+                if (cursor >= range.Count)
+                {
+                    return false;
+                }
+                int relative = checked(range.Offset + cursor);
+                int local = relative % range.Stride;
+                int length = Math.Min(range.Count - cursor, range.Stride - local);
+                Current = new(range.Bank + relative / range.Stride, local, length, cursor);
+                cursor += length;
+                return true;
+            }
+        }
+    }
+
+    private CommonSliceRange CommonSlices(int offset, int count)
     {
         int bank = CommonBank(out int stride);
         RequireCommonRange(offset, count, CommonPacketWriteCapacity);
-        ImmutableArray<CommonSlice>.Builder slices = ImmutableArray.CreateBuilder<CommonSlice>();
-        int cursor = 0;
-        while (cursor < count)
-        {
-            int relative = checked(offset + cursor);
-            int local = relative % stride;
-            int length = Math.Min(count - cursor, stride - local);
-            slices.Add(new(bank + relative / stride, local, length, cursor));
-            cursor += length;
-        }
-        return slices.ToImmutable();
+        return new(bank, stride, offset, count);
     }
 
     public void ValidateCommonPacketMemory()
@@ -141,6 +157,19 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
         {
             return;
         }
+        memory.Bank070Buffer0?.Transaction?.RequireActive();
+        memory.Bank070Buffer1?.Transaction?.RequireActive();
+        memory.Bank094Buffer0?.Transaction?.RequireActive();
+        memory.Bank094Buffer1?.Transaction?.RequireActive();
+        _ = ValidatedCommonMemory.GetValue(memory, static retained =>
+        {
+            ValidateCommonPacketStorage(retained);
+            return new object();
+        });
+    }
+
+    private static void ValidateCommonPacketStorage(NativeBattleCommonPacketMemory memory)
+    {
         NativeBattleEffectArena?[] banks = [memory.Bank070Buffer0, memory.Bank070Buffer1, memory.Bank094Buffer0, memory.Bank094Buffer1];
         for (int index = 0; index < banks.Length; index++)
         {

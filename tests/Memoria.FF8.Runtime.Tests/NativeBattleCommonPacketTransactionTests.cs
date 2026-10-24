@@ -6,6 +6,32 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCommonPacketTransactionTests
 {
     [Fact]
+    public void PhysicalPacketReadsReuseValidatedImmutableBanksWithoutPerReadSliceCollections()
+    {
+        NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, [1, 2, 3, 4], Known(4));
+        _ = process.ReadCommonPacket(0, 4);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        int total = 0;
+        for (int index = 0; index < 10000; index++)
+        {
+            total += process.ReadCommonPacket(0, 4)[0];
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(10000, total);
+        Assert.True(allocated < 1_000_000, $"Physical packet reads allocated {allocated} bytes.");
+        NativeBattleCommonPacketMemory memory = process.CommonPacketMemory!;
+        NativeBattleEffectArena invalid = memory.Bank070Buffer0! with { UnknownRegions = [] };
+        Assert.Throws<InvalidDataException>(() => (process with { CommonPacketMemory = memory with { Bank070Buffer0 = invalid } }).ValidateCommonPacketMemory());
+        process = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(process))!;
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, process.ReadCommonPacket(0, 4));
+        using NativeBattleEffectArenaTransaction transaction = new(memory.Bank070Buffer0!);
+        NativeBattlePrimitiveProcess borrowed = process with { CommonPacketMemory = memory with { Bank070Buffer0 = transaction.View } };
+        borrowed.ValidateCommonPacketMemory();
+        transaction.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => borrowed.ValidateCommonPacketMemory());
+    }
+
+    [Fact]
     public void ModelProducerStoresPublishOnceAndPreserveTheLatestRendererMetadata()
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 65536).ToImmutableArray(), Known(65536));
