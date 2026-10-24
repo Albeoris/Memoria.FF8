@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
@@ -8,6 +9,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
+    private static readonly ImmutableArray<short> ShadowProjectionIdentity = [4096, 0, 0, 0, 4096, 0, 0, 0, 4096];
     // Verified signed entries atB80D1C/B80D9C for angles0,32,...224.
     private static readonly int[] ShadowSine = [0, 2896, 4096, 2896, 0, -2896, -4096, -2896];
     private static readonly int[] ShadowCosine = [4096, 2896, 0, -2896, -4096, -2896, 0, 2896];
@@ -43,7 +45,7 @@ public sealed partial class FieldRenderer
         }
         // 56C910 returns45E250's final projected vertex depth>>2.
         float orderingDepth = MathF.Truncate(edge[7].Depth / 4) * 4;
-        if (orderingDepth >= 4095 * 4 || middle.Depth <= 1)
+        if (orderingDepth >= 4095 * 4)
         {
             return;
         }
@@ -58,15 +60,20 @@ public sealed partial class FieldRenderer
 
     private ProjectedPoint ProjectShadowPoint(Vector3 point)
     {
-        return ToViewport(camera.Project(point));
+        // 56C910 uses the shared 45FE10 projection. Its SZ and screen coordinates
+        // saturate even behind the camera; 472F20 does not reject those vertices.
+        int Row(Vector3 axis) => (int)Math.Round(axis.Z * (double)point.Z + axis.Y * (double)point.Y + axis.X * (double)point.X);
+        NativeBattleActionMatrix transformed = new(ShadowProjectionIdentity, unchecked(Row(camera.AxisX) + (int)camera.Translation.X), unchecked(Row(camera.AxisY) + (int)camera.Translation.Y), unchecked(Row(camera.AxisZ) + (int)camera.Translation.Z), 4096);
+        NativeBattleModuleProjectedVertex projected = NativeBattleModuleProjection.Project45FE10(transformed, new NativeBattleVector(0, 0, 0), new NativeBattleCameraProjection(null, (ushort)camera.FocalLength, 0, 0));
+        float x = unchecked((short)projected.Screen) / 8f;
+        float y = unchecked((short)(projected.Screen >> 16)) / 8f;
+        // The field keeps GTE offsets zero and applies CA pan in DRAWENV.
+        // Depth remains in the renderer's common camera-space units.
+        return ToViewport(new ProjectedPoint(160 + camera.Pan.X + x, 120 + camera.Pan.Y + y, projected.Depth));
     }
 
     private void DrawShadowTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, byte level)
     {
-        if (b.Depth <= 1 || c.Depth <= 1)
-        {
-            throw new NotSupportedException("Native shadow near-plane clipping requires the original projected fan contract.");
-        }
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
         {

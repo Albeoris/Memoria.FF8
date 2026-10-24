@@ -10,6 +10,188 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeActorShadowTests
 {
     [Theory]
+    [InlineData(8)]
+    [InlineData(0)]
+    [InlineData(-8)]
+    public void NearCameraShadowRendersWithoutMutatingItsInputs(float cameraDepth)
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(cameraDepth);
+        FieldRenderer renderer = new(field);
+        Dictionary<int, int> state = new() { [3] = 7 };
+        ActorVisual original = actor;
+        byte[] radii = actor.GroundShadowRadii601To608!.ToArray();
+        byte[] baseline = renderer.Render(state, [], TimeSpan.Zero).ToArray();
+        byte[] actual = renderer.Render(state, [actor], TimeSpan.Zero).ToArray();
+
+        int shadowPixels = 0;
+        for (int index = 0; index < actual.Length; index += 4)
+        {
+            if (actual[index] < baseline[index])
+            {
+                shadowPixels++;
+            }
+            Assert.InRange(baseline[index] - actual[index], 0, 96);
+            Assert.Equal(baseline[index] - actual[index], baseline[index + 1] - actual[index + 1]);
+            Assert.Equal(baseline[index + 3], actual[index + 3]);
+        }
+        Assert.True(shadowPixels > 1000, $"Shadow pixels: {shadowPixels}");
+        Assert.Equal(original, actor);
+        Assert.Equal(radii, actor.GroundShadowRadii601To608);
+        Assert.Equal(new KeyValuePair<int, int>(3, 7), Assert.Single(state));
+        Assert.Equal(actual, renderer.Render(state, [actor], TimeSpan.Zero));
+        Assert.Equal(baseline, renderer.Render(state, [], TimeSpan.Zero));
+    }
+
+    [Theory]
+    [InlineData(8, 4)]
+    [InlineData(0, 4)]
+    [InlineData(-8, 4)]
+    [InlineData(0, 255)]
+    public void NearCameraShadowSubmitsEightFiniteSaturatedTriangles(float cameraDepth, byte radius)
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(cameraDepth, radius);
+        ShadowRecorder recorder = new();
+        FieldRenderer renderer = new(field) { TriangleRenderer = recorder };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+
+        Assert.Equal(8, recorder.Triangles.Count);
+        Assert.All(recorder.Triangles, triangle =>
+        {
+            Assert.Equal(TriangleBlend.Subtract, triangle.Material.Blend);
+            Assert.Equal(TriangleDepthComparison.LessEqual, triangle.Material.DepthComparison);
+            Assert.False(triangle.Material.DepthWrite);
+            Assert.Equal(TriangleDepthMapping.Positive, triangle.Material.DepthMapping);
+            Assert.Equal(Math.Max(0, cameraDepth), triangle.A.Depth);
+            foreach (TriangleVertex vertex in new[] { triangle.A, triangle.B, triangle.C })
+            {
+                Assert.True(float.IsFinite(vertex.Position.X));
+                Assert.True(float.IsFinite(vertex.Position.Y));
+                Assert.InRange(vertex.Position.X, 160 - 1024, 160 + 1023);
+                Assert.InRange(vertex.Position.Y, 120 - 1024 * 240f / 224 - 0.001f, 120 + 1023 * 240f / 224 + 0.001f);
+                Assert.InRange(vertex.Depth, 0, 65535);
+                Assert.Equal(1, vertex.ReciprocalW);
+                float nativeX = (vertex.Position.X - 160) * 8;
+                float nativeY = (vertex.Position.Y - 120) * 224f / 240 * 8;
+                Assert.InRange(Math.Abs(nativeX - MathF.Round(nativeX)), 0, 0.01f);
+                Assert.InRange(Math.Abs(nativeY - MathF.Round(nativeY)), 0, 0.01f);
+            }
+        });
+        Assert.Contains(recorder.Triangles, triangle => triangle.B.Depth == 0 || triangle.C.Depth == 0);
+        if (radius == 4)
+        {
+            Assert.Equal(96, recorder.Triangles.Min(triangle => triangle.B.Position.X));
+            Assert.Equal(224, recorder.Triangles.Max(triangle => triangle.B.Position.X));
+        }
+        else
+        {
+            Assert.Contains(recorder.Triangles, triangle => triangle.B.Position.X == 160 - 1024);
+            Assert.Contains(recorder.Triangles, triangle => triangle.B.Position.X == 160 + 1023);
+        }
+    }
+
+    [Theory]
+    [InlineData(16379, true)]
+    [InlineData(16380, false)]
+    [InlineData(70000, false)]
+    public void ShadowSkipsOnlyAtFinalEdgeOrderingDepthCutoff(float cameraDepth, bool submitted)
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(cameraDepth);
+        field = WithCamera(field, new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new Vector3(0, 0, cameraDepth), Vector2.Zero, 16384));
+        ShadowRecorder recorder = new();
+        FieldRenderer renderer = new(field) { TriangleRenderer = recorder };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Assert.Equal(submitted ? 8 : 0, recorder.Triangles.Count);
+    }
+
+    [Fact]
+    public void ShadowRetainsSaturatedVertexDepthWhenItsFinalEdgeIsNear()
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(8, 255);
+        field = WithCamera(field, field.Camera with { AxisY = Vector3.UnitY, AxisZ = new Vector3(40, 0, 1) });
+        ShadowRecorder recorder = new();
+        FieldRenderer renderer = new(field) { TriangleRenderer = recorder };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+
+        Assert.Equal(8, recorder.Triangles.Count);
+        Assert.Contains(recorder.Triangles, triangle => triangle.B.Depth == 65535);
+        Assert.Contains(recorder.Triangles, triangle => triangle.B.Depth == 0);
+        Assert.Equal(0, recorder.Triangles[^1].B.Depth);
+        Assert.All(recorder.Triangles, triangle => Assert.InRange(triangle.B.Depth, 0, 65535));
+    }
+
+    [Fact]
+    public void ShadowOrderingCutoffUsesFinalEdgeRatherThanCenterDepth()
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(16390);
+        field = WithCamera(field, field.Camera with { FocalLength = 16384 });
+        ShadowRecorder recorder = new();
+        FieldRenderer renderer = new(field) { TriangleRenderer = recorder };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Assert.Equal(8, recorder.Triangles.Count);
+        Assert.All(recorder.Triangles, triangle => Assert.True(triangle.A.Depth >= 16380));
+        Assert.True(recorder.Triangles[^1].B.Depth < 16380);
+    }
+
+    [Fact]
+    public void ShadowAppliesCameraPanAfterNativeScreenSaturation()
+    {
+        (FieldAssets field, ActorVisual actor) = NearCameraFixture(0, 255);
+        ShadowRecorder baseline = new();
+        new FieldRenderer(field) { TriangleRenderer = baseline }.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Vector2 pan = new(50.25f, -17.5f);
+        field = WithCamera(field, field.Camera with { Pan = pan });
+        ShadowRecorder shifted = new();
+        new FieldRenderer(field) { TriangleRenderer = shifted }.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+
+        Assert.Equal(8, baseline.Triangles.Count);
+        Assert.Equal(8, shifted.Triangles.Count);
+        Vector2 viewportPan = new(pan.X, pan.Y * 240f / 224);
+        for (int index = 0; index < baseline.Triangles.Count; index++)
+        {
+            Vector2 expected = baseline.Triangles[index].B.Position + viewportPan;
+            Vector2 actual = shifted.Triangles[index].B.Position;
+            Assert.InRange(Vector2.Distance(expected, actual), 0, 0.001f);
+            Assert.Equal(baseline.Triangles[index].B.Depth, shifted.Triangles[index].B.Depth);
+        }
+        Assert.Contains(shifted.Triangles, triangle => triangle.B.Position.X == 160 + 1023 + pan.X);
+    }
+
+    private static (FieldAssets Field, ActorVisual Actor) NearCameraFixture(float cameraDepth, byte radius = 4)
+    {
+        (FieldAssets field, ActorVisual actor) = RaisedModelFixture();
+        field = WithCamera(field, field.Camera with { Translation = new Vector3(0, 0, cameraDepth) });
+        actor = actor with { ModelId = 1, GroundShadowRadii601To608 = Enumerable.Repeat(radius, 8).ToArray(), GroundShadowLevel609 = 96, GroundShadowCentre = Vector3.Zero };
+        return (field, actor);
+    }
+
+    private static FieldAssets WithCamera(FieldAssets field, FieldCamera camera)
+    {
+        return field with { Camera = camera, Cameras = [camera] };
+    }
+
+    private sealed class ShadowRecorder : ITriangleRenderer
+    {
+        public List<(TriangleVertex A, TriangleVertex B, TriangleVertex C, TriangleMaterial Material)> Triangles { get; } = [];
+
+        public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
+        {
+            Triangles.Clear();
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+            if (material.Blend == TriangleBlend.Subtract)
+            {
+                Triangles.Add((a, b, c, material));
+            }
+        }
+
+        public void End()
+        {
+        }
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]

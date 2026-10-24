@@ -61,6 +61,45 @@ public sealed class GpuFieldRenderingTests
     }
 
     [Fact]
+    public void OptionalNearCameraShadowSnapshotPreservesRenderAndWaitContinuation()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NEAR_CAMERA_SHADOW_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone near-camera shadow fixture is required.");
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        world.SetRenderSize(1024, 768);
+        JsonElement before = world.Events.Capture();
+        byte[] software = world.Render(TimeSpan.Zero).ToArray();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        world.Render(TimeSpan.Zero, triangleRenderer: gpu);
+        Color[] hardware = GpuTestDevice.Read(gpu.Target);
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        Assert.Contains(hardware, pixel => pixel.R != 0 || pixel.G != 0 || pixel.B != 0);
+        Assert.Contains(software, value => value != 0);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_OUTPUT_DIRECTORY") ?? Path.Combine(Path.GetTempPath(), "field-shadow-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        using (FileStream image = File.Create(Path.Combine(output, "gpu-field.png")))
+        {
+            gpu.Target.SaveAsPng(image, 1024, 768);
+        }
+        session.SetEventState(before);
+        string rendered = Path.Combine(output, "rendered-checkpoint.ff8");
+        session.Save(rendered, compact: true);
+        using GameWorld restored = new(new GameSession(GameSession.Load(rendered)), TestResources.GameDirectory);
+        restored.EnsureField();
+        restored.SetRenderSize(1024, 768);
+        Assert.Equal(software, restored.Render(TimeSpan.Zero));
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1)).Accepted);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1)).Accepted);
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        world.Render(TimeSpan.Zero, triangleRenderer: gpu);
+        session.SetEventState(world.Events.Capture());
+        session.Save(Path.Combine(output, "continued-checkpoint.ff8"), compact: true);
+    }
+
+    [Fact]
     public void SlopedGroundShadowPreservesRaisedModelOnHardware()
     {
         (FieldAssets field, ActorVisual actor) = NativeActorShadowTests.RaisedModelFixture();
