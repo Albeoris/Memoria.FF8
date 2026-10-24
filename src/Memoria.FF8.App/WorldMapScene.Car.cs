@@ -94,7 +94,7 @@ internal sealed partial class WorldMapScene
         return models;
     }
 
-    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
     {
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         car.Validate();
@@ -126,6 +126,11 @@ internal sealed partial class WorldMapScene
         int followLimit = Math.Min(128, Math.Abs(delta >> 1));
         int follow = Math.Clamp(car.CameraFollowSpeed + (Math.Abs(delta) >= 64 ? 8 : -2), 0, followLimit);
         int cameraYaw = WrapYaw(before.CameraYaw + (delta > 0 ? follow >> 3 : -(follow >> 3)));
+        if (mapOnly)
+        {
+            follow = car.CameraFollowSpeed;
+            cameraYaw = before.CameraYaw;
+        }
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
@@ -134,6 +139,11 @@ internal sealed partial class WorldMapScene
             car = car with { ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, cameraYaw, -112, -341, -7168) };
         }
         WorldState candidate = before with { Frame = before.Frame + 1, X = x, Z = z, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeCarRuntime = car };
+        if (mapOnly)
+        {
+            salaryMovementUnits = (uint)car.MovementMagnitude20409F4!.Value / 8;
+            return candidate with { X = before.X, Z = before.Z, NativeCarRuntime = car with { Speed = speed, CameraFollowSpeed = follow } };
+        }
         EnsureCarContactCertificate(candidate);
         int previousHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         // Drawing uses the prior ground pointers and lookup cache before this callback's movement query.

@@ -8,6 +8,7 @@ namespace Memoria.FF8.Assets;
 public sealed partial class GameAssets
 {
     private ImmutableArray<uint> nativeFieldPlacementWords;
+    private long nativeRegisteredTextureRevision;
 
     public FieldAssets BindNativeRegisteredTextures(FieldAssets field, NativeFieldRegistrationState registration, NativeBattleEffectTextureState textures)
     {
@@ -16,6 +17,7 @@ public sealed partial class GameAssets
             throw new InvalidDataException("Native registered textures do not belong to this original field source.");
         }
         byte[] bank = textures.ReadVram();
+        long revision = -checked(++nativeRegisteredTextureRevision);
         FieldModel[] models = field.Models.ToArray();
         foreach (NativeFieldRegisteredResource resource in registration.Resources)
         {
@@ -23,7 +25,8 @@ public sealed partial class GameAssets
             {
                 throw new InvalidDataException("Native registered texture bindings disagree with their original model source.");
             }
-            models[resource.ModelId] = models[resource.ModelId] with { Textures = resource.Textures.Select(Decode).ToArray() };
+            FieldModel model = models[resource.ModelId] with { Textures = resource.Textures.Select(Decode).ToArray() };
+            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision);
         }
         return field with { Models = models };
 
@@ -60,6 +63,14 @@ public sealed partial class GameAssets
             }
             return BinaryPrimitives.ReadUInt16LittleEndian(bank.AsSpan((y * 1024 + x) * 2, 2));
         }
+    }
+
+    private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null)
+    {
+        string registration = revision.HasValue ? "/registered" : "";
+        string prefix = model.TextureResourceName is { } name ? $"model/{index}/{(model.MainCharacterTextures ? "main" : "second")}/{name}{registration}/texture" : $"model/{index}{registration}/texture";
+        string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
+        return model with { Textures = textureScope.RegisterList(new Memoria.FF8.Resources.ResourceKey($"field/{fieldName}/chara.one"), model.Textures, layout, prefix, revision) };
     }
 
     private NativeFieldRegistrationLoaderInputs ReadNativeFieldRegistrationInputs(int fieldId, byte[] information, byte[] program, byte[] colors)

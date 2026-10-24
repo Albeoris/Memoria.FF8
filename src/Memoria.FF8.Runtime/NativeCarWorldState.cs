@@ -47,7 +47,7 @@ public sealed record NativeCarWorldRuntimeState
 
     public void Validate()
     {
-        if (Version != 4 || Rule != LoadRule || EntityType is not (32 or 33) || ShapeId != (EntityType == 32 ? 74 : 73) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode != 0 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
+        if (Version != 4 || Rule != LoadRule || EntityType is not (32 or 33) || ShapeId != (EntityType == 32 ? 74 : 73) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
         {
             throw new InvalidDataException("Unsupported native ordinary car runtime state.");
         }
@@ -99,14 +99,14 @@ public sealed record NativeSavedWorldCarReturn
         {
             throw new NotSupportedException("A car save requires executed native car runtime provenance.");
         }
-        var result = new NativeSavedWorldCarReturn { Version = 2, Rule = SaveRule, SourceWorldFrame = world.Frame, LastFieldId = lastField, StoryWord = story, Pose = new NativeSavedWorldPose(world.X, world.Z, checked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), CameraYaw96 = checked((ushort)world.CameraYaw), EntityType105 = world.NativeCarRuntime.EntityType, Channel106 = 255, Channel107 = 255, AnimationVariant108 = 0, MapDisplayMode110 = world.NativeCarRuntime.MapDisplayMode, MapLocationId = location };
+        var result = new NativeSavedWorldCarReturn { Version = 2, Rule = SaveRule, SourceWorldFrame = world.Frame, LastFieldId = lastField, StoryWord = story, Pose = new NativeSavedWorldPose(world.X, world.Z, checked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), CameraYaw96 = checked((ushort)world.CameraYaw), EntityType105 = world.NativeCarRuntime.EntityType, Channel106 = 255, Channel107 = 255, AnimationVariant108 = 0, MapDisplayMode110 = world.NativeCarRuntime.MapDisplayMode == 3 ? (byte)0 : world.NativeCarRuntime.MapDisplayMode, MapLocationId = location };
         result.Validate();
         return result;
     }
 
     public void Validate()
     {
-        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 != 0 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }

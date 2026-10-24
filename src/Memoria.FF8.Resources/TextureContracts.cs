@@ -8,6 +8,9 @@ public readonly record struct TextureKey(ResourceKey Owner, string Subresource, 
 /// <summary>Original source metadata; compatibility adapters interpret layouts, never renderers.</summary>
 public sealed record TextureSourceRegion(int X = 0, int Y = 0, int BitsPerPixel = 0, int CanvasWidth = 256, int CanvasHeight = 256);
 
+/// <summary>An equivalent region of another native source, before internal texture enlargement.</summary>
+public sealed record TextureSourceAddress(ResourceKey Owner, string Subresource, int Palette, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight);
+
 public sealed class TextureBuildContext
 {
     private readonly Lazy<PixelImage> original;
@@ -38,6 +41,7 @@ public sealed class TextureBuildContext
     public Func<int, PixelImage>? PaletteImage { get; }
     public int PaletteCount { get; }
     public ResourceContent? EncodedSource { get; }
+    public TextureSourceAddress? NativeAlias { get; init; }
 }
 
 /// <summary>Image and logical canvas are published as a single value. Pixels are already colored.</summary>

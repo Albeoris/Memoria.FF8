@@ -17,7 +17,7 @@ internal sealed partial class WorldMapScene
     private RagnarokFootCallback? ragnarokFootCallback;
     private NativeRagnarokWorldObject? ragnarokFootBoardingTarget;
 
-    private WorldState StepRagnarokFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepRagnarokFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (ragnarokFootCallback is not null)
         {
@@ -27,7 +27,7 @@ internal sealed partial class WorldMapScene
         ragnarokFootCallback = new(buttons, memory);
         try
         {
-            WorldState after = StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            WorldState after = StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
             consumeRequest = ragnarokFootCallback.ConsumeRequest;
             ragnarokFootBoardingTarget = ragnarokFootCallback.BoardingTarget;
             return after;
@@ -119,6 +119,7 @@ internal sealed partial class WorldMapScene
         short groundHeight = ground.GroundCommitted ? unchecked((short)-(int)ground.Center!.Ground.Height) : runtime.CurrentGroundHeight!.Value;
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(runtime.ProjectionCamera!, groundHeight, replacements, 0, runtime.TransferCamera!.CurveThreshold);
         runtime = runtime with { GroundCache = foot.GroundCache, GroundYaw = checked((short)foot.GroundYaw!.Value), Forest = foot.Forest, CurrentGroundHeight = groundHeight, PrimaryContact = ground.PrimaryContact ?? throw new InvalidDataException("Ragnarok foot callback omitted primary contact."), BroadContact = ground.BroadContact ?? throw new InvalidDataException("Ragnarok foot callback omitted broad contact."), PriorTerrainOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason), TransferCamera = runtime.TransferCamera with { Pitch = foot.Forest!.CameraPitch, Yaw = checked((short)after.CameraYaw), OffsetZ = foot.CameraOffsetZ } };
+        runtime = runtime with { PreviousParticleNativeHeight = ragnarokFootCallback.CameraState.NativeHeight };
         runtime = PublishRagnarokFootBody(runtime, new(after.X, after.NativeHeight, -after.Z), pitch, checked((short)after.BodyYaw), previousFoot.Roll);
         return after with { NativeRagnarokRuntime = runtime };
     }
@@ -150,7 +151,7 @@ internal sealed partial class WorldMapScene
         NativeRagnarokTransferCamera destination = assets.ReadRagnarokTransferCameraTargets(NativeRagnarokTransferKind.Takeoff, runtime.CurrentGroundHeight!.Value, target.Yaw);
         NativeRagnarokTransferState transfer = new(NativeRagnarokTransferKind.Takeoff, target.Position, runtime.CurrentGroundHeight!.Value, target.Yaw, initial, destination);
         NativeWorldVerticalBiasState bias = (session.State.WorldProcess!.VerticalBias204DADC ?? NativeWorldVerticalBiasState.UnknownWord).Damp(2, 2, state.Frame - session.State.World!.Frame);
-        runtime = runtime with { Transfer = transfer, LandingPlacement = null, TransferCamera = initial, Motor = runtime.Motor with { Speed = 0, BodyYaw = checked((ushort)WrapYaw(target.Yaw)), BodyPitch = target.Pitch, BodyRoll = target.Roll, CameraYaw = checked((ushort)state.CameraYaw), CameraPitch = initial.Pitch, VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias }, Forest = foot.Forest };
+        runtime = runtime with { MapDisplayMode = foot.MapDisplayMode, Transfer = transfer, LandingPlacement = null, TransferCamera = initial, Motor = runtime.Motor with { Speed = 0, BodyYaw = checked((ushort)WrapYaw(target.Yaw)), BodyPitch = target.Pitch, BodyRoll = target.Roll, CameraYaw = checked((ushort)state.CameraYaw), CameraPitch = initial.Pitch, VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias }, Forest = foot.Forest };
         runtime = runtime.PublishBody(target.Position, target.Pitch, target.Yaw, target.Roll);
         state = state with { X = target.Position.X, Z = -target.Position.Z, NativeHeight = target.Position.Y, BodyYaw = WrapYaw(target.Yaw), NativeFootRuntime = null, NativeRagnarokRuntime = runtime };
         return AdvanceRagnarokTransfer(state);

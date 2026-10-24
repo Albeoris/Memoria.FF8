@@ -9,6 +9,36 @@ public sealed class JunctionResourceHostTests : IDisposable
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-junction-host-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void MovieExtensionSettingsResolveNativeAddressesWithoutChangingTheInstalledMovie()
+    {
+        Write("Data/movies/opening.avi", "installed");
+        Write("Mods/Junction/Alternate/mod.xml", "<ModInfo xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><Name>Alternate</Name><ContainsMovies>true</ContainsMovies><FFNxConfig><enable_ffmpeg_videos>1</enable_ffmpeg_videos><ffmpeg_video_ext>mp4</ffmpeg_video_ext></FFNxConfig><ModFolder Folder=\"data/movies\" ActiveWhen=\"1\" /></ModInfo>");
+        Write("Mods/Junction/Alternate/data/movies/opening.mp4", "alternate container");
+        using GameResourceHost host = Host();
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
+        string resolved = host.ResolveGameFile("MOVIES/OPENING.AVI");
+        Assert.Equal("alternate container", File.ReadAllText(resolved));
+        Assert.Equal("installed", File.ReadAllText(Path.Combine(root, "Data/movies/opening.avi")));
+        Assert.True(host.Mods.SetEnabled("Junction/Alternate", false).Success);
+        Assert.True(host.Pump(true));
+        Assert.Equal("installed", File.ReadAllText(host.ResolveGameFile("movies/opening.avi")));
+    }
+
+    [Fact]
+    public void MovieAliasesPreservePackagePrecedenceAcrossDifferentExtensions()
+    {
+        Write("Mods/Junction/A/mod.xml", "<ModInfo><Name>A</Name><FFNxConfig><ffmpeg_video_ext>mp4</ffmpeg_video_ext></FFNxConfig><ModFolder Folder=\"assets\" /></ModInfo>");
+        Write("Mods/Junction/A/assets/movies/opening.mp4", "first package");
+        Write("Mods/Junction/B/mod.xml", "<ModInfo><Name>B</Name><ModFolder Folder=\"assets\" /></ModInfo>");
+        Write("Mods/Junction/B/assets/movies/opening.avi", "second package");
+        using GameResourceHost host = Host();
+        Assert.Equal("first package", File.ReadAllText(host.ResolveGameFile("movies/opening.avi")));
+        Assert.True(host.Mods.SetEnabled("Junction/A", false).Success);
+        Assert.True(host.Pump(true));
+        Assert.Equal("second package", File.ReadAllText(host.ResolveGameFile("movies/opening.avi")));
+    }
+
+    [Fact]
     public void ResolvingFilesUsesDataFallbackAndMaterializesOnlyTheSelectedReplacement()
     {
         Write("Data/movies/original.avi", "original movie");

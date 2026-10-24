@@ -29,7 +29,7 @@ public static class WorldStaticModelReader
         int count = BinaryPrimitives.ReadUInt16LittleEndian(model[6..]);
         int vertexStart = checked(8 + triangles * 12 + quads * 16);
         int textureDepth = tim.PixelMode == TimPixelMode.Indexed8 ? 1 : 0;
-        if (count == 0 || vertexStart > model.Length || count > (model.Length - vertexStart) / 8 || (page & ~0x9F) != 0 || page >> 7 != textureDepth)
+        if (count == 0 || vertexStart > model.Length || count > (model.Length - vertexStart) / 8 || (page & ~0xFF) != 0 || page >> 7 != textureDepth)
         {
             throw new InvalidDataException("Static world primitive or vertex layout leaves its original member.");
         }

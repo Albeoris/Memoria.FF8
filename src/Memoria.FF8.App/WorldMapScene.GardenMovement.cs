@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepGarden(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepGarden(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false)
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
@@ -22,7 +22,7 @@ internal sealed partial class WorldMapScene
         sbyte steering = checked((sbyte)ReadSignedMovementComponent(-horizontal));
         sbyte throttle = checked((sbyte)ReadSignedMovementComponent(-vertical));
         NativeGardenMotorResult motor = NativeGardenMotor.Step(before.BodyYaw, before.CameraYaw, garden.Speed, garden.GroundYaw, garden.CameraFollowSpeed, steering, throttle);
-        if (lowering)
+        if (lowering || mapOnly)
         {
             //557A90's nonzero script-mode branch skips vehicle auto-follow.
             motor = motor with { CameraYaw = before.CameraYaw, CameraFollowSpeed = garden.CameraFollowSpeed };
@@ -41,7 +41,7 @@ internal sealed partial class WorldMapScene
         NativeWorldProcess processOwner = session.State.WorldProcess ?? throw new NotSupportedException("Garden camera requires its current native process owner.");
         bool priorOcclusion = garden.PriorTerrainOcclusion ?? throw new NotSupportedException("Garden camera requires its preceding original terrain-render occlusion owner.");
         NativeForestCameraResult cameraStep = (processOwner with { CameraCooldown = garden.Forest.CameraCooldown }).StepOrdinaryCamera(garden.CameraPitch, priorGroundType, 48, priorOcclusion, held11: throttle != 0, held13: steering != 0);
-        NativeWorldForestState forest = garden.Forest.AdvanceGarden(priorGroundType, priorBody, garden.CurrentGroundHeight!.Value, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
+        NativeWorldForestState forest = (mapOnly ? garden.Forest : garden.Forest.AdvanceGarden(priorGroundType, priorBody, garden.CurrentGroundHeight!.Value, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects)) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         garden = garden with
         {
             Speed = motor.Speed,
@@ -51,6 +51,14 @@ internal sealed partial class WorldMapScene
             ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.CameraYaw, cameraStep.Pitch, garden.CameraDefaults.OffsetY, garden.CameraDefaults.OffsetZ)
         };
         WorldState cameraState = before with { BodyYaw = motor.BodyYaw, CameraYaw = motor.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeGardenRuntime = garden };
+        if (mapOnly)
+        {
+            consumeGardenRequest = false;
+            fieldEntry = null;
+            salaryMovementUnits = 0;
+            garden = (garden with { Buttons = garden.Buttons.Observe(buttons) }).PublishBody(new(before.X, before.NativeHeight, -before.Z), 0, unchecked((short)motor.BodyYaw), 0);
+            return cameraState with { Frame = before.Frame + 1, NativeGardenRuntime = garden };
+        }
         NativeGardenTransferAdmission admission = garden.Buttons.Evaluate(garden.TransferControls.PrepareInput(buttons, 48, before.Frame + 1, garden.Transfer, memory));
         consumeGardenRequest = admission.ConsumeScriptRequest;
         if (admission.ToggleView)

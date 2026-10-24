@@ -906,8 +906,12 @@ public sealed partial class GameSession : IEventServices
         {
             NativeFootWorldRuntimeState? foot = world.NativeFootRuntime;
             NativeRagnarokWorldAllocation allocation = ragnarokWorld.Allocation;
+            if (foot is not null && foot.MapDisplayMode != ragnarokWorld.MapDisplayMode)
+            {
+                throw new InvalidDataException("Parked Ragnarok and its controlled foot must share the current world map display mode.");
+            }
             bool ordinaryParkedReload = foot?.Rule is NativeFootWorldRuntimeState.FirstLoadRule or NativeFootWorldRuntimeState.SavedReloadRule && allocation.BattleReload is null && unchecked((byte)allocation.Packet.Mode) == 0;
-            bool battleParkedReload = foot is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } && allocation.BattleReload is { WorldMode: 3, EntityType105: 0 } battleReload && foot.ReloadSourceWorldFrame == battleReload.SourceWorldFrame && foot.EntityType == battleReload.EntityType105 && foot.AnimationVariant == battleReload.AnimationVariant108 && foot.MapDisplayMode == battleReload.MapDisplayMode110;
+            bool battleParkedReload = foot is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } && allocation.BattleReload is { WorldMode: 3, EntityType105: 0 } battleReload && foot.ReloadSourceWorldFrame == battleReload.SourceWorldFrame && foot.EntityType == battleReload.EntityType105 && foot.AnimationVariant == battleReload.AnimationVariant108;
             bool parkedReload = (ordinaryParkedReload || battleParkedReload) && allocation.ControlledEntityType == 0 && allocation.ParkedRagnarokPose2 is not null;
             if (world.NativeFootRuntime is not null && world.NativeFootRuntime.RagnarokDismount is null && !parkedReload || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null || world.GroundType is null)
             {

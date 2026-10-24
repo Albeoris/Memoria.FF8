@@ -36,11 +36,11 @@ internal sealed partial class WorldMapScene
         WorldGroundSelection ground = assets.LookupNativeGround(body.X, -body.Z, selectedReplacements, []) ?? throw new NotSupportedException("Native mode3 loader has no actual53EB80 ground polygon.");
         var train = new NativeTrainWorldRuntimeState
         {
-            Version = 1, Rule = NativeTrainWorldRuntimeState.RuntimeRule, Packet = packet, Load = load, Callback = 0, Primary = primary, Alternate = alternate, CameraListIndex = list, CameraCounter = 1,
+            Version = 1, Rule = NativeTrainWorldRuntimeState.RuntimeRule, Packet = packet, Load = load, MapDisplayMode = load.MapDisplayMode, Callback = 0, Primary = primary, Alternate = alternate, CameraListIndex = list, CameraCounter = 1,
             Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, primary.Nodes), BodyPosition = body, Forest = forest, StationDeclines = [], GroundCache = CreateFreshGroundCache(ground.Identity), GroundYaw = 0, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera)
         };
         ValidateTrainRide(train);
-        return train.ToWorldState() with { ReplacementMask = mask, GroundType = ground.Ground.Triangle.GroundType };
+        return train.ToWorldState() with { ReplacementMask = mask, GroundType = ground.Ground.Triangle.GroundType, EventUi = NativeWorldEventUi.Create().WithScriptMode(3) };
     }
 
     private void ValidateTrainRide(NativeTrainWorldRuntimeState train)

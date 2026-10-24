@@ -111,7 +111,7 @@ internal static class FieldModelReader
                     }
                 }
                 int modelOffset = checked((int)global.ReadUInt32());
-                result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset);
+                result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset) with { TextureResourceName = header.Name[..Math.Min(4, header.Name.Length)], MainCharacterTextures = true };
             }
             else if ((header.Flag >> 28) == 0xA)
             {
@@ -121,11 +121,11 @@ internal static class FieldModelReader
                 {
                     throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
                 }
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray() };
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray(), TextureResourceName = source.TextureResourceName, MainCharacterTextures = source.MainCharacterTextures };
             }
             else if (header.ModelOffset >= 0)
             {
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, header.Textures, header.Offset, null, 0);
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, header.Textures, header.Offset, null, 0) with { TextureResourceName = header.Name[..Math.Min(4, header.Name.Length)] };
             }
             else
             {

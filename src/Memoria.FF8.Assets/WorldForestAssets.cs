@@ -14,6 +14,11 @@ public sealed class NativeWorldForestTables
     public string SourceHash { get; }
     public IReadOnlyList<NativeWorldForestEffect> Effects { get; }
     public IReadOnlyList<ushort> PaletteY { get; }
+    public IReadOnlyList<NativeWorldPathPosition> RagnarokThrustOffsets { get; }
+    public NativeWorldForestEffect SteamEffect { get; }
+    public IReadOnlyList<NativeWorldForestEffect> AllEffects { get; }
+
+    public NativeWorldForestEffect GetEffect(byte type) => type == 0 ? SteamEffect : Effects.Single(effect => effect.Type == type);
 
     public NativeWorldForestTables(string gameDirectory)
     {
@@ -23,6 +28,9 @@ public sealed class NativeWorldForestTables
         random = tables.random;
         Effects = tables.Effects;
         PaletteY = tables.PaletteY;
+        RagnarokThrustOffsets = tables.RagnarokThrustOffsets;
+        SteamEffect = tables.SteamEffect;
+        AllEffects = tables.AllEffects;
     }
 
     public NativeWorldForestTables(byte[] image) : this(new NativeExecutableMemory(image))
@@ -34,10 +42,13 @@ public sealed class NativeWorldForestTables
         WorldNativeMemoryContracts.RequireSupported(memory);
         SourceHash = memory.SourceHash;
         random = memory.Read(0xC75D20, 256);
-        byte[] records = memory.Read(0xC76878 + 40 * 4, 40 * 11);
+        SteamEffect = ReadEffect(0, memory.Read(0xC76878, 40), 0);
+        byte[] thrust = memory.Read(0xC76790, 16);
+        RagnarokThrustOffsets = Enumerable.Range(0, 2).Select(index => new NativeWorldPathPosition(BinaryPrimitives.ReadInt16LittleEndian(thrust.AsSpan(index * 8)), BinaryPrimitives.ReadInt16LittleEndian(thrust.AsSpan(index * 8 + 2)), BinaryPrimitives.ReadInt16LittleEndian(thrust.AsSpan(index * 8 + 4)))).ToArray();
+        byte[] records = memory.Read(0xC76878 + 40 * 4, 40 * 18);
         List<NativeWorldForestEffect> effects = [];
         List<ushort> palettes = [];
-        for (byte type = 4; type <= 14; type++)
+        for (byte type = 4; type <= 21; type++)
         {
             ReadOnlySpan<byte> record = records.AsSpan(40 * (type - 4), 40);
             ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(records.AsSpan(40 * (type - 4) + offset, 2));
@@ -59,19 +70,34 @@ public sealed class NativeWorldForestTables
             {
                 throw new InvalidDataException("Original forest sprite record differs from its proved textured plane/zero-velocity contract.");
             }
-            effects.Add(new(type, Word(16), record[18], record[15], record[19], unchecked((short)Word(22)))
-            {
-                VelocityX = unchecked((short)Word(24)),
-                VelocityY = unchecked((short)Word(26)),
-                VelocityZ = unchecked((short)Word(28)),
-                AccelerationX = unchecked((short)Word(32)),
-                AccelerationY = unchecked((short)Word(34)),
-                AccelerationZ = unchecked((short)Word(36))
-            });
+            effects.Add(ReadEffect(type, records, 40 * (type - 4)));
             palettes.Add(Word(6));
         }
         Effects = effects.AsReadOnly();
+        AllEffects = new[] { SteamEffect }.Concat(Effects).ToArray();
         PaletteY = palettes.AsReadOnly();
+    }
+
+    private static NativeWorldForestEffect ReadEffect(byte type, byte[] data, int offset)
+    {
+        ushort Word(int position) => BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset + position, 2));
+        return new(type, Word(16), data[offset + 18], data[offset + 15], data[offset + 19], unchecked((short)Word(22)))
+        {
+            TextureX = Word(0),
+            TextureY = Word(2),
+            PaletteX = Word(4),
+            PaletteY = Word(6),
+            Width = data[offset + 8],
+            Height = data[offset + 9],
+            DrawMode = data[offset + 20],
+            BlendMode = data[offset + 21],
+            VelocityX = unchecked((short)Word(24)),
+            VelocityY = unchecked((short)Word(26)),
+            VelocityZ = unchecked((short)Word(28)),
+            AccelerationX = unchecked((short)Word(32)),
+            AccelerationY = unchecked((short)Word(34)),
+            AccelerationZ = unchecked((short)Word(36))
+        };
     }
 }
 
@@ -80,65 +106,41 @@ public sealed partial class WorldAssets
     private NativeWorldForestTables? forestTables;
     private readonly Dictionary<(byte Type, int Frame), PixelImage> forestTextures = [];
     private readonly Dictionary<(byte Type, int Frame), Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>> forestTextureHandles = [];
-    private TimImage? forestTim;
-    private TimImage? gardenWakeTim;
-    private TimImage? cactuarBurstTim;
+    private TimImage[]? worldParticleImages;
     public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(NativeWorldMemory);
 
     public PixelImage GetForestTexture(byte type, int frame)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(type, 4);
-        if (type is not (>= 4 and <= 10 or 14))
+        if (type is > 0 and < 4)
         {
-            throw new NotSupportedException("This world particle has no represented native sprite producer.");
+            throw new ArgumentOutOfRangeException(nameof(type));
         }
-        NativeWorldForestEffect effect = ForestTables.Effects[type - 4];
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(type, 21);
+        NativeWorldForestEffect effect = ForestTables.GetEffect(type);
         ArgumentOutOfRangeException.ThrowIfNegative(frame);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(frame, effect.Frames);
         if (forestTextures.TryGetValue((type, frame), out PixelImage? cached))
         {
             return forestTextureHandles.TryGetValue((type, frame), out var current) ? current.Value.Image : cached;
         }
-        TimImage tim;
-        int size;
-        if (type == 14)
+        if (effect.Width == 0 || effect.Height == 0 || effect.Width % 4 != 0)
         {
-            cactuarBurstTim ??= WorldAssetReader.InnerPointers(wmset, sections[37]).Select(pointer => WorldAssetReader.ReadTim(wmset, sections[37] + pointer).Image).Single(image => image.X == 856 && image.Y == 128 && image.WidthInWords == 8 && image.Height == 32);
-            tim = cactuarBurstTim;
-            size = 32;
-            if (tim.PixelMode != TimPixelMode.Indexed4 || tim.Clut is not { X: 928, Y: 224, Width: 16 })
-            {
-                throw new InvalidDataException("Native Cactuar burst TIM/CLUT does not match its original VRAM rectangle.");
-            }
+            throw new InvalidDataException("Native world particle does not publish a complete indexed4 sprite rectangle.");
         }
-        else if (type == 10)
+        worldParticleImages ??= WorldAssetReader.InnerPointers(wmset, sections[37]).Select(pointer => WorldAssetReader.ReadTim(wmset, sections[37] + pointer).Image).ToArray();
+        int xWords = effect.TextureX + frame * effect.Width / 4;
+        TimImage tim = worldParticleImages.Single(image => image.PixelMode == TimPixelMode.Indexed4 && image.X <= xWords && image.X + image.WidthInWords >= xWords + effect.Width / 4 && image.Y <= effect.TextureY && image.Y + image.Height >= effect.TextureY + effect.Height && image.Clut is { } clut && clut.X <= effect.PaletteX && clut.X + clut.Width >= effect.PaletteX + 16 && clut.Y <= effect.PaletteY && clut.Y + clut.Height > effect.PaletteY);
+        int palette = (effect.PaletteY - tim.Clut!.Y) * (tim.Clut.Width / 16) + (effect.PaletteX - tim.Clut.X) / 16;
+        PixelImage atlas = tim.Decode(palette);
+        int x = (xWords - tim.X) * 4;
+        int y = effect.TextureY - tim.Y;
+        PixelImage texture = new(effect.Width, effect.Height);
+        for (int row = 0; row < texture.Height; row++)
         {
-            gardenWakeTim ??= WorldAssetReader.InnerPointers(wmset, sections[37]).Select(pointer => WorldAssetReader.ReadTim(wmset, sections[37] + pointer).Image).Single(image => image.X == 872 && image.Y == 128 && image.WidthInWords == 8 && image.Height == 32);
-            tim = gardenWakeTim;
-            size = 32;
-            if (tim.PixelMode != TimPixelMode.Indexed4 || tim.Clut is not { X: 976, Y: 225, Width: 16 })
-            {
-                throw new InvalidDataException("Native Garden wake TIM/CLUT does not match its original VRAM rectangle.");
-            }
-        }
-        else
-        {
-            forestTim ??= WorldAssetReader.InnerPointers(wmset, sections[37]).Select(pointer => WorldAssetReader.ReadTim(wmset, sections[37] + pointer).Image).Single(image => image.X == 880 && image.Y == 96 && image.WidthInWords == 16 && image.Height == 16);
-            tim = forestTim;
-            size = 16;
-        }
-        if (type is not (10 or 14) && (tim.PixelMode != TimPixelMode.Indexed4 || tim.Clut is not { X: 832, Y: 226, Width: 16, Height: 6 }))
-        {
-            throw new InvalidDataException("Native forest TIM/CLUT does not match its original VRAM rectangle.");
-        }
-        PixelImage atlas = tim.Decode(ForestTables.PaletteY[type - 4] - tim.Clut!.Y);
-        PixelImage texture = new(size, size);
-        for (int row = 0; row < size; row++)
-        {
-            atlas.Pixels.AsSpan(row * atlas.Width + frame * size, size).CopyTo(texture.Pixels.AsSpan(row * size, size));
+            atlas.Pixels.AsSpan((y + row) * atlas.Width + x, texture.Width).CopyTo(texture.Pixels.AsSpan(row * texture.Width, texture.Width));
         }
         forestTextures.Add((type, frame), texture);
-        var handle = textureScope.Register(new Memoria.FF8.Resources.TextureKey(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), $"forest/{type}/{frame}"), texture, "classic-world-sprite");
+        var handle = textureScope.Register(new Memoria.FF8.Resources.TextureKey(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), $"forest/{type}/{frame}"), texture, "classic-world-sprite", nativeAlias: ReadSectionTextureAddress(38, tim, palette, x, y, texture.Width, texture.Height));
         if (handle is not null)
         {
             forestTextureHandles.Add((type, frame), handle);

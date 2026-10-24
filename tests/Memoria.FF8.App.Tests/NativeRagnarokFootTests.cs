@@ -60,8 +60,15 @@ public sealed class NativeRagnarokFootTests
             scene.Apply(new(PlayerActionKind.Move, Horizontal: 0, Vertical: 1));
         }
         Assert.Equal(scene.State.NativeRagnarokRuntime!.Allocation.RagnarokIndex, scene.State.NativeRagnarokRuntime.BroadContact);
+        scene.Apply(new(PlayerActionKind.Wait));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+        Assert.Equal((byte)1, scene.State.NativeFootRuntime!.MapDisplayMode);
+        Assert.Equal((byte)1, scene.State.NativeRagnarokRuntime.MapDisplayMode);
+        Assert.Equal((byte)0, scene.State.NativeRagnarokRuntime.Allocation.MapDisplayMode);
+        scene.Apply(new(PlayerActionKind.Wait));
         scene.Apply(new(PlayerActionKind.Confirm));
         Assert.Null(scene.State.NativeFootRuntime);
+        Assert.Equal((byte)1, scene.State.NativeRagnarokRuntime!.MapDisplayMode);
         Assert.Equal(NativeRagnarokTransferKind.Takeoff, scene.State.NativeRagnarokRuntime!.Transfer!.Kind);
         Assert.Equal(1, scene.State.NativeRagnarokRuntime.Transfer.Counter);
         scene.Apply(new(PlayerActionKind.Wait, Frames: 60));

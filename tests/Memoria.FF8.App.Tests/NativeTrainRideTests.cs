@@ -10,6 +10,35 @@ public sealed class NativeTrainRideTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void LiveTrainMapCyclesWithoutMutatingLoaderHistoryAndRestoresHeldSelect()
+    {
+        using GameAssets initialization = new(GameDirectory);
+        GameSession session = CreateComponent(initialization);
+        WorldTransition packet = new(64, 16, -1);
+        using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(session.State, GameDirectory, packet);
+        session.CommitPreparedWorldEntry(packet, prepared.InitialState, session.WorldControls!, prepared.ValidateAdoption, prepared.InitialSavedWorld);
+        using WorldMapScene scene = prepared.Adopt(session);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        NativeTrainWorldLoadReceipt load = scene.State.NativeTrainRuntime!.Load;
+        foreach (byte mode in new byte[] { 1, 2, 0 })
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+            Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
+            Assert.Equal(mode, scene.State.NativeTrainRuntime!.MapDisplayMode);
+            Assert.Same(load, scene.State.NativeTrainRuntime.Load);
+            Assert.Equal((byte)0, load.MapDisplayMode);
+            Assert.Equal((byte)3, scene.State.EventUi!.ScriptMode);
+        }
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        PlayerAction held = new(PlayerActionKind.Wait, WorldButtons: 0x100);
+        Assert.True(scene.Apply(held).Accepted);
+        Assert.True(replay.Apply(held).Accepted);
+        Assert.Equal((byte)0, scene.State.NativeTrainRuntime!.MapDisplayMode);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
+    [Fact]
     public void ActualModeThreeAllocatesBothBanksFootBodyAndCameraThenRestoresTheNextCallback()
     {
         Assert.SkipUnless(Directory.Exists(GameDirectory), "Installed original world resources are required.");

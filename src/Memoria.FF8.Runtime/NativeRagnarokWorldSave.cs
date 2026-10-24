@@ -15,7 +15,7 @@ public sealed record NativeSavedWorldRagnarokReturn([property: JsonRequired] str
         {
             throw new NotSupportedException("Ragnarok field return requires stable controlled50, outside an unfinished transfer.");
         }
-        var result = new NativeSavedWorldRagnarokReturn(CurrentRule, world.Frame, lastField, story, new(world.X, world.Z, unchecked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), checked((ushort)world.CameraYaw), runtime.Allocation.MapDisplayMode == 3 ? (byte)0 : runtime.Allocation.MapDisplayMode, location);
+        var result = new NativeSavedWorldRagnarokReturn(CurrentRule, world.Frame, lastField, story, new(world.X, world.Z, unchecked((short)world.NativeHeight), checked((ushort)world.BodyYaw)), checked((ushort)world.CameraYaw), runtime.MapDisplayMode == 3 ? (byte)0 : runtime.MapDisplayMode, location);
         result.Validate();
         return result;
     }

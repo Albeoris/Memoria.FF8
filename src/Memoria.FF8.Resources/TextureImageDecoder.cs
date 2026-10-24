@@ -165,7 +165,7 @@ public static class TextureImageDecoder
 
     private static void ValidateDimensions(int width, int height)
     {
-        if (width is < 1 or > PixelImage.MaximumDimension || height is < 1 or > PixelImage.MaximumDimension)
+        if (width is < 1 or > PixelImage.MaximumDimension || height is < 1 or > PixelImage.MaximumDimension || (long)width * height > PixelImage.MaximumPixelCount)
         {
             throw new InvalidDataException($"Texture dimensions {width}x{height} are unsupported.");
         }

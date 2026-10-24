@@ -4,6 +4,32 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeRagnarokWorldTests
 {
+    [Fact]
+    public void FullMapMotorRetainsMotionAndVerticalDampingWithoutAutomaticCameraFollow()
+    {
+        NativeRagnarokMotorState before = Fresh with { Speed = 80, BodyYaw = 300, CameraYaw = 800, CameraFollowSpeed = 40, BodyPitch = 30, BodyRoll = 50, VerticalBias204DADC = 100 };
+        NativeRagnarokMotorResult result = NativeRagnarokMotor.Step(before, 0, 0, 0, scriptMode: 12);
+        Assert.Equal(64, result.State.Speed);
+        Assert.Equal((short)14, result.State.BodyPitch);
+        Assert.Equal((short)18, result.State.BodyRoll);
+        Assert.Equal((short)85, result.State.VerticalBias204DADC);
+        Assert.Equal(before.CameraYaw, result.State.CameraYaw);
+        Assert.Equal(before.CameraPitch, result.State.CameraPitch);
+        Assert.Equal(before.CameraFollowSpeed, result.State.CameraFollowSpeed);
+        Assert.NotEqual((0, 0), (result.MotionX, result.MotionGraphicsZ));
+    }
+
+    [Fact]
+    public void FirstFullMapCallbackRetainsTheAlreadyDecodedControlPacket()
+    {
+        NativeRagnarokMotorState before = Fresh with { Speed = 195, CameraYaw = 1024 };
+        NativeRagnarokMotorResult result = NativeRagnarokMotor.Step(before, 127, 127, 127, scriptMode: 12);
+        Assert.Equal(200, result.State.Speed);
+        Assert.NotEqual(before.BodyYaw, result.State.BodyYaw);
+        Assert.NotEqual(before.FlightHeight, result.State.FlightHeight);
+        Assert.Equal(before.CameraYaw, result.State.CameraYaw);
+    }
+
     private static NativeRagnarokMotorState Fresh => new(0, 0, 0, 0, -120, 0, -251, 0, 0);
 
     [Theory]

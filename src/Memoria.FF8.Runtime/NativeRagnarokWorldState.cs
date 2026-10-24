@@ -77,6 +77,9 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
 /// <summary>Component checkpoint only; does not stand in for full world ground/contact/transfer persistence.</summary>
 public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] NativeRagnarokWorldAllocation Allocation, [property: JsonRequired] ImmutableArray<NativeRagnarokWorldObject> Objects, [property: JsonRequired] NativeRagnarokMotorState Motor)
 {
+    [JsonRequired]
+    public byte MapDisplayMode { get; init; } = Allocation.MapDisplayMode;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldGroundCacheState? GroundCache { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -95,6 +98,8 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     public int? BroadContact { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldForestState? Forest { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PreviousParticleNativeHeight { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? GroundYaw { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -139,7 +144,7 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
 
     public void Validate()
     {
-        if (Allocation is null || Objects.IsDefaultOrEmpty || Motor is null)
+        if (Allocation is null || Objects.IsDefaultOrEmpty || Motor is null || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Ragnarok runtime requires explicit allocation, dense objects and retained motor owners.");
         }

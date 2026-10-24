@@ -3,7 +3,8 @@ namespace Albeoris.Games.FF8.Imaging;
 /// <summary>A small, fully managed RGBA image.</summary>
 public sealed class PixelImage
 {
-    public const Int32 MaximumDimension = 8 * 1024;
+    public const Int32 MaximumDimension = 16 * 1024;
+    public const Int32 MaximumPixelCount = 64 * 1024 * 1024;
 
     public PixelImage(Int32 width, Int32 height)
         : this(width, height, new Rgba32[GetPixelCount(width, height)])
@@ -51,6 +52,7 @@ public sealed class PixelImage
         ArgumentOutOfRangeException.ThrowIfGreaterThan(width, MaximumDimension);
         ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(height, MaximumDimension);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((Int64)width * height, MaximumPixelCount);
         return checked(width * height);
     }
 }

@@ -352,9 +352,9 @@ internal sealed partial class WorldMapScene : IDisposable
         bool carButtons = State.NativeCarRuntime is not null && action.Kind == PlayerActionKind.WorldButtons;
         bool gardenButtons = State.NativeGardenRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         bool vehicleButtons = ragnarokButtons || carButtons || gardenButtons;
-        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait) || (action.WorldButtons & ~0x02) != 0))
+        if (action.WorldButtons != 0 && (action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait) || (action.WorldButtons & ~0x102) != 0))
         {
-            throw new ArgumentException("Ordinary world button levels support only the camera toggle mask on Move or Wait actions.", nameof(action));
+            throw new ArgumentException("Ordinary world button levels support camera and map display controls on Move or Wait actions.", nameof(action));
         }
         if (vehicleButtons && action.Value is < 0 or > ushort.MaxValue)
         {
@@ -395,11 +395,20 @@ internal sealed partial class WorldMapScene : IDisposable
                     buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
                     buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
+                byte inputScriptMode = salary.EventUi?.ScriptMode ?? throw new NotSupportedException("World controls require the preceding script mode.");
                 salary = salary.WithWorldInputSample(buttons);
+                candidate = PrepareMapDisplay(candidate, salary, out byte mapScriptMode);
+                salary = salary.WithWorldScriptMode(mapScriptMode);
+                candidate = candidate with { EventUi = salary.EventUi };
                 (float horizontal, float vertical) = carButtons || gardenButtons ? ControllerGameplayInput.ReadVehicleAxes(buttons, action.Horizontal, action.Vertical) : (action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0);
+                if (inputScriptMode != 0)
+                {
+                    horizontal = 0;
+                    vertical = 0;
+                }
                 WorldState callbackStart = candidate;
                 previousCallback = candidate;
-                candidate = Step(candidate, horizontal, vertical, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
+                candidate = Step(candidate, horizontal, vertical, inputScriptMode != 0 ? 0 : action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed, mapOnly: mapScriptMode == 12, motorButtons: inputScriptMode == 0 ? buttons : 0);
                 if (consumeGardenRequest)
                 {
                     salary = salary.ConsumeGardenScriptRequest();
@@ -419,7 +428,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
-                    byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? (byte)3 : (byte)0);
+                    byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? mapScriptMode : (byte)0);
                     //54A7F0 sets2040A40 before54D7E0 for either admitted boarding action; Garden leaves2036B70 unchanged.
                     bool? activity = boardingTarget is not null || ragnarokFootBoardingTarget is not null ? true : null;
                     fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, activity) ?? fieldEntry;
@@ -429,8 +438,9 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
                     int station = TrainStation(train.Primary);
                     candidate = action.Value == 1 ? CreateTrainDismount(candidate, station) : (train with { Primary = train.Primary with { Pause = 0 }, StationDeclines = train.StationDeclines.Add(train.Callback) }).ToWorldState(candidate);
+                    salary = salary.WithWorldScriptMode(candidate.NativeTrainRuntime is null ? (byte)0 : mapScriptMode);
                 }
-                if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
+                if (mapScriptMode != 12 && candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
                     bool currentOcclusion = candidate.NativeFootRuntime is null ? false : candidate.NativeGardenRuntime?.PriorTerrainOcclusion ?? candidate.NativeRagnarokRuntime?.PriorTerrainOcclusion ?? ReadFootTerrainOcclusion(callbackStart, candidate);
                     if (candidate.NativeFootRuntime is not null)
@@ -442,7 +452,10 @@ internal sealed partial class WorldMapScene : IDisposable
                     {
                         candidate = candidate with { NativeFootRuntime = transition.Step(candidate.NativeFootRuntime, currentOcclusion) };
                     }
-                    //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
+                }
+                if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
+                {
+                    //6519D0 still consumes the retained accepted magnitude when script12 skips the position query.
                     salary = salary.PrepareDrawPointAging(movementUnits);
                 }
                 NativeSalaryResult? salaryResult = candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
@@ -468,21 +481,21 @@ internal sealed partial class WorldMapScene : IDisposable
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
                 advanced++;
-                if (fieldEntry is null && ProcessRandomEncounters is not null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
+                if (mapScriptMode != 12 && fieldEntry is null && ProcessRandomEncounters is not null && (candidate.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
                 {
                     var encounterResult = ProcessRandomEncounters(candidate, encounterMovementMagnitude, salary.RandomEncounters);
                     candidate = encounterResult.World;
                     salary = salary with { RandomEncounters = encounterResult.Encounters };
                 }
-                if (fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback)
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback)
                 {
                     candidate = StepGardenCactuar(candidate, out fieldEntry);
                 }
-                if (fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeFootRuntime?.EntityType == 2)
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeFootRuntime?.EntityType == 2)
                 {
                     candidate = StepFootType2Cactuar(candidate, out fieldEntry);
                 }
-                if (fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback)
+                if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback)
                 {
                     candidate = StepRagnarokCactuar(candidate, out fieldEntry);
                 }
@@ -554,7 +567,10 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         renderer.TriangleRenderer = triangleRenderer;
-        return renderer.Render(presentation.Sample(State, interpolation, PrepareRenderFrame), replacements);
+        WorldRenderFrame frame = presentation.Sample(State, interpolation, PrepareRenderFrame);
+        uint mainLoopCounter = session.State.WorldProcess?.MainLoopCounter ?? throw new NotSupportedException("World presentation requires the executed native main-loop counter.");
+        frame = frame with { TerrainReplacementMask = State.ReplacementMask, MapDisplayMode = MapDisplayMode(State), MapProcessMode = State.EventUi?.ScriptMode ?? throw new NotSupportedException("World map presentation requires the current native process mode."), MapFrame = mainLoopCounter, NativeMainLoopCounter = mainLoopCounter, WorldDiscNumber = session.State.DiscProcess?.SavedDisc204, Shadows = CaptureShadows(State, frame) };
+        return renderer.Render(frame, replacements);
     }
 
     private WorldRenderFrame PrepareRenderFrame(WorldState state)
@@ -615,7 +631,7 @@ internal sealed partial class WorldMapScene : IDisposable
         return NativeWorldGroundCacheState.CreateFresh(ground, processSelection: selection);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
     {
         encounterMovementMagnitude = 0;
         consumeGardenRequest = false;
@@ -635,28 +651,32 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             // The certified car loader retains animation variant0. Original5573C0
             // admits manual vehicle camera offset14 only for variant1.
-            return StepCar(before, horizontal, vertical, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepCar(before, horizontal, vertical, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeRagnarokRuntime is not null && before.NativeFootRuntime is null)
         {
-            return StepRagnarok(before, cameraHorizontal, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepRagnarok(before, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, motorButtons ?? buttons);
+        }
+        if (mapOnly && before.NativeFootRuntime is not null)
+        {
+            return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly: true, mapButtons: buttons);
         }
         if (before.NativeRagnarokRuntime is not null)
         {
-            return StepRagnarokFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepRagnarokFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         if (before.NativeGardenRuntime is not null && before.NativeFootRuntime is null)
         {
-            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly);
         }
         if (before.NativeGardenRuntime is not null)
         {
-            return StepGardenFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepGardenFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
-        return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+        return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed, mapOnly, mapButtons: buttons);
     }
 
-    private WorldState StepFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, ref NativeWorldSalaryState salary, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed, bool mapOnly = false, uint mapButtons = 0)
     {
         int inputX = Math.Sign(horizontal);
         //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
@@ -703,6 +723,12 @@ internal sealed partial class WorldMapScene : IDisposable
         bool priorTerrainOcclusion = before.NativeRagnarokRuntime is { } parkedRagnarok ? parkedRagnarok.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Ragnarok foot camera lost its previous native terrain-render occlusion owner.") : before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : foot.PriorTerrainOcclusion ?? throw new NotSupportedException("Native foot camera requires its previous terrain-render occlusion owner; migrate this save explicitly.");
         NativeForestCameraResult cameraStep = foot.AnimationVariant == 0 ? (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving) : new NativeForestCameraResult(forest.CameraPitch, process with { CameraCooldown = forest.CameraCooldown });
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
+        if (mapOnly)
+        {
+            salaryMovementUnits = (uint)(foot.MovementMagnitude20409F4 ?? throw new NotSupportedException("Full map requires the preceding accepted movement magnitude; run a normal callback before using this historical save.")) / 8;
+            foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
+            return CompleteMapFootMotor(before with { Frame = before.Frame + 1, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot }, mapButtons);
+        }
         NativeWorldFootType2AnimationResult? type2Animation = null;
         if (foot.EntityType == 2)
         {
@@ -710,7 +736,15 @@ internal sealed partial class WorldMapScene : IDisposable
             type2Animation = StepFootType2Draw(before, foot, bodyYaw, cameraYaw, targetX, targetZ, targetHeight, moving);
             forest = type2Animation.Forest;
         }
-        forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
+        int animation = type2Animation?.Animation ?? (moving ? 1 : 0);
+        int animationCounter = type2Animation?.Counter ?? (animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0);
+        short particlePitch = before.NativeRagnarokRuntime?.Objects[0].Pitch ?? 0;
+        short particleRoll = before.NativeRagnarokRuntime?.Objects[0].Roll ?? 0;
+        NativeWorldWaterStepResult waterStep = forest.EmitFootWaterStep(currentGroundType, animation, animationCounter, salary.WaterStepEdges2045C7C, new(before.X, before.NativeHeight, -before.Z), particlePitch, checked((short)bodyYaw), particleRoll, assets.ForestTables.Effects);
+        forest = waterStep.Forest;
+        salary = salary.WithWaterStepEdges(waterStep.Edges);
+        NativeWorldContactSpark? contactSpark = CaptureFootContactSpark(before, ref salary);
+        forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects, contactSpark) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };
         if (foot.EntityType == 2 && NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) == 0)
         {
@@ -729,8 +763,6 @@ internal sealed partial class WorldMapScene : IDisposable
             ragnarokCameraState = PrepareRagnarokFootCallback(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
             foot = ragnarokCameraState.NativeFootRuntime!;
         }
-        int animation = type2Animation?.Animation ?? (moving ? 1 : 0);
-        int animationCounter = type2Animation?.Counter ?? (animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0);
         int x = WrapCoordinate(before.X + moveX, 262144);
         int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         if (foot.StationTrains is not null)
@@ -778,7 +810,7 @@ internal sealed partial class WorldMapScene : IDisposable
             AnimationId = animation,
             AnimationCounter = animationCounter,
             GroundType = groundType,
-            NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX }
+            NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX, MovementMagnitude20409F4 = encounterMovementMagnitude }
         };
         return ragnarokCameraState is not null ? CompleteRagnarokFootCallback(after, ground) : gardenCameraState is not null ? CompleteGardenFootCallback(after, ground, graphicsSpeed) : after;
     }

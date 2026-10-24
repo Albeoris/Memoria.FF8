@@ -19,8 +19,20 @@ public sealed record WorldRenderFrame(Vector3 Position, float Heading, int Anima
     public IReadOnlyList<NativeWorldStaticModelDraw>? StaticModels { get; init; } = StaticModels is null ? null : Array.AsReadOnly(StaticModels.ToArray());
     public NativeWorldForestState? Forest { get; init; } = Forest is null ? null : Forest with { Particles = Forest.Particles.ToArray() };
     public IReadOnlyList<NativeWorldAnimatedModelDraw>? AnimatedModels { get; init; } = AnimatedModels is null ? null : Array.AsReadOnly(AnimatedModels.ToArray());
+    private readonly IReadOnlyList<NativeWorldShadowDraw>? shadows;
+    public IReadOnlyList<NativeWorldShadowDraw>? Shadows
+    {
+        get => shadows;
+        init => shadows = value is null ? null : Array.AsReadOnly(value.ToArray());
+    }
+    public byte MapDisplayMode { get; init; }
+    public byte MapProcessMode { get; init; }
+    public uint? NativeMainLoopCounter { get; init; }
+    public byte? WorldDiscNumber { get; init; }
+    public long MapFrame { get; init; }
     public WorldAnimationBlend? AvatarAnimationBlend { get; init; }
     public IReadOnlyList<WorldForestParticleFrame>? ForestParticles { get; init; }
+    public ushort TerrainReplacementMask { get; init; }
 }
 
 public readonly record struct WorldAnimationBlend(int PreviousFrameIndex, int CurrentFrameIndex, float Blend);

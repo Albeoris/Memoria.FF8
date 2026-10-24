@@ -10,7 +10,7 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
 {
     private readonly HashSet<TextureKey> keys = [];
 
-    public AssetHandle<TextureValue>? Register(TextureKey key, PixelImage image, string layout, TextureSourceRegion? region = null, Func<int, PixelImage>? palettes = null, int paletteCount = 1)
+    public AssetHandle<TextureValue>? Register(TextureKey key, PixelImage image, string layout, TextureSourceRegion? region = null, Func<int, PixelImage>? palettes = null, int paletteCount = 1, long? revision = null, TextureSourceAddress? nativeAlias = null)
     {
         if (resources is null)
         {
@@ -18,18 +18,18 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         }
         bool retain = !keys.Contains(key);
         ResourceContent encoded = resources.Get(key.Owner);
-        AssetHandle<TextureValue> handle = resources.GetTexture(new TextureBuildContext(key, resources.Source, encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded), retain);
+        AssetHandle<TextureValue> handle = resources.GetTexture(new TextureBuildContext(key, resources.Source, revision ?? encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded) { NativeAlias = nativeAlias }, retain);
         keys.Add(key);
         return handle;
     }
 
-    public IReadOnlyList<PixelImage> RegisterList(ResourceKey owner, IReadOnlyList<PixelImage> images, string layout, string prefix = "texture")
+    public IReadOnlyList<PixelImage> RegisterList(ResourceKey owner, IReadOnlyList<PixelImage> images, string layout, string prefix = "texture", long? revision = null)
     {
         if (resources is null)
         {
             return images;
         }
-        AssetHandle<TextureValue>[] handles = images.Select((image, index) => Register(new TextureKey(owner, $"{prefix}/{index}"), image, layout)!).ToArray();
+        AssetHandle<TextureValue>[] handles = images.Select((image, index) => Register(new TextureKey(owner, $"{prefix}/{index}"), image, layout, revision: revision)!).ToArray();
         return new ResourceTextureList(handles);
     }
 

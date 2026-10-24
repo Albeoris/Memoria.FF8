@@ -1,6 +1,6 @@
 # Texture mods
 
-Memoria reads unpacked Tonberry and Demaster texture packages without loading either original mod loader. Support is limited to source layouts listed below; recognizing a package does not establish that every texture in it can be displayed. The playable profile remains English Steam 2013 Classic. [Remastered resource access](../developers/remastered-resources.md) is experimental.
+Memoria reads unpacked Tonberry and Demaster texture packages and textures selected by Junction manifests without loading the original mod loaders. Support is limited to source layouts listed below; recognizing a package does not establish that every texture in it can be displayed. The playable profile remains English Steam 2013 Classic. [Remastered resource access](../developers/remastered-resources.md) is experimental.
 
 ## Install and configure
 
@@ -20,7 +20,7 @@ enabled = 1
 
 Only `0` and `1` are valid boolean values. Missing global policy means automatic enablement is on. Missing package enablement inherits that policy; explicit `0` or `1` overrides it. Discovery does not create missing configuration files. Menu changes write to the selected package's own directory. Turning automatic enablement off first preserves the current state of discovered inherited packages. Explicit disables survive turning it on again. Writes preserve unrelated keys/comments and use temporary-file replacement.
 
-Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate IDs, the game-directory copy owns the entire package. Distinct packages and files use ordinal case-insensitive alphabetical order, with ordinal spelling as tie-breaker. The first contribution to a virtual filename wins. Removing or disabling it exposes the next contribution. Across texture formats, resolution tries Demaster, Tonberry, then the source's own replacement/original content.
+Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate IDs, the game-directory copy owns the entire package. Distinct packages and files use ordinal case-insensitive alphabetical order, with ordinal spelling as tie-breaker; Junction additionally applies its manifest dependency/order relationships. The first contribution to a virtual filename wins. Removing or disabling it exposes the next contribution. Across texture formats, resolution tries Demaster, Junction FFNx textures, Tonberry, then the source's own replacement/original content.
 
 ## Supported layouts
 
@@ -30,8 +30,11 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Demaster | Classic world TEXL pages and original road regions represented by world page 29 | Compatibility of a package does not make every target compatible. Other families require a source-published compatible layout. |
 | Demaster card artwork | `demaster-card-artwork`: menu card atlases, Triple Triad fronts, back, elements and split backgrounds | Square 256 × 256 source sheets at an integer scale; localized alternatives follow the source language. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
+| Junction FFNx | Source-published `classic-ffnx` identities under selected `mods/textures/` resources | Card/menu atlases, native field/world model textures, terrain TEXL pages, roads, static world objects and implemented native world section consumers. |
 
-Unknown targets produce diagnostics or retain original pixels. Installing a cloud image does not add cloud geometry to the Classic renderer. Water mapping, full field/UI/model native-page reconstruction, dynamic palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
+Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full field/UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
+
+FFNx lookup preserves native model/texture indexes and world section/member identities. DDS and PNG replacements must preserve the native canvas aspect ratio and map crop boundaries to whole pixels. Crops used by terrain redirects and native atlas copies apply to the enlarged replacement image. When an exact palette suffix is absent, lookup uses the lowest available palette, following the external texture convention. The localized `eng/` root precedes the common root for English resources.
 
 ### Tonberry
 

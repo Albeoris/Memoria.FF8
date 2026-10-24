@@ -43,7 +43,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public string ResolveGameFile(string dataRelativePath)
     {
         string relative = ModCatalogSnapshot.NormalizePath(dataRelativePath);
-        ModFile? replacement = Mods.Catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
+        ModFile? replacement = FindJunctionFile(relative);
         if (replacement is null)
         {
             if (source is IGameFileSource files)
@@ -94,6 +94,27 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
     }
 
+    private ModFile? FindJunctionFile(string relative)
+    {
+        ModCatalogSnapshot catalog = Mods.Catalog;
+        if (!relative.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
+        {
+            return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();
+        }
+        Dictionary<string, ModPackage> packages = catalog.Packages.Where(package => package.Format == ModFormat.Junction).ToDictionary(package => package.Id, StringComparer.OrdinalIgnoreCase);
+        foreach (IGrouping<string, ModFile> files in catalog.Files.Where(file => file.Format == ModFormat.Junction).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
+        {
+            string extension = packages[files.Key].JunctionMetadata?.VideoExtension ?? "avi";
+            string candidate = Path.ChangeExtension(relative, extension);
+            ModFile? selected = files.FirstOrDefault(file => file.RelativePath.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            if (selected is not null)
+            {
+                return selected;
+            }
+        }
+        return null;
+    }
+
     public bool Pump(bool force = false)
     {
         Mods.PreparePending(force);
@@ -102,6 +123,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        IReadOnlyList<ModDiagnostic> musicDiagnostics = ExternalMusicResolver.Validate(catalog);
+        if (musicDiagnostics.Count != 0)
+        {
+            return new ModPreparationResult(false, Diagnostics: musicDiagnostics);
+        }
         if (!ModelMods.TryPrepare(catalog, out ModelMods modelMods, out IReadOnlyList<ModDiagnostic> modelDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: modelDiagnostics);
@@ -136,8 +162,14 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             resolvers.Add(new DemasterTextureResolver(catalog));
             usable.AddRange(demaster.UsablePackageIds);
         }
+        DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, source);
+        if (catalog.Files.Any(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
+        {
+            resolvers.Add(new FfnxTextureResolver(catalog));
+            usable.AddRange(ffnx.UsablePackageIds);
+        }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = tonberryDiagnostics.Concat(demaster.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = tonberryDiagnostics.Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);

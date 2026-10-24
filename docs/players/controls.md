@@ -26,6 +26,8 @@ Controller names below use physical positions. The button-label setting can disp
 
 The right stick supplies camera input in supported world contexts. In a car or while driving Garden, Card / detail accelerates and Cancel / walk reverses; left/right or the left stick steers. Up/down, including remapped direction keys such as W/S, also drives forward/backward. The separate throttle buttons take priority over these directional alternatives. The right stick's vertical axis also controls forward/reverse. These actions follow your current bindings, including the buttons shown by the driving tutorial. Tilt the left stick gently to walk on foot; the default run threshold is 50%. Input availability still depends on the current scene and script: a binding does not guarantee that an action is valid everywhere.
 
+On the world map, press **Select** (default **J**, controller **Back / View / Share**) to cycle **off → globe → mini-map → full map → off**. Release and press again for the next mode. The full map pauses travel; messages and scripted world modes can restrict opening it. The selected display is retained in the world snapshot. Change the Select binding in Config → Controls to use another key or button.
+
 In supported battle contexts, Rotate right is also the gunblade / Shot trigger, and Card is the GF Boost input. Menu detail and character paging use these shared actions too.
 
 To escape a battle, hold both escape actions together (D + F by default, or both controller triggers). Characters run while you hold them; escape attempts repeat every two seconds, so keep holding until the party escapes. Releasing either action stops the attempt. Some battles prevent escape even while the running animation plays.

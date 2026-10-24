@@ -18,7 +18,7 @@ internal sealed partial class WorldMapScene
     // input, contacts, camera, cache and object owners live in the resulting WorldState.
     private GardenFootCallback? gardenFootCallback;
 
-    private WorldState StepGardenFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepGardenFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (gardenFootCallback is not null)
         {
@@ -27,7 +27,7 @@ internal sealed partial class WorldMapScene
         gardenFootCallback = new GardenFootCallback(buttons, memory);
         try
         {
-            WorldState after = StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            WorldState after = StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, ref salary, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
             consumeGardenRequest = gardenFootCallback.ConsumeScriptRequest;
             boardingTarget = gardenFootCallback.BoardingTarget;
             return after;

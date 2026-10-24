@@ -59,6 +59,13 @@ public sealed class GpuWorldRenderingTests
         Assert.All(softwareDepth, value => Assert.Equal(73, value));
         Assert.All(sink.Materials.Skip(2), material =>
         {
+            if (material.DepthComparison == TriangleDepthComparison.Always)
+            {
+                Assert.Equal(TriangleBlend.Add, material.Blend);
+                Assert.False(material.DepthWrite);
+                Assert.Equal(0, material.FogEnd);
+                return;
+            }
             Assert.Equal(TriangleDepthComparison.Greater, material.DepthComparison);
             Assert.Equal(TriangleDepthMapping.Positive, material.DepthMapping);
             Assert.Equal(1, material.DepthScale);
@@ -71,7 +78,7 @@ public sealed class GpuWorldRenderingTests
         Assert.All(sink.Vertices.Skip(6), vertex =>
         {
             Assert.True(vertex.ReciprocalW > 0);
-            Assert.Equal(vertex.Depth, vertex.ReciprocalW);
+            Assert.Equal(vertex.Depth == 0 ? 1 : vertex.Depth, vertex.ReciprocalW);
         });
     }
 

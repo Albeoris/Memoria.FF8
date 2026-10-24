@@ -158,7 +158,7 @@ public sealed class CarGameplayInputTests
         Assert.Equal(horizontal, action.Horizontal);
         Assert.Equal(vertical, action.Vertical);
         Assert.Equal(-0.4f, action.CameraHorizontal);
-        Assert.Equal((ushort)0x02, action.WorldButtons);
+        Assert.Equal((ushort)(scene == SceneKind.WorldMap ? 0x102 : 0x02), action.WorldButtons);
         Assert.Equal(0, action.Value);
     }
 

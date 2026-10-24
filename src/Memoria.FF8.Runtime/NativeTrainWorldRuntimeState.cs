@@ -287,6 +287,8 @@ public sealed record NativeTrainWorldRuntimeState
 {
     public const string RuntimeRule = "ff8-en-riding-train-mode3-544860-545330-53fac0-v1";
     [JsonRequired]
+    public required byte MapDisplayMode { get; init; }
+    [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
     public required string Rule { get; init; }
@@ -328,7 +330,7 @@ public sealed record NativeTrainWorldRuntimeState
         Load?.Validate();
         Forest?.Validate();
         GroundCache?.Validate();
-        if (GroundCache is null || GroundYaw is < -1120 or > 1120 || CameraGeometry != NativeTrainCameraGeometry.Evaluate(Camera))
+        if (MapDisplayMode > 2 || GroundCache is null || GroundYaw is < -1120 or > 1120 || CameraGeometry != NativeTrainCameraGeometry.Evaluate(Camera))
         {
             throw new InvalidDataException("Native train lost its executed ground or retained camera words.");
         }

@@ -24,7 +24,7 @@ internal static class ControllerGameplayInput
             float throttle = world.NativeGardenRuntime is not null && input.SecondaryVertical == 0 ? input.Vertical : input.SecondaryVertical;
             return new PlayerAction(PlayerActionKind.WorldButtons, vehicleButtons, Horizontal: input.Horizontal, Vertical: throttle);
         }
-        ushort worldButtons = (ushort)(buttons & 0x02);
+        ushort worldButtons = (ushort)(buttons & (state.Scene == SceneKind.WorldMap ? 0x102 : 0x02));
         return input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal, WorldButtons: worldButtons);
     }
 

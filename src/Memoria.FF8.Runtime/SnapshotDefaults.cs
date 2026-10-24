@@ -14,6 +14,17 @@ internal static class SnapshotDefaults
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
         CompleteSelphieCardSlots(saved);
+        if (saved["WorldProcess"] is JsonObject worldProcess && worldProcess["MainLoopCallbacks"] is JsonValue callbacks && callbacks.TryGetValue(out long count) && count > 0)
+        {
+            // A historical process has no cold-start proof for newly retained presentation globals.
+            foreach (string owner in new[] { "PreviousContactC76784", "WaterStepEdges2045C7C" })
+            {
+                if (!worldProcess.ContainsKey(owner))
+                {
+                    worldProcess[owner] = null;
+                }
+            }
+        }
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
         {

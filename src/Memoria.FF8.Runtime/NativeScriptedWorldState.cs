@@ -88,7 +88,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
     public void Validate()
     {
         FootRecord0?.Validate();
-        if (Version != 1 || Rule != LoadRule || SourceWorldFrame < 0 || RetainedBodyYaw >= 4096 || FootRecord0 is null || Slot4?.Pose is null || Slot5?.Pose is null || AnimationVariant != 0)
+        if (Version != 1 || Rule != LoadRule || SourceWorldFrame < 0 || RetainedBodyYaw >= 4096 || FootRecord0 is null || Slot4?.Pose is null || Slot5?.Pose is null || AnimationVariant != 0 || MapDisplayMode > 3)
         {
             throw new InvalidDataException("Scripted loader lost its retained world/object-record or auxiliary authority.");
         }
@@ -106,7 +106,7 @@ public sealed record NativeSavedWorldScriptedReturn([property: JsonRequired] int
         {
             throw new InvalidOperationException("Native scripted save belongs to the actual rail endpoint before departure fade.");
         }
-        var receipt = new NativeSavedWorldScriptedReturn(1, SaveRule, scripted.Path.Callback, lastField, story, scripted.Path.Packet, fieldEntry, scripted.Load, scripted.Path.Camera, CameraYaw(scripted.Path.Camera), scripted.Path.EntityType, 255, 255, scripted.Load.AnimationVariant, scripted.Load.MapDisplayMode == 3 ? (byte)0 : scripted.Load.MapDisplayMode, location, ExpectedPose0(scripted.Path, scripted.Load));
+        var receipt = new NativeSavedWorldScriptedReturn(1, SaveRule, scripted.Path.Callback, lastField, story, scripted.Path.Packet, fieldEntry, scripted.Load, scripted.Path.Camera, CameraYaw(scripted.Path.Camera), scripted.Path.EntityType, 255, 255, scripted.Load.AnimationVariant, scripted.MapDisplayMode == 3 ? (byte)0 : scripted.MapDisplayMode, location, ExpectedPose0(scripted.Path, scripted.Load));
         receipt.Validate();
         return receipt;
     }
@@ -133,7 +133,7 @@ public sealed record NativeSavedWorldScriptedReturn([property: JsonRequired] int
     public void Validate()
     {
         Load?.Validate();
-        if (Version != 1 || Rule != SaveRule || SourceWorldFrame < 30 || Load is null || StoryWord < Load.FootRecord0.MinimumStory || StoryWord >= Load.FootRecord0.MaximumStory || Packet is null || unchecked((byte)Packet.Mode) != EntityType105 || unchecked((byte)Packet.EntryIndex) >= 14 || unchecked((sbyte)Packet.Extra) < 0 || FieldEntry is null || FieldEntry.FieldId is < 0 or > ushort.MaxValue || Camera is null || CameraYaw96 != CameraYaw(Camera) || EntityType105 is not (>= 16 and <= 22 or 65 or 66) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != Load.AnimationVariant || MapDisplayMode110 != (Load.MapDisplayMode == 3 ? 0 : Load.MapDisplayMode) || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue || Pose0 is null || EntityType105 is >= 16 and <= 22 && Pose0.Yaw != Load.RetainedBodyYaw || EntityType105 is 65 or 66 && Pose0 != Load.FootRecord0.Pose)
+        if (Version != 1 || Rule != SaveRule || SourceWorldFrame < 30 || Load is null || StoryWord < Load.FootRecord0.MinimumStory || StoryWord >= Load.FootRecord0.MaximumStory || Packet is null || unchecked((byte)Packet.Mode) != EntityType105 || unchecked((byte)Packet.EntryIndex) >= 14 || unchecked((sbyte)Packet.Extra) < 0 || FieldEntry is null || FieldEntry.FieldId is < 0 or > ushort.MaxValue || Camera is null || CameraYaw96 != CameraYaw(Camera) || EntityType105 is not (>= 16 and <= 22 or 65 or 66) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != Load.AnimationVariant || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue || Pose0 is null || EntityType105 is >= 16 and <= 22 && Pose0.Yaw != Load.RetainedBodyYaw || EntityType105 is 65 or 66 && Pose0 != Load.FootRecord0.Pose)
         {
             throw new InvalidDataException("Invalid native scripted save receipt.");
         }
@@ -146,6 +146,11 @@ public sealed record NativeScriptedWorldRuntimeState([property: JsonRequired] in
 
     public NativeWorldGroundCacheState? GroundCache { get; init; }
 
+    [JsonRequired]
+    public byte MapDisplayMode { get; init; } = Load.MapDisplayMode;
+
+    public NativeWorldForestState? Forest { get; init; }
+
     [JsonIgnore]
     public NativeSavedWorldPose CurrentFootPose0 => Path.Mode == 1 ? Load.FootRecord0.Pose : FootPoseFromBody(Path.EntityPosition, Load.RetainedBodyYaw);
 
@@ -156,7 +161,8 @@ public sealed record NativeScriptedWorldRuntimeState([property: JsonRequired] in
         Load?.Validate();
         Return?.Validate();
         GroundCache?.Validate();
-        if (Version != 1 || Rule != RuntimeRule || Path is null || Path.Version != 1 || Path.Rule != NativeWorldScriptedPathState.LoadRule || Path.EntityType is not (>= 16 and <= 22 or 65 or 66) || Path.Mode is not (1 or 2) || Path.Nodes.IsDefault || Path.Nodes.Length != Path.NodeCount || Path.Nodes.Any(node => node is null) || Path.Presentation.IsDefault || Path.Presentation.Length != Path.NodeCount || Path.Presentation.Any(pose => pose is null) || Path.Packet is null || Path.Callback < 0 || Path.Fade is < 0 or > 256 || Path.Fade % 16 != 0 || Path.EndpointRequested && (Path.EndpointCallback is null or < 30 || Path.Callback != Path.EndpointCallback + Path.Fade / 16 || Path.CameraCounter != 0) || !Path.EndpointRequested && (Path.EndpointCallback is not null || Path.Fade != 0 || Path.CameraCounter != Path.Callback + 1) || Load is null || Path.EndpointRequested != (Return is not null) || Return is not null && (Return.SourceWorldFrame != Path.EndpointCallback || Return.Packet != Path.Packet || Return.Load != Load || Return.Camera != Path.Camera))
+        Forest?.Validate();
+        if (Version != 1 || Rule != RuntimeRule || MapDisplayMode > 3 || Path is null || Path.Version != 1 || Path.Rule != NativeWorldScriptedPathState.LoadRule || Path.EntityType is not (>= 16 and <= 22 or 65 or 66) || Path.Mode is not (1 or 2) || Path.Nodes.IsDefault || Path.Nodes.Length != Path.NodeCount || Path.Nodes.Any(node => node is null) || Path.Presentation.IsDefault || Path.Presentation.Length != Path.NodeCount || Path.Presentation.Any(pose => pose is null) || Path.Packet is null || Path.Callback < 0 || Path.Fade is < 0 or > 256 || Path.Fade % 16 != 0 || Path.EndpointRequested && (Path.EndpointCallback is null or < 30 || Path.Callback != Path.EndpointCallback + Path.Fade / 16 || Path.CameraCounter != 0) || !Path.EndpointRequested && (Path.EndpointCallback is not null || Path.Fade != 0 || Path.CameraCounter != Path.Callback + 1) || Load is null || Path.EndpointRequested != (Return is not null) || Return is not null && (Return.SourceWorldFrame != Path.EndpointCallback || Return.Packet != Path.Packet || Return.Load != Load || Return.Camera != Path.Camera || Return.MapDisplayMode110 != (MapDisplayMode == 3 ? 0 : MapDisplayMode)))
         {
             throw new InvalidDataException("Scripted runtime and actual endpoint save authority disagree.");
         }

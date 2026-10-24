@@ -18,6 +18,8 @@ public sealed partial record NativeWorldSalaryState
         SavedWorldEvents = departure.SavedWorld;
         EventUi = departure.World?.EventUi;
         InputHistory = departure.WorldProcess?.InputHistory;
+        WaterStepEdges2045C7C = departure.WorldProcess?.WaterStepEdges2045C7C;
+        PreviousContactC76784 = departure.WorldProcess?.PreviousContactC76784;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
@@ -36,6 +38,26 @@ public sealed partial record NativeWorldSalaryState
     public NativeWorldEventUi? EventUi { get; private init; }
     public int? CarCameraCooldown { get; private init; }
     public NativeWorldInputHistory? InputHistory { get; private init; }
+    public byte? WaterStepEdges2045C7C { get; private init; }
+    public int? PreviousContactC76784 { get; private init; }
+
+    public NativeWorldSalaryState WithPreviousContact(int? contact)
+    {
+        if (contact < -1)
+        {
+            throw new InvalidDataException("Native previous contact has an invalid dense object index.");
+        }
+        return this with { PreviousContactC76784 = contact };
+    }
+
+    public NativeWorldSalaryState WithWaterStepEdges(byte? edges)
+    {
+        if (edges > 3)
+        {
+            throw new InvalidDataException("Native footprint edge flags are outside their two-bit owner.");
+        }
+        return this with { WaterStepEdges2045C7C = edges };
+    }
 
     public static NativeWorldSalaryState Begin(GameState departure)
     {
@@ -106,6 +128,10 @@ public sealed partial record NativeWorldSalaryState
         }
         WorldEntryMemory?.ValidateEventMemory(candidate.EventMemory);
         NativeWorldProcess? process = candidate.WorldProcess;
+        if (process is not null)
+        {
+            process = process with { WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784 };
+        }
         if (InputHistory is not null)
         {
             process = (process ?? throw new NotSupportedException("World input publication requires its persistent process owner.")) with { InputHistory = InputHistory };

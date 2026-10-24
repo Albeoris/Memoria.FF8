@@ -221,7 +221,7 @@ public sealed partial class WorldAssets : IDisposable
         return selected;
     }
 
-    public PixelImage GetTexture(WorldTriangle triangle)
+    public PixelImage GetTexture(WorldTriangle triangle, ushort replacementMask = 0)
     {
         if (triangle.Road)
         {
@@ -241,19 +241,20 @@ public sealed partial class WorldAssets : IDisposable
             }
             return waterHandle?.Value.Image ?? water!;
         }
-        if (!textures.TryGetValue((triangle.TexturePage, triangle.Palette), out PixelImage? image))
+        int sourcePage = SelectTerrainTexturePage(triangle.TexturePage, replacementMask);
+        if (!textures.TryGetValue((sourcePage, triangle.Palette), out PixelImage? image))
         {
             texl ??= Read("texl.obj");
-            TimImage tim = WorldAssetReader.ReadTim(texl, triangle.TexturePage * 0x12800).Image;
+            TimImage tim = WorldAssetReader.ReadTim(texl, sourcePage * 0x12800).Image;
             image = tim.Decode(triangle.Palette);
-            textures.Add((triangle.TexturePage, triangle.Palette), image);
-            AssetHandle<TextureValue>? handle = textureScope.Register(new TextureKey(new ResourceKey("world/texl.obj"), $"texl/{triangle.TexturePage}", triangle.Palette), image, "classic-world-texl", new TextureSourceRegion(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), palette => tim.Decode(palette), tim.Palettes.Count);
+            textures.Add((sourcePage, triangle.Palette), image);
+            AssetHandle<TextureValue>? handle = textureScope.Register(new TextureKey(new ResourceKey("world/texl.obj"), $"texl/{sourcePage}", triangle.Palette), image, "classic-world-texl", new TextureSourceRegion(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), palette => tim.Decode(palette), tim.Palettes.Count, nativeAlias: ReadTerrainTextureAlias(triangle.TexturePage, tim, replacementMask));
             if (handle is not null)
             {
-                textureHandles.Add((triangle.TexturePage, triangle.Palette), handle);
+                textureHandles.Add((sourcePage, triangle.Palette), handle);
             }
         }
-        return textureHandles.TryGetValue((triangle.TexturePage, triangle.Palette), out AssetHandle<TextureValue>? current) ? current.Value.Image : image;
+        return textureHandles.TryGetValue((sourcePage, triangle.Palette), out AssetHandle<TextureValue>? current) ? current.Value.Image : image;
     }
 
     private PixelImage? CreateRoadAtlas()

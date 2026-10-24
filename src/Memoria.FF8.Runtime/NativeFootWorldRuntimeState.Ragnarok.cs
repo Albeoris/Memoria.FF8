@@ -55,7 +55,7 @@ public sealed partial record NativeFootWorldRuntimeState
             Rule = RagnarokDismountRule,
             EntityType = 0,
             AnimationVariant = 0,
-            MapDisplayMode = runtime.Allocation.MapDisplayMode,
+            MapDisplayMode = runtime.MapDisplayMode,
             CameraOffsetY = runtime.ProjectionCamera!.OffsetY,
             CameraOffsetZ = camera.OffsetZ,
             ReloadSourceWorldFrame = null,

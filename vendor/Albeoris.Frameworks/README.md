@@ -10,6 +10,8 @@ This directory contains only the source and embedded resources needed by Memoria
 
 The imported source preserves these changes relative to that revision:
 
+- `Albeoris.Games.FF8.Imaging/PixelImage.cs`: accepts image dimensions up to 16384 for wide native texture sheets while retaining the previous maximum total allocation of 64 million pixels.
+
 - `Albeoris.Games.FF8.TextEncoding.Abstractions/Tags/TextTagKey.cs`: imports the semantic junction, ability and element icon keys from upstream commit `39f302eaea422236342d00c748af45ed1f85f4cc`.
 - The same enum imports the thirteen semantic status icon keys from upstream commit `0e3fc21c28c0ad45aa37e5f054a757a2c6abf2d3`.
 

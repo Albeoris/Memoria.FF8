@@ -275,7 +275,7 @@ public sealed partial class GameAssets : IDisposable
             nativeMain.TryAdd(model, new($"field/main_chr/{model}.mch", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)), bytes.ToImmutableArray()));
             return bytes;
         }
-        IReadOnlyList<FieldModel> models = (resources.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadRegistrationMain, nativeDirectory.Add) ?? FieldModelReader.Read(one, ReadRegistrationMain, nativeDirectory.Add)).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
+        IReadOnlyList<FieldModel> models = (resources.GetSource<IFieldModelSource>()?.ReadModels(new ResourceKey($"field/{name}/chara.one"), one, ReadRegistrationMain, nativeDirectory.Add) ?? FieldModelReader.Read(one, ReadRegistrationMain, nativeDirectory.Add)).Select((model, index) => RegisterFieldModelTextures(name, index, model)).ToArray();
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");

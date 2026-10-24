@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepRagnarok(WorldState before, float cameraHorizontal, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint movementUnits, out int graphicsSpeed)
+    private WorldState StepRagnarok(WorldState before, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeRequest, out WorldFieldSelection? fieldEntry, out uint movementUnits, out int graphicsSpeed, bool mapOnly = false, uint? motorButtons = null)
     {
         NativeRagnarokWorldRuntimeState runtime = before.NativeRagnarokRuntime!;
         runtime.RequireSceneState();
@@ -15,8 +15,9 @@ internal sealed partial class WorldMapScene
         }
         byte scriptMode = runtime.Transfer is null ? salary.EventUi?.ScriptMode ?? 0 : runtime.Transfer.Kind == NativeRagnarokTransferKind.Landing ? (byte)5 : (byte)6;
         int cooldown = NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0);
-        NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 || scriptMode != 0 ? 0 : buttons);
-        NativeRagnarokMotorResult motor = scriptMode == 0 ? NativeRagnarokMotor.Step(runtime.Motor, input.Steering13, input.Throttle11, input.Vertical12) : NativeRagnarokMotor.StepScripted(runtime.Motor, scriptMode, scriptMode == 5 ? 16 : 120);
+        NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 ? 0 : motorButtons ?? buttons);
+        NativeRagnarokMotorState motorBefore = runtime.Motor with { FlightHeight = unchecked((short)before.NativeHeight) };
+        NativeRagnarokMotorResult motor = scriptMode is 0 or 12 ? NativeRagnarokMotor.Step(motorBefore, input.Steering13, input.Throttle11, input.Vertical12, scriptMode: scriptMode) : NativeRagnarokMotor.StepScripted(motorBefore, scriptMode, scriptMode == 5 ? 16 : 120);
         uint? previous = runtime.PreviousButtons;
         if (previous is null && (buttons & 0x42) != 0 && cooldown <= 0)
         {
@@ -34,9 +35,26 @@ internal sealed partial class WorldMapScene
         int targetHeight = frozenHeight ? before.CameraTargetNativeHeight : (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         NativeWorldFootCameraState oldCamera = runtime.ProjectionCamera!;
         NativeWorldForestState forest = runtime.Forest ?? throw new NotSupportedException("Ragnarok requires its original555B20 particle/random pool owner.");
-        forest = forest.AdvanceParticlesOnly(assets.ForestTables.Effects) with { CameraPitch = motor.State.CameraPitch };
-        runtime = runtime with { Motor = motor.State, Forest = forest, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
+        if (!mapOnly)
+        {
+            int previousHeight = runtime.PreviousParticleNativeHeight ?? throw new NotSupportedException("Ragnarok thrust requires the preceding original particle height owner; migrate this snapshot before use.");
+            NativeRagnarokWorldObject body = runtime.Objects[runtime.Allocation.RagnarokIndex] with { Position = new(before.X, before.NativeHeight, -before.Z), Pitch = motor.State.BodyPitch, Yaw = checked((short)motor.State.BodyYaw), Roll = motor.State.BodyRoll };
+            NativeWorldPathPosition follow = new(motor.MotionX, before.NativeHeight - previousHeight, motor.MotionGraphicsZ);
+            forest = forest.AdvanceRagnarok(before.GroundType ?? throw new InvalidDataException("Ragnarok particle update lost its current native ground type."), body, runtime.CurrentGroundHeight!.Value, priorGraphicsSpeed, follow, scriptMode, assets.ForestTables.RagnarokThrustOffsets, assets.ForestTables.Random, assets.ForestTables.Effects);
+        }
+        forest = forest with { CameraPitch = motor.State.CameraPitch };
+        runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
         WorldState cameraState = before with { BodyYaw = motor.State.BodyYaw, CameraYaw = motor.State.CameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeRagnarokRuntime = runtime };
+        if (mapOnly)
+        {
+            consumeRequest = false;
+            movementUnits = 0;
+            graphicsSpeed = NativeWorldVectorMagnitude.Truncate(motor.MotionX, 0, motor.MotionGraphicsZ);
+            runtime = runtime.PublishBody(new(before.X, before.NativeHeight, -before.Z), motor.State.BodyPitch, checked((short)motor.State.BodyYaw), motor.State.BodyRoll);
+            WorldState mapped = cameraState with { Frame = before.Frame + 1, NativeRagnarokRuntime = runtime };
+            fieldEntry = SelectWorldCallback(mapped, cameraState, scriptMode, ref salary, buttons, false);
+            return mapped;
+        }
         NativeWorldPathPosition? landingPlacement = admission.Action ? PrepareRagnarokLanding(cameraState) : null;
         bool activity = runtime.Transfer is not null || landingPlacement is not null;
         if (landingPlacement is not null)

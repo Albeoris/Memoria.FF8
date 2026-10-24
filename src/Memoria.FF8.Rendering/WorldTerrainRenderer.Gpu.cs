@@ -40,13 +40,17 @@ public sealed partial class WorldTerrainRenderer
         renderer.Draw(c, b, d, material);
     }
 
-    private void DrawGpuTriangle(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent)
+    private void DrawGpuTriangle(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null)
     {
         static TriangleVertex Convert(ScreenVertex vertex)
         {
             return new TriangleVertex(new Vector2(vertex.X, vertex.Y), vertex.ReciprocalZ, vertex.ReciprocalZ, vertex.UvOverZ / vertex.ReciprocalZ, vertex.ColorOverZ / vertex.ReciprocalZ ?? Vector4.One);
         }
         TriangleMaterial material = TerrainMaterial(texture, transparent);
+        if (blend is { } mode)
+        {
+            material = material with { Blend = mode, DepthComparison = mode == TriangleBlend.Subtract ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Greater, DepthWrite = false, FogStart = 0, FogEnd = 0, AlphaMultiplier = 1 };
+        }
         TriangleRenderer!.Draw(Convert(a), Convert(b), Convert(c), material);
     }
 

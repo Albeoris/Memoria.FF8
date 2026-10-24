@@ -4,6 +4,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeWorldForestEffect(byte Type, ushort Shrink, byte Lifetime, byte Frames, byte FrameDuration, short HalfSize)
 {
+    public ushort TextureX { get; init; }
+    public ushort TextureY { get; init; }
+    public ushort PaletteX { get; init; }
+    public ushort PaletteY { get; init; }
+    public byte Width { get; init; }
+    public byte Height { get; init; }
+    public byte DrawMode { get; init; }
+    public byte BlendMode { get; init; }
     public short VelocityX { get; init; }
     public short VelocityY { get; init; }
     public short VelocityZ { get; init; }
@@ -29,7 +37,7 @@ public sealed record NativeWorldForestParticle([property: JsonRequired] int Slot
 }
 
 /// <summary>Shared first-free64-slot5562B0/555B80 pool, normal forest and Garden wake550070, and late Cactuar556DE0 emission.</summary>
-public sealed record NativeWorldForestState
+public sealed partial record NativeWorldForestState
 {
     [JsonRequired]
     public required uint SeedCounter { get; init; }
@@ -53,16 +61,37 @@ public sealed record NativeWorldForestState
 
     public void Validate()
     {
-        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (>= 4 and <= 10 or 14) || particle.Lifetime < (particle.Type == 10 ? 12 : particle.Type == 14 ? 8 : 4) || particle.Lifetime > (particle.Type == 10 ? 19 : particle.Type == 14 ? 15 : 11) || particle.Age > particle.Lifetime || (particle.Type is 10 or 14) != (particle.Motion is not null)))
+        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is not (0 or >= 4 and <= 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) || particle.Lifetime < MinimumLifetime(particle.Type) || particle.Lifetime > MaximumLifetime(particle.Type) || particle.Age > particle.Lifetime || (particle.Type is 0 or 10 or 12 or 13 or 14 or 15 or 16 or 19 or 20 or 21) != (particle.Motion is not null)))
         {
             throw new InvalidDataException("Invalid executed native forest presentation state.");
         }
     }
 
-    public NativeWorldForestState Advance(byte groundType, int x, int nativeHeight, int rawZ, int bodyYaw, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)
+    private static int MinimumLifetime(byte type) => type switch
+    {
+        0 or 10 => 12,
+        12 or 13 or 14 or 15 or 20 => 8,
+        16 => 32,
+        19 => 14,
+        21 => 12,
+        _ => 4
+    };
+
+    private static int MaximumLifetime(byte type) => type switch
+    {
+        0 or 10 => 19,
+        12 or 13 => 8,
+        14 or 15 or 20 => 15,
+        16 => 32,
+        19 => 21,
+        21 => 12,
+        _ => 11
+    };
+
+    public NativeWorldForestState Advance(byte groundType, int x, int nativeHeight, int rawZ, int bodyYaw, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects, NativeWorldContactSpark? contactSpark = null)
     {
         Validate();
-        if (random.Length != 256 || effects.Count is not (6 or 7 or 11) || priorGraphicsSpeed is < 0 or > 46340)
+        if (random.Length != 256 || effects.Count is not (6 or 7 or 11 or 18) || priorGraphicsSpeed is < 0 or > 46340)
         {
             throw new InvalidDataException("Native forest update requires its complete original random/effect tables.");
         }
@@ -83,6 +112,10 @@ public sealed record NativeWorldForestState
                 particles.Add(new(slot, effect.Type, x, nativeHeight - 320, -rawZ, yaw, roll, scale, 0, lifetime, true));
             }
         }
+        if (contactSpark is not null)
+        {
+            EmitContactSpark(particles, contactSpark, random, effects, ref cursor, ref offset);
+        }
         NativeWorldForestParticle[] advanced = AdvanceParticles(particles, effects);
         return this with { RandomCursor = cursor, RandomOffset = offset, Particles = advanced };
     }
@@ -90,13 +123,14 @@ public sealed record NativeWorldForestState
     public NativeWorldForestState AdvanceGarden(byte groundType, NativeGardenWorldObject garden, int groundHeight, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)
     {
         Validate();
-        if (garden.ShapeId != 64 || random.Length != 256 || effects.Count is not (7 or 11) || effects[6].Type != 10 || priorGraphicsSpeed is < 0 or > 46340)
+        if (garden.ShapeId != 64 || random.Length != 256 || effects.Count is not (7 or 11 or 18) || effects[6].Type != 10 || priorGraphicsSpeed is < 0 or > 46340)
         {
             throw new InvalidDataException("Garden wake update requires its physical shape64, canonical prior speed and authenticated complete effect tables.");
         }
         if (groundType == 8)
         {
-            throw new NotSupportedException("Garden type8 dust requires the distinct550F90/type19 emitter contract.");
+            NativeWorldForestState emitted = EmitVehicleDust(garden.Position, garden.RotationX, garden.RotationY, garden.RotationZ, groundHeight, priorGraphicsSpeed, random, effects);
+            return emitted with { Particles = AdvanceParticles(emitted.Particles, effects) };
         }
         byte cursor = RandomCursor;
         byte offset = RandomOffset;
@@ -114,7 +148,7 @@ public sealed record NativeWorldForestState
                     NativeWorldForestEffect effect = effects[6];
                     ushort scale = unchecked((ushort)(4096 + NextRandom(random, ref cursor, ref offset) - 128));
                     byte lifetime = unchecked((byte)(effect.Lifetime + (NextRandom(random, ref cursor, ref offset) & 7) - 4));
-                    (short vx, short vy, short vz) = RotateGardenWakeVelocity(garden.RotationX, yaw, garden.RotationZ, effect.VelocityX, effect.VelocityY, effect.VelocityZ);
+                    (short vx, short vy, short vz) = RotateParticleVelocity(garden.RotationX, yaw, garden.RotationZ, effect.VelocityX, effect.VelocityY, effect.VelocityZ);
                     particles.RemoveAll(particle => particle.Slot == slot);
                     particles.Add(new(slot, 10, garden.Position.X, groundHeight, garden.Position.Z, yaw, garden.RotationZ, scale, 0, lifetime, true) { Motion = new(garden.RotationX, vx, vy, vz) });
                 }
@@ -128,7 +162,7 @@ public sealed record NativeWorldForestState
     public NativeWorldForestState EmitCactuarBurst(NativeWorldPathPosition position, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)
     {
         Validate();
-        if (random.Length != 256 || effects.Count != 11 || effects[10].Type != 14)
+        if (random.Length != 256 || effects.Count is not (11 or 18) || effects[10].Type != 14)
         {
             throw new InvalidDataException("Cactuar556DE0 requires its actual position and complete original random/effect tables.");
         }
@@ -152,7 +186,7 @@ public sealed record NativeWorldForestState
         return this with { RandomCursor = cursor, RandomOffset = offset, Particles = particles.OrderBy(particle => particle.Slot).ToArray() };
     }
 
-    private static NativeWorldForestParticle[] AdvanceParticles(IEnumerable<NativeWorldForestParticle> particles, IReadOnlyList<NativeWorldForestEffect> effects)
+    private static NativeWorldForestParticle[] AdvanceParticles(IEnumerable<NativeWorldForestParticle> particles, IReadOnlyList<NativeWorldForestEffect> effects, NativeWorldPathPosition? follow = null)
     {
         return particles.OrderBy(particle => particle.Slot).Select(particle =>
         {
@@ -160,17 +194,22 @@ public sealed record NativeWorldForestState
             {
                 return particle with { Visible = false };
             }
-            if (particle.Type - 4 >= effects.Count || effects[particle.Type - 4].Type != particle.Type)
+            NativeWorldForestEffect? effect = effects.FirstOrDefault(effect => effect.Type == particle.Type);
+            if (effect is null)
             {
                 throw new InvalidDataException("Live world particle lost its original effect record.");
             }
-            NativeWorldForestEffect effect = effects[particle.Type - 4];
+            NativeWorldPathPosition displacement = new(0, 0, 0);
+            if (particle.Type is 12 or 13 && particle.Age != 0)
+            {
+                displacement = follow ?? throw new NotSupportedException("Live thrust particles require the actual current movement and preceding native height owner.");
+            }
             return particle with
             {
                 Scale = unchecked((ushort)(particle.Scale * effect.Shrink / 4096)),
-                X = unchecked(particle.X + particle.VelocityX),
-                NativeY = unchecked(particle.NativeY + particle.VelocityY),
-                GraphicsZ = unchecked(particle.GraphicsZ + particle.VelocityZ),
+                X = unchecked(particle.X + particle.VelocityX + 5 * (short)displacement.X / 6),
+                NativeY = unchecked(particle.NativeY + particle.VelocityY + 5 * displacement.Y / 6),
+                GraphicsZ = unchecked(particle.GraphicsZ + particle.VelocityZ + 5 * (short)displacement.Z / 6),
                 Motion = particle.Motion is null ? null : new(particle.RotationX, unchecked((short)(particle.VelocityX + effect.AccelerationX)), unchecked((short)(particle.VelocityY + effect.AccelerationY)), unchecked((short)(particle.VelocityZ + effect.AccelerationZ))),
                 Age = unchecked((byte)(particle.Age + 1)),
                 Visible = true
@@ -178,7 +217,7 @@ public sealed record NativeWorldForestState
         }).ToArray();
     }
 
-    private static (short X, short Y, short Z) RotateGardenWakeVelocity(short pitch, short yaw, short roll, short x, short y, short z)
+    private static (short X, short Y, short Z) RotateParticleVelocity(short pitch, short yaw, short roll, short x, short y, short z)
     {
         (int sx, int cx) = NativeGardenTransform.Offset(4096, pitch);
         (int sy, int cy) = NativeGardenTransform.Offset(4096, yaw);

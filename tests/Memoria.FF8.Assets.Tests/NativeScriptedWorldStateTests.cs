@@ -47,7 +47,7 @@ public sealed class NativeScriptedWorldStateTests
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600);
         // Explicit saved-world component, without a historical player journal.
         NativeWorldEntryMemory selectedMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, story);
-        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), DepartingWorldState = previous, SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selectedMemory, WorldProcess = NativeWorldProcess.FromColdProcess(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = story }), ExamTimer = timer });
+        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), DepartingWorldState = previous, SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selectedMemory, WorldProcess = NativeWorldProcess.FromColdProcess(), ExamTimer = timer });
         NativeWorldPathPosition previousBody = path.EntityPosition;
         for (int callback = 0; !path.EndpointRequested && callback < 5000; callback++)
         {

@@ -365,7 +365,7 @@ public sealed class ControlsProfile
         ControlAction.Confirm => "Confirm / Talk",
         ControlAction.Cancel => "Cancel / Walk",
         ControlAction.Card => "Card / Details",
-        ControlAction.Select => "Select / Display",
+        ControlAction.Select => "Select / World map",
         ControlAction.CameraLeft => "Escape battle (left)",
         ControlAction.CameraRight => "Camera mode / Escape battle (right)",
         ControlAction.RotateLeft => "Rotate world left / Previous character",

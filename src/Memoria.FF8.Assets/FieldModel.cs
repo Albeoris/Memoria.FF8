@@ -21,6 +21,8 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
 {
     public EditableModel? EditableOverride { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
+    public string? TextureResourceName { get; init; }
+    public bool MainCharacterTextures { get; init; }
 
     public NativeModelPartsDefinition? NativeParts { get; init; }
     public NativeFieldEyeDefinition? NativeEyes { get; init; }

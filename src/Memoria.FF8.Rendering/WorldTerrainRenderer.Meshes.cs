@@ -85,7 +85,7 @@ public sealed partial class WorldTerrainRenderer
                 continue;
             }
             // Resolve current resource handles each frame; geometry survives texture replacement.
-            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource), false);
+            TriangleMaterial material = TerrainMaterial(assets.GetTexture(run.TextureSource, terrainReplacementMask), false);
             hardware.DrawTerrain(geometry.Mesh, camera, material, run.Start, run.Count);
             DrawnTriangles += run.Count / 3;
         }

@@ -26,8 +26,9 @@ internal sealed partial class WorldMapScene
         ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
         IReadOnlyDictionary<int, int> selectedReplacements = WorldTerrainSelection.Replacements(mask);
         WorldGroundSelection ground = assets.LookupNativeGround(path.EntityPosition.X, -path.EntityPosition.Z, selectedReplacements, []) ?? throw new NotSupportedException("Scripted loader has no original initial ground polygon.");
-        var scripted = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null) { GroundCache = CreateFreshGroundCache(ground.Identity) };
-        return scripted.ToWorldState() with { ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte) };
+        NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Scripted particle allocation requires its executed native process counter.");
+        var scripted = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null) { GroundCache = CreateFreshGroundCache(ground.Identity), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
+        return scripted.ToWorldState() with { ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte), EventUi = NativeWorldEventUi.Create().WithScriptMode(path.Mode) };
     }
 
     private void ValidateScriptedState(WorldState state)
@@ -96,7 +97,7 @@ internal sealed partial class WorldMapScene
         }
         WorldCamera camera = WorldCamera.ScriptedPath(path.Camera, 2048);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, AvatarVisible: false, StaticModels: models);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, sky, AvatarVisible: false, StaticModels: models, Forest: state.NativeScriptedRuntime.Forest);
     }
 
     private WorldState StepScripted(WorldState before, uint buttons, out WorldFieldSelection? fieldEntry, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
@@ -105,6 +106,18 @@ internal sealed partial class WorldMapScene
         NativeScriptedWorldRuntimeState scripted = before.NativeScriptedRuntime!;
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
         NativeWorldScriptedPathState path = scripted.Path.Step(definition, projectNode);
+        NativeWorldForestState? forest = scripted.Forest;
+        if (path.EntityType is 65 or 66 && !scripted.Path.EndpointRequested)
+        {
+            if (forest is null)
+            {
+                throw new NotSupportedException("Scripted steam requires its executed loader particle pool; migrate this save explicitly.");
+            }
+            NativeWorldPathNodePresentation carriage = path.Presentation[1];
+            NativeWorldPathNodeProjection projection = carriage.Projection ?? throw new NotSupportedException("Scripted steam requires its actual carriage position.");
+            NativeWorldPathAngles angles = carriage.Angles ?? throw new NotSupportedException("Scripted steam requires its retained native carriage angles.");
+            forest = forest.AdvanceScriptedSteam(path.EntityType, projection.Source, angles, assets.ForestTables.Random, assets.ForestTables.AllEffects);
+        }
         NativeWorldGroundCacheState cache = scripted.GroundCache ?? throw new NotSupportedException("Scripted ground callback requires its executed loader cache; migrate this save explicitly.");
         if (!scripted.Path.EndpointRequested)
         {
@@ -114,7 +127,7 @@ internal sealed partial class WorldMapScene
             WorldNativeGroundResult ground = assets.ResolveNativeGround(path.EntityPosition.X, -path.EntityPosition.Z, 0, 0, -unchecked((short)path.EntityPosition.Y), group, cache, replacements, path.EntityType);
             cache = ground.Cache;
         }
-        NativeScriptedWorldRuntimeState next = scripted with { Path = path, GroundCache = cache };
+        NativeScriptedWorldRuntimeState next = scripted with { Path = path, GroundCache = cache, Forest = forest };
         if (path.EndpointRequested && scripted.Return is null)
         {
             WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);

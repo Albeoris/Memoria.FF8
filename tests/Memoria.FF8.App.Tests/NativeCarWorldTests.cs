@@ -8,6 +8,42 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeCarWorldTests
 {
     [Fact]
+    public void FullMapAdvancesTheCarMotorButRetainsGroundPositionAndSaveNormalization()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = GameSession.CreateColdProcess();
+        InitializeNativeOwners(session, directory);
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), FieldLoadContext = null, WorldEntryMemory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128) });
+        // Declared component input: the original first-car tutorial flag has already been set.
+        session.Restore(session.State with { SavedWorld = session.State.SavedWorld! with { WorldEventFlags116 = session.State.SavedWorld.WorldEventFlags116!.WithOperand(0x100) } });
+        using WorldMapScene scene = new(session, directory);
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0, Frames: 24)).Accepted);
+        foreach (byte mode in new byte[] { 1, 2 })
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0)).Accepted);
+            Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x100)).Accepted);
+            Assert.Equal(mode, WorldMapScene.MapDisplayMode(scene.State));
+            Assert.Equal(mode, NativeSavedWorldCarReturn.Create(scene.State, 262, 40, 0).MapDisplayMode110);
+        }
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0)).Accepted);
+        WorldState before = scene.State;
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x180)).Accepted);
+        Assert.Equal((before.X, before.Z, before.NativeHeight), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
+        Assert.Equal(2, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(before.NativeCarRuntime!.MovementMagnitude20409F4, scene.State.NativeCarRuntime.MovementMagnitude20409F4);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.NativeCarRuntime.GroundCache), JsonSerializer.SerializeToElement(scene.State.NativeCarRuntime.GroundCache)));
+        Assert.Equal((byte)0, NativeSavedWorldCarReturn.Create(scene.State, 262, 40, 0).MapDisplayMode110);
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, directory);
+        PlayerAction held = new(PlayerActionKind.WorldButtons, 0x180);
+        Assert.True(scene.Apply(held).Accepted);
+        Assert.True(replay.Apply(held).Accepted);
+        Assert.Equal(0, scene.State.NativeCarRuntime.Speed);
+        Assert.Equal((before.X, before.Z), (scene.State.X, scene.State.Z));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
+    [Fact]
     public void Native_alternate_ground_selection_retains_the_original_candidate_yaw_and_cache()
     {
         string directory = TestResources.GameDirectory;

@@ -100,9 +100,12 @@ public sealed partial class WorldTerrainRenderer
     private float far;
     private Rgba32 fog;
     private bool nativeTerrain;
+    private uint? nativeMainLoopCounter;
+    private byte? worldDiscNumber;
+    private ushort terrainReplacementMask;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv, Vector4? Color = null);
     private readonly record struct ScreenVertex(float X, float Y, float ReciprocalZ, Vector2 UvOverZ, Vector4? ColorOverZ = null);
-    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent);
+    private readonly record struct RasterTriangle(ScreenVertex A, ScreenVertex B, ScreenVertex C, PixelImage Texture, bool Transparent, TriangleBlend? Blend = null);
     private readonly List<RasterTriangle> rasterTriangles = [];
 
     public WorldTerrainRenderer(WorldAssets assets, int width, int height)
@@ -126,16 +129,18 @@ public sealed partial class WorldTerrainRenderer
 
     public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels = null)
     {
+        terrainReplacementMask = 0;
         return RenderCore(position, heading, animationId, animationFrame, camera, replacements, skyOverride, avatarVisible, avatarModel, staticModels, forest, animatedModels, null, null);
     }
 
     public byte[] Render(WorldRenderFrame frame, IReadOnlyDictionary<int, int>? replacements = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        return RenderCore(frame.Position, frame.Heading, frame.AnimationId, frame.AnimationFrame, frame.Camera, replacements, frame.Sky, frame.AvatarVisible, frame.AvatarModel, frame.StaticModels, frame.Forest, frame.AnimatedModels, frame.AvatarAnimationBlend, frame.ForestParticles);
+        terrainReplacementMask = frame.TerrainReplacementMask;
+        return RenderCore(frame.Position, frame.Heading, frame.AnimationId, frame.AnimationFrame, frame.Camera, replacements, frame.Sky, frame.AvatarVisible, frame.AvatarModel, frame.StaticModels, frame.Forest, frame.AnimatedModels, frame.AvatarAnimationBlend, frame.ForestParticles, frame);
     }
 
-    private byte[] RenderCore(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements, WorldSky? skyOverride, bool avatarVisible, FieldModel? avatarModel, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels, NativeWorldForestState? forest, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels, WorldAnimationBlend? avatarAnimationBlend, IReadOnlyList<WorldForestParticleFrame>? forestParticles)
+    private byte[] RenderCore(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements, WorldSky? skyOverride, bool avatarVisible, FieldModel? avatarModel, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels, NativeWorldForestState? forest, IReadOnlyList<NativeWorldAnimatedModelDraw>? animatedModels, WorldAnimationBlend? avatarAnimationBlend, IReadOnlyList<WorldForestParticleFrame>? forestParticles, WorldRenderFrame? presentation = null)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -149,10 +154,13 @@ public sealed partial class WorldTerrainRenderer
         {
             TriangleRenderer.Begin(Width, Height, new Vector4(0, 0, 0, 1), 0);
         }
+        nativeMainLoopCounter = presentation?.NativeMainLoopCounter;
+        worldDiscNumber = presentation?.WorldDiscNumber;
         rasterTriangles.Clear();
         DrawnTriangles = 0;
         WorldSky sky = skyOverride ?? assets.Skies[camera.SkyIndex];
         DrawSky(sky, camera.NativeProjection ? WorldSkyProjection.Native(camera, position, sky) : null);
+        DrawWorldClouds(camera, position, sky, presentation?.MapProcessMode ?? 0);
         fog = sky.Center;
         far = camera.FarDistance;
         nativeTerrain = camera.NativeProjection;
@@ -203,6 +211,7 @@ public sealed partial class WorldTerrainRenderer
                 }
             }
         }
+        DrawWorldShadows(presentation?.Shadows);
         if (avatarVisible)
         {
             DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame, avatarAnimationBlend);
@@ -231,6 +240,7 @@ public sealed partial class WorldTerrainRenderer
         }
         if (TriangleRenderer is not null)
         {
+            DrawWorldMapOverlay(presentation);
             TriangleRenderer.End();
             return [];
         }
@@ -241,21 +251,28 @@ public sealed partial class WorldTerrainRenderer
             int bottom = (worker + 1) * Height / workers - 1;
             foreach (RasterTriangle triangle in rasterTriangles)
             {
-                Raster(triangle.A, triangle.B, triangle.C, triangle.Texture, triangle.Transparent, top, bottom);
+                Raster(triangle.A, triangle.B, triangle.C, triangle.Texture, triangle.Transparent, top, bottom, triangle.Blend);
             }
         });
-        DrawnTriangles = rasterTriangles.Count;
+        DrawnTriangles += rasterTriangles.Count;
+        DrawWorldMapOverlay(presentation);
         return pixels;
     }
 
     private void DrawForest(NativeWorldForestState forest, Vector3 position, IReadOnlyList<WorldForestParticleFrame>? presentation)
     {
         forest.Validate();
+        if (!Matrix4x4.Invert(view, out Matrix4x4 inverseView))
+        {
+            throw new InvalidDataException("World particle camera has no inverse projection orientation.");
+        }
+        Vector3 cameraRight = Vector3.TransformNormal(Vector3.UnitX, inverseView);
+        Vector3 cameraUp = Vector3.TransformNormal(Vector3.UnitY, inverseView);
         IEnumerable<WorldForestParticleFrame> particles = presentation ?? forest.Particles.Where(particle => particle.Visible).Select(particle => new WorldForestParticleFrame(particle, new Vector3(particle.X, particle.NativeY, -particle.GraphicsZ), Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f) * Matrix4x4.CreateRotationX(particle.RotationX * 0.0015339808305725455f), particle.Scale, false)).ToArray();
         foreach (WorldForestParticleFrame visual in particles)
         {
             NativeWorldForestParticle particle = visual.Particle;
-            NativeWorldForestEffect effect = assets.ForestTables.Effects[particle.Type - 4];
+            NativeWorldForestEffect effect = assets.ForestTables.GetEffect(particle.Type);
             int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
             PixelImage texture = assets.GetForestTexture(particle.Type, frame);
             float halfSize = particle.Scale * effect.HalfSize >> 13;
@@ -271,6 +288,24 @@ public sealed partial class WorldTerrainRenderer
             Vector3 anchor = new(nearX, visual.Position.Y, -nearZ);
             Vector3 Point(float x, float z)
             {
+                if (effect.DrawMode == 2)
+                {
+                    return (new Vector3(anchor.X, -anchor.Y, -anchor.Z) + cameraRight * x + cameraUp * z) / 16;
+                }
+                if (effect.DrawMode == 3)
+                {
+                    Vector3 plane = Vector3.Transform(new Vector3(x, 0, 2 * z), rotation) + anchor;
+                    return new Vector3(plane.X, -plane.Y, -plane.Z) / 16;
+                }
+                if (effect.DrawMode == 4)
+                {
+                    Vector3 vertical = Vector3.Transform(new Vector3(x, -z, 0), rotation) + anchor;
+                    return new Vector3(vertical.X, -vertical.Y, -vertical.Z) / 16;
+                }
+                if (effect.DrawMode != 0)
+                {
+                    throw new NotSupportedException("This native particle plane mode has no represented current producer.");
+                }
                 Vector3 native = Vector3.Transform(new Vector3(x, 0, z), rotation) + anchor;
                 return new Vector3(native.X, -native.Y, -native.Z) / 16;
             }
@@ -280,8 +315,16 @@ public sealed partial class WorldTerrainRenderer
             Vertex d = new(Point(halfSize, -halfSize), Vector2.One);
             //TODO(TD-008): The shared CPU rasterizer
             //does not reproduce the original GPU ordering-table depth bias or fixed GTE rounding.
-            Draw(a, b, c, texture, true);
-            Draw(c, b, d, texture, true);
+            TriangleBlend blend = effect.BlendMode switch
+            {
+                0 => TriangleBlend.HalfAdd,
+                1 => TriangleBlend.Add,
+                2 => TriangleBlend.Subtract,
+                3 => TriangleBlend.QuarterAdd,
+                _ => throw new InvalidDataException("Native world particle has an invalid blend mode.")
+            };
+            Draw(a, b, c, texture, true, blend);
+            Draw(c, b, d, texture, true, blend);
         }
     }
 
@@ -331,7 +374,7 @@ public sealed partial class WorldTerrainRenderer
             }
             return point;
         }
-        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle), transparent);
+        Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask), transparent);
     }
 
     private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend)
@@ -359,23 +402,32 @@ public sealed partial class WorldTerrainRenderer
         Matrix4x4 rotation = pose.Rotation ?? WorldStaticModelTransform.CreateRotation(model.ShapeId, pose.Angles);
         Vector3 position = pose.Anchor;
         Vector3[] vertices = model.NativeVertices.Select(vertex => Vector3.Transform(vertex, rotation)).Select(vertex => new Vector3(vertex.X, -vertex.Y, -vertex.Z) / 16 + position / 16).ToArray();
+        IReadOnlyList<PixelImage> textures = assets.ReadAnimatedStaticTextures(model, worldDiscNumber, nativeMainLoopCounter);
         foreach (WorldStaticFace face in model.Faces)
         {
-            PixelImage texture = model.Textures[face.Palette];
-            Vector2 size = ResourceTextureList.LogicalSize(model.Textures, face.Palette);
+            PixelImage texture = textures[face.Palette];
+            Vector2 size = ResourceTextureList.LogicalSize(textures, face.Palette);
             Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size, face.VertexColors?[0]);
             Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size, face.VertexColors?[1]);
             Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size, face.VertexColors?[2]);
-            Draw(a, b, c, texture, face.Transparent);
+            TriangleBlend? blend = face.Transparent ? ((model.TexturePage >> 5) & 3) switch
+            {
+                0 => TriangleBlend.HalfAdd,
+                1 => TriangleBlend.Add,
+                2 => TriangleBlend.Subtract,
+                3 => TriangleBlend.QuarterAdd,
+                _ => throw new InvalidOperationException("Native texture-page blend leaves its two-bit field.")
+            } : null;
+            Draw(a, b, c, texture, face.Transparent, blend);
             if (face.Vertices.Length == 4)
             {
                 Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size, face.VertexColors?[3]);
-                Draw(c, b, d, texture, face.Transparent);
+                Draw(c, b, d, texture, face.Transparent, blend);
             }
         }
     }
 
-    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent)
+    private void Draw(Vertex a, Vertex b, Vertex c, PixelImage texture, bool transparent, TriangleBlend? blend = null)
     {
         ReadOnlySpan<Vertex> input = [Transform(a), Transform(b), Transform(c)];
         Span<Vertex> clipped = stackalloc Vertex[4];
@@ -408,12 +460,12 @@ public sealed partial class WorldTerrainRenderer
             }
             if (TriangleRenderer is not null)
             {
-                DrawGpuTriangle(first, second, third, texture, transparent);
+                DrawGpuTriangle(first, second, third, texture, transparent, blend);
                 DrawnTriangles++;
             }
             else
             {
-                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent));
+                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent, blend));
             }
         }
     }
@@ -430,7 +482,7 @@ public sealed partial class WorldTerrainRenderer
         return new ScreenVertex(Width / 2f + vertex.Position.X * reciprocal * focal, Height / 2f - vertex.Position.Y * reciprocal * focal, reciprocal, vertex.Uv * reciprocal, vertex.Color * reciprocal);
     }
 
-    private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom)
+    private void Raster(ScreenVertex a, ScreenVertex b, ScreenVertex c, PixelImage texture, bool transparent, int stripeTop, int stripeBottom, TriangleBlend? blend = null)
     {
         float area = Edge(a.X, a.Y, b.X, b.Y, c.X, c.Y);
         if (MathF.Abs(area) < 0.001f)
@@ -447,6 +499,15 @@ public sealed partial class WorldTerrainRenderer
         float reciprocalStep = waStep * a.ReciprocalZ + wbStep * b.ReciprocalZ + wcStep * c.ReciprocalZ;
         float uStep = waStep * a.UvOverZ.X + wbStep * b.UvOverZ.X + wcStep * c.UvOverZ.X;
         float vStep = waStep * a.UvOverZ.Y + wbStep * b.UvOverZ.Y + wcStep * c.UvOverZ.Y;
+        bool IncludesEdge(ScreenVertex start, ScreenVertex end)
+        {
+            float dx = (end.X - start.X) * (area < 0 ? 1 : -1);
+            float dy = (end.Y - start.Y) * (area < 0 ? 1 : -1);
+            return dy < 0 || dy == 0 && dx > 0;
+        }
+        bool includeA = IncludesEdge(b, c);
+        bool includeB = IncludesEdge(c, a);
+        bool includeC = IncludesEdge(a, b);
         for (int y = top; y <= bottom; y++)
         {
             float wa = Edge(b.X, b.Y, c.X, c.Y, left + 0.5f, y + 0.5f) / area;
@@ -457,12 +518,12 @@ public sealed partial class WorldTerrainRenderer
             float vNumerator = wa * a.UvOverZ.Y + wb * b.UvOverZ.Y + wc * c.UvOverZ.Y;
             for (int x = left; x <= right; x++, wa += waStep, wb += wbStep, wc += wcStep, reciprocal += reciprocalStep, uNumerator += uStep, vNumerator += vStep)
             {
-                if (wa < 0 || wb < 0 || wc < 0)
+                if (wa < 0 || wb < 0 || wc < 0 || blend is not null && (wa == 0 && !includeA || wb == 0 && !includeB || wc == 0 && !includeC))
                 {
                     continue;
                 }
                 int index = y * Width + x;
-                if (reciprocal <= depth[index] || reciprocal < 1 / far)
+                if ((blend == TriangleBlend.Subtract ? reciprocal < depth[index] : reciprocal <= depth[index]) || reciprocal < 1 / far)
                 {
                     continue;
                 }
@@ -479,10 +540,28 @@ public sealed partial class WorldTerrainRenderer
                 {
                     continue;
                 }
-                float haze = Math.Clamp((distance - far * 0.6f) / (far * 0.4f), 0, 1);
+                float haze = blend is not null ? 0 : Math.Clamp((distance - far * 0.6f) / (far * 0.4f), 0, 1);
                 float alpha = transparent ? color.A / 255f * 0.5f : 1;
                 int pixel = index * 4;
-                if (!transparent && haze == 0)
+                if (blend is { } nativeBlend)
+                {
+                    byte NativeChannel(byte background, byte foreground)
+                    {
+                        float value = nativeBlend switch
+                        {
+                            TriangleBlend.HalfAdd => (background + foreground) / 2f,
+                            TriangleBlend.Add => background + foreground,
+                            TriangleBlend.Subtract => background - foreground,
+                            TriangleBlend.QuarterAdd => background + foreground / 4f,
+                            _ => throw new NotSupportedException($"Unsupported native world primitive blend {nativeBlend}.")
+                        };
+                        return (byte)Math.Clamp(MathF.Round(value), 0, 255);
+                    }
+                    pixels[pixel] = NativeChannel(pixels[pixel], color.R);
+                    pixels[pixel + 1] = NativeChannel(pixels[pixel + 1], color.G);
+                    pixels[pixel + 2] = NativeChannel(pixels[pixel + 2], color.B);
+                }
+                else if (!transparent && haze == 0)
                 {
                     pixels[pixel] = color.R;
                     pixels[pixel + 1] = color.G;

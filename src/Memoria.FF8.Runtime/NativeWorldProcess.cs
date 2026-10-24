@@ -21,13 +21,19 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldGroundSelectionState? GroundSelection { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PreviousContactC76784 { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? WaterStepEdges2045C7C { get; init; }
+
     [JsonIgnore]
     public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0;
 
     public static NativeWorldProcess FromColdProcess()
     {
         // Both DWORDs are in the preserved executable's zero-filled PE.data virtual tail.
-        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0) { VerticalBias204DADC = NativeWorldVerticalBiasState.Exact(0), ForcedAnimationC76628 = -1, GroundSelection = NativeWorldGroundSelectionState.CreateColdProcess(), InputHistory = NativeWorldInputHistory.FromColdProcess() };
+        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0) { VerticalBias204DADC = NativeWorldVerticalBiasState.Exact(0), ForcedAnimationC76628 = -1, GroundSelection = NativeWorldGroundSelectionState.CreateColdProcess(), InputHistory = NativeWorldInputHistory.FromColdProcess(), PreviousContactC76784 = -1, WaterStepEdges2045C7C = 0 };
     }
 
     public void Validate()
@@ -35,7 +41,7 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
         VerticalBias204DADC?.Validate();
         InputHistory?.Validate();
         GroundSelection?.Validate();
-        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4))
+        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4) || PreviousContactC76784 is < -1 || WaterStepEdges2045C7C is > 3)
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");
         }

@@ -58,6 +58,9 @@ public sealed partial record NativeFootWorldRuntimeState
     /// <summary>Native C75CF8 controls the world map display; native 549E80 normalizes fullscreen mode3 to saved0.</summary>
     [JsonRequired]
     public required byte MapDisplayMode { get; init; }
+    /// <summary>Accepted velocity magnitude DWORD20409F4, retained when full-map mode skips the next ground query.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MovementMagnitude20409F4 { get; init; }
     /// <summary>Native camera-space203ED04 signed offsets, written by557250 or552EB0 and retained by548AF0.</summary>
     [JsonRequired]
     public required short CameraOffsetY { get; init; }
@@ -148,7 +151,7 @@ public sealed partial record NativeFootWorldRuntimeState
             Rule = TrainDismountRule,
             EntityType = train.ControlledObjectEntityType,
             AnimationVariant = 0,
-            MapDisplayMode = train.Load.MapDisplayMode,
+            MapDisplayMode = train.MapDisplayMode,
             CameraOffsetY = 0,
             CameraOffsetZ = train.CameraGeometry.OffsetZ,
             CameraTransition = NativeFootCameraTransition.TrainDismount,
@@ -264,7 +267,7 @@ public sealed partial record NativeFootWorldRuntimeState
         }
         else if (Rule == TrainDismountRule)
         {
-            if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant > 1 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetZ >= 0 || CameraOffsetY is < -341 or > 0)
+            if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant > 1 || CameraOffsetZ >= 0 || CameraOffsetY is < -341 or > 0)
             {
                 throw new InvalidDataException("Native foot dismount lost its retained train allocation or executed station transition.");
             }
@@ -287,7 +290,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (MovementMagnitude20409F4 is < 0 || ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or BattleReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 && CameraTransition is null || ReloadSourceWorldFrame is not null) || Rule is SavedReloadRule or BattleReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }
@@ -305,9 +308,9 @@ public sealed partial record NativeFootWorldRuntimeState
     public void RequireSupportedNormalFoot()
     {
         Validate();
-        if (AnimationVariant > 1 || MapDisplayMode != 0 || AnimationVariant == 1 && CameraTransition is null)
+        if (AnimationVariant > 1 || MapDisplayMode > 3 || AnimationVariant == 1 && CameraTransition is null)
         {
-            throw new NotSupportedException("The native foot renderer/control path requires a known camera variant and map display mode0.");
+            throw new NotSupportedException("The native foot renderer/control path requires a known camera variant and map display mode.");
         }
         if (Rule == TrainDismountRule && CameraTransition is null)
         {

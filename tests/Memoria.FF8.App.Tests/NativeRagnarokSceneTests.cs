@@ -11,6 +11,44 @@ public sealed class NativeRagnarokSceneTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
+    public void FullMapKeepsFlightMotorAndInputHistoryWithoutChangingAllocationOrCommittingMovement()
+    {
+        GameSession session = Fixture();
+        using WorldMapScene scene = new(session, GameDirectory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        NativeRagnarokWorldAllocation allocation = scene.State.NativeRagnarokRuntime!.Allocation;
+        foreach (byte mode in new byte[] { 1, 2 })
+        {
+            Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0)).Accepted);
+            Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x100)).Accepted);
+            Assert.Equal(mode, WorldMapScene.MapDisplayMode(scene.State));
+        }
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0)).Accepted);
+        WorldState before = scene.State;
+        Assert.True(scene.Apply(new(PlayerActionKind.WorldButtons, 0x4180)).Accepted);
+        Assert.Equal((before.X, before.Z, before.NativeHeight), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
+        Assert.Equal((byte)3, scene.State.NativeRagnarokRuntime!.MapDisplayMode);
+        Assert.Same(allocation, scene.State.NativeRagnarokRuntime.Allocation);
+        Assert.Equal((byte)0, allocation.MapDisplayMode);
+        System.Text.Json.Nodes.JsonObject historical = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(session.State))!.AsObject();
+        historical["World"]!["NativeRagnarokRuntime"]!.AsObject().Remove("MapDisplayMode");
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<GameState>(historical.ToJsonString()));
+        Assert.True(scene.State.NativeRagnarokRuntime.Motor.Speed > 0);
+        Assert.NotEqual(scene.State.NativeHeight, scene.State.NativeRagnarokRuntime.Motor.FlightHeight);
+        Assert.Equal((ushort)0x4180, session.State.WorldProcess!.InputHistory!.CurrentButtons);
+        Assert.Equal(before.NativeRagnarokRuntime!.Forest!.SeedCounter, scene.State.NativeRagnarokRuntime.Forest!.SeedCounter);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before.NativeRagnarokRuntime.GroundCache), JsonSerializer.SerializeToElement(scene.State.NativeRagnarokRuntime.GroundCache)));
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene replay = new(restored, GameDirectory);
+        PlayerAction held = new(PlayerActionKind.WorldButtons, 0x4180);
+        Assert.True(scene.Apply(held).Accepted);
+        Assert.True(replay.Apply(held).Accepted);
+        Assert.Equal(0, scene.State.NativeRagnarokRuntime.Motor.Speed);
+        Assert.Equal(scene.State.NativeHeight, scene.State.NativeRagnarokRuntime.Motor.FlightHeight);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restored.State)));
+    }
+
+    [Fact]
     public void OriginalLoaderAndOrdinaryFlightRestoreTheSameNextDigitalCallback()
     {
         GameSession session = Fixture();

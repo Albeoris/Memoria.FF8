@@ -25,7 +25,7 @@ internal sealed partial class WorldMapScene
             NativeRagnarokWorldRuntimeState runtime = NativeRagnarokWorldRuntimeState.CreateAfterLoader(allocation, checked((short)process.CarCameraFollowSpeed), bias);
             NativeRagnarokCameraDefaults defaults = assets.ReadRagnarokCameraDefaults();
             runtime = runtime with { GroundCache = cache, CurrentGroundHeight = unchecked((short)-(int)ground.Ground.Height), PrimaryContact = -1, BroadContact = -1, ProjectionCamera = new(pose.X, pose.RawZ, pose.Height, pose.X, pose.RawZ, pose.Height - 256, allocation.CameraYaw, runtime.Motor.CameraPitch, defaults.OffsetY, defaults.OffsetZ) };
-            runtime = runtime with { GroundYaw = 0, ProjectionCurveThreshold = 6144, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) with { CameraPitch = runtime.Motor.CameraPitch }, Cactuar = allocation.Objects.Any(item => item.ShapeId == 94) ? NativeCactuarWorldState.CreateAfterLoad() : null };
+            runtime = runtime with { GroundYaw = 0, ProjectionCurveThreshold = 6144, Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) with { CameraPitch = runtime.Motor.CameraPitch }, PreviousParticleNativeHeight = pose.Height, Cactuar = allocation.Objects.Any(item => item.ShapeId == 94) ? NativeCactuarWorldState.CreateAfterLoad() : null };
             runtime.RequireSceneState();
             session.SetWorldState(new WorldState
             {
