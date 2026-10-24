@@ -7,6 +7,8 @@ internal sealed class PresentationTiming
     public static readonly TimeSpan SimulationStep = TimeSpan.FromSeconds(1d / 60);
     public static readonly TimeSpan MaximumElapsed = TimeSpan.FromMilliseconds(250);
     private TimeSpan accumulated;
+    private TimeSpan lastUpdateDuration;
+    private TimeSpan previousUpdateDuration;
 
     public TimeSpan SimulationTotal { get; private set; }
 
@@ -51,14 +53,30 @@ internal sealed class PresentationTiming
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(workBudget, TimeSpan.Zero);
         TimeProvider clock = timeProvider ?? TimeProvider.System;
         long started = clock.GetTimestamp();
+        bool updated = false;
         while (true)
         {
+            if (updated)
+            {
+                TimeSpan elapsed = clock.GetElapsedTime(started);
+                TimeSpan reserve = lastUpdateDuration > previousUpdateDuration ? lastUpdateDuration : previousUpdateDuration;
+                // Leave room for a recent expensive callback before admitting more catch-up work.
+                // The first update always runs; deferred steps remain available after Draw and fresh input.
+                if (elapsed >= workBudget || reserve > workBudget - elapsed)
+                {
+                    break;
+                }
+            }
             TimeSpan step = nextStep();
             if (!TryStep(step))
             {
                 break;
             }
+            long updateStarted = clock.GetTimestamp();
             bool keepUpdating = update(step);
+            previousUpdateDuration = lastUpdateDuration;
+            lastUpdateDuration = clock.GetElapsedTime(updateStarted);
+            updated = true;
             if (!keepUpdating || clock.GetElapsedTime(started) >= workBudget)
             {
                 // Retain outstanding simulation time while allowing presentation and fresh input.

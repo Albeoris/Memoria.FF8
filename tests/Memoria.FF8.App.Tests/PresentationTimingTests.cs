@@ -32,6 +32,63 @@ public sealed class PresentationTimingTests
     }
 
     [Fact]
+    public void Alternating_expensive_and_light_callbacks_leave_a_draw_between_updates_without_consuming_deferred_steps()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        TimeSpan budget = PresentationTiming.SimulationStep;
+        timing.Accumulate(PresentationTiming.SimulationStep * 8);
+        int updates = 0;
+        List<string> dispatch = [];
+        for (int display = 1; display <= 8; display++)
+        {
+            timing.RunUpdates(budget, () => PresentationTiming.SimulationStep, step =>
+            {
+                dispatch.Add("update");
+                updates++;
+                Assert.Equal(PresentationTiming.SimulationStep * updates, timing.SimulationTotal);
+                clock.Advance(TimeSpan.FromMilliseconds(updates % 2 == 1 ? 25 : 3));
+                return true;
+            }, clock);
+            dispatch.Add("draw");
+            Assert.Equal(display, updates);
+            Assert.Equal(PresentationTiming.SimulationStep * display, timing.SimulationTotal);
+            clock.Advance(TimeSpan.FromMilliseconds(1));
+        }
+        Assert.Equal(Enumerable.Range(0, 8).SelectMany(_ => new[] { "update", "draw" }), dispatch);
+        Assert.False(timing.TryStep());
+    }
+
+    [Fact]
+    public void Expensive_history_ages_out_after_two_updates_and_remaining_steps_catch_up_within_budget()
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider clock = new();
+        timing.Accumulate(PresentationTiming.SimulationStep * 12);
+        List<int> updatesPerDisplay = [];
+        int updates = 0;
+        for (int display = 0; display < 4; display++)
+        {
+            int before = updates;
+            TimeSpan started = clock.GetElapsedTime(0);
+            timing.RunUpdates(PresentationTiming.SimulationStep, () => PresentationTiming.SimulationStep, step =>
+            {
+                updates++;
+                clock.Advance(TimeSpan.FromMilliseconds(updates == 1 ? 25 : 3));
+                return true;
+            }, clock);
+            updatesPerDisplay.Add(updates - before);
+            if (display >= 2)
+            {
+                Assert.True(clock.GetElapsedTime(0) - started <= PresentationTiming.SimulationStep);
+            }
+        }
+        Assert.Equal(new[] { 1, 1, 5, 5 }, updatesPerDisplay);
+        Assert.Equal(PresentationTiming.SimulationStep * 12, timing.SimulationTotal);
+        Assert.False(timing.TryStep());
+    }
+
+    [Fact]
     public void Capture_fences_and_callback_rate_changes_preserve_unconsumed_time()
     {
         PresentationTiming timing = new();
