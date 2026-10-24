@@ -49,7 +49,7 @@ public static class NativeBattleRenzokukenResourceReader
                 }
                 frames.Add(Bytes(resource + animations + offset, 1)[0]);
             }
-            NativeBattleGraphicsResource graphics = new(Bytes(resource + sequences, checked((int)(weaponAnimations - sequences))).ToArray().ToImmutableArray()) { AnimationFrames = frames.ToImmutable() };
+            NativeBattleGraphicsResource graphics = new(Bytes(resource + sequences, checked((int)(weaponAnimations - sequences))).ToArray().ToImmutableArray()) { AnimationFrames = frames.ToImmutable(), SequenceSectionAddress = resource + sequences };
             graphics.Validate();
             BattleSequenceSet programs = new(graphics.SequenceSection.ToArray());
             ImmutableArray<byte> program = programs.ReadRawProgram(1);
@@ -130,7 +130,7 @@ public static class NativeBattleRenzokukenResourceReader
                     }
                     frames.Add(Bytes(target + animations + frameOffset, 1)[0]);
                 }
-                NativeBattleGraphicsResource graphics = new(Bytes(target + sequences, checked((int)(length - sequences))).ToArray().ToImmutableArray()) { AnimationFrames = frames.ToImmutable() };
+                NativeBattleGraphicsResource graphics = new(Bytes(target + sequences, checked((int)(length - sequences))).ToArray().ToImmutableArray()) { AnimationFrames = frames.ToImmutable(), SequenceSectionAddress = target + sequences };
                 graphics.Validate();
                 targets.Add(new(target, raw, frames.MoveToImmutable(), graphics));
             }

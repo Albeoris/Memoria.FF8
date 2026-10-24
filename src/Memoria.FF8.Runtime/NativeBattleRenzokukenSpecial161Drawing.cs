@@ -36,7 +36,12 @@ public static partial class NativeBattleRenzokukenSpecialController
         for (int bank = 0; bank < banks.Length; bank++)
         {
             byte[] bytes = banks[bank];
-            int stride = bank switch { 0 => 12, 4 => 16, _ => 20 };
+            int stride = bank switch
+            {
+                0 => 12,
+                4 => 16,
+                _ => 20
+            };
             for (int offset = 0; offset < bytes.Length; offset += stride)
             {
                 short counter = Get161(bytes, offset);
@@ -61,7 +66,12 @@ public static partial class NativeBattleRenzokukenSpecialController
                 }
                 if (bank is 1 or 2 or 3)
                 {
-                    Put161(bytes, offset + 2, bank switch { 1 => scale - (scale >> 5), 2 => scale + (Get161(banks[1], offset + 2) >> 5), _ => scale + (scale >> 7) });
+                    Put161(bytes, offset + 2, bank switch
+                    {
+                        1 => scale - (scale >> 5),
+                        2 => scale + (Get161(banks[1], offset + 2) >> 5),
+                        _ => scale + (scale >> 7)
+                    });
                     Put161(bytes, offset + 4, Get161(bytes, offset + 4) + Get161(bytes, offset + 12));
                     if (bank != 3)
                     {

@@ -15,7 +15,10 @@ public sealed class NativeRenzokukenCameraContinuationTests
         Assert.SkipUnless(input is not null && File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && directory is not null && Directory.Exists(directory), "Select a standalone Renzokuken save, installed resources and a distinct evidence directory.");
         GameState source = GameSession.Load(input!);
         using GameAssets game = new(directory!);
-        BattleSession battle = BattleSession.Restore(Assert.IsType<BattleSnapshot>(source.Battle));
+        GameSession hostSession = new(source);
+        using GameWorld? world = source.Scene == SceneKind.Field ? new(hostSession, directory!) : null;
+        world?.EnsureField();
+        BattleSession battle = world is null ? BattleSession.Restore(Assert.IsType<BattleSnapshot>(source.Battle)) : Assert.IsType<BattleSession>(world.Battle);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         Assert.Equal(JsonSerializer.Serialize(source.Battle!.Definition), JsonSerializer.Serialize(battle.Capture().Definition));
         using BattleAssets assets = new(directory!);
@@ -92,9 +95,18 @@ public sealed class NativeRenzokukenCameraContinuationTests
         {
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, scene.Render(battle, 320, 224).ToArray());
-            GameSession session = new(source);
-            session.SetLiveBattle(battle);
-            session.Save(Path.Combine(output, name + ".json"), compact: true);
+            if (world is not null)
+            {
+                world.CaptureBattleState();
+                hostSession.SetEventState(world.Events.Capture());
+                hostSession.Save(Path.Combine(output, name + ".json"), compact: true);
+            }
+            else
+            {
+                GameSession session = new(source);
+                session.SetLiveBattle(battle);
+                session.Save(Path.Combine(output, name + ".json"), compact: true);
+            }
         }
 
         void Log(string phase)

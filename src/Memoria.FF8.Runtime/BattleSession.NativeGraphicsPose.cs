@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                 ? ResolveNativeEnemyResource(graphics.Models[index].ActiveResourceRow100 ?? throw new NotSupportedException("Native target animation requires its loaded enemy resource row."), binding.Resource)
                 : binding.Resource;
             NativeBattleGraphicsResource target = resource.TargetResources[targetBank].BindGraphicsResource(original.PoseSource ?? throw new NotSupportedException("Native target animation requires its original skeleton owner."));
-            return (original with { SequenceSection = target.SequenceSection, AnimationFrames = target.AnimationFrames, PoseSource = target.PoseSource }).ApplyAnimationBankOverrides($"renzokuken-{effect}-target-{targetBank}");
+            return (original with { SequenceSection = target.SequenceSection, SequenceSectionAddress = target.SequenceSectionAddress, AnimationFrames = target.AnimationFrames, PoseSource = target.PoseSource }).ApplyAnimationBankOverrides($"renzokuken-{effect}-target-{targetBank}");
         }
         if (graphics.Models[index].ModelId4 >= 16)
         {

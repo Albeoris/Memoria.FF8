@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleRenzokuken160Controller
 {
-    public static NativeBattleModuleCallback AdvanceShared5FF4E0(NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs, uint streakCallback = 0x5FF770)
+    public static NativeBattleModuleCallback AdvanceShared5FF4E0(NativeBattleModuleState modules, int slot, NativeBattleModuleInputs inputs, uint streakCallback = 0x5FF770, bool skipUnavailable = false)
     {
         if ((inputs.GraphicsFlags & 0x201) != 0)
         {
@@ -22,6 +22,10 @@ public static partial class NativeBattleRenzokuken160Controller
             NativeBattleVector anchor = new(original.X, original.W, original.Z);
             for (int emitted = 0; emitted < 6; emitted++)
             {
+                if (skipUnavailable && modules.Slots.All(candidate => (candidate.Flags & 1) != 0))
+                {
+                    continue;
+                }
                 (modules, int child) = modules.AppendCallback(streakCallback);
                 byte[] bytes = modules.Slots[child].Payload.ToArray();
                 Write(bytes, 0, 0);

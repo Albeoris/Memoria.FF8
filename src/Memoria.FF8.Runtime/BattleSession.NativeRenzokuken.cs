@@ -19,16 +19,16 @@ public sealed partial class BattleSession
         return nativeRenzokukenProcesses.GetValueOrDefault(actorId);
     }
 
-    public bool CanTriggerNativeRenzokuken => NativeGraphics is not null ? nativeRenzokukenProcesses.Count != 0 && CanTriggerNativeWidget : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 1) == 0 && nativeRenzokukenProcesses.Single().Value.Input.Phase != 8;
-    public bool NativeRenzokukenBarVisible => NativeGraphics is { } graphics ? nativeRenzokukenProcesses.Count != 0 && graphics.TriggerWidget?.Visible == true : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 0x8001) == 0 && RenzokukenResource(nativeRenzokukenProcesses.Single().Value.MagicId).ShowBar != 0;
+    public bool CanTriggerNativeRenzokuken => NativeGraphics is { } graphics ? OwnsNativeRenzokukenWidget(graphics) && CanTriggerNativeWidget : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 1) == 0 && nativeRenzokukenProcesses.Single().Value.Input.Phase != 8;
+    public bool NativeRenzokukenBarVisible => NativeGraphics is { } graphics ? OwnsNativeRenzokukenWidget(graphics) && graphics.TriggerWidget?.Visible == true : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 0x8001) == 0 && RenzokukenResource(nativeRenzokukenProcesses.Single().Value.MagicId).ShowBar != 0;
 
     public bool NativeRenzokukenTriggerWindowOpen
     {
         get
         {
-            if (NativeGraphics is not null)
+            if (NativeGraphics is { } graphics)
             {
-                return nativeRenzokukenProcesses.Count != 0 && NativeTriggerWindowOpen;
+                return OwnsNativeRenzokukenWidget(graphics) && NativeTriggerWindowOpen;
             }
             if (!CanTriggerNativeRenzokuken)
             {
@@ -123,7 +123,7 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is { } graphics)
         {
-            if (nativeRenzokukenProcesses.Count == 0 || !CanTriggerNativeWidget)
+            if (!OwnsNativeRenzokukenWidget(graphics) || !CanTriggerNativeWidget)
             {
                 return false;
             }
@@ -238,10 +238,15 @@ public sealed partial class BattleSession
         }
     }
 
+    private bool OwnsNativeRenzokukenWidget(NativeBattleGraphicsState graphics)
+    {
+        return graphics.TriggerWidget is { SourceMagicId: ushort magic } widget && nativeRenzokukenProcesses.TryGetValue(FindNativeActor(widget.ActorIndex).Id, out BattleNativeRenzokukenState? process) && process.MagicId == magic;
+    }
+
     private void MirrorNativeRenzokukenWidget(NativeBattleTriggerWidget widget)
     {
         string actorId = FindNativeActor(widget.ActorIndex).Id;
-        if (!nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? process))
+        if (widget.SourceMagicId is null || !nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? process))
         {
             return;
         }

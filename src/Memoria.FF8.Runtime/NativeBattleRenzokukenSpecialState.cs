@@ -28,10 +28,16 @@ public sealed record NativeBattleRenzokukenSpecialState([property: JsonRequired]
     public NativeBattleRenzokukenContactPadding ContactPadding { get; init; } = new(0, 0, 0);
     [JsonRequired]
     public ImmutableArray<NativeBattleVector> ContactOffsets { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleActionMatrix? CapturedMatrix { get; init; }
     [JsonRequired]
     public ImmutableArray<byte> TargetParticles { get; init; } = [];
     [JsonRequired]
     public ImmutableArray<byte> BurstParticles { get; init; } = [];
+    [JsonRequired]
+    public ulong ExtraStorageUnknownPaddingLow { get; init; }
+    [JsonRequired]
+    public ulong ExtraStorageUnknownPaddingHigh { get; init; }
     [JsonRequired]
     public ImmutableArray<byte> ExtraStorage { get; init; } = [];
     [JsonRequired]
@@ -39,10 +45,37 @@ public sealed record NativeBattleRenzokukenSpecialState([property: JsonRequired]
 
     public void Validate(ushort effect)
     {
+        if ((ExtraStorageUnknownPaddingHigh >> 36) != 0 || ContactPadding is null || Core is null || Resources is null || Resources.ActorResource is null || Resources.Animation is null || Resources.Animation.Data.IsDefaultOrEmpty || Resources.ParticleSprites.IsDefault || Resources.ParticleSprites.Length != 3 || Resources.SpiralColors.IsDefault || Resources.SpiralColors.Length != 24 || Resources.ContactLeadFrames.IsDefaultOrEmpty || Resources.Meshes.IsDefault || Resources.Meshes.Length < 3 || Resources.ImpactAxis.IsDefault || Resources.ImpactAxis.Length != 3 || Resources.StreakAgeOffsets.IsDefault || Resources.StreakAgeOffsets.Length != 8 || Resources.StreakPaletteOffsets.IsDefault || Resources.StreakPaletteOffsets.Length != 8 || ExtraSprites.IsDefault)
+        {
+            throw new InvalidDataException("Native special Renzokuken lost its actual immutable entry resources.");
+        }
         Core.Validate();
-        if (Resources.ActorResource.MagicId != effect || Resources.ActorResource.TargetResources.IsDefaultOrEmpty || TargetParticles.IsDefault || BurstParticles.IsDefault || ExtraStorage.IsDefault || (effect == 161 && (TargetParticles.Length != 800 || BurstParticles.Length != 600)))
+        if (Resources.ActorResource.MagicId != effect || Resources.ActorResource.TargetResources.IsDefault || Resources.ActorResource.TargetResources.Length != (effect == 339 ? 2 : 1) || TargetParticles.IsDefault || BurstParticles.IsDefault || ExtraStorage.IsDefault || (effect == 161 && (TargetParticles.Length != 800 || BurstParticles.Length != 600 || ExtraSprites.Length != 2)) || (effect != 161 && ExtraStorage.Length != 3200) || ContactPadding.Impacts >= 4096 || (ContactPadding.Sparks >> 40) != 0 || (ContactPadding.Debris >> 40) != 0)
         {
             throw new InvalidDataException("Native special Renzokuken lost its retained actor, target or physical local banks.");
+        }
+        if (effect != 161)
+        {
+            int meshes = effect switch
+            {
+                334 or 336 or 337 => 6,
+                335 or 341 or 342 or 343 => 4,
+                339 => 5,
+                340 => 7,
+                _ => throw new InvalidDataException("Native special Renzokuken has an unsupported resource owner.")
+            };
+            int sprites = effect switch
+            {
+                334 or 335 or 336 or 337 => 2,
+                341 => 0,
+                _ => 1
+            };
+            int alignment = effect is 334 or 335 or 337 or 339 or 340 or 341 ? 3 : 0;
+            ImmutableArray<NativeBattleVector> offsets = Resources.ContactOffsets ?? ContactOffsets;
+            if (Resources.Meshes.Length != meshes || Resources.SpecialSprites.IsDefault || Resources.SpecialSprites.Length != sprites || Resources.SpecialAlignmentAxis.IsDefault || Resources.SpecialAlignmentAxis.Length != alignment || offsets.IsDefault || offsets.Length != Resources.ContactLeadFrames.Length)
+            {
+                throw new InvalidDataException("Native special Renzokuken lost its family-specific meshes, sprites, alignment or contact offsets.");
+            }
         }
     }
 }

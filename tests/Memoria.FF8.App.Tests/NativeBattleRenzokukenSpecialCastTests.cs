@@ -26,6 +26,17 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
     [InlineData((ushort)343, 122)]
     public void Installed_special_target_Renzokuken_completes_target_animation_camera_and_standalones(ushort effectId, int model)
     {
+        RunSpecial(effectId, model, false);
+    }
+
+    [Fact]
+    public void Installed_physical_then_spider_Renzokuken_preserves_approach_and_return()
+    {
+        RunSpecial(159, 92, true);
+    }
+
+    private static void RunSpecial(ushort effectId, int model, bool physicalFirst)
+    {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
@@ -34,6 +45,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         const byte crisis = 4;
         int contacts = definition.NativeRenzokukenResources.Single(resource => resource.MagicId == effectId).Timeline.InputThresholds.Length;
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        Bind(battle);
         BattleScenePresentation scene = new(assets, definition, true);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-special-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
@@ -47,15 +59,45 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 battle.Tick();
             }
             Assert.True(battle.CanChoosePlayerCommand("party"));
+            if (physicalFirst)
+            {
+                battle.QueueAction("party", "enemy", BattleAbility.Attack, 0);
+                bool approach = false;
+                for (int callback = 0; callback < 4096; callback++)
+                {
+                    battle.Tick();
+                    NativeBattleSequenceState? state = battle.NativeGraphics!.Models[0].SequenceState;
+                    if (!approach && state is { } sequence && (sequence.Header36 != 0 || sequence.Header38 != 0 || sequence.Header40 != 0))
+                    {
+                        CompareNext("physical-approach");
+                        approach = true;
+                    }
+                    if (battle.ActiveAction is null && battle.QueuedActions.Count == 0)
+                    {
+                        break;
+                    }
+                }
+                Assert.True(approach);
+                Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
+                for (int callback = 0; callback < 4096 && !battle.CanChoosePlayerCommand("party"); callback++)
+                {
+                    battle.AdvanceTurn();
+                    battle.Tick();
+                }
+                Assert.True(battle.CanChoosePlayerCommand("party"));
+            }
+            int priorDamage = battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy");
+            double initialDistance = Distance();
             //A declared component seed selects the selected original contact resource and no optional finisher.
             NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
             {
                 candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
-                return definition.Combatants[1].NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
+                return definition.Combatants.Single(actor => actor.Id == "enemy").NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
             });
             BattleSnapshot ready = battle.Capture();
             const uint transitionColor = 0x00312617;
             battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
+            Bind(battle);
             const int actorIndex = 0;
             uint? shadowColor = battle.NativeGraphics!.Models[actorIndex].Color44;
             Assert.NotNull(shadowColor);
@@ -64,11 +106,18 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             Publish("before-command");
             battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
             CompareNext("queued");
+            for (int callback = 0; callback < 4096 && battle.GetNativeRenzokuken("party") is null; callback++)
+            {
+                before = battle.Capture();
+                battle.Tick();
+            }
+            Assert.NotNull(battle.GetNativeRenzokuken("party"));
             Assert.Equal(effectId, battle.GetNativeRenzokuken("party")!.MagicId);
             bool selected = false;
             bool registeredCamera = false;
             bool capturedMidpoint = false;
             bool targetAnimated = false;
+            bool checkedApproach = false;
             for (int callback = 0; callback < 4096; callback++)
             {
                 before = battle.Capture();
@@ -84,6 +133,11 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     Assert.Null(battle.NativeCamera.ControlStagingSource);
                     registeredCamera = true;
                 }
+                if (physicalFirst && !checkedApproach && battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy") > priorDamage)
+                {
+                    Assert.True(Distance() < initialDistance, "Renzokuken must approach its physical target before the first damage contact.");
+                    checkedApproach = true;
+                }
                 if (!capturedMidpoint && battle.NativeGraphics.TriggerWidget?.Input.ContactIndex > 0)
                 {
                     CompareNext("midpoint");
@@ -96,7 +150,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     Assert.All(battle.NativeGraphics.Models, target => Assert.Null(target.ResourceRenzokukenTargetBank));
                     Assert.True(registeredCamera);
                     Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
-                    Assert.Equal(contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
+                    Assert.Equal(priorDamage + contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));
                     Assert.Null(battle.Capture().NativeTimedAction);
                     Assert.Equal((byte)0, battle.Capture().NativeClock!.ActionPause);
                     CompareNext("completed");
@@ -114,6 +168,19 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             throw;
         }
 
+        void Bind(BattleSession session)
+        {
+            session.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        }
+
+        double Distance()
+        {
+            NativeBattleActionMatrix matrix = battle.NativeGraphics!.Models[0].GeometryWorldMatrix!;
+            int targetIndex = Array.IndexOf(battle.NativeGraphics.ActorIds.ToArray(), "enemy");
+            NativeBattleVector destination = battle.NativeGraphics.Models[targetIndex].Transform!.Position28;
+            return Math.Pow(matrix.X - destination.X, 2) + Math.Pow(matrix.Z - destination.Z, 2);
+        }
+
         void Publish(string name)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, battle.Capture(), scene.Render(battle, 320, 224).ToArray());
@@ -123,6 +190,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         {
             Publish(name);
             BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
+            Bind(clone);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
             before = battle.Capture();
             battle.Tick();
@@ -135,13 +203,20 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
     private static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model)
     {
         BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
-        BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(candidate => candidate.Enemies.Any(enemy => enemy.ModelId == model));
-        BattleStage stage = assets.LoadStage(formation.StageId);
+        BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).FirstOrDefault(candidate => candidate.Enemies.Any(enemy => enemy.ModelId == model)) ?? assets.LoadEncounter(94);
+        if (!formation.Enemies.Any(enemy => enemy.ModelId == model))
+        {
+            formation = formation with { Enemies = formation.Enemies.Select(enemy => enemy with { ModelId = model }).ToArray() };
+        }
         int selectedSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot;
+        //Passive native scripts keep this independent resource component valid across gauge refills.
         BattleCombatantDefinition[] enemies = formation.Enemies.Select(enemy => source.Combatants[1] with
         {
             Id = enemy.Slot == selectedSlot ? "enemy" : "enemy-part-" + enemy.Slot,
             ModelId = enemy.ModelId,
+            Name = "Target",
+            NativeCombatantFlags = 0x11,
+            NativeAi = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []),
             SceneSlot = enemy.Slot,
             NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(enemy.ModelId),
             Information246 = assets.ReadEnemyNativeInformation246(enemy.ModelId),
@@ -151,14 +226,11 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         return source with
         {
             EncounterId = formation.Id,
-            StageId = formation.StageId,
             Combatants = actors,
             NativeRenzokukenResources = game.ReadNativeRenzokukenResources(),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
-            NativeStageSource = stage.NativeSource,
-            NativeStageCameraBank = stage.NativeCameraBank,
-            NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
-            NativeStageCameraControl = stage.NativeCameraControl
+            //The component retains its supported original stage while using the selected encounter
+            //for native target identities, adjacent parts and formation positions.
+            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation)
         };
     }
 

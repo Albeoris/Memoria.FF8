@@ -18,7 +18,12 @@ public static partial class NativeBattleRenzokuken159Controller
         for (int bank = 0; bank < banks.Length; bank++)
         {
             byte[] bytes = banks[bank];
-            int stride = bank switch { 0 => 12, 1 => 20, _ => 16 };
+            int stride = bank switch
+            {
+                0 => 12,
+                1 => 20,
+                _ => 16
+            };
             for (int offset = 0; offset < bytes.Length; offset += stride)
             {
                 short counter = Read(bytes, offset);

@@ -28,6 +28,27 @@ public sealed class NativeRenzokukenRawOwnerTests
     }
 
     [Fact]
+    public void Closing_physical_widget_does_not_own_a_new_Renzokuken_process_or_its_input()
+    {
+        BattleSession battle = Fixture();
+        Dictionary<string, BattleNativeRenzokukenState> processes = Field<Dictionary<string, BattleNativeRenzokukenState>>(battle, "nativeRenzokukenProcesses");
+        BattleNativeRenzokukenState process = new(159, 8, null, new());
+        processes.Add("party", process);
+        BattleNativeRenzokukenBlock block = new(1, [10, 10], NativeBattleRenzokukenRules.Timeline([10, 10]));
+        NativeBattleTriggerWidget widget = new(0, block, new() { Phase = 8, ContactIndex = 1 }, true, false, 0, 0, 4, -1);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, battle.NativeGraphics! with { TriggerWidget = widget });
+
+        Invoke(battle, "MirrorNativeRenzokukenWidget", widget);
+
+        Assert.Equal(process, processes["party"]);
+        Assert.False(battle.CanTriggerNativeRenzokuken);
+        Assert.False(battle.NativeRenzokukenBarVisible);
+        Assert.False(battle.NativeRenzokukenTriggerWindowOpen);
+        Assert.False(battle.TriggerNativeRenzokuken());
+        Assert.Equal(widget, battle.NativeGraphics!.TriggerWidget);
+    }
+
+    [Fact]
     public void Raw_pending_contact_allows_exactly_one_input_ahead_of_committed_receipts()
     {
         BattleSession battle = Fixture();

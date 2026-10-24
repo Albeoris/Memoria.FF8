@@ -510,6 +510,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeRenzokuken141(graphics, effect.Binding.Renzokuken141Resources ?? throw new NotSupportedException("Native141 requires its original immutable resource bundle."));
         }
+        if (effect.Binding.Effect is >= 334 and <= 337 or >= 339 and <= 343)
+        {
+            return EnterNativeRenzokukenSpecial(graphics, effect.Binding.RenzokukenSpecialResources ?? throw new NotSupportedException("Native special Renzokuken requires its actual immutable resources."));
+        }
         if (effect.Binding.Effect == 161)
         {
             return EnterNativeRenzokukenSpecial161(graphics, effect.Binding.RenzokukenSpecialResources ?? throw new NotSupportedException("Native161 requires its original immutable resources."));

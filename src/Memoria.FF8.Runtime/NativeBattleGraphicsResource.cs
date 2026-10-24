@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Original model sequence directory/bytecode at graphics resource+12.</summary>
 public sealed partial record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceSection)
 {
+    public uint? SequenceSectionAddress { get; init; }
     public ImmutableArray<byte> AnimationFrames { get; init; }
     public NativeBattlePoseSource? PoseSource { get; init; }
     public ImmutableArray<byte> LinkedAnimationFrames { get; init; } = [];

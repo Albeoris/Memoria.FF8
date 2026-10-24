@@ -57,6 +57,9 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
         Assert.Equal(10, Read(burst, 4));
         Assert.Equal(40, Read(burst, 6));
         Assert.Equal(30, Read(burst, 8));
+        _ = Advance(frame.Random, 18).Draw(out _).Draw(out ushort angle).Draw(out ushort speed);
+        Assert.Equal(unchecked((short)(((speed % 200 + 220) * NativeBattleCameraMath.Cosine(angle % 4096)) >> 12)), Read(burst, 12));
+        Assert.Equal(unchecked((short)(((speed % 200 + 220) * NativeBattleCameraMath.Sine(angle % 4096)) >> 12)), Read(burst, 16));
         Assert.Equal(0x5FEA70u, step.Pool.Slots[1].Callback);
     }
 
@@ -69,6 +72,43 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance5FD230(frame, pool, slot, inputs, Resources(), _ => throw new InvalidOperationException());
         Assert.Same(frame, step.Frame);
         Assert.Same(pool, step.Pool);
+    }
+
+    [Fact]
+    public void Special341CameraWritesNegative200AtPhaseZeroEvenWhilePaused()
+    {
+        NativeBattleRenzokuken160Frame frame = Frame();
+        (NativeBattleEffectTaskPool pool, int slot) = Pool(0);
+        List<NativeBattleRenzokuken160Operation> operations = [];
+        NativeBattleRenzokuken160Inputs inputs = new(0x201, [], _ => throw new InvalidOperationException(), (current, operation) =>
+        {
+            operations.Add(operation);
+            return current;
+        });
+        NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance57B880(frame, pool, slot, inputs);
+        Assert.Equal(new NativeBattleRenzokukenSpecialCameraWord(-200), Assert.Single(operations));
+        Assert.Same(pool, step.Pool);
+        Assert.Equal(0, step.Result);
+    }
+
+    [Fact]
+    public void Special342ContactStartsItsOwnTaggedParticleTaskAfterTheImpact()
+    {
+        NativeBattleRenzokuken160Resources resources = Resources() with { ContactLeadFrames = new int[8].ToImmutableArray(), ContactOffsets = Enumerable.Repeat(new NativeBattleVector(0, 0, 0), 8).ToImmutableArray() };
+        NativeBattleRenzokukenSpecialState state = NativeBattleRenzokukenSpecialController.ReadState(Frame()) with { Resources = resources, ExtraStorage = new byte[3200].ToImmutableArray() };
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RenzokukenSpecials = ImmutableDictionary<ushort, NativeBattleRenzokukenSpecialState>.Empty.Add(342, state) };
+        NativeBattleRenzokuken160Frame frame = new(memory, new(342, 341, new(342, 0x5776D0, 0x5776B0), null, null), NativeCrtRandomState.FromColdProcess());
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21E4CF8, 0x21E4D08, 36, 100);
+        (pool, int slot) = pool.Append(0x578A00);
+        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) };
+        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleRenzokuken160Inputs inputs = new(0, [5, 5, 5, 5, 5, 5, 5, 5, 5], _ => new(0, 0) { GeometryWorldMatrix = matrix }, (current, _) => current);
+        NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance578A00(frame, pool, slot, inputs, resources);
+        Assert.Equal(0x578DF0u, step.Pool.Slots[1].Callback);
+        Assert.Equal(0x5790D0u, step.Pool.Slots[2].Callback);
+        Assert.Equal(1, step.Pool.Slots[2].ReadWord(14));
+        Assert.Equal(2, NativeBattleRenzokukenSpecialController.ReadState(step.Frame).ContactPadding.Impacts);
+        Assert.Equal(Advance(frame.Random, 121), step.Frame.Random);
     }
 
     private static NativeBattleRenzokuken160Resources Resources() => new(new("animation", []), null!, [], [], [], [], 0, 0);

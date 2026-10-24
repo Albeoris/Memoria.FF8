@@ -166,7 +166,7 @@ public static class NativeBattleSequenceMachine
 
         void Execute()
         {
-            NativeBattleScriptExpressionState expression = new();
+            NativeBattleScriptExpressionState expression = new() { Accumulator = resource.SequenceSectionAddress is uint address ? unchecked((int)(address + (uint)position)) : null };
             for (int instruction = 0; instruction < 100_000; instruction++)
             {
                 int origin = position;

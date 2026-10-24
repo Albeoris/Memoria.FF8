@@ -52,8 +52,8 @@ public static partial class NativeBattleRenzokukenSpecialController
             Put161(particles, offset + 8, anchor.Z);
             int angle = Rand() % 4096;
             int speed = Rand() % 200 + 220;
-            Put161(particles, offset + 12, (speed * NativeBattleCameraMath.Sine(angle)) >> 12);
-            Put161(particles, offset + 16, (speed * NativeBattleCameraMath.Cosine(angle)) >> 12);
+            Put161(particles, offset + 12, (speed * NativeBattleCameraMath.Cosine(angle)) >> 12);
+            Put161(particles, offset + 16, (speed * NativeBattleCameraMath.Sine(angle)) >> 12);
         }
         return Store(frame, ReadState(frame) with { BurstParticles = particles.ToImmutableArray() });
 

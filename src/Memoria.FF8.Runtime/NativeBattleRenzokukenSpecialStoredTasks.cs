@@ -29,19 +29,19 @@ public static partial class NativeBattleRenzokukenSpecialController
         return (frame, pool, slot);
     }
 
-    public static NativeBattleRenzokuken160ChildStep AdvanceStoredBurst(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, int emissionLastFrame)
+    public static NativeBattleRenzokuken160ChildStep AdvanceStoredBurst(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll, int emissionLastFrame, bool direct340 = false)
     {
         NativeBattleModulePoolTask task = pool.Slots[slot];
         NativeBattleRenzokukenSpecialState state = ReadState(frame);
         byte[] bank = state.ExtraStorage.ToArray();
-        int source = StoredOffset(task);
+        int source = direct340 ? 0 : StoredOffset(task);
         short counter = unchecked((short)task.ReadWord(12));
-        int tag = unchecked((short)task.ReadWord(26));
+        int tag = direct340 ? 4 : unchecked((short)task.ReadWord(26));
         if ((inputs.GraphicsFlags & 0x201) == 0 && counter <= emissionLastFrame)
         {
-            int dx = StoredRand(1536) + StoredWord(bank, source + 24) - 768;
-            int dy = StoredWord(bank, source + 26) - StoredRand(768) - 256;
-            int dz = StoredRand(256) + StoredWord(bank, source + 28) + 128;
+            int dx = direct340 ? StoredRand(512) - 256 : StoredRand(1536) + StoredWord(bank, source + 24) - 768;
+            int dy = direct340 ? -2304 - StoredRand(1280) : StoredWord(bank, source + 26) - StoredRand(768) - 256;
+            int dz = direct340 ? StoredRand(1536) + 1024 : StoredRand(256) + StoredWord(bank, source + 28) + 128;
             var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(dx, dy, dz);
             NativeBattleActionMatrix actor = inputs.ReadModel(state.Core.Actor).GeometryWorldMatrix ?? throw new NotSupportedException("Native special Renzokuken burst requires its current actor matrix64.");
             var rotated = NativeBattleGfMatrices.RotateLong56C600(actor, direction.X, direction.Y, direction.Z);
@@ -60,8 +60,16 @@ public static partial class NativeBattleRenzokukenSpecialController
                 BinaryPrimitives.WriteInt32LittleEndian(bank.AsSpan(offset), tag);
                 StoredWrite(bank, offset + 4, 0);
                 StoredWrite(bank, offset + 6, StoredRand(2176) + 1792);
-                bank.AsSpan(source + 8, 8).CopyTo(bank.AsSpan(offset + 8, 8));
-                int speed = StoredRand(150) + 35;
+                if (direct340)
+                {
+                    task.Payload.AsSpan().Slice(16, 8).CopyTo(bank.AsSpan(offset + 8, 8));
+                }
+                else
+                {
+                    bank.AsSpan(source + 8, 8).CopyTo(bank.AsSpan(offset + 8, 8));
+                }
+                frame = SetExtraPaddingUnknown(frame, row, !direct340 && ReadExtraPaddingUnknown(frame, source / 32));
+                int speed = direct340 ? StoredRand(140) + 40 : StoredRand(150) + 35;
                 StoredWrite(bank, offset + 16, StoredRand(40) + (unchecked(speed * rotated.X) >> 12) - 20);
                 StoredWrite(bank, offset + 18, unchecked(speed * rotated.Y) >> 12);
                 StoredWrite(bank, offset + 20, unchecked(speed * rotated.Z) >> 12);
@@ -104,7 +112,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-        if (alive == 0)
+        if (alive == 0 && !direct340)
         {
             bank = ReadState(frame).ExtraStorage.ToArray();
             BinaryPrimitives.WriteInt32LittleEndian(bank.AsSpan(source), 0);
@@ -117,6 +125,11 @@ public static partial class NativeBattleRenzokukenSpecialController
             frame = frame with { Random = frame.Random.Draw(out ushort value) };
             return value % maximum;
         }
+    }
+
+    private static NativeBattleRenzokuken160ChildStep Advance340Burst(NativeBattleRenzokuken160Frame frame, NativeBattleEffectTaskPool pool, int slot, NativeBattleRenzokuken160Inputs inputs, NativeBattleSearchSpriteResource sprite, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short cameraRoll)
+    {
+        return AdvanceStoredBurst(frame, pool, slot, inputs, sprite, view, projection, cameraRoll, 16, true);
     }
 
     private static int StoredOffset(NativeBattleModulePoolTask task)

@@ -493,6 +493,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeRenzokuken141(graphics);
         }
+        if (effect.Binding.Effect is >= 334 and <= 337 or >= 339 and <= 343)
+        {
+            return AdvanceNativeRenzokukenSpecial(graphics);
+        }
         if (effect.Binding.Effect == 161)
         {
             return AdvanceNativeRenzokukenSpecial161(graphics);

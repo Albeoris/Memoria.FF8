@@ -21,7 +21,7 @@ public static partial class NativeBattleRenzokukenSpecialController
             return new(frame, pool, 0);
         }
         short counter = unchecked((short)task.ReadWord(12));
-        int value = (200 * NativeBattleCameraMath.Cosine((counter << 10) / 10 + 1024)) >> 12;
+        int value = (200 * NativeBattleCameraMath.Sine((counter << 10) / 10 + 1024)) >> 12;
         if ((counter & 1) == 0)
         {
             value = -value;
@@ -79,12 +79,12 @@ public static partial class NativeBattleRenzokukenSpecialController
                 int cosine = NativeBattleCameraMath.Cosine(angle);
                 int sine = NativeBattleCameraMath.Sine(angle);
                 int radius = Rand() % 300 + 400;
-                Put161(particles, row + 8, (radius * cosine) >> 12);
+                Put161(particles, row + 8, (radius * sine) >> 12);
                 Put161(particles, row + 10, -(Rand() % 50));
-                Put161(particles, row + 12, (radius * sine) >> 12);
+                Put161(particles, row + 12, (radius * cosine) >> 12);
                 int speed = Rand() % 160 + 250;
-                Put161(particles, row + 16, (speed * cosine) >> 12);
-                Put161(particles, row + 20, (speed * sine) >> 12);
+                Put161(particles, row + 16, (speed * sine) >> 12);
+                Put161(particles, row + 20, (speed * cosine) >> 12);
             }
         }
         NativeBattleActionMatrix world = NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { X = unchecked((short)task.ReadWord(16)), Y = 0, Z = unchecked((short)task.ReadWord(20)) };
