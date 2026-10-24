@@ -68,8 +68,8 @@ public sealed class NativeBattleGuardianAnimationSkipTests
             if (guardian == 11)
             {
                 // This target accepts Doomtrain's other statuses and is immune to Doom and Gradual Petrify.
-                resistances[26] = 255;
-                resistances[28] = 255;
+                resistances[18] = 255;
+                resistances[20] = 255;
             }
             definition = definition with { Combatants = definition.Combatants.Select(actor => actor.Id == "enemy" ? actor with { NativeStatusResistances = resistances } : actor).ToArray() };
         }

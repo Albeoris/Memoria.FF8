@@ -7,6 +7,13 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicRectangles(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram? program, int secondFileLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics, byte kind)
     {
+        NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic particles require their current ordering table.");
+        using NativeBattleLogicalOrderingTransaction? ordering = primitiveFrame.Pending.Transaction is null ? new(primitiveFrame.Pending) : null;
+        if (ordering is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = ordering.View } };
+        }
+        using NativeBattleWaterFrameBatch batch = new();
         NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(frame, secondFileLength);
         int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(frame, bank);
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(graphics.OriginalEffect!.Binding.Effect);
@@ -24,15 +31,27 @@ public sealed partial class BattleSession
                 NativeBattleCinematicDispatch.RequireSlot(profile.Effect, table, slot, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(address + 4u * (uint)slot), 4)));
             }
         };
+        frame = batch.Begin(frame);
         frame = kind switch
         {
             5 => NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, services.ResolveMatrixRow, DrawRectangles),
             6 => NativeBattleWaterParticles.AdvanceType6(frame, program ?? throw new NotSupportedException("Native cinematic particles require their current programme."), bank, services),
             _ => throw new NotSupportedException("Native cinematic rectangles require their actual selected draw caller.")
         };
+        frame = batch.Publish(frame);
+        if (ordering is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+        }
         return (frame, graphics);
 
         NativeBattleWaterExecutionFrame DrawRectangles(NativeBattleWaterExecutionFrame current, NativeBattleActionMatrix matrix)
+        {
+            current = batch.Publish(current);
+            return batch.Begin(DrawCanonicalRectangles(current, matrix));
+        }
+
+        NativeBattleWaterExecutionFrame DrawCanonicalRectangles(NativeBattleWaterExecutionFrame current, NativeBattleActionMatrix matrix)
         {
             if (kind == 5)
             {

@@ -22,7 +22,7 @@ public static class NativeBattleShivaParticleBanks
         {
             throw new InvalidDataException("Native Shiva particle callback requires its original allocated child task.");
         }
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva particles require their retained physical arena.");
+        using NativeBattleEffectArenaBatch arena = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva particles require their retained physical arena."));
         bool paused = (graphicsFlags & 0x201) != 0;
         int bank = growing ? 0x2C000 : 0x2D000;
         uint flag = growing ? 0x200u : 0x100u;
@@ -43,8 +43,8 @@ public static class NativeBattleShivaParticleBanks
             NativeBattleModuleSpriteFrame selected = sprite.ProjectedFrame571C80(unchecked((short)phase));
             short size = Word(address + 6);
             NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = sprite, SpriteFrame = selected, Phase = phase, Anchor = new(Word(address + 8), Word(address + 10), Word(address + 12), 0), Scale = size, DepthOffset = -(size >> 4), SpriteFlags = 8 };
-            frame = draw571C80(frame with { Memory = frame.Memory with { Arena = arena } }, draw);
-            arena = frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva sprite drawing lost its current arena.");
+            frame = draw571C80(frame with { Memory = frame.Memory with { Arena = arena.Publish() } }, draw);
+            arena.Replace(frame.Memory.Arena ?? throw new InvalidDataException("Native Shiva sprite drawing lost its current arena."));
             if (paused)
             {
                 continue;
@@ -68,7 +68,7 @@ public static class NativeBattleShivaParticleBanks
             PutWord(address + 20, vz - (vz >> (growing ? 3 : 2)));
             alive++;
         }
-        frame = frame with { Memory = frame.Memory with { Arena = arena } };
+        frame = frame with { Memory = frame.Memory with { Arena = arena.Publish() } };
         if (paused)
         {
             return new(frame, 0);
@@ -122,7 +122,7 @@ public static class NativeBattleShivaParticleBanks
         }
         NativeBattleModulePoolTask task = frame.Pool.Slots[slot];
         task = task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1)));
-        frame = frame with { Memory = frame.Memory with { Arena = arena }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
+        frame = frame with { Memory = frame.Memory with { Arena = arena.Publish() }, Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(slot, task) } };
         return new(frame, unchecked((short)task.ReadWord(0x0C)) >= 4 && alive == 0 ? 2 : 0);
 
         ushort Uword(int address) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(address, 2));
@@ -133,14 +133,14 @@ public static class NativeBattleShivaParticleBanks
         {
             Span<byte> bytes = stackalloc byte[2];
             BinaryPrimitives.WriteUInt16LittleEndian(bytes, unchecked((ushort)value));
-            arena = arena.Write(address, bytes);
+            arena.Write(address, bytes);
         }
 
         void PutDword(int address, uint value)
         {
             Span<byte> bytes = stackalloc byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-            arena = arena.Write(address, bytes);
+            arena.Write(address, bytes);
         }
 
         ushort Draw()

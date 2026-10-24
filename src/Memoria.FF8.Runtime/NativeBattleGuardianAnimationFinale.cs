@@ -19,16 +19,27 @@ public static class NativeBattleGuardianAnimationFinale
             95 => memory.Siren95 is { DirectorAddress1533010: { } director } siren && siren.ReadWord(director + 0x40) >= 7,
             // The recipient sink begins at 368; its original contact remains at 499.
             325 => ActiveTasks(NativeBattleDiablos325Construction.TimelineDescriptor).Any(task => task.Callback == NativeBattleDiablos325Construction.TimelineCallback && task.ReadWord(0x0C) >= 368),
+            // Release the target wave, after the summon and water buildup.
             6 => HeaderFlag(0x80),
+            // The creature enters its knife animation at phase nine.
             90 => RetainedTasks(0x25A3F90).Any(task => task.Callback == 0x7674E0 && task.ReadByte(0x29) >= 9),
+            // The final charge precedes the target explosions and contact publication.
             191 => RetainedTasks(NativeBattleDoomtrain191Controller.ChildDescriptor).Any(task => task.Callback == 0x641EA0 && task.ReadWord(0xC) >= 242 || task.Callback == 0x63F2D0 && task.ReadWord(0xC) >= 406),
+            // Pose four emits the needle volley; the terminal bit survives body removal.
             199 => RetainedTasks(NativeBattleCactuar199Controller.ChildDescriptor).Any(task => task.Callback == 0x5A8C20 && task.ReadWord(0xC) >= 87) || memory.Cactuar199 is { TerminalFlags: var flags } && (flags & 1) != 0,
-            202 => MainHasReached(0x238, 0x2C0),
+            // The last golden projectile travels before the final sphere expands.
+            202 => MainHasReached(0x280, 0x2C0),
+            // The final three recipients receive the party effect.
             203 => HeaderFlag(0x200),
+            // Incoming golden shots at the targets, after the outgoing sky beams.
             204 => MainHasReached(0x1B8, 0x1E8),
+            // Release the final falling actor sequence.
             205 => HeaderFlag(0x800),
+            // Release the moving galactic beam before its impact and collapse.
             206 => MainHasReached(0x41C, 0x45E),
+            // The second programme publishes the reflection recipients.
             278 => RetainedTasks(0x2508188).Any(task => task.Callback == 0x681630 && task.ReadWord(0xC) >= 145),
+            // Retain target attraction, conversion and release as one final attack.
             291 => RetainedTasks(0x25562A8).Any(task => task.Callback == 0x6ED900 && task.ReadWord(0xC) >= 254),
             _ => false
         };

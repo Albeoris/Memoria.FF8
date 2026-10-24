@@ -19,9 +19,10 @@ public static class NativeBattleShivaEarlyGeometry
         {
             throw new InvalidDataException("Native Shiva geometry requires its retained current/previous vectors, original37 source pairs and admitted0..36 count.");
         }
+        NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < 74; index++)
         {
-            arena = arena.Write(VertexArenaOffset + index * 8 + 6, new byte[2]);
+            writer.Write(VertexArenaOffset + index * 8 + 6, new byte[2]);
         }
         int startVertex = 2 * (36 - count);
         for (int index = 0; index <= count; index++)
@@ -57,7 +58,7 @@ public static class NativeBattleShivaEarlyGeometry
             Write(vertex, new(unchecked((short)(middle.X + (radius * direction.X >> 12))), unchecked((short)(middle.Y + (radius * direction.Y >> 12))), unchecked((short)(middle.Z + (radius * direction.Z >> 12))), 1));
             Write(vertex + 1, new(unchecked((short)(middle.X + (-radius * direction.X >> 12))), unchecked((short)(middle.Y + (-radius * direction.Y >> 12))), unchecked((short)(middle.Z + (-radius * direction.Z >> 12))), 1));
         }
-        return new(arena, state with { Current = state.Current with { W = (short)startVertex } });
+        return new(writer.Freeze(), state with { Current = state.Current with { W = (short)startVertex } });
 
         NativeBattleShivaRetainedVector Source(int index)
         {
@@ -72,7 +73,7 @@ public static class NativeBattleShivaEarlyGeometry
             BinaryPrimitives.WriteInt16LittleEndian(bytes[2..], vector.Y);
             BinaryPrimitives.WriteInt16LittleEndian(bytes[4..], vector.Z);
             BinaryPrimitives.WriteInt16LittleEndian(bytes[6..], vector.W);
-            arena = arena.Write(VertexArenaOffset + index * 8, bytes);
+            writer.Write(VertexArenaOffset + index * 8, bytes);
         }
     }
 }

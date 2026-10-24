@@ -64,7 +64,7 @@ public sealed class NativeBattleGuardianFinalePhaseTests
     }
 
     [Theory]
-    [InlineData(202, 0x238, 0x2C0)]
+    [InlineData(202, 0x280, 0x2C0)]
     [InlineData(204, 0x1B8, 0x1E8)]
     [InlineData(206, 0x41C, 0x45E)]
     public void Cinematic_main_phase_uses_the_oldest_return_address(int effectId, int threshold, int lastInstruction)
@@ -90,7 +90,7 @@ public sealed class NativeBattleGuardianFinalePhaseTests
     {
         var fixture = Cinematic(202);
         uint file = NativeBattleEffectNodeMemory.ArenaAddress + 0x10000;
-        NativeBattleEffectArena arena = fixture.Memory.Arena!.Write(0x6000, BitConverter.GetBytes(file + 0x1C8)).Write(0x6100, BitConverter.GetBytes(file + 0x238));
+        NativeBattleEffectArena arena = fixture.Memory.Arena!.Write(0x6000, BitConverter.GetBytes(file + 0x1C8)).Write(0x6100, BitConverter.GetBytes(file + 0x280));
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(fixture.Effect, fixture.Memory with { Arena = arena }));
     }
 

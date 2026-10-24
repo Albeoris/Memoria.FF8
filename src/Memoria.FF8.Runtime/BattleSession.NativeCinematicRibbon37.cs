@@ -8,6 +8,12 @@ public sealed partial class BattleSession
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicRibbon37(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic ribbon requires its current ordering table.");
+        using NativeBattleLogicalOrderingTransaction? orderingTransaction = primitiveFrame.Pending.Transaction is null ? new(primitiveFrame.Pending) : null;
+        if (orderingTransaction is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = orderingTransaction.View } };
+        }
         NativeBattleCinematicRibbon37Services services = new((current, selector) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
@@ -45,7 +51,12 @@ public sealed partial class BattleSession
             graphics = written.Graphics;
             return written.Frame;
         });
-        return (NativeBattleCinematicRibbon37.Draw(frame, services), graphics);
+        frame = NativeBattleCinematicRibbon37.Draw(frame, services);
+        if (orderingTransaction is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };
+        }
+        return (frame, graphics);
 
         NativeBattleWaterExecutionFrame PublishInput(NativeBattleWaterExecutionFrame current, uint address)
         {

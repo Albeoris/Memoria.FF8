@@ -29,6 +29,7 @@ public static class NativeBattleShivaShards
             throw new InvalidDataException("Native Shiva shards require the complete original103-vertexD2F1C4 mesh.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva shards require their current physical arena.");
+        NativeBattleEffectArenaWriter writer = new(arena);
         NativeCrtRandomState random = frame.Random;
         int cursor = 0x340;
         int shard = 0;
@@ -100,7 +101,7 @@ public static class NativeBattleShivaShards
         {
             throw new InvalidDataException("Native Shiva shard traversal does not end at its original geometry boundary.");
         }
-        return frame with { Memory = frame.Memory with { Arena = arena }, Random = random };
+        return frame with { Memory = frame.Memory with { Arena = writer.Freeze() }, Random = random };
 
         short SourceWord(int address) => BinaryPrimitives.ReadInt16LittleEndian(mesh.Bytes.AsSpan().Slice(address, 2));
 
@@ -108,7 +109,7 @@ public static class NativeBattleShivaShards
         {
             Span<byte> bytes = stackalloc byte[2];
             BinaryPrimitives.WriteUInt16LittleEndian(bytes, unchecked((ushort)value));
-            arena = arena.Write(address, bytes);
+            writer.Write(address, bytes);
         }
     }
 }

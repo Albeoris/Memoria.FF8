@@ -101,6 +101,7 @@ public static class NativeBattleShivaPlaneClipping
         {
             throw new InvalidDataException("Native5C50D0 requires its actual current model-local bone matrices.");
         }
+        NativeBattleEffectArenaWriter writer = new(arena);
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
             NativeBattleRawVertex vertex = mesh.Vertices[index];
@@ -121,9 +122,9 @@ public static class NativeBattleShivaPlaneClipping
                 short transformed = (short)Math.Clamp(translated, short.MinValue, short.MaxValue);
                 BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(row * 2), transformed);
             }
-            arena = arena.Write(checked(0x33000 + index * 8), bytes);
+            writer.Write(checked(0x33000 + index * 8), bytes);
         }
-        return arena;
+        return writer.Freeze();
     }
 
     public static NativeBattleShivaPlaneDraw Draw5C5060(NativeBattleEffectArena arena, NativeBattleCactuarRawModelState model, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix viewWorld, NativeBattleCameraProjection projection, NativeBattleShivaPlane plane, ImmutableArray<int> selectors, short zsf3, short zsf4, short dqa, int dqb, Action<ushort>? observeDepth = null)

@@ -116,6 +116,22 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
+        if (session.GuardianAnimationSkipPending)
+        {
+            if (triangleRenderer is null && renderedPixels is not null)
+            {
+                return renderedPixels;
+            }
+            if (triangleRenderer is GpuTriangleRenderer heldGpu && ReferenceEquals(renderedGpu, heldGpu) && renderedGpuVersion == heldGpu.PresentationVersion && !heldGpu.Target.IsDisposed)
+            {
+                return [];
+            }
+            byte[] blank = renderer.RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame.Clear(), null);
+            renderedGpu = triangleRenderer as GpuTriangleRenderer;
+            renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
+            renderedPixels = triangleRenderer is null ? blank : null;
+            return blank;
+        }
         BattleCamera? selectedCamera = camera;
         if (session.NativeGraphics is { } rawGraphics)
         {
@@ -221,6 +237,10 @@ internal sealed partial class BattleScenePresentation
 
     public void DrawEffects(BattleSession session, IUiCanvas canvas, UiRect viewport)
     {
+        if (session.GuardianAnimationSkipPending)
+        {
+            return;
+        }
         if (renderer is null)
         {
             throw new InvalidOperationException("Render the battle scene before projecting its effects.");

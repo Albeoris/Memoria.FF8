@@ -25,10 +25,19 @@ public sealed partial class BattleSession
         long subticks = checked(graphics.PresentationSubticks + elapsed.Ticks * FramesPerSecond);
         nativeGraphicsPresentationDriven = true;
         NativeGraphics = graphics with { PresentationSubticks = subticks % TimeSpan.TicksPerSecond };
+        if (GuardianAnimationSkipPending)
+        {
+            AdvanceSkippedGuardianFormPresentation(idleWorkBudget ?? TimeSpan.FromMilliseconds(8));
+            return;
+        }
         for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
         {
             DispatchTurnBasedFrame();
-            AdvanceSkippedGuardianFormPresentation();
+            if (GuardianAnimationSkipPending)
+            {
+                AdvanceSkippedGuardianFormPresentation(idleWorkBudget ?? TimeSpan.FromMilliseconds(8));
+                break;
+            }
         }
     }
 

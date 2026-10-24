@@ -19,9 +19,11 @@ public static class NativeBattleWaterParticleRectanglePackets
         {
             throw new NotSupportedException("Native particle rectangle negative record counts are unsupported.");
         }
+        byte[] temporary = frame.TemporaryFrame.Bytes.ToArray();
+        bool[] temporaryKnown = frame.TemporaryFrame.Known.ToArray();
         foreach (int offset in new[] { 0xE4, 0xEC, 0xF4, 0xFC })
         {
-            frame = frame.WriteTemporaryWord(offset, 0);
+            TemporaryWord(offset, 0);
         }
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -54,7 +56,9 @@ public static class NativeBattleWaterParticleRectanglePackets
             for (int corner = 0; corner < 4; corner++)
             {
                 int offset = 0xE0 + corner * 8;
-                frame = frame.WriteTemporaryWord(offset, unchecked((ushort)points[corner].X)).WriteTemporaryWord(offset + 2, unchecked((ushort)points[corner].Y)).WriteTemporaryWord(offset + 4, 0);
+                TemporaryWord(offset, unchecked((ushort)points[corner].X));
+                TemporaryWord(offset + 2, unchecked((ushort)points[corner].Y));
+                TemporaryWord(offset + 4, 0);
                 projected[corner] = corner == 3
                     ? NativeBattleModuleProjection.Project45FAA0(matrix, points[corner], projection, dqa, dqb)
                     : NativeBattleModuleProjection.Project45FE10(matrix, points[corner], projection);
@@ -62,7 +66,8 @@ public static class NativeBattleWaterParticleRectanglePackets
             uint depthSum = unchecked((uint)projected[0].Depth + projected[1].Depth + projected[2].Depth);
             uint average = unchecked(depthSum * (uint)zsf3) >> 12;
             uint fourth = (uint)(projected[3].Depth >> 2);
-            frame = frame.WriteTemporaryDword(0xE0, average).WriteTemporaryDword(0xE4, fourth);
+            TemporaryDword(0xE0, average);
+            TemporaryDword(0xE4, fourth);
             int depth = unchecked((int)(average + fourth)) / 2;
             uint ot = unchecked(frame.ReadTemporaryDword(0x14C) + (uint)((depth >> 2) * 4));
             int bucket = resolveActualOtBucket(ot);
@@ -108,7 +113,20 @@ public static class NativeBattleWaterParticleRectanglePackets
             }
         }
         cursor = unchecked(cursor + (uint)allocated);
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = temporary.ToImmutableArray(), Known = temporaryKnown.ToImmutableArray() } };
         frame = WriteCoreDword(frame, checked(manager + 0x7C), cursor);
         return new(frame, new(attempts.ToImmutable(), allocated), cursor);
+
+        void TemporaryWord(int offset, ushort value)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(temporary.AsSpan(offset), value);
+            Array.Fill(temporaryKnown, true, offset, 2);
+        }
+
+        void TemporaryDword(int offset, uint value)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(temporary.AsSpan(offset), value);
+            Array.Fill(temporaryKnown, true, offset, 4);
+        }
     }
 }

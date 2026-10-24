@@ -10,7 +10,7 @@ public static class NativeBattleShivaModelParticles
     public static NativeBattleShivaEarlyTaskStep Advance5C5950(NativeBattleShivaEarlyTaskFrame frame, int slot, uint graphicsFlags, NativeBattleActionMatrix entryWorld, byte boneCount, NativeBattleModuleResource sprite, Func<NativeBattleShivaEarlyTaskFrame, int, int, NativeBattleVector> sampleBone502170, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleModuleDraw, NativeBattleShivaEarlyTaskFrame> drawSprite)
     {
         ValidateTask(frame, slot, 0x5C5950);
-        BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva model particles require their current arena."));
+        using BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva model particles require their current arena."));
         bool paused = (graphicsFlags & 0x201) != 0;
         int alive = 0;
         for (int index = 0; index < 150; index++)
@@ -147,7 +147,7 @@ public static class NativeBattleShivaModelParticles
     {
         ValidateTask(frame, slot, forward ? 0x5C6040u : 0x5C5D90u);
         NativeBattleShivaProcess process = frame.Memory.Shiva ?? throw new NotSupportedException("Native Shiva model rings require their retained local and world anchors.");
-        BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva model rings require their current particle arena."));
+        using BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva model rings require their current particle arena."));
         NativeBattleShivaRetainedVector world = process.WorldAnchor22BCFC0;
         var point = forward ? (X: 0, Y: 0, Z: 0) : NativeBattleGfMatrices.RotateLong56C600(view, world.X, world.Y, world.Z);
         bool paused = (graphicsFlags & 0x201) != 0;
@@ -268,11 +268,16 @@ public static class NativeBattleShivaModelParticles
         }
     }
 
-    private sealed class BankMemory(NativeBattleEffectArena arena)
+    private sealed class BankMemory(NativeBattleEffectArena arena) : IDisposable
     {
-        public NativeBattleEffectArena Arena { get; set; } = arena;
-        public byte Byte(int address) => Arena.Read(address, 1)[0];
-        public ushort Uword(int address) => BinaryPrimitives.ReadUInt16LittleEndian(Arena.Read(address, 2));
+        private readonly NativeBattleEffectArenaBatch batch = new(arena);
+        public NativeBattleEffectArena Arena
+        {
+            get => batch.Publish();
+            set => batch.Replace(value);
+        }
+        public byte Byte(int address) => batch.Read(address, 1)[0];
+        public ushort Uword(int address) => BinaryPrimitives.ReadUInt16LittleEndian(batch.Read(address, 2));
         public short Word(int address) => unchecked((short)Uword(address));
 
         public int FirstFree()
@@ -280,7 +285,7 @@ public static class NativeBattleShivaModelParticles
             for (int index = 0; index < 150; index++)
             {
                 int record = 0x2C000 + index * 24;
-                if (BinaryPrimitives.ReadUInt32LittleEndian(Arena.Read(record, 4)) == 0)
+                if (BinaryPrimitives.ReadUInt32LittleEndian(batch.Read(record, 4)) == 0)
                 {
                     return record;
                 }
@@ -292,14 +297,16 @@ public static class NativeBattleShivaModelParticles
         {
             Span<byte> bytes = stackalloc byte[2];
             BinaryPrimitives.WriteUInt16LittleEndian(bytes, unchecked((ushort)value));
-            Arena = Arena.Write(address, bytes);
+            batch.Write(address, bytes);
         }
 
         public void PutDword(int address, uint value)
         {
             Span<byte> bytes = stackalloc byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-            Arena = Arena.Write(address, bytes);
+            batch.Write(address, bytes);
         }
+
+        public void Dispose() => batch.Dispose();
     }
 }

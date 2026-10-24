@@ -20,12 +20,13 @@ public sealed partial class BattleSession
         uint rgb = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(NativeBattleQuezacotlRig86.Model + 0x28, 4));
         uint mask = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(NativeBattleQuezacotlRig86.Model + 0x7C, 4));
         NativeBattleQuezacotlPathModelBatch batch = NativeBattleQuezacotlPathModelPackets.Emit6A79B0(arena.Read(geometry, checked(animation - geometry)).ToImmutableArray(), selector => NativeBattleQuezacotlRig86.ReadBoneMatrix(memory, selector), projection, rgb, mask);
+        NativeBattleEffectArenaWriter scratch = new(arena);
         foreach (NativeBattleGfGeometryAttempt write in batch.VertexScratchWrites)
         {
             //50F900 writes all eight bytes even for vertices later rejected by50FDF0.
-            arena = arena.Write(checked(0x8D0 + write.ByteOffsetRelative), write.Data.AsSpan());
+            scratch.Write(checked(0x8D0 + write.ByteOffsetRelative), write.Data.AsSpan());
         }
-        NativeEffectMemory = memory with { Arena = arena };
+        NativeEffectMemory = memory with { Arena = scratch.Freeze() };
         graphics = AppendNativePrimitivePackets(graphics, batch.Primitives);
         NativeBattleQuezacotlRigWrite restored = NativeBattleQuezacotlRig86.Restore508C90(NativeEffectMemory!, effect);
         NativeEffectMemory = restored.Memory;

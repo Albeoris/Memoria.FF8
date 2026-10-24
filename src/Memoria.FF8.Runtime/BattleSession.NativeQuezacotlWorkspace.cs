@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private NativeBattleGraphicsState AdvanceNativeQuezacotlFirstWindow(NativeBattleGraphicsState graphics)
+    private (NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, ushort Phase, NativeBattleGteDepthTrace DepthTrace) AdvanceNativeQuezacotlFirstWindowCore(NativeBattleGraphicsState graphics, NativeBattleLogicalOrderingTransaction ordering)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C3940 requires retained effect memory.");
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new InvalidDataException("Native6C3940 lost its module state.");
@@ -10,6 +10,7 @@ public sealed partial class BattleSession
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
         NativeBattleGteDepthTrace depthTrace = new();
+        NativeBattleEffectArenaTransaction? animationArena = null;
         if (phase is < 1 or > 355)
         {
             throw new InvalidOperationException("Native Quezacotl workspace owner requires actual phase1..355.");
@@ -17,7 +18,7 @@ public sealed partial class BattleSession
         if (phase == 355)
         {
             graphics = PrepareNativeQuezacotlCleanup355(graphics with { OriginalEffect = effect });
-            return FinishNativeQuezacotlSecondaryLists(graphics, NativeEffectMemory!, graphics.OriginalEffect!, phase, depthTrace);
+            return (graphics, NativeEffectMemory!, graphics.OriginalEffect!, phase, depthTrace);
         }
         if (phase == 86)
         {
@@ -70,7 +71,7 @@ public sealed partial class BattleSession
                     NativeStage = NativeBattleQuezacotlWorkspace.SetStageVisibility6C6500(NativeStage ?? throw new NotSupportedException("Native6C6500 requires its retained four stage rows."), secondWindow ? 1 : 0);
                 }
             }
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires the retained Quezacotl pause DWORD."), (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires the retained Quezacotl pause DWORD."), (current, node) =>
             {
                 Persist(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -88,9 +89,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             Persist(stepped.Workspace);
         }
         if (phase is >= 87 and < 162)
@@ -141,6 +145,7 @@ public sealed partial class BattleSession
                 NativeBattleEffectIoPoll poll = NativeBattleEffectIo.Poll534270(memory);
                 memory = poll.Memory;
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 if (poll.Request is { } pendingRequest)
                 {
                     QueueNativeQuezacotlFile(pendingRequest, effect);
@@ -148,7 +153,7 @@ public sealed partial class BattleSession
                 }
                 if (poll.Busy)
                 {
-                    return FinishNativeQuezacotlSecondaryLists(graphics, memory, effect, phase, depthTrace);
+                    return (graphics, memory, effect, phase, depthTrace);
                 }
             }
             bool meshContext = phase is >= 227 and < 247;
@@ -169,7 +174,7 @@ public sealed partial class BattleSession
                 ApplyRig(new(anchor.Memory, anchor.Effect));
                 meshAnchor = anchor.Position;
             }
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
             {
                 Persist(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -205,9 +210,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             Persist(stepped.Workspace);
         }
         if (phase is >= 257 and <= 302)
@@ -222,7 +230,7 @@ public sealed partial class BattleSession
                 Persist(workspace);
             }
             int baseY = memory.QuezacotlTargetY1774 ?? throw new NotSupportedException("Native6C45F0 requires its retained2521774 DWORD; explicitly migrate only this standalone's proved cold owner.");
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native701970 requires its retained pause DWORD."), (current, node) =>
             {
                 Persist(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -239,9 +247,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             Persist(stepped.Workspace);
         }
         if (phase is >= 277 and <= 302)
@@ -259,7 +270,7 @@ public sealed partial class BattleSession
                 NativeCamera = NativeBattleQuezacotlLaterCamera.Shift6C4685(NativeCamera ?? throw new NotSupportedException("Native6C4685 requires its current camera globals."), phase - 257);
             }
             int baseY = memory.QuezacotlTargetY1774 ?? throw new NotSupportedException("Native6C46BB requires its retained2521774 DWORD.");
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, frozen, (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, frozen, (current, node) =>
             {
                 PersistExecutable(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -276,9 +287,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             PersistExecutable(stepped.Workspace);
         }
         if (phase is >= 303 and <= 318)
@@ -294,7 +308,7 @@ public sealed partial class BattleSession
             }
             NativeBattleQuezacotlFragmentWrite spawned = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(memory, effect);
             ApplyRig(new(spawned.Memory, spawned.Effect));
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native6C4813 requires its retained pause DWORD."), (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, memory.QuezacotlPause ?? throw new NotSupportedException("Native6C4813 requires its retained pause DWORD."), (current, node) =>
             {
                 Persist(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -311,9 +325,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             Persist(stepped.Workspace);
         }
         if (phase is >= 319 and <= 354)
@@ -331,7 +348,7 @@ public sealed partial class BattleSession
                 Persist(workspace);
             }
             int frozen = memory.QuezacotlPause ?? throw new NotSupportedException("Native6C48D0 requires its retained pause DWORD.");
-            NativeBattleGfAnimationAdvance stepped = workspace.Advance701970(source, frozen, (current, node) =>
+            NativeBattleGfAnimationAdvance stepped = AdvanceWorkspace(() => workspace.Advance701970(source, frozen, (current, node) =>
             {
                 Persist(current);
                 if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
@@ -348,9 +365,12 @@ public sealed partial class BattleSession
                 effect = written.Effect;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
+                CommitArenaPublication();
                 NativeGraphics = graphics;
+                ordering.CommitCheckpoint();
+                ordering.BeginCheckpoint();
                 return current;
-            });
+            }));
             Persist(stepped.Workspace);
             NativeCamera = NativeBattleQuezacotlLaterCamera.Shift6C48F5(NativeCamera ?? throw new NotSupportedException("Native6C48F5 requires its retained current camera."), phase - 319, frozen);
         }
@@ -377,13 +397,15 @@ public sealed partial class BattleSession
         if (io.Request is { } request)
         {
             NativeEffectMemory = memory;
+            CommitArenaPublication();
             QueueNativeQuezacotlFile(request, effect);
             memory = NativeEffectMemory!;
         }
         if (!io.AdvancePhase)
         {
             NativeEffectMemory = memory;
-            return FinishNativeQuezacotlSecondaryLists(graphics, memory, effect, phase, depthTrace);
+            CommitArenaPublication();
+            return (graphics, memory, effect, phase, depthTrace);
         }
         if (phase == 65)
         {
@@ -452,21 +474,63 @@ public sealed partial class BattleSession
         }
         NativeBattleQuezacotlWorkspaceWrite advancedPhase = NativeBattleQuezacotlWorkspace.AdvancePhase6C51F1(memory, effect);
         ApplyRig(new(advancedPhase.Memory, advancedPhase.Effect));
-        return FinishNativeQuezacotlSecondaryLists(graphics, memory, effect, phase, depthTrace);
+        return (graphics, memory, effect, phase, depthTrace);
+        NativeBattleGfAnimationAdvance AdvanceWorkspace(Func<NativeBattleGfAnimationAdvance> advance)
+        {
+            using NativeBattleEffectArenaTransaction owned = new(memory.Arena ?? throw new NotSupportedException("Native Quezacotl animation requires its current arena."));
+            animationArena = owned;
+            memory = memory with { Arena = owned.View };
+            owned.BeginCheckpoint();
+            try
+            {
+                NativeBattleGfAnimationAdvance result = advance();
+                owned.CommitCheckpoint();
+                memory = memory with { Arena = owned.Freeze() };
+                NativeEffectMemory = memory;
+                return result;
+            }
+            catch
+            {
+                owned.RollbackCheckpoint();
+                if (NativeEffectMemory is { Arena: { } publishedArena } published && ReferenceEquals(publishedArena.Transaction, owned))
+                {
+                    NativeEffectMemory = published with { Arena = owned.Freeze() };
+                }
+                throw;
+            }
+            finally
+            {
+                animationArena = null;
+            }
+        }
+
+        void CommitArenaPublication()
+        {
+            if (animationArena is not null)
+            {
+                animationArena.CommitCheckpoint();
+                animationArena.BeginCheckpoint();
+            }
+        }
+
         void Persist(NativeBattleGfAnimationWorkspace current)
         {
             NativeBattleQuezacotlWorkspaceWrite write = NativeBattleQuezacotlWorkspace.Write(memory, effect, current);
             memory = write.Memory;
             effect = write.Effect;
             NativeEffectMemory = memory;
+            CommitArenaPublication();
             graphics = graphics with { OriginalEffect = effect };
             NativeGraphics = graphics;
+            ordering.CommitCheckpoint();
+            ordering.BeginCheckpoint();
         }
 
         void PersistExecutable(NativeBattleGfAnimationWorkspace current)
         {
             memory = NativeBattleQuezacotlWorkspace.WriteExecutable(memory, current);
             NativeEffectMemory = memory;
+            CommitArenaPublication();
         }
 
         void ApplyRig(NativeBattleQuezacotlRigWrite rig)
@@ -474,8 +538,11 @@ public sealed partial class BattleSession
             memory = rig.Memory;
             effect = rig.Effect;
             NativeEffectMemory = memory;
+            CommitArenaPublication();
             graphics = graphics with { OriginalEffect = effect };
             NativeGraphics = graphics;
+            ordering.CommitCheckpoint();
+            ordering.BeginCheckpoint();
         }
     }
 }

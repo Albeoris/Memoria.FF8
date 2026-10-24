@@ -5,6 +5,60 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectArenaTransactionTests
 {
     [Fact]
+    public void Small_source_can_read_zero_holes_and_borrow_a_writer_at_the_full_arena_boundary()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(3, [1, 2, 3]);
+        using NativeBattleEffectArenaTransaction transaction = new(source);
+        Assert.Equal(new byte[32], transaction.View.Read(64, 32));
+        Assert.Equal(new byte[8], transaction.View.Read(NativeBattleEffectArena.Length - 8, 8));
+        NativeBattleEffectArenaWriter borrowed = new(transaction.View);
+        borrowed.Write(NativeBattleEffectArena.Length - 4, [9, 8, 7, 6]);
+        Assert.Same(transaction.View, borrowed.Freeze());
+        Assert.Equal(new byte[] { 0, 0, 0, 0, 9, 8, 7, 6 }, transaction.View.Read(NativeBattleEffectArena.Length - 8, 8));
+        Assert.Equal(new byte[] { 1, 2, 3 }, transaction.View.Read(3, 3));
+        Assert.Equal(JsonSerializer.Serialize(source.Write(NativeBattleEffectArena.Length - 4, [9, 8, 7, 6])), JsonSerializer.Serialize(transaction.Freeze()));
+        Assert.Throws<InvalidDataException>(() => transaction.View.Write(NativeBattleEffectArena.Length, [1]));
+        Assert.Throws<InvalidDataException>(() => transaction.View.Read(NativeBattleEffectArena.Length, 1));
+    }
+
+    [Fact]
+    public void Growth_after_checkpoint_restores_bytes_unknown_spans_and_zero_holes_on_rollback()
+    {
+        int high = NativeBattleEffectArena.Length - 16;
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(4, [1, 2, 3, 4]).MarkUnknown(high + 4, 4);
+        using NativeBattleEffectArenaTransaction transaction = new(source);
+        transaction.BeginCheckpoint();
+        transaction.View.Write(5, [8, 9]);
+        transaction.View.Write(high, [10, 11, 12, 13, 14, 15, 16, 17]);
+        transaction.View.MarkUnknown(high + 8, 2);
+        var changed = transaction.View.ReadSnapshot(high, 12);
+        Assert.Equal(new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 0, 0, 0, 0 }, changed.Data);
+        Assert.Equal(new bool[] { true, true, true, true, true, true, true, true, false, false, true, true }, changed.Known);
+        transaction.RollbackCheckpoint();
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(transaction.Freeze()));
+        Assert.Equal(new byte[12], transaction.View.ReadSnapshot(high, 12).Data);
+        Assert.Equal(source.ReadSnapshot(high, 12).Known, transaction.View.ReadSnapshot(high, 12).Known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, transaction.View.Read(4, 4));
+        Assert.Equal(new byte[32], transaction.View.Read(0x80000, 32));
+    }
+
+    [Fact]
+    public void Newly_rented_and_grown_storage_never_exposes_previous_transaction_bytes()
+    {
+        int high = NativeBattleEffectArena.Length - 64;
+        using (NativeBattleEffectArenaTransaction previous = new(NativeBattleEffectArena.Clear()))
+        {
+            previous.View.Write(high, Enumerable.Repeat((byte)0xA5, 64).ToArray());
+        }
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().MarkUnknown(high + 8, 8);
+        using NativeBattleEffectArenaTransaction current = new(source);
+        Assert.Equal(new byte[64], current.View.ReadSnapshot(high, 64).Data);
+        Assert.Equal(new byte[8], current.View.Read(high, 8));
+        Assert.Throws<NotSupportedException>(() => current.View.Read(high + 8, 1));
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(current.Freeze()));
+    }
+
+    [Fact]
     public void SnapshotPreservesBackingBytesAndLiveKnownnessAcrossOverlappingCopiesAndRollback()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(40, new byte[] { 1, 2, 3, 4, 5, 6 }).MarkUnknown(42, 2);

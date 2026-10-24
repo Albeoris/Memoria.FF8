@@ -247,8 +247,22 @@ public sealed class NativeBattleIfritFormPresentationTests
             if (skip)
             {
                 TimeSpan elapsed = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
-                battle.AdvanceNativeGraphicsPresentation(elapsed);
-                restored.AdvanceNativeGraphicsPresentation(elapsed);
+                long before = battle.NativeGraphics!.Callback;
+                battle.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
+                restored.AdvanceNativeGraphicsPresentation(elapsed, TimeSpan.Zero);
+                Assert.Equal(before + 1, battle.NativeGraphics!.Callback);
+                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+                for (int callback = 0; callback < 1200 && battle.GuardianAnimationSkipPending; callback++)
+                {
+                    Assert.True(restored.GuardianAnimationSkipPending);
+                    before = battle.NativeGraphics.Callback;
+                    battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
+                    restored.AdvanceNativeGraphicsPresentation(TimeSpan.Zero, TimeSpan.Zero);
+                    Assert.Equal(before + 1, battle.NativeGraphics.Callback);
+                    Assert.Equal(battle.NativeGraphics.Callback, restored.NativeGraphics!.Callback);
+                }
+                Assert.False(battle.GuardianAnimationSkipPending);
+                Assert.False(restored.GuardianAnimationSkipPending);
             }
             else
             {

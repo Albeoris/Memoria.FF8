@@ -51,7 +51,7 @@ public static class NativeBattleShivaBillboardBanks
             local = NativeBattleGfMatrices.Euler56CE30(new(0, 0, kind == 1 ? Word(task, 0x18) : (short)0)) with { X = Word(task, 0x10), Y = Word(task, 0x12), Z = Word(task, 0x14) };
         }
         NativeBattleActionMatrix light = NativeBattlePoseMatrices.Compose56C2F0(viewWorld, local);
-        BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva billboard particles require their current physical bank."));
+        using BankMemory bank = new(frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva billboard particles require their current physical bank."));
         bool paused = (graphicsFlags & 0x201) != 0;
         byte flag = kind switch { 0 => (byte)8, 1 => (byte)1, 2 => (byte)2, _ => (byte)4 };
         uint resource = kind < 2 ? 0xD20E10u : kind == 2 ? 0xD20AD0u : 0xD208B0u;
@@ -242,18 +242,23 @@ public static class NativeBattleShivaBillboardBanks
         }
     }
 
-    private sealed class BankMemory(NativeBattleEffectArena arena)
+    private sealed class BankMemory(NativeBattleEffectArena arena) : IDisposable
     {
-        public NativeBattleEffectArena Arena { get; set; } = arena;
-        public byte Byte(int address) => Arena.Read(address, 1)[0];
-        public short Word(int address) => BinaryPrimitives.ReadInt16LittleEndian(Arena.Read(address, 2));
+        private readonly NativeBattleEffectArenaBatch batch = new(arena);
+        public NativeBattleEffectArena Arena
+        {
+            get => batch.Publish();
+            set => batch.Replace(value);
+        }
+        public byte Byte(int address) => batch.Read(address, 1)[0];
+        public short Word(int address) => BinaryPrimitives.ReadInt16LittleEndian(batch.Read(address, 2));
 
         public int FirstFree()
         {
             for (int index = 0; index < 150; index++)
             {
                 int record = 0x2C000 + index * 24;
-                if (BinaryPrimitives.ReadUInt32LittleEndian(Arena.Read(record, 4)) == 0)
+                if (BinaryPrimitives.ReadUInt32LittleEndian(batch.Read(record, 4)) == 0)
                 {
                     return record;
                 }
@@ -265,14 +270,16 @@ public static class NativeBattleShivaBillboardBanks
         {
             Span<byte> bytes = stackalloc byte[2];
             BinaryPrimitives.WriteUInt16LittleEndian(bytes, unchecked((ushort)value));
-            Arena = Arena.Write(address, bytes);
+            batch.Write(address, bytes);
         }
 
         public void PutDword(int address, uint value)
         {
             Span<byte> bytes = stackalloc byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-            Arena = Arena.Write(address, bytes);
+            batch.Write(address, bytes);
         }
+
+        public void Dispose() => batch.Dispose();
     }
 }

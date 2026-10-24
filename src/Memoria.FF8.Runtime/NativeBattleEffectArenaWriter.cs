@@ -58,6 +58,7 @@ internal sealed class NativeBattleEffectArenaWriter
         }
         else
         {
+            EnsureReadThroughCapacity(offset + bytes.Length);
             if (checkpointRegions is not null)
             {
                 undo.Add((offset, storage.AsSpan(offset, bytes.Length).ToArray()));
@@ -239,8 +240,9 @@ internal sealed class NativeBattleEffectArenaWriter
         {
             throw new InvalidOperationException("An arena transaction must begin from one immutable source.");
         }
-        storage = ArrayPool<byte>.Shared.Rent(NativeBattleEffectArena.Length);
-        Array.Clear(storage, 0, NativeBattleEffectArena.Length);
+        int extent = source.Regions.IsEmpty ? 1 : source.Regions[^1].Offset + source.Regions[^1].Data.Length;
+        storage = ArrayPool<byte>.Shared.Rent(extent);
+        Array.Clear(storage, 0, storage.Length);
         foreach (NativeBattleEffectMemoryRegion region in source.Regions)
         {
             region.Data.AsSpan().CopyTo(storage.AsSpan(region.Offset));
@@ -255,7 +257,8 @@ internal sealed class NativeBattleEffectArenaWriter
         {
             throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }
-        return (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
+        EnsureReadThroughCapacity(offset + count);
+        return storage!.AsSpan(offset, count).ToArray();
     }
 
     internal (byte[] Data, bool[] Known) ReadSnapshotThrough(int offset, int count)
@@ -270,8 +273,24 @@ internal sealed class NativeBattleEffectArenaWriter
             int end = Math.Min(offset + count, region.Offset + region.Length);
             Array.Clear(known, start - offset, end - start);
         }
-        byte[] data = (storage ?? throw new InvalidOperationException("Arena transaction storage is not active.")).AsSpan(offset, count).ToArray();
+        EnsureReadThroughCapacity(offset + count);
+        byte[] data = storage!.AsSpan(offset, count).ToArray();
         return (data, known);
+    }
+
+    private void EnsureReadThroughCapacity(int extent)
+    {
+        byte[] previous = storage ?? throw new InvalidOperationException("Arena transaction storage is not active.");
+        if (extent <= previous.Length)
+        {
+            return;
+        }
+        int capacity = Math.Max(extent, Math.Min(NativeBattleEffectArena.Length, previous.Length * 2));
+        byte[] grown = ArrayPool<byte>.Shared.Rent(capacity);
+        previous.AsSpan().CopyTo(grown);
+        Array.Clear(grown, previous.Length, grown.Length - previous.Length);
+        storage = grown;
+        ArrayPool<byte>.Shared.Return(previous);
     }
 
     internal byte[] ReadCurrent(int offset, int count) => transaction is not null ? transaction.Read(offset, count) : ReadThrough(offset, count);

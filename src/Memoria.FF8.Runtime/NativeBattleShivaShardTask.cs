@@ -22,6 +22,8 @@ public static class NativeBattleShivaShardTask
             throw new InvalidDataException("Native Shiva shard worker requires its complete original source mesh.");
         }
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Shiva shard worker requires its retained170 fragment records.");
+        using NativeBattleEffectArenaTransaction? transaction = arena.Transaction is null ? new(arena) : null;
+        arena = transaction?.View ?? arena;
         int counter = unchecked((short)task.ReadWord(0x0C));
         bool animated = counter >= 18;
         int phase = animated ? counter - 18 : counter;
@@ -108,7 +110,7 @@ public static class NativeBattleShivaShardTask
         {
             throw new InvalidDataException("Native Shiva shard worker does not end at its actual face/record boundary.");
         }
-        frame = frame with { Memory = frame.Memory with { Arena = arena } };
+        frame = frame with { Memory = frame.Memory with { Arena = transaction?.Freeze() ?? arena } };
         int result = 0;
         if (!paused)
         {

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 
 namespace Memoria.FF8.Runtime;
 
@@ -159,12 +160,19 @@ public sealed partial class BattleSession
 
     private bool SkippingGuardianFormPresentation => SkippingOrdinaryGuardianAnimation || NativeGraphics?.GuardianFormPresentation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 5, SkipRequested: true } && !NativeBattleIfritContinuation.HasReachedFinale(RequireWaterMemory().ScriptedEffects!);
 
-    private void AdvanceSkippedGuardianFormPresentation()
+    public bool GuardianAnimationSkipPending => SkippingGuardianFormPresentation;
+
+    private void AdvanceSkippedGuardianFormPresentation(TimeSpan? workBudget = null)
     {
+        long started = workBudget is null ? 0 : Stopwatch.GetTimestamp();
         for (int callback = 0; callback < 4096 && SkippingGuardianFormPresentation; callback++)
         {
             DispatchTurnBasedFrame();
             RetainGuardianAnimationFinale();
+            if (workBudget is { } budget && Stopwatch.GetElapsedTime(started) >= budget)
+            {
+                break;
+            }
         }
         RetainGuardianAnimationFinale();
     }

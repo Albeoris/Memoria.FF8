@@ -173,6 +173,40 @@ public sealed class NativeBattleWaterParticleRectangleTests
         Assert.Equal(0x300050u, actual.NextCursor);
     }
 
+    [Fact]
+    public void Later_record_failure_does_not_publish_earlier_temporary_or_cursor_writes()
+    {
+        NativeBattleWaterExecutionFrame source = Fixture(2);
+        string original = JsonSerializer.Serialize(source);
+        int resolved = 0;
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(source, Matrix, Projection, 1365, 0, 0, _ =>
+        {
+            resolved++;
+            if (resolved == 2)
+            {
+                throw new NotSupportedException("Selected unresolved ordering bucket.");
+            }
+            return 17;
+        }));
+        Assert.Equal(2, resolved);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(0x300000u, WaterSchedulerFixture.ReadCoreDword(source, WaterSchedulerFixture.ReadCoreDword(source, 0x27973EC) + 0x7C));
+    }
+
+    [Fact]
+    public void Complete_leaf_keeps_input_and_aliases_immutable_through_next_draw()
+    {
+        NativeBattleWaterExecutionFrame source = Fixture(2);
+        NativeBattleWaterTemporaryFrame alias = source.TemporaryFrame;
+        string original = JsonSerializer.Serialize(source);
+        NativeBattleWaterParticleRectangleResult first = Draw(source);
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first.Frame))!;
+        Assert.Equal(JsonSerializer.Serialize(Draw(first.Frame)), JsonSerializer.Serialize(Draw(restored)));
+        Assert.Same(alias, source.TemporaryFrame);
+        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.NotEqual(JsonSerializer.Serialize(alias), JsonSerializer.Serialize(first.Frame.TemporaryFrame));
+    }
+
     private static NativeBattleWaterParticleRectangleResult Draw(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, Matrix, Projection, 1365, 0, 0, Resolve);
 
     private static int Resolve(uint address) => 17;
