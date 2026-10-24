@@ -94,7 +94,8 @@ public sealed partial class BattleSession
             }
             BattleActionPresentation cast = command with { TargetId = target.Id, NativeTargetMask = mask, NativeMagicTargets = [], NativeAction = action.NativeAction };
             nativeAffinityAction = null;
-            if (!ResolveInstalledNativeAction(actor, target, cast, action))
+            //485610 submits one104 for the group; the effect consumes the following headers itself.
+            if (!ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0))
             {
                 break;
             }

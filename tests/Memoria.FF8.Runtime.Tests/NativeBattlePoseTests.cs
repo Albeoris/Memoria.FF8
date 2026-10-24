@@ -96,6 +96,27 @@ public sealed class NativeBattlePoseTests
         Assert.Equal(new NativeBattleVector(110, 220, 330), NativeBattlePoseMatrices.TransformCameraPoint(model, Source(), 15, new(10, 20, 30), false));
     }
 
+    [Theory]
+    [InlineData(0, 0, false, 1010, 2020, 3030)]
+    [InlineData(0, 14, true, 990, 2020, 3030)]
+    [InlineData(0, 15, false, 110, 220, 330)]
+    [InlineData(2, 15, true, 90, 220, 330)]
+    public void Camera_reads_retained_matrix_and_inactive_position_without_an_animation_resource(byte flags, byte alias, bool mirror, short x, short y, short z)
+    {
+        NativeBattleGraphicsModel model = new(0, flags)
+        {
+            ModelId4 = 16,
+            Transform = new(new(100, 200, 300), new(1000, 2000, 3000), 0, 0, 2048),
+            GeometryWorldMatrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 4096)
+        };
+        NativeBattleVector expected = new(x, y, z);
+
+        Assert.Equal(expected, NativeBattlePoseMatrices.TransformCameraPoint(model, null, alias, new(10, 20, 30), mirror));
+        NativeBattleGraphicsModel restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleGraphicsModel>(System.Text.Json.JsonSerializer.Serialize(model))!;
+        Assert.Equal(expected, NativeBattlePoseMatrices.TransformCameraPoint(restored, null, alias, new(10, 20, 30), mirror));
+        Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.TransformCameraPoint(model with { Flags0 = 2 }, null, 0, new(10, 20, 30), false));
+    }
+
     private static NativeBattlePoseSource Source()
     {
         byte[] skeleton = new byte[112];

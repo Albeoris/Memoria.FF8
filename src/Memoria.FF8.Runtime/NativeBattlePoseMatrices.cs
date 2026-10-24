@@ -103,7 +103,7 @@ public static partial class NativeBattlePoseMatrices
         return new(new(selected.Rotation.ToImmutableArray(), selected.X, selected.Y, selected.Z, 4096), unchecked((short)distance), transform.Position28);
     }
 
-    public static NativeBattleVector TransformCameraPoint(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte lowNibble, NativeBattleVector local, bool mirror)
+    public static NativeBattleVector TransformCameraPoint(NativeBattleGraphicsModel model, NativeBattlePoseSource? source, byte lowNibble, NativeBattleVector local, bool mirror)
     {
         if (lowNibble > 15)
         {
@@ -114,7 +114,7 @@ public static partial class NativeBattlePoseMatrices
         Matrix matrix = new(cached.Rotation.ToArray(), cached.X, cached.Y, cached.Z);
         if (lowNibble != 15)
         {
-            NativeBattleVector bone = ReadBone(model, source, (byte)(0xF0 | lowNibble), 2048);
+            NativeBattleVector bone = (model.Flags0 & 2) == 0 ? transform.Position28 : ReadBone(model, source ?? throw new NotSupportedException("Native active actor-relative bone camera requires its skeleton owner."), (byte)(0xF0 | lowNibble), 2048);
             matrix = matrix with { X = bone.X, Y = bone.Y, Z = bone.Z };
         }
         int scale = unchecked(2 * transform.Scale38 * transform.Scale154) >> 12;

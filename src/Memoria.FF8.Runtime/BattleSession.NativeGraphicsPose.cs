@@ -94,8 +94,9 @@ public sealed partial class BattleSession
     internal NativeBattleCameraPoint TransformNativeGraphicsCameraPoint(int index, byte lowNibble, NativeBattleCameraPoint local, bool mirror)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native actor-relative camera requires its original skeleton and animation source.");
-        NativeBattleVector result = NativeBattlePoseMatrices.TransformCameraPoint(graphics.Models[index], source, lowNibble, new(local.X, local.Y, local.Z), mirror);
+        NativeBattleGraphicsModel model = graphics.Models[index];
+        NativeBattlePoseSource? source = lowNibble != 15 && (model.Flags0 & 2) != 0 ? NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native actor-relative camera requires its original skeleton and animation source.") : null;
+        NativeBattleVector result = NativeBattlePoseMatrices.TransformCameraPoint(model, source, lowNibble, new(local.X, local.Y, local.Z), mirror);
         return new(result.X, result.Y, result.Z);
     }
 

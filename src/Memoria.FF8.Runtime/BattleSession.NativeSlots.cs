@@ -64,7 +64,8 @@ public sealed partial class BattleSession
         {
             ushort mask = packet.ReadWord(6 + 2 * repeat);
             BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? GetActor(command.TargetId);
-            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action))
+            //485610 submits one104 for the group; the effect consumes the following headers itself.
+            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action, queueGraphics: repeat == 0))
             {
                 break;
             }
