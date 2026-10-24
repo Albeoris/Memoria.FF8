@@ -299,6 +299,8 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
     public bool NativeStopAllSounds { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeStopSoundVoice { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleSoundGainRequest? NativeSoundGain { get; init; }
     public byte? NativeGraphicMagicId { get; init; }
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }
