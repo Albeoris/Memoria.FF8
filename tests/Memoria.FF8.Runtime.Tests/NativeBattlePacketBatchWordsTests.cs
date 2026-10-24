@@ -122,6 +122,47 @@ public sealed class NativeBattlePacketBatchWordsTests
         Assert.Equal(0x7Du, Resolve().Attempts[1].Primitive!.Words[1] & 0xFF);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Knownness_reader_requires_retained_composite_color_but_ignores_unknown_UV_padding(bool colorKnown)
+    {
+        const int cursor = 16;
+        NativeBattleGfGeometryAttempt quad = Quad();
+        byte[] bytes = new byte[quad.PacketLength + 4];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x0D000000);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), 0xE1000000);
+        quad.Data.AsSpan().Slice(4).CopyTo(bytes.AsSpan(8));
+        int[] retained = [8, 42, 43, 54, 55];
+        var mask = Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray();
+        foreach (int offset in retained)
+        {
+            mask = mask.SetItem(offset, NativeBattleGfPacketByteState.Untouched);
+        }
+        var words = Enumerable.Range(0, bytes.Length / 4).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * 4))).ToImmutableArray();
+        NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), mask, quad.Primitive! with { Words = words })], bytes.Length);
+        List<int> reads = [];
+        NativeBattleGfGeometryBatch Resolve() => NativeBattlePacketBatchWords.ResolveWithKnownness(batch, cursor, 128, address =>
+        {
+            reads.Add(address);
+            return address == cursor + 8 ? ((byte)0x7D, colorKnown) : ((byte)0xA5, false);
+        });
+        if (!colorKnown)
+        {
+            Assert.Throws<NotSupportedException>(() => Resolve());
+            Assert.Equal(new[] { cursor + 8 }, reads);
+            return;
+        }
+        NativeBattleGfGeometryBatch resolved = Resolve();
+        Assert.Equal(new[] { cursor + 8 }, reads);
+        Assert.Equal(0xE1000000u, resolved.Attempts[0].Primitive!.Words[1]);
+        Assert.Equal(0x7Du, resolved.Attempts[0].Primitive!.Words[2] & 0xFF);
+        Assert.Equal(0u, resolved.Attempts[0].Primitive!.Words[10] >> 16);
+        Assert.Equal(0u, resolved.Attempts[0].Primitive!.Words[13] >> 16);
+        Assert.Equal(batch.Attempts[0].Data, resolved.Attempts[0].Data);
+        Assert.Equal(batch.Attempts[0].WriteMask, resolved.Attempts[0].WriteMask);
+    }
+
     private static NativeBattleGfGeometryAttempt Quad()
     {
         byte[] bytes = new byte[52];
