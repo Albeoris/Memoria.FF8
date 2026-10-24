@@ -50,6 +50,9 @@ public sealed partial class BattleSession
                 case 0x7BE1E0:
                     CompleteNativeEffect79File(completion.Callback);
                     break;
+                case 0x6A6360:
+                    CompleteNativeEffect140File();
+                    break;
                 case 0x6C3580:
                     NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native6C3580 requires its retained effect arena.");
                     NativeEffectMemory = NativeBattleEffectIo.Complete6C3580(memory, ResolveNativeQuezacotlSource).Memory;

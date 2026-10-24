@@ -127,7 +127,17 @@ public static class NativeBattleEffectIo
         return CompleteDescriptor(memory, resolveSource, pointer => [pointer, unchecked(pointer + 0x4220)]);
     }
 
-    private static NativeBattleEffectIoCompletion CompleteDescriptor(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource, Func<uint, ImmutableArray<uint>>? type16Textures)
+    public static NativeBattleEffectIoCompletion Complete6A6360(NativeBattleEffectMemory memory, uint commonBase, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource)
+    {
+        NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native6A6360 requires its retained callback/controller pointers.");
+        if (io.Callback != 0x6A6360)
+        {
+            throw new InvalidDataException("Native6A6360 was not selected by the actual effect initializer.");
+        }
+        return CompleteDescriptor(memory, resolveSource, _ => [unchecked(commonBase + 0x1F7A0), unchecked(commonBase + 0x219C0), unchecked(commonBase + 0x23BE0)], 2);
+    }
+
+    private static NativeBattleEffectIoCompletion CompleteDescriptor(NativeBattleEffectMemory memory, Func<uint, int?, NativeBattleEffectHeapAllocation> resolveSource, Func<uint, ImmutableArray<uint>>? type16Textures, byte type16Delay = 0)
     {
         NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native effect completion requires its retained descriptor callback owner.");
         int controller = io.ControllerOffset ?? throw new NotSupportedException("Native6C3580 requires its actual534110 current controller.");
@@ -173,7 +183,7 @@ public static class NativeBattleEffectIo
                     EnqueueTexture(address);
                 }
             }
-            delay = 0;
+            delay = type == 0x10 ? type16Delay : (byte)0;
         }
         arena = arena.Write(controller, [0, delay]).Write(controller + 4, [unchecked((byte)(header[4] + 1))]);
         memory = memory with { Arena = arena, Textures = textures };

@@ -311,6 +311,9 @@ public sealed partial class BattleSession
                 {
                     graphics = effect79Completed;
                 }
+                else if (TryWriteNativeEffect140Completion(address, value))
+                {
+                }
                 else if (TryWriteNativeEffect76Completion(graphics, address, value, out NativeBattleGraphicsState effect76Completed))
                 {
                     graphics = effect76Completed;
@@ -379,6 +382,9 @@ public sealed partial class BattleSession
                 NativeBattleMusicLoadStep loading = music.AdvanceLoad501A70(NativeGlobalSoundProcess ?? throw new NotSupportedException("Native501A70 requires its current sound process."), NativeFileStaging, phase, address, (target, value) =>
                 {
                     if (TryWriteNativeEffect344Completion(target, value))
+                    {
+                    }
+                    else if (TryWriteNativeEffect140Completion(target, value))
                     {
                     }
                     else if (TryWriteNativeEffect76Completion(graphics, target, value, out NativeBattleGraphicsState effect76Completed))

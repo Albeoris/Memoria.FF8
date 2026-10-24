@@ -53,6 +53,15 @@ public sealed partial class BattleRenderer
                 continue;
             }
             NativeBattleLogicalCommand command = resolved.Command;
+            if (command.Opcode == 0x80)
+            {
+                if (resolved.Pass != 1 || command.Words.Length != 4)
+                {
+                    throw new InvalidDataException("Native VRAM transfer presentation requires its executed first-pass command and four payload DWORDs.");
+                }
+                //The shared software handler has already copied the absolute VRAM words and invalidated their texture cache.
+                continue;
+            }
             if (command.Opcode == 0x02)
             {
                 if (resolved.Pass != 1 || command.Words.Length != 3)

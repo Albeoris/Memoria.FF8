@@ -52,6 +52,15 @@ public static class NativeBattleEffectCatalogReader
 
         ImmutableArray<NativeBattleEffectInitializerResource> ReadInitializer(uint address)
         {
+            if (address == NativeBattleEffect140Profile.Initializer)
+            {
+                ReadOnlySpan<byte> special = Bytes(address, 29);
+                if (special[0] != 0x56 || special[1] != 0x68 || special[6] != 0xC7 || special[7] != 5 || BinaryPrimitives.ReadUInt32LittleEndian(special[8..]) != 0x1DCD6E8 || BinaryPrimitives.ReadUInt32LittleEndian(special[12..]) != NativeBattleEffect140Profile.LoaderCallback || special[16] != 0xE8 || address + 21L + BinaryPrimitives.ReadInt32LittleEndian(special[17..]) != 0x571B80 || special[21] != 0x83 || special[22] != 0xC4 || special[23] != 4 || special[24] != 0xA3 || BinaryPrimitives.ReadUInt32LittleEndian(special[25..]) != NativeBattleEffect140Profile.InitializerGlobal)
+                {
+                    throw new InvalidDataException("Effect140 initializer differs from its texture and loader callback publication.");
+                }
+                return [ReadResource(BinaryPrimitives.ReadUInt32LittleEndian(special[2..]), NativeBattleEffect140Profile.InitializerGlobal)];
+            }
             if (address == 0x6897F0)
             {
                 ReadOnlySpan<byte> special = Bytes(address, 29);
@@ -620,6 +629,15 @@ public sealed partial class GameAssets
                     throw new InvalidDataException("Effect68 requires its original entry and texture initializer contract.");
                 }
                 binding = binding with { Effect68Resources = ReadNativeEffect68Resources(), ScanTextResources = ReadNativeScanTextResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 140)
+            {
+                if (binding.Entry != NativeBattleEffect140Profile.Entry || binding.Initializer != NativeBattleEffect140Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag139.tim", NativeBattleEffect140Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect140 requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { Effect140Resources = ReadNativeEffect140Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
             if (binding.Effect == 76)
