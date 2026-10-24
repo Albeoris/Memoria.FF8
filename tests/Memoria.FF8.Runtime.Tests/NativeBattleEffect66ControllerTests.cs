@@ -152,7 +152,7 @@ public sealed class NativeBattleEffect66ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteDword(16, 0x12345678).MarkPayloadUnknown(20, 4)) }) } };
         (frame, uint address) = Spawn622CD0(frame, 0x622EB0);
-        Assert.Equal(0, Read(frame, address).ReadDword(12));
+        Assert.Equal(0u, Read(frame, address).ReadDword(12));
         Assert.Equal(0x12345678u, Read(frame, address).ReadDword(16));
         Assert.Throws<NotSupportedException>(() => Read(frame, address).ReadDword(20));
     }
@@ -233,6 +233,36 @@ public sealed class NativeBattleEffect66ControllerTests
         Assert.Equal(2, result.Result);
         Assert.Equal(161, Read(result.Frame, ChildBank).ReadWord(12));
         Assert.Empty(harness.Operations);
+    }
+
+    [Fact]
+    public void Rotation_load_retains_translation_and_unknown_matrix_padding()
+    {
+        NativeBattleEffect66Frame frame = Frame();
+        NativeBattleGeometryRegisters prior = NativeBattleGeometryRegisters.Unknown() with { Translation = [123, null, -456] };
+        frame = frame with { Memory = frame.Memory with { GeometryRegisters = prior } };
+        NativeBattlePackedMatrix32 source = NativeBattlePackedMatrix32.FromMatrix(Identity(), null);
+        source = source with { Known = source.Known.Select((known, index) => index < 18 && known).ToImmutableArray() };
+        NativeBattleEffect66Frame result = LoadMatrix(frame, source, true, false);
+        Assert.Equal(prior.Translation, result.Memory.GeometryRegisters!.Translation);
+        Assert.Equal(source.Bytes.Take(18).Select(value => (byte?)value), result.Memory.GeometryRegisters.Rotation20.Take(18));
+        Assert.Null(result.Memory.GeometryRegisters.Rotation20[18]);
+        Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
+        Assert.Throws<NotSupportedException>(() => LoadMatrix(frame, source, false, true));
+    }
+
+    [Fact]
+    public void Translation_load_does_not_require_or_publish_unknown_rotation()
+    {
+        NativeBattleEffect66Frame frame = Frame();
+        NativeBattleGeometryRegisters prior = NativeBattleGeometryRegisters.Unknown() with { Rotation20 = Enumerable.Repeat((byte?)0xA5, 20).ToImmutableArray() };
+        frame = frame with { Memory = frame.Memory with { GeometryRegisters = prior } };
+        NativeBattlePackedMatrix32 source = NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 11, Y = -22, Z = 33 }, null);
+        source = source with { Known = source.Known.Select((known, index) => index >= 20 && known).ToImmutableArray() };
+        NativeBattleEffect66Frame result = LoadMatrix(frame, source, false, true);
+        Assert.Equal(prior.Rotation20, result.Memory.GeometryRegisters!.Rotation20);
+        Assert.Equal(new int?[] { 11, -22, 33 }, result.Memory.GeometryRegisters.Translation);
+        Assert.Throws<NotSupportedException>(() => LoadMatrix(frame, source, true, false));
     }
 
     private static NativeBattleEffect66Frame Frame(short age = 100)

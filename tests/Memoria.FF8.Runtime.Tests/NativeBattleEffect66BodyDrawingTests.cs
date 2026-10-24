@@ -80,7 +80,7 @@ public sealed class NativeBattleEffect66BodyDrawingTests
         Assert.Equal(20, overlay.Batch.AllocationBytes);
         Assert.Equal(0x22FFFFFFu, overlay.Batch.Attempts[0].Primitive!.Words[1]);
         Assert.Equal(body.Batch.Attempts[0].Primitive!.Bucket - 1, overlay.Batch.Attempts[0].Primitive!.Bucket);
-        Assert.Equal(new[] { 0, 0, 0, 0 }, overlay.Batch.Attempts[0].Primitive.VertexPayload4);
+        Assert.Equal(new[] { 0, 0, 0, 0 }, overlay.Batch.Attempts[0].Primitive!.VertexPayload4);
         Assert.Equal(0x8000, U16(ReadBytes(result.Frame, FlagAddress, 2), 0));
         Assert.Equal(0, S16(ReadBytes(result.Frame, shardAddress, 2), 0));
         Assert.Equal(-88, S16(ReadBytes(result.Frame, shardAddress + 4, 2), 0));

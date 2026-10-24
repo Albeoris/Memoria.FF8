@@ -40,6 +40,7 @@ public sealed partial class BattleSession
             staging = frame.Staging ?? throw new InvalidDataException("Effect66 stage drawing lost its current addressed memory.");
             (byte[] retained, _) = staging.ReadSnapshot(scratchAddress, capacity);
             NativeBattleRawModelBodyDraw drawn = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, group.Matrices, camera.Projection ?? throw new NotSupportedException("Effect66 stage drawing requires its current projection registers."), group.ColorFlags, 1, retained.ToImmutableArray(), colors, 4, new(0, 0, 320, 216), 17, group.ColorDepth);
+            frame = frame with { Memory = NativeBattleEffect66StageRegisters.Publish5099D0(frame.Memory with { PrimitiveProcess = process }, mesh, group.Matrices, drawn.ProjectedScratch, group.ColorFlags, temporary, colors) };
             if (drawn.ProjectedBytesWritten != 0)
             {
                 staging = staging.Write(scratchAddress, drawn.ProjectedScratch.AsSpan().Slice(0, drawn.ProjectedBytesWritten));

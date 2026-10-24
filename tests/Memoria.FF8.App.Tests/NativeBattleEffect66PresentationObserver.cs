@@ -262,7 +262,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
         {
             return [];
         }
-        ImmutableArray<NativeBattleRawMesh> geometry = current.NativeStage.MutableGeometry ?? current.Definition.NativeStageSource!.Geometry;
+        ImmutableArray<NativeBattleRawMesh> geometry = current.NativeStage.MutableGeometry ?? current.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("Effect66 requires its actual stage geometry.");
         return MatchFaces(current, geometry.Where(mesh => mesh.StageGroup == 1).ToImmutableArray(), false);
     }
 

@@ -197,10 +197,23 @@ public static partial class NativeBattleEffect66Controller
     public static NativeBattleEffect66Frame Publish(NativeBattleEffect66Frame frame, NativeBattleGeometryRegisterStep step) => frame with { Memory = frame.Memory with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors } };
     public static NativeBattleEffect66Frame LoadMatrix(NativeBattleEffect66Frame frame, NativeBattlePackedMatrix32 matrix, bool rotation = true, bool translation = true)
     {
-        NativeBattleGeometryRegisters geometry = NativeBattleGeometry.LoadMatrix(Registers(frame).Geometry, matrix.ReadMatrix(), rotation, translation, null);
+        matrix.Validate();
+        NativeBattleGeometryRegisters geometry = frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect66 requires current geometry registers.");
+        geometry.Validate();
+        for (int index = 0; index < 32; index++)
+        {
+            if ((rotation && index < 18 || translation && index >= 20) && !matrix.Known[index])
+            {
+                throw new NotSupportedException("Effect66 requires the selected native matrix components.");
+            }
+        }
         if (rotation)
         {
             geometry = geometry with { Rotation20 = Enumerable.Range(0, 20).Select(index => matrix.Known[index] ? (byte?)matrix.Bytes[index] : null).ToImmutableArray() };
+        }
+        if (translation)
+        {
+            geometry = geometry with { Translation = [BinaryPrimitives.ReadInt32LittleEndian(matrix.Bytes.AsSpan().Slice(20)), BinaryPrimitives.ReadInt32LittleEndian(matrix.Bytes.AsSpan().Slice(24)), BinaryPrimitives.ReadInt32LittleEndian(matrix.Bytes.AsSpan().Slice(28))] };
         }
         return frame with { Memory = frame.Memory with { GeometryRegisters = geometry } };
     }

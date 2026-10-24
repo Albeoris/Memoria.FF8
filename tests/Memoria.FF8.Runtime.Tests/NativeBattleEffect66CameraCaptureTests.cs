@@ -7,8 +7,10 @@ public sealed class NativeBattleEffect66CameraCaptureTests
     [Theory]
     [InlineData(null, null)]
     [InlineData(-123, 456)]
-    public void Capture_copies_only_current_vectors_padding_and_focal_preserving_both_rolls_and_count(short? eyePadding, short? targetPadding)
+    public void Capture_copies_only_current_vectors_padding_and_focal_preserving_both_rolls_and_count(int? eyePaddingValue, int? targetPaddingValue)
     {
+        short? eyePadding = eyePaddingValue is int eye ? checked((short)eye) : null;
+        short? targetPadding = targetPaddingValue is int target ? checked((short)target) : null;
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CapturedPose = new(new(1, 2, 3), new(4, 5, 6), 128, -321), CurrentPose = new(new(9, 10, 11), new(12, 13, 14), 512, 789), FocalLength = 216, Roll = 567, PoseCaptureCount = 7, EyePaddingF6 = eyePadding, TargetPaddingFE = targetPadding, CapturedEyePadding806 = 1234, CapturedTargetPadding80E = -1234 };
         NativeBattleCameraState imported = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(camera))!;
         NativeBattleCameraState result = NativeBattleEffect66CameraCapture.Capture(imported);
