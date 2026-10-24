@@ -26,10 +26,29 @@ public sealed class NativeBattleEffect213ResourceTests
         {
             Assert.Equal(MeshLengths[index], resources.ReadMesh(MeshAddresses[index]).Bytes.Length);
         }
-        Assert.Equal(12, resources.ReadStatic(0x118102C, 12).Length);
-        Assert.Equal(4, resources.ReadStatic(0x1181054, 4).Length);
-        Assert.Throws<NotSupportedException>(() => resources.ReadStatic(0x1181054, 5));
+        Assert.Equal(40, resources.ReadStatic(0x118102C, 40).Length);
+        Assert.Equal(12, resources.ReadStatic(0x1181054, 12).Length);
+        Assert.Throws<NotSupportedException>(() => resources.ReadStatic(0x1181054, 13));
         Assert.Throws<NotSupportedException>(() => resources.ReadStatic(MutableStreamAddress, MutableStreamLength));
+    }
+
+    [Fact]
+    public void Node_material_tables_reach_every_publisher_index_and_stop_before_the_next_owner()
+    {
+        using GameAssets game = Open();
+        NativeBattleEffect213Resources resources = game.ReadNativeEffect213Resources();
+        foreach ((uint address, int nodes, uint end) in new[] { (0x118102Cu, 10, 0x1181054u), (0x1181054u, 3, 0x1181060u) })
+        {
+            Assert.Equal(end, address + checked((uint)(nodes * 4)));
+            for (int node = 0; node < nodes; node++)
+            {
+                byte[] flags = resources.ReadStatic(address + checked((uint)(node * 4)), 4);
+                Assert.Equal(0x30u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(flags));
+            }
+            Assert.Equal(nodes * 4, resources.StaticFronts[address].Length);
+            Assert.Throws<NotSupportedException>(() => resources.ReadStatic(address, nodes * 4 + 1));
+        }
+        Assert.Throws<NotSupportedException>(() => resources.ReadStatic(0x1181060, 1));
     }
 
     [Fact]

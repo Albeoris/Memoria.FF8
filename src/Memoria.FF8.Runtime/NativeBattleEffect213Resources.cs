@@ -16,7 +16,7 @@ public sealed record NativeBattleEffect213Resources(NativeBattleEffectInitialize
     public static readonly ImmutableArray<int> MeshLengths = [9608, 496, 872];
     public static readonly ImmutableArray<uint> SpriteAddresses = [0x117D8B8, 0x117DC38, 0x117DAF4, 0x117DA18];
     public static readonly ImmutableArray<int> SpriteLengths = [352, 324, 324, 220];
-    public static readonly ImmutableArray<(uint Address, int Length)> StaticRanges = [(SoundAddress, 4), (0x118102C, 12), (0x1181054, 4)];
+    public static readonly ImmutableArray<(uint Address, int Length)> StaticRanges = [(SoundAddress, 4), (0x118102C, 40), (0x1181054, 12)];
     [JsonIgnore]
     public NativeBattleStaticMeshResource SourceStream => ReadMesh(0x117ADD8);
     [JsonIgnore]
