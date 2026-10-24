@@ -25,7 +25,7 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
     public static NativeBattleSoftwarePrimitiveState FromInitializedRenderer()
     {
         NativeSoftwareEdgeBuffers left = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
-        NativeSoftwareEdgeBuffers right = new(new byte[40].ToImmutableArray(), new byte[20].ToImmutableArray());
+        NativeSoftwareEdgeBuffers right = new(new byte[40].ToImmutableArray(), new byte[32].ToImmutableArray());
         // The portable PC backend explicitly selects its45B4C0 viewport at initialization.
         return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0), SpriteFilter = NativeBattleSpriteFilterState.FromRendererStartup(NativeBattlePrimitiveCapabilities.PrimaryRgba8().SpriteFilterStartupControl!.Value).ApplyViewport45B4C0(640, 480), DispatchFlags1CA8880 = 0 };
     }

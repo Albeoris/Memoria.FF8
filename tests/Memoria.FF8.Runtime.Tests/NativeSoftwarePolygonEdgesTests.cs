@@ -90,13 +90,14 @@ public sealed class NativeSoftwarePolygonEdgesTests
     }
 
     [Fact]
-    public void MalformedRecordsOutOfDomainYAndBacktrackingHeightsFailWithoutAlternateGeometry()
+    public void MalformedRecordsOutOfDomainYAndMissingPhysicalPrefixFailWithoutAlternateGeometry()
     {
         byte[] header = new byte[12];
         BinaryPrimitives.WriteInt32LittleEndian(header, 3);
         Assert.Throws<InvalidDataException>(() => Draw(Image(), State(), new(header.ToImmutableArray())));
         Assert.Throws<NotSupportedException>(() => Draw(Image(), State(), Polygon(0, [new(0, 9999999, 0, 0), new(1 << 16, 9999999, 0, 0), new(0, 9999999, 0, 0)])));
-        Assert.Throws<NotSupportedException>(() => Draw(Image(), State(), Polygon(0, [new(0, 0, 0, 0), new(1 << 16, 2, 0, 0), new(2 << 16, 1, 0, 0), new(3 << 16, 3, 0, 0)])));
+        NativeSoftwarePolygonRasterState missingPrefix = State() with { Edges = State().Edges with { Right = State().Edges.Right with { Step = new byte[20].ToImmutableArray() } } };
+        Assert.Throws<NotSupportedException>(() => Draw(Image(), missingPrefix, Polygon(0, [new(0, 0, 0, 0), new(1 << 16, 2, 0, 0), new(2 << 16, 1, 0, 0), new(3 << 16, 3, 0, 0)])));
         NativeSoftwarePolygonRasterState shortOwner = State() with { Edges = new(new(new byte[20].ToImmutableArray(), new byte[20].ToImmutableArray()), State().Edges.Right) };
         Assert.Throws<InvalidDataException>(() => Draw(Image(), shortOwner, Polygon(0, [new(0, 0, 0, 0), new(1 << 16, 0, 0, 0), new(0, 1, 0, 0)])));
     }

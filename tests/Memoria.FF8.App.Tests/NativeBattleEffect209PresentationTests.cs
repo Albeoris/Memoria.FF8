@@ -9,6 +9,37 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleEffect209PresentationTests
 {
     [Fact]
+    public void Selected_Effect209_saved_boundary_attributes_current_source_mesh_packets()
+    {
+        string? priorPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT209_OBSERVATION_PRIOR");
+        string? currentPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT209_OBSERVATION_CURRENT");
+        Assert.SkipUnless(priorPath is not null && currentPath is not null, "Select two standalone effect209 observations at a visible source-mesh boundary.");
+        BattleSnapshot prior = NativeBattleEffectFamilyRunner.LoadSnapshot(priorPath!);
+        BattleSnapshot current = NativeBattleEffectFamilyRunner.LoadSnapshot(currentPath!);
+        NativeBattleEffect209PresentationObserver observer = new();
+        observer.Observe(prior, current, (_, _) =>
+        {
+        });
+        Assert.NotEmpty(observer.CurrentMeshCommands);
+        Assert.All(observer.CurrentMeshCommands, command => Assert.Equal("off_B6D070", command.Packet.Bank));
+    }
+
+    [Fact]
+    public void Selected_Effect209_snapshot_continues_one_callback()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT209_CONTINUATION_SNAPSHOT");
+        Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect209 continuation snapshot.");
+        using GameAssets game = new(directory!);
+        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        Assert.Equal(209, source.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        BattleSession battle = BattleSession.Restore(source);
+        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+        battle.Tick();
+        Assert.Equal(source.NativeGraphics.Callback + 1, battle.Capture().NativeGraphics!.Callback);
+    }
+
+    [Fact]
     public void Original_Effect209_declared_component_preserves_current_geometry_and_lifecycle()
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([209], "MEMORIA_FF8_EFFECT209");

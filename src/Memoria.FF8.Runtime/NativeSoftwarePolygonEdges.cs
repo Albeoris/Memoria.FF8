@@ -162,7 +162,7 @@ public static class NativeSoftwarePolygonEdges
         }
         return state with { Edges = edges };
 
-        NativeSoftwareEdgeBuffers Setup(NativeSoftwareEdgeBuffers owner, NativeSoftwareRasterVertex from, NativeSoftwareRasterVertex to) => textured ? NativeSoftwareRasterEdges.SetupTextured4632C0(owner, from, to, reciprocals) : NativeSoftwareRasterEdges.SetupUntextured463370(owner, from, to, reciprocals);
+        NativeSoftwareEdgeBuffers Setup(NativeSoftwareEdgeBuffers owner, NativeSoftwareRasterVertex from, NativeSoftwareRasterVertex to) => textured ? NativeSoftwareRasterEdges.SetupTextured4632C0(owner, from, to, reciprocals, edges) : NativeSoftwareRasterEdges.SetupUntextured463370(owner, from, to, reciprocals, edges);
     }
 
     private static uint PackColor(byte red, byte green, byte blue)

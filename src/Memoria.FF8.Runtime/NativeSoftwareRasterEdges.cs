@@ -17,13 +17,45 @@ public sealed record NativeSoftwareReciprocalTable([property: JsonRequired] Immu
         return new(values.MoveToImmutable());
     }
 
-    public float AtHeight(int height)
+    public float AtHeight(int height, NativeSoftwareScanlineEdges? physicalOwners = null)
     {
-        if (Values.IsDefault || Values.Length != 3000 || (uint)height >= 3000)
+        if (Values.IsDefault || Values.Length != 3000 || height >= 3000)
         {
-            throw new NotSupportedException("Native software edge requires its initialized3000-float reciprocal owner and a physical height index0..2999.");
+            throw new NotSupportedException($"Native software edge requires its initialized3000-float reciprocal owner and a physical height index0..2999; requested {height}.");
         }
-        float value = Values[height];
+        float value;
+        if (height < 0)
+        {
+            if (physicalOwners is null || height < -28)
+            {
+                throw new NotSupportedException($"Native software reciprocal index {height} requires its preceding physical edge owners.");
+            }
+            int offset = 112 + height * 4;
+            ImmutableArray<byte> owner;
+            if (offset < 40)
+            {
+                owner = physicalOwners.Left.Current;
+            }
+            else if (offset < 80)
+            {
+                owner = physicalOwners.Right.Current;
+                offset -= 40;
+            }
+            else
+            {
+                owner = physicalOwners.Right.Step;
+                offset -= 80;
+            }
+            if (owner.IsDefault || offset + 4 > owner.Length)
+            {
+                throw new NotSupportedException("Native software reciprocal prefix requires its complete physical edge field.");
+            }
+            value = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(owner.AsSpan().Slice(offset, 4)));
+        }
+        else
+        {
+            value = Values[height];
+        }
         if (!float.IsFinite(value))
         {
             throw new NotSupportedException("Native software edge reciprocal has an unsupported exceptional floating-point value.");
@@ -37,17 +69,17 @@ public sealed record NativeSoftwareEdgeBuffers([property: JsonRequired] Immutabl
 /// <summary>4632C0/463370 edge setup over separate explicit caller records and the retained float reciprocal table.</summary>
 public static class NativeSoftwareRasterEdges
 {
-    public static NativeSoftwareEdgeBuffers SetupTextured4632C0(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals)
+    public static NativeSoftwareEdgeBuffers SetupTextured4632C0(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals, NativeSoftwareScanlineEdges? physicalOwners = null)
     {
-        return Setup(buffers, start, end, reciprocals, true);
+        return Setup(buffers, start, end, reciprocals, true, physicalOwners);
     }
 
-    public static NativeSoftwareEdgeBuffers SetupUntextured463370(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals)
+    public static NativeSoftwareEdgeBuffers SetupUntextured463370(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals, NativeSoftwareScanlineEdges? physicalOwners = null)
     {
-        return Setup(buffers, start, end, reciprocals, false);
+        return Setup(buffers, start, end, reciprocals, false, physicalOwners);
     }
 
-    private static NativeSoftwareEdgeBuffers Setup(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals, bool textured)
+    private static NativeSoftwareEdgeBuffers Setup(NativeSoftwareEdgeBuffers buffers, NativeSoftwareRasterVertex start, NativeSoftwareRasterVertex end, NativeSoftwareReciprocalTable reciprocals, bool textured, NativeSoftwareScanlineEdges? physicalOwners)
     {
         ArgumentNullException.ThrowIfNull(buffers);
         ArgumentNullException.ThrowIfNull(reciprocals);
@@ -56,7 +88,7 @@ public static class NativeSoftwareRasterEdges
         {
             throw new InvalidDataException("Native software edge requires both complete caller-owned field ranges.");
         }
-        float reciprocal = reciprocals.AtHeight(unchecked(end.Y - start.Y));
+        float reciprocal = reciprocals.AtHeight(unchecked(end.Y - start.Y), physicalOwners);
         byte[] current = buffers.Current.ToArray();
         byte[] step = buffers.Step.ToArray();
         Set(0, start.X16_16, end.X16_16);

@@ -9,26 +9,13 @@ public sealed partial class BattleSession
     private static NativeBattleEffect209Frame DeliverNativeEffect209Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect209Frame frame, NativeBattleEffect209DrawBatch draw)
     {
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect209 requires its current ordering table.");
-        if (draw.CursorGlobal == 0x1D8E054)
-        {
-            NativeBattleCommonPacketWrite common = NativeBattleCommonPacketDelivery.Deliver(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect209 requires its ordinary packet process."), primitive.Pending, draw.Batch, draw.Flags);
-            graphics = graphics with { PrimitiveFrame = primitive with { Pending = common.Ordering } };
-            return frame with { Memory = frame.Memory with { PrimitiveProcess = common.Process } };
-        }
-        if (draw.CursorGlobal != CursorGlobal)
+        if (draw.CursorGlobal != 0x1D8E054)
         {
             throw new NotSupportedException("Effect209 selected an unsupported packet cursor.");
         }
-        int cursor = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(CursorGlobal), 0);
-        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect209 requires its current effect arena.");
-        NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.ResolveWithKnownness(draw.Batch, cursor, NativeBattleEffectArena.Length, address =>
-        {
-            (byte[] bytes, bool[] known) = arena.ReadSnapshot(address, 1);
-            return (bytes[0], known[0]);
-        });
-        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, cursor, primitive.Pending, resolved, draw.Flags);
-        graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
-        return frame with { Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)) };
+        NativeBattleCommonPacketWrite common = NativeBattleCommonPacketDelivery.Deliver(frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect209 requires its ordinary packet process."), primitive.Pending, draw.Batch, draw.Flags);
+        graphics = graphics with { PrimitiveFrame = primitive with { Pending = common.Ordering } };
+        return frame with { Memory = frame.Memory with { PrimitiveProcess = common.Process } };
     }
 
     private static NativeBattleEffect209Frame DeliverNativeEffect209Template(ref NativeBattleGraphicsState graphics, NativeBattleEffect209Frame frame, NativeBattleEffect209DrawAddressedTemplate draw)
