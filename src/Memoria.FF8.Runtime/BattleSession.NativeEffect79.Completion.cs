@@ -78,6 +78,11 @@ public sealed partial class BattleSession
 
     private byte[] ReadNativeMusicSource501A70(uint address, int length)
     {
+        if (length >= 0 && address >= NativeBattleEffect76Profile.MusicAddress && (ulong)address + (uint)length <= (ulong)NativeBattleEffect76Profile.MusicAddress + NativeBattleEffect76Profile.MusicLength)
+        {
+            NativeBattleOriginalEffectState effect = NativeGraphics?.OriginalEffect is { Binding.Entry: NativeBattleEffect76Profile.Entry } selected ? selected : throw new NotSupportedException("Native501A70 static source requires its selected original binding.");
+            return (effect.Binding.Effect76Resources ?? throw new NotSupportedException("Native501A70 static source requires its original resource.")).ReadStatic(address, length);
+        }
         if (length >= 0 && address >= NativeBattleEffect344Profile.MusicAddress && (ulong)address + (uint)length <= (ulong)NativeBattleEffect344Profile.MusicAddress + NativeBattleEffect344Profile.MusicLength)
         {
             NativeBattleOriginalEffectState effect = NativeGraphics?.OriginalEffect is { Binding.Entry: NativeBattleEffect344Profile.Entry } selected ? selected : throw new NotSupportedException("Native501A70 static source requires its selected original binding.");

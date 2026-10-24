@@ -13,8 +13,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeStage512AA0(int index, uint destination)
     {
-        NativeBattleEffect69Resources resources = NativeGraphics?.OriginalEffect?.Binding.Effect69Resources ?? throw new NotSupportedException("Native stage file queue requires its selected resource resolver.");
-        NativeBattleEffectFileAsset source = resources.ReadFile(NativeBattleStageReload512AC0.File512AA0(index));
+        (NativeBattleEffectFileAsset source, _) = NativeStageReloadResource(index, false);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native stage file queue requires its current memory.");
         int offset = NativeBattleWaterExecutionFields.ArenaOffset(destination, source.Data.Length);
         NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native stage file queue requires its current destination arena.")).Write(offset, source.Data.AsSpan()) };
@@ -25,15 +24,14 @@ public sealed partial class BattleSession
     private void ReloadNativeStage512AC0(int index, uint loadedFile)
     {
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native stage reload requires its current stage owner.");
-        NativeBattleEffect69Resources resources = NativeGraphics?.OriginalEffect?.Binding.Effect69Resources ?? throw new NotSupportedException("Native stage reload requires its selected current-resource decoder.");
+        (NativeBattleEffectFileAsset source, Func<byte[], NativeBattleStageSource>? decode) = NativeStageReloadResource(index, true);
         NativeBattleStageReloadCopy copy = NativeBattleStageReload512AC0.Plan(stage, index, loadedFile, Read);
         NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native stage reload requires its addressed destination.");
         staging = staging.Write(copy.Destination, Read(copy.Source, copy.Length));
         NativeFileStaging = staging;
-        byte[] currentFile = Read(loadedFile, resources.ReadFile(37).Data.Length);
+        byte[] currentFile = Read(loadedFile, source.Data.Length);
         // Decoder code belongs to the host; the active source bytes remain in the current arena.
-        Func<byte[], NativeBattleStageSource> decode = resources.DecodeReloadStage ?? nativeEffectResourceResolver?.Invoke(NativeBattleEffect69Profile.Effect).Effect69Resources?.DecodeReloadStage ?? throw new NotSupportedException("Native stage reload requires its host byte decoder.");
-        NativeBattleStageSource decoded = decode(currentFile);
+        NativeBattleStageSource decoded = (decode ?? throw new NotSupportedException("Native stage reload requires its host byte decoder."))(currentFile);
         stage = stage.Reload512AC0(index, decoded);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native stage reload requires its current scratch capacity.");
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native stage reload requires its retained scratch maximum.");
@@ -69,5 +67,37 @@ public sealed partial class BattleSession
             }
             return (NativeFileStaging ?? throw new NotSupportedException("Native stage reload requires its current physical stage bytes.")).Read(address, length);
         }
+    }
+
+    private (NativeBattleEffectFileAsset Source, Func<byte[], NativeBattleStageSource>? Decode) NativeStageReloadResource(int index, bool requireDecoder)
+    {
+        short file = NativeBattleStageReload512AC0.File512AA0(index);
+        NativeBattleEffectBinding binding = NativeGraphics?.OriginalEffect?.Binding ?? throw new NotSupportedException("Native stage reload requires its actual selected binding.");
+        NativeBattleEffectFileAsset source;
+        Func<byte[], NativeBattleStageSource>? decode;
+        switch (binding.Effect)
+        {
+            case 69:
+                NativeBattleEffect69Resources resources69 = binding.Effect69Resources ?? throw new NotSupportedException("Native stage reload requires its selected resources.");
+                source = resources69.ReadFile(file);
+                decode = resources69.DecodeReloadStage;
+                if (requireDecoder && decode is null)
+                {
+                    decode = nativeEffectResourceResolver?.Invoke(binding.Effect).Effect69Resources?.DecodeReloadStage;
+                }
+                break;
+            case 76:
+                NativeBattleEffect76Resources resources76 = binding.Effect76Resources ?? throw new NotSupportedException("Native stage reload requires its selected resources.");
+                source = resources76.ReadFile(file);
+                decode = resources76.DecodeReloadStage;
+                if (requireDecoder && decode is null)
+                {
+                    decode = nativeEffectResourceResolver?.Invoke(binding.Effect).Effect76Resources?.DecodeReloadStage;
+                }
+                break;
+            default:
+                throw new NotSupportedException("Native stage reload has no selected resource provider.");
+        }
+        return (source, decode);
     }
 }

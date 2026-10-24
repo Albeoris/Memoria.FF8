@@ -8,6 +8,9 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleGuardianCameraBank([property: JsonRequired] ushort Opcode, [property: JsonRequired] ushort Remaining, [property: JsonRequired] int Accumulator, [property: JsonRequired] int Step, [property: JsonRequired] NativeBattleVector Current, [property: JsonRequired] NativeBattleVector Origin, [property: JsonRequired] NativeBattleVector Delta, [property: JsonRequired] short Curve)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public short? CurrentPadding { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<NativeBattleVector>? ControlPoints { get; init; }
 }
 
@@ -50,7 +53,7 @@ public static partial class NativeBattleGuardianCameraProgram
         return new(process with { Sign = sign }, program, 0, 0, false);
     }
 
-    public static NativeBattleGuardianCameraStep Advance63E9C0(NativeBattleGuardianCameraTask task, NativeBattleActionMatrix matrix, NativeBattleCameraPose pose, bool paused, ImmutableArray<short> scalarVariables = default, NativeBattleEffectArena? temporary432 = null)
+    public static NativeBattleGuardianCameraStep Advance63E9C0(NativeBattleGuardianCameraTask task, NativeBattleActionMatrix matrix, NativeBattleCameraPose pose, bool paused, ImmutableArray<short> scalarVariables = default, NativeBattleEffectArena? temporary432 = null, short? currentEyePadding = null, short? currentTargetPadding = null)
     {
         ArgumentNullException.ThrowIfNull(task);
         ArgumentNullException.ThrowIfNull(matrix);
@@ -145,7 +148,15 @@ public static partial class NativeBattleGuardianCameraProgram
                         {
                             future = Points(other)[^1];
                         }
-                        temporary = TemporaryPoint(temporary, 8, future)?.MarkUnknown(14, 2);
+                        temporary = TemporaryPoint(temporary, 8, future);
+                        if (other.Opcode == 4)
+                        {
+                            temporary = temporary?.MarkUnknown(14, 2);
+                        }
+                        else if (other.Opcode is not (2 or 3) && temporary is not null)
+                        {
+                            temporary = other.CurrentPadding is short padding ? temporary.Write(14, BitConverter.GetBytes(padding)) : temporary.MarkUnknown(14, 2);
+                        }
                         NativeBattleVector endDifference = Subtract(destination, future);
                         temporary = TemporaryPoint(temporary, 0, endDifference);
                         int endDistance = Distance(endDifference);
@@ -158,6 +169,14 @@ public static partial class NativeBattleGuardianCameraProgram
                     case 8:
                         roll = unchecked((short)(ReadWord() * process.Sign));
                         break;
+                    case 10:
+                    {
+                        NativeBattleCameraPoint point = eye ? pose.Eye : pose.Target;
+                        NativeBattleVector relative = new(unchecked((short)((short)point.X - (short)matrix.X)), unchecked((short)((short)point.Y - (short)matrix.Y)), unchecked((short)((short)point.Z - (short)matrix.Z)));
+                        NativeBattleActionMatrix transpose = new([matrix.Rotation[0], matrix.Rotation[3], matrix.Rotation[6], matrix.Rotation[1], matrix.Rotation[4], matrix.Rotation[7], matrix.Rotation[2], matrix.Rotation[5], matrix.Rotation[8]], 0, 0, 0, 4096);
+                        selected = selected with { Current = NativeBattleGfMatrices.RotateShort56C4F0(transpose, relative), CurrentPadding = eye ? currentEyePadding : currentTargetPadding };
+                        break;
+                    }
                     default:
                         throw new NotSupportedException($"Native63E9C0 opcode{opcode} requires its original reached contract.");
                 }

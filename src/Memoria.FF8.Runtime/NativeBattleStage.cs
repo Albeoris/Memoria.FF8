@@ -32,7 +32,9 @@ public sealed partial record NativeBattleStageState([property: JsonRequired] uin
     public uint? SourceAddress1D9A820 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public uint? ReloadColorSeed1D9A824 { get; init; }
-    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess(), Specialized = NativeBattleStageSpecializedState.FromColdProcess(), Extended = NativeBattleStageExtendedState.FromColdProcess(), SourceAddress1D9A820 = 0, ReloadColorSeed1D9A824 = 0 };
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? ReloadColorSeed1D9A828 { get; init; }
+    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080), FinalStage142 = NativeBattleFinalStage142State.FromColdProcess(), Specialized = NativeBattleStageSpecializedState.FromColdProcess(), Extended = NativeBattleStageExtendedState.FromColdProcess(), SourceAddress1D9A820 = 0, ReloadColorSeed1D9A824 = 0, ReloadColorSeed1D9A828 = 0 };
 
     public void Validate()
     {

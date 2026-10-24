@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect69StageReloadTests
         Assert.Equal(new NativeBattleStageReloadCopy(0x20E953C, 0x193A998, 0x4DC4, 0x20EC2E0, 0x193D750), plan);
         Assert.Equal((0x20E953Cu, 32), Assert.Single(reads));
         Assert.Equal((short)37, NativeBattleStageReload512AC0.File512AA0(0));
-        Assert.Throws<NotSupportedException>(() => NativeBattleStageReload512AC0.File512AA0(1));
+        Assert.Throws<NotSupportedException>(() => NativeBattleStageReload512AC0.File512AA0(2));
     }
 
     [Fact]

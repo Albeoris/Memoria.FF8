@@ -15,7 +15,8 @@ public sealed partial record NativeBattleStageState
         {
             throw new NotSupportedException("Native stage reload requires its current physical source pointer.");
         }
-        uint seed = ReloadColorSeed1D9A824 ?? throw new NotSupportedException("Native stage reload requires its retained source color DWORD.");
+        uint seed = (index == 0 ? ReloadColorSeed1D9A824 : ReloadColorSeed1D9A828) ?? throw new NotSupportedException("Native stage reload requires its retained source color DWORD.");
+        short speed = index == 0 ? (short)8 : (short)2;
         if (source.Groups.IsDefault || source.Groups.Length != 4 || source.Geometry is not { IsDefault: false } geometry || source.TextureAnimations.IsDefault)
         {
             throw new InvalidDataException("Native stage reload requires its four decoded current groups and geometry.");
@@ -31,9 +32,9 @@ public sealed partial record NativeBattleStageState
             Groups = groups.ToImmutable(),
             MutableGeometry = geometry,
             TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations,
-            ModelColors = new(0x00606868, (seed & 0xFFFFFF) | 0x32000000),
-            RotationSpeed = 8,
-            FinalStage142 = FinalStage142 is { } finalStage ? finalStage with { SavedRotation = 8 } : null
+            ModelColors = new(index == 0 ? 0x00606868u : 0x006C6C6Cu, (seed & 0xFFFFFF) | 0x32000000),
+            RotationSpeed = speed,
+            FinalStage142 = FinalStage142 is { } finalStage ? finalStage with { SavedRotation = unchecked((ushort)speed) } : null
         };
         result.Validate();
         return result;
@@ -83,7 +84,7 @@ public static class NativeBattleStageReload512AC0
     {
         RequireIndex(index);
         uint destination = stage.SourceAddress1D9A820 is > 0 ? stage.SourceAddress1D9A820.Value : throw new NotSupportedException("Native stage reload requires its retained current source pointer.");
-        uint source = checked(loadedFile + 0x1A64);
+        uint source = checked(loadedFile + (index == 0 ? 0x1A64u : 0x137Cu));
         byte[] directory = read(source, 32);
         if (directory.Length != 32 || BinaryPrimitives.ReadUInt32LittleEndian(directory) != 6)
         {
@@ -98,12 +99,12 @@ public static class NativeBattleStageReload512AC0
     public static short File512AA0(int index)
     {
         RequireIndex(index);
-        return 37;
+        return index == 0 ? (short)37 : (short)38;
     }
 
     internal static void RequireIndex(int index)
     {
-        if (index != 0)
+        if (index is not (0 or 1))
         {
             throw new NotSupportedException("Native stage replacement has no decoded table row for this index.");
         }

@@ -1285,6 +1285,7 @@ public sealed partial class BattleSession
         foreach (BattleEvent item in snapshot.Events)
         {
             item.NativeSoundGain?.Validate();
+            item.NativeFileAudio?.Validate();
             if (item.NativeModuleSound is { Allocation: not null } sound)
             {
                 _ = sound.ReadCommittedVoice();
