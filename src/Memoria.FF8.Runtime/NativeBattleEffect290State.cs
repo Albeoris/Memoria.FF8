@@ -1,0 +1,161 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+using static Memoria.FF8.Runtime.NativeBattleEffect290Profile;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleEffect290State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] bool? ScriptSourcePending)
+{
+    public static NativeBattleEffect290State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), true);
+
+    public static NativeBattleEffect290State FromUnknown()
+    {
+        NativeBattleEffectArena storage = NativeBattleEffectArena.Clear();
+        foreach ((uint address, int length) in OwnedRanges)
+        {
+            storage = storage.MarkUnknown(checked((int)(address - BaseAddress)), length);
+        }
+        return new(storage, Pools.ToImmutableDictionary(pool => pool.Bank, pool => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, checked(pool.Stride * pool.Capacity))), null);
+    }
+
+    public byte[] Read(uint address, int length) => ReadView(address, length).Read(0, length);
+    public byte[] ReadBytes(uint address, int length) => Read(address, length);
+    public ushort ReadWord(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));
+    public uint ReadDword(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Read(address, 4));
+    public NativeBattleEffect290State Write(uint address, ReadOnlySpan<byte> bytes) => WriteView(address, NativeBattleEffectArena.Clear().Write(0, bytes), bytes.Length);
+    public NativeBattleEffect290State WriteBytes(uint address, ReadOnlySpan<byte> bytes) => Write(address, bytes);
+    public NativeBattleEffect290State WriteWord(uint address, ushort value) => Write(address, BitConverter.GetBytes(value));
+    public NativeBattleEffect290State WriteDword(uint address, uint value) => Write(address, BitConverter.GetBytes(value));
+
+    public NativeBattleEffectArena ReadView(uint address, int length)
+    {
+        int offset = Require(address, length);
+        return NativeBattleEffectNodeContextMemory.Copy(Storage, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
+    }
+
+    public NativeBattleEffect290State WriteView(uint address, NativeBattleEffectArena source, int length)
+    {
+        int offset = Require(address, length);
+        return this with { Storage = NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length) };
+    }
+
+    public NativeBattleEffectArena ReadBank(int index) => ReadBank(BankAddress(index));
+    public NativeBattleEffect290State DetachBank(int index) => DetachBank(BankAddress(index));
+    public NativeBattleEffect290State AttachBank(int index, NativeBattleEffectArena bank) => AttachBank(BankAddress(index), bank);
+
+    public NativeBattleEffectArena ReadBank(uint address) => FixedBanks.TryGetValue(address, out NativeBattleEffectArena? bank) && bank is not null ? bank : throw new InvalidDataException("Effect290 inactive bank is missing or owned exclusively by the hierarchy.");
+
+    public NativeBattleEffect290State DetachBank(uint address)
+    {
+        _ = ReadBank(address);
+        return this with { FixedBanks = FixedBanks.SetItem(address, null) };
+    }
+
+    public NativeBattleEffect290State AttachBank(uint address, NativeBattleEffectArena bank)
+    {
+        NativeBattleCureFamilyPool shape = Pools.SingleOrDefault(pool => pool.Bank == address) ?? throw new InvalidDataException("Effect290 bank address leaves its original physical pools.");
+        if (!FixedBanks.TryGetValue(address, out NativeBattleEffectArena? current) || current is not null)
+        {
+            throw new InvalidDataException("Effect290 cannot duplicate an already retained physical bank.");
+        }
+        ValidateBank(bank, shape.Stride * shape.Capacity);
+        return this with { FixedBanks = FixedBanks.SetItem(address, bank) };
+    }
+
+    public (NativeBattleEffect290State State, NativeBattleFileStaging Staging) BindSources(NativeBattleFileStaging staging, NativeBattleEffect290Resources resources)
+    {
+        if (ScriptSourcePending is null)
+        {
+            throw new InvalidDataException("Effect290 script source origin is unknown.");
+        }
+        foreach (uint address in NativeBattleEffect290Resources.ScriptCountAddresses)
+        {
+            bool[] known = staging.ReadSnapshot(address, 2).Known;
+            if (ScriptSourcePending == true ? known.Any(value => value) : known.Any(value => !value))
+            {
+                throw new InvalidDataException("Effect290 script counters conflict with their explicit source binding state.");
+            }
+        }
+        if (ScriptSourcePending == false)
+        {
+            return (this, staging);
+        }
+        foreach (uint address in NativeBattleEffect290Resources.ScriptCountAddresses)
+        {
+            staging = staging.Write(address, resources.OriginalScriptCount(address));
+        }
+        return (this with { ScriptSourcePending = false }, staging);
+    }
+
+    public void Validate()
+    {
+        Storage.Validate();
+        foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
+        {
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);
+        }
+        foreach (NativeBattleEffectUnknownRegion region in Storage.UnknownRegions)
+        {
+            _ = Require(checked(BaseAddress + (uint)region.Offset), region.Length);
+        }
+        if (FixedBanks is null || FixedBanks.Count != Pools.Length)
+        {
+            throw new InvalidDataException("Effect290 requires its exact physical banks.");
+        }
+        foreach (NativeBattleCureFamilyPool shape in Pools)
+        {
+            if (!FixedBanks.TryGetValue(shape.Bank, out NativeBattleEffectArena? bank))
+            {
+                throw new InvalidDataException("Effect290 is missing a physical bank owner.");
+            }
+            if (bank is not null)
+            {
+                ValidateBank(bank, shape.Stride * shape.Capacity);
+            }
+        }
+    }
+
+    private static int Require(uint address, int length)
+    {
+        if (length >= 0)
+        {
+            ulong cursor = address;
+            ulong end = (ulong)address + (uint)length;
+            foreach ((uint start, int size) in OwnedRanges)
+            {
+                if (cursor < start)
+                {
+                    break;
+                }
+                if (cursor >= start && cursor <= (ulong)start + (uint)size)
+                {
+                    cursor = Math.Max(cursor, (ulong)start + (uint)size);
+                    if (cursor >= end)
+                    {
+                        return checked((int)(address - BaseAddress));
+                    }
+                }
+            }
+        }
+        throw new InvalidDataException("Effect290 storage excludes fixed pools, descriptors, shared matrices, COMMON and unobserved gaps.");
+    }
+
+    private static uint BankAddress(int index)
+    {
+        if ((uint)index >= Pools.Length)
+        {
+            throw new InvalidDataException("Effect290 pool index leaves its original fixed bank.");
+        }
+        return Pools[index].Bank;
+    }
+
+    private static void ValidateBank(NativeBattleEffectArena bank, int length)
+    {
+        bank.Validate();
+        if (bank.Regions.Any(region => region.Offset < 0 || region.Offset > length - region.Data.Length) || bank.UnknownRegions.Any(region => region.Offset < 0 || region.Offset > length - region.Length))
+        {
+            throw new InvalidDataException("Effect290 retained bytes leave their physical bank allocation.");
+        }
+    }
+}
