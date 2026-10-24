@@ -38,6 +38,10 @@ public static class NativeSoftwareTexturePreparation
         int offset = encoded * 32;
         ArgumentOutOfRangeException.ThrowIfNegative(imageLength);
         // Pointer preparation does not read palette entries; indexed spans validate their actual reads.
+        if (state.EncodedClut == encoded && state.PaletteByteOffset == offset && state.PalettePointerIsNull == false)
+        {
+            return state;
+        }
         return state with { EncodedClut = encoded, PaletteByteOffset = offset, PalettePointerIsNull = false };
     }
 }

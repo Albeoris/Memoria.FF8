@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -78,8 +79,8 @@ public static class NativeBattleRawGeometryPackets
         {
             throw new InvalidDataException("Native507550 requires its original plain polygon and16-row allocation map.");
         }
-        byte[] bytes = polygon.Bytes.ToArray();
-        ushort clut = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(10));
+        ReadOnlySpan<byte> source = polygon.Bytes.AsSpan();
+        ushort clut = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(10));
         int row = clut >> 6;
         if ((clut & 63) >= 16 || row is < 224 or >= 240)
         {
@@ -92,14 +93,26 @@ public static class NativeBattleRawGeometryPackets
         }
         int page = slot < 12 ? slot / 2 + 10 : slot - 2;
         int v = slot < 12 ? (slot & 1) << 7 : 128;
-        ushort previousPage = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(14));
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), (ushort)((clut & 0x803F) | (slot + 224) << 6));
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), (ushort)((previousPage & 0xFFE0) | page));
-        int[] positions = polygon.Quad ? [9, 13, 17, 19] : [7, 9, 13];
+        ushort previousPage = BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(14));
+        ushort nextClut = (ushort)((clut & 0x803F) | (slot + 224) << 6);
+        ushort nextPage = (ushort)((previousPage & 0xFFE0) | page);
+        ReadOnlySpan<int> positions = polygon.Quad ? [9, 13, 17, 19] : [7, 9, 13];
+        bool changed = nextClut != clut || nextPage != previousPage;
+        foreach (int position in positions)
+        {
+            changed |= source[position] != (byte)((source[position] & 127) | v);
+        }
+        if (!changed)
+        {
+            return polygon.Bytes;
+        }
+        byte[] bytes = source.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), nextClut);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), nextPage);
         foreach (int position in positions)
         {
             bytes[position] = (byte)((bytes[position] & 127) | v);
         }
-        return bytes.ToImmutableArray();
+        return ImmutableCollectionsMarshal.AsImmutableArray(bytes);
     }
 }

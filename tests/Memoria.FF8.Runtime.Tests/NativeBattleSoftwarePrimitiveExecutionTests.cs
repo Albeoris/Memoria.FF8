@@ -7,6 +7,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSoftwarePrimitiveExecutionTests
 {
     [Fact]
+    public void RepeatedNormalTexturePreparationRetainsUnchangedOwnersAndPublishesChangedPointers()
+    {
+        NativeBattleSoftwarePrimitiveExecution source = Capture();
+        NativeBattleSoftwarePrimitiveExecution execution = new(source.State with { ViewportInputs = new(640, 480, 0, 0) }, source.Textures, Table(), true, source.Cache!);
+        NativeBattleLogicalCommand command = new(new("test", 0, 0), 1, 0x24, [0x24000000, 0, 0xFFFF0000, 0, 0x011C0000, 0, 0], 1, [], null);
+        execution.ExecuteNormal(command, new(0x11C), 0);
+        NativeBattleSoftwarePrimitiveState retained = execution.State;
+        NativeBattlePrimitiveDrawMode mode = new(0x11C);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            execution.ExecuteNormal(command, mode, 0);
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Same(retained, execution.State);
+        Assert.True(allocated < 40000, $"Unchanged normal texture preparation allocated {allocated} bytes.");
+        NativeBattleLogicalCommand changed = command with { Words = command.Words.SetItem(2, 0x12340000) };
+        execution.ExecuteNormal(changed, mode, 0);
+        Assert.NotSame(retained, execution.State);
+        Assert.Equal<ushort?>(0x1234, execution.State.Texture.EncodedClut);
+        Assert.Equal<ushort?>(0x7FFF, retained.Texture.EncodedClut);
+        NativeSoftwareTextureState incomplete = execution.State.Texture with { PalettePointerIsNull = null };
+        NativeSoftwareTextureState repaired = NativeSoftwareTexturePreparation.PrepareClut45B920(incomplete, 0x9234, 0);
+        Assert.NotSame(incomplete, repaired);
+        Assert.False(repaired.PalettePointerIsNull);
+        Assert.Same(repaired, NativeSoftwareTexturePreparation.PrepareClut45B920(repaired, 0x1234, 0));
+        NativeSoftwareTextureState wrongOffset = repaired with { PaletteByteOffset = 1 };
+        Assert.Equal(repaired, NativeSoftwareTexturePreparation.PrepareClut45B920(wrongOffset, 0x1234, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeSoftwareTexturePreparation.PrepareClut45B920(repaired, 0x1234, -1));
+    }
+
+    [Fact]
     public void Debug_uses_the_existing_environment_owner_until_successful_batch_cleanup()
     {
         NativeBattleSoftwarePrimitiveExecution source = Capture();

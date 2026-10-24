@@ -148,7 +148,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         else
         {
             NativeSoftwareEnvironmentDerived environment = State.Environment.Derived ?? throw new NotSupportedException("Native normal drawing requires its published environment.");
-            bool defaultEnvironment = environment.Mode == 1 && environment.Rectangle == new NativeSoftwareDrawingRectangle(0, 0, 320, 216) && environment.DrawPositionX == 0 && environment.DrawPositionY == 0;
+            bool defaultEnvironment = environment.Mode == 1 && environment.Rectangle is { X: 0, Y: 0, Width: 320, Height: 216 } && environment.DrawPositionX == 0 && environment.DrawPositionY == 0;
             bool polygon = (command.Opcode & 0xE0) == 0x20;
             bool sprite = command.Opcode is 0x64 or 0x66;
             if (!defaultEnvironment && (State.ViewportInputs is null || !polygon && !sprite))
@@ -160,7 +160,11 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
                 ushort page = mode.TexturePage ?? throw new NotSupportedException("Native textured command requires its actual page WORD.");
                 NativeSoftwareTextureState prepared = sprite && pass == 0 ? State.Texture : NativeSoftwareTexturePreparation.PrepareTPage45B960(State.Texture, page).State;
                 ushort clut = unchecked((ushort)(command.Words[2] >> 16));
-                State = State with { Texture = NativeSoftwareTexturePreparation.PrepareClut45B920(prepared, clut, 1024 * 512 * 2) };
+                NativeSoftwareTextureState texture = NativeSoftwareTexturePreparation.PrepareClut45B920(prepared, clut, 1024 * 512 * 2);
+                if (!ReferenceEquals(texture, State.Texture))
+                {
+                    State = State with { Texture = texture };
+                }
             }
         }
     }
