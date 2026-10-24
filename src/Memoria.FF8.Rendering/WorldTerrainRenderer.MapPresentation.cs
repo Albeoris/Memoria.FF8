@@ -14,22 +14,23 @@ public sealed partial class WorldTerrainRenderer
         Vector2 nativePosition = new(frame.Position.X, frame.Position.Z);
         IReadOnlyList<WorldMapLayer> layers = WorldMapPresentation.Create(frame.MapDisplayMode, nativePosition, frame.MapDisplayMode == 1 ? assets.ReadMapGlobeGeometry() : null);
         bool bodyMarker = frame.MapProcessMode is not (1 or 2 or 3 or 4);
+        Matrix3x2 viewport = WorldMapPresentation.ViewportTransform(frame.MapDisplayMode, Width, Height);
         // The native ordering table draws the map before its two directional markers.
         foreach (WorldMapLayer layer in layers.Concat(WorldMapPresentation.Markers(frame.MapDisplayMode, nativePosition, frame.Heading, frame.Camera.Heading, frame.MapFrame, bodyMarker)))
         {
-            DrawWorldScreenLayer(layer);
+            DrawWorldScreenLayer(layer, viewport);
         }
     }
 
-    private void DrawWorldScreenLayer(WorldMapLayer layer)
+    private void DrawWorldScreenLayer(WorldMapLayer layer, Matrix3x2? viewport = null)
     {
         PixelImage texture = assets.ReadNativeSectionTexture(38, layer.TextureMember, layer.Palette);
-        Vector2 scale = new(Width / 320f, Height / 224f);
+        Matrix3x2 transform = viewport ?? Matrix3x2.CreateScale(Width / 320f, Height / 224f);
         foreach (WorldMapTriangle triangle in layer.Triangles)
         {
-            WorldMapVertex a = triangle.A with { Position = triangle.A.Position * scale };
-            WorldMapVertex b = triangle.B with { Position = triangle.B.Position * scale };
-            WorldMapVertex c = triangle.C with { Position = triangle.C.Position * scale };
+            WorldMapVertex a = triangle.A with { Position = Vector2.Transform(triangle.A.Position, transform) };
+            WorldMapVertex b = triangle.B with { Position = Vector2.Transform(triangle.B.Position, transform) };
+            WorldMapVertex c = triangle.C with { Position = Vector2.Transform(triangle.C.Position, transform) };
             if (TriangleRenderer is not null)
             {
                 TriangleVertex Convert(WorldMapVertex vertex)

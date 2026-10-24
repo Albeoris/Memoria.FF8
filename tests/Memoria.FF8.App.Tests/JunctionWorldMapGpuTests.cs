@@ -1,5 +1,7 @@
 using Memoria.FF8.Events;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
+using System.Numerics;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -24,18 +26,23 @@ public sealed class JunctionWorldMapGpuTests
             Assert.True(scene.Apply(new(PlayerActionKind.Wait, WorldButtons: 0x100)).Accepted);
         }
         Assert.Equal(mode, WorldMapScene.MapDisplayMode(scene.State));
-        byte[] expected = scene.Render(640, 448);
+        const int renderWidth = 1280;
+        const int renderHeight = 448;
+        byte[] expected = scene.Render(renderWidth, renderHeight);
         using GpuTestDevice device = new();
         using GpuTriangleRenderer gpu = new(device.Device);
-        Assert.Empty(scene.Render(640, 448, gpu));
+        Assert.Empty(scene.Render(renderWidth, renderHeight, gpu));
         var actual = GpuTestDevice.Read(gpu.Target);
         int samples = 0;
         int matching = 0;
-        for (int y = top * 2 + 1; y < (top + height) * 2 - 1; y += 3)
+        Matrix3x2 viewport = WorldMapPresentation.ViewportTransform(mode, renderWidth, renderHeight);
+        Vector2 start = Vector2.Transform(new(left, top), viewport);
+        Vector2 end = Vector2.Transform(new(left + width, top + height), viewport);
+        for (int y = (int)start.Y + 1; y < (int)end.Y - 1; y += 3)
         {
-            for (int x = left * 2 + 1; x < (left + width) * 2 - 1; x += 3)
+            for (int x = (int)start.X + 1; x < (int)end.X - 1; x += 3)
             {
-                int pixel = y * 640 + x;
+                int pixel = y * renderWidth + x;
                 int offset = pixel * 4;
                 int difference = Math.Max(Math.Abs(expected[offset] - actual[pixel].R), Math.Max(Math.Abs(expected[offset + 1] - actual[pixel].G), Math.Abs(expected[offset + 2] - actual[pixel].B)));
                 samples++;
@@ -49,6 +56,6 @@ public sealed class JunctionWorldMapGpuTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_OUTPUT") ?? TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         using FileStream file = File.Create(Path.Combine(output, $"world-map-gpu-mode{mode}.png"));
-        gpu.Target.SaveAsPng(file, 640, 448);
+        gpu.Target.SaveAsPng(file, renderWidth, renderHeight);
     }
 }

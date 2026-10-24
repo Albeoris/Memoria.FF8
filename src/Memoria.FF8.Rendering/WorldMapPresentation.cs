@@ -13,6 +13,20 @@ public sealed record WorldMapLayer(int TextureMember, int Palette, bool HalfTran
 /// <summary>Native logical 320x224 world-map geometry and its independent screen-space presentation.</summary>
 public static class WorldMapPresentation
 {
+    public static Matrix3x2 ViewportTransform(byte mode, int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(mode, (byte)3);
+        ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
+        float scale = MathF.Min(width / 320f, height / 224f);
+        Vector2 offset = new(width - 320 * scale, height - 224 * scale);
+        if (mode == 3)
+        {
+            offset /= 2;
+        }
+        return Matrix3x2.CreateScale(scale) * Matrix3x2.CreateTranslation(offset);
+    }
+
     public static Vector2 MapPosition(Vector2 nativePosition)
     {
         int x = (((int)nativePosition.X + 393216) % 262144) >> 11;

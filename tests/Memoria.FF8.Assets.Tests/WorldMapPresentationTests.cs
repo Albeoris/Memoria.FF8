@@ -9,6 +9,21 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class WorldMapPresentationTests
 {
     [Theory]
+    [InlineData(2, 1280, 448, 1280, 448)]
+    [InlineData(2, 640, 896, 640, 896)]
+    [InlineData(3, 1280, 448, 960, 448)]
+    [InlineData(3, 640, 896, 640, 672)]
+    public void ExpandedViewportsPreserveMapAspectAndAnchorItsNativeCanvas(byte mode, int width, int height, int right, int bottom)
+    {
+        Matrix3x2 transform = WorldMapPresentation.ViewportTransform(mode, width, height);
+        Assert.Equal(new Vector2(right, bottom), Vector2.Transform(new(320, 224), transform));
+        Assert.Equal(2, Vector2.TransformNormal(Vector2.UnitX, transform).Length());
+        Assert.Equal(2, Vector2.TransformNormal(Vector2.UnitY, transform).Length());
+        Matrix3x2 globe = WorldMapPresentation.ViewportTransform(1, width, height);
+        Assert.Equal(Vector2.TransformNormal(Vector2.UnitX, globe).Length(), Vector2.TransformNormal(Vector2.UnitY, globe).Length());
+    }
+
+    [Theory]
     [InlineData(2, 186, 124, 314, 220, 1, true)]
     [InlineData(3, 32, 16, 288, 208, 0, false)]
     public void FlatMapsUseNativeScreenRectanglesAndDistinctPalettes(byte mode, int x, int y, int right, int bottom, int palette, bool transparent)
