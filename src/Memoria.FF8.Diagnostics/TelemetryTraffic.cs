@@ -38,35 +38,58 @@ public sealed record TelemetryTrafficSnapshot(IReadOnlyList<TelemetryTrafficAggr
 /// <summary>Window-wide payload counters; callers choose disjoint windows. Execution includes cleanup; its phase children must never be added again. No battle-state access or stack collection.</summary>
 public sealed class TelemetryTrafficCollector
 {
+    private struct Counter
+    {
+        public long Bytes;
+        public long Operations;
+        public long LargestOperationBytes;
+    }
+
+    private const int KindCount = 8;
     private readonly object sync = new();
-    private readonly TelemetryCoverageManifest coverage;
-    private readonly Dictionary<(int Site, TelemetryTrafficKind Kind), TelemetryTrafficAggregate> aggregates = [];
+    private readonly Dictionary<int, int> enabledSites;
+    private readonly int[] siteIds;
+    private readonly Counter[] counters;
+    private readonly bool available;
 
     public TelemetryTrafficCollector(TelemetryCoverageManifest coverage)
     {
-        this.coverage = coverage;
-        foreach (TelemetryCoverageSite site in coverage.Sites)
+        ArgumentNullException.ThrowIfNull(coverage);
+        TelemetryCoverageSite[] sites = coverage.Sites.OrderBy(site => site.SiteId).ToArray();
+        siteIds = new int[sites.Length];
+        counters = new Counter[checked(sites.Length * KindCount)];
+        enabledSites = new(sites.Length);
+        for (int index = 0; index < sites.Length; index++)
         {
-            foreach (TelemetryTrafficKind kind in Enum.GetValues<TelemetryTrafficKind>())
+            TelemetryCoverageSite site = sites[index];
+            if (index > 0 && site.SiteId == siteIds[index - 1])
             {
-                if (!aggregates.TryAdd((site.SiteId, kind), new(site.SiteId, kind, 0, 0, 0)))
-                {
-                    throw new ArgumentException("Duplicate telemetry site identity.", nameof(coverage));
-                }
+                throw new ArgumentException("Duplicate telemetry site identity.", nameof(coverage));
+            }
+            siteIds[index] = site.SiteId;
+            if (site.Enabled)
+            {
+                enabledSites.Add(site.SiteId, index * KindCount);
             }
         }
+        available = coverage.MandatoryCoverageAvailable;
     }
 
     public void Record(int siteId, TelemetryTrafficKind kind, long payloadBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(payloadBytes);
+        if ((uint)kind >= KindCount || !enabledSites.TryGetValue(siteId, out int firstCounter))
+        {
+            throw new InvalidOperationException("Traffic must name a registered enabled site.");
+        }
         lock (sync)
         {
-            if (!aggregates.TryGetValue((siteId, kind), out TelemetryTrafficAggregate previous) || !coverage.Sites.Any(site => site.SiteId == siteId && site.Enabled))
-            {
-                throw new InvalidOperationException("Traffic must name a registered enabled site.");
-            }
-            aggregates[(siteId, kind)] = previous with { Bytes = checked(previous.Bytes + payloadBytes), Operations = checked(previous.Operations + 1), LargestOperationBytes = Math.Max(previous.LargestOperationBytes, payloadBytes) };
+            ref Counter counter = ref counters[firstCounter + (int)kind];
+            long bytes = checked(counter.Bytes + payloadBytes);
+            long operations = checked(counter.Operations + 1);
+            counter.Bytes = bytes;
+            counter.Operations = operations;
+            counter.LargestOperationBytes = Math.Max(counter.LargestOperationBytes, payloadBytes);
         }
     }
 
@@ -74,8 +97,17 @@ public sealed class TelemetryTrafficCollector
     {
         lock (sync)
         {
-            bool available = coverage.MandatoryCoverageAvailable;
-            return new(aggregates.Values.OrderBy(value => value.SiteId).ThenBy(value => value.Kind).ToArray(), available, available ? null : "TELEMETRY_UNAVAILABLE: mandatory copy instrumentation has missing or disabled sites.");
+            TelemetryTrafficAggregate[] aggregates = new TelemetryTrafficAggregate[counters.Length];
+            for (int site = 0; site < siteIds.Length; site++)
+            {
+                for (int kind = 0; kind < KindCount; kind++)
+                {
+                    int index = site * KindCount + kind;
+                    Counter counter = counters[index];
+                    aggregates[index] = new(siteIds[site], (TelemetryTrafficKind)kind, counter.Bytes, counter.Operations, counter.LargestOperationBytes);
+                }
+            }
+            return new(aggregates, available, available ? null : "TELEMETRY_UNAVAILABLE: mandatory copy instrumentation has missing or disabled sites.");
         }
     }
 }

@@ -27,8 +27,8 @@ public static partial class NativeBattleBlizzagaDrawing
             {
                 throw new InvalidDataException("Native Blizzaga main and companion primitive ownership is inconsistent.");
             }
-            ImmutableArray<byte> partner = companion.AsSpan().Slice(partnerStart + faces++ * 20, 20).ToArray().ToImmutableArray();
-            NativeBattleGfGeometryBatch emitted = EmitMainFace(face.ToArray().ToImmutableArray(), partner, [project(0), project(1), project(2)], phase);
+            ImmutableArray<byte> partner = NativeBattleTelemetry.Immutable(1181, NativeBattleTelemetry.Materialize(1178, companion.AsSpan().Slice(partnerStart + faces++ * 20, 20)));
+            NativeBattleGfGeometryBatch emitted = EmitMainFace(NativeBattleTelemetry.Immutable(1182, NativeBattleTelemetry.Materialize(1179, face)), partner, [project(0), project(1), project(2)], phase);
             return emitted with { Attempts = emitted.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + offset) }).ToImmutableArray() };
         });
         if (faces != 320 || partnerCount != 320)
@@ -50,7 +50,7 @@ public static partial class NativeBattleBlizzagaDrawing
         {
             return new([main], main.Primitive is null ? 0 : 40);
         }
-        byte[] partner = companion.ToArray();
+        byte[] partner = NativeBattleTelemetry.Materialize(1180, companion);
         BinaryPrimitives.WriteUInt32LittleEndian(partner, 0x26000000u | (uint)source[27] * 0x10101);
         NativeBattleEffectMeshWindow window = new(0, unchecked((ushort)((phase & 31) << 2)), new(0, 0, 256, 256), new(0, 128, 64, 128), true);
         NativeBattleEffectMeshPacketContext partnerContext = new(0, null, null, null, null, 0, false, null, 17, 2, window);

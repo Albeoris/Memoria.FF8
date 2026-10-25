@@ -57,7 +57,32 @@ public sealed partial class BattleSession
     private void ObserveDiagnosticEffectDispatch(NativeBattleGraphicsState graphics, NativeBattleOriginalEffectState effect)
     {
         diagnosticDispatchSerial++;
-        DiagnosticEffectDispatched?.Invoke(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, ActiveAction?.ActorId ?? graphics.ActionActorId, ActiveAction?.Ability, ActiveAction?.ActionId, effect.RequestedEffect, effect.Binding.Effect));
+        if (DiagnosticEffectDispatched is not { } observer)
+        {
+            return;
+        }
+        string? actorId = effect.Parameters is { Actor78: < 7 } parameters ? graphics.ActorIds[parameters.Actor78] : graphics.ActionActorId;
+        BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+        if (action?.ActorId != actorId)
+        {
+            action = null;
+        }
+        BattleAttackCommand? bound = action is null ? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect) : null;
+        BattleAbility? ability = action?.Ability ?? bound?.Ability;
+        int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
+        if (effect.Parameters is { HeaderIndex7C: >= 0 and < NativeBattleActionPacketsState.HeaderCapacity } entered)
+        {
+            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[entered.HeaderIndex7C];
+            actionId = header.ReadByte(4) | header.ReadByte(5) << 8;
+            ability = header.ReadByte(1) switch
+            {
+                1 => BattleAbility.Attack,
+                2 => BattleAbility.Magic,
+                8 => BattleAbility.EnemyAbility,
+                _ => ability
+            };
+        }
+        observer(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect));
     }
 
     /// <summary>Conservative normal-owner drain observation, without serialization or owner mutation.</summary>

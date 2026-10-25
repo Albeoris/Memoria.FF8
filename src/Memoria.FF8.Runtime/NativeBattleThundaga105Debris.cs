@@ -136,11 +136,11 @@ public static class NativeBattleThundaga105Debris
                 continue;
             }
             byte[] bank = new byte[Stride];
-            arena.Read(rowOffset, 6).CopyTo(bank, 0);
-            arena.Read(rowOffset + 0xE, 2).CopyTo(bank, 0xE);
-            arena.Read(rowOffset + 0x16, 2).CopyTo(bank, 0x16);
-            arena.Read(rowOffset + 0x18, 24).CopyTo(bank, 0x18);
-            arena.Read(rowOffset + 0x30, 12).CopyTo(bank, 0x30);
+            NativeBattleTelemetry.Copy(1249, arena.Read(rowOffset, 6).AsSpan(), bank.AsSpan(0));
+            NativeBattleTelemetry.Copy(1250, arena.Read(rowOffset + 0xE, 2).AsSpan(), bank.AsSpan(0xE));
+            NativeBattleTelemetry.Copy(1251, arena.Read(rowOffset + 0x16, 2).AsSpan(), bank.AsSpan(0x16));
+            NativeBattleTelemetry.Copy(1252, arena.Read(rowOffset + 0x18, 24).AsSpan(), bank.AsSpan(0x18));
+            NativeBattleTelemetry.Copy(1253, arena.Read(rowOffset + 0x30, 12).AsSpan(), bank.AsSpan(0x30));
             int offset = 0;
             NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.MultiplyGteRotation45E470(view, new([scale, 0, 0, 0, scale, 0, 0, 0, scale], 0, 0, 0, 4096));
             (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(view, V(bank, offset));

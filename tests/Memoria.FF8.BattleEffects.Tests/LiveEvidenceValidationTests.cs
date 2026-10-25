@@ -14,6 +14,8 @@ public sealed class LiveEvidenceValidationTests
         Assert.False(result.CampaignAcceptance);
         Assert.Equal(2, result.Executions.Length);
         Assert.Equal(4, result.Combined!.FrameCount);
+        Assert.Equal(new double[] { 6, 6 }, result.EffectDurationsMs);
+        Assert.Equal(40, result.Executions.Sum(execution => execution.DurationMs));
     }
 
     [Fact]
@@ -86,6 +88,20 @@ public sealed class LiveEvidenceValidationTests
         Assert.Equal("ERROR", Validate(new JsonObject()).Verdict);
     }
 
+    [Fact]
+    public void Effect_duration_uses_actual_invoke_to_drain_markers_and_cannot_include_admission_or_tail()
+    {
+        JsonObject report = Report();
+        Execution(report, 0)["effect_duration_ms"] = 20;
+        Assert.Contains("EFFECT_TIMING_MARKERS_INVALID", Validate(report).Errors);
+        report = Report();
+        Execution(report, 0)["effect_completed_ticks"] = 121;
+        Assert.Contains("EFFECT_TIMING_MARKERS_INVALID", Validate(report).Errors);
+        report = Report();
+        Execution(report, 0).Remove("effect_started_ticks");
+        Assert.Equal("ERROR", Validate(report).Verdict);
+    }
+
     private static LiveEvidenceVerdict Validate(JsonObject report)
     {
         using JsonDocument document = JsonDocument.Parse(report.ToJsonString());
@@ -110,6 +126,7 @@ public sealed class LiveEvidenceValidationTests
                 index = index + 1, completed = true, cleanup_completed = true, tail_presented_frames = 2,
                 start_callback = callback, end_callback = callback + 2, start_frame = frame, end_frame = frame + 2, renderer_frames = 2,
                 preceding_presentation_ticks = 100 + index * 100,
+                effect_started_ticks = 102 + index * 100, effect_completed_ticks = 108 + index * 100, effect_duration_ms = 6,
                 start_owners = Owners(callback, frame), end_owners = Owners(callback + 2, frame + 2),
                 dispatches = new[] { new { serial = index + 1, callback = callback + 1, actor_id = "party0", ability = "Magic", action_id = 21, requested_effect = 1, executed_effect = 1 } },
                 frames = Frames(100 + index * 100, frame, callback),

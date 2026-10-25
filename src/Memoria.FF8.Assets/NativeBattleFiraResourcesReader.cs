@@ -8,7 +8,11 @@ public static class NativeBattleFiraResourcesReader
 {
     public static NativeBattleFiraResources Read(byte[] executable)
     {
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeBattleFiraResources Read(IGameNativeMemorySource memory)
+    {
         ReadOnlySpan<byte> uvOffsets = memory.Read(0xDDF454, 16 * 4);
         ImmutableArray<uint>.Builder table = ImmutableArray.CreateBuilder<uint>(16);
         for (int index = 0; index < 16; index++)
@@ -22,5 +26,5 @@ public static class NativeBattleFiraResourcesReader
 public sealed partial class GameAssets
 {
     private NativeBattleFiraResources? nativeFiraResources;
-    public NativeBattleFiraResources ReadNativeFiraResources() => nativeFiraResources ??= NativeBattleFiraResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+    public NativeBattleFiraResources ReadNativeFiraResources() => nativeFiraResources ??= NativeBattleFiraResourcesReader.Read(ReadNativeMemory());
 }

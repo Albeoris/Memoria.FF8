@@ -20,7 +20,7 @@ public static class NativeBattleThundaga105Fragments
         {
             throw new InvalidDataException("Native Thundaga fragment requires its actual retained mutable mesh and reference owner.");
         }
-        byte[] mesh = currentMesh.Bytes.ToArray();
+        byte[] mesh = NativeBattleTelemetry.Materialize(1255, currentMesh.Bytes);
         int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.AsSpan(4));
         if (count < 1 || count > (mesh.Length - 8) / 8 || count > (pair.Reference.Bytes.Length - 8) / 8)
         {
@@ -64,7 +64,7 @@ public static class NativeBattleThundaga105Fragments
                 Word(mesh, offset + axis * 2, Signed(mesh, offset + axis * 2) - center[axis]);
             }
         }
-        NativeBattleModulePoolTask task = allocatedTask with { Payload = new byte[0x30].ToImmutableArray() };
+        NativeBattleModulePoolTask task = allocatedTask with { Payload = NativeBattleTelemetry.Immutable(1254, new byte[0x30]) };
         random = random.Draw(out ushort countdown);
         random = random.Draw(out ushort accelerationY);
         random = random.Draw(out ushort velocityY);
@@ -75,7 +75,7 @@ public static class NativeBattleThundaga105Fragments
             random = random.Draw(out ushort angularVelocity);
             task = task.WriteWord(0x30 + axis * 2, unchecked((ushort)((angularVelocity & 127) - 64)));
         }
-        return new(task, currentMesh with { Bytes = mesh.ToImmutableArray() }, new(new(low[0], low[1], low[2]), new(high[0], high[1], high[2])), random);
+        return new(task, currentMesh with { Bytes = NativeBattleTelemetry.Immutable(1257, mesh) }, new(new(low[0], low[1], low[2]), new(high[0], high[1], high[2])), random);
     }
 
     public static NativeBattleGfGeometryBatch Draw6D5AD0(NativeBattleModulePoolTask task, NativeBattleStaticMeshResource mesh, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors)
@@ -129,7 +129,7 @@ public static class NativeBattleThundaga105Fragments
             }
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
-                byte[] face = Read(cursor, length).ToArray();
+                byte[] face = NativeBattleTelemetry.Materialize(1256, Read(cursor, length));
                 NativeBattleVector[] points = new NativeBattleVector[3];
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -142,7 +142,7 @@ public static class NativeBattleThundaga105Fragments
                 }
                 uint firstColor = BinaryPrimitives.ReadUInt32LittleEndian(face);
                 ImmutableArray<uint> colors = gouraud ? [firstColor, BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(20)), BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(24))] : [firstColor, firstColor, firstColor];
-                NativeBattleThundaga105Triangle triangle = new(points.ToImmutableArray(), [BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(12)), BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(16)), BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(10))], colors, BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(18)));
+                NativeBattleThundaga105Triangle triangle = new(NativeBattleTelemetry.Immutable(1258, points), [BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(12)), BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(16)), BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(10))], colors, BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(18)));
                 NativeBattleThundaga105DebrisSpawn spawned = NativeBattleThundaga105Debris.Spawn6D5CF0(memory, random, triangle, new(S(task, 0x10), S(task, 0x12), S(task, 0x14)), new(S(task, 0x18), S(task, 0x1A), S(task, 0x1C)), new(S(task, 0x20), S(task, 0x22), S(task, 0x24)), rotation);
                 memory = spawned.Memory;
                 random = spawned.Random;

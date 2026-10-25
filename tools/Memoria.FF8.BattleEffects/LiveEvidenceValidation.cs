@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.BattleEffects;
 
-public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope);
+public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope);
 
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
 public static class LiveEvidenceValidation
@@ -25,6 +25,7 @@ public static class LiveEvidenceValidation
     {
         List<string> errors = [];
         List<TelemetryFrameSummary> frames = [];
+        List<double> effectDurations = [];
         try
         {
             RejectDuplicateProperties(report);
@@ -143,7 +144,7 @@ public static class LiveEvidenceValidation
                 long previousCallback = startCallback;
                 foreach (TelemetryFrameInterval interval in recomputed.Intervals)
                 {
-                    double measuredDuration = (interval.End.TimestampTicks - previousTicks) * 1000.0 / frequency;
+                    double measuredDuration = checked(interval.End.TimestampTicks - previousTicks) * 1000.0 / frequency;
                     if (interval.End.TimestampTicks <= previousTicks || interval.End.FrameIndex != previousFrame + 1 || interval.End.FrameIndex > endFrame || interval.End.NativeCallbacks < previousCallback || interval.End.NativeCallbacks > endCallback || Math.Abs(interval.DurationMs - measuredDuration) > 0.0000001)
                     {
                         errors.Add("FRAME_LINEAGE_INVALID");
@@ -155,6 +156,18 @@ public static class LiveEvidenceValidation
                 if (previousFrame != endFrame || recomputed.FrameCount != endFrame - startFrame)
                 {
                     errors.Add("FRAME_COVERAGE_INCOMPLETE");
+                }
+                long effectStarted = Number(execution, "effect_started_ticks");
+                long effectCompleted = Number(execution, "effect_completed_ticks");
+                double effectDuration = checked(effectCompleted - effectStarted) * 1000.0 / frequency;
+                double declaredDuration = execution.GetProperty("effect_duration_ms").GetDouble();
+                if (effectStarted < Number(execution, "preceding_presentation_ticks") || effectCompleted <= effectStarted || effectCompleted > previousTicks || !double.IsFinite(declaredDuration) || Math.Abs(declaredDuration - effectDuration) > 0.0000001 || effectDuration > recomputed.DurationMs)
+                {
+                    errors.Add("EFFECT_TIMING_MARKERS_INVALID");
+                }
+                else
+                {
+                    effectDurations.Add(effectDuration);
                 }
                 if (!recomputed.Valid || Number(execution, "dropped_events") != 0)
                 {
@@ -186,7 +199,7 @@ public static class LiveEvidenceValidation
         }
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
-        return new(verdict, distinct, frames.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.");
+        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.");
     }
 
     private static void ValidateSemantics(JsonElement execution, string actor, string ability, long action, long startCallback, long endCallback, List<string> errors)

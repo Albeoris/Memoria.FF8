@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -52,6 +52,14 @@ public static class Program
                 LiveEvidenceVerdict result = LiveEvidenceValidation.ValidateFile(Get("input"), Optional("case") is { } casePath ? RecordJson.Read<CaseRecipe>(casePath) : null);
                 Print(result);
                 return result.Verdict == "PASS" ? 0 : result.Verdict == "FAIL" ? 2 : 4;
+            }
+
+            if (args[0] == "pilot")
+            {
+                PilotManifest manifest = RecordJson.Read<PilotManifest>(Get("input"));
+                PilotBatchSummary summary = PilotRunner.RunAsync(manifest, completed: result => Print(new { case_id = result.Id, verdict = result.Verdict, result.Executions, total_ms = result.TotalMs, effect_duration_ms = result.EffectDurationMs, execution_window_ms = result.ExecutionWindowMs, overhead_ms = result.OverheadMs, overhead_within_budget = result.OverheadWithinBudget, error_count = result.Errors.Length, first_error = result.Errors.FirstOrDefault() })).GetAwaiter().GetResult();
+                Print(new { summary.Verdict, summary.Requested, summary.Passed, summary.Failed, summary.Errors, total_ms = summary.TotalMs, output = manifest.OutputRoot });
+                return summary.Verdict == "PASS" ? 0 : summary.Verdict == "FAIL" ? 2 : 4;
             }
 
             EvidenceStore store = new(Get("store"));

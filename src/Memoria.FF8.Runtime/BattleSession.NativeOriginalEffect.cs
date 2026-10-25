@@ -10,7 +10,6 @@ public sealed partial class BattleSession
         memory = memory.RetainReturnedTaskOnModuleLoad(graphics.OriginalEffect);
         (memory, selected) = NativeBattleOriginalEffects.Initialize(memory, selected);
         NativeEffectMemory = memory.PublishEntry50AF20(selected.Binding, destination21DFEC0);
-        ObserveDiagnosticEffectDispatch(graphics, selected);
         return graphics with { OriginalEffect = selected, GuardianAnimationSkip = null };
     }
 
@@ -47,6 +46,7 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native assigned entry requires its process task pointer owner.")).AssignReturnedTask(entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its returned pool owner."));
         }
+        ObserveDiagnosticEffectDispatch(entered, entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its executed effect binding."));
         return entered;
     }
 

@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter);
+internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter, long EffectStartedTicks, long EffectCompletedTicks, double EffectDurationMs);
 
 /// <summary>Observes one live session. Scored windows include ordinary admission, first-use work, cleanup and presented tails.</summary>
 internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDisposable
@@ -31,6 +31,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private int[] collections = [];
     private string? rendererOwner;
     private NativeBattlePoolObservation poolBefore;
+    private long effectStartedTicks;
+    private long effectCompletedTicks;
     private const int EventCapacity = 65536;
 
     internal DiagnosticLiveTelemetry(BattleSession battle, Guid instance, ushort expectedEffect = 1)
@@ -76,6 +78,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         start = Owners(frame);
         previousRender = rendererVersion;
         renders = dropped = 0;
+        effectStartedTicks = effectCompletedTicks = 0;
         events.Clear();
         resolutions.Clear();
         dispatches.Clear();
@@ -91,6 +94,14 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
     {
         traffic?.Record(siteId, (TelemetryTrafficKind)kind, payloadBytes);
+    }
+
+    internal void MarkDrained(long timestamp)
+    {
+        if (Active && effectStartedTicks != 0)
+        {
+            effectCompletedTicks = timestamp;
+        }
     }
 
     internal void Presented(long timestamp, long frame, string phase, long rendererVersion, int drawCalls, int textureUploads)
@@ -123,7 +134,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         {
             error ??= "ARENA_WRITER_RENTAL_NOT_RELEASED";
         }
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter));
+        double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration));
         start = null;
         frames = null;
         traffic = null;
@@ -165,6 +177,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         {
             if (dispatches.Count < EventCapacity)
             {
+                if (dispatches.Count == 0)
+                {
+                    effectStartedTicks = Stopwatch.GetTimestamp();
+                }
                 dispatches.Add(value);
             }
             else

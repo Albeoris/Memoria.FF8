@@ -14,6 +14,10 @@ public sealed class DiagnosticTargetPreparationTests
         Assert.Throws<InvalidDataException>(() => (target with { FlagsValue = 0x41 }).Validate());
         Assert.Throws<InvalidDataException>(() => (target with { PhysicalIndex = 7 }).Validate());
         Assert.Throws<InvalidDataException>(() => (target with { OpeningAction = 0 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (target with { OpeningAction = null }).Validate());
+        Assert.Throws<InvalidDataException>(() => (target with { OpeningEffect = null }).Validate());
+        (target with { OpeningAction = null, OpeningEffect = null }).Validate();
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<DiagnosticTargetExpectation>("{\"ActorId\":\"enemy-0\",\"Stage\":31,\"Model\":61,\"SceneSlot\":0,\"PhysicalIndex\":3,\"FlagsMask\":195,\"FlagsValue\":1}"));
     }
 
     [Fact]
@@ -33,7 +37,7 @@ public sealed class DiagnosticTargetPreparationTests
         };
         BattleSession active = world.StartDiagnosticBattle(request);
         Assert.Null(world.VerifyDiagnosticTarget());
-        for (int callback = 0; callback < 3000; callback++)
+        for (int callback = 0; callback < 1000; callback++)
         {
             active.Tick();
             if (active.NativeEntryReady && active.ObserveDiagnosticDrainBlockers().Count == 0 && world.VerifyDiagnosticTarget() is not null)
@@ -90,13 +94,48 @@ public sealed class DiagnosticTargetPreparationTests
         }
         Assert.True(verified is not null, summary);
         DiagnosticTargetReceipt receipt = verified!;
-        Assert.Equal(355, receipt.OpeningDispatch.ActionId);
-        Assert.Equal(76, receipt.OpeningDispatch.ExecutedEffect);
+        BattleDiagnosticEffectDispatch opening = Assert.IsType<BattleDiagnosticEffectDispatch>(receipt.OpeningDispatch);
+        Assert.Equal(355, opening.ActionId);
+        Assert.Equal(76, opening.ExecutedEffect);
         Assert.True(receipt.Target.Alive);
         Assert.True(receipt.Target.StatisticsReady);
         Assert.Equal(3, receipt.Target.PhysicalIndex);
-        Assert.True(receipt.OpeningCompletedCallback >= receipt.OpeningDispatch.Callback);
+        Assert.True(receipt.OpeningCompletedCallback >= opening.Callback);
         Assert.Contains(active.Combatants, actor => actor.ModelId == 127 && actor.IsActive);
         Assert.DoesNotContain(active.Events, value => value.Kind == "NativeSpawn" && value.Amount != 7);
+    }
+
+    [Fact]
+    public void Installed_target_without_declared_opening_still_requires_live_identity_and_initialized_statistics()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for original target initialization validation.");
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        BattleSession active = world.StartDiagnosticBattle(new(94, 0, 0x80, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            Fixture = new([], [], true),
+            Target = new("enemy-0", 31, 61, 0, 3, 0xC3, 1, null, null)
+        });
+        Assert.Null(world.VerifyDiagnosticTarget());
+        DiagnosticTargetReceipt? receipt = null;
+        for (int callback = 0; callback < 3000; callback++)
+        {
+            active.Tick();
+            receipt = world.VerifyDiagnosticTarget();
+            if (receipt is not null)
+            {
+                break;
+            }
+        }
+        Assert.NotNull(receipt);
+        Assert.Equal(61, receipt.Target.Model);
+        Assert.True(receipt.Target.Alive);
+        Assert.True(receipt.Target.StatisticsReady);
+        Assert.Null(receipt.OpeningDispatch);
+        Assert.Null(receipt.OpeningCompletedCallback);
     }
 }

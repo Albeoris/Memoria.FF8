@@ -52,10 +52,10 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
         {
             throw new InvalidDataException("Native7016B0 DWORD clear exceeds its observed workspace bytes.");
         }
-        Buffer workspace = new(Data.ToArray());
+        Buffer workspace = new(NativeBattleTelemetry.Materialize(1231, Data));
         workspace.Bytes.AsSpan(0, (sizeBytes >> 2) * 4).Clear();
         workspace.UInt(0, source.Address);
-        Buffer resource = new(source.Data.ToArray());
+        Buffer resource = new(NativeBattleTelemetry.Materialize(1232, source.Data));
         int table = resource.Int(4);
         int count = resource.Int(table);
         int cache = 8;
@@ -74,7 +74,7 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
             cache = checked(cache + ((flags & 0x800) != 0 ? 24 : (flags & 0x400) != 0 ? 16 : (flags & 0x200) != 0 ? 8 : 0));
             cache = checked(cache + ((flags & 0x1000) != 0 ? 12 : 0) + ((flags & 0x2000) != 0 ? 16 : 0));
         }
-        return new(workspace.Bytes.ToImmutableArray());
+        return new(NativeBattleTelemetry.Immutable(1236, workspace.Bytes));
     }
 
     public NativeBattleGfAnimationAdvance Advance701970(NativeBattleGfAnimationSource source, int frozen, Func<NativeBattleGfAnimationWorkspace, NativeBattleGfAnimationNode, NativeBattleGfAnimationWorkspace> emit)
@@ -96,8 +96,8 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
         {
             throw new InvalidDataException("Native701970 source bytes do not identify the workspace's retained native resource pointer.");
         }
-        Buffer resource = new(source.Data.ToArray());
-        Buffer workspace = new(Data.ToArray());
+        Buffer resource = new(NativeBattleTelemetry.Materialize(1233, source.Data));
+        Buffer workspace = new(NativeBattleTelemetry.Materialize(1234, Data));
         int table = resource.Int(4);
         int duration = resource.Int(checked(table + 4));
         if (workspace.Int(4) >= duration)
@@ -199,13 +199,13 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
                 output.Short(38, unchecked((short)(workspace.Int(cache + 4) >> 16)));
                 cache += 16;
             }
-            NativeBattleGfAnimationWorkspace beforeCallback = new(workspace.Bytes.ToImmutableArray());
-            NativeBattleGfAnimationWorkspace afterCallback = emit(beforeCallback, new(node, flags, output.Bytes.ToImmutableArray())) ?? throw new InvalidDataException("Native701970 callback lost its workspace owner.");
+            NativeBattleGfAnimationWorkspace beforeCallback = new(NativeBattleTelemetry.Immutable(1237, workspace.Bytes));
+            NativeBattleGfAnimationWorkspace afterCallback = emit(beforeCallback, new(node, flags, NativeBattleTelemetry.Immutable(1238, output.Bytes))) ?? throw new InvalidDataException("Native701970 callback lost its workspace owner.");
             if (afterCallback.Data.IsDefault || afterCallback.Data.Length != Data.Length)
             {
                 throw new InvalidDataException("Native701970 callback changed its physical workspace extent.");
             }
-            workspace = new(afterCallback.Data.ToArray());
+            workspace = new(NativeBattleTelemetry.Materialize(1235, afterCallback.Data));
             emitted++;
 
             int NextStream()
@@ -324,7 +324,7 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
         {
             workspace.Int(4, unchecked(workspace.Int(4) + 1));
         }
-        NativeBattleGfAnimationWorkspace completed = new(workspace.Bytes.ToImmutableArray());
+        NativeBattleGfAnimationWorkspace completed = new(NativeBattleTelemetry.Immutable(1239, workspace.Bytes));
         return new(completed, unchecked(duration - workspace.Int(4)), emitted);
     }
 

@@ -49,7 +49,7 @@ public static class NativeBattleThundaga105CapturePackets
         }
         NativeSoftwareDrawingEnvironmentBuffers environments = process.Software?.EnvironmentBuffers ?? throw new NotSupportedException("Native Thundaga capture requires its retained DRAWENV records.");
         ImmutableArray<byte> environment = buffer == 0 ? environments.Buffer1 : environments.Buffer0;
-        retained = retained.Write(0, NativeBattleDrawEnvironmentPackets.Restore45C0F0(retained.Read(0, 64).ToImmutableArray(), environment).AsSpan());
+        retained = retained.Write(0, NativeBattleDrawEnvironmentPackets.Restore45C0F0(NativeBattleTelemetry.Immutable(1242, retained.Read(0, 64)), environment).AsSpan());
         Link(0);
 
         NativeBattleThundaga105CaptureStage draw = NativeBattleThundaga105CaptureGeometry.DrawGroup6D5620(stage, geometry, capture, colors);
@@ -63,7 +63,7 @@ public static class NativeBattleThundaga105CapturePackets
                 BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(index * 4), primitive.Words[index]);
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = primitive.PhysicalWriteMask ?? throw new NotSupportedException("Native captured stage geometry requires its established physical write mask.");
-            attempts.Add(new(allocated, data.ToImmutableArray(), mask, primitive));
+            attempts.Add(new(allocated, NativeBattleTelemetry.Immutable(1243, data), mask, primitive));
             allocated = checked(allocated + data.Length);
         }
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, cursor, ordering, new NativeBattleGfGeometryBatch(attempts.ToImmutable(), allocated));
@@ -83,7 +83,7 @@ public static class NativeBattleThundaga105CapturePackets
         memory = memory with { Arena = arena.Write(cursor, black) };
         cursor = checked(cursor + black.Length);
 
-        retained = retained.Write(0x60, NativeBattleDrawEnvironmentPackets.Area45C940(retained.Read(0x60, 12).ToImmutableArray(), 704, 256, 128, 128).AsSpan());
+        retained = retained.Write(0x60, NativeBattleDrawEnvironmentPackets.Area45C940(NativeBattleTelemetry.Immutable(1244, retained.Read(0x60, 12)), 704, 256, 128, 128).AsSpan());
         Link(0x60);
         const short x = 704;
         const short y = 256;
@@ -91,7 +91,7 @@ public static class NativeBattleThundaga105CapturePackets
         BinaryPrimitives.WriteInt16LittleEndian(offsets, x);
         BinaryPrimitives.WriteInt16LittleEndian(offsets.AsSpan(2), y);
         retained = retained.Write(0x58, offsets);
-        retained = retained.Write(0x48, NativeBattleDrawEnvironmentPackets.Offset45C9B0(retained.Read(0x48, 8).ToImmutableArray(), x, y).AsSpan());
+        retained = retained.Write(0x48, NativeBattleDrawEnvironmentPackets.Offset45C9B0(NativeBattleTelemetry.Immutable(1245, retained.Read(0x48, 8)), x, y).AsSpan());
         Link(0x48);
         return new(memory with { Thundaga105Capture = retained }, draw.Stage, ordering, cursor, draw.Packets.Length);
 

@@ -68,7 +68,7 @@ public static class NativeBattleThundaga105ProgramDrawing
         if (first == second || ratio is 0 or 4096)
         {
             int shape = first == second || ratio == 0 ? first : second;
-            selected = Read(checked(geometry + 12 + shape * bytes), bytes).ToArray().ToImmutableArray();
+            selected = NativeBattleTelemetry.Immutable(1263, NativeBattleTelemetry.Materialize(1259, Read(checked(geometry + 12 + shape * bytes), bytes)));
         }
         else
         {
@@ -77,7 +77,7 @@ public static class NativeBattleThundaga105ProgramDrawing
             {
                 throw new InvalidDataException("Native Thundaga morph leaves its actual shared scratch extent.");
             }
-            ImmutableArray<byte> scratch = arena.Read(MorphArenaOffset, bytes).ToImmutableArray();
+            ImmutableArray<byte> scratch = NativeBattleTelemetry.Immutable(1264, arena.Read(MorphArenaOffset, bytes));
             selected = NativeBattleGfMorphGeometry.Morph701390(source.Data, geometry, first, second, ratio, scratch);
             memory = memory with { Arena = arena.Write(MorphArenaOffset, selected.AsSpan()) };
         }
@@ -110,7 +110,7 @@ public static class NativeBattleThundaga105ProgramDrawing
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
                 int length = gouraud ? 36 : 24;
-                byte[] face = Read(cursor, length).ToArray();
+                byte[] face = NativeBattleTelemetry.Materialize(1260, Read(cursor, length));
                 NativeBattleEffectMeshWindow window = new(0, v, new(0, 0, 256, 256), new(0, 128, 0, 128), true, gouraud ? (byte)0 : (byte)128);
                 uint cueFlag = node.Scalar36 == 0 ? 0u : gouraud ? 0x80u : 0x40u;
                 NativeBattleGfGeometryBatch batch = NativeBattleEffectMeshPackets.EmitTextured(face, corner => Project(BinaryPrimitives.ReadUInt16LittleEndian(face.AsSpan(4 + corner * 2))), true, gouraud, new(cueFlag, node.Color32, node.Scalar36, null, null, 0, false, null, 17, 2, window), colors, allocated, NativeBattleEffectMeshClip.OutsideScreen);
@@ -188,12 +188,12 @@ public static class NativeBattleThundaga105ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.Payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(NativeBattleTelemetry.Immutable(1265, NativeBattleTelemetry.Materialize(1261, task.Payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength))));
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        byte[] payload = task.Payload.ToArray();
-        workspace.Data.AsSpan().CopyTo(payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength));
-        return task with { Payload = payload.ToImmutableArray() };
+        byte[] payload = NativeBattleTelemetry.Materialize(1262, task.Payload);
+        NativeBattleTelemetry.Copy(1267, workspace.Data.AsSpan(), payload.AsSpan(WorkspaceOffset - 12, WorkspaceLength));
+        return task with { Payload = NativeBattleTelemetry.Immutable(1266, payload) };
     }
 }

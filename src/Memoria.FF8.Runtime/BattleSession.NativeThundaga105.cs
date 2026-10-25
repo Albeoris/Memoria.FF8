@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), xyz.Y);
             BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), xyz.Z);
             BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(6), Transform(actor).Angle36);
-            return raw.ToImmutableArray();
+            return NativeBattleTelemetry.Immutable(1165, raw);
         }
 
         NativeBattleThundaga105TaskStep DrawPrimary(NativeBattleThundaga105Frame current, NativeBattleModulePoolTask task, int actor, ImmutableArray<byte> anchor)

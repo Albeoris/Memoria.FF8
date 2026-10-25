@@ -381,9 +381,9 @@ public static class NativeBattleBlizzaraController
     private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12, 4));
     private static NativeBattleModulePoolTask WriteDword(NativeBattleModulePoolTask task, int offset, uint value)
     {
-        byte[] bytes = task.Payload.ToArray();
+        byte[] bytes = NativeBattleTelemetry.Materialize(1205, task.Payload);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12, 4), value);
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1207, bytes) };
     }
     private static NativeBattleModulePoolTask WriteByte(NativeBattleModulePoolTask task, int offset, byte value) => task with { Payload = task.Payload.SetItem(offset - 12, value) };
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
@@ -391,9 +391,9 @@ public static class NativeBattleBlizzaraController
     private static NativeBattleModuleAnchor Anchor(NativeBattleModulePoolTask task, int offset) => new(Word(task, offset), Word(task, offset + 2), Word(task, offset + 4), Word(task, offset + 6));
     private static NativeBattleModulePoolTask Clear(NativeBattleModulePoolTask task, int length)
     {
-        byte[] bytes = task.Payload.ToArray();
+        byte[] bytes = NativeBattleTelemetry.Materialize(1206, task.Payload);
         bytes.AsSpan(0, length).Clear();
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1208, bytes) };
     }
     private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
 }

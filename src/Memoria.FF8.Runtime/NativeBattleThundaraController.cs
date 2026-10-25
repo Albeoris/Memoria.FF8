@@ -321,7 +321,7 @@ public static class NativeBattleThundaraController
         {
             throw new InvalidDataException("Native Thundara's clear requires the exact current physical payload extent.");
         }
-        return task with { Payload = new byte[bytes].ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1268, new byte[bytes]) };
     }
 
     private static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
@@ -330,16 +330,16 @@ public static class NativeBattleThundaraController
     private static uint ReadDword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()[(offset - 12)..]);
     private static NativeBattleModulePoolTask WriteByte(NativeBattleModulePoolTask task, int offset, byte value)
     {
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1269, task.Payload);
         payload[offset - 12] = value;
-        return task with { Payload = payload.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1271, payload) };
     }
 
     private static NativeBattleModulePoolTask WriteDword(NativeBattleModulePoolTask task, int offset, uint value)
     {
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1270, task.Payload);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan()[(offset - 12)..], value);
-        return task with { Payload = payload.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1272, payload) };
     }
 
     private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };

@@ -77,6 +77,10 @@ internal sealed partial class RecreateGame
                     diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
                     ApplyBattleCommand(diagnosticDriverRecipe!.Input);
                 }
+                if (previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
+                {
+                    diagnosticTelemetry.MarkDrained(presentedTimestamp);
+                }
                 if (previousStage == DiagnosticDriverStage.Tail && driver.Stage is DiagnosticDriverStage.Readiness or DiagnosticDriverStage.Completed)
                 {
                     diagnosticTelemetry.Complete(diagnosticPresentedFrames, true, diagnosticDriverRecipe!.TailFrames, null);

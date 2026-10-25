@@ -14,6 +14,10 @@ internal sealed partial class RecreateGame
         session.StartNewGame();
         world = CreateWorld();
         world.StartDiagnosticBattle(request);
+        if (request.PrepareEntryBeforePresentation)
+        {
+            world.PrepareDiagnosticEntryBeforePresentation(request);
+        }
         gameMenus?.Close();
         if (request.Driver is { } driver)
         {

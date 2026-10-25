@@ -15,11 +15,17 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     public ushort? MusicFieldWord { get; init; }
     public DiagnosticBattlePreparation? Fixture { get; init; }
     public DiagnosticTargetExpectation? Target { get; init; }
+    public bool PrepareEntryBeforePresentation { get; init; }
+    public int EntryCallbackBudget { get; init; } = 1024;
 
     internal void Validate()
     {
         Driver?.Validate();
         Fixture?.Validate();
+        if (EntryCallbackBudget is < 1 or > 18000)
+        {
+            throw new InvalidDataException("Diagnostic entry preparation requires a finite native callback budget of 1..18000.");
+        }
         Target?.Validate();
         if (Encounter is < 0 or > ushort.MaxValue)
         {
@@ -36,7 +42,10 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
 {
     public ImmutableArray<DiagnosticPreparationChange> PreparationChanges { get; init; } = [];
     public DiagnosticTargetReceipt? Target { get; init; }
+    public DiagnosticEntryPreparationReceipt? EntryPreparation { get; init; }
 }
+
+internal sealed record DiagnosticEntryPreparationReceipt(long NativeCallbacks, double Milliseconds, string Scope);
 
 internal sealed partial class GameWorld
 {
@@ -44,6 +53,43 @@ internal sealed partial class GameWorld
     private DiagnosticBattleOwner? diagnosticBattle;
     internal DiagnosticBattleReceipt? DiagnosticReceipt { get; private set; }
     internal bool IsDiagnosticBattle => diagnosticBattle is not null;
+
+    internal void PrepareDiagnosticEntryBeforePresentation(DiagnosticBattleRequest request)
+    {
+        BattleSession active = battle ?? throw new InvalidOperationException("Diagnostic entry preparation requires its live battle.");
+        if (diagnosticBattle is null || (active.NativeHostCallbacks ?? 0) != 0 || Field is not null || worldScene is not null)
+        {
+            throw new InvalidOperationException("Entry preparation can run only before the diagnostic host's first presentation callback.");
+        }
+        long started = Stopwatch.GetTimestamp();
+        void RejectFocalWarmup(BattleDiagnosticEffectDispatch dispatch)
+        {
+            if (request.Driver is { } driver && dispatch.RequestedEffect == driver.ExpectedEffect)
+            {
+                throw new NotSupportedException("Entry preparation cannot execute or warm the focal effect before its measured first invocation.");
+            }
+        }
+        active.DiagnosticEffectDispatched += RejectFocalWarmup;
+        try
+        {
+            int callbacks = 0;
+            while (!active.NativeEntryReady && callbacks < request.EntryCallbackBudget)
+            {
+                active.Tick();
+                callbacks++;
+            }
+            if (!active.NativeEntryReady)
+            {
+                throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget.");
+            }
+            SynchronizeNativeBattleHostCallbacks(active);
+            DiagnosticReceipt = DiagnosticReceipt! with { EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original model/resource entry callbacks before presentation; measured focal executions retain normal real-time pacing.") };
+        }
+        finally
+        {
+            active.DiagnosticEffectDispatched -= RejectFocalWarmup;
+        }
+    }
 
     internal BattleSession StartDiagnosticBattle(DiagnosticBattleRequest request)
     {

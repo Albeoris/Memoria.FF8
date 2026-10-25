@@ -8,6 +8,31 @@ public sealed class TelemetryTests
     private static readonly TelemetryOwnerState Owners = new("battle", 1, "memory", "renderer", 1, 0, 0, 10, 20);
 
     [Fact]
+    public async Task Cached_site_lookup_keeps_concurrent_counters_exact_and_overflow_atomic()
+    {
+        TelemetryCoverageManifest coverage = new("synthetic-many-sites", Enumerable.Range(1, 200).Select(site => new TelemetryCoverageSite(site, "synthetic", "counter", true, true, null)).ToArray());
+        TelemetryTrafficCollector collector = new(coverage);
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+        {
+            for (int operation = 0; operation < 1000; operation++)
+            {
+                collector.Record(200, TelemetryTrafficKind.CpuCopyPayload, 3);
+            }
+        })));
+        TelemetryTrafficAggregate result = collector.Complete().Sites.Single(site => site.SiteId == 200 && site.Kind == TelemetryTrafficKind.CpuCopyPayload);
+        Assert.Equal(24000, result.Bytes);
+        Assert.Equal(8000, result.Operations);
+        Assert.Equal(3, result.LargestOperationBytes);
+        Assert.Throws<InvalidOperationException>(() => collector.Record(999, TelemetryTrafficKind.CpuCopyPayload, 1));
+        Assert.Throws<InvalidOperationException>(() => collector.Record(200, (TelemetryTrafficKind)99, 1));
+        collector.Record(1, TelemetryTrafficKind.CpuCopyPayload, long.MaxValue);
+        Assert.Throws<OverflowException>(() => collector.Record(1, TelemetryTrafficKind.CpuCopyPayload, 1));
+        TelemetryTrafficAggregate after = collector.Complete().Sites.Single(site => site.SiteId == 1 && site.Kind == TelemetryTrafficKind.CpuCopyPayload);
+        Assert.Equal(long.MaxValue, after.Bytes);
+        Assert.Equal(1, after.Operations);
+    }
+
+    [Fact]
     public void Frame_summary_includes_first_frame_stall_and_computes_even_median_fps_directly()
     {
         TelemetryFrameCollector collector = new(100, 1000, 8);

@@ -45,7 +45,7 @@ public static partial class NativeBattleTelemetry
     private static readonly AsyncLocal<Scope?> Current = new();
     private static readonly object PoolSync = new();
     private static NativeBattlePoolObservation pool;
-    public const string InstrumentationVersion = "managed-payload-v1";
+    public const string InstrumentationVersion = "managed-payload-v2";
 
     /// <summary>Process-wide arena-writer rentals only; includes rentals predating a scored scope. Peaks are lifetime observations.</summary>
     public static NativeBattlePoolObservation PoolSnapshot()
@@ -121,6 +121,16 @@ public static partial class NativeBattleTelemetry
         return Materialize(siteId, (ReadOnlySpan<T>)source);
     }
 
+    public static T[] Materialize<T>(int siteId, ImmutableArray<T> source) where T : unmanaged
+    {
+        return Materialize(siteId, source.AsSpan());
+    }
+
+    public static T[] Materialize<T>(int siteId, T[] source) where T : unmanaged
+    {
+        return Materialize(siteId, (ReadOnlySpan<T>)source);
+    }
+
     public static ImmutableArray<byte> Slice(int siteId, ImmutableArray<byte> source, int start, int length)
     {
         ImmutableArray<byte> result = source.Slice(start, length);
@@ -147,6 +157,11 @@ public static partial class NativeBattleTelemetry
     public static ImmutableArray<T> Immutable<T>(int siteId, T[] source) where T : unmanaged
     {
         return Immutable(siteId, (ReadOnlySpan<T>)source);
+    }
+
+    public static ImmutableArray<T> Immutable<T>(int siteId, ImmutableArray<T> source) where T : unmanaged
+    {
+        return source;
     }
 
     public static ImmutableArray<T> Add<T>(int siteId, ImmutableArray<T> source, T value) where T : unmanaged

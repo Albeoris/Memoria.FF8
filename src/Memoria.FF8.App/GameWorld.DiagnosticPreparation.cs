@@ -15,18 +15,18 @@ internal sealed record DiagnosticMagicCommandPreparation([property: JsonRequired
 internal sealed record DiagnosticGuardianForcePreparation([property: JsonRequired] int Id, [property: JsonRequired] bool Acquire);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record DiagnosticTargetExpectation([property: JsonRequired] string ActorId, [property: JsonRequired] int Stage, [property: JsonRequired] int Model, [property: JsonRequired] int SceneSlot, [property: JsonRequired] int PhysicalIndex, [property: JsonRequired] uint FlagsMask, [property: JsonRequired] uint FlagsValue, [property: JsonRequired] int OpeningAction, [property: JsonRequired] ushort OpeningEffect)
+internal sealed record DiagnosticTargetExpectation([property: JsonRequired] string ActorId, [property: JsonRequired] int Stage, [property: JsonRequired] int Model, [property: JsonRequired] int SceneSlot, [property: JsonRequired] int PhysicalIndex, [property: JsonRequired] uint FlagsMask, [property: JsonRequired] uint FlagsValue, [property: JsonRequired] int? OpeningAction, [property: JsonRequired] ushort? OpeningEffect)
 {
     internal void Validate()
     {
-        if (string.IsNullOrWhiteSpace(ActorId) || ActorId.Length > 128 || Stage is < 0 or > 255 || Model is < 0 or > 238 || SceneSlot is < 0 or > 7 || PhysicalIndex is < 3 or > 6 || (FlagsMask & 0xC3) != 0xC3 || (FlagsValue & 0xC3) != 1 || (FlagsValue & ~FlagsMask) != 0 || OpeningAction <= 0)
+        if (string.IsNullOrWhiteSpace(ActorId) || ActorId.Length > 128 || Stage is < 0 or > 255 || Model is < 0 or > 238 || SceneSlot is < 0 or > 7 || PhysicalIndex is < 3 or > 6 || (FlagsMask & 0xC3) != 0xC3 || (FlagsValue & 0xC3) != 1 || (FlagsValue & ~FlagsMask) != 0 || OpeningAction is <= 0 || OpeningEffect is 0 || OpeningAction.HasValue != OpeningEffect.HasValue)
         {
-            throw new InvalidDataException("Diagnostic target requires an explicit original stage/model/scene/physical identity, active visible targetable unsuspended flags and an opening action.");
+            throw new InvalidDataException("Diagnostic target requires an explicit original stage/model/scene/physical identity and active visible targetable unsuspended flags; opening action/effect must be a positive pair or explicitly null.");
         }
     }
 }
 
-internal sealed record DiagnosticTargetReceipt(BattleDiagnosticTarget Target, BattleDiagnosticEffectDispatch OpeningDispatch, long OpeningCompletedCallback, string Scope);
+internal sealed record DiagnosticTargetReceipt(BattleDiagnosticTarget Target, BattleDiagnosticEffectDispatch? OpeningDispatch, long? OpeningCompletedCallback, string Scope);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticCharacterPreparation([property: JsonRequired] int Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ImmutableArray<DiagnosticMagicStockPreparation> Stocks, [property: JsonRequired] ImmutableArray<int> GuardianForces)
@@ -46,9 +46,9 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
         }
         foreach (DiagnosticCharacterPreparation character in Characters)
         {
-            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 3 || character.Stocks.Any(stock => stock is null || stock.Action is not (21 or 1 or 7) || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.HitPoints == 0)
+            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 10 || character.Stocks.Any(stock => stock is null || stock.Action is not (>= 1 and <= 9 or 21) || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.HitPoints == 0)
             {
-                throw new InvalidDataException("Diagnostic preparation supports explicit Cure, Fire and Thunder stocks of 2..100, distinct GF assignments and positive HP only.");
+                throw new InvalidDataException("Diagnostic preparation supports explicit action1..9 and21 stocks of 2..100, distinct GF assignments and positive HP only.");
             }
             if (character.MagicCommand is { } command && (command.Slot is < 0 or >= 3 || command.Ability is < 20 or >= 39))
             {
@@ -65,16 +65,21 @@ internal sealed partial class GameWorld
 {
     private BattleDiagnosticEffectDispatch? diagnosticOpeningDispatch;
     private long? diagnosticOpeningCompleted;
+    private readonly List<BattleDiagnosticEffectDispatch> diagnosticObservedOpeningDispatches = [];
 
     internal object ObserveDiagnosticTargetPreparation()
     {
-        return new { Expected = diagnosticBattle?.Request.Target, OpeningDispatch = diagnosticOpeningDispatch, OpeningCompletedCallback = diagnosticOpeningCompleted };
+        return new { Expected = diagnosticBattle?.Request.Target, OpeningDispatch = diagnosticOpeningDispatch, OpeningCompletedCallback = diagnosticOpeningCompleted, ObservedDispatches = diagnosticObservedOpeningDispatches };
     }
 
     private void ObserveDiagnosticOpening(BattleDiagnosticEffectDispatch dispatch)
     {
+        if (diagnosticObservedOpeningDispatches.Count < 32)
+        {
+            diagnosticObservedOpeningDispatches.Add(dispatch);
+        }
         DiagnosticTargetExpectation? expected = diagnosticBattle?.Request.Target;
-        if (expected is not null && dispatch.ActorId == expected.ActorId && dispatch.ActionId == expected.OpeningAction && dispatch.RequestedEffect == expected.OpeningEffect && dispatch.ExecutedEffect == expected.OpeningEffect)
+        if (expected?.OpeningAction is not null && dispatch.ActorId == expected.ActorId && dispatch.ActionId == expected.OpeningAction && dispatch.RequestedEffect == expected.OpeningEffect && dispatch.ExecutedEffect == expected.OpeningEffect)
         {
             diagnosticOpeningDispatch = dispatch;
         }
@@ -96,7 +101,7 @@ internal sealed partial class GameWorld
             return null;
         }
         BattleSession active = battle ?? throw new InvalidOperationException("Diagnostic target has no live encounter.");
-        if (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0 || diagnosticOpeningDispatch is null || diagnosticOpeningCompleted is null)
+        if (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0 || expected.OpeningAction is not null && (diagnosticOpeningDispatch is null || diagnosticOpeningCompleted is null))
         {
             return null;
         }
@@ -105,7 +110,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("The initialized live target does not satisfy the declared original participant contract.");
         }
-        DiagnosticTargetReceipt receipt = new(target, diagnosticOpeningDispatch, diagnosticOpeningCompleted.Value, "Direct initialized participant and completed original opening; campaign progression requires separate provenance.");
+        DiagnosticTargetReceipt receipt = new(target, diagnosticOpeningDispatch, diagnosticOpeningCompleted, expected.OpeningAction is null ? "Direct initialized participant identity; no opening action was declared. Campaign progression requires separate provenance." : "Direct initialized participant and completed original opening; campaign progression requires separate provenance.");
         if (DiagnosticReceipt is { Target: null } initializer)
         {
             DiagnosticReceipt = initializer with { Target = receipt };

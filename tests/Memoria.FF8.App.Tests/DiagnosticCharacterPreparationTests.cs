@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -15,6 +16,7 @@ public sealed class DiagnosticCharacterPreparationTests
 
     [Theory]
     [InlineData(0, 2)]
+    [InlineData(10, 2)]
     [InlineData(22, 2)]
     [InlineData(21, 1)]
     [InlineData(1, 101)]
@@ -22,6 +24,13 @@ public sealed class DiagnosticCharacterPreparationTests
     {
         DiagnosticBattlePreparation recipe = new([], [new(0, 0, [new(action, count)], [])], false);
         Assert.Throws<InvalidDataException>(recipe.Validate);
+    }
+
+    [Fact]
+    public void Preparation_accepts_only_the_ten_declared_existing_magic_stocks()
+    {
+        DiagnosticBattlePreparation recipe = new([], [new(0, 0, Enumerable.Range(1, 9).Append(21).Select(action => new DiagnosticMagicStockPreparation(action, 2)).ToImmutableArray(), [])], false);
+        recipe.Validate();
     }
 
     [Fact]

@@ -7,7 +7,11 @@ public static class NativeBattleBlizzagaResourcesReader
 {
     public static NativeBattleBlizzagaResources Read(byte[] executable)
     {
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeBattleBlizzagaResources Read(IGameNativeMemorySource memory)
+    {
         NativeBattleBlizzagaSeparateMeshResource primary = new(0x1312918, 177, NativeBattleEffectStaticResourcesReader.Read(memory, 0x1312918, 0x2328));
         NativeBattleBlizzagaSeparateMeshResource partner = new(0x1315760, 177, NativeBattleEffectStaticResourcesReader.Read(memory, 0x1315760, 0x1928));
         NativeBattleBlizzagaVertexBank morph = new(0x1314C40, NativeBattleEffectStaticResourcesReader.Read(memory, 0x1314C40, 0x590));
@@ -23,5 +27,5 @@ public static class NativeBattleBlizzagaResourcesReader
 public sealed partial class GameAssets
 {
     private NativeBattleBlizzagaResources? nativeBlizzagaResources;
-    public NativeBattleBlizzagaResources ReadNativeBlizzagaResources() => nativeBlizzagaResources ??= NativeBattleBlizzagaResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+    public NativeBattleBlizzagaResources ReadNativeBlizzagaResources() => nativeBlizzagaResources ??= NativeBattleBlizzagaResourcesReader.Read(ReadNativeMemory());
 }

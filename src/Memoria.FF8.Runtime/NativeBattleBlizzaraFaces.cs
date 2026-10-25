@@ -31,12 +31,12 @@ public static class NativeBattleBlizzaraFaces
         _ => throw new NotSupportedException("Native Blizzara owns exactly three companion mesh clones.")
     };
 
-    public static ImmutableArray<byte> ReadPrimaryMesh(NativeBattleEffectMemory memory, int sequence) => RequireArena(memory).Read(PrimaryMeshOffset(sequence), PrimaryMeshLength).ToImmutableArray();
+    public static ImmutableArray<byte> ReadPrimaryMesh(NativeBattleEffectMemory memory, int sequence) => NativeBattleTelemetry.Immutable(1216, RequireArena(memory).Read(PrimaryMeshOffset(sequence), PrimaryMeshLength));
 
     public static ImmutableArray<byte> ExpandedVertices(NativeBattleModulePoolTask task)
     {
         RequireTask(task);
-        return task.Payload.AsSpan().Slice(ExpandedOffset - 12, ExpandedLength).ToArray().ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1217, NativeBattleTelemetry.Materialize(1211, task.Payload.AsSpan().Slice(ExpandedOffset - 12, ExpandedLength)));
     }
 
     public static NativeBattleBlizzaraFaceInitialization Initialize(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, int sequence, NativeBattleBlizzaraResources resources)
@@ -46,9 +46,9 @@ public static class NativeBattleBlizzaraFaces
         {
             throw new InvalidDataException("Native Blizzara requires its original complete mesh pair.");
         }
-        byte[] primary = resources.PrimaryMesh.Bytes.ToArray();
-        byte[] partner = resources.PartnerMesh.Bytes.ToArray();
-        byte[] payload = task.Payload.ToArray();
+        byte[] primary = NativeBattleTelemetry.Materialize(1212, resources.PrimaryMesh.Bytes);
+        byte[] partner = NativeBattleTelemetry.Materialize(1213, resources.PartnerMesh.Bytes);
+        byte[] payload = NativeBattleTelemetry.Materialize(1214, task.Payload);
         (int first, int count) = NativeBattleIceMeshVertices.Group(primary, 6);
         (int second, int partnerCount) = NativeBattleIceMeshVertices.Group(partner, 2);
         if (count != FaceCount || partnerCount != FaceCount || BinaryPrimitives.ReadUInt32LittleEndian(primary) != 0x438 || BinaryPrimitives.ReadUInt32LittleEndian(primary.AsSpan(4)) != 134)
@@ -67,7 +67,7 @@ public static class NativeBattleBlizzaraFaces
         }
         NativeBattleIceMeshVertices.ExpandGt3(primary, resources.PrimaryMesh.Bytes.AsSpan().Slice(8, 134 * 8), payload.AsSpan(ExpandedOffset - 12, ExpandedLength));
         NativeBattleEffectArena arena = RequireArena(memory).Write(PrimaryMeshOffset(sequence), primary).Write(PartnerMeshOffset(sequence), partner);
-        return new(memory with { Arena = arena }, task with { Payload = payload.ToImmutableArray() });
+        return new(memory with { Arena = arena }, task with { Payload = NativeBattleTelemetry.Immutable(1218, payload) });
     }
 
     public static NativeBattleBlizzaraFaceStep Advance(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, int sequence, int phase, NativeCrtRandomState random)
@@ -80,7 +80,7 @@ public static class NativeBattleBlizzaraFaces
         NativeBattleEffectArena arena = RequireArena(memory);
         byte[] primary = arena.Read(PrimaryMeshOffset(sequence), PrimaryMeshLength);
         byte[] partner = arena.Read(PartnerMeshOffset(sequence), PartnerMeshLength);
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1215, task.Payload);
         (int first, int count) = NativeBattleIceMeshVertices.Group(primary, 6);
         (int second, int partnerCount) = NativeBattleIceMeshVertices.Group(partner, 2);
         if (count != FaceCount || partnerCount != FaceCount)
@@ -181,7 +181,7 @@ public static class NativeBattleBlizzaraFaces
             }
         }
         arena = arena.Write(PrimaryMeshOffset(sequence), primary).Write(PartnerMeshOffset(sequence), partner);
-        return new(memory with { Arena = arena }, task with { Payload = payload.ToImmutableArray() }, random);
+        return new(memory with { Arena = arena }, task with { Payload = NativeBattleTelemetry.Immutable(1219, payload) }, random);
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(offset - 12));
         void Set(int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), unchecked((ushort)value));

@@ -287,7 +287,7 @@ public static class NativeBattleBlizzagaController
                 {
                     for (int point = 0; point < 2; point++)
                     {
-                        byte[] local = Slice(task, 0xAC + point * 8, 8).ToArray();
+                        byte[] local = NativeBattleTelemetry.Materialize(1166, Slice(task, 0xAC + point * 8, 8));
                         short x = unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(local) + ((Rand() - 16384) >> 6)));
                         short y = unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(local.AsSpan(2)) + ((Rand() - 16384) >> 6)));
                         BinaryPrimitives.WriteInt16LittleEndian(local, x);
@@ -480,11 +480,11 @@ public static class NativeBattleBlizzagaController
     }
     private static ImmutableArray<byte> Point(ImmutableArray<byte> source, int x, int y, int z)
     {
-        byte[] bytes = source.ToArray();
+        byte[] bytes = NativeBattleTelemetry.Materialize(1167, source);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, unchecked((ushort)x));
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), unchecked((ushort)y));
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), unchecked((ushort)z));
-        return bytes.ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1172, bytes);
     }
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleModulePoolTask task, int offset) => new(Enumerable.Range(0, 9).Select(index => Word(task, offset + index * 2)).ToImmutableArray(), unchecked((int)Dword(task, offset + 20)), unchecked((int)Dword(task, offset + 24)), unchecked((int)Dword(task, offset + 28)), 4096);
     private static NativeBattleModulePoolTask WriteMatrix(NativeBattleModulePoolTask task, int offset, NativeBattleActionMatrix matrix)
@@ -506,16 +506,16 @@ public static class NativeBattleBlizzagaController
     private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12, 4));
     private static NativeBattleModulePoolTask WriteDword(NativeBattleModulePoolTask task, int offset, uint value)
     {
-        byte[] bytes = task.Payload.ToArray();
+        byte[] bytes = NativeBattleTelemetry.Materialize(1168, task.Payload);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset - 12, 4), value);
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1173, bytes) };
     }
-    private static ImmutableArray<byte> Slice(NativeBattleModulePoolTask task, int offset, int length) => task.Payload.AsSpan().Slice(offset - 12, length).ToArray().ToImmutableArray();
+    private static ImmutableArray<byte> Slice(NativeBattleModulePoolTask task, int offset, int length) => NativeBattleTelemetry.Immutable(1174, NativeBattleTelemetry.Materialize(1169, task.Payload.AsSpan().Slice(offset - 12, length)));
     private static NativeBattleModulePoolTask WriteBytes(NativeBattleModulePoolTask task, int offset, ImmutableArray<byte> bytes)
     {
-        byte[] payload = task.Payload.ToArray();
-        bytes.AsSpan().CopyTo(payload.AsSpan(offset - 12));
-        return task with { Payload = payload.ToImmutableArray() };
+        byte[] payload = NativeBattleTelemetry.Materialize(1170, task.Payload);
+        NativeBattleTelemetry.Copy(1177, bytes.AsSpan(), payload.AsSpan(offset - 12));
+        return task with { Payload = NativeBattleTelemetry.Immutable(1175, payload) };
     }
     private static NativeBattleModulePoolTask WriteByte(NativeBattleModulePoolTask task, int offset, byte value) => task with { Payload = task.Payload.SetItem(offset - 12, value) };
     private static NativeBattleModulePoolTask Add(NativeBattleModulePoolTask task, int offset, int value) => task.WriteWord(offset, unchecked((ushort)(Word(task, offset) + value)));
@@ -523,9 +523,9 @@ public static class NativeBattleBlizzagaController
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(Word(task, offset), Word(task, offset + 2), Word(task, offset + 4));
     private static NativeBattleModulePoolTask Clear(NativeBattleModulePoolTask task, int length)
     {
-        byte[] bytes = task.Payload.ToArray();
+        byte[] bytes = NativeBattleTelemetry.Materialize(1171, task.Payload);
         bytes.AsSpan(0, length).Clear();
-        return task with { Payload = bytes.ToImmutableArray() };
+        return task with { Payload = NativeBattleTelemetry.Immutable(1176, bytes) };
     }
     private static NativeBattleEffectTaskPool Put(NativeBattleEffectTaskPool pool, int slot, NativeBattleModulePoolTask task) => pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Payload = task.Payload }) };
 }

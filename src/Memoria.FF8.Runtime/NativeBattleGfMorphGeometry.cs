@@ -27,7 +27,7 @@ public static class NativeBattleGfMorphGeometry
 
     private static ImmutableArray<byte> StoreVertices(ImmutableArray<NativeBattleVector> vertices, ImmutableArray<byte> destination, int destinationOffset)
     {
-        byte[] output = destination.ToArray();
+        byte[] output = NativeBattleTelemetry.Materialize(1240, destination);
         foreach (NativeBattleVector vertex in vertices)
         {
             if (destinationOffset < 0 || destinationOffset > output.Length - 6)
@@ -39,7 +39,7 @@ public static class NativeBattleGfMorphGeometry
             BinaryPrimitives.WriteInt16LittleEndian(output.AsSpan(destinationOffset + 4), vertex.Z);
             destinationOffset = unchecked(destinationOffset + 8);
         }
-        return output.ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1241, output);
     }
 
     public static ImmutableArray<NativeBattleVector> MorphVertices701390(ImmutableArray<byte> source, int geometryOffset, int firstShape, int secondShape, int ratio)

@@ -34,7 +34,7 @@ public static class NativeBattleBlizzaraDrawing
                 throw new NotSupportedException("Native Blizzara's initialized primary clone contains only its original GT3 group.");
             }
             faces++;
-            NativeBattleGfGeometryBatch batch = EmitMainFace6DB5D0(face.ToArray().ToImmutableArray(), [project(0), project(1), project(2)], descriptorFlags);
+            NativeBattleGfGeometryBatch batch = EmitMainFace6DB5D0(NativeBattleTelemetry.Immutable(1210, NativeBattleTelemetry.Materialize(1209, face)), [project(0), project(1), project(2)], descriptorFlags);
             return batch with { Attempts = batch.Attempts.Select(attempt => attempt with { ByteOffsetRelative = checked(attempt.ByteOffsetRelative + offset) }).ToImmutableArray() };
         });
         if (faces != 223)

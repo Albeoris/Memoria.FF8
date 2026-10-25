@@ -10,7 +10,7 @@ public static class NativeBattleDrawEnvironmentPackets
     {
         Require(retainedStatic64, 64, true);
         Require(drawEnvironment92, 92, true);
-        byte[] result = retainedStatic64.ToArray();
+        byte[] result = NativeBattleTelemetry.Materialize(1225, retainedStatic64);
         bool clear = drawEnvironment92[0x18] != 0;
         Store(result, 0, (Read(result, 0) & 0xFFFFFF) | (clear ? 0x08000000u : 0x05000000u));
         short x = Word(0);
@@ -31,7 +31,7 @@ public static class NativeBattleDrawEnvironmentPackets
             Store(result, 28, BinaryPrimitives.ReadUInt32LittleEndian(drawEnvironment92.AsSpan()));
             Store(result, 32, BinaryPrimitives.ReadUInt32LittleEndian(drawEnvironment92.AsSpan().Slice(4)));
         }
-        return result.ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1228, result);
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(drawEnvironment92.AsSpan().Slice(offset));
     }
@@ -39,20 +39,20 @@ public static class NativeBattleDrawEnvironmentPackets
     public static ImmutableArray<byte> Area45C940(ImmutableArray<byte> retainedAllocation, short x, short y, short width, short height)
     {
         Require(retainedAllocation, 12, false);
-        byte[] result = retainedAllocation.ToArray();
+        byte[] result = NativeBattleTelemetry.Materialize(1226, retainedAllocation);
         Store(result, 0, (Read(result, 0) & 0xFFFFFF) | 0x02000000);
         Store(result, 4, AreaStart(x, y));
         Store(result, 8, AreaEnd(x, y, width, height));
-        return result.ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1229, result);
     }
 
     public static ImmutableArray<byte> Offset45C9B0(ImmutableArray<byte> retainedAllocation, short x, short y)
     {
         Require(retainedAllocation, 8, false);
-        byte[] result = retainedAllocation.ToArray();
+        byte[] result = NativeBattleTelemetry.Materialize(1227, retainedAllocation);
         Store(result, 0, (Read(result, 0) & 0xFFFFFF) | 0x01000000);
         Store(result, 4, Offset(x, y));
-        return result.ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1230, result);
     }
 
     private static uint AreaStart(short x, short y) => 0xE3000000u | ((uint)x & 0x3FF) | (((uint)y & 0x1FF) << 10);

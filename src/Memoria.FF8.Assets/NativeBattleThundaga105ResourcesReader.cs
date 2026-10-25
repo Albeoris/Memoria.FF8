@@ -8,7 +8,11 @@ public static class NativeBattleThundaga105ResourcesReader
 {
     public static NativeBattleThundaga105Resources Read(byte[] executable)
     {
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeBattleThundaga105Resources Read(IGameNativeMemorySource memory)
+    {
         ImmutableArray<NativeBattleThundagaFragmentPair>.Builder pairs = ImmutableArray.CreateBuilder<NativeBattleThundagaFragmentPair>();
         uint address = 0x130E55C;
         for (int index = 0; index < 14; index++)
@@ -39,5 +43,5 @@ public static class NativeBattleThundaga105ResourcesReader
 public sealed partial class GameAssets
 {
     private NativeBattleThundaga105Resources? nativeThundaga105Resources;
-    public NativeBattleThundaga105Resources ReadNativeThundaga105Resources() => nativeThundaga105Resources ??= NativeBattleThundaga105ResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources));
+    public NativeBattleThundaga105Resources ReadNativeThundaga105Resources() => nativeThundaga105Resources ??= NativeBattleThundaga105ResourcesReader.Read(ReadNativeMemory());
 }
