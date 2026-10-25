@@ -132,6 +132,39 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler + 1, 0, Records(), [10, 20, 30, 40], 0, result.Lighting, result.Registers, _ => 0, NativeBattleGeometryRegisters.Unknown()));
     }
 
+    [Theory]
+    [InlineData((short)8, 0xB28110u, 20, false)]
+    [InlineData((short)18, 0xB28DD0u, 24, false)]
+    [InlineData((short)8, 0xB28110u, 20, true)]
+    [InlineData((short)18, 0xB28DD0u, 24, true)]
+    public void Selected_FT3_FT4_depth_payloads_truncate_fractional_scale_and_rejections_retain_partial_writes(short type, uint handler, int stride, bool reject)
+    {
+        NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame();
+        byte[] records = Records().ToArray();
+        if (reject)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(records.AsSpan(4), 0x00460064);
+        }
+        NativeBattleWaterMeshGroup group = new(type, 1, Face(type, stride).ToImmutableArray());
+        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.ToImmutableArray(), [11, 23, 35, 47], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
+        NativeBattleScriptedMeshSubmission result = Run(frame);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
+        Assert.Equal(reject ? 0 : type == 8 ? 32 : 40, result.Packets.AllocationBytes);
+        if (reject)
+        {
+            Assert.Null(packet.Primitive);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[3]);
+            Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[7]);
+        }
+        else
+        {
+            Assert.NotNull(packet.Primitive);
+            Assert.Equal(new[] { 5, 11, 17, type == 8 ? 0 : 23 }, packet.Primitive.VertexPayload4);
+        }
+        Assert.Equal(NativeBattleGfPacketByteState.Known, packet.WriteMask[8]);
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+    }
+
     [Fact]
     public void Existing_GT3_packet_kernel_is_reused_with_actual_shader_register_publications()
     {

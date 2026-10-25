@@ -332,7 +332,7 @@ public sealed partial class BattleSession
                     NativeBattleEffectMemory cameraMemory = RequireWaterMemory();
                     NativeBattleScriptedColorRegisters cameraRegisters = cameraMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native camera-relative matrix requires retained packed input registers.");
                     NativeEffectMemory = cameraMemory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, CoreDword(current, 0x27973E8) + 0x94, cameraRegisters) };
-                    return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
+                    return NativeBattleWaterMatrixCommands.Execute(current, program, bank, CreateNativeActorAnchorServices());
                 case 0x38:
                     return NativeBattleCinematicActorStore48.StoreColor38(current, definition.NativeGraphics?.Rules.SummonColors?.Transition ?? throw new NotSupportedException("Native actor color store requires the original background color."), address => graphics.Models[PhysicalActorIndex(address)], (address, actor) => graphics = graphics with { Models = graphics.Models.SetItem(PhysicalActorIndex(address), actor) });
                 case 0x48:
@@ -674,7 +674,7 @@ public sealed partial class BattleSession
                 case 0x104:
                 case 0x105:
                 case 0x116:
-                    return NativeBattleWaterMatrixCommands.Execute(current, program, bank);
+                    return NativeBattleWaterMatrixCommands.Execute(current, program, bank, CreateNativeActorAnchorServices());
                 case 0xC3:
                     return NativeBattleScriptedSoundCommands.ExecuteC3(current, (NativeGlobalSoundProcess ?? throw new NotSupportedException("Native cinematic sound control requires its current backend owner.")).Backend);
                 case 0xC5:

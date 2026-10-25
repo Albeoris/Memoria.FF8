@@ -31,7 +31,7 @@ public sealed class NativeBattleWaterSavedMatrixCommandsTests
         }
         Assert.Equal(translated.Flags, result.ReadTemporaryDword(0xF0));
         Assert.Equal(0x456789ABu, result.ReadTemporaryDword(0xF4));
-        Assert.Throws<NotSupportedException>(() => result.ReadTemporaryWord(0x32));
+        Assert.Equal((ushort)0xA5A5, result.ReadTemporaryWord(0x32));
         Assert.Equal(0x12345678u, result.ReadTemporaryDword(0x34));
         Assert.Equal(0x23456789u, result.ReadTemporaryDword(0x38));
         Assert.Equal(0x3456789Au, result.ReadTemporaryDword(0x3C));
@@ -69,7 +69,7 @@ public sealed class NativeBattleWaterSavedMatrixCommandsTests
         NativeBattleWaterExecutionFrame result = Execute(frame);
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(0x2797206, 2)));
         Assert.Equal(Bytes(rotation with { X = translated.X, Y = translated.Y, Z = translated.Z }), result.Core.Read(FirstRow, 32));
-        Assert.Throws<NotSupportedException>(() => result.ReadTemporaryWord(0xF2));
+        Assert.Equal((ushort)(translated.Flags >> 16), result.ReadTemporaryWord(0xF2));
         Assert.Equal((ushort)rotation.Rotation[0], BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(FirstRow, 2)));
         Assert.Equal(0x1006u, Pc(result));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x1004, 2));
@@ -140,7 +140,7 @@ public sealed class NativeBattleWaterSavedMatrixCommandsTests
         }
         return frame;
     }
-    private static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterMatrixCommands.Execute(frame, new(0x1000, 0x100, 0x1000), Bank);
+    private static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterMatrixCommands.Execute(frame, new(0x1000, 0x100, 0x1000), Bank, new(_ => new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown()), (current, _) => current));
     private static uint Pc(NativeBattleWaterExecutionFrame frame) => WaterSchedulerFixture.ReadCoreDword(frame, 0x2797450);
     private static NativeBattleWaterExecutionFrame Position(NativeBattleWaterExecutionFrame frame, NativeBattleVector position)
     {

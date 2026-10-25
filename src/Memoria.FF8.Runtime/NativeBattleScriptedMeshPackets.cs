@@ -98,8 +98,8 @@ public static class NativeBattleScriptedMeshPackets
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
                 double scaledDepth = unchecked((ushort)depths[offset / 8]) * (double)depthScale;
-                //The Type16 clones use55AD90's signed64-bit truncation and consume its low DWORD.
-                rawDepth[corner] = group.Type == 16 ? unchecked((int)(long)scaledDepth) : NativePrecision53.RoundInteger(scaledDepth);
+                //These writers use55AD90's signed64-bit truncation and consume its low DWORD.
+                rawDepth[corner] = group.Type is 8 or 16 or 18 ? unchecked((int)(long)scaledDepth) : NativePrecision53.RoundInteger(scaledDepth);
                 StoreDword(group.Type is 6 or 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
             bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && Clip(screens[0], screens[1], screens[2]) < 0;

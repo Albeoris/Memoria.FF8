@@ -46,10 +46,11 @@ public static class NativeBattleWaterMatrixCommands
         return (frame, 0x27979E8 + (uint)(selected * 32));
     }
 
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, NativeBattleWaterActorAnchorServices? registerServices = null)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = CoreDword(frame, 0x2797450);
+        NativeBattleGeometryRegisterStep? registerOutput = null;
         int advance;
         switch (instruction & 0x1FF)
         {
@@ -72,7 +73,7 @@ public static class NativeBattleWaterMatrixCommands
                 NativeBattleActionMatrix moduleView = ReadModuleView(frame);
                 NativeBattleActionMatrix savedRotation = NativeBattleGfMatrices.Multiply56C090(moduleView, savedEuler);
                 frame = WriteRotation(frame, savedDestination, savedRotation);
-                NativeBattleFullMacVertex savedTranslation = NativeBattleGfMatrices.TransformMac460840(moduleView, Position(frame));
+                NativeBattleFullMacVertex savedTranslation = TransformSaved(moduleView, frame.ModuleViewBackup[18], frame.ModuleViewBackup[19]);
                 frame = WriteCoreDword(frame, unchecked(savedDestination + 20), unchecked((uint)savedTranslation.X));
                 frame = WriteCoreDword(frame, unchecked(savedDestination + 24), unchecked((uint)savedTranslation.Y));
                 frame = WriteCoreDword(frame, unchecked(savedDestination + 28), unchecked((uint)savedTranslation.Z));
@@ -84,7 +85,8 @@ public static class NativeBattleWaterMatrixCommands
                 uint loadedDestination;
                 (frame, loadedDestination) = AllocateB65480(frame);
                 uint savedSource = unchecked(0x2798B68u + (uint)(0x20 * (short)Operand(2)));
-                NativeBattleFullMacVertex loadedTranslation = NativeBattleGfMatrices.TransformMac460840(ReadMatrix(frame, savedSource), Position(frame));
+                (byte[] loadedPadding, bool[] loadedPaddingKnown) = frame.Core.ReadSnapshot(unchecked(savedSource + 18), 2);
+                NativeBattleFullMacVertex loadedTranslation = TransformSaved(ReadMatrix(frame, savedSource), loadedPaddingKnown[0] ? loadedPadding[0] : null, loadedPaddingKnown[1] ? loadedPadding[1] : null);
                 frame = WriteCoreDword(frame, unchecked(loadedDestination + 20), unchecked((uint)loadedTranslation.X));
                 frame = WriteCoreDword(frame, unchecked(loadedDestination + 24), unchecked((uint)loadedTranslation.Y));
                 frame = WriteCoreDword(frame, unchecked(loadedDestination + 28), unchecked((uint)loadedTranslation.Z));
@@ -187,7 +189,20 @@ public static class NativeBattleWaterMatrixCommands
             default:
                 throw new NotSupportedException("Native matrix and uniform-color commands admit only their selected finite operations.");
         }
-        return WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)advance));
+        frame = WriteCoreDword(frame, 0x2797450, unchecked(pc + (uint)advance));
+        return registerOutput is { } output ? registerServices!.PublishRegisters(frame, output) : frame;
+
+        NativeBattleFullMacVertex TransformSaved(NativeBattleActionMatrix matrix, byte? paddingLow, byte? paddingHigh)
+        {
+            NativeBattleWaterActorAnchorServices services = registerServices ?? throw new NotSupportedException("Native saved matrix commands require their current geometry and arithmetic register owners.");
+            NativeBattleGeometryRegisterStep registers = services.ReadRegisters(frame);
+            NativeBattleGeometryRegisters geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, null);
+            geometry = geometry with { Rotation20 = geometry.Rotation20.SetItem(18, paddingLow).SetItem(19, paddingHigh) };
+            uint input = unchecked(CoreDword(frame, 0x27973E8) + 0x94);
+            registers = registers with { Geometry = geometry, Colors = NativeBattleCinematicRibbonInput.Capture(frame, input, registers.Colors) };
+            registerOutput = NativeBattleGeometry.Transform(registers);
+            return new(registerOutput.Colors.Mac[0]!.Value, registerOutput.Colors.Mac[1]!.Value, registerOutput.Colors.Mac[2]!.Value, registerOutput.Colors.Flags!.Value);
+        }
 
         ushort Operand(int delta)
         {

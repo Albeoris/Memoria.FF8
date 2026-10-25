@@ -165,7 +165,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x104:
             case 0x105:
             case 0x116:
-                return NativeBattleWaterMatrixCommands.Execute(frame, Program(), CurrentBank(frame, resources));
+                return NativeBattleWaterMatrixCommands.Execute(frame, Program(), CurrentBank(frame, resources), services.ActorAnchor);
             default:
                 throw new NotSupportedException("Native Water instruction is outside its finite selected command set.");
         }
