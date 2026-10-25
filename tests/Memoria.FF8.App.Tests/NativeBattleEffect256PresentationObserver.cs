@@ -115,6 +115,17 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
         randomAdvanced |= current.NativeCrtRandom != source.NativeCrtRandom;
         NativeBattleEffectTextureState textures = current.NativeEffectMemory.Textures!;
         textureQueued |= textures.Count > (prior.NativeEffectMemory!.Textures?.Count ?? 0);
+        if (textures.Slots[0] is { Kind: 0, Rectangle: { X: 384, Y: 256, Width: 128, Height: 256 }, ArenaOffset: int pixelsOffset } && textures.Slots[1] is { Kind: 0, Rectangle: { X: 320, Y: 255, Width: 256, Height: 1 }, ArenaOffset: int clutOffset })
+        {
+            int file1Offset = Assert.Single(effect.ResourcePointers, pointer => pointer.GlobalAddress == 0x2796540).ArenaOffset;
+            Assert.Equal(file1Offset + 0x838, pixelsOffset);
+            Assert.Equal(file1Offset + 0x10838, clutOffset);
+            if (JsonSerializer.Serialize(textures.Slots.Take(2)) != JsonSerializer.Serialize(source.NativeEffectMemory!.Textures!.Slots.Take(2)))
+            {
+                textureQueued = true;
+                Mark("texture-upload-retained", current, cold);
+            }
+        }
         if (!textures.ReadVram().AsSpan().SequenceEqual(source.NativeEffectMemory!.Textures!.ReadVram()))
         {
             vramChanged = true;
@@ -255,7 +266,23 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
         }
         uint manager = Dword(core, 0x27973EC);
         uint end = Dword(core, manager + 0x7C);
-        return primitive.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.Packet.ByteOffset >= 0 && (uint)command.Packet.ByteOffset < end && command.Opcode is >= 0x20 and < 0x80).ToArray();
+        uint arenaStart = Dword(core, manager + 0xD4);
+        uint arenaEnd = Dword(core, manager + 0xD8);
+        return primitive.LastCommands.Select(item => item.Command).Where(IsOwned).ToArray();
+
+        bool IsOwned(NativeBattleLogicalCommand command)
+        {
+            if (command.Packet.ByteOffset < 0 || command.Opcode is < 0x20 or >= 0x80)
+            {
+                return false;
+            }
+            if (command.Packet.Bank is "off_B6D070" or "off_B6D094")
+            {
+                return (uint)command.Packet.ByteOffset < end;
+            }
+            uint address = checked(0x20DFAB8u + (uint)command.Packet.ByteOffset);
+            return command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && arenaStart >= 0x20DFAB8 && address >= arenaStart && address < arenaEnd;
+        }
     }
 
     internal static bool IsGeometry(NativeBattleLogicalCommand command)
