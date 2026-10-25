@@ -46,15 +46,20 @@ public sealed class NativeBattleEffect345PresentationTests
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, int header) = packets.Prepare(new(3, 8, 11, cameraChoice, 124, 345, null));
         NativeBattleStatusSnapshot status = original.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
+        // The declared post-formula party boundary publishes47E2D0's direct status copy before506690.
+        NativeBattleStatusSnapshot contactStatus = status.Presentation.Saved is null ? status with { Presentation = new(status.Saved, status.Battle) } : status;
+        BattleCombatantSnapshot[] contactActors = original.Combatants.Select(actor => actor.Id == targetId ? actor with { NativeStatus = contactStatus } : actor).ToArray();
         (packets, _) = packets.AppendContact(new(new(0, action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([345])[344];
-        BattleSnapshot prepared = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(344, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        BattleSnapshot prepared = original with { Combatants = contactActors, Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(344, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
         Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(graphics.Models), JsonSerializer.Serialize(prepared.NativeGraphics!.Models));
-        Assert.Equal(original.Combatants, prepared.Combatants);
+        Assert.Equal(original.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), prepared.Combatants.Select(actor => (actor.Id, actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
+        Assert.Equal(status.Saved, contactStatus.Presentation.Saved);
+        Assert.Equal(status.Battle, contactStatus.Presentation.Battle);
         return prepared;
     }
 
@@ -182,7 +187,7 @@ public sealed class NativeBattleEffect345PresentationTests
             Cold("completed", completed);
             NativeBattleRestorationPresentationTests.Publish(output, "visible", peak, peakPixels!);
             File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect, Scenario = "Original114 command8/action124/sequence11 Amount0 component; ordinary AI, eligibility and damage formula excluded", Callbacks = callbacks + 1, Completions = completions, ChangedRgb = maximumRgb, CameraRegistered = cameraRegistered, CameraDecision = cameraDecision, CameraPlayback = cameraPlayback, CameraView = cameraView, CallbacksSeen = callbacksSeen.Order(), Animations = animations.Order(), RelocatedNodeBanks = relocatedNodes.Order(), Phases = phases.Order(), PacketCursors = packetCursors.Order(), RestoredBoundaries = restored.Order(), Observations = observations, completed.Frame }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect, Scenario = "Original114 command8/action124/sequence11 controlled7 party-cache component; ordinary AI, eligibility and damage formula excluded", Callbacks = callbacks + 1, Completions = completions, ChangedRgb = maximumRgb, CameraRegistered = cameraRegistered, CameraDecision = cameraDecision, CameraPlayback = cameraPlayback, CameraView = cameraView, CallbacksSeen = callbacksSeen.Order(), Animations = animations.Order(), RelocatedNodeBanks = relocatedNodes.Order(), Phases = phases.Order(), PacketCursors = packetCursors.Order(), RestoredBoundaries = restored.Order(), Observations = observations, completed.Frame }));
             return completed;
         }
         catch (Exception error)
