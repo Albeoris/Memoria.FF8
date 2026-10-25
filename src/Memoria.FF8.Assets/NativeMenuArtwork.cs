@@ -32,6 +32,8 @@ public sealed class NativeMenuArtwork
 
     public int IconCount { get; }
 
+    public bool HasControllerArtwork { get; private init; }
+
     public PixelImage AngeloPortrait { get; }
 
     /// <summary>Original controller symbols used in printed Duel combinations, independent of current key bindings.</summary>
@@ -42,6 +44,18 @@ public sealed class NativeMenuArtwork
         return DecodeIcon(iconPalettes, iconIndex, 128 + buttonBit, 0);
     }
 
+    /// <summary>Reads a physical controller glyph after the caller has resolved the current binding.</summary>
+    public PixelImage GetControllerButtonIcon(int nativeIconId)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(nativeIconId, 128);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(nativeIconId, 139);
+        if (!icons.TryGetValue((nativeIconId, 0), out PixelImage? image))
+        {
+            image = DecodeIcon(iconPalettes, iconIndex, nativeIconId, 0);
+            icons.Add((nativeIconId, 0), image);
+        }
+        return image;
+    }
     /// <summary>Native character ID order: Squall, Zell, Irvine, Quistis, Rinoa, Selphie, Seifer, Edea, Laguna, Kiros, Ward.</summary>
     public PixelImage GetCharacterPortrait(int characterId)
     {
@@ -75,14 +89,14 @@ public sealed class NativeMenuArtwork
         return image;
     }
 
-    public static NativeMenuArtwork Load(string gameDirectory)
+    public static NativeMenuArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
         using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] faces = ReadEntry(menu, "face.sp2");
-        PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, menu, "Face_b00.TEX"), ReadPortraitAtlas(provider, menu, "Face_b01.TEX")];
-        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, menu, "Gf_big00.TEX"), ReadPortraitAtlas(provider, menu, "Gf_big01.TEX")];
+        PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, menu, resources, "Face_b00.TEX"), ReadPortraitAtlas(provider, menu, resources, "Face_b01.TEX")];
+        PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, menu, resources, "Gf_big00.TEX"), ReadPortraitAtlas(provider, menu, resources, "Gf_big01.TEX")];
         PixelImage[] characters = Enumerable.Range(0, CharacterCount).Select(id => DecodePortrait(characterAtlases, faces, id)).ToArray();
         PixelImage[] guardianForces = Enumerable.Range(0, GuardianForceCount).Select(id => DecodePortrait(guardianForceAtlases, faces, 32 + id)).ToArray();
         TexFile texture = TexFile.Read(ReadEntry(menu, "icon.TEX"));
@@ -90,8 +104,9 @@ public sealed class NativeMenuArtwork
         {
             throw new InvalidDataException("Original menu icon texture requires a 256x256 atlas and sixteen palettes.");
         }
-        PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), texture.Decode(palette), palette)).ToArray();
-        return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, ReadEntry(menu, "icon.sp1"));
+        PixelImage[] originals = Enumerable.Range(0, texture.Palettes.Count).Select(texture.Decode).ToArray();
+        PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), originals[palette], palette, resources: resources)).ToArray();
+        return new NativeMenuArtwork(characters, guardianForces, DecodePortrait(characterAtlases, faces, 15), palettes, ReadEntry(menu, "icon.sp1")) { HasControllerArtwork = resources?.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) == true && !ReferenceEquals(originals[4], palettes[4]) };
     }
 
     /// <summary>Formats the original current ICON.SP1 parts for the separate native PC UI-immediate path.</summary>
@@ -151,7 +166,7 @@ public sealed class NativeMenuArtwork
             right = Math.Max(right, x + part[4]);
             bottom = Math.Max(bottom, y + part[6]);
         }
-        int scale = NativeArtworkTexture.Scale(palettes[0], 256, 256);
+        int scale = palettes.Max(atlas => NativeArtworkTexture.Scale(atlas, 256, 256));
         PixelImage result = new((right - left) * scale, (bottom - top) * scale);
         for (int i = 0; i < count; i++)
         {
@@ -162,11 +177,12 @@ public sealed class NativeMenuArtwork
                 throw new ArgumentOutOfRangeException(nameof(paletteOffset), "Menu icon CLUT offset leaves the original texture palettes.");
             }
             PixelImage atlas = palettes[palette];
+            int atlasScale = NativeArtworkTexture.Scale(atlas, 256, 256);
             int x = (unchecked((sbyte)part[5]) - left) * scale;
             int y = (unchecked((sbyte)part[7]) - top) * scale;
             int width = part[4] * scale;
             int height = part[6] * scale;
-            if (width == 0 || height == 0 || part[0] * scale + width > atlas.Width || part[1] * scale + height > atlas.Height)
+            if (width == 0 || height == 0 || (part[0] + part[4]) * atlasScale > atlas.Width || (part[1] + part[6]) * atlasScale > atlas.Height)
             {
                 throw new InvalidDataException("Original menu icon part leaves its atlas.");
             }
@@ -174,7 +190,7 @@ public sealed class NativeMenuArtwork
             {
                 for (int column = 0; column < width; column++)
                 {
-                    Rgba32 pixel = atlas[part[0] * scale + column, part[1] * scale + row];
+                    Rgba32 pixel = atlas[part[0] * atlasScale + column * atlasScale / scale, part[1] * atlasScale + row * atlasScale / scale];
                     if (pixel.A != 0)
                     {
                         result[x + column, y + row] = pixel;
@@ -210,7 +226,7 @@ public sealed class NativeMenuArtwork
         return (int)count;
     }
 
-    private static PixelImage ReadPortraitAtlas(IResourceSource provider, IFlArchive menu, string name)
+    private static PixelImage ReadPortraitAtlas(IResourceSource provider, IFlArchive menu, ResourceService? resources, string name)
     {
         TexFile texture = TexFile.Read(ReadEntry(menu, name));
         if (texture.Palettes.Count != 0 || texture.Header.BytesPerPixel != 2 || texture.Header.RedMask != 0x1F || texture.Header.GreenMask != 0x3E0 || texture.Header.BlueMask != 0x7C00 || texture.Header.AlphaMask != 0x8000)
@@ -227,7 +243,7 @@ public sealed class NativeMenuArtwork
         {
             throw new InvalidDataException($"Original PC portrait atlas {name} must be 256x256.");
         }
-        return NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), image);
+        return NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), image, resources: resources);
     }
 
     private static PixelImage Crop(PixelImage source, int x, int y, int width, int height)

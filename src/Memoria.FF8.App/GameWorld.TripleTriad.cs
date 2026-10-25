@@ -29,7 +29,7 @@ internal sealed partial class GameWorld
                 return "CARDGAME requires an original trade rule and non-player opponent owner.";
             }
             _ = request.Rules;
-            tripleTriadCatalog ??= TripleTriadCatalog.Load(assets.GameDirectory);
+            tripleTriadCatalog ??= TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
             for (int empty = 1; empty <= 9; empty++)
             {
                 if (!TripleTriadNativeAi.SupportsParameters(tripleTriadCatalog.AiParameters, request.Argument4, request.Argument5, empty))
@@ -62,7 +62,7 @@ internal sealed partial class GameWorld
         {
             return tripleTriad;
         }
-        tripleTriadCatalog ??= TripleTriadCatalog.Load(assets.GameDirectory);
+        tripleTriadCatalog ??= TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
         NativeCardInventory cards = session.CardInventory ?? throw new InvalidDataException("CARDGAME has no saved inventory.");
         if (cards.TripleTriadStatistics is null)
         {

@@ -254,7 +254,7 @@ internal sealed partial class RecreateGame
             battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.SlotsSoundRequested += cue => fieldAudio?.PlayTripleTriadSound(cue);
-            battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingHint;
+            battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingPrompt;
             battleSeconds = 0;
             slotsInputReleasePending = false;
         }

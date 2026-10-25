@@ -64,7 +64,7 @@ public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
 
     public string FormatDisplayName(ControllerPresentation presentation) => string.Join(" + ", Keys.OrderBy(key => IsModifier(key) ? 0 : 1).ThenBy(key => key).Select(KeyName).Concat(Buttons.Select(button => ButtonName(button, presentation))));
 
-    internal string FormatPrompt(ControllerPresentation presentation) => string.Join(" + ", Keys.OrderBy(key => IsModifier(key) ? 0 : 1).ThenBy(key => key).Select(key => ButtonPromptText.Mark(KeyName(key))).Concat(Buttons.Select(button => ButtonPromptText.Mark(ButtonName(button, presentation)))));
+    internal string FormatPrompt(ControllerPresentation presentation) => string.Join(" + ", Keys.OrderBy(key => IsModifier(key) ? 0 : 1).ThenBy(key => key).Select(key => ButtonPromptText.Mark(KeyName(key))).Concat(Buttons.Select(button => ButtonPromptText.MarkController(button, ButtonName(button, presentation)))));
 
     private static bool IsModifier(Keys key) => key is Microsoft.Xna.Framework.Input.Keys.LeftControl or Microsoft.Xna.Framework.Input.Keys.RightControl or Microsoft.Xna.Framework.Input.Keys.LeftShift or Microsoft.Xna.Framework.Input.Keys.RightShift or Microsoft.Xna.Framework.Input.Keys.LeftAlt or Microsoft.Xna.Framework.Input.Keys.RightAlt or Microsoft.Xna.Framework.Input.Keys.LeftWindows or Microsoft.Xna.Framework.Input.Keys.RightWindows;
 

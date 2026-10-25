@@ -16,18 +16,20 @@ public sealed class TripleTriadCatalog
     private const uint RankTableAddress = 0xB96508;
     private const uint NameTableAddress = 0xC75074;
     private const int NativeNameTableLength = 1200;
+    private readonly ImmutableArray<string> originalNames;
+    private ResourceService? resources;
 
     private TripleTriadCatalog(ImmutableArray<TripleTriadCard> cards, ImmutableArray<string> names, ImmutableArray<byte> tradePriorities, TripleTriadNativeAiParameters aiParameters, ImmutableArray<TripleTriadRefinement> refinements)
     {
         Cards = cards;
-        Names = names;
+        originalNames = names;
         TradePriorities = tradePriorities;
         AiParameters = aiParameters;
         Refinements = refinements;
     }
 
     public ImmutableArray<TripleTriadCard> Cards { get; }
-    public ImmutableArray<string> Names { get; }
+    public ImmutableArray<string> Names => resources?.FindText(StaticTextResource.CardNames)?.Texts ?? originalNames;
     public ImmutableArray<byte> TradePriorities { get; }
     public TripleTriadNativeAiParameters AiParameters { get; }
     /// <summary>Original Card Mod recipes. Empty when only the executable was supplied to ReadExecutable.</summary>
@@ -39,7 +41,7 @@ public sealed class TripleTriadCatalog
         {
             throw new ArgumentOutOfRangeException(nameof(cardId));
         }
-        return Names[cardId];
+        return resources?.ReadText(StaticTextResource.CardNames, cardId, originalNames[cardId]) ?? originalNames[cardId];
     }
 
     public int TradePriority(int cardId)
@@ -51,7 +53,7 @@ public sealed class TripleTriadCatalog
         return TradePriorities[cardId];
     }
 
-    public static TripleTriadCatalog Load(string gameDirectory)
+    public static TripleTriadCatalog Load(string gameDirectory, ResourceService? resources = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
@@ -60,10 +62,12 @@ public sealed class TripleTriadCatalog
         using Stream input = entry.OpenForRead();
         using MemoryStream data = new();
         input.CopyTo(data);
-        ResourceService resources = new(provider);
+        resources ??= new(provider);
         IGameNativeMemorySource memory = resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native card memory contract.");
         byte[] names = provider.Descriptor.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/card-names")) : memory.Read(NameTableAddress, NativeNameTableLength);
-        return Read(memory, names, data.ToArray());
+        TripleTriadCatalog catalog = Read(memory, names, data.ToArray());
+        catalog.resources = resources;
+        return catalog;
     }
 
     public static TripleTriadCatalog ReadExecutable(byte[] executable, byte[]? refinementData = null)

@@ -24,34 +24,61 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     public long Generation => resources?.Generation ?? 0;
 
-    internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
+    internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.TripleTriadOutcome or UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
+
+    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.Icon or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
+
+    public PixelImage? ReadControllerButton(int nativeIconId)
+    {
+        if (resources?.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) != true)
+        {
+            return null;
+        }
+        Refresh();
+        portraits ??= NativeMenuArtwork.Load(gameDirectory, resources);
+        return portraits.HasControllerArtwork ? portraits.GetControllerButtonIcon(nativeIconId) : null;
+    }
 
     public PixelImage Read(UiImageSource source, string fontFamily = SystemFontCatalog.DefaultFamily)
     {
+        Refresh();
+        return ReadCurrent(source, fontFamily);
+    }
+
+    private void Refresh()
+    {
         if (artworkGeneration != Generation)
         {
+            portraits = null;
+            magazines = null;
             cards = null;
             tripleTriad = null;
             cardFaces.Clear();
             artworkGeneration = Generation;
         }
+    }
+
+    private PixelImage ReadCurrent(UiImageSource source, string fontFamily)
+    {
         return source.Kind switch
         {
+            UiImageKind.ControllerButton => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetControllerButtonIcon(source.Id),
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
-            UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetCharacterPortrait(source.Id),
-            UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetGuardianForcePortrait(source.Id),
-            UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).AngeloPortrait,
+            UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
+            UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),
+            UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).AngeloPortrait,
             UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory, resources)).GetFront(source.Id),
             UiImageKind.CardElement => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).GetElement((TripleTriadElement)source.Id),
             UiImageKind.CardFace => ReadCardFace(source.Id, source.Palette, fontFamily),
             UiImageKind.CardFaceGrayscale => ReadCardFace(source.Id, source.Palette, fontFamily, grayscale: true),
+            UiImageKind.TripleTriadOutcome => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).GetOutcomeBanner(source.Id),
             UiImageKind.CardBack => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Back,
             UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Background,
             UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).BoardBackground,
-            UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetIcon(source.Id, source.Palette),
+            UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetIcon(source.Id, source.Palette),
             UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory)).Read(source.Id),
-            UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory)).GetImage(source.Id),
-            UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory)).GetButtonImage(source.Id),
+            UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetImage(source.Id),
+            UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetButtonImage(source.Id),
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")
         };
     }

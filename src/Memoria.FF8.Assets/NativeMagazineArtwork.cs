@@ -24,7 +24,7 @@ public sealed class NativeMagazineArtwork
         this.menu = menu;
     }
 
-    public static NativeMagazineArtwork Load(string gameDirectory)
+    public static NativeMagazineArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
         using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
@@ -51,9 +51,9 @@ public sealed class NativeMagazineArtwork
         }
         for (int atlas = 0; atlas < atlases.Length; atlas++)
         {
-            atlases[atlas] = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), atlases[atlas]);
+            atlases[atlas] = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), atlases[atlas], resources: resources);
         }
-        return new NativeMagazineArtwork(atlases, content.AsSpan(offset, length).ToArray(), NativeMenuArtwork.Load(gameDirectory));
+        return new NativeMagazineArtwork(atlases, content.AsSpan(offset, length).ToArray(), NativeMenuArtwork.Load(gameDirectory, resources));
     }
 
     public PixelImage GetButtonImage(int buttonBit) => menu.GetOriginalButtonIcon(buttonBit);

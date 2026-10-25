@@ -115,7 +115,15 @@ internal static partial class DialogueTextFormatter
                     ushort buttons = ResolveButton(parameter);
                     if (buttons != 0)
                     {
-                        runs.Add(new DialogueRun((buttonBindingHint ?? DefaultButtonBindingHint)(buttons), color, blink, IsButton: true));
+                        string binding = (buttonBindingHint ?? DefaultButtonBindingHint)(buttons);
+                        if (ButtonPromptText.Contains(binding))
+                        {
+                            runs.AddRange(ButtonPromptText.Runs(binding).Select(run => run with { Color = color, Blink = blink }));
+                        }
+                        else
+                        {
+                            runs.Add(new DialogueRun(binding, color, blink, IsButton: true));
+                        }
                     }
                     else
                     {

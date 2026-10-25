@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Draws retained controls, system text and the original menu pointer.</summary>
-internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null) : IUiCanvas, IBattleMessageCanvas, IDisposable
+internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null) : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
@@ -52,6 +52,10 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             _ = GetImage(new UiImageSource(UiImageKind.CardFace, id, 0));
             _ = GetImage(new UiImageSource(UiImageKind.CardFace, id, 1));
         }
+        for (int outcome = 0; outcome < 3; outcome++)
+        {
+            _ = GetImage(new UiImageSource(UiImageKind.TripleTriadOutcome, outcome));
+        }
         _ = GetImage(new UiImageSource(UiImageKind.CardBack, 0));
         foreach (var element in Enum.GetValues<Memoria.FF8.Runtime.TripleTriadElement>().Where(element => element != Memoria.FF8.Runtime.TripleTriadElement.None))
         {
@@ -67,6 +71,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         }
     }
 
+    public bool TryDrawControllerButton(int nativeIconId, UiRect bounds, float opacity)
+    {
+        if (artwork.ReadControllerButton(nativeIconId) is null)
+        {
+            return false;
+        }
+        DrawImage(new UiImageSource(UiImageKind.ControllerButton, nativeIconId), bounds, stretch: false, opacity);
+        return true;
+    }
     public void Image(UiImageSource source, UiRect bounds)
     {
         DrawImage(source, bounds, stretch: false);
@@ -81,7 +94,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     {
         if (artworkGeneration != artwork.Generation)
         {
-            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsCardImage).ToArray())
+            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsResourceImage).ToArray())
             {
                 images[key].Dispose();
                 images.Remove(key);
@@ -115,7 +128,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         return texture;
     }
 
-    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch)
+    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
         if (bounds.IsEmpty)
         {
@@ -133,7 +146,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         {
             Rectangle sourceBounds = new(left, top, right - left, bottom - top);
             Vector2 position = new(destination.X + left * scale.X, destination.Y + top * scale.Y);
-            batch.Draw(texture, position, sourceBounds, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            batch.Draw(texture, position, sourceBounds, Color.White * opacity, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
     }
 

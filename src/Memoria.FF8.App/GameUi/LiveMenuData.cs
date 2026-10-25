@@ -6,6 +6,7 @@ using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -196,7 +197,7 @@ public static class LiveMenuData
                         Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Format("Caster", CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
                         JunctionAvailable = owner is null || owner == row
                     };
-                    magic.Description = string.Join(" · ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
+                    magic.Description = string.Join(" Ã‚Â· ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
                     result.Magic.Add(magic);
                     if (state.Scene is SceneKind.Field or SceneKind.WorldMap && character.CurrentHp is not null && catalog?.IsFieldMagic(stock.SpellId) == true && caster is not null && quote.Allowed)
                     {
@@ -398,6 +399,7 @@ public sealed partial class LiveMenuCatalog
     private readonly string?[] abilityNames;
     private readonly string?[] abilityDescriptions;
     private readonly string[] cardNames;
+    private ResourceService? resources;
     private readonly string[] cardDescriptions;
     private readonly byte[] fieldItems;
     private NativeSolomonRingDefinition? solomonRing;
@@ -477,7 +479,8 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
         byte[] itemIconKinds = assets.ReadItemIconKinds();
-        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory));
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources));
+        catalog.resources = assets.Resources;
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), itemIconKinds);
@@ -488,7 +491,7 @@ public sealed partial class LiveMenuCatalog
 
     public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? kernel.Characters[id].Name : null;
     public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? guardianForceNames[id] : null;
-    public string? CardName(int id) => (uint)id < cardNames.Length ? cardNames[id] : null;
+    public string? CardName(int id) => (uint)id < cardNames.Length ? resources?.ReadText(StaticTextResource.CardNames, id, cardNames[id]) ?? cardNames[id] : null;
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? cardDescriptions[id] : null;
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
     public TripleTriadRefinement? CardRefinement(int id) => (uint)id < tripleTriad.Refinements.Length ? tripleTriad.Refinements[id] : null;

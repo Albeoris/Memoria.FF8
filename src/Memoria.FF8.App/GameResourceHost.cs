@@ -133,6 +133,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        if (!JunctionTextResources.TryPrepare(catalog, out IReadOnlyList<StaticTextResource> textResources, out IReadOnlyList<ModDiagnostic> textDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: textDiagnostics);
+        }
         IReadOnlyList<ModDiagnostic> musicDiagnostics = ExternalMusicResolver.Validate(catalog);
         if (musicDiagnostics.Count != 0)
         {
@@ -200,7 +204,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             1 => resolvers[0],
             _ => new OrderedTextureResolver(resolvers.ToArray())
         };
-        ResourceService.PreparedResources prepared = Resources.Prepare(resolver);
+        ResourceService.PreparedResources prepared = Resources.Prepare(resolver, textResources);
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
             guardianPublication.Commit?.Invoke();

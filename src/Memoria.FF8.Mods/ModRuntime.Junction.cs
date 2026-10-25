@@ -38,7 +38,12 @@ public sealed partial class ModRuntime
                 string metadataPath = isFolder ? Directory.EnumerateFiles(root).FirstOrDefault(path => Path.GetFileName(path).Equals("mod.xml", StringComparison.OrdinalIgnoreCase)) ?? Path.Combine(root, "mod.xml") : root;
                 FileInfo metadata = new(metadataPath);
                 FileStamp metadataStamp = new(metadata.Length, metadata.LastWriteTimeUtc.Ticks);
-                JunctionModPackage imported = JunctionModImporter.Open(root);
+                IReadOnlyDictionary<string, int> optionOverrides = ModConfiguration.ReadJunctionOptions(ConfigurationPath(root, ModFormat.Junction));
+                foreach ((string option, int value) in optionOverrides.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    identities.Add($"{id}\0option.{option}\0{value}");
+                }
+                JunctionModPackage imported = JunctionModImporter.Open(root, optionOverrides);
                 ValidateJunctionVersion(root, metadataPath, metadataStamp);
                 name = imported.Name;
                 manifestMetadata = imported.Manifest;

@@ -20,6 +20,10 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         }
         string? name = NativeName(context);
         int palette = context.Layout == "classic-world-texl" ? 0 : context.Key.Palette;
+        if (name is not null && context.Layout == "classic-world-section" && ReadVramPages(context, name) is { } pages)
+        {
+            return pages;
+        }
         if (name is not null && ReadRegion(context, name, palette, 0, 0, context.LogicalWidth, context.LogicalHeight, context.LogicalWidth, context.LogicalHeight) is { } direct)
         {
             return direct;
@@ -75,7 +79,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             stem = stem[4..];
         }
-        return stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
+        return IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/mc0[0-9]_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^field/model/(main|second)_chr/[a-z0-9]+-[0-9]+_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/esk/chara_one/model[0-9]+-[0-9]+_00$")

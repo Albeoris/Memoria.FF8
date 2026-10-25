@@ -319,8 +319,8 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         }
         if (!controller.IsAnimating && match.Outcome != TripleTriadOutcome.InProgress)
         {
-            string result = match.Outcome == TripleTriadOutcome.PlayerWin ? "YOU WIN" : match.Outcome == TripleTriadOutcome.OpponentWin ? "YOU LOSE" : "DRAW";
-            canvas.OutlinedText(result, 42, new UiRect(332, 298, 330, 72), new UiColor(255, 241, 193), new UiColor(35, 20, 15), 2);
+            int outcome = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
+            canvas.Image(new UiImageSource(UiImageKind.TripleTriadOutcome, outcome), new UiRect(188, 292, 584, 110));
         }
     }
 

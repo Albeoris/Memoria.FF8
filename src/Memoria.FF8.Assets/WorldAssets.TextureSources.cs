@@ -24,12 +24,24 @@ public sealed partial class WorldAssets
         TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section - 1] + pointers[member]).Image;
         PixelImage original = tim.Decode(palette);
         TextureKey key = new(new ResourceKey("world/wmsetus.obj"), $"section/{section}/texture/{member}", palette);
-        AssetHandle<TextureValue>? handle = textureScope.Register(key, original, "classic-world-section", new(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : tim.PixelMode == TimPixelMode.Indexed8 ? 8 : 16), value => tim.Decode(value), tim.Palettes.Count);
+        AssetHandle<TextureValue>? handle = textureScope.Register(key, original, "classic-world-section", SectionTextureRegion(tim, palette), value => tim.Decode(value), tim.Palettes.Count);
         if (handle is not null)
         {
             nativeSectionTextures.Add((section, member, palette), handle);
         }
         return handle?.Value.Image ?? original;
+    }
+
+    private static TextureSourceRegion SectionTextureRegion(TimImage tim, int palette)
+    {
+        int bits = tim.PixelMode == TimPixelMode.Indexed4 ? 4 : tim.PixelMode == TimPixelMode.Indexed8 ? 8 : 16;
+        if (tim.Clut is not { } clut)
+        {
+            return new(tim.X, tim.Y, bits);
+        }
+        int colors = bits == 4 ? 16 : 256;
+        int offset = checked(palette * colors);
+        return new(tim.X, tim.Y, bits, PaletteX: clut.X + offset % clut.Width, PaletteY: clut.Y + offset / clut.Width);
     }
 
     private TextureSourceAddress ReadSectionTextureAddress(int section, TimImage source, int palette, int x, int y, int width, int height)

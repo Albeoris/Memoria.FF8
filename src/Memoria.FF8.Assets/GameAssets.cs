@@ -70,6 +70,7 @@ public sealed partial class GameAssets : IDisposable
     }
 
     public string GameDirectory { get; }
+    public ResourceService Resources => resources;
     public MusicCueResource ResolveMusicCue(MusicCue cue)
     {
         MusicCueResource resource = musicCueResolver.Resolve(cue);

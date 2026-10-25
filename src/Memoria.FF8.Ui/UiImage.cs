@@ -16,6 +16,8 @@ public enum UiImageKind
     TripleTriadBackground,
     TripleTriadBoardBackground,
     CardFaceGrayscale,
+    ControllerButton,
+    TripleTriadOutcome,
     SilverCrest
 }
 

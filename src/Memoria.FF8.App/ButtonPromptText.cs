@@ -14,6 +14,24 @@ internal static class ButtonPromptText
         return label.Length == 0 || Contains(label) ? label : $"{Open}{label}{Close}";
     }
 
+    internal static string MarkController(Microsoft.Xna.Framework.Input.Buttons button, string label)
+    {
+        int? id = button switch
+        {
+            Microsoft.Xna.Framework.Input.Buttons.LeftTrigger => 128,
+            Microsoft.Xna.Framework.Input.Buttons.RightTrigger => 129,
+            Microsoft.Xna.Framework.Input.Buttons.LeftShoulder => 130,
+            Microsoft.Xna.Framework.Input.Buttons.RightShoulder => 131,
+            Microsoft.Xna.Framework.Input.Buttons.Y => 132,
+            Microsoft.Xna.Framework.Input.Buttons.B => 133,
+            Microsoft.Xna.Framework.Input.Buttons.A => 134,
+            Microsoft.Xna.Framework.Input.Buttons.X => 135,
+            Microsoft.Xna.Framework.Input.Buttons.Back => 136,
+            Microsoft.Xna.Framework.Input.Buttons.Start => 139,
+            _ => null
+        };
+        return Mark(id is int icon ? $"{(char)('\uF100' + icon - 128)}{label}" : label);
+    }
     internal static bool Contains(string value)
     {
         return value.Contains(Open) || value.Contains(Close);
@@ -21,7 +39,7 @@ internal static class ButtonPromptText
 
     internal static string PlainText(string value)
     {
-        return value.Replace(Open.ToString(), "").Replace(Close.ToString(), "");
+        return new string(value.Where(character => character != Open && character != Close && character is not (>= '\uF100' and <= '\uF10B')).ToArray());
     }
 
     internal static IEnumerable<DialogueRun> Runs(string value)

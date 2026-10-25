@@ -10,7 +10,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>GPU-independent canvas for the same retained controls and text rasterizer used by the live host.</summary>
-internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDisposable
+internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Graphics graphics;
     private readonly Stack<GraphicsState> clips = [];
@@ -76,6 +76,15 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         graphics.DrawImageUnscaled(paper, (int)MathF.Round(bounds.X), (int)MathF.Round(bounds.Y));
     }
 
+    public bool TryDrawControllerButton(int nativeIconId, UiRect bounds, float opacity)
+    {
+        if (artwork.ReadControllerButton(nativeIconId) is null)
+        {
+            return false;
+        }
+        DrawImage(new UiImageSource(UiImageKind.ControllerButton, nativeIconId), bounds, stretch: false, opacity);
+        return true;
+    }
     public void Image(UiImageSource source, UiRect bounds)
     {
         DrawImage(source, bounds, stretch: false);
@@ -86,11 +95,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         DrawImage(source, bounds, stretch: true);
     }
 
-    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch)
+    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch, float opacity = 1)
     {
         if (artworkGeneration != artwork.Generation)
         {
-            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsCardImage).ToArray())
+            foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsResourceImage).ToArray())
             {
                 images[key].Dispose();
                 images.Remove(key);
@@ -112,7 +121,10 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
         try
         {
             graphics.SetClip(RectFor(bounds), CombineMode.Intersect);
-            graphics.DrawImage(bitmap, RectFor(destination));
+            using ImageAttributes attributes = new();
+            attributes.SetColorMatrix(new ColorMatrix { Matrix00 = 1, Matrix11 = 1, Matrix22 = 1, Matrix33 = opacity, Matrix44 = 1 });
+            PointF[] corners = [new(destination.X, destination.Y), new(destination.Right, destination.Y), new(destination.X, destination.Bottom)];
+            graphics.DrawImage(bitmap, corners, new RectangleF(0, 0, bitmap.Width, bitmap.Height), GraphicsUnit.Pixel, attributes);
         }
         finally
         {

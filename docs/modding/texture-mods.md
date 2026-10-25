@@ -30,11 +30,20 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Demaster | Classic world TEXL pages and original road regions represented by world page 29 | Compatibility of a package does not make every target compatible. Other families require a source-published compatible layout. |
 | Demaster card artwork | `demaster-card-artwork`: menu card atlases, Triple Triad fronts, back, elements and split backgrounds | Square 256 × 256 source sheets at an integer scale; localized alternatives follow the source language. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
+| Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. |
 | Junction FFNx | Source-published `classic-ffnx` identities under selected `mods/textures/` resources | Card/menu atlases, native field/world model textures, terrain TEXL pages, roads, static world objects and implemented native world section consumers. |
 
 Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full field/UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
 
 FFNx lookup preserves native model/texture indexes and world section/member identities. DDS and PNG replacements must preserve the native canvas aspect ratio and map crop boundaries to whole pixels. Crops used by terrain redirects and native atlas copies apply to the enlarged replacement image. When an exact palette suffix is absent, lookup uses the lowest available palette, following the external texture convention. The localized `eng/` root precedes the common root for English resources.
+
+### Junction native artwork
+
+Portraits use `mods/textures/data/eng/menu/hires/face_b00_00` and `face_b01_00`; guardian portraits use `gf_big00_00` and `gf_big01_00`. DDS and PNG files preserve the native canvas at an integer scale. Sprite cropping preserves that enlarged resolution.
+
+Menu icons use `mods/textures/data/eng/menu/hires/iconfl<page>_<palette>`, with two-digit page and palette numbers. Pages 00–03 are row-major quadrants of the original 256 × 256 atlas. Sparse replacements retain original pixels in missing quadrants; a missing palette retains that original palette. Controller prompts select the glyph for the currently resolved physical binding. Printed button combinations use their original physical glyph. Resource generation changes refresh cached menu portraits, icons and controller glyphs.
+
+Single-source indexed world section textures may use FFNx VRAM page names `<native-name>_<page>_<palette-x>_<palette-y>`. These addresses use original VRAM word coordinates and CLUT coordinates, independently of the engine atlas layout. Each replacement page is a square 256 × 256 logical canvas at an integer scale. The resolver crops and composes the native texture rectangle, tries the exact palette coordinates before the zero-coordinate fallback, and retains logical UV dimensions. The same page-address contract applies to native `cardgame/icons` regions, including elemental icons and win/loss/draw banners. A matching VRAM page takes precedence over the whole-image `_00` replacement. This contract does not include concatenated multi-source VRAM identities or animated frame suffixes.
 
 ### Tonberry
 

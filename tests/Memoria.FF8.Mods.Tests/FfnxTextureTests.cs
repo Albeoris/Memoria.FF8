@@ -97,6 +97,7 @@ public sealed class FfnxTextureTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(File.Exists(fixtures) && Directory.Exists(game), "Configure optional external Junction fixture catalog and game data.");
         Dictionary<string, string> paths = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(fixtures!))!;
+        Assert.SkipUnless(paths.ContainsKey("junction-card-textures") && paths.ContainsKey("junction-world-textures"), "Configure the optional card and world texture fixtures.");
         List<ModFile> files = [];
         foreach (string id in new[] { "junction-card-textures", "junction-world-textures" })
         {

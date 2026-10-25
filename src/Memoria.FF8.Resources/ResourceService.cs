@@ -5,14 +5,14 @@ namespace Memoria.FF8.Resources;
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
 public sealed class ResourceService : IResourceChangeFeed
 {
-    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values);
+    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts);
     private readonly IResourceSource source;
     private readonly Dictionary<TextureKey, TextureBuildContext> contexts = [];
     private readonly Dictionary<TextureKey, TextureTransformContext> transforms = [];
     private readonly Dictionary<TextureKey, AssetHandle<TextureValue>> handles = [];
     private readonly Dictionary<TextureKey, int> owners = [];
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
-    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty);
+    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
     private long mutationVersion;
@@ -27,6 +27,10 @@ public sealed class ResourceService : IResourceChangeFeed
     public long Generation => Volatile.Read(ref published).Generation;
     public int ResidentTextureCount => handles.Count;
     public event Action<TextureKey, Exception>? ReplacementFailed;
+
+    public StaticTextResource? FindText(ResourceKey key) => Volatile.Read(ref published).Texts.GetValueOrDefault(key);
+
+    public string? ReadText(ResourceKey key, int index, string? original = null) => FindText(key)?.At(index) ?? original;
 
     public ResourceContent Get(ResourceKey key) => source.Find(key) ?? throw new FileNotFoundException($"Resource {key} is unavailable from {Source.Id}.");
 
@@ -177,7 +181,7 @@ public sealed class ResourceService : IResourceChangeFeed
     }
 
     /// <summary>Builds every resident binding before replacing the generation, including prior no-matches.</summary>
-    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver)
+    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null)
     {
         long version = mutationVersion;
         ImmutableDictionary<TextureKey, TextureValue>.Builder next = ImmutableDictionary.CreateBuilder<TextureKey, TextureValue>();
@@ -186,7 +190,7 @@ public sealed class ResourceService : IResourceChangeFeed
             next.Add(key, Resolve(context, nextResolver));
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable());
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts);
     }
 
     private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
@@ -292,15 +296,17 @@ public sealed class ResourceService : IResourceChangeFeed
         private readonly long expectedVersion;
         private readonly ITextureReplacementResolver? resolver;
         private readonly ImmutableDictionary<TextureKey, TextureValue> values;
+        private readonly ImmutableDictionary<ResourceKey, StaticTextResource> texts;
         private bool committed;
         private ResourceChangeSet? change;
 
-        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values)
+        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts)
         {
             this.owner = owner;
             this.expectedVersion = expectedVersion;
             this.resolver = resolver;
             this.values = values;
+            this.texts = texts;
         }
 
         public void Commit(string reason = "Texture catalog changed", bool notify = true)
@@ -313,8 +319,8 @@ public sealed class ResourceService : IResourceChangeFeed
             owner.mutationVersion++;
             Publication previous = owner.published;
             owner.resolver = resolver;
-            Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values)));
-            change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason);
+            Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts));
+            change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).ToImmutableArray() };
             if (notify)
             {
                 Notify();

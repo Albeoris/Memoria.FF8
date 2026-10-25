@@ -40,7 +40,7 @@ public sealed class JunctionReplacement
     }
 }
 
-/// <summary>Imports static file replacements using manifest option defaults. Executable and dynamic mod behavior fails explicitly.</summary>
+/// <summary>Imports static file replacements using manifest defaults and validated option selections. Executable and dynamic mod behavior fails explicitly.</summary>
 public static partial class JunctionModImporter
 {
     private const int ManifestLimit = 4 * 1024 * 1024;
@@ -51,7 +51,7 @@ public static partial class JunctionModImporter
     private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase) { ".hext", ".dll", ".exe", ".com", ".bat", ".cmd", ".ps1", ".asi" };
     private static readonly HashSet<string> Languages = new(StringComparer.OrdinalIgnoreCase) { "EN", "FR", "DE", "ES", "IT", "JA", "ANY" };
 
-    public static JunctionModPackage Open(string path)
+    public static JunctionModPackage Open(string path, IReadOnlyDictionary<string, int>? optionOverrides = null)
     {
         string sourcePath = Path.GetFullPath(path);
         IReadOnlyList<JunctionReplacement> sourceFiles = Directory.Exists(sourcePath) ? ReadFolder(sourcePath) : ReadArchive(sourcePath);
@@ -122,6 +122,7 @@ public static partial class JunctionModImporter
                 throw Unsupported(element);
             }
         }
+        ApplyOptionOverrides(root, options, optionOverrides);
         metadata = ReadResourceSettings(root, options, metadata, diagnostics);
         string[] supportedLanguages = root.Elements("GameLanguage").SelectMany(element => ParseLanguages(element.Value)).ToArray();
         if (supportedLanguages.Length > 0 && !supportedLanguages.Any(language => language.Equals("EN", StringComparison.OrdinalIgnoreCase) || language.Equals("ANY", StringComparison.OrdinalIgnoreCase)))
@@ -272,6 +273,25 @@ public static partial class JunctionModImporter
         if (type == "List" && !element.Elements("Option").Any(option => int.Parse(RequiredAttribute(option, "Value"), CultureInfo.InvariantCulture) == value))
         {
             throw new InvalidDataException($"Junction list default is not a declared option: {id}.");
+        }
+    }
+
+    private static void ApplyOptionOverrides(XElement root, Dictionary<string, int> options, IReadOnlyDictionary<string, int>? overrides)
+    {
+        foreach ((string id, int value) in overrides ?? new Dictionary<string, int>())
+        {
+            if (!options.ContainsKey(id))
+            {
+                throw new InvalidDataException($"Unknown Junction configuration option: {id}.");
+            }
+            XElement declaration = root.Elements("ConfigOption").Single(option => string.Equals(option.Element("ID")?.Value.Trim(), id, StringComparison.OrdinalIgnoreCase));
+            string type = declaration.Element("Type")!.Value.Trim();
+            bool valid = type == "Bool" ? value is 0 or 1 : declaration.Elements("Option").Any(option => int.Parse(RequiredAttribute(option, "Value"), CultureInfo.InvariantCulture) == value);
+            if (!valid)
+            {
+                throw new InvalidDataException($"Invalid value {value} for Junction configuration option {id}.");
+            }
+            options[id] = value;
         }
     }
 

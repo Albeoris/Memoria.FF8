@@ -13,7 +13,7 @@ internal sealed record DialogueRun(string Text, Color Color, bool Blink = false,
 
 internal sealed record DialogueLine(IReadOnlyList<DialogueRun> Runs, int SourceLineIndex, string HangingIndent = "", bool IsQuoteStart = false, bool IsSpeaker = false, bool IsThought = false)
 {
-    public string Text => string.Concat(Runs.Select(run => run.Text));
+    public string Text => ButtonPromptText.PlainText(string.Concat(Runs.Select(run => run.Text)));
 }
 
 internal sealed record DialoguePage(IReadOnlyList<DialogueLine> Lines, string? Speaker = null, DialoguePageBoundary Boundary = DialoguePageBoundary.Initial);

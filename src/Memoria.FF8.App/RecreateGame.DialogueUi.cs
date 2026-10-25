@@ -15,7 +15,7 @@ internal sealed partial class RecreateGame
     private (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) GetDialoguePages(DialogueState dialogue)
     {
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(dialogue.Text, events!.MessageVariables), keyboard.NativeButtonBindingHint);
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(dialogue.Text, events!.MessageVariables), keyboard.NativeButtonBindingPrompt);
         foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
         {
             expanded += "\u0001" + name.Key + "=" + name.Value;
@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
         string key = expanded;
         var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
-            var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingHint);
+            var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
@@ -127,7 +127,7 @@ internal sealed partial class RecreateGame
                 Vector2 runPosition = position + new Vector2(run.X * scale, 0);
                 if (run.Run.IsButton)
                 {
-                    ButtonPrompt.Draw(batch, pixel, text, visibleText, fontSize, runPosition, lineHeight, alpha, family, bounds);
+                    ButtonPrompt.Draw(batch, pixel, text, visibleText, fontSize, runPosition, lineHeight, alpha, family, bounds, uiCanvas);
                 }
                 else
                 {

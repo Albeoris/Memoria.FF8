@@ -70,7 +70,10 @@ public sealed class InMemoryResourceSource : IResourceSource
     }
 }
 
-public sealed record ResourceChangeSet(long OldGeneration, long NewGeneration, ImmutableArray<TextureKey> Textures, string Reason);
+public sealed record ResourceChangeSet(long OldGeneration, long NewGeneration, ImmutableArray<TextureKey> Textures, string Reason)
+{
+    public ImmutableArray<ResourceKey> Texts { get; init; } = [];
+}
 
 public interface IResourceChangeFeed
 {

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 
 namespace Memoria.FF8.Mods;
 
@@ -32,6 +33,37 @@ internal static class ModConfiguration
             };
         }
         return value;
+    }
+
+    public static IReadOnlyDictionary<string, int> ReadJunctionOptions(string path)
+    {
+        Dictionary<string, int> options = new(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(path))
+        {
+            return options;
+        }
+        foreach (string line in File.ReadAllLines(path))
+        {
+            string text = line.Trim().TrimStart('\uFEFF');
+            if (text.Length == 0 || text[0] is ';' or '#' or '[')
+            {
+                continue;
+            }
+            int equals = text.IndexOf('=');
+            string key = (equals < 0 ? text : text[..equals]).Trim();
+            if (!key.StartsWith("option.", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            string id = key[7..].Trim();
+            string setting = equals < 0 ? "" : text[(equals + 1)..].Split([';', '#'], 2)[0].Trim();
+            if (id.Length == 0 || !int.TryParse(setting, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+            {
+                throw new InvalidDataException($"Invalid Junction option setting {key}: expected an option ID and integer value.");
+            }
+            options[id] = value;
+        }
+        return options;
     }
 
     public static void WriteBoolean(string path, string key, bool value)

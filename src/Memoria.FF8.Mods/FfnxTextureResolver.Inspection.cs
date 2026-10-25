@@ -15,7 +15,7 @@ public sealed partial class FfnxTextureResolver
         {
             return false;
         }
-        Match match = Regex.Match(target, @"^(?:eng/)?world/dat/wmset/section38/texture([0-9]+)_[0-9]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Match match = Regex.Match(target, @"^(?:eng/)?world/dat/wmset/section38/texture([0-9]+)_[0-9]+(?:_[0-9]+_[0-9]+)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (!match.Success || !Number(match.Groups[1].Value, out int member))
         {
             return false;
@@ -80,7 +80,7 @@ public sealed partial class FfnxTextureResolver
 
     private static bool IsAbsentNativeWorldMember(IResourceSource source, string target, Dictionary<int, int?> counts)
     {
-        Match match = Regex.Match(target, @"^(?:eng/)?world/dat/wmset/section([0-9]+)/texture([0-9]+)_[0-9]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Match match = Regex.Match(target, @"^(?:eng/)?world/dat/wmset/section([0-9]+)/texture([0-9]+)_[0-9]+(?:_[0-9]+_[0-9]+)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (!match.Success || !Number(match.Groups[1].Value, out int section) || !Number(match.Groups[2].Value, out int member) || section is not (38 or 39 or 40 or 42))
         {
             return false;

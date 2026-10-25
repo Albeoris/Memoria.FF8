@@ -40,7 +40,7 @@ internal sealed partial class MonoGameUiCanvas
                 float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
                 if (placed.Run.IsButton)
                 {
-                    ButtonPrompt.Draw(batch, pixel, text, placed.Run.Text, size, new Vector2(bounds.X + x, y), layout.LineHeight, color.A / 255f, text.FontFamily, clip);
+                    ButtonPrompt.Draw(batch, pixel, text, placed.Run.Text, size, new Vector2(bounds.X + x, y), layout.LineHeight, color.A / 255f, text.FontFamily, clip, this);
                 }
                 else
                 {
