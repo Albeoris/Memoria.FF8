@@ -10,8 +10,8 @@ The original edition has 45 achievements. **42 condition handlers are implemente
 
 | # | Achievement | Status | Authoritative condition / publication |
 | ---: | --- | --- | --- |
-| 0 | Quezacotl | Implemented | Nonzero saved GF acquisition flag. |
-| 1 | Shiva | Implemented | Nonzero saved GF acquisition flag. |
+| 0 | Quezacotl | Implemented | Nonzero saved GF acquisition flag, including accepted live battle acquisition. |
+| 1 | Shiva | Implemented | Nonzero saved GF acquisition flag, including accepted live battle acquisition. |
 | 2 | Ifrit | Implemented | Nonzero saved GF acquisition flag. |
 | 3 | Siren | Implemented | Nonzero saved GF acquisition flag. |
 | 4 | Brothers | Implemented | Nonzero saved GF acquisition flag. |
@@ -59,6 +59,8 @@ The original edition has 45 achievements. **42 condition handlers are implemente
 ## Delivery and extension
 
 The original player host samples persistent owner predicates once per second and on flush, outside active encounter transactions. Battle completions, Stock Draw, draw-point writes, card transfers, movie requests and salary payments publish separate immutable facts at their accepted boundaries. Both event queues and their cursors survive checkpoint save/restore. Loading an older checkpoint retains already accepted pending delivery; missing legacy action ledgers do not reconstruct historical draws. Current persistent conditions can be observed after importing an existing save.
+
+Accepted native battle publications also observe their current GF, magic-vitals, item and card owners. A GF drawn during combat can therefore unlock before the result screen, and its accepted observation survives a later defeat or rollback. Diablos keeps its distinct original result-boundary rule. General state observations use accepted snapshots rather than reproducing the original asynchronous worker's exact scheduling.
 
 Loading a checkpoint starts a fresh branch for future action receipts. Genuinely executing another Draw after rewinding counts again, as an original account counter does; replaying a previously saved pending receipt keeps its old identity and does not count twice. This applies to both an in-process load and a fresh process loading the same checkpoint. Saved absolute counters keep their high-water semantics.
 

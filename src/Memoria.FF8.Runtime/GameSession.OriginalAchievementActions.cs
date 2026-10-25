@@ -53,7 +53,8 @@ public sealed partial class GameSession
             candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.StockDraw, "stock-draw/" + operation.Ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture), encounter.OccurrenceId, stockDraw: operation.Result);
         }
         candidate = candidate with { OriginalAchievementDrawCursor = new(encounter.OccurrenceId, operations.Length) };
-        return StageOriginalMaximumHitPoints(candidate, owned);
+        candidate = StageOriginalMaximumHitPoints(candidate, owned);
+        return StageOriginalAchievementBattleState(candidate, owned);
     }
 
     private GameState StageOriginalMaximumHitPoints(GameState candidate, BattleSnapshot owned)

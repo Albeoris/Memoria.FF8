@@ -37,19 +37,24 @@ public sealed partial class GameSession
             return;
         }
         OriginalAchievementProgress progress = OriginalAchievementState.Observe(State, nativeLanguage12);
+        State = StageOriginalAchievementStateObservation(State, progress);
+    }
+
+    private GameState StageOriginalAchievementStateObservation(GameState candidate, OriginalAchievementProgress progress)
+    {
         if (progress == default)
         {
-            return;
+            return candidate;
         }
         OriginalAchievementObservedEvent fact = OriginalAchievementObservedEvent.Create(progress, CaptureAchievementOwner?.Invoke());
-        if (State.LastOriginalAchievementObservation == fact)
+        if (candidate.LastOriginalAchievementObservation == fact)
         {
-            return;
+            return candidate;
         }
-        State = State with
+        return candidate with
         {
             LastOriginalAchievementObservation = fact,
-            PendingOriginalAchievementObservations = State.PendingOriginalAchievementObservations.Any(item => item.ContextId == fact.ContextId && item.EventId == fact.EventId) ? State.PendingOriginalAchievementObservations : State.PendingOriginalAchievementObservations.Add(fact)
+            PendingOriginalAchievementObservations = candidate.PendingOriginalAchievementObservations.Any(item => item.ContextId == fact.ContextId && item.EventId == fact.EventId) ? candidate.PendingOriginalAchievementObservations : candidate.PendingOriginalAchievementObservations.Add(fact)
         };
     }
 
