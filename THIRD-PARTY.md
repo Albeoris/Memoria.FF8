@@ -20,3 +20,21 @@ The distribution includes the .NET runtime's notices and NuGet license files and
 Original FINAL FANTASY VIII game content belongs to its respective owners. This project reads game files from a user's installation and does not include original archives, movies, music or saves. The title crest vector is a separately supplied design asset representing the original game branding; the source software license does not grant rights to Square Enix trademarks or original artwork.
 
 The launcher can download FFmpeg and FFprobe from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases/latest) separately into `Data/media-tools`; these binaries are not bundled in the source or release archive. The installer identifies its download source, verifies the archive SHA-256 and writes the distribution's license/source notices alongside the installed tools. See the selected FFmpeg distribution's notices for its LGPL terms and corresponding source.
+
+### Steamworks API
+
+The distribution includes `steam_api64.dll`, a proprietary
+Steamworks SDK redistributable provided by Valve Corporation.
+
+- Copyright: Valve Corporation
+- Source: https://partner.steamgames.com/doc/sdk
+- Terms: https://partner.steamgames.com/documentation/sdk_access_agreement/
+
+The library is distributed under the Steamworks SDK Access
+Agreement and is not covered by Memoria's MIT license.
+
+Steamworks integration is optional. Memoria is not affiliated
+with or endorsed by Valve Corporation.
+
+The pinned version, hash and runtime placement are documented in
+[the redistributable notice](vendor/Steamworks/README.md), also shipped as `Data/Steam/NOTICE.md`.

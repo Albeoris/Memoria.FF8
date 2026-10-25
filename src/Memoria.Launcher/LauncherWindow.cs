@@ -15,6 +15,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
     private readonly Button play = new() { Content = "Play", MinWidth = 130, MinHeight = 38, IsDefault = true };
+    private readonly CheckBox achievementsLocalOnly = new() { Content = "Keep achievements local (disable platform connection)", Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock mediaStatus = new() { Text = "Checking FFmpeg…", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
     private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
     private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
@@ -25,6 +26,7 @@ internal sealed partial class LauncherWindow : Window
     private Process? runningGame;
     private GameUpdateSession? gameUpdateSession;
     private string? runningGameDirectory;
+    private bool runningAchievementsLocalOnly;
     private readonly UpdateResume? updateResume;
     private bool updating;
     private bool closingForUpdate;
@@ -63,6 +65,7 @@ internal sealed partial class LauncherWindow : Window
         mediaProgressPanel.Children.Add(mediaProgress);
         mediaProgressPanel.Children.Add(mediaProgressText);
         mediaSection.Children.Add(mediaProgressPanel);
+        mediaSection.Children.Add(achievementsLocalOnly);
         Add(layout, mediaSection, 3);
         Add(layout, CreateUpdatePanel(), 4);
         Add(layout, status, 5);
@@ -89,7 +92,9 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             List<string> warnings = [];
-            string? previous = LauncherSettings.Load(LauncherSettings.DefaultPath).LastGameDirectory;
+            LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
+            string? previous = settings.LastGameDirectory;
+            achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
             IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add));
             installations.ItemsSource = GameInstallationSelection.Order(previous, found);
             if (installations.Items.Count > 0)
@@ -218,7 +223,10 @@ internal sealed partial class LauncherWindow : Window
         SetBusy(true);
         try
         {
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory);
+            bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
+            achievementsLocalOnly.IsChecked = localOnly;
+            runningAchievementsLocalOnly = localOnly;
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria archive, keeping its Data folder beside Memoria.Launcher.exe.", start.FileName);
@@ -303,7 +311,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }
@@ -324,6 +332,7 @@ internal sealed partial class LauncherWindow : Window
         busy = value || updating || runningGame is not null;
         installations.IsEnabled = !busy;
         browse.IsEnabled = !busy;
+        achievementsLocalOnly.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
         play.IsEnabled = !busy;
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates;

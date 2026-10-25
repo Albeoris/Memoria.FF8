@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Memoria.Launcher;
 
-internal sealed record UpdateResume(string GameDirectory, string SavePath)
+internal sealed record UpdateResume(string GameDirectory, string SavePath, bool AchievementsLocalOnly = false)
 {
     internal static string IntentPath(string root) => Path.Combine(root, ".memoria-update-resume.json");
 

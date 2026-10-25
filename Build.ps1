@@ -69,7 +69,7 @@ try {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }
 
-    foreach ($relative in @('Memoria.FF8.exe', 'audio-host/Memoria.FF8.Music.exe', 'audio-host/coreclr.dll')) {
+    foreach ($relative in @('Memoria.FF8.exe', 'audio-host/Memoria.FF8.Music.exe', 'audio-host/coreclr.dll', 'Steam/steam_api64.dll', 'Steam/NOTICE.md')) {
         if (!(Test-Path -LiteralPath (Join-Path $data $relative) -PathType Leaf)) {
             throw "Incomplete distribution: Data/$relative is missing."
         }

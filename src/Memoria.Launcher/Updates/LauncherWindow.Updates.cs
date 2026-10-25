@@ -159,7 +159,7 @@ internal sealed partial class LauncherWindow
                 {
                     updateStatus.Text = "Asking the game to save before updating…";
                     await control.SaveAsync(() => process.HasExited);
-                    new UpdateResume(gameDirectory, control.SavePath).Write(root);
+                    new UpdateResume(gameDirectory, control.SavePath, runningAchievementsLocalOnly).Write(root);
                     updateStatus.Text = "Save confirmed. Closing the game…";
                     await control.RequestAsync("quit", () => process.HasExited);
                     using CancellationTokenSource exitTimeout = new(TimeSpan.FromSeconds(30));

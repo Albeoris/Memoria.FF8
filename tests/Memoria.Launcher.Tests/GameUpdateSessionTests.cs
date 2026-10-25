@@ -113,9 +113,10 @@ public sealed class GameUpdateSessionTests : IDisposable
         System.IO.Directory.CreateDirectory(game);
         string save = Path.Combine(root, "automatic-save.json");
         File.WriteAllText(save, "standalone save");
-        UpdateResume expected = new(game, save);
+        UpdateResume expected = new(game, save, true);
         expected.Write(root);
         Assert.Equal(expected, UpdateResume.Read(root));
+        Assert.True(UpdateResume.Read(root).AchievementsLocalOnly);
         Assert.False(File.Exists(UpdateResume.IntentPath(root) + ".tmp"));
         UpdateInstaller.Prepare(root);
         Assert.Equal(expected, UpdateResume.Read(root));

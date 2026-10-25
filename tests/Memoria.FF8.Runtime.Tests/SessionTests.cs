@@ -5,6 +5,23 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class SessionTests
 {
     [Fact]
+    public void BattleTestHostsUseIsolatedAchievementComposition()
+    {
+        Assert.True(new LaunchOptions { BattleTestPath = "test.json" }.IsAchievementToolSession);
+    }
+    [Fact]
+    public void Achievement_local_only_is_explicit_and_tools_are_isolated()
+    {
+        Assert.False(LaunchOptions.Parse([]).AchievementsLocalOnly);
+        Assert.True(LaunchOptions.Parse(["--achievements-local-only"]).AchievementsLocalOnly);
+        Assert.False(LaunchOptions.Parse(["--update-control-dir", "update"]).IsAchievementToolSession);
+        foreach (string[] arguments in new[] { new[] { "--validate" }, new[] { "--frames", "1" }, new[] { "--exit-after", "1" }, new[] { "--control-dir", "control" }, new[] { "--capture-frame", "preview.png" }, new[] { "--debug-room" } })
+        {
+            Assert.True(LaunchOptions.Parse(arguments).IsAchievementToolSession);
+        }
+    }
+
+    [Fact]
     public void Update_control_directory_preserves_normal_gameplay_and_audio_options()
     {
         string directory = Path.Combine("Launcher session", "Control queue");

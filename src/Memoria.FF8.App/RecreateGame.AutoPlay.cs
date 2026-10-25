@@ -29,6 +29,7 @@ internal sealed partial class RecreateGame
             switch (command)
             {
                 case "start":
+                    EnterAchievementToolSession();
                     autoPlayHostError = null;
                     autoPlayFailureHeld = false;
                     userPaused = false;
@@ -47,6 +48,7 @@ internal sealed partial class RecreateGame
                     autoPlayFailureHeld = false;
                     break;
                 case "load-reproduction":
+                    EnterAchievementToolSession();
                     autoPlayHostError = null;
                     autoPlayFailureHeld = false;
                     autoPlay.ReplayFailure();

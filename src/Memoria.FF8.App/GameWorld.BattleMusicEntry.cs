@@ -77,6 +77,7 @@ internal sealed partial class GameWorld
         if (battle is { } active)
         {
             SynchronizeNativeBattleHostCallbacks(active);
+            session.AcceptBattleAchievementFacts(active.EnemyDefeats);
             CompleteNativeDefeatIfReady();
         }
     }

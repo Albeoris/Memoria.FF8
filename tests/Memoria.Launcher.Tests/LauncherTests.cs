@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
 using Memoria.FF8;
+using Memoria.FF8.Resources;
 
 namespace Memoria.Launcher.Tests;
 
@@ -46,6 +47,116 @@ public sealed class LauncherTests : IDisposable
         File.WriteAllText(settingsPath, "{broken");
         Assert.Null(LauncherSettings.Load(settingsPath).LastGameDirectory);
         Assert.Null(LauncherSettings.Load(Path.Combine(directory, "absent.json")).LastGameDirectory);
+    }
+
+    [Fact]
+    public void LocalOnlySelectionSurvivesSettingsAndLaunch()
+    {
+        string settingsPath = Path.Combine(directory, "launcher.json");
+        new LauncherSettings(directory, true).Save(settingsPath);
+        Assert.True(LauncherSettings.Load(settingsPath).AchievementsLocalOnly);
+        Assert.Contains("--achievements-local-only", GameInstallationSelection.CreateStartInfo(directory, directory, true).ArgumentList);
+        Assert.DoesNotContain("--achievements-local-only", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
+    }
+
+    [Theory]
+    [InlineData("39150", false)]
+    [InlineData("1026680", true)]
+    public void ManualRememberedAndDiscoveredSelectionsResolveTheSameProduct(string appId, bool remastered)
+    {
+        string game = CreateSteamInstallation(appId, remastered);
+        GamePlatformContext manual = new GameInstallation(game, "Selected folder").ResolvePlatformContext();
+        GamePlatformContext remembered = GameInstallationSelection.Order(game, []).Single().ResolvePlatformContext();
+        GamePlatformContext discovered = new GameInstallation(game, "Untrusted display text").ResolvePlatformContext();
+        Assert.Equal(GameDistributionProvider.Steam, manual.Provider);
+        Assert.Equal(appId, manual.ProductId);
+        Assert.Equal(remastered ? GameDataEdition.Remastered : GameDataEdition.Classic, manual.ResourceEdition);
+        Assert.Equal(manual.ProductId, remembered.ProductId);
+        Assert.Equal(manual.ProductId, discovered.ProductId);
+        Assert.True(manual.CanInitializeExternalBackend);
+        Assert.Equal(GameIntegrationTransport.SteamApi, manual.Transport);
+    }
+
+    [Fact]
+    public void LooseFolderAndDllNamesDoNotSelectSteam()
+    {
+        WriteEdition(directory, true);
+        File.WriteAllText(Path.Combine(directory, "steam_api.dll"), "not platform evidence");
+        File.WriteAllText(Path.Combine(directory, "Galaxy.dll"), "not platform evidence");
+        GamePlatformContext context = GamePlatformContextResolver.Resolve(directory);
+        Assert.Equal(GameDistributionProvider.Unknown, context.Provider);
+        Assert.Null(context.ProductId);
+        Assert.False(context.CanInitializeExternalBackend);
+    }
+
+    [Fact]
+    public void GogProductDoesNotBecomeSteamWhenBothLibrariesExist()
+    {
+        WriteEdition(directory, true);
+        File.WriteAllText(Path.Combine(directory, "goggame-1086370078.info"), "{\"gameId\":\"1086370078\"}");
+        File.WriteAllText(Path.Combine(directory, "steam_api.dll"), "wrapper candidate");
+        File.WriteAllText(Path.Combine(directory, "Galaxy.dll"), "Galaxy candidate");
+        GamePlatformContext context = GamePlatformContextResolver.Resolve(directory);
+        Assert.Equal(GameDistributionProvider.Gog, context.Provider);
+        Assert.Equal("1086370078", context.ProductId);
+        Assert.Equal(GameIntegrationTransport.None, context.Transport);
+        Assert.False(context.CanInitializeExternalBackend);
+        Assert.True(GamePlatformContextResolver.Resolve(directory, true).LocalOnly);
+    }
+
+    [Fact]
+    public void ConflictingStorefrontMetadataAndWrongEditionRemainLocal()
+    {
+        string game = CreateSteamInstallation("1026680", true);
+        File.WriteAllText(Path.Combine(game, "goggame-1086370078.info"), "{\"gameId\":\"1086370078\"}");
+        GamePlatformContext conflict = GamePlatformContextResolver.Resolve(game);
+        Assert.Equal(GameDistributionProvider.Unknown, conflict.Provider);
+        Assert.Contains("Conflicting", conflict.Diagnostic);
+        File.Delete(Path.Combine(game, "goggame-1086370078.info"));
+        File.WriteAllText(Path.Combine(game, "FF8_EN.exe"), "");
+        Assert.Equal(GameDistributionProvider.Unknown, GamePlatformContextResolver.Resolve(game).Provider);
+    }
+
+    [Theory]
+    [InlineData("\"AppState\" { \"appid\" \"39150\" \"installdir\" \"Game files\"")]
+    [InlineData("\"AppState\" { \"appid\" \"1026680\" \"installdir\" \"Game files\" }")]
+    [InlineData("\"AppState\" { \"appid\" \"39150\" \"appid\" \"39150\" \"installdir\" \"Game files\" }")]
+    public void MalformedOrConflictingSteamMetadataCannotSelectAProvider(string metadata)
+    {
+        string game = CreateSteamInstallation("39150", false);
+        File.WriteAllText(Path.Combine(directory, "Steam library", "steamapps", "appmanifest_39150.acf"), metadata);
+        Assert.Equal(GameDistributionProvider.Unknown, GamePlatformContextResolver.Resolve(game).Provider);
+    }
+
+    [Theory]
+    [InlineData("{broken")]
+    [InlineData("[]")]
+    [InlineData("{\"gameId\":\"other-product\"}")]
+    public void InvalidGogMetadataCannotEnableDelivery(string metadata)
+    {
+        WriteEdition(directory, true);
+        File.WriteAllText(Path.Combine(directory, "goggame-1086370078.info"), metadata);
+        GamePlatformContext context = GamePlatformContextResolver.Resolve(directory);
+        Assert.Equal(GameDistributionProvider.Unknown, context.Provider);
+        Assert.False(context.CanInitializeExternalBackend);
+    }
+
+    private string CreateSteamInstallation(string appId, bool remastered)
+    {
+        string steamApps = Path.Combine(directory, "Steam library", "steamapps");
+        string game = Path.Combine(steamApps, "common", "Game files");
+        Directory.CreateDirectory(game);
+        WriteEdition(game, remastered);
+        File.WriteAllText(Path.Combine(steamApps, $"appmanifest_{appId}.acf"), $"\"AppState\" {{ \"appid\" \"{appId}\" \"installdir\" \"Game files\" }}");
+        return game;
+    }
+
+    private static void WriteEdition(string path, bool remastered)
+    {
+        foreach (string file in remastered ? new[] { "main.zzz", "other.zzz", "FFVIII_EN.exe.dat" } : new[] { "FF8_EN.exe" })
+        {
+            File.WriteAllText(Path.Combine(path, file), "");
+        }
     }
 
     [Fact]

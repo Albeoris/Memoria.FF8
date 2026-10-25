@@ -27,6 +27,8 @@ public sealed record LaunchOptions
     public string? DebugUiScreen { get; init; }
     public string? BattleTestPath { get; init; }
     public string? SettingsDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_SETTINGS_DIRECTORY");
+    public bool AchievementsLocalOnly { get; init; }
+    public bool IsAchievementToolSession => ValidateOnly || ControlDirectory is not null || CaptureFramePath is not null || ExitAfterSeconds is not null || ExitAfterFrames is not null || DebugUiScreen is not null || BattleTestPath is not null;
 
     public static LaunchOptions Parse(string[] args)
     {
@@ -45,6 +47,7 @@ public sealed record LaunchOptions
             options = argument switch
             {
                 "--game-dir" => options with { GameDirectory = Path.GetFullPath(Value()) },
+                "--achievements-local-only" => options with { AchievementsLocalOnly = true },
                 "--mods-dir" => options with { ModsDirectory = Path.GetFullPath(Value()) },
                 "--state" => options with { StatePath = Path.GetFullPath(Value()) },
                 "--save-state" => options with { SavePath = Path.GetFullPath(Value()) },

@@ -15,6 +15,10 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    public ImmutableArray<EnemyDefeatedEvent> PendingAchievementFacts { get; init; } = [];
+    public ImmutableArray<BattleKillTotalObservedEvent> PendingAchievementObservations { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleAchievementCursor? AchievementCursor { get; init; }
     /// <summary>Process DWORD1D9CDC0, initially zero and set to1 by the PC DEBUG handler.</summary>
     public bool NativeFieldDebugRequested { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

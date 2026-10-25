@@ -9,6 +9,79 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleResultFactTests
 {
     [Fact]
+    public void NoKillCompletionObservesTheSavedTotalWithoutFabricatingDefeatEvents()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeCharacterVital[] records = vitals.Records.ToArray();
+        records[0] = records[0] with { KillCount = 100 };
+        vitals = vitals with { Records = records };
+        fact = fact with { Outcome = BattleOutcome.Escaped, EnemyDefeats = [], DefeatedEnemySlots = [] };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        GameState before = session.State;
+        using GameWorld world = new(session, TestResources.GameDirectory);
+
+        world.ApplyBattleResult(fact.Encounter, fact);
+
+        Assert.Empty(session.State.PendingAchievementFacts);
+        BattleKillTotalObservedEvent observed = Assert.Single(session.State.PendingAchievementObservations);
+        Assert.Equal(100, observed.NativeKillTotal);
+        Assert.Equal(BattleOutcome.Escaped, observed.Outcome);
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        Assert.Equal(observed, Assert.Single(restored.State.PendingAchievementObservations));
+        session.Restore(before);
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Equal(observed, Assert.Single(session.State.PendingAchievementObservations));
+        _ = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+    }
+
+    [Fact]
+    public void AchievementFactsPublishOnlyWithAcceptedResultAndRetainTheNativeCounterObservation()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        fact = fact with { EnemyDefeats = fact.EnemyDefeats.Select(defeat => defeat with { AllocationId = "enemy-" + defeat.Slot }).ToArray() };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        _ = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
+        Assert.Empty(session.State.PendingAchievementFacts);
+        BattleResult rejected = fact with { NativeCrtRandomBefore = new(123), NativeCrtRandomAfter = new(456) };
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, rejected));
+        Assert.Empty(session.State.PendingAchievementFacts);
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Equal(fact.EnemyDefeats.Length, session.State.PendingAchievementFacts.Length);
+        long total = session.State.CharacterVitals!.Records.Sum(record => (long)record.KillCount) + session.State.CharacterVitals.GuardianForces.Sum(gf => (long)gf.KillCount!.Value);
+        Assert.All(session.State.PendingAchievementFacts, accepted => Assert.Equal(total, accepted.Facts.NativeKillTotal));
+        Assert.All(session.State.PendingAchievementFacts, accepted => Assert.Equal(BattleOutcome.Victory, accepted.Facts.AcceptedOutcome));
+        BattleKillTotalObservedEvent observation = Assert.Single(session.State.PendingAchievementObservations);
+        Assert.Equal(total, observation.NativeKillTotal);
+        Assert.Equal(BattleOutcome.Victory, observation.Outcome);
+        string committed = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+        Assert.Null(session.State.AchievementCursor);
+    }
+
+    [Fact]
+    public void AcceptedLiveDefeatsAreNotPublishedAgainAtBattleCompletion()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        fact = fact with { EnemyDefeats = fact.EnemyDefeats.Select(defeat => defeat with { AllocationId = "enemy-" + defeat.Slot }).ToArray() };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        session.AcceptBattleAchievementFacts(fact.EnemyDefeats);
+        EnemyDefeatedEvent[] accepted = session.State.PendingAchievementFacts.ToArray();
+        foreach (EnemyDefeatedEvent receipt in accepted)
+        {
+            session.AcknowledgeAchievementFact(receipt);
+        }
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Empty(session.State.PendingAchievementFacts);
+        Assert.Single(session.State.PendingAchievementObservations);
+    }
+
+    [Fact]
     public void SavedGlobalRandomReceiptRejectsAStaleOwnerAndPublishesOnceWithTheBattleResult()
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();

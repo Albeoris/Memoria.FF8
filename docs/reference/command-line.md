@@ -24,6 +24,8 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | Option | Meaning / default |
 | --- | --- |
 | `--game-dir DIRECTORY` | Installed game directory. Overrides `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
+| `--achievements-local-only` | Keep achievements local and disable external platform initialization. Also available in the launcher. |
+| `--probe-steam-achievements --game-dir DIRECTORY` | Standalone explicit Steam integration check: initialize the bundled x64 SDK, validate product/user, pump callbacks and read the mapped achievement/stat. Performs no achievement/stat writes and creates no local progress. |
 | `--state FILE` | Load a standalone snapshot, compact compressed or plain JSON. Its state overrides scene initialization options. |
 | `--save-state FILE` | Quick-save snapshot destination; default `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json`. |
 | `--settings-dir DIRECTORY` | Redirect engine UI preferences, controls, Triple Triad deck history and save-bank configuration to a selected directory. Overrides `MEMORIA_FF8_SETTINGS_DIRECTORY`; otherwise these use `%LOCALAPPDATA%/Memoria/FF8/`. |

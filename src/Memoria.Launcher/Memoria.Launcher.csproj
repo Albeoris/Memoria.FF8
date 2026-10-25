@@ -14,6 +14,7 @@
     <Using Include="System.IO" />
     <Compile Include="../Memoria.FF8.App/MediaToolsInstallation.cs" Link="MediaToolsInstallation.cs" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>
 </Project>

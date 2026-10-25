@@ -1,5 +1,6 @@
 using System.Security;
 using Albeoris.Games.SteamLibrary;
+using Memoria.FF8.Resources;
 using Microsoft.Win32;
 
 namespace Memoria.Launcher;
@@ -61,6 +62,27 @@ internal static class GameInstallationDiscovery
         catch (Exception exception) when (exception is IOException or SecurityException or UnauthorizedAccessException or FormatException or InvalidOperationException)
         {
             report($"Could not inspect Steam: {exception.Message}");
+        }
+        try
+        {
+            using RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+            using RegistryKey? key = baseKey.OpenSubKey(@"SOFTWARE\GOG.com\Games\1086370078");
+            if (key?.GetValue("gameID") is string productId && productId == "1086370078" && key.GetValue("path") is string directory && GameInstallationSelection.Normalize(directory) is string normalized)
+            {
+                GamePlatformContext context = GamePlatformContextResolver.Resolve(normalized);
+                if (context.Provider == GameDistributionProvider.Gog && context.ProductId == productId)
+                {
+                    result.Add(new GameInstallation(normalized, "GOG Remastered (2019)"));
+                }
+                else
+                {
+                    report("The GOG installation's product metadata could not be validated. Browse to select it for local play.");
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or SecurityException or UnauthorizedAccessException)
+        {
+            report($"Could not inspect GOG: {exception.Message}");
         }
         return result;
     }

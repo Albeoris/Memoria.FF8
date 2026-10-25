@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Assets;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -510,7 +510,8 @@ internal sealed partial class GameWorld
             variables = new NativeBattleVariableState(System.Collections.Immutable.ImmutableArray.CreateRange(result.PersistentAiVariablesAfter!));
         }
         NativeSavedBattleFlags? savedFlags = ProjectSavedBattleFlagEffect(result);
-        session.CommitBattleResult(expected, owners.CharacterVitals, owners.Economy, owners.Cards, variables, savedFlags, result.NativeScriptEffects.SavedBattleFlagsBefore, result.NativeCrtRandomAfter, result.NativeCrtRandomBefore, result.NativeScriptEffects.SavedBattleFlagsSetMask, result.NativeScriptEffects.SavedBattleFlagsClearMask, result.NativeScannedModelsBefore, result.NativeScannedModelsAfter, result.NativeScriptEffects.LimitSpecialFlagsBefore, result.NativeScriptEffects.LimitSpecialFlagsAfter, result.NativeScriptEffects.LimitSpecialSetMask, result.NativeScriptEffects.ShotFlagsBefore, result.NativeScriptEffects.ShotFlagsAfter, result.NativeScriptEffects.ShotFlagsSetMask, result.NativeGlobalRandomChange, result.NativeKnownMagicBefore, result.NativeKnownMagicAfter, guardianForceCounters: result.GuardianForceCounterChanges);
+        byte achievementFlags = BattleResources.LoadEncounter(expected.Formation).Flags;
+        session.CommitBattleResult(expected, owners.CharacterVitals, owners.Economy, owners.Cards, variables, savedFlags, result.NativeScriptEffects.SavedBattleFlagsBefore, result.NativeCrtRandomAfter, result.NativeCrtRandomBefore, result.NativeScriptEffects.SavedBattleFlagsSetMask, result.NativeScriptEffects.SavedBattleFlagsClearMask, result.NativeScannedModelsBefore, result.NativeScannedModelsAfter, result.NativeScriptEffects.LimitSpecialFlagsBefore, result.NativeScriptEffects.LimitSpecialFlagsAfter, result.NativeScriptEffects.LimitSpecialSetMask, result.NativeScriptEffects.ShotFlagsBefore, result.NativeScriptEffects.ShotFlagsAfter, result.NativeScriptEffects.ShotFlagsSetMask, result.NativeGlobalRandomChange, result.NativeKnownMagicBefore, result.NativeKnownMagicAfter, guardianForceCounters: result.GuardianForceCounterChanges, achievementDefeats: result.RewardPolicy == BattleRewardPolicy.NativeCombat ? result.EnemyDefeats : [], achievementOutcome: result.Outcome, achievementFormationFlags: achievementFlags, achievementRewardPolicy: result.RewardPolicy);
         Events.Scene.UnlockedTutorials.UnionWith(result.NativeScriptEffects.UnlockedTutorials);
         session.EnqueueEntityNames(result.NativeScriptEffects.AcquiredGuardianForces.Select(id => new PendingEntityName(GameNames.GuardianForceSubject(id), GameNames.DefaultName(GameNames.GuardianForceSubject(id)), "battle:" + expected.OccurrenceId)));
         LastBattleRewards = owners.Rewards;

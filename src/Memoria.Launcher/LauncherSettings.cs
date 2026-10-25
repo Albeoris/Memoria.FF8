@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Memoria.Launcher;
 
-internal sealed record LauncherSettings(string? LastGameDirectory = null)
+internal sealed record LauncherSettings(string? LastGameDirectory = null, bool AchievementsLocalOnly = false)
 {
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8", "launcher.json");
 

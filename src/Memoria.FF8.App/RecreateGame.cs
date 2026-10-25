@@ -67,11 +67,12 @@ internal sealed partial class RecreateGame : Game
     private bool userPaused;
     private readonly UpdateSaveHandoff updateSave;
 
-    public RecreateGame(LaunchOptions options, GameSession session)
+    public RecreateGame(LaunchOptions options, GameSession session, bool playerSession = false)
     {
         this.options = options;
         globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
+        achievementToolSession = !playerSession || options.IsAchievementToolSession;
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
@@ -102,6 +103,7 @@ internal sealed partial class RecreateGame : Game
         InactiveSleepTime = TimeSpan.Zero;
         Window.TextInput += OnTextInput;
         session.StateChanged += state => Console.WriteLine($"scene={state.Scene} field={state.FieldId}:{state.FieldName} movie={state.MovieIndex}");
+        InitializeAchievements();
     }
 
     protected override void LoadContent()
@@ -142,6 +144,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        UpdateAchievements();
         // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
         updateControls?.Poll();
         if (UpdateFocusPause())
@@ -1350,6 +1353,7 @@ internal sealed partial class RecreateGame : Game
             movie?.Dispose();
             world?.Dispose();
             movieClock.Dispose();
+            DisposeAchievements();
             presentationPacer.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();
