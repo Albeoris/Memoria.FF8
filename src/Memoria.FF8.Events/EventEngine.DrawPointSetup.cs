@@ -118,7 +118,7 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private ushort? PrepareMenuDrawPointDisplayMask()
+    private ushort? PrepareMenuDrawPointDisplayMask(byte source)
     {
         if (Scene.DrawPointEnabled == 0)
         {
@@ -128,8 +128,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Active menu draw-point display requires its executed setup and unaliased native bytes.");
         }
-        //The caller already proved495EF0 produced source BYTE88=0.
-        return Scene.DrawPointDisplayParameter;
+        return (ushort)(source | Scene.DrawPointDisplayParameter);
     }
 
     private int[] SetNativeDrawPointIndex(Fiber fiber)

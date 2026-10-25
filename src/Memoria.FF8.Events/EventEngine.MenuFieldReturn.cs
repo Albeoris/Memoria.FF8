@@ -17,9 +17,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Menu52B4F0(2) requires owned music and unaliased entry/source BYTEs.");
         }
-        RequireKnownZeroMenuPartyAbilityFlags(vitals);
-        ushort? drawPointMask = PrepareMenuDrawPointDisplayMask();
-        NativeEventMemory memory = EventMemory.Write(88, 1, NativeScalarValue.Exact(0));
+        byte drawPointSource = (byte)((vitals.GetEncounterAbilityFlags() & 0x10) != 0 ? 1 : 0);
+        ushort? drawPointMask = PrepareMenuDrawPointDisplayMask(drawPointSource);
+        NativeEventMemory memory = EventMemory.Write(88, 1, NativeScalarValue.Exact(drawPointSource));
         if ((controls.EventFlags104 & 0x40) != 0)
         {
             if (!timer.TimerMemoryActivated || EventMemory.Overlaps(205, 2))
@@ -49,7 +49,7 @@ public sealed partial class EventEngine
         Scene.BackgroundScrollPositions.Remove(0);
         Scene.ActorBackgroundScroll = null;
         Scene.NormalBackgroundScrollCenter = null;
-        //495EF0 cleared1CFF6D8; the proved absent78..82 branch produced typed BYTE88 above.
+        //495EF0 rebuilds the combat party ability flags before the tail publishes BYTE88.
     }
 
     private void CompleteNativeMenuFieldTail(NativeFieldFadeState fieldFade, NativeVibrationProcessState vibration)
@@ -103,21 +103,5 @@ public sealed partial class EventEngine
         partyMenu = null;
         //52B9F0 does not reallocate or reset JSM slots. This next real4767B0 resumes the advanced issuing PC.
         StepCore();
-    }
-
-    private static void RequireKnownZeroMenuPartyAbilityFlags(NativeCharacterVitals vitals)
-    {
-        foreach (byte row in vitals.CombatParty.Where(row => row != 255))
-        {
-            uint abilities = vitals.Records[row].Junction.Abilities;
-            for (int index = 0; index < 4; index++)
-            {
-                byte ability = (byte)(abilities >> (index * 8));
-                if (ability is >= 78 and < 83)
-                {
-                    throw new NotSupportedException("Menu source BYTE88 consumes495530 party ability flags78..82 whose kernel projection is not yet owned.");
-                }
-            }
-        }
     }
 }
