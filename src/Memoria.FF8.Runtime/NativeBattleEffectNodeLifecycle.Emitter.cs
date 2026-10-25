@@ -139,7 +139,12 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
     internal byte[] ReadSource(sbyte sourceIndex)
     {
         uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(bank.Read(unchecked(memory.ContextDword(0x224) + (uint)(sourceIndex * 4)), 4));
-        return bank.Read(pointer, 0x158);
+        //This transient operand buffer is never published: its unused gap is not a read of physical padding.
+        byte[] source = new byte[0x156];
+        bank.Read(pointer, 0x148).CopyTo(source, 0);
+        bank.Read(unchecked(pointer + 0x148), 6).CopyTo(source, 0x148);
+        bank.Read(unchecked(pointer + 0x150), 6).CopyTo(source, 0x150);
+        return source;
     }
 
     private NativeBattleActionMatrix ReadMatrix(int offset)
