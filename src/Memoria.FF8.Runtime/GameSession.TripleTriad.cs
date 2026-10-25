@@ -91,11 +91,27 @@ public sealed partial class GameSession
         State = State with { TripleTriadPlay = play?.DeepCopy() };
     }
 
-    public void CompleteTripleTriad(NativeCardInventory inventory)
+    public void CompleteTripleTriad(NativeCardInventory inventory, bool rareCardLost = false, bool cardsClubMaster = false)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         GameState candidate = State with { CardInventory = inventory.DeepCopy(), TripleTriadPlay = null };
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
+        if (State.TripleTriadPlay is { } play)
+        {
+            string context = "cards/" + play.RequestIdentity + "/" + play.InitialRandomState.ToString(CultureInfo.InvariantCulture);
+            if (inventory.TripleTriadStatistics != State.CardInventory?.TripleTriadStatistics)
+            {
+                candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.CardPlayed, "settlement", context);
+            }
+            if (rareCardLost)
+            {
+                candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.RareCardLost, "rare-loss", context);
+            }
+            if (cardsClubMaster)
+            {
+                candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.CardsClubMaster, "cc-master", context);
+            }
+        }
         State = candidate;
     }
 }

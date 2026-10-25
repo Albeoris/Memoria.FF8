@@ -28,6 +28,8 @@ public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnem
 }
 public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, int ActorIndex, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaximumHitPoints { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public ushort? ReturnDamage { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

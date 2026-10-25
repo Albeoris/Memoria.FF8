@@ -9,7 +9,12 @@ public sealed class AchievementLifetimeTests
     [Fact]
     public void InWindowDiagnosticsSwitchToASeparateLocalProfileAfterFlushingPlayerReceipts()
     {
-        GameSession session = new(new GameState { PendingAchievementObservations = [new(new("kills/1"), new("battle-results/diagnostic-switch"), 1, BattleOutcome.Victory, BattleRewardPolicy.NativeCombat, 0)] });
+        GameSession session = new(new GameState
+        {
+            PendingAchievementObservations = [new(new("kills/1"), new("battle-results/diagnostic-switch"), 1, BattleOutcome.Victory, BattleRewardPolicy.NativeCombat, 0)],
+            PendingOriginalAchievementObservations = [OriginalAchievementObservedEvent.Create(new() { MaximumGil = true }, null)],
+            PendingOriginalAchievementActions = [new(new("card-entry"), new("diagnostic-switch"), OriginalAchievementActionKind.CardPlayed)]
+        });
         using RecreateGame game = new(new LaunchOptions { MuteAudio = true, AchievementsLocalOnly = true }, session);
         AchievementService playerService = Get<AchievementService>(game, "achievements");
         string playerDirectory = Get<string>(game, "isolatedAchievementDirectory");
@@ -19,6 +24,8 @@ public sealed class AchievementLifetimeTests
         typeof(RecreateGame).GetMethod("EnterAchievementToolSession", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(game, null);
 
         Assert.Empty(session.State.PendingAchievementObservations);
+        Assert.Empty(session.State.PendingOriginalAchievementObservations);
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
         Assert.True(Get<bool>(game, "achievementToolSession"));
         Assert.NotEqual(playerDirectory, Get<string>(game, "isolatedAchievementDirectory"));
         Assert.NotSame(playerService, Get<AchievementService>(game, "achievements"));
@@ -28,7 +35,12 @@ public sealed class AchievementLifetimeTests
     [Fact]
     public void PausedHostPumpsCallbacksEvenWhileProfileWritesAreRetrying()
     {
-        GameSession session = new(new GameState { PendingAchievementObservations = [new(new("kills/1"), new("battle-results/lifetime"), 1, BattleOutcome.Victory, BattleRewardPolicy.NativeCombat, 0)] });
+        GameSession session = new(new GameState
+        {
+            PendingAchievementObservations = [new(new("kills/1"), new("battle-results/lifetime"), 1, BattleOutcome.Victory, BattleRewardPolicy.NativeCombat, 0)],
+            PendingOriginalAchievementObservations = [OriginalAchievementObservedEvent.Create(new() { MaximumGil = true }, null)],
+            PendingOriginalAchievementActions = [new(new("card-entry"), new("lifetime"), OriginalAchievementActionKind.CardPlayed)]
+        });
         BattleEncounterOccurrence encounter = new("lifetime", 0, new string('A', 64), SceneKind.Field, 74, 0, new string('B', 64), null);
         session.SetPendingBattleEncounter(encounter);
         session.AcceptBattleAchievementFacts([new(0, 1, BattleDefeatCredit.Character, 0, null, false, -1) { AllocationId = "enemy" }]);
@@ -47,10 +59,14 @@ public sealed class AchievementLifetimeTests
         Assert.Equal(2, backend.Pumps);
         Assert.Single(session.State.PendingAchievementFacts);
         Assert.Single(session.State.PendingAchievementObservations);
+        Assert.Single(session.State.PendingOriginalAchievementObservations);
+        Assert.Single(session.State.PendingOriginalAchievementActions);
         session.Restore(new GameState());
         Assert.Same(service, Get<AchievementService>(game, "achievements"));
         Assert.Empty(session.State.PendingAchievementFacts);
         Assert.Single(session.State.PendingAchievementObservations);
+        Assert.Single(session.State.PendingOriginalAchievementObservations);
+        Assert.Single(session.State.PendingOriginalAchievementActions);
     }
 
     [Fact]

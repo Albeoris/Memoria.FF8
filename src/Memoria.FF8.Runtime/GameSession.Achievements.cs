@@ -109,7 +109,12 @@ public sealed partial class GameSession
         }
         long? total = ProjectAchievementKillTotal(candidate.CharacterVitals, []);
         string observationId = $"kills/{total?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"}/{(int)outcome.Value}/{formationFlags.Value}/{(int)policy}";
-        BattleKillTotalObservedEvent observation = new(new(observationId), new("battle-results/" + occurrenceId), total, outcome.Value, policy, formationFlags.Value, CaptureAchievementOwner?.Invoke());
+        NativeWorldEventFlags? worldFlags = candidate.SavedWorld?.WorldEventFlags116;
+        BattleKillTotalObservedEvent observation = new(new(observationId), new("battle-results/" + occurrenceId), total, outcome.Value, policy, formationFlags.Value, CaptureAchievementOwner?.Invoke())
+        {
+            DiablosAcquired = candidate.CharacterVitals is { } vitals ? vitals.GuardianForces[5].Flags != 0 : null,
+            UfoCompleted = worldFlags is null || (worldFlags.KnownMask & (1UL << 15)) == 0 ? null : (worldFlags.Value & (1UL << 15)) != 0
+        };
         if (candidate.PendingAchievementObservations.Any(fact => fact.ContextId == observation.ContextId && fact.EventId == observation.EventId))
         {
             return candidate;
@@ -137,6 +142,7 @@ public sealed partial class GameSession
 
     private static void ValidateAchievementCheckpoint(GameState state)
     {
+        ValidateOriginalAchievementCheckpoint(state);
         if (state.PendingAchievementObservations.IsDefault || state.PendingAchievementObservations.Any(fact => string.IsNullOrWhiteSpace(fact.EventId.Value) || string.IsNullOrWhiteSpace(fact.ContextId.Value) || fact.NativeKillTotal < 0 || fact.Outcome == BattleOutcome.Active || !Enum.IsDefined(fact.Outcome) || !Enum.IsDefined(fact.RewardPolicy)) || state.PendingAchievementObservations.Select(fact => (fact.ContextId, fact.EventId)).Distinct().Count() != state.PendingAchievementObservations.Length)
         {
             throw new InvalidDataException("Achievement outbox contains invalid or duplicate completed-battle observations.");

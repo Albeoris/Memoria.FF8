@@ -90,7 +90,8 @@ public sealed class TripleTriadRematchInventoryTests
                 slots = [Enumerable.Range(0, 5).OrderByDescending(slot => catalog.TradePriority(selected[slot])).ThenBy(slot => slot).First()];
             }
             int result = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
-            NativeCardInventory expected = TripleTriadTrade.Settle(session.CardInventory!, selected, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, 121, slots).Inventory.CompleteMatch(result, play.RandomState);
+            TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, selected, play.OpponentHand, match.OriginalInstanceFinalOwners, rule, 121, slots);
+            NativeCardInventory expected = settlement.Inventory.CompleteMatch(result, play.RandomState);
             controller.Navigate(UiKey.Confirm);
             if (!controller.AwaitingReplay)
             {
@@ -101,6 +102,10 @@ public sealed class TripleTriadRematchInventoryTests
             controller.Navigate(UiKey.Confirm);
             TripleTriadController replay = world.EnsureTripleTriad()!;
             Assert.NotSame(controller, replay);
+            string achievementContext = "cards/" + play.RequestIdentity + "/" + play.InitialRandomState.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Equal(settlement.LostCardIds.Any(id => id >= NativeCardInventory.CommonCardCount), session.State.PendingOriginalAchievementActions.Any(fact => fact.ContextId.Value.StartsWith(achievementContext + "/actions/", StringComparison.Ordinal) && fact.Kind == OriginalAchievementActionKind.RareCardLost));
+            Assert.DoesNotContain(session.State.PendingOriginalAchievementActions, fact => fact.Kind == OriginalAchievementActionKind.CardsClubMaster);
+            Assert.Contains(session.State.PendingOriginalAchievementActions, fact => fact.Kind == OriginalAchievementActionKind.CardPlayed);
             Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.CardInventory));
             Assert.Equal(round + 1, expected.TripleTriadStatistics!.Wins + expected.TripleTriadStatistics.Losses + expected.TripleTriadStatistics.Draws);
             Assert.Equal(frame, world.Events.Frame);

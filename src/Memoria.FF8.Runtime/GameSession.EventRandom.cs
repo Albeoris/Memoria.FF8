@@ -16,7 +16,7 @@ public sealed partial class GameSession
             throw new InvalidDataException("Native random publication cannot erase executed draw-point bank history.");
         }
         ValidateLiveEventMemoryOwners(State with { EventRandom = random }, State.EventMemory);
-        State = State with { EventRandom = random };
+        State = StageOriginalAchievementNativeMutations(State with { EventRandom = random });
     }
 
     private static void ValidateEventRandomAliases(NativeEventMemory memory)

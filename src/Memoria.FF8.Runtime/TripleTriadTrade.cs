@@ -9,7 +9,10 @@ public enum TripleTriadTradeRule
     All = 4
 }
 
-public sealed record TripleTriadTradeResult(NativeCardInventory Inventory, IReadOnlyList<int> GainedCardIds, IReadOnlyList<int> LostCardIds, IReadOnlyList<int> OverflowCardIds);
+public sealed record TripleTriadTradeResult(NativeCardInventory Inventory, IReadOnlyList<int> GainedCardIds, IReadOnlyList<int> LostCardIds, IReadOnlyList<int> OverflowCardIds)
+{
+    public bool TookOpponentInstance { get; init; }
+}
 
 /// <summary>Atomic equivalent of native deck withdrawal (537380) and final acquisition (535AE0).</summary>
 public static class TripleTriadTrade
@@ -122,7 +125,7 @@ public static class TripleTriadTrade
         int[] keptCards = Enumerable.Range(0, 10).Where(slot => keep[slot]).Select(slot => settlementCards[slot]).ToArray();
         int[] gains = Difference(keptCards, originalPlayerHand);
         int[] losses = Difference(originalPlayerHand, keptCards);
-        return new TripleTriadTradeResult(next, gains, losses, overflow.ToArray());
+        return new TripleTriadTradeResult(next, gains, losses, overflow.ToArray()) { TookOpponentInstance = keep.Skip(5).Any(value => value) };
     }
 
     private static int[] Difference(IEnumerable<int> source, IEnumerable<int> subtract)

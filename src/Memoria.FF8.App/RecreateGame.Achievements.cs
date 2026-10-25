@@ -12,6 +12,8 @@ internal sealed partial class RecreateGame
     private string? achievementFailure;
     private string? achievementBackendStatus;
     private string? isolatedAchievementDirectory;
+    private bool observeOriginalAchievements;
+    private DateTime nextOriginalAchievementObservation;
 
     private void InitializeAchievements()
     {
@@ -28,7 +30,8 @@ internal sealed partial class RecreateGame
         try
         {
             repository = new FileAchievementRepository(Path.Combine(directory, profile + ".json"));
-            AchievementRegistry registry = AchievementRegistry.CreateCombatRegistry(context.ResourceEdition == GameDataEdition.Remastered);
+            observeOriginalAchievements = context.ResourceEdition != GameDataEdition.Remastered;
+            AchievementRegistry registry = observeOriginalAchievements ? OriginalAchievementCatalog.CreateRegistry() : AchievementRegistry.CreateCombatRegistry(remastered: true);
             IAchievementBackend backend = context.CanInitializeExternalBackend && context.Provider == GameDistributionProvider.Steam
                 ? new SteamAchievementBackend(Path.Combine(AppContext.BaseDirectory, "Steam", "steam_api64.dll"), context.ProductId!, "default")
                 : new NoAchievementBackend(context.Diagnostic);
@@ -63,6 +66,11 @@ internal sealed partial class RecreateGame
         try
         {
             achievements.Pump();
+            if (observeOriginalAchievements && (force || DateTime.UtcNow >= nextOriginalAchievementObservation))
+            {
+                session.ObserveOriginalAchievements(nativeLanguage12: false);
+                nextOriginalAchievementObservation = DateTime.UtcNow.AddSeconds(1);
+            }
             string status = $"{achievements.BackendState}: {achievements.Diagnostic}";
             if (achievementBackendStatus != status)
             {
@@ -75,7 +83,9 @@ internal sealed partial class RecreateGame
             }
             EnemyDefeatedEvent[] finalized = session.State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null).ToArray();
             BattleKillTotalObservedEvent[] observations = session.State.PendingAchievementObservations.ToArray();
-            if (finalized.Length == 0 && observations.Length == 0 || !force && DateTime.UtcNow < nextAchievementWrite && !observations.Any(fact => fact.NativeKillTotal >= 100 && !achievements.Get(AchievementRegistry.EnemiesDefeated100).Unlocked))
+            OriginalAchievementObservedEvent[] originalObservations = session.State.PendingOriginalAchievementObservations.ToArray();
+            OriginalAchievementActionEvent[] originalActions = session.State.PendingOriginalAchievementActions.ToArray();
+            if (finalized.Length == 0 && observations.Length == 0 && originalObservations.Length == 0 && originalActions.Length == 0 || !force && DateTime.UtcNow < nextAchievementWrite && !observations.Any(fact => fact.NativeKillTotal >= 100 && !achievements.Get(AchievementRegistry.EnemiesDefeated100).Unlocked))
             {
                 return;
             }
@@ -85,6 +95,12 @@ internal sealed partial class RecreateGame
             EnemyDefeatedEvent[] accepted = finalized.Take(force ? finalized.Length : 256).ToArray();
             achievements.RecordBatch(accepted);
             session.AcknowledgeAchievementFacts(accepted);
+            OriginalAchievementObservedEvent[] acceptedOriginal = originalObservations.Take(force ? originalObservations.Length : 256).ToArray();
+            achievements.RecordBatch(acceptedOriginal);
+            session.AcknowledgeOriginalAchievementObservations(acceptedOriginal);
+            OriginalAchievementActionEvent[] acceptedActions = originalActions.Take(force ? originalActions.Length : 256).ToArray();
+            achievements.RecordBatch(acceptedActions);
+            session.AcknowledgeOriginalAchievementActions(acceptedActions);
             nextAchievementWrite = DateTime.UtcNow.AddSeconds(1);
             achievementFailure = null;
         }
@@ -133,7 +149,7 @@ internal sealed partial class RecreateGame
             return;
         }
         UpdateAchievements(force: true);
-        if (session.State.PendingAchievementObservations.Length != 0 || session.State.PendingAchievementFacts.Any(fact => fact.Facts.AcceptedOutcome is not null))
+        if (session.State.PendingAchievementObservations.Length != 0 || session.State.PendingAchievementFacts.Any(fact => fact.Facts.AcceptedOutcome is not null) || session.State.PendingOriginalAchievementObservations.Length != 0 || session.State.PendingOriginalAchievementActions.Length != 0)
         {
             throw new IOException("Player achievement receipts must be saved before starting an isolated diagnostic session.");
         }

@@ -324,6 +324,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public BattleOriginalStockDrawOperation[]? OriginalStockDrawOperations { get; init; }
     public NativeBattleEscapeState Escape { get; init; } = new();
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleTurnAdvanceRequest? TurnAdvance { get; init; }

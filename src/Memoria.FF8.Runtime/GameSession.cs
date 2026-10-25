@@ -147,15 +147,17 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { PendingAchievementObservations = State.PendingAchievementObservations, PendingAchievementFacts = [.. State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)], NativeFieldDebugRequested = State.NativeFieldDebugRequested, NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), FieldRequestPacket = State.FieldRequestPacket, CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        Change(new GameState { PendingOriginalAchievementObservations = State.PendingOriginalAchievementObservations, PendingOriginalAchievementActions = State.PendingOriginalAchievementActions, PendingAchievementObservations = State.PendingAchievementObservations, PendingAchievementFacts = [.. State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)], NativeFieldDebugRequested = State.NativeFieldDebugRequested, NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), FieldRequestPacket = State.FieldRequestPacket, CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        originalAchievementActionBranch = Guid.NewGuid().ToString("N");
     }
 
     public void Restore(GameState state)
     {
         Dialog = null;
         movieReturnScene = SceneKind.Field;
-        GameState restored = state with { PendingAchievementObservations = [.. state.PendingAchievementObservations.Concat(State.PendingAchievementObservations).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingAchievementFacts = [.. state.PendingAchievementFacts.Concat(State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)).OrderByDescending(fact => fact.Facts.AcceptedOutcome is not null).DistinctBy(fact => (fact.ContextId, fact.EventId))] };
+        GameState restored = state with { PendingOriginalAchievementObservations = [.. state.PendingOriginalAchievementObservations.Concat(State.PendingOriginalAchievementObservations).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingOriginalAchievementActions = [.. state.PendingOriginalAchievementActions.Concat(State.PendingOriginalAchievementActions).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingAchievementObservations = [.. state.PendingAchievementObservations.Concat(State.PendingAchievementObservations).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingAchievementFacts = [.. state.PendingAchievementFacts.Concat(State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)).OrderByDescending(fact => fact.Facts.AcceptedOutcome is not null).DistinctBy(fact => (fact.ContextId, fact.EventId))] };
         Change(NormalizeGuardianForceCompatibilityState(restored), advancePlaytime: false);
+        originalAchievementActionBranch = Guid.NewGuid().ToString("N");
     }
 
     public void RequestMovie(int index)
@@ -165,7 +167,7 @@ public sealed partial class GameSession : IEventServices
             throw new ArgumentOutOfRangeException(nameof(index));
         }
         movieReturnScene = State.Scene == SceneKind.Movie ? movieReturnScene : State.Scene;
-        Change(State with { Scene = SceneKind.Movie, MovieIndex = index, MovieSeconds = 0, MoviePlayback = null });
+        Change(StageOriginalMovieAchievement(State with { Scene = SceneKind.Movie, MovieIndex = index, MovieSeconds = 0, MoviePlayback = null }, index));
     }
 
     public void CompleteMovie()
@@ -292,6 +294,7 @@ public sealed partial class GameSession : IEventServices
         };
         candidate = salary.ApplyTo(candidate, finalWorldState);
         candidate = candidate with { SavedWorld = PrepareOrdinaryWorldFieldEntry(candidate.SavedWorld!) };
+        candidate = StageOriginalAchievementNativeMutations(candidate, salary.Payments > 0);
         candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);
@@ -367,6 +370,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareScriptedWorldSave(departure, state), WorldConfiguration = PrepareScriptedWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state), WorldProcess = PrepareWorldProcess(departure, state) }, state);
+        candidate = StageOriginalAchievementNativeMutations(candidate, salary.Payments > 0);
         candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         State = candidate;
@@ -430,6 +434,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
         }
         GameState candidate = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, SavedBattleFlags = SynchronizeSavedBattleFlags(nextVitals), Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, EventMemory = nextMemory, InputConfiguration = inputConfiguration ?? State.InputConfiguration };
+        candidate = StageOriginalAchievementNativeMutations(candidate);
         candidate = AdvanceNativePlaytime(candidate);
         ValidateLiveEventMemoryOwners(candidate, nextMemory);
         State = candidate;

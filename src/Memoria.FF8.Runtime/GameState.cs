@@ -17,6 +17,15 @@ public sealed record GameState
 {
     public ImmutableArray<EnemyDefeatedEvent> PendingAchievementFacts { get; init; } = [];
     public ImmutableArray<BattleKillTotalObservedEvent> PendingAchievementObservations { get; init; } = [];
+    public ImmutableArray<OriginalAchievementObservedEvent> PendingOriginalAchievementObservations { get; init; } = [];
+    public ImmutableArray<OriginalAchievementActionEvent> PendingOriginalAchievementActions { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OriginalAchievementDrawCursor? OriginalAchievementDrawCursor { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginalAchievementMutationContext { get; init; }
+    public long OriginalAchievementMutationSequence { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OriginalAchievementObservedEvent? LastOriginalAchievementObservation { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleAchievementCursor? AchievementCursor { get; init; }
     /// <summary>Process DWORD1D9CDC0, initially zero and set to1 by the PC DEBUG handler.</summary>
@@ -158,6 +167,9 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    void RecordOriginalSalaryPayment()
+    {
+    }
     bool NativeFieldDebugRequested => false;
     bool CanStoreNativeFieldDebugRequested => false;
     void SetNativeFieldDebugRequested(bool requested) => throw new NotSupportedException("This service cannot retain the native field DEBUG process owner.");

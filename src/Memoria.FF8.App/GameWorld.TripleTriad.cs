@@ -70,6 +70,7 @@ internal sealed partial class GameWorld
         }
         uint seed = cards.TripleTriadRandomState ?? throw new InvalidDataException("CARDGAME has no saved RNG.");
         NativeTripleTriadPlayState? play = session.State.TripleTriadPlay;
+        bool entering = play is null;
         if (play is null)
         {
             play = new NativeTripleTriadPlayState { Version = 1, RequestIdentity = TripleTriadIdentity(request), InitialRandomState = seed, RandomState = seed, DealRandomState = null, OpponentHand = [], SelectedCards = [], RulesAccepted = false, Prompt = TripleTriadPromptState.Create(seed), Match = null };
@@ -112,6 +113,10 @@ internal sealed partial class GameWorld
             controller.RestoreMatch(TripleTriadMatch.Restore(tripleTriadCatalog.Cards, play.Match));
         }
         tripleTriad = controller;
+        if (entering)
+        {
+            session.AcceptOriginalAchievementAction(OriginalAchievementActionKind.CardPlayed, "entry", "cards/" + play.RequestIdentity);
+        }
         controller.Changed += CaptureTripleTriad;
         controller.CompletionRequested += BeginTripleTriadSettlement;
         if (!play.RulesAccepted)
@@ -299,15 +304,17 @@ internal sealed partial class GameWorld
         TripleTriadTradeResult settlement = TripleTriadTrade.Settle(session.CardInventory!, play.SelectedCards, play.OpponentHand, match.OriginalInstanceFinalOwners, (TripleTriadTradeRule)request.TradeRule, request.OpponentOwner, selectedSlots);
         int result = match.Outcome == TripleTriadOutcome.PlayerWin ? 0 : match.Outcome == TripleTriadOutcome.OpponentWin ? 1 : 2;
         NativeCardInventory next = settlement.Inventory.CompleteMatch(result, play.RandomState);
-        tripleTriad.BeginReplayPrompt(() => RestartTripleTriad(next), () =>
+        bool rareCardLost = settlement.LostCardIds.Any(id => id >= NativeCardInventory.CommonCardCount);
+        bool cardsClubMaster = request.OpponentOwner == 0xCA && settlement.TookOpponentInstance;
+        tripleTriad.BeginReplayPrompt(() => RestartTripleTriad(next, rareCardLost, cardsClubMaster), () =>
         {
-            Events.ReturnFromTripleTriad(result, () => session.CompleteTripleTriad(next));
+            Events.ReturnFromTripleTriad(result, () => session.CompleteTripleTriad(next, rareCardLost, cardsClubMaster));
             tripleTriad = null;
             session.SetEventState(Events.Capture());
         }, next.TotalAvailableCount >= 5);
     }
 
-    private void RestartTripleTriad(NativeCardInventory inventory)
+    private void RestartTripleTriad(NativeCardInventory inventory, bool rareCardLost = false, bool cardsClubMaster = false)
     {
         NativeTripleTriadRequest request = Events.PendingTripleTriad!;
         uint seed = inventory.TripleTriadRandomState!.Value;
@@ -326,7 +333,7 @@ internal sealed partial class GameWorld
             Prompt = new TripleTriadPromptState(TripleTriadPromptPhase.Accepted, 0, seed),
             Match = null
         };
-        session.CompleteTripleTriad(inventory);
+        session.CompleteTripleTriad(inventory, rareCardLost, cardsClubMaster);
         session.SetTripleTriadPlay(play);
         tripleTriad = null;
         EnsureTripleTriad();

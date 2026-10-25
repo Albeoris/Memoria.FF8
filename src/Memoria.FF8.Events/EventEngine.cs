@@ -387,6 +387,10 @@ public sealed partial class EventEngine
         }
         if (salaryEffects is not null)
         {
+            if (salarySample?.Payment is not null)
+            {
+                services.RecordOriginalSalaryPayment();
+            }
             PublishSalaryEffects(salaryEffects);
         }
         pendingNativePlayerInput = null;

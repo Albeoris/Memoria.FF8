@@ -1,5 +1,7 @@
 # Achievements
 
+The [original-edition register](original-achievements.md) accounts for all 45 original achievements, including supported conditions and explicit deferred gameplay dependencies. `OriginalAchievementCatalog.CreateRegistry()` composes the original player catalogue; `CreateCombatRegistry` retains the independently verified Remastered combat rule and the small extension example below.
+
 Gameplay publishes immutable facts through `IAchievementService.Record<TEvent>` or `RecordBatch<TEvent>`. A successful return means the local profile durably contains the event receipts, progress, unlocks and account contributions. It does not mean the platform accepted or synchronized anything. The gameplay owner must retain its saved pending facts until that return, then acknowledge them. Replaying pending facts after interruption is safe. Tools and tests use separate profiles and the no-external backend by default.
 
 `AchievementService` belongs to the application lifetime. Pump it on the application thread before pause or scene-transition returns. Loading a save does not recreate it. `Flush` makes one bounded attempt; `Dispose` makes one final bounded attempt before releasing the backend and repository. Native adapters must keep every call nonblocking and pump native callbacks on that same thread.

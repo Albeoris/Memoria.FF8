@@ -31,7 +31,11 @@ public readonly record struct EnemyDefeatedEvent(AchievementEventId EventId, Ach
 }
 
 /// <summary>Accepted completion-boundary observation, including battles without a new qualifying defeat.</summary>
-public readonly record struct BattleKillTotalObservedEvent(AchievementEventId EventId, AchievementContextId ContextId, long? NativeKillTotal, BattleOutcome Outcome, BattleRewardPolicy RewardPolicy, byte FormationFlags, AchievementOwner? Owner = null) : IAchievementEvent;
+public readonly record struct BattleKillTotalObservedEvent(AchievementEventId EventId, AchievementContextId ContextId, long? NativeKillTotal, BattleOutcome Outcome, BattleRewardPolicy RewardPolicy, byte FormationFlags, AchievementOwner? Owner = null) : IAchievementEvent
+{
+    public bool? DiablosAcquired { get; init; }
+    public bool? UfoCompleted { get; init; }
+}
 
 public enum AchievementScope
 {

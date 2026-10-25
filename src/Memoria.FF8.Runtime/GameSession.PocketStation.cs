@@ -2,6 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    // TODO(TD-018): When Chocobo World import is implemented, publish its item-group and decoded level facts in the accepted import transaction.
     public void InitializeNewGamePocketStation(NativePocketStationState pocketStation)
     {
         if (State.PocketStation is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)

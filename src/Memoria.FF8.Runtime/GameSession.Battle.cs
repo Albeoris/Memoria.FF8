@@ -83,7 +83,7 @@ public sealed partial class GameSession
             throw new InvalidOperationException("A completed encounter occurrence cannot become pending again.");
         }
         BattleAchievementCursor? cursor = encounter is null ? null : State.PendingBattleEncounter?.OccurrenceId == encounter.OccurrenceId ? State.AchievementCursor : new(encounter.OccurrenceId, []);
-        State = State with { PendingBattleEncounter = encounter, AchievementCursor = cursor };
+        State = State with { PendingBattleEncounter = encounter, AchievementCursor = cursor, OriginalAchievementDrawCursor = encounter?.OccurrenceId == State.OriginalAchievementDrawCursor?.OccurrenceId ? State.OriginalAchievementDrawCursor : null };
     }
 
     public void AdvanceNativeBattleEntryRandom(NativeCrtRandomState before, int draws)
@@ -140,12 +140,13 @@ public sealed partial class GameSession
             throw new InvalidOperationException("Battle result requires its unapplied current encounter occurrence.");
         }
         NativeGlobalRandomState? globalRandom = ProjectNativeGlobalRandom(globalRandomChange);
-        GameState staged = achievementDefeats is null ? State : StageBattleAchievementFacts(State, achievementDefeats);
+        GameState draws = StageOriginalAchievementDraws(State, State.Battle);
+        GameState staged = achievementDefeats is null ? draws : StageBattleAchievementFacts(draws, achievementDefeats);
         GameState accepted = FinalizeBattleAchievementFacts(staged, encounter.OccurrenceId, achievementDefeats ?? [], achievementOutcome, achievementOutcome == BattleOutcome.Escaped || achievementOutcome == BattleOutcome.Victory && (achievementFormationFlags & 0x10) == 0);
         GameState candidate = accepted with { KnownMagic = knownMagicAfter ?? State.KnownMagic, GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
         ValidateNativeSavedBattleFlagsCheckpoint(candidate);
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
-        State = StageBattleAchievementObservation(candidate with { AchievementCursor = null }, encounter.OccurrenceId, achievementOutcome, achievementFormationFlags, achievementRewardPolicy);
+        State = StageBattleAchievementObservation(candidate with { AchievementCursor = null, OriginalAchievementDrawCursor = null }, encounter.OccurrenceId, achievementOutcome, achievementFormationFlags, achievementRewardPolicy);
     }
 
     public void SetRandomEncounters(RandomEncounterSessionState state)
@@ -178,6 +179,7 @@ public sealed partial class GameSession
         {
             candidate = candidate with { AchievementCursor = LegacyAchievementCursor(State) };
         }
+        candidate = StageOriginalAchievementDraws(candidate, owned);
         State = owned is null ? candidate : StageBattleAchievementFacts(candidate, owned.EnemyDefeats);
         if (owned is null && State.PendingBattleEncounter is null)
         {

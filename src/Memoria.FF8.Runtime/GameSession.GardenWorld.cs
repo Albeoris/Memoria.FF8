@@ -59,6 +59,7 @@ public sealed partial class GameSession
             WorldProcess = PrepareWorldProcess(departure, finalWorld)
         }, finalWorld);
         candidate = candidate with { SavedWorld = PrepareOrdinaryWorldFieldEntry(candidate.SavedWorld!) };
+        candidate = StageOriginalAchievementNativeMutations(candidate, salary.Payments > 0);
         candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);

@@ -254,7 +254,7 @@ public sealed class SteamAchievementBackendTests
         }
     }
 
-    private static AchievementBinding Binding(string product) => Assert.Single(SteamAchievementMappings.ForProduct(product));
+    private static AchievementBinding Binding(string product) => Assert.Single(SteamAchievementMappings.ForProduct(product), binding => binding.Id == AchievementRegistry.EnemiesDefeated100);
     private static AchievementDeliveryBatch Batch(SteamAchievementBackend backend, long revision) => new(revision, backend.Identity!, new() { [AchievementRegistry.EnemiesDefeated100.Value] = 100 }, new() { [AchievementRegistry.EnemiesDefeated100.Value] = 100 }, [AchievementRegistry.EnemiesDefeated100.Value]);
 
     private sealed class FakeApi(uint product) : ISteamAchievementApi

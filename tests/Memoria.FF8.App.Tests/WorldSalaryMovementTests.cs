@@ -142,7 +142,9 @@ public sealed class WorldSalaryMovementTests
         WorldState final = before.World! with { Frame = 6 };
         Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(final, NativeWorldSalaryState.Begin(before)));
         Assert.Same(before, session.State);
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
         session.CommitWorldAction(final, salary);
+        Assert.Equal(OriginalAchievementActionKind.FirstSalary, Assert.Single(session.State.PendingOriginalAchievementActions).Kind);
         Assert.Equal(2, payments);
         Assert.Equal((ushort)630, session.SeeD!.RankPoints);
         Assert.Equal((ushort)640, session.SeeD.PreviousRank186);

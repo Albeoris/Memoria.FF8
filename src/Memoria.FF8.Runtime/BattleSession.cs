@@ -329,6 +329,7 @@ public sealed partial class BattleSession
     {
         return new BattleSnapshot
         {
+            OriginalStockDrawOperations = originalStockDrawOperations.ToArray(),
             TurnAdvance = turnAdvance,
             Escape = nativeEscape,
             Definition = CloneDefinition(definition),
@@ -1316,6 +1317,7 @@ public sealed partial class BattleSession
         SetGunbladeMode(snapshot.GunbladeMode);
         Outcome = snapshot.Outcome;
         events.AddRange(snapshot.Events);
+        RestoreOriginalStockDrawOperations(snapshot.OriginalStockDrawOperations);
         ValidateStocks(snapshot.Items, 198);
         RestoreNativeItems(snapshot.NativeItemInventory ?? throw new InvalidDataException("Battle snapshot requires its explicitly migrated198-slot native item inventory."));
         if (snapshot.EnemyDefeats is null || snapshot.EnemyDefeats.Select(defeat => defeat.AllocationKey).Distinct(StringComparer.Ordinal).Count() != snapshot.EnemyDefeats.Length)
@@ -1370,6 +1372,7 @@ public sealed partial class BattleSession
         RestoreNativeGlobalRandom(snapshot);
         RestoreNativeSlotsDeal(snapshot.PendingSlotsDeal);
         RestoreTurnAdvance(snapshot.TurnAdvance);
+        ValidateOriginalMaximumHitPoints(snapshot);
     }
 
     private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null, int? nativeHeaderIndex = null, bool allowNativeQueuedState = false, BattleNativeDuelInvocation? duel = null, BattleNativeSlotsRoll? slots = null)
@@ -1514,5 +1517,6 @@ public sealed partial class BattleSession
         RestoreNativeSupport(candidate.nativeSupport);
         RestoreNativeBattleClock(candidate.nativeBattleClock);
         turnAdvance = candidate.turnAdvance;
+        RestoreOriginalStockDrawOperations(candidate.originalStockDrawOperations.ToArray());
     }
 }

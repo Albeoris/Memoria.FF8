@@ -100,6 +100,7 @@ public sealed partial class BattleSession
             }
         }
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
+        RecordOriginalStockDraw(actor, command, result);
         return command with { NativeDraw = result, NativeAction = native, NativeTargetMask = mask };
     }
 
