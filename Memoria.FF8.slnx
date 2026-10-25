@@ -14,6 +14,7 @@
     <Project Path="src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <Project Path="tools/Memoria.FF8.TitleScene.Preview/Memoria.FF8.TitleScene.Preview.csproj" />
     <Project Path="tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
+    <Project Path="tools/Memoria.FF8.Localization/Memoria.FF8.Localization.csproj" />
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">

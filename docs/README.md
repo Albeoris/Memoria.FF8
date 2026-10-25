@@ -42,6 +42,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [UI framework](developers/ui-framework.md) | Retained views, layout, input, canvas adapters and previews. |
 | [Rendering](developers/rendering.md) | Rendering layers, shaders, presentation and component documentation. |
 | [Remastered resource providers](developers/remastered-resources.md) | Experimental resource APIs and their compatibility limits. |
+| [Localization audit](developers/localization-audit.md) | Private multilingual field comparison and cached location-name graphs; current limitations. |
 
 ## Reference
 

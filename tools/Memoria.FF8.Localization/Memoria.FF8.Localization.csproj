@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.NamedicBin/Albeoris.Games.FF8.NamedicBin.csproj" />
+  </ItemGroup>
+</Project>
