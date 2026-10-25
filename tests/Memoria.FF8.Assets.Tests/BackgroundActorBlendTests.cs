@@ -17,10 +17,13 @@ public sealed class BackgroundActorBlendTests
     public void NearStpTexelsBlendOverActorsWhileOpaqueAndTransparentTexelsKeepTheirNativeMeaning(MapBlendMode mode, byte red, byte green, byte blue)
     {
         PixelImage texture = Solid(new Rgba32(0, 0, 200));
-        FieldModel model = new("triangle", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        FieldModel model = new("triangle", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 2, 1], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         PixelImage fog = Solid(new Rgba32(70, 10, 20, 128));
         FieldAssets field = new(0, "mixed-STP", [], [], [new(0, 0, 40, 255, 0, 0, MapBlendMode.None, false, true, Solid(new Rgba32(20, 40, 60))), new(0, 0, 10, 255, 0, 0, mode, true, true, fog)], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
         ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))];
+        FieldAssets withoutFog = field with { Background = [field.Background[0]] };
+        Assert.Equal(new byte[] { 0, 0, 200, 255 }, Sample(new FieldRenderer(withoutFog).Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
+        Assert.Equal(new byte[] { 20, 40, 60, 255 }, Sample(new FieldRenderer(withoutFog).Render(new Dictionary<int, int>(), [], TimeSpan.Zero)));
         FieldRenderer renderer = new(field);
         Assert.Equal(new byte[] { red, green, blue, 255 }, Sample(renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
         fog[1, 1] = new Rgba32(70, 10, 20);

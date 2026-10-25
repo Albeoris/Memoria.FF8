@@ -9,17 +9,18 @@ public sealed class GameAssetsResourceSourceTests
     [Fact]
     public void FieldCatalogUsesSuppliedArchiveAndLogicalResourcesWithoutClassicFiles()
     {
-        using CatalogSource source = new();
+        using CatalogSource source = new() { ExecutableBytes = [1, 2, 3] };
         ResourceService resources = new(source);
         using (GameAssets assets = new(Path.Combine(Path.GetTempPath(), "ff8-memory-source-" + Guid.NewGuid().ToString("N")), resources: resources))
         {
             Assert.Equal(new[] { "field" }, source.OpenedFamilies);
             Assert.Equal(new[] { "field/mapdata.fl", "field/mapdata.fi", "field/mapdata.fs", "field/mapdata/maplist" }, source.ReadKeys);
             Assert.Null(assets.NativeRuntimeProfile);
-            Assert.Throws<FileNotFoundException>(() => assets.ReadNativeEncounterTables());
+            Assert.Throws<NotSupportedException>(() => assets.ReadNativeEncounterTables());
+            Assert.Equal(new[] { "field/mapdata.fl", "field/mapdata.fi", "field/mapdata.fs", "field/mapdata/maplist" }, source.ReadKeys);
             Assert.Throws<FileNotFoundException>(() => assets.ReadNativeVibrationBank());
-            Assert.Contains("runtime/native-executable", source.ReadKeys);
-            Assert.Contains("tables/vibration", source.ReadKeys);
+            Assert.Equal(new[] { "field/mapdata.fl", "field/mapdata.fi", "field/mapdata.fs", "field/mapdata/maplist", "tables/vibration" }, source.ReadKeys);
+            Assert.Empty(source.ResolvedFiles);
         }
         Assert.True(source.RootDisposed);
         Assert.False(source.Disposed);
