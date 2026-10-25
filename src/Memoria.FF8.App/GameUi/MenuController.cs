@@ -330,7 +330,11 @@ public sealed partial class MenuController
                 ChangePageSubject(1);
                 break;
             case MenuInput.Alternate:
-                if (IsControlsBindingList && SelectedEntry?.Action is { Kind: "controls-select" } controlsAction)
+                if (ScreenId is "gf-learn" or "gf-abilities" && SelectedEntry?.Action?.Kind == "gf-passive-toggle")
+                {
+                    Activate(SelectedIndex);
+                }
+                else if (IsControlsBindingList && SelectedEntry?.Action is { Kind: "controls-select" } controlsAction)
                 {
                     Execute(controlsAction);
                     Push(ControlsChoiceScreen);
@@ -869,7 +873,7 @@ public sealed partial class MenuController
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-magic-reassign" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
                 "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
-                "gf-learn" => action with { TargetId = GuardianForce?.Id ?? "" },
+                "gf-learn" or "gf-passive-toggle" => action with { TargetId = GuardianForce?.Id ?? "" },
                 _ => action
             };
             _liveAction(action);

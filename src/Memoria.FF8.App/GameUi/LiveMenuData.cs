@@ -123,7 +123,7 @@ public static class LiveMenuData
                     {
                         character.AvailableCommands.Add(choice);
                     }
-                    if (ability is >= 39 and < 83)
+                    if (ability is >= 39 and < 83 && !NativeCharacterVitals.IsGuardianForcePassiveAbility(ability))
                     {
                         character.AvailableAbilities.Add(choice);
                     }
@@ -234,7 +234,7 @@ public static class LiveMenuData
                     {
                         guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? $"Learned ability {entry.Ability}");
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? "Ability description unavailable." });
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? "Ability description unavailable.", IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;
@@ -244,7 +244,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-gf-reassign", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn"]);
+                result.SupportedActions.UnionWith(["attack-mode", "junction-gf", "junction-gf-reassign", "junction-command", "junction-ability", "junction-magic", "junction-magic-reassign", "junction-off", "junction-auto", "junction-magic-off-all", "gf-learn", "gf-passive-toggle"]);
                 if (!vitals.MagicSystem.SharedMagicStock)
                 {
                     result.SupportedActions.Add("magic-transfer");

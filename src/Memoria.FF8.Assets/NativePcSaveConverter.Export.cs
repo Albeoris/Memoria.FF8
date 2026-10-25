@@ -34,6 +34,10 @@ public static partial class NativePcSaveConverter
     private static byte[] ExportCore(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.CharacterVitals?.GuardianForces.Any(gf => gf.MoveFindDisabled) == true)
+        {
+            throw new NotSupportedException("Original FF8 export requires a reviewed GF conversion to discard disabled passive ability preferences.");
+        }
         if (state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState)
         {
             throw new NotSupportedException("Chocobo World provider choices and acquisition history require a Memoria save; native FFVIII exports cannot retain them.");

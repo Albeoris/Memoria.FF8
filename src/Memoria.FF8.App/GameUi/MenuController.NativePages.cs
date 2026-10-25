@@ -45,9 +45,13 @@ public sealed partial class MenuController
         abilities.PageSize = 10;
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;
-        abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
+        abilities.SecondaryItems = choices.Select(choice => choice.IsPassive && choice.Learned ? $"{(choice.PassiveEnabled ? "On" : "Off")} / {(choice.PassiveAvailable ? "Available" : "GF KO")}" : choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         string guardianForceId = GuardianForce?.Id ?? "";
-        abilities.ItemTextColor = index => index < choices.Length ? BattleLearnedAbilityColor(guardianForceId, choices[index].Id) : null;
+        abilities.ItemTextColor = index => index < choices.Length
+            ? choices[index] is { IsPassive: true, Learned: true } passive
+                ? passive.PassiveEnabled ? new UiColor(112, 232, 144) : new UiColor(232, 184, 96)
+                : BattleLearnedAbilityColor(guardianForceId, choices[index].Id)
+            : null;
         abilities.Images = choices.Select(choice => choice.Icon).ToList();
         abilities.LeadingImages = choices.Select(choice => choice == learning && !choice.Learned ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
         var abilityPanel = Panel("ABILITY", abilities);
@@ -144,7 +148,12 @@ public sealed partial class MenuController
         Place(header, Panel(null, commands ?? Label("", 24)), 0);
         Place(header, Panel(null, Label(title, 29)), 0, 1);
         Place(page, header, 0);
-        Place(page, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23, UiTextFlow.Wrap)), 1);
+        string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
+        if (ScreenId is "gf-learn" or "gf-abilities" && SelectedEntry?.Action?.Kind == "gf-passive-toggle" && SelectedEntry.Enabled)
+        {
+            help += $" {CurrentBindingText(ControlAction.Card)} (Card): Toggle passive On/Off.";
+        }
+        Place(page, Panel("HELP", Label(help, 23, UiTextFlow.Wrap)), 1);
         return page;
     }
 

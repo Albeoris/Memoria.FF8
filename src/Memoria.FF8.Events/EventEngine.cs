@@ -348,6 +348,7 @@ public sealed partial class EventEngine
             StepPartyMenu();
             return;
         }
+        RefreshPassivePointReveal();
         ValidateNativeDrawPointCallback();
         if (!defaultsStarted)
         {

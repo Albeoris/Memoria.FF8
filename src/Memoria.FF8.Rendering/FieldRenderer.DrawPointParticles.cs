@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
-    private void PrepareDrawPointParticles(NativeDrawPointParticles? particles, NativeDrawPointParticleTables? tables, ushort? displayMask, List<(float Depth, Action Draw)> translucent)
+    private void PrepareDrawPointParticles(NativeDrawPointParticles? particles, NativeDrawPointParticleTables? tables, ushort? displayMask, List<(float Depth, Action Draw)> translucent, List<Action> revealedPoints, bool revealHiddenPoint)
     {
         if (particles is null)
         {
@@ -44,17 +44,26 @@ public sealed partial class FieldRenderer
                 }
                 Vector3 head = age == 0 ? new Vector3(128) : tables.Color(particles.Palette, age);
                 Vector3 tail = tables.Color(particles.Palette, age + 1);
-                translucent.Add((orderingDepth, () =>
+                bool revealed = revealHiddenPoint && spark.RenderStatus == 1;
+                Action draw = () =>
                 {
                     //474D90 emits five untextured Gouraud quads, draw mode1.
-                    DrawSparkTriangle(a, b, c, head, head, tail, orderingDepth);
-                    DrawSparkTriangle(b, d, c, head, tail, tail, orderingDepth);
-                }));
+                    DrawSparkTriangle(a, b, c, head, head, tail, orderingDepth, revealed);
+                    DrawSparkTriangle(b, d, c, head, tail, tail, orderingDepth, revealed);
+                };
+                if (revealed)
+                {
+                    revealedPoints.Add(draw);
+                }
+                else
+                {
+                    translucent.Add((orderingDepth, draw));
+                }
             }
         }
     }
 
-    private void DrawSparkTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector3 colorA, Vector3 colorB, Vector3 colorC, float orderingDepth)
+    private void DrawSparkTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector3 colorA, Vector3 colorB, Vector3 colorC, float orderingDepth, bool revealed)
     {
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
@@ -63,7 +72,7 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Add, false) with { DepthComparison = TriangleDepthComparison.Less };
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Add, false) with { DepthComparison = revealed ? TriangleDepthComparison.Always : TriangleDepthComparison.Less };
             TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(colorA / 255, 1), orderingDepth, false), GpuVertex(b, Vector2.Zero, new Vector4(colorB / 255, 1), orderingDepth, false), GpuVertex(c, Vector2.Zero, new Vector4(colorC / 255, 1), orderingDepth, false), material);
             return;
         }
@@ -87,7 +96,7 @@ public sealed partial class FieldRenderer
                     continue;
                 }
                 int index = y * OutputWidth + x;
-                if (orderingDepth >= depth[index])
+                if (!revealed && orderingDepth >= depth[index])
                 {
                     continue;
                 }

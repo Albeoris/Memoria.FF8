@@ -5,7 +5,7 @@ namespace Memoria.FF8.GameUi;
 
 public static class NativeJunctionMenuProjection
 {
-    public static bool IsAction(MenuAction action) => action.Kind is "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
+    public static bool IsAction(MenuAction action) => action.Kind is "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "gf-learn" or "gf-passive-toggle" or "junction-off" or "junction-auto" or "junction-magic-off-all" or "junction-magic-reassign";
 
     public static PlayerAction PlayerAction(MenuAction action)
     {
@@ -27,6 +27,7 @@ public static class NativeJunctionMenuProjection
             "junction-magic-reassign" => new PlayerAction(PlayerActionKind.ReassignJunctionMagic, Id(action.TargetId, "character-"), MagicSpell(action), Quantity: Enumerable.Range(0, 19).Single(slot => LiveMenuData.JunctionSlotName(slot) == action.Value)),
             "junction-command" => new PlayerAction(PlayerActionKind.SetJunctionCommand, Id(action.TargetId, "character-"), action.SubjectId, Quantity: int.Parse(action.Value, CultureInfo.InvariantCulture)),
             "junction-ability" => new PlayerAction(PlayerActionKind.SetJunctionAbility, Id(action.TargetId, "character-"), action.SubjectId, Quantity: int.Parse(action.Value, CultureInfo.InvariantCulture)),
+            "gf-passive-toggle" => new PlayerAction(PlayerActionKind.ToggleGuardianForcePassiveAbility, Id(action.TargetId, "gf-"), action.SubjectId),
             "gf-learn" => new PlayerAction(PlayerActionKind.SelectGuardianForceLearning, Id(action.TargetId, "gf-"), action.SubjectId),
             "junction-magic" => new PlayerAction(PlayerActionKind.SetJunctionMagic, Id(action.TargetId, "character-"), MagicSpell(action), Quantity: Enumerable.Range(0, 19).Single(slot => LiveMenuData.JunctionSlotName(slot) == action.Value)),
             _ => throw new ArgumentException("Unsupported junction menu input.", nameof(action))

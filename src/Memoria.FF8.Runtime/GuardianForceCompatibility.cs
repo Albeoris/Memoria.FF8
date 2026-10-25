@@ -84,6 +84,7 @@ public sealed partial record NativeCharacterVitals
                 }
                 result.GuardianForces[id] = gf with
                 {
+                    MoveFindDisabled = gf.MoveFindDisabled && (projection!.LearnedBank.Has(79) || !gf.LearnedBank.Has(79)),
                     Progression = new(true, ledger.Values.OrderBy(entry => entry.Ability).ToImmutableArray())
                 };
                 diagnostics.Add($"GF {id}: adopted external learned/AP/forgetting/learning changes by saved ability identity.");

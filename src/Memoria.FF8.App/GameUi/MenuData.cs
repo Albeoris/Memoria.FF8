@@ -117,6 +117,9 @@ public sealed class MenuGuardianForce
 
 public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = false, int Progress = 0, int RequiredPoints = 0)
 {
+    public bool IsPassive { get; init; }
+    public bool PassiveEnabled { get; init; }
+    public bool PassiveAvailable { get; init; }
     public UiImageSource? Icon { get; init; }
     public string Description { get; init; } = "";
 }

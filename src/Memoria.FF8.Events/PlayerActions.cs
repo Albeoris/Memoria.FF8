@@ -41,7 +41,8 @@ public enum PlayerActionKind
     ReassignJunctionMagic = 34,
     SwitchPartyMembers,
     RemoveAllMagicJunctions,
-    ReassignGuardianForce
+    ReassignGuardianForce,
+    ToggleGuardianForcePassiveAbility
 }
 
 public enum PlayerTriggerKind

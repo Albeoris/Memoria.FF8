@@ -66,6 +66,10 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 
 Quick saves use `%LOCALAPPDATA%/Memoria.FF8/player-saves/`. In the Save or Load menu, Card / detail starts a transfer of the selected save between Memoria and either original-game bank. See [saves](saves.md) for bank capacities, destination selection and original save-folder discovery, and [debug room](debug-room.md) for diagnostic features.
 
+On a GF's ability screen, select learned **Move-Find** and press **Card / detail** to toggle it. Move-Find is a party passive: learning it enables it automatically, and it works whenever an acquired GF that knows it is alive. It does not require a junction or an equipped character ability slot. The row shows **On** in green or **Off** in amber; a KO GF retains its preference but cannot supply the effect. Another living GF with the passive enabled can still supply it.
+
+Active Move-Find reveals hidden field draw points and save points and permits using them. Revealed hidden draw-point glows appear over foreground scenery so furniture cannot conceal them. Hidden field points cannot be used while the passive is inactive. Ordinary visible draw points remain available. World-map draw points retain their usual invisible presentation.
+
 ## Display settings
 
 Open **Config → Graphics → Frame rate limits** to choose **Field and movies: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.

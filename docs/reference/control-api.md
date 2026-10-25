@@ -98,6 +98,7 @@ Choose identities from the active dialogue/menu/battle owner and current resourc
 | `SetJunctionCommand` | `Value`: character row; `Text`: decimal command ability ID 0..127; `Quantity`: slot 0..2. |
 | `SetJunctionAbility` | `Value`: character row; `Text`: decimal ability ID 0..127; `Quantity`: slot 0..3. |
 | `SelectGuardianForceLearning` | `Value`: GF 0..15; `Text`: decimal learning ability ID 0..127. |
+| `ToggleGuardianForcePassiveAbility` | `Value`: acquired GF 0..15; `Text`: learned passive ability ID (`"79"` for Move-Find). Toggles its saved enabled preference. |
 | `SetJunctionMagic` | `Value`: character row; `Text`: decimal spell ID 0..56; `Quantity`: junction slot 0..18. |
 | `RemoveJunctions` | `Value`: character row; `Text`: `"0"` for Magic or `"1"` for All. |
 | `RefineItems` | `Value`: learned ability 97..115; `Text`: `recipe:row`; `Quantity`: batch count 1..100. Recipe is absolute index 0..142. Recipient row is physical character 0..7 where applicable. |

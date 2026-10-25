@@ -10,6 +10,24 @@ public sealed record NativeDrawPointReset(int Version, int FieldId, int ObjectId
 
 public sealed partial class EventEngine
 {
+    private void RefreshPassivePointReveal()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true } || services.CharacterVitals is not NativeCharacterVitals vitals || ReadDrawPointSourceByte() is not byte previous)
+        {
+            return;
+        }
+        byte source = (byte)(vitals.HasActivePassiveAbility(79) ? 1 : 0);
+        if (source == previous)
+        {
+            return;
+        }
+        ushort? mask = PrepareMenuDrawPointDisplayMask(source);
+        SetEventMemory(EventMemory.Write(88, 1, NativeScalarValue.Exact(source)));
+        Scene.NativeDrawPointDisplayMask = mask;
+    }
+
+    private bool HiddenDrawPointUnavailable => Scene.DrawPointEnabled != 0 && (Scene.DrawPointDisplayParameter & 1) == 0 && services.CharacterVitals?.HasActivePassiveAbility(79) != true;
+
     private string? UnsupportedDrawPointSetup(Fiber fiber, JsmOperation operation)
     {
         bool display = operation.Opcode == Jsm.Opcode.SETDRAWPOINT;

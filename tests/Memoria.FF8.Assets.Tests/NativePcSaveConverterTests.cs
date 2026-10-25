@@ -307,6 +307,23 @@ public sealed class NativePcSaveConverterTests
     }
 
     [Fact]
+    public void DisabledMoveFindRequiresReviewedExportAndPreservesTheLivePreference()
+    {
+        GameState state = Defaults();
+        NativeCharacterVitals vitals = state.CharacterVitals!.DeepCopy();
+        vitals.GuardianForces[3] = vitals.GuardianForces[3] with { MoveFindDisabled = true };
+        GameState active = state with { CharacterVitals = vitals };
+        NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(active, state.CharacterVitals);
+        Assert.Contains(plan.Losses, loss => loss.GuardianForce == 3 && loss.Ability == 79 && loss.Kind == "Passive");
+        Assert.False(plan.ProjectedState.CharacterVitals!.GuardianForces[3].MoveFindDisabled);
+        Assert.True(active.CharacterVitals!.GuardianForceRequiresMemoriaFormat);
+        Assert.True(active.CharacterVitals.GuardianForces[3].MoveFindDisabled);
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active));
+        Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(active, state.CharacterVitals));
+        Assert.NotEmpty(NativePcSaveConverter.Export(active, state.CharacterVitals, allowGuardianForceLoss: true));
+    }
+
+    [Fact]
     public void LegacyGuardianForceProjectionReviewsExpandedDefaultsAndDropsOnlyUnrepresentableState()
     {
         GameState state = Defaults();

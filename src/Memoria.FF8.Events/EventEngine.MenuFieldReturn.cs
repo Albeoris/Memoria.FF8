@@ -17,7 +17,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Menu52B4F0(2) requires owned music and unaliased entry/source BYTEs.");
         }
-        byte drawPointSource = (byte)((vitals.GetEncounterAbilityFlags() & 0x10) != 0 ? 1 : 0);
+        byte drawPointSource = (byte)(vitals.HasActivePassiveAbility(79) ? 1 : 0);
         ushort? drawPointMask = PrepareMenuDrawPointDisplayMask(drawPointSource);
         NativeEventMemory memory = EventMemory.Write(88, 1, NativeScalarValue.Exact(drawPointSource));
         if ((controls.EventFlags104 & 0x40) != 0)

@@ -50,6 +50,10 @@ public static class NativeGuardianForceLegacyCompatibility
             ImmutableArray<NativeGuardianForceLearningRule> targetRules = targetSource.MenuDefinitions.Learning[id];
             NativeGuardianForceVital gf = current.GuardianForces[id];
             void Loss(int? ability, string kind, string detail) => losses.Add(new(id, ability, kind, $"GF {id}: {detail}"));
+            if (gf.MoveFindDisabled)
+            {
+                Loss(79, "Passive", "the disabled Move-Find preference cannot be retained in an original FFVIII save.");
+            }
             if (!sourceRules.SequenceEqual(targetRules) || !current.MenuDefinitions.Templates.IsDefault && !current.ResolveGuardianForceTemplates()[id].SequenceEqual(targetSource.ResolveGuardianForceTemplates()[id]))
             {
                 Loss(null, "Configuration", "authored learning order, entries or conditions revert to the target game's definitions.");
@@ -66,7 +70,8 @@ public static class NativeGuardianForceLegacyCompatibility
                     Learning = initial.Learning,
                     ForgottenAbilities = initial.ForgottenAbilities,
                     Progression = null,
-                    LastProjection = null
+                    LastProjection = null,
+                    MoveFindDisabled = false
                 };
                 continue;
             }
@@ -157,7 +162,8 @@ public static class NativeGuardianForceLegacyCompatibility
                 ForgottenAbilities = forgotten,
                 LearnedBank = new(low, high),
                 Progression = null,
-                LastProjection = null
+                LastProjection = null,
+                MoveFindDisabled = false
             };
             projected.GuardianForces[id] = next;
             Dictionary<int, bool> available = learned.Take(22).ToDictionary(ability => ability, _ => true);

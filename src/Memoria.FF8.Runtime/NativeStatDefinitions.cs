@@ -17,6 +17,8 @@ public sealed record NativeGuardianForceLearnedBank([property: JsonRequired] ulo
 }
 public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MoveFindDisabled { get; init; }
     public GuardianForceProgression? Progression { get; init; }
     public GuardianForceCompatibilityProjection? LastProjection { get; init; }
     public bool HasLearnedAbility(int ability)

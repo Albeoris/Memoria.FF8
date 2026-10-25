@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeCharacterVitals
 {
-    /// <summary>495EF0/495530 OR all three combat members' equipped party-ability kernel flags, including KO members.</summary>
+    /// <summary>Combines equipped party abilities with the party-wide GF passive abilities.</summary>
     public byte GetEncounterAbilityFlags()
     {
         Validate();
@@ -14,11 +14,15 @@ public sealed partial record NativeCharacterVitals
             for (int slot = 0; slot < 4; slot++)
             {
                 byte ability = (byte)(Records[row].Junction.Abilities >> (8 * slot));
-                if (ability is >= 78 and < 83)
+                if (ability is >= 78 and < 83 && !IsGuardianForcePassiveAbility(ability))
                 {
                     flags |= MenuDefinitions.PartyAbilityFlags[ability - 78];
                 }
             }
+        }
+        if (HasActivePassiveAbility(79))
+        {
+            flags |= MenuDefinitions.PartyAbilityFlags[1];
         }
         return flags;
     }
@@ -98,7 +102,11 @@ public sealed partial record NativeCharacterVitals
         GuardianForceAbilityProgress[] ledger = gf.Progression!.Abilities.ToArray();
         int index = Array.FindIndex(ledger, entry => entry.Ability == target.Ability);
         ledger[index] = ledger[index] with { EarnedPoints = earned, Learned = earned >= target.RequiredPoints };
-        result.GuardianForces[id] = gf with { Progression = gf.Progression with { Abilities = ledger.ToImmutableArray() } };
+        result.GuardianForces[id] = gf with
+        {
+            MoveFindDisabled = gf.MoveFindDisabled && (target.Ability != 79 || !ledger[index].Learned),
+            Progression = gf.Progression with { Abilities = ledger.ToImmutableArray() }
+        };
         result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
         return result.RebuildParty();
     }
@@ -134,7 +142,7 @@ public sealed partial record NativeCharacterVitals
     {
         IReadOnlySet<int> learned = JunctionLearnedAbilities(row);
         int count = command ? 3 : JunctionAbilitySlots(row);
-        if ((uint)slot >= count || ability != 0 && (!learned.Contains(ability) || (command ? ability is < 20 or >= 39 : ability is < 39 or >= 83)))
+        if ((uint)slot >= count || ability != 0 && (!learned.Contains(ability) || IsGuardianForcePassiveAbility(ability) || (command ? ability is < 20 or >= 39 : ability is < 39 or >= 83)))
         {
             throw new InvalidOperationException("Junction choice requires an unlocked slot and a learned ability from an assigned GF.");
         }

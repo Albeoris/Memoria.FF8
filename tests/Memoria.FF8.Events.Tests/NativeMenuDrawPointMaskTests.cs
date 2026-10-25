@@ -17,7 +17,7 @@ internal static partial class Program
         {
             foreach (int mask in new[] { 0, 1, 255 })
             {
-                int expectedSource = ability == 79 ? 1 : 0;
+                int expectedSource = 0;
                 int expectedMask = expectedSource | mask;
                 byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 116), (Jsm.Opcode.PSHN_L, 249), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 19), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, 13), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
                 (GameSession Session, EventEngine Engine) Create()
@@ -56,7 +56,7 @@ internal static partial class Program
 
                 (GameSession session, EventEngine engine) = Create();
                 engine.Step();
-                Require(engine.Scene.DrawPointReset is { SourceByte88: 1 } reset && reset.SampledDisplayMask == (1 | mask) && engine.Scene.NativeDrawPointDisplayMask == (1 | mask) && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointIndex == 12, "Declared SETDRAWPOINT did not execute its real byte/index/word producers.");
+                Require(engine.Scene.DrawPointReset is { SourceByte88: 0 } reset && reset.SampledDisplayMask == mask && engine.Scene.NativeDrawPointDisplayMask == mask && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointIndex == 12, "Declared SETDRAWPOINT did not execute its real byte/index/word producers.");
                 JsonElement setup = JsonSerializer.SerializeToElement(engine.Scene.DrawPointReset);
                 engine.Step();
                 EnterMenuReturn(engine);
@@ -103,6 +103,6 @@ internal static partial class Program
                 Require(engine.LastFault is null && engine.Scene.NativeDrawPointDisplayMask == expectedMask && engine.Scene.DrawPointEnabled == 0 && engine.Scene.DrawPointReset is null, "Inactive menu tail wrote a new display word or particle reset instead of skipping4747A0.");
             }
         }
-        Console.WriteLine("Native menu draw-point tail: equipped abilities78..82, KO inclusion/reserve exclusion, rebuilt Move-Find BYTE88 and activeB240 source OR, preserves sampled reset/anchors/index, retains physical word across inactive load/tail, independent restore and invalid required word refusal passed.");
+        Console.WriteLine("Native menu draw-point tail: equipped abilities78..82 cannot activate the GF passive, rebuilt Move-Find BYTE88 and activeB240 source OR, preserves sampled reset/anchors/index, retains physical word across inactive load/tail, independent restore and invalid required word refusal passed.");
     }
 }

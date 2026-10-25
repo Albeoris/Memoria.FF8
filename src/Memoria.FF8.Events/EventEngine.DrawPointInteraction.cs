@@ -71,6 +71,10 @@ public sealed partial class EventEngine
         {
             return "DRAWPOINT requires its actual free channel6 and a proved WORD516 consumer boundary";
         }
+        if (Scene.DrawPointInteraction is null && HiddenDrawPointUnavailable)
+        {
+            return null;
+        }
         try
         {
             NativeDrawPointInteraction? pending = Scene.DrawPointInteraction;
@@ -121,6 +125,10 @@ public sealed partial class EventEngine
     private int[] ExecuteDrawPointInteraction(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
+        if (Scene.DrawPointInteraction is null && HiddenDrawPointUnavailable)
+        {
+            return CompleteDrawPointInteraction(fiber, true);
+        }
         if (Scene.DrawPointInteraction is null)
         {
             (NativeDrawPointCatalog catalog, NativeCharacterVitals vitals, byte eligible) = PrepareDrawPointParty();

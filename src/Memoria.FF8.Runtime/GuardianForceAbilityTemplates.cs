@@ -21,7 +21,7 @@ public sealed partial record NativeCharacterVitals
             for (int id = 0; id < 16; id++)
             {
                 NativeGuardianForceVital gf = GuardianForces[id];
-                if (GuardianForceAbilities(id).Count(entry => entry.Learned) > 22)
+                if (gf.MoveFindDisabled || GuardianForceAbilities(id).Count(entry => entry.Learned) > 22)
                 {
                     return true;
                 }
@@ -100,18 +100,23 @@ public sealed partial record NativeCharacterVitals
         GuardianForceProgression progression = gf.Progression ?? ImportGuardianForceProgression(id, previous);
         Dictionary<int, GuardianForceAbilityProgress> ledger = progression.Abilities.ToDictionary(entry => entry.Ability);
         bool initialize = progression.Initialized || (gf.Flags & 1) != 0;
+        bool learnedMoveFind = false;
         if ((gf.Flags & 1) != 0)
         {
             foreach (GuardianForceAbilityTemplate entry in templates)
             {
                 if (entry.Ability < MenuDefinitions.AbilityPoints.Length)
                 {
-                    ledger.TryAdd(entry.Ability, new(entry.Ability, entry.InitialLearned));
+                    if (ledger.TryAdd(entry.Ability, new(entry.Ability, entry.InitialLearned)) && entry.Ability == 79 && entry.InitialLearned)
+                    {
+                        learnedMoveFind = true;
+                    }
                 }
             }
         }
         GuardianForces[id] = gf with
         {
+            MoveFindDisabled = gf.MoveFindDisabled && !learnedMoveFind,
             Progression = new(initialize, ledger.Values.Select(entry => entry with { Active = templates.Any(template => template.Ability == entry.Ability) || entry.ItemTaught }).OrderBy(entry => entry.Ability).ToImmutableArray())
         };
         GuardianForces[id] = SynchronizeGuardianForce(id);
@@ -212,6 +217,7 @@ public sealed partial record NativeCharacterVitals
         ImmutableArray<GuardianForceAbilityProgress> ledger = gf.Progression.Abilities.Where(entry => entry.Ability != ability).Append(new GuardianForceAbilityProgress(ability, true, previous?.EarnedPoints ?? 0, ItemTaught: true)).OrderBy(entry => entry.Ability).ToImmutableArray();
         result.GuardianForces[id] = gf with
         {
+            MoveFindDisabled = gf.MoveFindDisabled && (ability != 79 || previous is { Learned: true, Forgotten: false }),
             Progression = new(true, ledger)
         };
         result.GuardianForces[id] = result.SynchronizeGuardianForce(id);
