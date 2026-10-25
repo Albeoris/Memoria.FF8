@@ -118,4 +118,3 @@ public sealed class DemasterBattleModelAnimationTests
         return drain.State;
     }
 }
-
