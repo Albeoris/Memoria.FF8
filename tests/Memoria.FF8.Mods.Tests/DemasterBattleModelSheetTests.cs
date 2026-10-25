@@ -1,0 +1,129 @@
+using Albeoris.Games.FF8.Imaging;
+using ImageMagick;
+using Memoria.FF8.Resources;
+
+namespace Memoria.FF8.Mods.Tests;
+
+public sealed class DemasterBattleModelSheetTests
+{
+    private static readonly ResourceSourceDescriptor Source = new("synthetic", GameDataEdition.Classic, ["native-battle-model-sheet"]);
+
+    [Theory]
+    [InlineData("d0c000", 1, 64, 128)]
+    [InlineData("d0c000", 0, 128, 128)]
+    [InlineData("d0w000", 0, 32, 32)]
+    [InlineData("c0m001", 5, 128, 128)]
+    public void SourceSheetRowsRetainNativeMaterialCanvasAndCropPartialPlanes(string name, int row, int height, int canvasHeight)
+    {
+        TextureBuildContext context = Context(name, row, height, canvasHeight);
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(Path(name, row), 384, canvasHeight * 3)).Resolve(context));
+        Assert.Equal((128, height), (replacement.LogicalWidth, replacement.LogicalHeight));
+        Assert.Equal((384, height * 3), (replacement.Image.Width, replacement.Image.Height));
+        Assert.Equal(Pixel(0, 0), replacement.Image[0, 0]);
+        Assert.Equal(Pixel(383, height * 3 - 1), replacement.Image[383, height * 3 - 1]);
+        Assert.Null(replacement.Animation);
+        Assert.Equal(new[] { Path(name, row).Replace(".png", ".dds"), Path(name, row) }, DemasterTextureResolver.CandidatePaths(context));
+        Assert.Null(Resolver(Image(Path(name, row == 0 ? 1 : 0))).Resolve(context));
+    }
+
+    [Fact]
+    public void PublishedSheetCropUsesItsOwnCoordinatesInsteadOfTheFfnxAlias()
+    {
+        TextureBuildContext context = new(new(new("battle/c0m001.dat"), "texture/7"), Source, 1, "classic-battle", 32, 64, () => throw new InvalidOperationException("Native image stays lazy."))
+        {
+            NativeSheet = new(new("battle/c0m001.dat"), "row/4", 0, 16, 32, 32, 64, 128, 128),
+            NativeAlias = new(new("battle/c0m001.dat"), "texture/2", 0, 0, 0, 32, 64, 32, 64)
+        };
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(Resolver(Image(Path("c0m001", 4))).Resolve(context));
+        Assert.Equal((96, 192), (replacement.Image.Width, replacement.Image.Height));
+        Assert.Equal(Pixel(48, 96), replacement.Image[0, 0]);
+        Assert.Equal(Pixel(143, 287), replacement.Image[95, 191]);
+    }
+
+    [Theory]
+    [InlineData("d0w000", 1, true)]
+    [InlineData("d0c000", 2, true)]
+    [InlineData("c0m001", 6, true)]
+    [InlineData("a0stg001", 0, true)]
+    [InlineData("d0w000", 0, false)]
+    public void UnknownOwnersRowsAndUnpublishedLayoutsNeverOpenImages(string name, int row, bool published)
+    {
+        ModFile file = new("Demaster/Synthetic", ModFormat.Demaster, Path(name, row), 1, () => throw new InvalidOperationException("Unsupported addresses stay lazy."));
+        Assert.Null(Resolver(file).Resolve(Context(name, row, published: published)));
+    }
+
+    [Theory]
+    [InlineData(128, 31)]
+    [InlineData(256, 32)]
+    [InlineData(192, 48)]
+    public void IncompatibleImageScaleReportsPackageAndFile(int width, int height)
+    {
+        ModTextureLoadException error = Assert.Throws<ModTextureLoadException>(() => Resolver(Image(Path("d0w000", 0), width, height)).Resolve(Context("d0w000", 0, 32, 32)));
+        Assert.Equal("Demaster/Synthetic", error.PackageId);
+        Assert.Equal(Path("d0w000", 0), error.RelativePath);
+    }
+
+    [Fact]
+    public void CorruptPreferredDdsDoesNotExposePngOrPublishAnyPreparedMaterials()
+    {
+        TextureBuildContext context = Context("d0w000", 0, 32, 32);
+        using InMemoryResourceSource source = new(Source);
+        ResourceService resources = new(source);
+        AssetHandle<TextureValue> texture = resources.GetTexture(context);
+        TextureValue original = texture.Value;
+        ModFile broken = new("Demaster/Broken", ModFormat.Demaster, Path("d0w000", 0).Replace(".png", ".dds"), 1, () => [0]);
+        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => resources.Prepare(Resolver(broken, Image(Path("d0w000", 0), 768, 192))));
+        Assert.Equal("Demaster/Broken", failure.PackageId);
+        Assert.Same(original, texture.Value);
+        resources.Prepare(Resolver(Image(Path("d0w000", 0), 768, 192))).Commit();
+        Assert.Equal((768, 192, 128, 32), (texture.Value.Image.Width, texture.Value.Image.Height, texture.Value.LogicalWidth, texture.Value.LogicalHeight));
+        resources.Prepare(null).Commit();
+        Assert.False(texture.Value.IsReplacement);
+        Assert.Equal((128, 32), (texture.Value.Image.Width, texture.Value.Image.Height));
+    }
+
+    [Fact]
+    public void InspectionRecognizesOnlyCanonicalRowsOfPublishedModelFamilies()
+    {
+        string[] valid = [Path("d0w000", 0), Path("d9c001", 1), Path("c0m099", 5)];
+        string[] invalid = [Path("d0w000", 1), Path("d0c000", 2), Path("c0m001", 6), Path("d0w000", 0).Replace("_0.png", "_00.png")];
+        ModCatalogSnapshot catalog = new(1, [], valid.Concat(invalid).Select(path => new ModFile("Demaster/Synthetic", ModFormat.Demaster, path, 1, () => throw new InvalidOperationException("Inspection stays lazy."))));
+        DemasterInspection inspection = DemasterTextureResolver.Inspect(Source, catalog);
+        Assert.Single(inspection.UsablePackageIds);
+        Assert.Equal(invalid.Order(), inspection.Diagnostics.Select(item => item.RelativePath).Order());
+        Assert.Equal(valid.Length + invalid.Length, DemasterTextureResolver.Inspect(new("unpublished", GameDataEdition.Classic, []), catalog).Diagnostics.Count);
+    }
+
+    private static TextureBuildContext Context(string name, int row, int height = 128, int canvasHeight = 128, bool published = true)
+    {
+        ResourceKey owner = new($"battle/{name}.dat");
+        return new(new(owner, "texture/7"), published ? Source : new("unpublished", GameDataEdition.Classic, []), 1, "classic-battle", 128, height, () => new(128, height))
+        {
+            NativeSheet = new(owner, $"row/{row}", 0, 0, 0, 128, height, 128, canvasHeight)
+        };
+    }
+
+    private static DemasterTextureResolver Resolver(params ModFile[] files) => new(new(1, [], files));
+    private static string Path(string name, int row) => $"textures/battle.fs/hd_new/{name}_{row}.png";
+    private static Rgba32 Pixel(int x, int y) => new((byte)(x % 251), (byte)(y % 251), 80, 255);
+
+    private static ModFile Image(string path, int width = 384, int height = 384)
+    {
+        byte[] pixels = new byte[width * height * 4];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                Rgba32 color = Pixel(x, y);
+                int offset = (y * width + x) * 4;
+                pixels[offset] = color.R;
+                pixels[offset + 1] = color.G;
+                pixels[offset + 2] = color.B;
+                pixels[offset + 3] = color.A;
+            }
+        }
+        using MagickImage image = new(pixels, new PixelReadSettings((uint)width, (uint)height, StorageType.Char, PixelMapping.RGBA));
+        byte[] encoded = image.ToByteArray(MagickFormat.Png);
+        return new("Demaster/Synthetic", ModFormat.Demaster, path, 1, () => encoded);
+    }
+}

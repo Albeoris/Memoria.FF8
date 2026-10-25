@@ -10,7 +10,7 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
 {
     private readonly HashSet<TextureKey> keys = [];
 
-    public AssetHandle<TextureValue>? Register(TextureKey key, PixelImage image, string layout, TextureSourceRegion? region = null, Func<int, PixelImage>? palettes = null, int paletteCount = 1, long? revision = null, TextureSourceAddress? nativeAlias = null, TextureSourcePageAddress? nativePage = null)
+    public AssetHandle<TextureValue>? Register(TextureKey key, PixelImage image, string layout, TextureSourceRegion? region = null, Func<int, PixelImage>? palettes = null, int paletteCount = 1, long? revision = null, TextureSourceAddress? nativeAlias = null, TextureSourcePageAddress? nativePage = null, TextureSourceAddress? nativeSheet = null)
     {
         if (resources is null)
         {
@@ -18,7 +18,7 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         }
         bool retain = !keys.Contains(key);
         ResourceContent encoded = resources.Get(key.Owner);
-        AssetHandle<TextureValue> handle = resources.GetTexture(new TextureBuildContext(key, resources.Source, revision ?? encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded) { NativeAlias = nativeAlias, NativePage = nativePage }, retain);
+        AssetHandle<TextureValue> handle = resources.GetTexture(new TextureBuildContext(key, resources.Source, revision ?? encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded) { NativeAlias = nativeAlias, NativePage = nativePage, NativeSheet = nativeSheet }, retain);
         keys.Add(key);
         return handle;
     }

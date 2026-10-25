@@ -17,7 +17,7 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         this.gameDirectory = Path.GetFullPath(gameDirectory);
     }
 
-    public ResourceSourceDescriptor Descriptor { get; } = new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle", "demaster-card-artwork", "native-battle-stage-page", "native-field-background-page", "classic-ffnx"]);
+    public ResourceSourceDescriptor Descriptor { get; } = new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle", "demaster-card-artwork", "native-battle-stage-page", "native-battle-model-sheet", "native-field-background-page", "classic-ffnx"]);
 
     public IFlArchive OpenArchive(string family)
     {

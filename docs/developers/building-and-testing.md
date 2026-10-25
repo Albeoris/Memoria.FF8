@@ -98,7 +98,9 @@ An explicitly selected native execution-stack profile can be stored in `Memoria.
 | `MEMORIA_FF8_FIELD_TEXTURE_OPTIONAL_IMAGES` | Path to an external JSON array of directories containing optional extracted PNGs for independent field-image decode checks. Relative paths resolve against the catalog directory. |
 | `MEMORIA_FF8_FIELD_STATE` | Concrete standalone field save for read-only installed CPU/GPU presentation acceptance. The test renders without advancing gameplay and checks state and source-save hashes. |
 | `MEMORIA_FF8_FIELD_PATCH_FIELD` | Optional original field ID restricting the addon comparison to that field. Otherwise the test searches native fields addressed by changed addon files for a visible CPU/GPU difference. |
-| `MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY` | Optional directory retaining installed mod coverage reports, render hashes and CPU/GPU field PNGs. |
+| `MEMORIA_FF8_BATTLE_MODEL_TEXTURE_PACKAGES` | Path to an external JSON array of unpacked battle model texture package directories. Relative paths resolve against the catalog directory. Enables installed coverage of every PNG/DDS against actual original character, weapon or monster texture contexts; App acceptance requires a shared `Mods/Demaster` parent. |
+| `MEMORIA_FF8_BATTLE_MODEL_STATE` | Concrete standalone battle save for installed model texture acceptance. The test compares enabled and disabled CPU/GPU renders, checks resident material bindings, restores a snapshot and compares a bounded continuation. The supplied save remains unchanged; a separately named validated save is written to the evidence directory. |
+| `MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY` | Optional directory retaining installed mod coverage reports, render hashes and CPU/GPU field or battle PNGs. |
 
 Fixture catalogs and original game data stay local. Use neutral fixture identifiers in shared tests, and do not check in proprietary assets or personal saved games. See [Environment variables](../reference/environment-variables.md) for runtime and specialized integration configuration, and [Remastered resources](remastered-resources.md) for that optional test project.
 

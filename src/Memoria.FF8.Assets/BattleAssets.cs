@@ -373,7 +373,12 @@ public sealed partial class BattleAssets : IDisposable
 
     private IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> RegisterBattleTextures(ResourceKey owner, IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> images, IReadOnlyList<TextureSourceAddress> addresses, IReadOnlyList<TextureSourceRegion>? regions = null)
     {
-        AssetHandle<TextureValue>[] handles = images.Select((image, index) => textureScope.Register(new TextureKey(owner, $"texture/{index}"), image, "classic-battle", regions is not null && index < regions.Count ? regions[index] : null, nativeAlias: index < addresses.Count ? addresses[index] : null)!).ToArray();
+        AssetHandle<TextureValue>[] handles = images.Select((image, index) =>
+        {
+            TextureSourceRegion? region = regions is not null && index < regions.Count ? regions[index] : null;
+            TextureSourceAddress? sheet = region is not null && region.CanvasWidth == image.Width && region.CanvasHeight == image.Height ? BattleModelSheetAddress(owner, region, images.Count) : null;
+            return textureScope.Register(new TextureKey(owner, $"texture/{index}"), image, "classic-battle", region, nativeAlias: index < addresses.Count ? addresses[index] : null, nativeSheet: sheet)!;
+        }).ToArray();
         return new ResourceTextureList(handles);
     }
 

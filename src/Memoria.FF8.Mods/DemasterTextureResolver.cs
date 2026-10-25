@@ -46,7 +46,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             supported |= battleTarget && HasLayout(source, BattlePageLayout) && IsBattlePageTarget(stem);
             bool fieldTarget = stem.StartsWith(FieldPagePrefix, StringComparison.OrdinalIgnoreCase);
             supported |= fieldTarget && HasLayout(source, FieldPageLayout) && IsFieldPageTarget(stem);
-            supported |= !battleTarget && !fieldTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
+            bool modelTarget = IsModelSheetFamily(stem);
+            supported |= modelTarget && HasLayout(source, ModelSheetLayout) && IsModelSheetTarget(stem);
+            supported |= !battleTarget && !fieldTarget && !modelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
                 usable.Add(file.PackageId);
@@ -61,6 +63,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == "classic-battle")
+        {
+            return ResolveModelSheet(context);
+        }
         if (context.Layout == "classic-field-tile")
         {
             return ResolveFieldPage(context);
@@ -99,6 +105,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == "classic-battle")
+        {
+            return TryModelSheetAddress(context, out string modelStem, out _) ? WithExtensions(modelStem) : Array.Empty<string>();
+        }
         if (context.Layout == "classic-field-tile")
         {
             return TryFieldPageAddress(context, out string map, out int nativePage, out _) ? FieldBackgroundCandidates(map, nativePage, context.Key.Palette) : Array.Empty<string>();

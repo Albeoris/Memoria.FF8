@@ -45,6 +45,7 @@ public sealed class TextureBuildContext
     public int PaletteCount { get; }
     public ResourceContent? EncodedSource { get; }
     public TextureSourceAddress? NativeAlias { get; init; }
+    public TextureSourceAddress? NativeSheet { get; init; }
     public TextureSourcePageAddress? NativePage { get; init; }
 }
 
