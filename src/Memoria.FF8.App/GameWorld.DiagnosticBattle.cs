@@ -72,18 +72,26 @@ internal sealed partial class GameWorld
         active.DiagnosticEffectDispatched += RejectFocalWarmup;
         try
         {
+            bool Ready()
+            {
+                if (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0 || request.Target is not null && VerifyDiagnosticTarget() is null)
+                {
+                    return false;
+                }
+                return request.Driver is null || active.CanChoosePlayerCommand(request.Driver.Input.ActorId!);
+            }
             int callbacks = 0;
-            while (!active.NativeEntryReady && callbacks < request.EntryCallbackBudget)
+            while (!Ready() && callbacks < request.EntryCallbackBudget)
             {
                 active.Tick();
                 callbacks++;
             }
-            if (!active.NativeEntryReady)
+            if (!Ready())
             {
                 throw new NotSupportedException("Diagnostic entry did not initialize its original owners within the declared callback budget.");
             }
             SynchronizeNativeBattleHostCallbacks(active);
-            DiagnosticReceipt = DiagnosticReceipt! with { EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original model/resource entry callbacks before presentation; measured focal executions retain normal real-time pacing.") };
+            DiagnosticReceipt = DiagnosticReceipt! with { EntryPreparation = new(active.NativeHostCallbacks ?? throw new NotSupportedException("Entry preparation lost its native callback ledger."), Stopwatch.GetElapsedTime(started).TotalMilliseconds, "Original entry/declared target/command readiness callbacks before presentation; measured focal executions retain normal real-time pacing.") };
         }
         finally
         {

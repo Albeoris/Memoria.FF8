@@ -12,12 +12,14 @@ public sealed class DiagnosticBattleLifecycleTests
         GameSession session = GameWorld.CreateColdProcess(directory);
         session.StartNewGame();
         using GameWorld world = new(session, directory);
-        DiagnosticBattleRequest request = new(94, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, PrepareEntryBeforePresentation = true };
+        DiagnosticBattleRequest request = new(94, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, PrepareEntryBeforePresentation = true, Fixture = new([], [], true), Target = new("enemy-0", 31, 61, 0, 3, 0xC3, 1, null, null), Driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: "party-0", Ability: BattleAbility.Magic, ActionId: 21), 1) };
         BattleSession active = world.StartDiagnosticBattle(request);
         int dispatches = 0;
         active.DiagnosticEffectDispatched += _ => dispatches++;
         world.PrepareDiagnosticEntryBeforePresentation(request);
         Assert.True(active.NativeEntryReady);
+        Assert.True(active.CanChoosePlayerCommand("party-0"));
+        Assert.NotNull(world.DiagnosticReceipt!.Target);
         Assert.InRange(world.DiagnosticReceipt!.EntryPreparation!.NativeCallbacks, 1, request.EntryCallbackBudget);
         Assert.Equal(active.NativeHostCallbacks, world.DiagnosticReceipt.EntryPreparation.NativeCallbacks);
         Assert.Equal(0, dispatches);
