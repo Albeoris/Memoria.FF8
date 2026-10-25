@@ -64,9 +64,9 @@ public sealed class AchievementLifetimeTests
         session.Restore(new GameState());
         Assert.Same(service, Get<AchievementService>(game, "achievements"));
         Assert.Empty(session.State.PendingAchievementFacts);
-        Assert.Single(session.State.PendingAchievementObservations);
-        Assert.Single(session.State.PendingOriginalAchievementObservations);
-        Assert.Single(session.State.PendingOriginalAchievementActions);
+        Assert.Empty(session.State.PendingAchievementObservations);
+        Assert.Empty(session.State.PendingOriginalAchievementObservations);
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
     }
 
     [Fact]

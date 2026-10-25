@@ -11,6 +11,15 @@ internal sealed partial class RecreateGame
     private bool autoPlayFailureHeld;
     private string? autoPlayHostError;
 
+    private void StopAutoPlayForPlayerSession()
+    {
+        autoPlay?.Stop();
+        autoPlay = null;
+        autoPlayAdvancedThisFrame = false;
+        autoPlayFailureHeld = false;
+        autoPlayHostError = null;
+    }
+
     private void InitializeAutoPlayUi()
     {
         gameMenus!.ConnectAutoPlay(ReadAutoPlayMenuState, ApplyAutoPlayCommand);

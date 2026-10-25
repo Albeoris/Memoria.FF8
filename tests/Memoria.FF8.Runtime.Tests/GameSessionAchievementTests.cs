@@ -114,7 +114,7 @@ public sealed class GameSessionAchievementTests : IDisposable
     }
 
     [Fact]
-    public void RestoreRetainsFinalizedUnacknowledgedFactsAcrossSaveRollback()
+    public void RestoreDropsFinalizedUnacknowledgedFactsFromTheAbandonedLiveBranch()
     {
         GameSession session = Session();
         GameState earlier = session.State;
@@ -122,7 +122,7 @@ public sealed class GameSessionAchievementTests : IDisposable
         EnemyDefeatedEvent accepted = Finalized(Assert.Single(session.State.PendingAchievementFacts));
         session = new(session.State with { PendingAchievementFacts = [accepted] });
         session.Restore(earlier);
-        Assert.Equal(accepted, Assert.Single(session.State.PendingAchievementFacts));
+        Assert.Empty(session.State.PendingAchievementFacts);
         session.AcceptBattleAchievementFacts([Defeat("accepted")]);
         Assert.Single(session.State.PendingAchievementFacts);
     }
@@ -160,7 +160,7 @@ public sealed class GameSessionAchievementTests : IDisposable
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void FinalizedFactHasPriorityOverStagedFactWithTheSameIdentity(bool finalizedOnLiveBranch)
+    public void SelectedSaveOwnsFactFinalizationWithTheSameIdentity(bool finalizedOnLiveBranch)
     {
         GameSession stagedSession = Session();
         stagedSession.AcceptBattleAchievementFacts([Defeat("same-allocation")]);
@@ -171,17 +171,20 @@ public sealed class GameSessionAchievementTests : IDisposable
 
         live.Restore(finalizedOnLiveBranch ? stagedSession.State : finalizedState);
 
-        Assert.Equal(finalized, Assert.Single(live.State.PendingAchievementFacts));
+        Assert.Equal(finalizedOnLiveBranch ? staged : finalized, Assert.Single(live.State.PendingAchievementFacts));
     }
 
     [Fact]
-    public void CompletedBattleObservationsSurviveRollbackRestartAndRequireExactAcknowledgement()
+    public void SelectedBattleObservationsSurviveRestartRequireExactAcknowledgementAndDoNotCrossSaves()
     {
         AchievementOwner owner = new("steam", "39150", "test-owner", "profile");
         BattleKillTotalObservedEvent observation = new(new("kills/100/1/0"), new("battle-results/encounter-1"), 100, BattleOutcome.Victory, BattleRewardPolicy.NativeCombat, 0, owner);
         GameState earlier = Session().State;
-        GameSession live = new(earlier with { PendingAchievementObservations = [observation] });
+        GameState selected = earlier with { PendingAchievementObservations = [observation] };
+        GameSession live = new(selected);
         live.Restore(earlier);
+        Assert.Empty(live.State.PendingAchievementObservations);
+        live.Restore(selected);
         GameState restartedState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(live.State))!;
         GameSession restarted = new(restartedState);
 

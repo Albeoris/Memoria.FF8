@@ -22,16 +22,16 @@ public sealed class NativeMessageVariableTests
     }
 
     [Fact]
-    public void OnlyExplicitColdProcessRootsKnownZeroBankAndWarmNewGamePreservesPriorValues()
+    public void NewGameRootsKnownZeroBankAndClearsPriorValuesAndUnknownState()
     {
         GameSession cold = GameSession.CreateColdProcess();
         cold.StartNewGame();
         Assert.Equal(NativeMessageVariables.FromColdProcess(), cold.MessageVariables);
         cold.SetMessageVariables(cold.MessageVariables!.WithWrite(7, int.MinValue));
         cold.StartNewGame();
-        Assert.Equal(int.MinValue, cold.MessageVariables!.At(7));
+        Assert.Equal(NativeMessageVariables.FromColdProcess(), cold.MessageVariables);
         GameSession unknown = new(cold.State with { MessageVariables = null });
         unknown.StartNewGame();
-        Assert.Null(unknown.MessageVariables);
+        Assert.Equal(NativeMessageVariables.FromColdProcess(), unknown.MessageVariables);
     }
 }

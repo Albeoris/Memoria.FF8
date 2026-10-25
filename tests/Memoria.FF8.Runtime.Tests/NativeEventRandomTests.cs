@@ -24,7 +24,7 @@ public sealed class NativeEventRandomTests
     }
 
     [Fact]
-    public void ExecutedNewGameClearsSavedBankAndPreservesProcessGenerator()
+    public void ExecutedNewGameClearsSavedBankAndResetsProcessGenerator()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -33,7 +33,7 @@ public sealed class NativeEventRandomTests
         NativeEventRandomState moved = initial.Draw(out _);
         session.SetEventRandom(moved with { DrawPoints = moved.DrawPoints!.Write(116, 4, -1).Write(180, 2, 1234) });
         session.StartNewGame();
-        Assert.Equal(moved.State, session.EventRandom!.State);
+        Assert.Equal(initial.State, session.EventRandom!.State);
         Assert.Equal((ushort)0, session.EventRandom.DrawPoints!.RegenerationCounter180);
         Assert.True(session.EventRandom.DrawPoints.Depletion.All(value => value == 0));
     }

@@ -24,7 +24,7 @@ public sealed class NativeBattleRetainedMemoryTests
     }
 
     [Fact]
-    public void BattleEntryResetsOnlyCountsAndNewGamePreservesObservedProcessMemory()
+    public void BattleEntryResetsOnlyCountsAndNewGameResetsObservedProcessMemory()
     {
         NativeBattleRetainedMemory initial = NativeBattleRetainedMemory.FromColdProcess();
         NativeBattleActionPacketsState packets = initial.ActionPackets;
@@ -46,13 +46,14 @@ public sealed class NativeBattleRetainedMemoryTests
         process.SetBattle(null);
         NativeBattleRetainedMemory retained = process.State.NativeBattleMemory!;
         process.StartNewGame();
-        Assert.Same(retained, process.State.NativeBattleMemory);
+        Assert.NotSame(retained, process.State.NativeBattleMemory);
+        Assert.Equal(JsonSerializer.Serialize(initial), JsonSerializer.Serialize(process.State.NativeBattleMemory));
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(process.State))!);
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(restored.State.NativeBattleMemory));
+        Assert.Equal(JsonSerializer.Serialize(initial), JsonSerializer.Serialize(restored.State.NativeBattleMemory));
         BattleSession next = new(Definition() with { NativeRetainedMemory = restored.State.NativeBattleMemory }, BattleAtbMode.Normal);
-        Assert.Equal(2, next.NativeActionPackets.Headers[0].ReadByte(17));
-        Assert.Equal((ushort)0x20, next.NativePartyStatusMirrors.Saved[0]);
-        Assert.Equal(-1, next.NativeEffectIoResult);
+        Assert.Equal(0, next.NativeActionPackets.Headers[0].ReadByte(17));
+        Assert.Equal((ushort)0, next.NativePartyStatusMirrors.Saved[0]);
+        Assert.Equal(0, next.NativeEffectIoResult);
     }
 
     [Fact]

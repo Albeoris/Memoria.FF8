@@ -72,7 +72,7 @@ internal sealed partial class AutoPlayController
 {
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private static readonly JsonSerializerOptions BeforeSnapshotJsonOptions = new(JsonOptions) { WriteIndented = false };
-    private readonly GameSession session;
+    private GameSession session;
     private readonly Func<GameWorld> getWorld;
     private readonly Func<GameSession> createColdProcess;
     private readonly Action<GameState> restore;
@@ -142,6 +142,11 @@ internal sealed partial class AutoPlayController
     }
 
     public bool Running { get; private set; }
+    internal void BindSession(GameSession replacement)
+    {
+        session = replacement;
+        watchedWorlds.Clear();
+    }
     public bool Paused { get; private set; }
     public string Status { get; private set; } = "Ready; fixed native cold-process seed 1.";
     public string? Error { get; private set; }

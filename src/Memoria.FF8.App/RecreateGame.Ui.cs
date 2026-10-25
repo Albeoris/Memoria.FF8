@@ -50,6 +50,21 @@ internal sealed partial class RecreateGame
         ApplyDisplaySettings();
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
+        keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
+        if (!File.Exists(ControlsPreferencesPath))
+        {
+            keyboard.Profile.Save(ControlsPreferencesPath);
+        }
+        InitializeSessionMenus();
+        if (options.DebugUiScreen is string screen)
+        {
+            gameMenus!.Open(screen, true);
+        }
+    }
+
+    private void InitializeSessionMenus()
+    {
+        gameMenus?.DisconnectMods();
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction) { Presentation = uiPreferences.MenuPresentation };
         InitializeChocoboWorldIntegration();
         InitializeAutoPlayUi();
@@ -77,11 +92,6 @@ internal sealed partial class RecreateGame
         gameMenus.ConnectBattleSource(() => ActiveBattle is null ? "No active battle" : debugBattle is not null ? "Laboratory battle" : "Game battle");
         gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
-        keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
-        if (!File.Exists(ControlsPreferencesPath))
-        {
-            keyboard.Profile.Save(ControlsPreferencesPath);
-        }
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
         {
             profile.Save(ControlsPreferencesPath);
@@ -90,10 +100,6 @@ internal sealed partial class RecreateGame
         gameMenus.BattleDebugRequested += OpenBattleDebug;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
-        if (options.DebugUiScreen is string screen)
-        {
-            gameMenus.Open(screen, true);
-        }
     }
 
     private MenuData ReadLiveMenuData()

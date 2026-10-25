@@ -73,21 +73,25 @@ public sealed class OriginalAchievementObservationTests
     }
 
     [Fact]
-    public void PendingObservationSurvivesRollbackAndSerializedCheckpoint()
+    public void SelectedSaveOwnsPendingObservationAndNewGameClearsIt()
     {
         GameSession session = Session();
         GameState earlier = session.State;
         session.ObserveOriginalAchievements();
         OriginalAchievementObservedEvent fact = Assert.Single(session.State.PendingOriginalAchievementObservations);
+        GameState observed = session.State;
         session.Restore(earlier);
-        Assert.Equal(fact, Assert.Single(session.State.PendingOriginalAchievementObservations));
+        Assert.Empty(session.State.PendingOriginalAchievementObservations);
+        Assert.Null(session.State.LastOriginalAchievementObservation);
+        session.Restore(observed);
         GameState checkpoint = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession restarted = new(checkpoint) { CaptureAchievementOwner = () => Owner };
         Assert.Equal(fact, Assert.Single(restarted.State.PendingOriginalAchievementObservations));
         restarted.ObserveOriginalAchievements();
         Assert.Single(restarted.State.PendingOriginalAchievementObservations);
         restarted.StartNewGame();
-        Assert.Equal(fact, Assert.Single(restarted.State.PendingOriginalAchievementObservations));
+        Assert.Empty(restarted.State.PendingOriginalAchievementObservations);
+        Assert.Null(restarted.State.LastOriginalAchievementObservation);
     }
 
     private static GameSession Session()

@@ -18,7 +18,7 @@ public sealed class NativePlaytimeTests
     }
 
     [Fact]
-    public void Session_uses_only_admitted_timer_calls_and_restore_preserves_both_clock_owners()
+    public void Session_uses_only_admitted_timer_calls_restore_preserves_owners_and_New_Game_resets_them()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -34,6 +34,9 @@ public sealed class NativePlaytimeTests
         session.Restore(restored.State);
         Assert.Equal(restored.State.Playtime, session.State.Playtime);
         Assert.Equal(new NativeBattleUiRandomState(1), playtime.CreateBattleUiRandom());
+        session.StartNewGame();
+        Assert.Equal(NativePlaytimeState.FromColdProcess(), session.State.Playtime);
+        Assert.Equal(0, session.ExamTimer!.ClockCalls);
     }
 
     [Fact]

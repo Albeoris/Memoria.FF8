@@ -32,7 +32,7 @@ public sealed class NativeExamTimerTests
     }
 
     [Fact]
-    public void ExplicitColdProcessTracksPreSetCallbacksAndWarmNewGamePreservesItsClockAndUi()
+    public void ExplicitColdProcessTracksPreSetCallbacksAndNewGameResetsItsClockAndUi()
     {
         GameSession session = GameSession.CreateColdProcess();
         Assert.Equal(new NativeTimerAlternative(0, 0, 0) { DisplayBlink = new(1, false, 0) }, Assert.Single(session.ExamTimer!.Alternatives));
@@ -47,24 +47,26 @@ public sealed class NativeExamTimerTests
         Assert.Equal(new NativeTimerAlternative(unchecked(phase + 2191) & 0xFFFF, unchecked(phase + 2191) & 0xFFFF, 59) { DisplayBlink = new(1, false, 60) }, Assert.Single(ticked.Alternatives));
         session.SetExamTimer(ticked);
         session.StartNewGame();
-        Assert.Equal(ticked.ClockCalls, session.ExamTimer!.ClockCalls);
-        Assert.Equal(ticked.Alternatives[0].FirstPhase, Assert.Single(session.ExamTimer.Alternatives).FirstPhase);
+        Assert.Equal(0, session.ExamTimer!.ClockCalls);
+        Assert.Equal(new NativeTimerAlternative(0, 0, 0) { DisplayBlink = new(1, false, 0) }, Assert.Single(session.ExamTimer.Alternatives));
         Assert.Equal(0, session.ExamTimer.RequireRemaining());
-        Assert.True(session.ExamTimer.DisplayEnabled);
-        Assert.Equal((ushort)250, session.ExamTimer.DisplayX);
-        Assert.Equal((byte)10, session.ExamTimer.DisplayY);
+        Assert.False(session.ExamTimer.DisplayEnabled);
+        Assert.Equal((ushort)0, session.ExamTimer.DisplayX);
+        Assert.Equal((byte)0, session.ExamTimer.DisplayY);
         Assert.False(session.ExamTimer.TimerMemoryActivated);
         Assert.Equal(0x18u, session.WorldControls!.EventFlags104);
     }
 
     [Fact]
-    public void GenericCheckpointConstructionNeverCreatesAProcessClockAndUnknownNewGameIsAtomic()
+    public void GenericCheckpointConstructionKeepsUnknownClockUntilNewGameInitializesIt()
     {
         GameState state = new();
         GameSession session = new(state);
         Assert.Null(session.ExamTimer);
-        Assert.Throws<NotSupportedException>(session.StartNewGame);
-        Assert.Same(state, session.State);
+        session.StartNewGame();
+        Assert.NotSame(state, session.State);
+        Assert.NotNull(session.ExamTimer);
+        Assert.Equal(0, session.ExamTimer.ClockCalls);
         NativeExamTimerState clock = NativeExamTimerState.FromColdProcess();
         string json = JsonSerializer.Serialize(clock);
         var missing = System.Text.Json.Nodes.JsonNode.Parse(json)!;

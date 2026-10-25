@@ -11,6 +11,7 @@ public sealed partial class GameSession : IEventServices
     private static readonly JsonSerializerOptions CompactJsonOptions = new(SnapshotJsonOptions) { WriteIndented = false, Converters = { new ImmutableBytesJsonConverter() } };
     private SceneKind movieReturnScene;
     private bool acceleratingMovie;
+    private NativeBattleRetainedMemory? coldBattleMemory;
 
     private static JsonSerializerOptions CreateSnapshotJsonOptions()
     {
@@ -39,7 +40,13 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess(NativeBattleRetainedMemory? battleMemory = null)
     {
-        return new GameSession(new GameState { NativeBattleMemory = battleMemory ?? NativeBattleRetainedMemory.FromColdProcess(), Playtime = NativePlaytimeState.FromColdProcess(), CrtRandom = NativeCrtRandomState.FromColdProcess(), MenuRandom = NativeMenuRandomState.FromColdProcess(), FieldFade = NativeFieldFadeState.FromColdProcess(), VibrationProcess = NativeVibrationProcessState.FromColdProcess(), EventRandom = NativeEventRandomState.FromColdProcess(), ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess(), FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
+        NativeBattleRetainedMemory coldMemory = battleMemory ?? NativeBattleRetainedMemory.FromColdProcess();
+        return new GameSession(CreateColdProcessState(coldMemory)) { coldBattleMemory = coldMemory };
+    }
+
+    private static GameState CreateColdProcessState(NativeBattleRetainedMemory? battleMemory)
+    {
+        return new GameState { NativeBattleMemory = battleMemory ?? NativeBattleRetainedMemory.FromColdProcess(), Playtime = NativePlaytimeState.FromColdProcess(), CrtRandom = NativeCrtRandomState.FromColdProcess(), MenuRandom = NativeMenuRandomState.FromColdProcess(), FieldFade = NativeFieldFadeState.FromColdProcess(), VibrationProcess = NativeVibrationProcessState.FromColdProcess(), EventRandom = NativeEventRandomState.FromColdProcess(), ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess(), FieldButtonInput = NativeFieldButtonInput.FromColdProcess() };
     }
 
     private GameState state = null!;
@@ -146,22 +153,27 @@ public sealed partial class GameSession : IEventServices
 
     public void StartNewGame()
     {
-        NativeExamTimerState clock = State.ExamTimer ?? throw new NotSupportedException("New Game requires the existing native process clock; create a cold process explicitly or restore its current clock.");
-        NativeExamTimerState reset = clock.ClearSavedStateForNewGame();
-        NativeEventRandomState random = State.EventRandom ?? throw new NotSupportedException("New Game requires the actual current native event random process.");
-        NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
-        NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
-        NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { PendingOriginalAchievementObservations = State.PendingOriginalAchievementObservations, PendingOriginalAchievementActions = State.PendingOriginalAchievementActions, PendingAchievementObservations = State.PendingAchievementObservations, PendingAchievementFacts = [.. State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)], NativeFieldDebugRequested = State.NativeFieldDebugRequested, NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), FieldRequestPacket = State.FieldRequestPacket, CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
-        originalAchievementActionBranch = Guid.NewGuid().ToString("N");
+        StartNewGame(coldBattleMemory);
+    }
+
+    public void StartNewGame(NativeBattleRetainedMemory? battleMemory)
+    {
+        GameState cold = CreateColdProcessState(battleMemory);
+        ResetTransientGameplayState();
+        Change(cold with { BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), FieldFade = cold.FieldFade!.ClearSavedForNewGame(), EventRandom = cold.EventRandom!.ClearSavedStateForNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", FieldLoadContext = NativeFieldLoadContext.NewGame(), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(), ExamTimer = cold.ExamTimer!.ClearSavedStateForNewGame() }, advancePlaytime: false);
     }
 
     public void Restore(GameState state)
     {
+        ResetTransientGameplayState();
+        Change(NormalizeGuardianForceCompatibilityState(state), advancePlaytime: false);
+    }
+
+    private void ResetTransientGameplayState()
+    {
         Dialog = null;
         movieReturnScene = SceneKind.Field;
-        GameState restored = state with { PendingOriginalAchievementObservations = [.. state.PendingOriginalAchievementObservations.Concat(State.PendingOriginalAchievementObservations).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingOriginalAchievementActions = [.. state.PendingOriginalAchievementActions.Concat(State.PendingOriginalAchievementActions).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingAchievementObservations = [.. state.PendingAchievementObservations.Concat(State.PendingAchievementObservations).DistinctBy(fact => (fact.ContextId, fact.EventId))], PendingAchievementFacts = [.. state.PendingAchievementFacts.Concat(State.PendingAchievementFacts.Where(fact => fact.Facts.AcceptedOutcome is not null)).OrderByDescending(fact => fact.Facts.AcceptedOutcome is not null).DistinctBy(fact => (fact.ContextId, fact.EventId))] };
-        Change(NormalizeGuardianForceCompatibilityState(restored), advancePlaytime: false);
+        acceleratingMovie = false;
         originalAchievementActionBranch = Guid.NewGuid().ToString("N");
     }
 

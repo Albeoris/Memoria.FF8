@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeFieldDebugProcessTests
 {
     [Fact]
-    public void NewGamePreservesTheExecutedDebugProcessWrite()
+    public void NewGameResetsTheExecutedDebugProcessWrite()
     {
         GameSession session = GameSession.CreateColdProcess();
         Assert.False(session.NativeFieldDebugRequested);
@@ -15,10 +15,10 @@ public sealed class NativeFieldDebugProcessTests
 
         session.StartNewGame();
 
-        Assert.True(session.NativeFieldDebugRequested);
-        Assert.True(session.State.NativeFieldDebugRequested);
+        Assert.False(session.NativeFieldDebugRequested);
+        Assert.False(session.State.NativeFieldDebugRequested);
         session.StartNewGame();
-        Assert.True(session.NativeFieldDebugRequested);
+        Assert.False(session.NativeFieldDebugRequested);
         Assert.False(GameSession.CreateColdProcess().NativeFieldDebugRequested);
     }
 

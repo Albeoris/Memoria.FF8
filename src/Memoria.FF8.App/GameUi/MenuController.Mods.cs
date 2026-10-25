@@ -21,6 +21,13 @@ public sealed partial class MenuController
     private static readonly string[] ModFilters = ["All mods", "Enabled in settings", "Disabled in settings", "Needs attention"];
     private static readonly string[] ModFormats = ["All formats", "Tonberry", "Demaster", "Junction", "Memoria"];
 
+    internal void DisconnectMods()
+    {
+        modSubscription?.Dispose();
+        modSubscription = null;
+        modService = null;
+    }
+
     internal void ConnectMods(IModService service)
     {
         modSubscription?.Dispose();

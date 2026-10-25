@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeWorldProcessTests
 {
     [Fact]
-    public void ColdProcessOwnsZeroGlobalsAndWarmNewGamePreservesTheirExecutedHistory()
+    public void ColdProcessOwnsZeroGlobalsAndNewGameResetsTheirExecutedHistory()
     {
         GameSession session = GameSession.CreateColdProcess();
         NativeWorldProcess cold = session.WorldProcess!;
@@ -17,12 +17,13 @@ public sealed class NativeWorldProcessTests
         NativeWorldProcess executed = cold.AdvanceMainLoopCallbacks(7) with { CameraCooldown = 46, GroundSelection = new([new(1, 4)]) };
         session.SetWorldProcess(executed);
         session.StartNewGame();
-        Assert.Equal(executed, session.WorldProcess);
+        Assert.NotEqual(executed, session.WorldProcess);
+        Assert.True(session.WorldProcess!.IsColdProcess);
         GameSession restored = new(session.State);
-        Assert.Equal(executed, restored.WorldProcess);
+        Assert.Equal(session.WorldProcess, restored.WorldProcess);
         restored.SetWorldProcess(restored.WorldProcess!.AdvanceMainLoopCallbacks(1));
-        Assert.Equal(8u, restored.WorldProcess.MainLoopCounter);
-        Assert.Equal(46, restored.WorldProcess.CameraCooldown);
+        Assert.Equal(1u, restored.WorldProcess.MainLoopCounter);
+        Assert.Equal(cold.CameraCooldown, restored.WorldProcess.CameraCooldown);
     }
 
     [Fact]

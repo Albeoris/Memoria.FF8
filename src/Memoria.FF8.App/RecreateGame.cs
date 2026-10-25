@@ -15,14 +15,14 @@ internal sealed partial class RecreateGame : Game
 {
     private readonly LaunchOptions options;
     private GameResourceHost? resourceHost;
-    private readonly GameSession session;
+    private GameSession session;
     private readonly GraphicsDeviceManager graphics;
-    private readonly KeyboardInput keyboard = new();
+    private KeyboardInput keyboard = new();
     private ControllerDevice? controller;
     private ControllerFeedback? controllerFeedback;
     private bool capturingControls;
-    private readonly GameplayClock gameplayClock = new();
-    private readonly MovieClock movieClock;
+    private GameplayClock gameplayClock = new();
+    private MovieClock movieClock;
     private FieldAudioPresentation? fieldAudio;
     private bool resumeFieldMusic;
     private readonly PlayerSaveStore playerSaves;
@@ -83,7 +83,7 @@ internal sealed partial class RecreateGame : Game
         }, originalDirectory: ReadOriginalSaveDirectory(), loadOriginal: LoadOriginalPlayerState);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
-        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(session.State, allowGuardianForceProjection: true);
+        saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(this.session.State, allowGuardianForceProjection: true);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         if (options.SettingsDirectory is null)
         {
@@ -102,7 +102,7 @@ internal sealed partial class RecreateGame : Game
         TargetElapsedTime = TimeSpan.FromSeconds(1d / 60);
         InactiveSleepTime = TimeSpan.Zero;
         Window.TextInput += OnTextInput;
-        session.StateChanged += state => Console.WriteLine($"scene={state.Scene} field={state.FieldId}:{state.FieldName} movie={state.MovieIndex}");
+        session.StateChanged += LogSessionState;
         InitializeAchievements();
     }
 
@@ -801,6 +801,7 @@ internal sealed partial class RecreateGame : Game
     {
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
+        StopAutoPlayForPlayerSession();
         RestorePlayerState(state);
         saveNotice = null;
         saveNoticeSeconds = 0;
@@ -821,6 +822,17 @@ internal sealed partial class RecreateGame : Game
 
     private void RestorePlayerState(GameState state)
     {
+        ReplacePlayerSession(new GameSession(ChocoboWorldSettings.Migrate(state, resourceHost!.Resources.Source.Edition)));
+        promptNewGameChocoboClaim = session.State.GameplayPreferences.ChocoboWorldMode == ChocoboWorldMode.Memoria;
+    }
+
+    private static void LogSessionState(GameState state)
+    {
+        Console.WriteLine($"scene={state.Scene} field={state.FieldId}:{state.FieldName} movie={state.MovieIndex}");
+    }
+
+    private void ReplacePlayerSession(GameSession replacement)
+    {
         EndStartup();
         ClearBattlePresentation();
         sceneInspector = null;
@@ -836,14 +848,54 @@ internal sealed partial class RecreateGame : Game
         fieldAudio?.StopAll();
         world?.Dispose();
         world = null;
-        session.Restore(ChocoboWorldSettings.Migrate(state, resourceHost!.Resources.Source.Edition));
-        promptNewGameChocoboClaim = session.State.GameplayPreferences.ChocoboWorldMode == ChocoboWorldMode.Memoria;
+        movieClock.Dispose();
+        session.StateChanged -= LogSessionState;
+        session.CaptureAchievementOwner = null;
+        session = replacement;
+        session.StateChanged += LogSessionState;
+        if (achievements is not null)
+        {
+            session.CaptureAchievementOwner = achievements.CaptureOwner;
+        }
+        movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile);
+        autoPlay?.BindSession(session);
+        gameplayClock = new();
+        worldSimulationClock.Reset();
+        worldSimulationOwner = null;
+        keyboard = new() { Profile = keyboard.Profile };
+        movieSkipGesture.Reset();
+        movieSkipIdentity = null;
+        movieDiscIndex = -1;
+        displayedTutorial = null;
+        tutorialParentMenu = null;
+        nativeTutorialBrowserOpen = false;
+        tutorialSeconds = 0;
+        guardianPendingModReview = null;
+        guardianAcceptedModReview = null;
+        guardianAcceptedModState = null;
+        updateSave.Cancel();
+        userPaused = false;
+        capturingControls = false;
+        uiMovieSuspended = false;
+        resumeFieldMusic = false;
+        fieldGpuPresented = false;
+        worldPresentationDeferred = false;
         presentedDialogue = null;
         dialoguePages.Clear();
+        selectedChoice = 0;
+        enteredName = "Squall";
+        saveNotice = null;
+        saveNoticeSeconds = 0;
         fieldSeconds = 0;
         error = null;
         fieldFaulted = false;
         fieldRenderFaulted = false;
+        presentationTiming.DiscardPendingTime();
+        presentationPacer.Reset();
+        if (gameMenus is not null)
+        {
+            InitializeSessionMenus();
+        }
     }
 
     private void ShowSaveNotice(string message, double durationSeconds = 5)
@@ -854,23 +906,11 @@ internal sealed partial class RecreateGame : Game
 
     private void StartNewGameSession()
     {
-        EndStartup();
-        ClearBattlePresentation();
-        sceneInspector = null;
-        gameMenus?.Close();
-        nativeNamePrompt = null;
-        queuedEntityName = null;
-        returnToItemMenuAfterNaming = false;
-        suppressNativeNameInput = false;
-        SynchronizeUiMoviePause();
-        movie?.Dispose();
-        movie = null;
-        movieIndex = -1;
-        fieldAudio?.StopAll();
-        world?.Dispose();
-        world = null;
-        session.StartNewGame();
-        session.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
+        GameSession fresh = GameWorld.CreateColdProcess(options.GameDirectory);
+        fresh.StartNewGame(fresh.State.NativeBattleMemory);
+        fresh.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
+        StopAutoPlayForPlayerSession();
+        ReplacePlayerSession(fresh);
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {
@@ -1352,6 +1392,7 @@ internal sealed partial class RecreateGame : Game
             DisposeStartup();
             DisposeModelBrowser();
             titleArtwork?.Dispose();
+            gameMenus?.DisconnectMods();
             titleScene?.Dispose();
             controller?.Dispose();
             fieldAudio?.Dispose();

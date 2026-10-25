@@ -75,7 +75,7 @@ public sealed class NativePresentationProcessTests
     }
 
     [Fact]
-    public void CurrentShapeIsRequiredAndWarmNewGameKeepsProcessHistoryUnavailable()
+    public void CurrentShapeIsRequiredAndNewGameResetsPresentationAndSoundHistory()
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -87,8 +87,10 @@ public sealed class NativePresentationProcessTests
         session.SetSalaryPresentation(presentation);
         session.SetGlobalSoundProcess(sound);
         session.StartNewGame();
-        Assert.Same(presentation, session.SalaryPresentation);
-        Assert.Same(sound, session.GlobalSoundProcess);
+        Assert.NotSame(presentation, session.SalaryPresentation);
+        Assert.True(session.SalaryPresentation!.IsColdProcess);
+        Assert.NotSame(sound, session.GlobalSoundProcess);
+        Assert.True(session.GlobalSoundProcess!.IsColdProcess);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeGlobalSoundProcess>("{}"));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeSalaryPresentation>("{}"));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<GameState>("{}"));
