@@ -153,7 +153,8 @@ public static class NativeBattleWaterMatrixCommands
                 uint destination;
                 (frame, destination) = AllocateB65480(frame);
                 NativeBattleActionMatrix view = ReadMatrix(frame, 0x27979E8);
-                NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(view, Position(frame));
+                (byte[] viewPadding, bool[] viewPaddingKnown) = frame.Core.ReadSnapshot(0x27979FA, 2);
+                NativeBattleFullMacVertex translated = TransformSaved(view, viewPaddingKnown[0] ? viewPadding[0] : null, viewPaddingKnown[1] ? viewPadding[1] : null);
                 frame = WriteCoreDword(frame, destination + 20, unchecked((uint)translated.X));
                 frame = WriteCoreDword(frame, destination + 24, unchecked((uint)translated.Y));
                 frame = WriteCoreDword(frame, destination + 28, unchecked((uint)translated.Z));

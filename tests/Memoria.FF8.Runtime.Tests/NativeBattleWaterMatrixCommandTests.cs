@@ -346,5 +346,14 @@ public sealed class NativeBattleWaterMatrixCommandTests
     }
 
     private static ushort ReadWord(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(address, 2));
-    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, int length = 6) => NativeBattleWaterMatrixCommands.Execute(frame, new(0x1000, length, Pc), Bank);
+    private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, int length = 6)
+    {
+        NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), new([null, null, null], [null, null, null], [null, null, null], null));
+        NativeBattleWaterActorAnchorServices services = new(_ => registers, (current, output) =>
+        {
+            registers = output;
+            return current;
+        });
+        return NativeBattleWaterMatrixCommands.Execute(frame, new(0x1000, length, Pc), Bank, services);
+    }
 }
