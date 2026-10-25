@@ -69,5 +69,3 @@ public static partial class NativeBattleEffect320Lower
         return new(offset, bytes.ToImmutableArray(), Enumerable.Range(0, reserved).Select(index => index < 8 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray(), new(bucket, [0x01000000, command], [0, 0, 0, 0]));
     }
 }
-
-

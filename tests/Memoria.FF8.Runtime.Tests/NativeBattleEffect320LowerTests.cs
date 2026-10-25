@@ -187,4 +187,3 @@ public sealed class NativeBattleEffect320LowerTests
         return new(0, address, data.ToImmutableArray());
     }
 }
-
