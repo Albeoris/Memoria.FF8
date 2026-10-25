@@ -29,7 +29,7 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         Assert.Equal(0xA51F10u, binding.Initializer);
     }
 
-    internal static void ValidateSource(BattleSnapshot source, BattleAssets assets)
+    internal static void ValidateSource(BattleSnapshot source, BattleAssets assets, bool cold = true)
     {
         Assert.Equal(185, source.Definition.EncounterId);
         Assert.Equal(48, source.Definition.StageId);
@@ -46,7 +46,14 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
-        Assert.Null(graphics.OriginalEffect);
+        if (cold)
+        {
+            Assert.Null(graphics.OriginalEffect);
+        }
+        else
+        {
+            Assert.True(graphics.OriginalEffect is { Binding.Effect: 233, ReturnedDescriptor: 0 });
+        }
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, source.NativeEffectMemory!.Active);
         Assert.Null(source.NativeAiVariables);

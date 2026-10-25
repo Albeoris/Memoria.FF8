@@ -62,7 +62,7 @@ public sealed class NativeBattleEffect233ProfileHeight70Tests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void NullOrEqualRadiusWithoutStrictThresholdRejectsUnproducedCpuLocal(bool nullProfile)
+    public void NullOrEqualRadiusWithoutStrictThresholdUsesSavedDispatchContext(bool nullProfile)
     {
         NativeBattleWaterExecutionFrame frame = Create();
         if (nullProfile)
@@ -76,9 +76,49 @@ public sealed class NativeBattleEffect233ProfileHeight70Tests
                 frame = ProfileWord(frame, offset, 35);
             }
         }
-        string before = JsonSerializer.Serialize(frame);
+        uint context = WaterSchedulerFixture.ReadCoreDword(frame, 0x27973B8);
+        Assert.Equal(checked(frame.TemporaryFrame.Address + 0x100), context);
+        uint expected = unchecked((uint)((int)context - 7) << 16);
+        bool updated = false;
+        NativeBattleCinematicProfileHeight70Services services = Services() with
+        {
+            UpdateSelected = (current, kind) =>
+            {
+                Assert.Equal((byte)3, kind);
+                Assert.Equal(Address(0x2000), WaterSchedulerFixture.ReadCoreDword(current, 0x27973E8));
+                Assert.Equal(Address(0x1000), WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
+                Assert.Equal(expected, WaterSchedulerFixture.ReadSlotDword(current, 0, 0x60));
+                updated = true;
+                return current;
+            }
+        };
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicProfileHeight70.Execute(frame, Program, services);
+        Assert.True(updated);
+        Assert.Equal(expected, WaterSchedulerFixture.ReadSlotDword(result, 0, 0x60));
+        Assert.Equal(Address(0x1004), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+        NativeBattleWaterExecutionFrame restoredResult = NativeBattleCinematicProfileHeight70.Execute(restored, Program, Services());
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restoredResult));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SavedDispatchContextRequiresKnownMatchingPhysicalOwner(bool unknown)
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.SlotDword(Create(), 1, 0xBC, 0);
+        frame = unknown ? frame with { Core = frame.Core.MarkUnknown(0x27973B8, 4) } : WaterSchedulerFixture.CoreDword(frame, 0x27973B8, 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicProfileHeight70.Execute(frame, Program, Services()));
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+    }
+
+    [Fact]
+    public void SavedContextPreservesHighDwordBitsThroughNativeWrappedHeightArithmetic()
+    {
+        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.SlotDword(Create(), 1, 0xBC, 0);
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Address = 0xF1234500 } };
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, 0xF1234600);
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicProfileHeight70.Execute(frame, Program, Services());
+        Assert.Equal(0x45F90000u, WaterSchedulerFixture.ReadSlotDword(result, 0, 0x60));
     }
 
     [Fact]
@@ -126,6 +166,7 @@ public sealed class NativeBattleEffect233ProfileHeight70Tests
     private static NativeBattleWaterExecutionFrame Create()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, 0x70);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, checked(frame.TemporaryFrame.Address + 0x100));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, Address(0x1000));
         byte[] program = new byte[8];
         BinaryPrimitives.WriteUInt16LittleEndian(program, 0x70);

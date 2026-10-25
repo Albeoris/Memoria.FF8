@@ -11,7 +11,7 @@ public sealed class NativeBattleEffect233Shadow71Tests
     public void Clear_restores_default_shadow_without_reading_render_owners_or_drawing()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x8071);
-        frame = frame with { Core = frame.Core.MarkUnknown(0x27973BC, 4).MarkUnknown(0x27973EC, 4) };
+        frame = frame with { Core = frame.Core.MarkUnknown(0x27973B8, 4).MarkUnknown(0x27973BC, 4).MarkUnknown(0x27973EC, 4) };
         ushort flags = 0xFFFF;
         NativeBattleCinematicShadow71Services services = new(address =>
         {
@@ -33,6 +33,7 @@ public sealed class NativeBattleEffect233Shadow71Tests
     public void Explicit_shadow_sets_flag_before_current_owner_pass_and_publishes_returned_cursor_after_restore()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x71);
+        frame = frame with { Core = frame.Core.MarkUnknown(0x27973BC, 4) };
         ushort flags = 0xAB05;
         int calls = 0;
         NativeBattleCinematicShadow71Services services = new(_ => flags, (_, value) => flags = value, (current, actor, ordering, mode, output) =>
@@ -63,8 +64,8 @@ public sealed class NativeBattleEffect233Shadow71Tests
         frame = frame with { Arena = frame.Arena.Write(0x201B, [3]) };
         frame = WaterSchedulerFixture.CoreDword(frame, 0x279744C, 0x2797068);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797068 + 0x60 + 4 * 3, Actor);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973BC, 0x27975D8);
-        frame = WaterSchedulerFixture.CoreDword(frame, 0x27975D8 + 0x4C, 0x1040);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, checked(frame.TemporaryFrame.Address + 0x100));
+        frame = frame.WriteTemporaryDword(0x14C, 0x1040);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x27973EC, 0x2797690);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797690 + 0x7C, 0x200);
         return WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x80001000);

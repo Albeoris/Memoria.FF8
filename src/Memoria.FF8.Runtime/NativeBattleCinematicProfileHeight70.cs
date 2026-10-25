@@ -18,6 +18,11 @@ public static class NativeBattleCinematicProfileHeight70
         {
             throw new NotSupportedException("Native profile height requires its selected Main70 instruction.");
         }
+        uint entryContext = CoreDword(frame, 0x27973B8);
+        if (entryContext != checked(frame.TemporaryFrame.Address + 0x100))
+        {
+            throw new NotSupportedException("Native profile height requires its actual current dispatch context owner.");
+        }
         short selector = BinaryPrimitives.ReadInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
         uint current = CoreDword(frame, 0x27973E8);
         uint first = services.ResolveSlot(frame, selector);
@@ -29,12 +34,12 @@ public static class NativeBattleCinematicProfileHeight70
         int z = unchecked(Word(current, 0x98) - Word(second, 0x98) - Word(first, 0x98));
         int distance = NativeBattleRayBomb10Geometry.Sqrt56BEC0(unchecked(x * x + z * z));
         uint profile = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(first + 0xBC), 4), 4));
+        int height;
         if (profile == 0)
         {
-            throw new NotSupportedException("Native profile height reached an unproduced retained CPU-local value through a null profile.");
+            height = unchecked((int)entryContext);
         }
-        int height;
-        if (distance > services.ReadProfileWord(frame, unchecked(profile + 0x9E)))
+        else if (distance > services.ReadProfileWord(frame, unchecked(profile + 0x9E)))
         {
             height = 0;
         }
@@ -49,7 +54,7 @@ public static class NativeBattleCinematicProfileHeight70
                     break;
                 }
             }
-            height = selected ?? throw new NotSupportedException("Native profile height reached an unproduced retained CPU-local value without a matching threshold.");
+            height = selected ?? unchecked((int)entryContext);
         }
         int y = unchecked(height + Word(second, 0x96) + Word(first, 0x96));
         frame = WriteSlotDword(frame, 0x60, unchecked((uint)(y << 16)));
@@ -57,5 +62,6 @@ public static class NativeBattleCinematicProfileHeight70
         return NativeBattleScriptedCommandReads.Advance(frame, 4);
 
         short Word(uint address, uint offset) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(address + offset), 2), 2));
+
     }
 }

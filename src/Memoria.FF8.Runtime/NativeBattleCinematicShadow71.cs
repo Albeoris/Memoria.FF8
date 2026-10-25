@@ -26,9 +26,13 @@ public static class NativeBattleCinematicShadow71
         else
         {
             services.WriteActorFlags(actor, unchecked((ushort)(flags | 0x20)));
-            uint control = CoreDword(frame, 0x27973BC);
+            uint control = CoreDword(frame, 0x27973B8);
+            if (control != checked(frame.TemporaryFrame.Address + 0x100))
+            {
+                throw new NotSupportedException("Native explicit shadow requires its actual current dispatch context owner.");
+            }
             uint manager = CoreDword(frame, 0x27973EC);
-            NativeBattleCinematicShadow71Step step = services.DrawShadow(frame, actor, CoreDword(frame, unchecked(control + 0x4C)), 4, CoreDword(frame, unchecked(manager + 0x7C)));
+            NativeBattleCinematicShadow71Step step = services.DrawShadow(frame, actor, frame.ReadTemporaryDword(0x14C), 4, CoreDword(frame, unchecked(manager + 0x7C)));
             frame = WriteCoreDword(step.Frame, unchecked(manager + 0x7C), step.OutputAddress);
         }
         return NativeBattleScriptedCommandReads.Advance(frame, 2);
