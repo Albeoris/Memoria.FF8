@@ -124,35 +124,9 @@ public sealed partial class GameAssets
         {
             yield return new("world/static/unavailable", "World static models", "World static", "world/wmsetus.obj", "world static models wmsetus.obj") { LoadError = staticError };
         }
-        for (int fieldId = 0; fieldId < fieldNames.Length; fieldId++)
+        foreach (ModelCatalogEntry entry in EnumerateFieldModelSources())
         {
-            string fieldName = fieldNames[fieldId];
-            if (string.IsNullOrWhiteSpace(fieldName))
-            {
-                continue;
-            }
-            string path = $"field/{fieldName}/chara.one";
-            IReadOnlyList<Memoria.FF8.Runtime.NativeFieldOneModelEntry>? directory = null;
-            string? error = null;
-            try
-            {
-                ResourcePrefix prefix = resources.ReadPrefix(new ResourceKey(path), 65536);
-                directory = FieldModelReader.ReadDirectory(prefix.Bytes, prefix.Length ?? prefix.Bytes.Length);
-            }
-            catch (Exception exception) when (CatalogError(exception))
-            {
-                error = exception.Message;
-            }
-            if (directory is null)
-            {
-                yield return new($"field/{fieldName}/unavailable", fieldName, "Field", path, $"field {fieldId} {fieldName} {path}", fieldId) { LoadError = error };
-                continue;
-            }
-            for (int index = 0; index < directory.Count; index++)
-            {
-                string name = directory[index].Name;
-                yield return new($"field/{fieldName}/{index}", $"{name} · {fieldName}/{index}", "Field", path, $"field {fieldId} {fieldName} {index} {name} {path}", fieldId, index);
-            }
+            yield return entry;
         }
     }
 

@@ -54,6 +54,8 @@ Tests that need installed resources or external fixtures require explicit config
 | `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE` | Set to `1` to opt in to the full autonomous exploration acceptance test. This does not enable the CLI mode, which needs no environment flag. |
 | `FF8_DEMASTER_PACKAGE` | Optional texture-package root used by Demaster texture tests. |
 | `MEMORIA_FF8_CARD_MOD_DIR` | Optional unpacked card texture package with the complete 31-file menu/mini-game layout for Demaster card routing tests. App integration checks also require `MEMORIA_FF8_GAME_DIR`. |
+| `MEMORIA_FF8_FIELD_MODEL_TEXTURE_PACKAGES` | External JSON array of unpacked model texture package directories, in ascending priority, for installed source coverage and CPU/GPU checks. |
+| `MEMORIA_FF8_FIELD_MODEL_STATE` | Concrete standalone field save for model texture acceptance. See [Build and test](../developers/building-and-testing.md) for the related evidence output and checks. |
 | `MEMORIA_FF8_JUNCTION_CINEMA_ARCHIVE` | Optional Junction archive override for the resource-host test; otherwise that test checks `Mods/Junction/cinema-rf.iroj` in the configured game directory. |
 
 A minimal external fixture catalog has this form:

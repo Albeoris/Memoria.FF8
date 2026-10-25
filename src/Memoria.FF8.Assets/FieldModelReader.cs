@@ -78,6 +78,34 @@ internal static class FieldModelReader
         return ReadSelected(one, mainCharacter, headers, [index])[0];
     }
 
+    internal static FieldModel ReadMainCharacterMaterials(string name, byte[] mch)
+    {
+        using BinaryReader reader = Reader(mch);
+        List<int> offsets = [];
+        uint pointer;
+        while ((pointer = reader.ReadUInt32()) != uint.MaxValue)
+        {
+            offsets.Add(checked((int)(pointer & 0xFFFFFF)));
+            if (offsets.Count > 100)
+            {
+                throw new InvalidDataException("MCH texture pointer table is unbounded.");
+            }
+        }
+        int modelOffset = checked((int)reader.ReadUInt32());
+        if (modelOffset < reader.BaseStream.Position || modelOffset > mch.Length)
+        {
+            throw new InvalidDataException("MCH model section offset lies outside its original container.");
+        }
+        TimImage[] textures = offsets.Select(offset => ReadTim(mch, offset)).ToArray();
+        return new(name, [], [], [], textures.Select(texture => texture.Decode()).ToArray(), [])
+        {
+            TextureResourceName = name,
+            MainCharacterTextures = true,
+            TextureRegions = textures.Select(NativeTextureRegion).ToArray(),
+            NativeTexturePalettes = textures.Select(NativePaletteWords).ToArray()
+        };
+    }
+
     private static IReadOnlyList<FieldModel> ReadSelected(byte[] one, Func<string, byte[]> mainCharacter, IReadOnlyList<NativeFieldOneModelEntry> headers, IEnumerable<int> selected)
     {
         FieldModel?[] models = new FieldModel?[headers.Count];
@@ -121,7 +149,7 @@ internal static class FieldModelReader
                 {
                     throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
                 }
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray(), TextureResourceName = source.TextureResourceName, MainCharacterTextures = source.MainCharacterTextures };
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray(), TextureResourceName = source.TextureResourceName, MainCharacterTextures = source.MainCharacterTextures, NativeTexturePalettes = source.NativeTexturePalettes.Take(1).ToArray(), TextureSourceVariant = source.TextureSourceVariant };
             }
             else if (header.ModelOffset >= 0)
             {
@@ -234,13 +262,29 @@ internal static class FieldModelReader
         }
         TimImage[]? nativeTextures = decodedTextures is null ? textureOffsets.Select(offset => ReadTim(content, textureBase + offset)).ToArray() : null;
         IReadOnlyList<PixelImage> textures = decodedTextures ?? nativeTextures!.Select(texture => texture.Decode()).ToArray();
-        IReadOnlyList<TextureSourceRegion> textureRegions = nativeTextures?.Select(texture => new TextureSourceRegion(texture.X, texture.Y, texture.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, _ => 24 }, texture.PixelWidth, texture.Height)).ToArray() ?? [];
+        IReadOnlyList<TextureSourceRegion> textureRegions = nativeTextures?.Select(NativeTextureRegion).ToArray() ?? [];
         if (faces.Any(face => face.Texture >= textures.Count))
         {
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
-        return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+        return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeTexturePalettes = nativeTextures?.Select(NativePaletteWords).ToArray() ?? [], NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+    }
+
+    private static TextureSourceRegion NativeTextureRegion(TimImage texture) => new(texture.X, texture.Y, texture.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, _ => 24 }, texture.PixelWidth, texture.Height);
+
+    private static ImmutableArray<byte> NativePaletteWords(TimImage image)
+    {
+        if (image.Clut is null)
+        {
+            return [];
+        }
+        byte[] words = new byte[image.Clut.Colors.Length * 2];
+        for (int index = 0; index < image.Clut.Colors.Length; index++)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(words.AsSpan(index * 2), image.Clut.Colors[index]);
+        }
+        return words.ToImmutableArray();
     }
 
     private static NativeEyeTexture? ReadEyeTexture(byte[] content, int offset)

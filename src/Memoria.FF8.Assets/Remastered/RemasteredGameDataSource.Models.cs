@@ -26,8 +26,7 @@ public sealed partial class RemasteredGameDataSource
             using Stream stream = maps.OpenRead();
             fieldNames = System.Text.Encoding.ASCII.GetString(Read(stream)).Replace("\r", "").Split('\n');
         }
-        // NG-007: the original resource loader selects this object material in two fields.
-        return fieldNames.Length > 0x370 && (parts[1] == fieldNames[0x36F] || parts[1] == fieldNames[0x370]);
+        return NativeFieldModelTextureSheets.Variant("o006", Array.IndexOf(fieldNames, parts[1])) == "alpha";
     }
 
     public IReadOnlyList<FieldModel> ReadModels(ResourceKey owner, byte[] one, Func<string, byte[]> mainCharacter, Action<NativeFieldOneModelEntry>? retainEntry = null)
@@ -53,6 +52,10 @@ public sealed partial class RemasteredGameDataSource
         if (name[0] == 'c')
         {
             name = "n" + name[1..];
+        }
+        if (name == "o006" && UsesAlphaObject(owner))
+        {
+            model = model with { TextureSourceVariant = "alpha" };
         }
         for (int texture = 0; texture < model.Textures.Count; texture++)
         {
@@ -155,7 +158,8 @@ public sealed partial class RemasteredGameDataSource
         {
             return artwork;
         }
-        if (!imageBindings.TryGetValue(context.Key, out ImageBinding? binding))
+        ImageBinding? binding = FieldModelImageBinding(context);
+        if (binding is null && !imageBindings.TryGetValue(context.Key, out binding))
         {
             return null;
         }

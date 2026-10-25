@@ -45,6 +45,18 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         return handle;
     }
 
+    public AssetHandle<TextureValue>? RegisterTransform(TextureKey key, IReadOnlyList<TextureKey> dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> build, long revision = 0)
+    {
+        if (resources is null)
+        {
+            return null;
+        }
+        bool retain = !keys.Contains(key);
+        AssetHandle<TextureValue> handle = resources.GetTransformedTexture(new TextureTransformContext(key, [.. dependencies], build) { Revision = revision }, retain);
+        keys.Add(key);
+        return handle;
+    }
+
     public void Dispose()
     {
         resources?.Release(keys);

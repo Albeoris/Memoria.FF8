@@ -79,7 +79,10 @@ public interface ITextureReplacementResolver
 }
 
 /// <summary>A native preparation step applied to already resolved source textures.</summary>
-public sealed record TextureTransformContext(TextureKey Key, ImmutableArray<TextureKey> Dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> Build);
+public sealed record TextureTransformContext(TextureKey Key, ImmutableArray<TextureKey> Dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> Build)
+{
+    public long Revision { get; init; }
+}
 
 public sealed class AssetHandle<T> where T : class
 {

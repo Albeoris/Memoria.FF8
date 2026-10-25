@@ -48,7 +48,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             supported |= fieldTarget && HasLayout(source, FieldPageLayout) && IsFieldPageTarget(stem);
             bool modelTarget = IsModelSheetFamily(stem);
             supported |= modelTarget && HasLayout(source, ModelSheetLayout) && IsModelSheetTarget(stem);
-            supported |= !battleTarget && !fieldTarget && !modelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
+            bool fieldModelTarget = IsFieldModelSheetFamily(stem);
+            supported |= fieldModelTarget && HasLayout(source, FieldModelSheetLayout) && IsFieldModelSheetTarget(stem);
+            supported |= !battleTarget && !fieldTarget && !modelTarget && !fieldModelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
                 usable.Add(file.PackageId);
@@ -63,6 +65,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == "classic-field-model")
+        {
+            return ResolveFieldModelSheet(context);
+        }
         if (context.Layout == "classic-battle")
         {
             return ResolveModelSheet(context);
@@ -105,6 +111,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == "classic-field-model")
+        {
+            return TryFieldModelSheetAddress(context, out string fieldModelName, out int fieldModelRow, out string fieldModelVariant, out _) ? FieldModelSheetPaths(fieldModelName, fieldModelRow, fieldModelVariant) : Array.Empty<string>();
+        }
         if (context.Layout == "classic-battle")
         {
             return TryModelSheetAddress(context, out string modelStem, out _) ? WithExtensions(modelStem) : Array.Empty<string>();

@@ -47,7 +47,8 @@ public sealed partial class GameAssets
                 TexturePageMember[] visible = members.Where(member => member.BitsPerPixel == 4 << texture.Mode && member.X < pageX + pageWidthWords && member.X + member.WidthWords > pageX && member.Y < pageY + 256 && member.Y + member.Height > pageY).ToArray();
                 return new TextureSourcePageAddress(page, (texture.X - pageX) << shift, texture.Y - pageY, texture.WidthWords << shift, texture.Height, texture.PaletteX, texture.PaletteY, visible);
             }).ToArray();
-            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages);
+            byte[]? palette = resource.Textures.IsEmpty ? null : NativeFieldModelTextureCopies.ProjectPalette(model, source, registration, resource.Textures[0]);
+            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages, resource.Textures, bank, palette);
         }
         return field with { Models = models };
 
@@ -86,13 +87,24 @@ public sealed partial class GameAssets
         }
     }
 
-    private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null, IReadOnlyList<TextureSourcePageAddress>? pages = null)
+    private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null, IReadOnlyList<TextureSourcePageAddress>? pages = null, IReadOnlyList<NativeFieldRegisteredTexture>? registered = null, byte[]? bank = null, byte[]? palette = null)
     {
+        model = model with { TextureSourceVariant = NativeFieldModelTextureSheets.Variant(model.TextureResourceName, Array.IndexOf(fieldNames, fieldName)) };
         string registration = revision.HasValue ? "/registered" : "";
         string prefix = model.TextureResourceName is { } name ? $"model/{index}/{(model.MainCharacterTextures ? "main" : "second")}/{name}{registration}/texture" : $"model/{index}{registration}/texture";
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
         ResourceKey owner = new($"field/{fieldName}/chara.one");
-        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativePage: pages?[ordinal])!).ToArray();
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) =>
+        {
+            TextureKey key = new(owner, $"{prefix}/{ordinal}");
+            AssetHandle<TextureValue> source = textureScope.Register(key, image, layout, revision: revision, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal))!;
+            if (ordinal != 0 || registered is null || bank is null || model.NativeEyes is null)
+            {
+                return source;
+            }
+            TextureKey transformed = new(owner, $"{prefix}/{ordinal}/native-copy");
+            return textureScope.RegisterTransform(transformed, [key], values => NativeFieldModelTextureCopies.Apply(values[0], image, model, registered[ordinal], bank, palette), revision ?? 0)!;
+        }).ToArray();
         return model with { Textures = new ResourceTextureList(handles) };
     }
 

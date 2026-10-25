@@ -154,6 +154,21 @@ public sealed class ResourceService : IResourceChangeFeed
             {
                 throw new InvalidOperationException("A prepared texture identity cannot change its source dependencies while resident.");
             }
+            if (previous.Revision != context.Revision)
+            {
+                long version = mutationVersion;
+                Publication current = published;
+                ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
+                BuildTransforms(candidate, context);
+                if (mutationVersion != version)
+                {
+                    throw new InvalidOperationException("The source or preparation graph changed while refreshing the derived texture.");
+                }
+                transforms[context.Key] = context;
+                mutationVersion++;
+                Volatile.Write(ref published, current with { Generation = current.Generation + 1, Values = candidate.ToImmutable() });
+                Notify(new ResourceChangeSet(current.Generation, current.Generation + 1, [.. transforms.Keys], "Texture preparation changed"));
+            }
             if (retain)
             {
                 owners[context.Key]++;
@@ -193,9 +208,13 @@ public sealed class ResourceService : IResourceChangeFeed
         return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts);
     }
 
-    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
+    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, TextureTransformContext? replacement = null)
     {
         Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
+        if (replacement is not null)
+        {
+            preparation[replacement.Key] = replacement;
+        }
         foreach (TextureKey key in preparation.Keys)
         {
             next.Remove(key);
