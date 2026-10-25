@@ -567,7 +567,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, RecentEvents = active.Events.TakeLast(12).ToArray(), uiPreferences.BattlePolicy, DebugMenuOpen = battleDebug is not null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, RecentEvents = active.Events.TakeLast(12).ToArray(), uiPreferences.BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticInvocationOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)

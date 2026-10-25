@@ -213,7 +213,8 @@ internal sealed partial class RecreateGame
                 diagnostic_capabilities = world?.DiagnosticCapabilities,
                 limit_selections = diagnosticLimitSelections.ToArray(),
                 gunblade_triggers = diagnosticGunbladeTriggers.ToArray(),
-                repairs = diagnosticRepairs.ToArray()
+                repairs = diagnosticRepairs.ToArray(),
+                invocation_owners = diagnosticDriverBattle?.ObserveDiagnosticInvocationOwners()
             }, false);
             string hash = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(telemetryPath)));
             WriteDiagnosticJson(Path.Combine(output, "candidate.json"), new { status = diagnosticDriver.Blocker is null ? "CANDIDATE_COMPLETED" : "ERROR", reason = diagnosticDriver.Blocker, coverage = "LIVE_DIAGNOSTIC", telemetry_report = "telemetry-report.json", telemetry_sha256 = hash, execution_count = diagnosticDriver.Dispatches.Count, battle_instance_id = world?.DiagnosticReceipt?.BattleInstanceId }, false);
@@ -228,6 +229,13 @@ internal sealed partial class RecreateGame
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(value, DiagnosticBattleJson);
         File.WriteAllBytes(temporary, bytes);
         NativeBattleTelemetry.Record(2005, NativeBattleTrafficKind.DiagnosticOutput, bytes.Length);
-        File.Move(temporary, full, replace);
+        if (replace && File.Exists(full))
+        {
+            File.Replace(temporary, full, destinationBackupFileName: null);
+        }
+        else
+        {
+            File.Move(temporary, full);
+        }
     }
 }

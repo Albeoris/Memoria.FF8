@@ -78,18 +78,37 @@ public sealed partial class BattleSession
             nativeCommand = header.ReadByte(1);
             if (actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
-                ability = !selectedActor.IsPlayer ? BattleAbility.EnemyAbility : selectedActor.NativeLimit?.Command == nativeCommand ? BattleAbility.LimitBreak : nativeCommand switch
-                {
-                    1 => BattleAbility.Attack,
-                    2 => BattleAbility.Magic,
-                    4 or 244 => BattleAbility.Item,
-                    6 => BattleAbility.Draw,
-                    254 => BattleAbility.GuardianForce,
-                    _ => BattleAbility.NativeCommand
-                };
+                ability = ResolveDiagnosticHeaderAbility(selectedActor.IsPlayer, ability, selectedActor.NativeLimit?.Command, nativeCommand.Value);
             }
         }
         observer(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand));
+    }
+
+    private static BattleAbility ResolveDiagnosticHeaderAbility(bool isPlayer, BattleAbility? knownAbility, byte? limitCommand, byte nativeCommand)
+    {
+        if (!isPlayer)
+        {
+            return BattleAbility.EnemyAbility;
+        }
+        if (knownAbility is { } known && known != BattleAbility.EnemyAbility)
+        {
+            // The actor-matched action or effect-matched bank binding owns semantic
+            // identity. The actual header command/action above remain independently recorded.
+            return known;
+        }
+        if (limitCommand == nativeCommand || limitCommand == 5 && nativeCommand == 250)
+        {
+            return BattleAbility.LimitBreak;
+        }
+        return nativeCommand switch
+        {
+            1 => BattleAbility.Attack,
+            2 => BattleAbility.Magic,
+            4 or 13 or 244 => BattleAbility.Item,
+            6 => BattleAbility.Draw,
+            254 => BattleAbility.GuardianForce,
+            _ => BattleAbility.NativeCommand
+        };
     }
 
     /// <summary>Conservative normal-owner drain observation, without serialization or owner mutation.</summary>

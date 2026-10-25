@@ -301,16 +301,34 @@ public static class OwnedChildSupervisor
 
     private static SupervisionProgress? ReadProgress(string path)
     {
-        if (!File.Exists(path))
+        try
+        {
+            // The host publishes by atomic replacement. Read one opened publication and
+            // allow its directory entry to be replaced while this handle remains alive.
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            long length = stream.Length;
+            if (length == 0 || length > 4096)
+            {
+                throw new InvalidDataException("The progress channel must be a bounded JSON record.");
+            }
+            byte[] bytes = new byte[checked((int)length)];
+            stream.ReadExactly(bytes);
+            return JsonSerializer.Deserialize<SupervisionProgress>(bytes, JsonOptions) ?? throw new InvalidDataException("The progress channel was null.");
+        }
+        catch (FileNotFoundException)
         {
             return null;
         }
-        FileInfo info = new(path);
-        if (info.Length == 0 || info.Length > 4096)
+        catch (DirectoryNotFoundException)
         {
-            throw new InvalidDataException("The progress channel must be a bounded JSON record.");
+            return null;
         }
-        return JsonSerializer.Deserialize<SupervisionProgress>(File.ReadAllBytes(path), JsonOptions) ?? throw new InvalidDataException("The progress channel was null.");
+        catch (IOException exception) when (OperatingSystem.IsWindows() && (exception.HResult & 0xFFFF) is 32 or 33)
+        {
+            // A concurrent publisher or external reader may briefly deny sharing. This
+            // is not progress: all original wall-clock and no-progress bounds still run.
+            return null;
+        }
     }
 
     private static void Validate(SupervisionRequest request)

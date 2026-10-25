@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Reflection;
 using Memoria.FF8.BattleEffects;
 
 namespace Memoria.FF8.BattleEffects.Tests;
@@ -7,6 +8,113 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class SupervisionTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "battle-supervision-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task Brief_progress_sharing_conflict_does_not_abort_an_owned_child()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows file-sharing and job-object test.");
+        }
+        SupervisionRequest request = ScriptRequest("""
+            $ErrorActionPreference = 'Stop'
+            $path = Join-Path $env:MEMORIA_FF8_CONTROL_DIRECTORY 'progress.json'
+            $bytes = [Text.Encoding]::UTF8.GetBytes('{"stage":"initialization","sequence":0}')
+            $stream = [IO.File]::Open($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            try {
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Flush()
+                Start-Sleep -Milliseconds 350
+            } finally {
+                $stream.Dispose()
+            }
+            $next = @{ stage = 'teardown'; sequence = 5; completed_stages = @('initialization', 'action_one', 'cleanup_rearm', 'action_two') } | ConvertTo-Json -Compress
+            [IO.File]::WriteAllText($path + '.tmp', $next)
+            [IO.File]::Replace($path + '.tmp', $path, $path + '.previous')
+            [IO.File]::WriteAllText((Join-Path $env:MEMORIA_FF8_OUTPUT_DIRECTORY 'candidate.json'), '{}')
+            """);
+
+        SupervisionOutcome outcome = await OwnedChildSupervisor.RunAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.True(outcome.Status == "candidate_ready", $"{outcome.ErrorCategory}: {outcome.Message}; log: {outcome.LogTail}");
+        Assert.Null(outcome.ErrorCategory);
+        Assert.True(outcome.ProcessExited);
+    }
+
+    [Fact]
+    public async Task Persistent_progress_lock_still_expires_the_original_no_progress_budget()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows file-sharing and job-object test.");
+        }
+        SupervisionRequest request = ScriptRequest("""
+            $path = Join-Path $env:MEMORIA_FF8_CONTROL_DIRECTORY 'progress.json'
+            $bytes = [Text.Encoding]::UTF8.GetBytes('{"stage":"initialization","sequence":0}')
+            $stream = [IO.File]::Open($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Flush()
+            Start-Sleep -Seconds 30
+            """);
+        request = request with { Budgets = request.Budgets with { NoProgress = TimeSpan.FromSeconds(1) } };
+
+        SupervisionOutcome outcome = await OwnedChildSupervisor.RunAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal("TIMEOUT", outcome.ErrorCategory);
+        Assert.Equal("The independent no-progress bound expired.", outcome.Message);
+        Assert.True(outcome.ProcessExited);
+    }
+
+    [Fact]
+    public async Task Progress_reads_accept_atomic_replacement_without_mixing_publications()
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "progress.json");
+        File.WriteAllText(path, "{\"stage\":\"initialization\",\"sequence\":0}");
+        using ManualResetEventSlim start = new(false);
+        Task writer = Task.Run(() =>
+        {
+            start.Wait(TestContext.Current.CancellationToken);
+            for (int sequence = 1; sequence <= 500; sequence++)
+            {
+                string temporary = path + ".tmp";
+                File.WriteAllText(temporary, JsonSerializer.Serialize(new { stage = "initialization", sequence }));
+                File.Replace(temporary, path, destinationBackupFileName: null);
+            }
+        }, TestContext.Current.CancellationToken);
+        start.Set();
+        for (int index = 0; index < 500; index++)
+        {
+            SupervisionProgress? progress = InvokeReadProgress(path);
+            if (progress is not null)
+            {
+                Assert.Equal("initialization", progress.Stage);
+                Assert.InRange(progress.Sequence, 0, 500);
+            }
+        }
+        await writer;
+        Assert.Equal(500, InvokeReadProgress(path)!.Sequence);
+    }
+
+    [Fact]
+    public void Invalid_progress_and_permanent_access_errors_are_not_treated_as_missing_updates()
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "progress.json");
+        Assert.Null(InvokeReadProgress(Path.Combine(directory, "not-created", "progress.json")));
+        Assert.Null(InvokeReadProgress(path));
+        File.WriteAllText(path, new string('x', 4097));
+        TargetInvocationException invalid = Assert.Throws<TargetInvocationException>(() => InvokeReadProgress(path));
+        Assert.IsType<InvalidDataException>(invalid.InnerException);
+        TargetInvocationException access = Assert.Throws<TargetInvocationException>(() => InvokeReadProgress(directory));
+        Assert.True(access.InnerException is IOException or UnauthorizedAccessException);
+    }
+
+    private static SupervisionProgress? InvokeReadProgress(string path)
+    {
+        MethodInfo reader = typeof(OwnedChildSupervisor).GetMethod("ReadProgress", BindingFlags.Static | BindingFlags.NonPublic)!;
+        return (SupervisionProgress?)reader.Invoke(null, [path]);
+    }
 
     [Fact]
     public async Task Failed_host_preserves_the_actual_reason_without_claiming_complete_stages()
@@ -160,7 +268,7 @@ public sealed class SupervisionTests : IDisposable
             exit 0
             """);
         SupervisionOutcome outcome = await OwnedChildSupervisor.RunAsync(request, TestContext.Current.CancellationToken);
-        Assert.Equal("candidate_ready", outcome.Status);
+        Assert.True(outcome.Status == "candidate_ready", $"{outcome.ErrorCategory}: {outcome.Message}; log: {outcome.LogTail}");
         Assert.Null(outcome.ErrorCategory);
         Assert.False(File.Exists(outcome.ResultPath));
         OwnedChildSupervisor.PublishValidatedCandidate(outcome, payload =>
