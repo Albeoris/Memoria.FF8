@@ -24,6 +24,10 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
     private bool drained;
     private bool cameraRegistered;
     private bool cameraPlaying;
+    private bool skippedByRetainedSelector;
+    private bool cameraSkipVerified;
+    private short? cameraSelectorAtRegistration;
+    private string cameraScope = "not yet registered";
     private bool cameraViewChanged;
     private bool textureQueued;
     private bool vramChanged;
@@ -202,6 +206,14 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
             byte[] expected = file0Bytes.AsSpan(cameraOffset).ToArray();
             if (control.Source.Data.AsSpan().SequenceEqual(expected))
             {
+                bool firstRegistration = !cameraRegistered;
+                if (firstRegistration)
+                {
+                    cameraSelectorAtRegistration = current.NativeCamera.Variables[0];
+                    Assert.Equal(prior.NativeCamera!.Variables[0], cameraSelectorAtRegistration.Value);
+                    skippedByRetainedSelector = cameraSelectorAtRegistration.Value < 0;
+                    cameraScope = skippedByRetainedSelector ? "registered control terminated by retained negative selector; no track started" : "registered nonnegative selector; static-track playback required";
+                }
                 cameraRegistered = true;
                 Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(textures.Animation));
                 bool playing = current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]));
@@ -216,6 +228,25 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
                             cameraChoices.Add(task.Channel);
                         }
                     }
+                }
+                if (skippedByRetainedSelector)
+                {
+                    Assert.Null(current.NativeCamera.ControlCursor);
+                    Assert.False(playing);
+                    if (firstRegistration)
+                    {
+                        Assert.Equal(cameraSelectorAtRegistration, current.NativeCamera.Scratch[0]);
+                        Assert.Equal(JsonSerializer.Serialize(prior.NativeCamera!.Tasks), JsonSerializer.Serialize(current.NativeCamera.Tasks));
+                        Assert.Equal(JsonSerializer.Serialize(prior.NativeCamera.Order), JsonSerializer.Serialize(current.NativeCamera.Order));
+                        Assert.Equal(prior.NativeCamera.Mask, current.NativeCamera.Mask);
+                        Assert.Equal(prior.NativeCamera.CurrentPose, current.NativeCamera.CurrentPose);
+                        cameraSkipVerified = true;
+                        Mark("camera-skipped-retained-selector", current, cold);
+                    }
+                }
+                if (playing)
+                {
+                    cameraScope = "registered nonnegative selector; selected static-track playback observed";
                 }
                 cameraPlaying |= playing;
                 cameraViewChanged |= playing && JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778()) != JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778());
@@ -349,7 +380,7 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
             uint temporaryCursor = BinaryPrimitives.ReadUInt32LittleEndian(current.NativeFileStaging.Read(NativeBattleTemporaryMemory.Cursor, 4));
             int? cameraVariable22 = current.NativeGraphics!.ActionContext is not null ? NativeBattleCameraGraphics.ReadVariable(current.NativeGraphics, 22) : null;
             NativeBattlePrimitiveProcess process = current.NativeEffectMemory.PrimitiveProcess!;
-            observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Returned = effect.ReturnedDescriptor, Manager = manager, Pause35 = pause35, ProgrammeBank = bank, ProgrammeCapacity = capacity, Resource01Offset = currentFile1, WorkspaceRelative = workspaceRelative, CurrentPixel0Start = checked(0x20DFAB8u + (uint)currentFile1 + 0x858), ProgrammeEnd = checked(bank + (uint)capacity * 0x100), Entry = commonEntry, CommonPrefixStart = entryCommonCursor, CommonPrefixEnd = Dword(core, manager + 0x7C), CommonBank = process.PacketBank, CommonBuffer = process.PacketBuffer, CallbackEntryCommonAvailable = entryCommonAvailable, FrameEndResetCursor = process.ByteCursor, ArenaCursorStart = Dword(core, manager + 0xD4), ArenaCursorEnd = Dword(core, manager + 0xD8), ArenaPacketStart = arenaPacketStart, ArenaHalf = arenaHalf, ActualPackets = commands, PacketBase = Dword(core, manager + 0x88), Header = Dword(core, manager + 0xCC), HeaderWord2 = headerWord2, Slots = slots, Commands = commands.Length, ArenaCommands = commands.Count(command => command.Packet.Bank == "20DFAB8"), CommonCommands = commands.Count(command => command.Packet.Bank != "20DFAB8"), IoActive = io.ActiveCount, SubmittedTextures = submittedTextures, CameraVariable0 = current.NativeCamera?.Variables[0], CameraVariable22 = cameraVariable22, CameraScratch127 = current.NativeCamera?.Scratch[0], CameraControlCursor = current.NativeCamera?.ControlCursor, CrtRandom = current.NativeCrtRandom, Hp = afterHp, CurrentGte = current.NativeEffectMemory.GeometryRegisters, CurrentColors = current.NativeEffectMemory.ScriptedColorRegisters, TemporaryAddress = temporaryAddress, TemporaryCursor = temporaryCursor, TemporaryBytes = Convert.ToBase64String(temporary.Data), TemporaryUnknownOffsets = Enumerable.Range(0, temporary.Known.Length).Where(offset => !temporary.Known[offset]).ToArray(), CurrentRigs = new[] { current.NativeGraphics.Models[0], current.NativeGraphics.Models[3] }, IoRows = io.Rows, RetainedTextureUploads = textures.Slots.Where(slot => slot is not null).Select(slot => new { slot!.Kind, slot.ArenaOffset, slot.Rectangle, slot.Copy }).ToArray() });
+            observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Returned = effect.ReturnedDescriptor, Manager = manager, Pause35 = pause35, ProgrammeBank = bank, ProgrammeCapacity = capacity, Resource01Offset = currentFile1, WorkspaceRelative = workspaceRelative, CurrentPixel0Start = checked(0x20DFAB8u + (uint)currentFile1 + 0x858), ProgrammeEnd = checked(bank + (uint)capacity * 0x100), Entry = commonEntry, CommonPrefixStart = entryCommonCursor, CommonPrefixEnd = Dword(core, manager + 0x7C), CommonBank = process.PacketBank, CommonBuffer = process.PacketBuffer, CallbackEntryCommonAvailable = entryCommonAvailable, FrameEndResetCursor = process.ByteCursor, ArenaCursorStart = Dword(core, manager + 0xD4), ArenaCursorEnd = Dword(core, manager + 0xD8), ArenaPacketStart = arenaPacketStart, ArenaHalf = arenaHalf, ActualPackets = commands, PacketBase = Dword(core, manager + 0x88), Header = Dword(core, manager + 0xCC), HeaderWord2 = headerWord2, Slots = slots, Commands = commands.Length, ArenaCommands = commands.Count(command => command.Packet.Bank == "20DFAB8"), CommonCommands = commands.Count(command => command.Packet.Bank != "20DFAB8"), IoActive = io.ActiveCount, SubmittedTextures = submittedTextures, CameraScope = cameraScope, SkippedByRetainedSelector = skippedByRetainedSelector, CameraSelectorAtRegistration = cameraSelectorAtRegistration, CameraSkipVerified = cameraSkipVerified, CameraVariable0 = current.NativeCamera?.Variables[0], CameraVariable22 = cameraVariable22, CameraScratch127 = current.NativeCamera?.Scratch[0], CameraControlCursor = current.NativeCamera?.ControlCursor, CrtRandom = current.NativeCrtRandom, Hp = afterHp, CurrentGte = current.NativeEffectMemory.GeometryRegisters, CurrentColors = current.NativeEffectMemory.ScriptedColorRegisters, TemporaryAddress = temporaryAddress, TemporaryCursor = temporaryCursor, TemporaryBytes = Convert.ToBase64String(temporary.Data), TemporaryUnknownOffsets = Enumerable.Range(0, temporary.Known.Length).Where(offset => !temporary.Known[offset]).ToArray(), CurrentRigs = new[] { current.NativeGraphics.Models[0], current.NativeGraphics.Models[3] }, IoRows = io.Rows, RetainedTextureUploads = textures.Slots.Where(slot => slot is not null).Select(slot => new { slot!.Kind, slot.ArenaOffset, slot.Rectangle, slot.Copy }).ToArray() });
         }
         else
         {
@@ -377,8 +408,17 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
             Assert.True(vramChanged);
         }
         Assert.True(cameraRegistered);
-        Assert.True(cameraPlaying);
-        Assert.True(cameraViewChanged);
+        if (skippedByRetainedSelector)
+        {
+            Assert.True(cameraSkipVerified);
+            Assert.Empty(cameraChoices);
+        }
+        else
+        {
+            Assert.True(cameraPlaying);
+            Assert.True(cameraViewChanged);
+            Assert.NotEmpty(cameraChoices);
+        }
         Assert.True(geometry);
         Assert.NotEmpty(packetBanks);
         Assert.Contains("20DFAB8", packetBanks);
@@ -391,7 +431,6 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
         Assert.Equal(new[] { 32, 40 }, particleCounts.Order());
         Assert.Contains(2, particlePlacements);
         Assert.Contains(64, programmeCapacities);
-        Assert.NotEmpty(cameraChoices);
         Assert.Equal(Enumerable.Range(0, 5), textureClutIndices.Order());
         Assert.Equal(Enumerable.Range(0, 5), texturePixelIndices.Order());
         Assert.True(NativeBattleEffect242PresentationTests.Released(completed));
@@ -399,7 +438,7 @@ internal sealed class NativeBattleEffect242PresentationObserver(BattleSnapshot s
 
     public void Write(string output)
     {
-        File.WriteAllText(Path.Combine(output, "effect242-native-observations.json"), JsonSerializer.Serialize(new { Initialized = initialized, Drained = drained, Callbacks = callbacks.Order(), Sounds = sounds.Order(), PacketBanks = packetBanks.Order(), RenderKinds = renderKinds.Order(), ProgrammeCapacities = programmeCapacities.Order(), PrimitiveOpcodes = primitiveOpcodes.Order(), ParticleCounts = particleCounts.Order(), ParticlePlacements = particlePlacements.Order(), ArenaRequired = 39348, ArenaCapacity = 45056, CommonRequiredEntry = 72, ProgrammeActiveBound = 57, CameraChoices = cameraChoices.Order(), TextureClutIndices = textureClutIndices.Order(), TexturePixelIndices = texturePixelIndices.Order(), VerifiedCurrentUploads = uploads, CameraRegistered = cameraRegistered, CameraPlaying = cameraPlaying, CameraViewChanged = cameraViewChanged, TextureQueued = textureQueued, VramChanged = vramChanged, VramUploadVerified = vramUploadVerified, RandomAdvanced = randomAdvanced, Geometry = geometry, ArenaGeometry = arenaGeometry, CommonGeometry = commonGeometry, HpTransitions = hpTransitions, Markers = markers.Order(), Observations = observations, TraceScope = "Frame-end slot observations and independently observed side effects; not an opcode execution trace" }));
+        File.WriteAllText(Path.Combine(output, "effect242-native-observations.json"), JsonSerializer.Serialize(new { Initialized = initialized, Drained = drained, Callbacks = callbacks.Order(), Sounds = sounds.Order(), PacketBanks = packetBanks.Order(), RenderKinds = renderKinds.Order(), ProgrammeCapacities = programmeCapacities.Order(), PrimitiveOpcodes = primitiveOpcodes.Order(), ParticleCounts = particleCounts.Order(), ParticlePlacements = particlePlacements.Order(), ArenaRequired = 39348, ArenaCapacity = 45056, CommonRequiredEntry = 72, ProgrammeActiveBound = 57, CameraChoices = cameraChoices.Order(), TextureClutIndices = textureClutIndices.Order(), TexturePixelIndices = texturePixelIndices.Order(), VerifiedCurrentUploads = uploads, CameraRegistered = cameraRegistered, CameraScope = cameraScope, SkippedByRetainedSelector = skippedByRetainedSelector, CameraSelectorAtRegistration = cameraSelectorAtRegistration, CameraSkipVerified = cameraSkipVerified, CameraPlaying = cameraPlaying, CameraViewChanged = cameraViewChanged, TextureQueued = textureQueued, VramChanged = vramChanged, VramUploadVerified = vramUploadVerified, RandomAdvanced = randomAdvanced, Geometry = geometry, ArenaGeometry = arenaGeometry, CommonGeometry = commonGeometry, HpTransitions = hpTransitions, Markers = markers.Order(), Observations = observations, TraceScope = "Frame-end slot observations and independently observed side effects; not an opcode execution trace" }));
     }
 
     internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot, int commonStart)
