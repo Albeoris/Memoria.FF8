@@ -145,7 +145,7 @@ public static class ChocoboRewardTransactions
             throw new InvalidDataException("The saved Chocobo reward ledger is invalid.");
         }
         ChocoboRewardLedger ledger = state.ChocoboRewards.ObserveInventory(state.Economy?.Items ?? []);
-        if (state.CharacterVitals is { } vitals)
+        if (state.GameplayPreferences.ChocoboWorldMode is null && state.CharacterVitals is { } vitals)
         {
             foreach (ChocoboRewardDefinition reward in ChocoboRewardCatalog.Entries)
             {

@@ -89,10 +89,10 @@ internal sealed partial class RecreateGame
                 bool noSlot = current == 0 && session.State.Economy?.Items.Any(stock => stock.ItemId == item.ItemId || stock.ItemId == 0) != true;
                 int overflow = item.AlreadyAcquired ? 0 : noSlot ? totals.GetValueOrDefault(item.ItemId) : Math.Max(0, current + totals.GetValueOrDefault(item.ItemId) - 100);
                 ChocoboRewardRow row = rows[detailedRows.Count];
-                detailedRows.Add(row with { Details = row.Details + $" · Grant {(preview.CanImport && !item.AlreadyAcquired ? item.Count : 0)} · Overflow {overflow}" });
+                detailedRows.Add(row with { Details = row.Details + $" Â· Grant {(preview.CanImport && !item.AlreadyAcquired ? item.Count : 0)} Â· Overflow {overflow}" });
             }
             session.State.ChocoboRewards.NativeImportSources.TryGetValue(imported.SourceId, out ChocoboImportReceipt? checkpoint);
-            header = [.. header, string.Join(" · ", Enumerable.Range(0, 4).Select(index => $"{(char)('A' + index)} {imported.ClassCounts[index]} / previously imported {checkpoint?.ConsumedClassCounters[index] ?? 0}"))];
+            header = [.. header, string.Join(" Â· ", Enumerable.Range(0, 4).Select(index => $"{(char)('A' + index)} {imported.ClassCounts[index]} / previously imported {checkpoint?.ConsumedClassCounters[index] ?? 0}"))];
             string? boundary = ChocoboWorldBoundaryUnavailableReason;
             return new(header, detailedRows, preview.CanImport && boundary is null, boundary ?? preview.Message, preview.RequiresAssociationReview && !reviewed);
         }

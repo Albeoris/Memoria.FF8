@@ -54,11 +54,26 @@ public sealed class ChocoboRewardTests
         NativeCharacterVitals vitals = MagicSystemFixture.Create();
         NativeGuardianForceVital[] guardians = vitals.GuardianForces.ToArray();
         guardians[0] = guardians[0] with { LearnedBank = new(1UL << 38, 1UL << (77 - 64)), Progression = null };
-        GameState migrated = ChocoboRewardTransactions.Reconcile(State() with { CharacterVitals = vitals with { GuardianForces = guardians } });
+        GameState migrated = ChocoboRewardTransactions.Reconcile(State() with { GameplayPreferences = new(), CharacterVitals = vitals with { GuardianForces = guardians } });
         Assert.Contains("ribbon", migrated.ChocoboRewards.AcquiredUniqueRewardIds);
         Assert.Contains("mogs_amulet", migrated.ChocoboRewards.AcquiredUniqueRewardIds);
         Assert.DoesNotContain("friendship", migrated.ChocoboRewards.AcquiredUniqueRewardIds);
         Assert.DoesNotContain("chocobos_tag", migrated.ChocoboRewards.AcquiredUniqueRewardIds);
+    }
+
+    [Fact]
+    public void ExplicitModeDoesNotTreatAbilitiesLearnedWithoutItemsAsAcquisitions()
+    {
+        NativeCharacterVitals vitals = MagicSystemFixture.Create();
+        NativeGuardianForceVital[] guardians = vitals.GuardianForces.ToArray();
+        guardians[0] = guardians[0] with { LearnedBank = new(1UL << 38, 1UL << (77 - 64)), Progression = null };
+        GameState state = State() with { CharacterVitals = vitals with { GuardianForces = guardians } };
+        GameState reconciled = ChocoboRewardTransactions.Reconcile(state);
+        Assert.Empty(reconciled.ChocoboRewards.AcquiredUniqueRewardIds);
+        ChocoboRewardGrantResult claim = ChocoboRewardTransactions.ClaimRemaining(reconciled);
+        Assert.Equal(ChocoboRewardGrantStatus.Granted, claim.Status);
+        Assert.Contains(claim.Delivered, stock => stock.ItemId == 65);
+        Assert.Contains(claim.Delivered, stock => stock.ItemId == 100);
     }
 
     [Theory]

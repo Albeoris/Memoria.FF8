@@ -27,6 +27,7 @@ internal static class ChocoboWorldSettings
 
     internal static GameState Migrate(GameState state, GameDataEdition edition)
     {
+        state = ChocoboRewardTransactions.Reconcile(state);
         ChocoboWorldMode mode = state.GameplayPreferences.ChocoboWorldMode ?? DefaultMode(edition);
         return ChocoboRewardTransactions.MigrateLegacyBattle(state with
         {
