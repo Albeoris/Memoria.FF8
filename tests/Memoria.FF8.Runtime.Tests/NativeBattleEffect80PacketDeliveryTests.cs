@@ -11,7 +11,7 @@ public sealed class NativeBattleEffect80PacketDeliveryTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public void Body_uv_padding_retains_physical_knownness_and_known_high_words(bool quad, bool knownPadding)
+    public void Body_uv_padding_retains_physical_knownness_and_canonical_logical_high_words(bool quad, bool knownPadding)
     {
         NativeBattleGfGeometryAttempt packet = Packet(quad ? (byte)0x2E : (byte)0x26);
         int[] padding = quad ? [30, 31, 38, 39] : [30, 31];
@@ -40,12 +40,16 @@ public sealed class NativeBattleEffect80PacketDeliveryTests
         }
         NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(result.Process))!;
         Assert.Equal(result.Process.ByteCursor, restored.ByteCursor);
+        Assert.Equal(0u, Assert.Single(result.Ordering.Packets).Words[7] >> 16);
+        if (quad)
+        {
+            Assert.Equal(0u, Assert.Single(result.Ordering.Packets).Words[9] >> 16);
+        }
         if (knownPadding)
         {
-            Assert.Equal(0xB6A5u, Assert.Single(result.Ordering.Packets).Words[7] >> 16);
-            if (quad)
+            foreach (int offset in padding)
             {
-                Assert.Equal(0xB6A5u, Assert.Single(result.Ordering.Packets).Words[9] >> 16);
+                Assert.Equal((byte)(offset % 2 == 0 ? 0xA5 : 0xB6), restored.ReadCommonPacket(16 + offset, 1)[0]);
             }
         }
         else

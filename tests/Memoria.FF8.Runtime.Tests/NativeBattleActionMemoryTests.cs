@@ -20,7 +20,7 @@ public sealed class NativeBattleActionMemoryTests
     }
 
     [Fact]
-    public void New_battle_NewGame_and_JSON_restore_preserve_unallocated_history_without_replaying_it()
+    public void New_battle_and_JSON_restore_preserve_unallocated_history_until_NewGame_resets_it()
     {
         NativeBattleLastAction previous = new(2, 77, 8, 241, 16, 4);
         NativeBattleActionMemory bank = NativeBattleActionMemory.FromLoaderBytes(new byte[56]).WithAction(3, previous).WithHealing(3, 1).WithAction(6, previous).WithHealing(6, 1);
@@ -33,11 +33,19 @@ public sealed class NativeBattleActionMemoryTests
         GameSession session = GameSession.CreateColdProcess();
         session.SetBattle(battle.Capture());
         session.SetBattle(null);
-        session.StartNewGame();
         GameState restored = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         BattleSession next = new(Definition() with { NativeRetainedMemory = restored.NativeBattleMemory }, BattleAtbMode.Normal);
         Assert.Equal(JsonSerializer.Serialize(battle.NativeActionMemory), JsonSerializer.Serialize(next.NativeActionMemory));
         Assert.Equal(previous, next.NativeActionMemory.Action(6));
+        Assert.Equal((byte)1, next.NativeActionMemory.Healing(6));
+        Assert.Empty(next.Events);
+        session.StartNewGame();
+        GameState newGame = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        BattleSession fresh = new(Definition() with { NativeRetainedMemory = newGame.NativeBattleMemory }, BattleAtbMode.Normal);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleRetainedMemory.FromColdProcess().ActionMemory), JsonSerializer.Serialize(fresh.NativeActionMemory));
+        Assert.Equal(new NativeBattleLastAction(0, 0, 0, 0, 0, 0), fresh.NativeActionMemory.Action(6));
+        Assert.Equal((byte)0, fresh.NativeActionMemory.Healing(6));
+        Assert.Empty(fresh.Events);
     }
 
     [Fact]

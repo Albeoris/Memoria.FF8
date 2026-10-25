@@ -117,11 +117,30 @@ public sealed class NativeBattleGuardianCameraProgramTests
     [Theory]
     [InlineData(7)]
     [InlineData(9)]
-    [InlineData(10)]
     public void UnimplementedKnownOpcodesFailInsteadOfProducingAGenericCamera(int opcode)
     {
         NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(opcode), 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity, Pose, false));
+    }
+
+    [Fact]
+    public void CaptureCurrentPoseUsesInverseTransformForBothBanksWithoutSignReflection()
+    {
+        NativeBattleActionMatrix matrix = new([0, 0, 4096, 0, 4096, 0, -4096, 0, 0], 100, -200, 300, 4096);
+        NativeBattleCameraPose pose = new(new(110, -180, 270), new(60, -250, 360), 288, 0);
+        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x0A, 0x4A, 0x80, 2, 0x40, 2, 0x8000), 2, () => 1);
+        NativeBattleGuardianCameraStep first = NativeBattleGuardianCameraProgram.Advance63E9C0(task, matrix, pose, false, currentEyePadding: 123, currentTargetPadding: -456);
+        Assert.Equal(-1, first.Task.Process.Sign);
+        Assert.Equal(new NativeBattleVector(30, 20, 10), first.Task.Process.Eye.Current);
+        Assert.Equal(new NativeBattleVector(-60, -50, -40), first.Task.Process.Target.Current);
+        Assert.Equal((short)123, first.Task.Process.Eye.CurrentPadding);
+        Assert.Equal((short)-456, first.Task.Process.Target.CurrentPadding);
+        Assert.Equal(pose, first.Pose);
+        Assert.True(first.Published);
+        Assert.Equal(12, first.Task.Offset);
+        NativeBattleGuardianCameraStep second = NativeBattleGuardianCameraProgram.Advance63E9C0(first.Task, matrix, first.Pose, false);
+        Assert.Equal(pose, second.Pose);
+        Assert.Equal(2, NativeBattleGuardianCameraProgram.Advance63E9C0(second.Task, matrix, second.Pose, false).Result);
     }
 
     [Fact]
@@ -131,6 +150,8 @@ public sealed class NativeBattleGuardianCameraProgramTests
         Assert.Equal(2, NativeBattleGuardianCameraProgram.Advance63E9C0(end, Identity, Pose, false).Result);
         NativeBattleGuardianCameraTask truncated = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x81, 1), 0);
         Assert.Throws<InvalidDataException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(truncated, Identity, Pose, false));
+        NativeBattleGuardianCameraTask missingNextCommand = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(10), 0);
+        Assert.Throws<InvalidDataException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(missingNextCommand, Identity, Pose, false));
         NativeBattleGuardianCameraTask zeroDivisor = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(0x82, 0, 1, 2, 3), 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(zeroDivisor, Identity, Pose, false));
     }

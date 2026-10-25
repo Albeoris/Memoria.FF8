@@ -27,10 +27,19 @@ public sealed class NativeBattleStageGeometryTests
     }
 
     [Fact]
-    public void OtherStagesUseTheirOriginalGeometryEvenWhenMutableStateRemainsRetained()
+    public void OtherStagesUseRetainedMutableGeometryAfterSnapshotRoundtrip()
     {
         BattleSession battle = Session(0x5149A0, Mesh(10));
-        SetStage(battle, NativeBattleStageState.FromColdProcess() with { MutableGeometry = [Mesh(25)] });
+        NativeBattleStageState state = NativeBattleStageState.FromColdProcess() with { MutableGeometry = [Mesh(25)] };
+        SetStage(battle, JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(state))!);
+        Assert.Equal(new NativeBattleVector(25, 0, 0), Geometry(battle)[0].Vertices[0].Position);
+    }
+
+    [Fact]
+    public void OtherStagesUseTheirOriginalGeometryWhenNoMutableGeometryIsRetained()
+    {
+        BattleSession battle = Session(0x5149A0, Mesh(10));
+        SetStage(battle, NativeBattleStageState.FromColdProcess());
         Assert.Equal(new NativeBattleVector(10, 0, 0), Geometry(battle)[0].Vertices[0].Position);
     }
 

@@ -158,7 +158,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
     [InlineData(true)]
     public void FilterOrNegativeSpeedSkipsUnknownAnimationAndUsesNonidentityBasisColumnScale(bool filter)
     {
-        NativeBattleWaterExecutionFrame frame = Selected();
+        NativeBattleWaterExecutionFrame frame = Selected().WriteTemporaryWord(0xF2, 0xABCD);
         frame = frame.WriteTemporaryByte(0x145, filter ? (byte)1 : (byte)0);
         if (filter)
         {
@@ -192,9 +192,16 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(Address(0x5320), value.ReadTemporaryDword(0x90));
             Assert.Equal(0xFFFF8001u, value.ReadTemporaryDword(0x94));
             Assert.Equal(0xFFFF8002u, value.ReadTemporaryDword(0x9C));
-            Assert.Equal(frame.ReadTemporaryWord(0xF2), value.ReadTemporaryWord(0xF2));
+            Assert.False(value.TemporaryFrame.Known[0xF2]);
+            Assert.False(value.TemporaryFrame.Known[0xF3]);
+            Assert.Throws<NotSupportedException>(() => value.ReadTemporaryWord(0xF2));
             return value;
-        }, ReadRegisters, PublishRegisters);
+        }, ReadRegisters, (value, registers) =>
+        {
+            Assert.Null(registers.Geometry.Rotation20[18]);
+            Assert.Null(registers.Geometry.Rotation20[19]);
+            return PublishRegisters(value, registers);
+        });
         Assert.Equal(1, draws);
         Assert.Equal(frame.ReadTemporaryDword(0xF4), result.ReadTemporaryDword(0xF4));
         Assert.Equal(frame.ReadTemporaryDword(0xF8), result.ReadTemporaryDword(0xF8));

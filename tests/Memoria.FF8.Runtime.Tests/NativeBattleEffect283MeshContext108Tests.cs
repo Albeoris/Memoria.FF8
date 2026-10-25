@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffect283MeshContext108Tests
 {
     [Theory]
+    [InlineData(1, 0x2030u)]
+    [InlineData(1, 0x20F0u)]
     [InlineData(2, 0x2030u)]
     [InlineData(2, 0x20F0u)]
     [InlineData(3, 0x2030u)]
@@ -18,7 +20,7 @@ public sealed class NativeBattleEffect283MeshContext108Tests
     [InlineData(6, 0x20F0u)]
     [InlineData(7, 0x2030u)]
     [InlineData(7, 0x20F0u)]
-    public void Selected_six_leaves_publish_current_projection_depth_and_color(int group, uint flags)
+    public void Selected_leaves_publish_current_projection_depth_and_color(int group, uint flags)
     {
         List<int> reads = [];
         var mesh = Mesh(group);
@@ -102,12 +104,6 @@ public sealed class NativeBattleEffect283MeshContext108Tests
         Assert.NotNull(packet.Primitive);
         Assert.Equal((byte)(group == 6 ? 0x36 : 0x3E), packet.Data[7]);
         Assert.Equal(actual.Batch.Attempts[0].WriteMask.ToArray(), packet.WriteMask.ToArray());
-    }
-
-    [Fact]
-    public void Unreached_flat_group_fails_before_selected_rows()
-    {
-        Assert.Throws<NotSupportedException>(() => Draw(Memory(2000), Mesh(1), Context(0x2030), _ => throw new InvalidOperationException()));
     }
 
     private static NativeBattleEffect283MeshContext108Step Draw(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context, Func<int, (NativeBattleVector Vertex, short? W)> read) => NativeBattleEffect283MeshContext108.DrawLoaded(memory, mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, read);

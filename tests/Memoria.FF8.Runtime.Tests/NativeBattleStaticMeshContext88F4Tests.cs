@@ -9,16 +9,17 @@ public sealed class NativeBattleStaticMeshContext88F4Tests
     private const uint Address = 0x10000000;
 
     [Theory]
-    [InlineData(0u)]
-    [InlineData(0xC3u)]
-    public void F4_accepted_quad_uses_canonical_24_byte_packet_and_retains_unused_fields(uint flags)
+    [InlineData(0u, 0x28112233u)]
+    [InlineData(0xC3u, 0x2A081119u)]
+    [InlineData(0xF0u, 0x28081119u)]
+    public void F4_accepted_quad_uses_canonical_24_byte_packet_and_retains_unused_fields(uint flags, uint expectedColor)
     {
         var actual = Draw(flags);
         NativeBattleGfGeometryAttempt packet = Assert.Single(actual.Batch.Attempts);
         Assert.NotNull(packet.Primitive);
         Assert.Equal(24, actual.Batch.AllocationBytes);
         Assert.Equal(0x05000000u, Dword(packet.Data, 0));
-        Assert.Equal(flags == 0 ? 0x28112233u : 0x2A081119u, Dword(packet.Data, 4));
+        Assert.Equal(expectedColor, Dword(packet.Data, 4));
         Assert.Equal(Address + 8, Dword(actual.Context, 4));
         Assert.Equal(0u, Dword(actual.Context, 0x18));
         Assert.Equal(500u, Dword(actual.Context, 0x2C));
@@ -27,7 +28,7 @@ public sealed class NativeBattleStaticMeshContext88F4Tests
         if (flags != 0)
         {
             Assert.Equal((uint)2048, actual.Memory.ScriptedColorRegisters!.Ir0);
-            Assert.Equal(0x2A081119u, actual.Memory.ScriptedColorRegisters.Rgb[2]);
+            Assert.Equal(expectedColor, actual.Memory.ScriptedColorRegisters.Rgb[2]);
         }
     }
 
@@ -85,7 +86,6 @@ public sealed class NativeBattleStaticMeshContext88F4Tests
     public void F4_other_flag_policies_remain_unsupported_and_JSON_restores_same_next_draw()
     {
         Assert.Throws<NotSupportedException>(() => Draw(0x33));
-        Assert.Throws<NotSupportedException>(() => Draw(0xF0));
         var first = Draw(0xC3);
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
         Assert.Equal(JsonSerializer.Serialize(Draw(0xC3, memory: first.Memory)), JsonSerializer.Serialize(Draw(0xC3, memory: restored)));

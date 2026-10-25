@@ -326,6 +326,9 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(definition.Combatants[0].MaximumHp, rules.Project([], growth).MaximumHp);
         definition.Combatants[0] = definition.Combatants[0] with { NativePlayerStatRules = rules, NativeGrowth = growth, NativeStatusResistances = rules.ProjectStatusResistances([]).ToArray(), StatusEffects = [new() { Kind = BattleStatusKind.Poison, DurationFrames = 1, TickIntervalFrames = 1, Magnitude = 100 }] };
         BattleSnapshot snapshot = new BattleSession(definition, BattleAtbMode.Normal).Capture();
+        Assert.Equal(100, snapshot.Combatants[0].NativeParticipant!.MaximumHitPoints);
+        // The active form owns GF vitals rather than the human maximum-HP projection.
+        snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeParticipant = snapshot.Combatants[0].NativeParticipant! with { MaximumHitPoints = null } };
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
         (packets, _) = packets.Prepare(new(0, 1, 12, -1, 0, 0, null));
         (packets, _) = packets.AppendContact(new(new(3, 0, 0, 4, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0)));
@@ -342,6 +345,7 @@ public sealed class BattleGuardianFormLifecycleTests
             NativePlayerReaction = BattleNativePlayerReaction.Counter
         };
         BattleSession battle = BattleSession.Restore(snapshot with { NativeActionPackets = packets, ActiveAction = admitted, GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 73) { EntryCompleted = true }]) });
+        Assert.Null(battle.Capture().Combatants[0].NativeParticipant!.MaximumHitPoints);
         battle.Tick();
         Assert.Equal(BattleGuardianFormPhase.Returning, battle.GetGuardianForm("actor")!.Phase);
         Assert.Equal(BattleNativePlayerReaction.Counter, battle.ActiveAction!.NativePlayerReaction);
@@ -355,6 +359,7 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor");
         Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "actor");
+        Assert.Equal(100, battle.Capture().Combatants[0].NativeParticipant!.MaximumHitPoints);
     }
 
     [Fact]

@@ -87,9 +87,18 @@ public sealed class NativeBattleLaserEye71StaticF0Tests
     }
 
     [Fact]
-    public void F0_does_not_admit_unproved_other_groups()
+    public void F0_flat_quad_shades_RGB_and_retains_fourth_vertex_feedback()
     {
-        Assert.Throws<NotSupportedException>(() => Draw(1, Context(2048)));
+        NativeBattleStaticMeshContext88Step result = Draw(1, Context(2048));
+        NativeBattleGfGeometryAttempt attempt = Assert.Single(result.Batch.Attempts);
+        Assert.Equal(24, result.Batch.AllocationBytes);
+        Assert.Equal(0x28081119u, attempt.Primitive!.Words[1]);
+        Assert.Equal(2048u, result.Memory.ScriptedColorRegisters!.Ir0);
+        Assert.Equal(new uint?[] { 0x22112233, 0x33445566, 0x28081119 }, result.Memory.ScriptedColorRegisters.Rgb.ToArray());
+        Assert.Equal(500u, result.Memory.GeometryRegisters!.Otz);
+        Assert.Equal(500u, U32(result.Context, 0x2C));
+        Assert.Equal((short)44, BinaryPrimitives.ReadInt16LittleEndian(result.Memory.ScriptedColorRegisters.NormalInput!.Value.AsSpan(6, 2)));
+        Assert.Throws<NotSupportedException>(() => Draw(1, Context(2048).MarkUnknown(9, 1)));
     }
 
     private const uint Address = 0x158F688;
@@ -100,19 +109,25 @@ public sealed class NativeBattleLaserEye71StaticF0Tests
     private static NativeBattleStaticMeshResource Mesh(int group, bool reverse)
     {
         int stride = group == 2 ? 20 : 12;
-        byte[] bytes = new byte[64 + stride];
-        BinaryPrimitives.WriteInt32LittleEndian(bytes, 32);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 3);
-        short[] positions = [-400, -400, 0, 11, 400, -400, 0, 22, -400, 400, 0, 33];
+        int vertexCount = group == 1 ? 4 : 3;
+        int header = 8 + vertexCount * 8;
+        byte[] bytes = new byte[header + 32 + stride];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, header);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), vertexCount);
+        short[] positions = group == 1 ? [-400, -400, 0, 11, 400, -400, 0, 22, -400, 400, 0, 33, 400, 400, 0, 44] : [-400, -400, 0, 11, 400, -400, 0, 22, -400, 400, 0, 33];
         for (int index = 0; index < positions.Length; index++)
         {
             BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8 + index * 2), positions[index]);
         }
-        int face = 36 + group * 4;
+        int face = header + 4 + group * 4;
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(face - 4), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face), (group == 2 ? 0x24000000u : 0x20000000u) | 0x112233u);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(face), (group == 1 ? 0x28000000u : group == 2 ? 0x24000000u : 0x20000000u) | 0x112233u);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 6), reverse ? (ushort)4 : (ushort)2);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 8), reverse ? (ushort)2 : (ushort)4);
+        if (group == 1)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 10), 6);
+        }
         if (group == 2)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(face + 10), 0x7654);
