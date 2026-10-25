@@ -11,20 +11,20 @@ public sealed class PrivateEvidencePathTests : IDisposable
     public void Ignored_repository_output_supports_store_and_pilot_admission()
     {
         string repository = CreateRepository();
-        string output = Path.Combine(repository, "../fixtures");
+        string output = Path.Combine(repository, "test-output", "evidence");
 
         Assert.Equal(output, PrivateEvidencePath.Validate(output));
         EvidenceStore store = new(output);
         Assert.Equal(output, store.Root);
         Assert.True(Directory.Exists(output));
 
-        string build = Path.Combine(repository, "../fixtures");
-        string game = Path.Combine(repository, "../fixtures");
+        string build = Path.Combine(repository, "test-output", "build");
+        string game = Path.Combine(repository, "test-output", "game");
         Directory.CreateDirectory(build);
         Directory.CreateDirectory(game);
         string executable = Path.Combine(build, "synthetic.exe");
         File.WriteAllText(executable, "synthetic validation input; never launched");
-        PilotManifest manifest = new(1, executable, build, game, Path.Combine(repository, "../fixtures"), new(1000, 1000, 1000, 1000, 1000, 10000, 1000), [new("blocked", null, "PLANNED_BLOCKED", ["Synthetic path admission only."])]);
+        PilotManifest manifest = new(1, executable, build, game, Path.Combine(repository, "test-output", "pilot"), new(1000, 1000, 1000, 1000, 1000, 10000, 1000), [new("blocked", null, "PLANNED_BLOCKED", ["Synthetic path admission only."])]);
 
         PilotRunner.ValidateManifest(manifest);
         Assert.False(Directory.Exists(manifest.OutputRoot));
@@ -45,7 +45,7 @@ public sealed class PrivateEvidencePathTests : IDisposable
     public void Malformed_nested_worktree_marker_cannot_inherit_parent_ignore_permission()
     {
         string repository = CreateRepository();
-        string nested = Path.Combine(repository, "../fixtures");
+        string nested = Path.Combine(repository, "test-output", "nested");
         Directory.CreateDirectory(nested);
         File.WriteAllText(Path.Combine(nested, ".git"), "gitdir: missing-worktree-metadata");
         string output = Path.Combine(nested, "evidence");
@@ -59,7 +59,7 @@ public sealed class PrivateEvidencePathTests : IDisposable
     public void Nested_repository_must_also_ignore_the_output()
     {
         string repository = CreateRepository();
-        string nested = Path.Combine(repository, "../fixtures");
+        string nested = Path.Combine(repository, "test-output", "nested");
         Directory.CreateDirectory(nested);
         Git(nested, "init", "--quiet");
         string output = Path.Combine(nested, "evidence");
@@ -71,7 +71,7 @@ public sealed class PrivateEvidencePathTests : IDisposable
     [Fact]
     public void Relative_output_is_rejected()
     {
-        Assert.Throws<ArgumentException>(() => PrivateEvidencePath.Validate(Path.Combine("../fixtures")));
+        Assert.Throws<ArgumentException>(() => PrivateEvidencePath.Validate(Path.Combine("test-output", "evidence")));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class PrivateEvidencePathTests : IDisposable
         }
 
         string repository = CreateRepository();
-        string channels = Path.Combine(repository, "../fixtures");
+        string channels = Path.Combine(repository, "test-output", "owned-child");
         string executable = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
         SupervisionBudgets budgets = new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(10));
         SupervisionRequest request = new("ignored-output-smoke", executable, ["/d", "/s", "/c", "exit /b 0"], Path.GetDirectoryName(executable)!, Path.Combine(channels, "settings"), Path.Combine(channels, "output"), Path.Combine(channels, "control"), budgets);
@@ -102,7 +102,7 @@ public sealed class PrivateEvidencePathTests : IDisposable
     {
         Directory.CreateDirectory(directory);
         Git(directory, "init", "--quiet");
-        File.WriteAllText(Path.Combine(directory, ".gitignore"), "../fixtures");
+        File.WriteAllText(Path.Combine(directory, ".gitignore"), "test-output/\n");
         return directory;
     }
 
