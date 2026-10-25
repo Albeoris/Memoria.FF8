@@ -358,23 +358,7 @@ public static class OwnedChildSupervisor
 
     private static string ValidateTransientDirectory(string path)
     {
-        if (!Path.IsPathFullyQualified(path))
-        {
-            throw new ArgumentException("Process-channel directories require absolute paths outside repositories.");
-        }
-        string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        for (DirectoryInfo? directory = new(fullPath); directory is not null; directory = directory.Parent)
-        {
-            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new ArgumentException("Process-channel ancestors cannot be links or junctions.");
-            }
-            if (File.Exists(Path.Combine(directory.FullName, ".git")) || Directory.Exists(Path.Combine(directory.FullName, ".git")))
-            {
-                throw new ArgumentException("Process channels must be outside repositories and worktrees.");
-            }
-        }
-        return fullPath;
+        return PrivateEvidencePath.Validate(path);
     }
 
     private sealed class NativeChild : IDisposable

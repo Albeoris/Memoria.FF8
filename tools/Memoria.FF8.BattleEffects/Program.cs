@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -62,10 +62,16 @@ public static class Program
                 return 0;
             }
 
-            if (args[0] is "run" or "pilot")
+            if (args[0] is "run" or "pilot" or "validate-pilot")
             {
                 SchemaValidation.ValidateFile(Get("input"), "pilot");
                 PilotManifest manifest = RecordJson.Read<PilotManifest>(Get("input"));
+                PilotRunner.ValidateManifest(manifest);
+                if (args[0] == "validate-pilot")
+                {
+                    Print(new { valid = true, cases = manifest.Cases.Length, output = manifest.OutputRoot });
+                    return 0;
+                }
                 PilotBatchSummary summary = PilotRunner.RunAsync(manifest, completed: result => Print(new { case_id = result.Id, verdict = result.Verdict, result.Executions, total_ms = result.TotalMs, effect_duration_ms = result.EffectDurationMs, execution_window_ms = result.ExecutionWindowMs, overhead_ms = result.OverheadMs, overhead_within_budget = result.OverheadWithinBudget, error_count = result.Errors.Length, first_error = result.Errors.FirstOrDefault() })).GetAwaiter().GetResult();
                 Print(new { summary.Verdict, summary.Requested, summary.Passed, summary.Failed, summary.Errors, total_ms = summary.TotalMs, output = manifest.OutputRoot });
                 return summary.Verdict == "PASS" ? 0 : summary.Verdict == "FAIL" ? 2 : 4;

@@ -13,25 +13,7 @@ public sealed class EvidenceStore
 
     public EvidenceStore(string root)
     {
-        if (!Path.IsPathFullyQualified(root))
-        {
-            throw new ArgumentException("The shared campaign store must be an absolute path outside repositories and worktrees.");
-        }
-
-        Root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        for (DirectoryInfo? directory = new(Root); directory != null; directory = directory.Parent)
-        {
-            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new ArgumentException("Campaign store ancestors must not be links or junctions.");
-            }
-
-            if (File.Exists(Path.Combine(directory.FullName, ".git")) || Directory.Exists(Path.Combine(directory.FullName, ".git")))
-            {
-                throw new ArgumentException("The campaign store must be outside repositories and worktrees.");
-            }
-        }
-
+        Root = PrivateEvidencePath.Validate(root);
         Directory.CreateDirectory(Root);
     }
 

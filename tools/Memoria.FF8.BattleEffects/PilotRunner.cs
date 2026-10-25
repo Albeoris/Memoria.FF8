@@ -233,12 +233,13 @@ public static class PilotRunner
         {
             throw new InvalidDataException("Pilot output root must be fresh and cannot replace prior evidence.");
         }
-        for (DirectoryInfo? parent = new(manifest.OutputRoot); parent is not null; parent = parent.Parent)
+        try
         {
-            if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0 || File.Exists(Path.Combine(parent.FullName, ".git")) || Directory.Exists(Path.Combine(parent.FullName, ".git")))
-            {
-                throw new InvalidDataException("Pilot evidence must be outside repositories and cannot traverse directory links.");
-            }
+            PrivateEvidencePath.Validate(manifest.OutputRoot);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException(exception.Message, exception);
         }
         string outputPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(manifest.OutputRoot));
         foreach (string inputRoot in new[] { manifest.WorkingDirectory, manifest.GameDir })
