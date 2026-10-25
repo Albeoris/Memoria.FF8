@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, string? ActorId, BattleAbility? Ability, int? ActionId, ushort RequestedEffect, ushort ExecutedEffect);
+public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, string? ActorId, BattleAbility? Ability, int? ActionId, ushort RequestedEffect, ushort ExecutedEffect, byte? NativeCommand = null);
 public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner);
 public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
 public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks);
@@ -70,19 +70,26 @@ public sealed partial class BattleSession
         BattleAttackCommand? bound = action is null ? nativeCommandBanks.BoundCommands.FirstOrDefault(command => command.ActorId == actorId && command.NativeAction?.MagicId == effect.RequestedEffect) : null;
         BattleAbility? ability = action?.Ability ?? bound?.Ability;
         int? actionId = action?.NativeAction?.ActionId ?? action?.ActionId ?? bound?.NativeAction?.ActionId ?? bound?.ActionId;
+        byte? nativeCommand = action?.NativeAction?.Command ?? bound?.NativeAction?.Command;
         if (effect.Parameters is { HeaderIndex7C: >= 0 and < NativeBattleActionPacketsState.HeaderCapacity } entered)
         {
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[entered.HeaderIndex7C];
             actionId = header.ReadByte(4) | header.ReadByte(5) << 8;
-            ability = header.ReadByte(1) switch
+            nativeCommand = header.ReadByte(1);
+            if (actorId is not null && byId.TryGetValue(actorId, out BattleCombatant? selectedActor))
             {
-                1 => BattleAbility.Attack,
-                2 => BattleAbility.Magic,
-                8 => BattleAbility.EnemyAbility,
-                _ => ability
-            };
+                ability = !selectedActor.IsPlayer ? BattleAbility.EnemyAbility : selectedActor.NativeLimit?.Command == nativeCommand ? BattleAbility.LimitBreak : nativeCommand switch
+                {
+                    1 => BattleAbility.Attack,
+                    2 => BattleAbility.Magic,
+                    4 or 244 => BattleAbility.Item,
+                    6 => BattleAbility.Draw,
+                    254 => BattleAbility.GuardianForce,
+                    _ => BattleAbility.NativeCommand
+                };
+            }
         }
-        observer(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect));
+        observer(new(diagnosticDispatchSerial, NativeHostCallbacks ?? graphics.Callback, actorId, ability, actionId, effect.RequestedEffect, effect.Binding.Effect, nativeCommand));
     }
 
     /// <summary>Conservative normal-owner drain observation, without serialization or owner mutation.</summary>

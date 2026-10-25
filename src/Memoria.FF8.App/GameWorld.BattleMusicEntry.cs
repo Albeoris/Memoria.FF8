@@ -41,6 +41,7 @@ internal sealed partial class GameWorld
     private BattleSession PrepareBattleEntrySession(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
     {
         BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess };
+        definition = PrepareDiagnosticCapabilities(definition);
         return AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
     }
 

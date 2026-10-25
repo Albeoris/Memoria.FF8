@@ -1,0 +1,323 @@
+using System.Text.Json.Nodes;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.BattleEffects;
+
+public static partial class ScenarioDiscovery
+{
+    private static bool TryPrepareBlueMagicRecipe(BattleAssets assets, NativeCharacterVitals initial, BattleNativeAction native, string templatePath, out JsonObject? recipe, out string? blocker)
+    {
+        recipe = null;
+        blocker = null;
+        if (native.CharacterId is not int owner || native.CrisisLevel is not byte crisis || native.KernelIndex is < 0 or >= 16 || native.TargetFlags is not byte flags || native.MagicId is 0 or > 400)
+        {
+            blocker = "BLUE_MAGIC_MAPPING_PRECONDITION: original owner, crisis supplemental row, learned bit or target/effect mapping is absent.";
+            return false;
+        }
+        if (native.AttackType is 5 or 6)
+        {
+            blocker = "BLUE_MAGIC_REVIVAL_PRECONDITION: legitimate KO recipient and between-execution KO rearm are required.";
+            return false;
+        }
+        BattleNativeLimitDefinition limit = assets.ReadNativeLimitDefinition(owner);
+        ushort maximum = initial.GetMagicMaximumHitPoints(0);
+        int hp = ResolveLimitPreparationHitPoints(limit, maximum, initial.Records[0].Status, crisis);
+        if (hp == 0)
+        {
+            blocker = "BLUE_MAGIC_CRISIS_PRECONDITION: no legal positive initial HP with actual native status/party state can reach this crisis row through ordinary selection RNG.";
+            return false;
+        }
+        JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
+        JsonObject character = result["fixture"]!["characters"]![0]!.AsObject();
+        character["stocks"] = new JsonArray();
+        character["hit_points"] = hp;
+        result["fixture"]!["limits"] = new JsonObject { ["borrow_blue_magic_for_squall"] = true, ["learn_blue_magic"] = 1 << native.KernelIndex };
+        bool party = (flags & 0x40) == 0 || NativeBattleLimitRules.IsFixedAllyTarget(flags);
+        _ = NativeBattleLimitRules.PlayerTargetMask(flags, party ? 0 : 3);
+        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = "party-0", ["target_id"] = party ? "party-0" : "enemy-6", ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
+        result["driver"]!["expected_effect"] = native.MagicId;
+        result["driver"]!["expected_native_action"] = native.ActionId;
+        result["driver"]!["expected_native_command"] = native.Command;
+        result["driver"]!["limit_selection"] = new JsonObject { ["minimum_crisis_level"] = crisis, ["maximum_crisis_level"] = crisis, ["maximum_selections"] = 256 };
+        if (party)
+        {
+            ushort saved = 0;
+            uint battle = native.Statuses1 & 0x200;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                if (limit.StatusWeights[bit] != 0)
+                {
+                    saved |= (ushort)(native.Statuses0 & (1 << bit));
+                }
+            }
+            for (int bit = 0; bit < 24; bit++)
+            {
+                if (limit.StatusWeights[bit + 8] != 0)
+                {
+                    battle |= native.Statuses1 & (1u << bit);
+                }
+            }
+            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = hp, ["revive"] = false, ["remove_statuses0"] = saved, ["remove_statuses1"] = battle });
+        }
+        recipe = result;
+        return true;
+    }
+
+    public static int ResolveLimitPreparationHitPoints(BattleNativeLimitDefinition definition, ushort maximumHitPoints, ushort savedStatuses, byte requiredCrisis)
+    {
+        int chosen = 0;
+        int bestCount = 0;
+        for (int hp = maximumHitPoints; hp > 0; hp--)
+        {
+            int count = 0;
+            for (int random = 0; random <= byte.MaxValue; random++)
+            {
+                if (NativeBattleLimitRules.CrisisLevel(definition, hp, maximumHitPoints, savedStatuses, 0, 0, checked((byte)random)) == requiredCrisis)
+                {
+                    count++;
+                }
+            }
+            if (count > bestCount)
+            {
+                chosen = hp;
+                bestCount = count;
+            }
+        }
+        return chosen;
+    }
+
+    private static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleBands, Dictionary<int, NativeCharacterVitals> preparedLevels, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker, bool useTurnScript = false)
+    {
+        recipe = null;
+        chosen = null;
+        selectorProof = null;
+        blocker = null;
+        if (owner.NativeAction is not { MagicId: >= 1 and <= 400 } native || owner.ActionId == 0)
+        {
+            blocker = "ENEMY_MAPPING_PRECONDITION: the actual ability row is null or does not have a unique installed nonzero native effect mapping.";
+            return false;
+        }
+        selectorProof = scripted.Where(action => action.ModelId == owner.ModelId && action.LevelBand == owner.LevelBand && action.Command == owner.Command && action.ActionId == owner.ActionId && action.Sequence == owner.Sequence && action.Callback == 1 && action.TargetSelector is 0 or 200 or 201 or 204 or 205).OrderBy(action => action.Offset).FirstOrDefault();
+        if (selectorProof is null)
+        {
+            blocker = "ENEMY_TRIGGER_OR_TARGET_PRECONDITION: no actual turn-callback dispatch for this exact row/band/sequence has a proved self/party/group target selector. Counter/death/initialization-only, dynamic target and last-attacker paths require their original trigger recipe.";
+            return false;
+        }
+        int initialLevel = NativeStatDefinitions.Level(initial.Records[0].Experience, initial.Definitions.Characters[initial.Records[0].CharacterId]);
+        int selectedLevel = initialLevel;
+        int physical = -1;
+        foreach (EnemyScenarioFormation context in owner.Formations.Where(context => context.Enabled && !context.Hidden && !context.Suspended && !context.Untargetable).OrderBy(context => context.FormationId).ThenBy(context => context.SceneSlot))
+        {
+            BattleEncounter formation = assets.LoadEncounter(context.FormationId);
+            BattleEnemyPlacement[] active = formation.Slots.Where(slot => slot.Enabled).ToArray();
+            if (active.Length is < 1 or > 4 || active.Any(slot => !slot.IsEnemyModel))
+            {
+                continue;
+            }
+            bool bandMatches = false;
+            for (int partyLevel = initialLevel; partyLevel <= 100; partyLevel++)
+            {
+                (int, int, int) key = (owner.ModelId, context.SceneLevel, partyLevel);
+                if (!possibleBands.TryGetValue(key, out int[]? bands))
+                {
+                    byte[] partyLevels = initial.CombatParty.Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
+                    bands = ResolvePossibleEnemyLevels(checked((byte)context.SceneLevel), partyLevels).Select(level => assets.ReadEnemyAi(owner.ModelId, level).LevelBand).Distinct().Order().ToArray();
+                    possibleBands.Add(key, bands);
+                }
+                if (bands.Length == 1 && bands[0] == owner.LevelBand)
+                {
+                    selectedLevel = partyLevel;
+                    bandMatches = true;
+                    break;
+                }
+            }
+            if (!bandMatches)
+            {
+                continue;
+            }
+            int index = Array.FindIndex(active, slot => slot.Slot == context.SceneSlot && slot.ModelId == owner.ModelId);
+            if (index < 0)
+            {
+                continue;
+            }
+            chosen = context;
+            physical = index + 3;
+            break;
+        }
+        if (chosen is null)
+        {
+            blocker = "ENEMY_PHASE_OR_LEVEL_PRECONDITION: no original enabled, visible, unsuspended, targetable scene slot preserves this exact ability level band for every native entry RNG roll at any legitimate increased Squall level through100. Hidden reinforcements and phase actors require genuine activation; a different level/formation is not fabricated.";
+            return false;
+        }
+        string actor = $"enemy-{chosen.SceneSlot}";
+        string target = selectorProof.TargetSelector is 200 or 205 ? actor : "party-0";
+        JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
+        result["encounter"] = chosen.FormationId;
+        result["target"] = new JsonObject { ["actor_id"] = actor, ["stage"] = chosen.StageId, ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["physical_index"] = physical, ["flags_mask"] = 195, ["flags_value"] = 1, ["opening_action"] = null, ["opening_effect"] = null };
+        JsonObject character = result["fixture"]!["characters"]![0]!.AsObject();
+        character["stocks"] = new JsonArray();
+        if (!preparedLevels.TryGetValue(selectedLevel, out NativeCharacterVitals? prepared))
+        {
+            prepared = initial.WithDiagnosticBattleLevel(0, selectedLevel, experienceDefinition);
+            preparedLevels.Add(selectedLevel, prepared);
+        }
+        character["level"] = selectedLevel;
+        character["hit_points"] = prepared.GetMagicMaximumHitPoints(0);
+        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actor, ["target_id"] = target, ["ability"] = nameof(BattleAbility.EnemyAbility), ["action_id"] = owner.ActionId };
+        result["driver"]!["expected_effect"] = native.MagicId;
+        result["driver"]!["expected_native_action"] = native.ActionId;
+        result["driver"]!["expected_native_command"] = native.Command;
+        result["driver"]!["enemy_ability"] = new JsonObject { ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["level_band"] = owner.LevelBand, ["ability_slot"] = owner.AbilitySlot, ["command"] = owner.Command, ["action_id"] = owner.ActionId, ["sequence"] = owner.Sequence, ["target_selector"] = selectorProof.TargetSelector!.Value };
+        if (useTurnScript)
+        {
+            result["driver"]!["enemy_ability"]!["use_turn_script"] = true;
+            result["driver"]!["supporting_effects"] = new JsonArray(scripted.Where(action => action.ModelId == owner.ModelId && action.Callback == 1 && action.NativeEffectId is >= 1 and <= 400 && action.NativeEffectId != native.MagicId).Select(action => action.NativeEffectId!.Value).Distinct().Order().Select(effect => (JsonNode)JsonValue.Create(effect)!).ToArray());
+        }
+        if (selectorProof.TargetSelector is 0 or 201 or 204)
+        {
+            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = prepared.GetMagicMaximumHitPoints(0), ["revive"] = false, ["remove_statuses0"] = 0, ["remove_statuses1"] = 0 });
+        }
+        recipe = result;
+        return true;
+    }
+
+    public static int[] ResolvePossibleEnemyLevels(byte sceneLevel, byte[] presentPartyLevels)
+    {
+        int draws = NativeBattleEnemyLevelRules.RandomByteCount(sceneLevel);
+        HashSet<int> levels = [];
+        int firstCount = draws == 0 ? 1 : 256;
+        int secondCount = draws == 2 ? 256 : 1;
+        for (int first = 0; first < firstCount; first++)
+        {
+            for (int second = 0; second < secondCount; second++)
+            {
+                levels.Add(NativeBattleEnemyLevelRules.Resolve(sceneLevel, presentPartyLevels, checked((byte)first), draws == 2 ? checked((byte)second) : null));
+            }
+        }
+        return levels.Order().ToArray();
+    }
+
+    private static bool TryPrepareOrdinaryPlayerRecipe(BattleAssets assets, NativeCharacterVitals initial, BattleNativeAction native, string templatePath, out JsonObject? recipe, out string? blocker)
+    {
+        recipe = null;
+        blocker = null;
+        BattleAbility ability = native.KernelSection == 2 ? BattleAbility.GuardianForce : native.KernelSection == 10 ? BattleAbility.NativeCommand : BattleAbility.Item;
+        BattleActionDefinition? definition = ability == BattleAbility.NativeCommand && native.TargetFlags is byte commandFlags ? new(BattleAbility.NativeCommand, native.Command << 16 | native.ActionId, native.Name ?? $"Command {native.Command}", BattleActionEffect.Native, native.Power, (commandFlags & 0x40) == 0, (commandFlags & 0x30) != 0x10 && (commandFlags & 2) == 0) { NativeAction = native } : assets.ActionDefinitions.SingleOrDefault(action => action.Ability == ability && action.NativeAction?.Command == native.Command && action.NativeAction.KernelIndex == native.KernelIndex && action.NativeAction.KernelSection == native.KernelSection);
+        int? expectedEffect = ResolveCatalogEffect(native, assets.NativeActions);
+        if (definition is null || ability != BattleAbility.NativeCommand && native.Command is not (4 or 254) || definition.Id <= 0 && ability == BattleAbility.Item || expectedEffect is null or 0 or > 400)
+        {
+            blocker = native.AttackType == 14 && native.ActionId == 30 ? "POCKETSTATION_PRECONDITION: the original saved Chocobo availability/away flags, attack variant and level determine the actual kernel9/command244 child; no fixed effect is invented from the item's index word." : "NO_ORDINARY_PLAYER_MAPPING: this row is null, a command variant or lacks an exact installed ordinary semantic action/effect mapping.";
+            return false;
+        }
+        BattleNativeAction focal = native;
+        if (native.AttackType == 14)
+        {
+            focal = assets.NativeActions.Single(child => child.Command == 244 && child.ActionId == native.MagicId);
+        }
+        if (native.AttackType is 5 or 6)
+        {
+            blocker = "REVIVAL_REPEAT_PRECONDITION: a legal KO recipient and typed between-execution KO rearm are not available; no living target is substituted.";
+            return false;
+        }
+        if (native.AttackType == 18)
+        {
+            blocker = "REPEAT_PRECONDITION_UNSATISFIED: this original Kamikaze action removes the only current player combatant; no terminal hold, additional authentic party member and legitimate revival/rearm recipe is provided. Two reconstructed battles would not satisfy repetition.";
+            return false;
+        }
+        byte command = ability == BattleAbility.GuardianForce ? (byte)3 : ability == BattleAbility.NativeCommand ? native.Command : (byte)4;
+        int? summon = ability == BattleAbility.GuardianForce ? definition.Id : null;
+        if (!TryPrepareCommand(initial, command, summon, out int commandAbility, out int[] guardians, out JsonObject[] guardianRecipes, out blocker))
+        {
+            return false;
+        }
+        JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
+        JsonObject fixture = result["fixture"]!.AsObject();
+        JsonObject character = fixture["characters"]![0]!.AsObject();
+        fixture["guardian_forces"] = new JsonArray(guardianRecipes.Cast<JsonNode>().ToArray());
+        character["guardian_forces"] = new JsonArray(guardians.Select(id => (JsonNode)JsonValue.Create(id)!).ToArray());
+        character["stocks"] = new JsonArray();
+        character.Remove("magic_command");
+        character["commands"] = new JsonArray(new JsonObject { ["slot"] = 0, ["ability"] = commandAbility });
+        bool party = definition.Allies || native.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
+        _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, party ? 0 : 3);
+        character["hit_points"] = party && native.AttackType is 3 or 4 or 32 ? 1 : initial.GetMagicMaximumHitPoints(0);
+        JsonObject input = result["driver"]!["input"]!.AsObject();
+        input["ability"] = ability.ToString();
+        input["action_id"] = definition.Id;
+        input["target_id"] = party ? "party-0" : "enemy-6";
+        result["driver"]!["expected_effect"] = expectedEffect.Value;
+        result["driver"]!["expected_native_action"] = focal.ActionId;
+        result["driver"]!["expected_native_command"] = focal.Command;
+        if (ability == BattleAbility.Item)
+        {
+            fixture["items"] = new JsonArray(new JsonObject { ["id"] = definition.Id, ["count"] = 2 });
+        }
+        recipe = result;
+        return true;
+    }
+
+    private static bool TryPrepareCommand(NativeCharacterVitals initial, byte command, int? summonedGuardian, out int commandAbility, out int[] guardians, out JsonObject[] guardianRecipes, out string? blocker)
+    {
+        commandAbility = -1;
+        guardians = [];
+        guardianRecipes = [];
+        blocker = null;
+        int[] abilities = initial.MenuDefinitions.CommandAbilityCommands.Select((mapped, index) => (mapped, index)).Where(row => row.mapped == command).Select(row => row.index + 20).ToArray();
+        foreach (int ability in abilities)
+        {
+            for (int provider = 0; provider < initial.GuardianForces.Length; provider++)
+            {
+                NativeCharacterVitals candidate = initial.AcquireGuardianForce(provider);
+                int learnedPoints = 0;
+                if (!candidate.GuardianForces[provider].HasLearnedAbility(ability))
+                {
+                    NativeGuardianForceAbility? available = candidate.GuardianForceAbilities(provider).SingleOrDefault(entry => entry.Ability == ability && !entry.Learned);
+                    if (available is null)
+                    {
+                        continue;
+                    }
+                    learnedPoints = Math.Max(1, available.RequiredPoints - available.Progress);
+                    candidate = candidate.SelectGuardianForceLearning(provider, ability).AwardGuardianForceAbilityPoints(provider, checked((ushort)learnedPoints));
+                    if (!candidate.GuardianForces[provider].HasLearnedAbility(ability))
+                    {
+                        continue;
+                    }
+                }
+                int[] selected = summonedGuardian is int summon ? new[] { summon, provider }.Distinct().ToArray() : [provider];
+                foreach (int guardian in selected)
+                {
+                    if ((candidate.GuardianForces[guardian].Flags & 1) == 0)
+                    {
+                        candidate = candidate.AcquireGuardianForce(guardian);
+                    }
+                    if ((candidate.Records[0].Junction.GuardianForces & (1 << guardian)) == 0)
+                    {
+                        candidate = candidate.ToggleGuardianForceJunction(0, guardian);
+                    }
+                }
+                _ = candidate.SetJunctionAbility(0, 0, ability, command: true);
+                if (summonedGuardian is int focal && candidate.GuardianForces[focal].HitPoints == 0)
+                {
+                    blocker = "GF_HP_PRECONDITION: the actual acquired GF has zero HP and the fixture cannot fabricate saved GF HP; an ordinary GF recovery prerequisite is required.";
+                    return false;
+                }
+                commandAbility = ability;
+                guardians = selected;
+                guardianRecipes = selected.Select(guardian =>
+                {
+                    JsonObject preparation = new() { ["id"] = guardian, ["acquire"] = true };
+                    if (guardian == provider && learnedPoints != 0)
+                    {
+                        preparation["learning_ability"] = ability;
+                        preparation["ability_points"] = learnedPoints;
+                    }
+                    return preparation;
+                }).ToArray();
+                return true;
+            }
+        }
+        blocker = $"COMMAND_LEARNING_PRECONDITION: installed command {command} has no initially learned provider after ordinary GF acquisition; a real supported learning/AP recipe is required.";
+        return false;
+    }
+}

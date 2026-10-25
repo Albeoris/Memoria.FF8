@@ -12,7 +12,17 @@ internal sealed record DiagnosticMagicStockPreparation([property: JsonRequired] 
 internal sealed record DiagnosticMagicCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record DiagnosticGuardianForcePreparation([property: JsonRequired] int Id, [property: JsonRequired] bool Acquire);
+internal sealed record DiagnosticCommandPreparation([property: JsonRequired] int Slot, [property: JsonRequired] int Ability);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DiagnosticItemPreparation([property: JsonRequired] int Id, [property: JsonRequired] int Count);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DiagnosticGuardianForcePreparation([property: JsonRequired] int Id, [property: JsonRequired] bool Acquire)
+{
+    public int? LearningAbility { get; init; }
+    public ushort? AbilityPoints { get; init; }
+}
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticTargetExpectation([property: JsonRequired] string ActorId, [property: JsonRequired] int Stage, [property: JsonRequired] int Model, [property: JsonRequired] int SceneSlot, [property: JsonRequired] int PhysicalIndex, [property: JsonRequired] uint FlagsMask, [property: JsonRequired] uint FlagsValue, [property: JsonRequired] int? OpeningAction, [property: JsonRequired] ushort? OpeningEffect)
@@ -32,17 +42,34 @@ internal sealed record DiagnosticTargetReceipt(BattleDiagnosticTarget Target, Ba
 internal sealed record DiagnosticCharacterPreparation([property: JsonRequired] int Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ImmutableArray<DiagnosticMagicStockPreparation> Stocks, [property: JsonRequired] ImmutableArray<int> GuardianForces)
 {
     public DiagnosticMagicCommandPreparation? MagicCommand { get; init; }
+    public ImmutableArray<DiagnosticCommandPreparation> Commands { get; init; } = [];
     public ushort? HitPoints { get; init; }
+    public int? Level { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DiagnosticBattlePreparation([property: JsonRequired] ImmutableArray<DiagnosticGuardianForcePreparation> GuardianForces, [property: JsonRequired] ImmutableArray<DiagnosticCharacterPreparation> Characters, [property: JsonRequired] bool HoldEnemyCommands)
 {
+    public ImmutableArray<DiagnosticItemPreparation> Items { get; init; } = [];
+    public DiagnosticLimitPreparation? Limits { get; init; }
+
     internal void Validate()
     {
+        Limits?.Validate();
         if (GuardianForces.IsDefault || Characters.IsDefault || GuardianForces.Length > 16 || Characters.Length > 3 || GuardianForces.Any(entry => entry is null || entry.Id is < 0 or >= 16) || GuardianForces.Select(entry => entry.Id).Distinct().Count() != GuardianForces.Length || Characters.Any(entry => entry is null || entry.Row is < 0 or >= 8 || entry.CharacterId > 10) || Characters.Select(entry => entry.Row).Distinct().Count() != Characters.Length)
         {
             throw new InvalidDataException("Diagnostic preparation requires distinct owned GF and character rows.");
+        }
+        if (Items.IsDefault || Items.Length > NativeEconomy.ItemSlotCount || Items.Any(item => item is null || item.Id is < 1 or > NativeEconomy.ItemSlotCount || item.Count is < 2 or > 100) || Items.Select(item => item.Id).Distinct().Count() != Items.Length)
+        {
+            throw new InvalidDataException("Diagnostic inventory preparation requires distinct native item identities and exact quantities of2..100.");
+        }
+        foreach (DiagnosticGuardianForcePreparation gf in GuardianForces)
+        {
+            if (gf.LearningAbility is < 1 or >= 116 || gf.AbilityPoints == 0 || gf.AbilityPoints.HasValue && !gf.LearningAbility.HasValue)
+            {
+                throw new InvalidDataException("Diagnostic GF progress requires an explicit available native learning ability and positive optional AP award.");
+            }
         }
         foreach (DiagnosticCharacterPreparation character in Characters)
         {
@@ -50,9 +77,17 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
             {
                 throw new InvalidDataException("Diagnostic preparation requires native magic stock identities, at most32 distinct stocks of2..100, distinct GF assignments and positive HP.");
             }
-            if (character.MagicCommand is { } command && (command.Slot is < 0 or >= 3 || command.Ability is < 20 or >= 39))
+            if (character.MagicCommand is { } magicCommand && (magicCommand.Slot is < 0 or >= 3 || magicCommand.Ability is < 20 or >= 39))
             {
                 throw new InvalidDataException("Diagnostic Magic capability requires a native command slot and kernel command ability.");
+            }
+            if (character.Commands.IsDefault || character.Commands.Length > 3 || character.Commands.Any(command => command is null || command.Slot is < 0 or >= 3 || command.Ability is < 20 or >= 39) || character.Commands.Select(command => command.Slot).Distinct().Count() != character.Commands.Length || character.MagicCommand is { } magic && character.Commands.Any(command => command.Slot == magic.Slot))
+            {
+                throw new InvalidDataException("Diagnostic commands require distinct native slots and learned kernel command abilities; a legacy Magic slot cannot be assigned twice.");
+            }
+            if (character.Level is < 1 or > 100)
+            {
+                throw new InvalidDataException("Diagnostic character level must be within1..100.");
             }
         }
     }
@@ -120,7 +155,7 @@ internal sealed partial class GameWorld
 
     // Preparation precedes encounter allocation. This adapter never receives a live battle,
     // effect allocator or random owner and is never used between the two commands.
-    internal static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe)
+    internal static DiagnosticPreparationResult PrepareDiagnosticCharacters(NativeCharacterVitals source, DiagnosticBattlePreparation recipe, NativeBattleExperienceDefinition? experienceDefinition = null)
     {
         recipe.Validate();
         source.Validate();
@@ -138,6 +173,14 @@ internal sealed partial class GameWorld
             else if ((next.GuardianForces[gf.Id].Flags & 1) == 0)
             {
                 throw new InvalidOperationException("The declared GF prerequisite is not acquired.");
+            }
+            if (gf.LearningAbility is int learning)
+            {
+                next = next.SelectGuardianForceLearning(gf.Id, learning);
+            }
+            if (gf.AbilityPoints is ushort points)
+            {
+                next = next.AwardGuardianForceAbilityPoints(gf.Id, points);
             }
         }
         foreach (DiagnosticCharacterPreparation character in recipe.Characters)
@@ -166,13 +209,25 @@ internal sealed partial class GameWorld
                     throw new InvalidOperationException("Diagnostic stock preparation could not satisfy the exact declared quantity.");
                 }
             }
-            if (character.MagicCommand is { } command)
+            if (character.MagicCommand is { } magicCommand)
             {
-                if (next.MenuDefinitions.CommandAbilityCommands[command.Ability - 20] != 2)
+                if (next.MenuDefinitions.CommandAbilityCommands[magicCommand.Ability - 20] != 2)
                 {
                     throw new InvalidOperationException("The declared kernel ability does not provide the Magic command.");
                 }
+                next = next.SetJunctionAbility(character.Row, magicCommand.Slot, magicCommand.Ability, command: true);
+            }
+            foreach (DiagnosticCommandPreparation command in character.Commands)
+            {
+                if (command.Ability - 20 >= next.MenuDefinitions.CommandAbilityCommands.Length)
+                {
+                    throw new InvalidDataException("The declared command ability is absent from the installed kernel.");
+                }
                 next = next.SetJunctionAbility(character.Row, command.Slot, command.Ability, command: true);
+            }
+            if (character.Level is int level)
+            {
+                next = PrepareDiagnosticCharacterLevel(next, character.Row, level, experienceDefinition ?? throw new NotSupportedException("Diagnostic level preparation requires the actual installed battle experience definition."));
             }
             if (character.HitPoints is ushort hitPoints)
             {

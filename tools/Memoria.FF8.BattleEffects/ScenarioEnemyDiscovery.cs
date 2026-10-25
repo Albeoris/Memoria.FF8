@@ -8,7 +8,10 @@ namespace Memoria.FF8.BattleEffects;
 public sealed record EnemyScenarioFormation(int FormationId, int StageId, int SceneSlot, bool Enabled, bool Hidden, bool Suspended, bool Untargetable, int SceneLevel);
 public sealed record EnemyScenarioModel(int ModelId, string Name, NativeBattleAiDefinition Ai);
 public sealed record EnemyScenarioActionOwner(int ModelId, string Name, int LevelBand, int AbilitySlot, byte Command, ushort ActionId, byte Sequence, BattleNativeAction? NativeAction, EnemyScenarioFormation[] Formations, string[] MappingEvidence, string[] Blockers);
-public sealed record EnemyScenarioScriptedAction(int ModelId, string Name, int Callback, int Offset, int LevelBand, byte? Command, ushort? ActionId, int? NativeEffectId, byte? Sequence, BattleNativeAction? NativeAction, EnemyScenarioFormation[] Formations, string[] MappingEvidence, string[] Blockers);
+public sealed record EnemyScenarioScriptedAction(int ModelId, string Name, int Callback, int Offset, int LevelBand, byte? Command, ushort? ActionId, int? NativeEffectId, byte? Sequence, BattleNativeAction? NativeAction, EnemyScenarioFormation[] Formations, string[] MappingEvidence, string[] Blockers)
+{
+    public byte? TargetSelector { get; init; }
+}
 public sealed record EnemyScenarioDiscoveryResult(EnemyScenarioActionOwner[] Owners, PlanIssue[] Issues)
 {
     public EnemyScenarioScriptedAction[] ScriptedActions { get; init; } = [];
@@ -116,7 +119,7 @@ public static class ScenarioEnemyDiscovery
         return new(owners.ToArray(), issues.ToArray()) { ScriptedActions = scriptedActions.ToArray() };
     }
 
-    private readonly record struct ScriptState(int Offset, int LevelBand, byte Command, ushort ActionId, byte Sequence);
+    private readonly record struct ScriptState(int Offset, int LevelBand, byte Command, ushort ActionId, byte Sequence, byte? TargetSelector = null);
 
     private static void DiscoverScripts(EnemyScenarioModel model, EnemyScenarioFormation[] contexts, Dictionary<(byte Command, ushort ActionId), BattleNativeAction[]> kernel, List<EnemyScenarioScriptedAction> output, List<PlanIssue> issues)
     {
@@ -125,7 +128,7 @@ public static class ScenarioEnemyDiscovery
             byte[] code = model.Ai.Scripts[callback];
             string source = $"battle/c0m{model.ModelId:000}.dat:ai-callback:{callback}:sha256:{Convert.ToHexString(SHA256.HashData(code))}";
             HashSet<ScriptState> visited = [];
-            HashSet<(int Offset, int Band, byte? Command, ushort? Id, int? Effect, byte? Sequence, string? Reason)> emitted = [];
+            HashSet<(int Offset, int Band, byte? Command, ushort? Id, int? Effect, byte? Sequence, byte? TargetSelector, string? Reason)> emitted = [];
             Queue<ScriptState> pending = new(Enumerable.Range(0, 3).Select(band => new ScriptState(0, band, 0, 0, 0)));
             // Empty script banks have no dispatch. Nonempty callbacks must terminate or remain in a bounded control-flow graph.
             while (code.Length != 0 && pending.TryDequeue(out ScriptState state))
@@ -164,6 +167,9 @@ public static class ScenarioEnemyDiscovery
                     case 3:
                         continuation = continuation with { Command = 2, ActionId = code[state.Offset + 1] };
                         break;
+                    case 4:
+                        continuation = continuation with { TargetSelector = code[state.Offset + 1] };
+                        break;
                     case 5:
                         continuation = continuation with { Sequence = code[state.Offset + 1] };
                         break;
@@ -195,6 +201,10 @@ public static class ScenarioEnemyDiscovery
                     case 35:
                         short displacement = BinaryPrimitives.ReadInt16LittleEndian(code.AsSpan(state.Offset + 1, 2));
                         continuation = continuation with { Offset = next + displacement };
+                        break;
+                    case 38:
+                    case 43:
+                        continuation = continuation with { TargetSelector = null };
                         break;
                     case 42:
                         Emit(state, 2, null, null, 11, "Draw-cast action depends on the executed drawn-spell byte and source actor inventory.");
@@ -229,7 +239,7 @@ public static class ScenarioEnemyDiscovery
             {
                 string boundary = (uint)state.Offset < code.Length ? $"opcode:{code[state.Offset]}" : "opcode:outside-callback";
                 string message = $"{boundary}: {reason}";
-                if (emitted.Add((state.Offset, state.LevelBand, null, null, null, null, message)))
+                if (emitted.Add((state.Offset, state.LevelBand, null, null, null, null, state.TargetSelector, message)))
                 {
                     output.Add(new(model.ModelId, model.Name, callback, state.Offset, state.LevelBand, null, null, null, null, null, contexts, [source, $"offset:{state.Offset}:{boundary}"], [message]));
                     issues.Add(new($"enemy-model:{model.ModelId}:callback:{callback}:offset:{state.Offset}:band:{state.LevelBand}", message));
@@ -260,11 +270,11 @@ public static class ScenarioEnemyDiscovery
                 {
                     blockers.Add("No scene.out slot references this installed enemy model.");
                 }
-                if (!emitted.Add((state.Offset, state.LevelBand, command, id, effect, sequence, reason)))
+                if (!emitted.Add((state.Offset, state.LevelBand, command, id, effect, sequence, state.TargetSelector, reason)))
                 {
                     return;
                 }
-                List<string> evidence = [source, $"offset:{state.Offset}:opcode:{code[state.Offset]}:band:{state.LevelBand}:command:{command}:action:{id}:sequence:{sequence}"];
+                List<string> evidence = [source, $"offset:{state.Offset}:opcode:{code[state.Offset]}:band:{state.LevelBand}:command:{command}:action:{id}:sequence:{sequence}:target-selector:{state.TargetSelector?.ToString() ?? "unresolved"}"];
                 if (native is not null)
                 {
                     evidence.Add($"main/kernel.bin:section:{native.KernelSection}:row:{native.KernelIndex}:effect:{native.MagicId}:sha256:{Convert.ToHexString(SHA256.HashData(native.RawRecord.AsSpan()))}");
@@ -273,7 +283,7 @@ public static class ScenarioEnemyDiscovery
                 {
                     evidence.Add($"direct-graphics:effect-byte:{effect}");
                 }
-                output.Add(new(model.ModelId, model.Name, callback, state.Offset, state.LevelBand, command, id, effect, sequence, native, contexts, evidence.ToArray(), blockers.ToArray()));
+                output.Add(new(model.ModelId, model.Name, callback, state.Offset, state.LevelBand, command, id, effect, sequence, native, contexts, evidence.ToArray(), blockers.ToArray()) { TargetSelector = state.TargetSelector });
             }
         }
     }

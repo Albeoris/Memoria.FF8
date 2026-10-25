@@ -1,12 +1,100 @@
 using Memoria.FF8.BattleEffects;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Reflection;
+using System.Security.Cryptography;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class PilotRunnerTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "memoria-pilot-tests-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public void Candidate_binding_preserves_declared_native_identity_supporting_effects_and_normalized_repairs()
+    {
+        (JsonObject bootstrap, JsonObject report) = CandidateBinding();
+
+        JsonElement admitted = ValidateCandidateBinding(bootstrap, report);
+
+        Assert.Equal(64, admitted.GetProperty("expected_native_action").GetInt32());
+        Assert.Equal(254, admitted.GetProperty("expected_native_command").GetInt32());
+        Assert.Equal(2, admitted.GetProperty("supporting_effects")[0].GetInt32());
+        Assert.False(admitted.GetProperty("declared_repairs")[0].GetProperty("revive").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("native_action")]
+    [InlineData("native_command")]
+    [InlineData("supporting_effects")]
+    [InlineData("repair_request")]
+    [InlineData("repair_missing")]
+    [InlineData("undeclared_native")]
+    public void Candidate_cannot_change_the_frozen_bootstrap_invocation_or_repair_declaration(string forgery)
+    {
+        (JsonObject bootstrap, JsonObject report) = CandidateBinding();
+        switch (forgery)
+        {
+            case "native_action":
+                report["expected_native_action"] = 65;
+                break;
+            case "native_command":
+                report["expected_native_command"] = 4;
+                break;
+            case "supporting_effects":
+                report["supporting_effects"]!.AsArray().Add(3);
+                break;
+            case "repair_request":
+                report["declared_repairs"]![0]!["hit_points"] = 200;
+                break;
+            case "repair_missing":
+                report.Remove("declared_repairs");
+                break;
+            case "undeclared_native":
+                bootstrap["driver"]!.AsObject().Remove("expected_native_action");
+                bootstrap["driver"]!.AsObject().Remove("expected_native_command");
+                break;
+        }
+
+        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => ValidateCandidateBinding(bootstrap, report));
+        Assert.IsType<InvalidDataException>(error.InnerException);
+    }
+
+    private JsonElement ValidateCandidateBinding(JsonObject bootstrap, JsonObject report)
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "telemetry-report.json");
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(report.ToJsonString());
+        File.WriteAllBytes(path, bytes);
+        JsonObject candidate = new()
+        {
+            ["telemetry_report"] = "telemetry-report.json",
+            ["telemetry_sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+            ["battle_instance_id"] = report["battle_instance_id"]!.DeepClone()
+        };
+        MethodInfo validator = typeof(PilotRunner).GetMethod("ValidateCandidate", BindingFlags.Static | BindingFlags.NonPublic)!;
+        return (JsonElement)validator.Invoke(null, [System.Text.Encoding.UTF8.GetBytes(candidate.ToJsonString()), path, System.Text.Encoding.UTF8.GetBytes(bootstrap.ToJsonString())])!;
+    }
+
+    private static (JsonObject Bootstrap, JsonObject Report) CandidateBinding()
+    {
+        JsonObject input = new() { ["kind"] = "Action", ["actor_id"] = "party-0", ["target_id"] = "enemy-0", ["ability"] = "GuardianForce", ["action_id"] = 0 };
+        JsonObject bootstrap = new()
+        {
+            ["driver"] = new JsonObject
+            {
+                ["expected_effect"] = 1, ["input"] = input.DeepClone(), ["expected_native_action"] = 64, ["expected_native_command"] = 254,
+                ["supporting_effects"] = new JsonArray(2), ["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = 100 })
+            }
+        };
+        JsonObject report = new()
+        {
+            ["battle_instance_id"] = "b8de1951-3be9-4360-85ac-9238406b20c8", ["expected_effect"] = 1, ["input"] = input,
+            ["expected_native_action"] = 64, ["expected_native_command"] = 254, ["supporting_effects"] = new JsonArray(2),
+            ["declared_repairs"] = JsonSerializer.SerializeToNode(new[] { new Memoria.FF8.Runtime.BattleDiagnosticCombatRepair("party-0", 100) }, RecordJson.Options)
+        };
+        return (bootstrap, report);
+    }
 
     [Fact]
     public void Semantic_identity_accepts_enum_spelling_but_preserves_actor_target_and_action()

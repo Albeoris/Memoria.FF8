@@ -67,6 +67,13 @@ public static class LiveEvidenceValidation
             string target = Text(input, "target_id");
             string ability = Text(input, "ability");
             long action = Number(input, "action_id");
+            long nativeAction = OptionalNumber(report, "expected_native_action") ?? action;
+            long? nativeCommand = OptionalNumber(report, "expected_native_command");
+            HashSet<long> supportingEffects = report.TryGetProperty("supporting_effects", out JsonElement supporting) ? supporting.EnumerateArray().Select(value => value.GetInt64()).ToHashSet() : [];
+            if (nativeAction is < 0 or > ushort.MaxValue || nativeCommand is < 0 or > byte.MaxValue || OptionalNumber(report, "expected_native_action").HasValue != nativeCommand.HasValue || supportingEffects.Any(value => value is < 1 or > ushort.MaxValue || value == effect))
+            {
+                errors.Add("NATIVE_INVOCATION_IDENTITY_INVALID");
+            }
             if (effect is < 1 or > ushort.MaxValue || string.IsNullOrWhiteSpace(actor) || string.IsNullOrWhiteSpace(target) || Flag(input, "draw_cast"))
             {
                 errors.Add("INPUT_UNSUPPORTED");
@@ -119,7 +126,7 @@ public static class LiveEvidenceValidation
                     errors.Add("CONTINUITY_BROKEN");
                 }
                 JsonElement dispatches = execution.GetProperty("dispatches");
-                if (dispatches.GetArrayLength() != 1)
+                if (dispatches.EnumerateArray().Count(dispatch => Number(dispatch, "requested_effect") == effect) != 1)
                 {
                     errors.Add("DISPATCH_COUNT_INVALID");
                 }
@@ -127,7 +134,9 @@ public static class LiveEvidenceValidation
                 {
                     long serial = Number(dispatch, "serial");
                     long callback = Number(dispatch, "callback");
-                    if (serial <= previousSerial || callback < startCallback || callback > endCallback || Text(dispatch, "actor_id") != actor || Text(dispatch, "ability") != ability || Number(dispatch, "action_id") != action || Number(dispatch, "requested_effect") != effect || Number(dispatch, "executed_effect") != effect)
+                    bool focal = Number(dispatch, "requested_effect") == effect;
+                    bool invocationMatches = focal ? Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && (nativeCommand is null || OptionalNumber(dispatch, "native_command") == nativeCommand) : supportingEffects.Contains(Number(dispatch, "requested_effect"));
+                    if (serial <= previousSerial || callback < startCallback || callback > endCallback || Text(dispatch, "actor_id") != actor || !invocationMatches || Number(dispatch, "executed_effect") != Number(dispatch, "requested_effect"))
                     {
                         errors.Add("DISPATCH_IDENTITY_MISMATCH");
                     }
@@ -181,6 +190,7 @@ public static class LiveEvidenceValidation
                 }
                 ValidateSemantics(execution, actor, target, ability, action, startCallback, endCallback, errors);
             }
+            ValidateRepairs(report, executions, errors);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException or InvalidDataException or ArgumentException or NullReferenceException or FormatException or OverflowException)
         {
@@ -189,6 +199,84 @@ public static class LiveEvidenceValidation
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
         return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.");
+    }
+
+    private static void ValidateRepairs(JsonElement report, JsonElement executions, List<string> errors)
+    {
+        if (!report.TryGetProperty("repairs", out JsonElement receipts) || receipts.GetArrayLength() == 0)
+        {
+            if (report.TryGetProperty("declared_repairs", out JsonElement missing) && missing.GetArrayLength() != 0)
+            {
+                errors.Add("REPAIR_EVIDENCE_INVALID");
+            }
+            return;
+        }
+        if (executions.GetArrayLength() != 2 || receipts.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declared) || declared.GetArrayLength() is < 1 or > 3)
+        {
+            errors.Add("REPAIR_EVIDENCE_INVALID");
+            return;
+        }
+        JsonElement receipt = receipts[0];
+        long callback = Number(receipt, "callback_before");
+        if (callback != Number(receipt, "callback_after") || callback < Number(executions[0], "end_callback") || callback > Number(executions[1], "start_callback") || Number(receipt, "frame") < Number(executions[0], "end_frame") || Number(receipt, "frame") > Number(executions[1], "start_frame") || Number(receipt, "restore_count") != 0 || Number(receipt, "reset_count") != 0 || Text(receipt, "lifecycle_id") != Text(executions[0].GetProperty("start_owners"), "retained_memory_owner_id") || !JsonElement.DeepEquals(receipt.GetProperty("random_before"), receipt.GetProperty("random_after")) || !JsonElement.DeepEquals(receipt.GetProperty("items_before"), receipt.GetProperty("items_after")))
+        {
+            errors.Add("REPAIR_OWNER_CONTINUITY_BROKEN");
+        }
+        JsonElement[] changes = receipt.GetProperty("changes").EnumerateArray().ToArray();
+        if (changes.Length != declared.GetArrayLength())
+        {
+            errors.Add("REPAIR_DECLARATION_MISMATCH");
+        }
+        Dictionary<string, JsonElement> firstAfter = executions[0].GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
+        Dictionary<string, JsonElement> secondBefore = executions[1].GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
+        HashSet<string> declaredActors = declared.EnumerateArray().Select(request => Text(request, "actor_id")).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> changedActors = new(StringComparer.Ordinal);
+        if (declaredActors.Count != declared.GetArrayLength())
+        {
+            errors.Add("REPAIR_DECLARATION_MISMATCH");
+        }
+        foreach (JsonElement change in changes)
+        {
+            JsonElement request = change.GetProperty("request");
+            JsonElement before = change.GetProperty("before");
+            JsonElement after = change.GetProperty("after");
+            string actor = Text(request, "actor_id");
+            if (!changedActors.Add(actor) || !declared.EnumerateArray().Any(value => JsonElement.DeepEquals(value, request)) || Text(before, "id") != actor || Text(after, "id") != actor || Number(after, "current_hp") != Number(request, "hit_points") || Number(before, "maximum_hp") != Number(after, "maximum_hp") || !JsonElement.DeepEquals(before.GetProperty("magic_stocks"), after.GetProperty("magic_stocks")))
+            {
+                errors.Add("REPAIR_DECLARATION_MISMATCH");
+            }
+            if (!firstAfter.TryGetValue(actor, out JsonElement first) || !secondBefore.TryGetValue(actor, out JsonElement second) || !JsonElement.DeepEquals(first, before) || !JsonElement.DeepEquals(second, after))
+            {
+                errors.Add("REPAIR_STATE_LINEAGE_INVALID");
+            }
+            Memoria.FF8.Runtime.BattleDiagnosticCombatRepair repair = request.Deserialize<Memoria.FF8.Runtime.BattleDiagnosticCombatRepair>(RecordJson.Options) ?? throw new InvalidDataException("Repair request is null.");
+            try
+            {
+                repair.Validate();
+            }
+            catch (InvalidDataException)
+            {
+                errors.Add("REPAIR_DECLARATION_MISMATCH");
+                continue;
+            }
+            long beforeSaved = Number(before, "statuses0");
+            long beforeBattle = Number(before, "statuses1");
+            long maximum = Number(before, "maximum_hp");
+            long expectedSaved = (beforeSaved & ~(repair.RemoveStatuses0 | (repair.Revive ? 1 : 0))) & 0xFCFF;
+            // The ordinary HP commit recomputes saved low-HP bits after the declared removals.
+            if (repair.HitPoints < (maximum >> 1))
+            {
+                expectedSaved |= repair.HitPoints < (maximum >> 2) ? 0x300L : 0x200L;
+            }
+            if (beforeSaved is < 0 or > ushort.MaxValue || beforeBattle is < 0 or > uint.MaxValue || repair.HitPoints > maximum || !repair.Revive && (Number(before, "current_hp") == 0 || (beforeSaved & 1) != 0) || Number(after, "statuses0") != expectedSaved || Number(after, "statuses1") != (beforeBattle & ~repair.RemoveStatuses1))
+            {
+                errors.Add("REPAIR_STATUS_MUTATION_INVALID");
+            }
+        }
+        if (!changedActors.SetEquals(declaredActors))
+        {
+            errors.Add("REPAIR_DECLARATION_MISMATCH");
+        }
     }
 
     private static void ValidateOptionalTraffic(JsonElement report, JsonElement execution, long effect, List<string> diagnostics)
@@ -297,6 +385,7 @@ public static class LiveEvidenceValidation
 
     private static long Stock(JsonElement state, long action) => state.GetProperty("magic_stocks").EnumerateArray().Where(stock => Number(stock, "magic_id") == action).Sum(stock => Number(stock, "quantity"));
     private static long Number(JsonElement value, string name) => value.GetProperty(name).GetInt64();
+    private static long? OptionalNumber(JsonElement value, string name) => value.TryGetProperty(name, out JsonElement number) && number.ValueKind != JsonValueKind.Null ? number.GetInt64() : null;
     private static string Text(JsonElement value, string name) => value.GetProperty(name).GetString() ?? throw new InvalidDataException($"Missing string {name}.");
     private static bool Flag(JsonElement value, string name) => value.GetProperty(name).GetBoolean();
 

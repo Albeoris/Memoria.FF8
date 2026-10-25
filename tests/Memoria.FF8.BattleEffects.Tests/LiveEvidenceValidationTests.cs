@@ -7,6 +7,175 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void Native_dispatch_identity_can_differ_from_the_semantic_guardian_force_selection()
+    {
+        JsonObject report = Report();
+        report["input"]!["ability"] = "GuardianForce";
+        report["input"]!["action_id"] = 0;
+        report["expected_native_action"] = 64;
+        report["expected_native_command"] = 254;
+        foreach (JsonNode? execution in report["executions"]!.AsArray())
+        {
+            execution!["dispatches"]![0]!["ability"] = "GuardianForce";
+            execution["dispatches"]![0]!["action_id"] = 64;
+            execution["dispatches"]![0]!["native_command"] = 254;
+        }
+
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Execution(report, 1)["dispatches"]![0]!["action_id"] = 0;
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+        Execution(report, 1)["dispatches"]![0]!["action_id"] = 64;
+        Execution(report, 1)["dispatches"]![0]!["native_command"] = 4;
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+        report.Remove("expected_native_command");
+        Assert.Contains("NATIVE_INVOCATION_IDENTITY_INVALID", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Supporting_dispatches_require_explicit_whitelisting_and_unchanged_actual_effect_identity()
+    {
+        JsonObject report = Report();
+        report["supporting_effects"] = new JsonArray(2);
+        for (int index = 0; index < 2; index++)
+        {
+            JsonArray dispatches = Execution(report, index)["dispatches"]!.AsArray();
+            dispatches[0]!["serial"] = index * 2 + 1;
+            JsonObject supporting = dispatches[0]!.DeepClone().AsObject();
+            supporting["serial"] = index * 2 + 2;
+            supporting["action_id"] = 65535;
+            supporting["requested_effect"] = 2;
+            supporting["executed_effect"] = 2;
+            dispatches.Add(supporting);
+        }
+
+        Assert.Equal("PASS", Validate(report).Verdict);
+        report["supporting_effects"] = new JsonArray();
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+        report["supporting_effects"] = new JsonArray(2);
+        Execution(report, 1)["dispatches"]![1]!["executed_effect"] = 3;
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+        Execution(report, 1)["dispatches"]![1]!["executed_effect"] = 2;
+        Execution(report, 1)["dispatches"]![1]!["actor_id"] = "another-actor";
+        Assert.Contains("DISPATCH_IDENTITY_MISMATCH", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void A_declared_between_execution_hp_repair_preserves_the_retained_owners()
+    {
+        Assert.Equal("PASS", Validate(ReportWithRepair()).Verdict);
+    }
+
+    [Fact]
+    public void Repair_status_validation_preserves_unremoved_bits_and_recomputes_native_low_hp_flags()
+    {
+        JsonObject report = ReportWithRepair();
+        JsonObject receipt = report["repairs"]![0]!.AsObject();
+        JsonObject change = receipt["changes"]![0]!.AsObject();
+        foreach (JsonNode state in new[] { Execution(report, 0)["after"]![0]!, change["before"]! })
+        {
+            state["statuses0"] = 0x20A;
+            state["statuses1"] = 0x42;
+        }
+        foreach (JsonNode state in new[] { Execution(report, 1)["before"]![0]!, change["after"]! })
+        {
+            state["statuses0"] = 0x308;
+            state["statuses1"] = 2;
+        }
+        foreach (JsonNode request in new[] { report["declared_repairs"]![0]!, change["request"]! })
+        {
+            request["remove_statuses0"] = 2;
+            request["remove_statuses1"] = 0x40;
+        }
+
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Execution(report, 1)["before"]![0]!["statuses0"] = 0x300;
+        change["after"]!["statuses0"] = 0x300;
+        Assert.Contains("REPAIR_STATUS_MUTATION_INVALID", Validate(report).Errors);
+    }
+
+    [Theory]
+    [InlineData("detached_before", "REPAIR_STATE_LINEAGE_INVALID")]
+    [InlineData("detached_after", "REPAIR_STATE_LINEAGE_INVALID")]
+    [InlineData("added_status", "REPAIR_STATUS_MUTATION_INVALID")]
+    [InlineData("incorrect_hp_flags", "REPAIR_STATUS_MUTATION_INVALID")]
+    [InlineData("duplicate_actor", "REPAIR_DECLARATION_MISMATCH")]
+    [InlineData("missing_receipt", "REPAIR_EVIDENCE_INVALID")]
+    public void Repair_receipts_must_anchor_the_execution_states_and_only_apply_declared_status_changes(string forgery, string expectedError)
+    {
+        JsonObject report = ReportWithRepair();
+        JsonObject receipt = report["repairs"]![0]!.AsObject();
+        JsonObject change = receipt["changes"]![0]!.AsObject();
+        switch (forgery)
+        {
+            case "detached_before":
+                change["before"]!["current_hp"] = 199;
+                break;
+            case "detached_after":
+                Execution(report, 1)["before"]![0]!["statuses1"] = 4;
+                break;
+            case "added_status":
+                change["after"]!["statuses1"] = 4;
+                Execution(report, 1)["before"]![0]!["statuses1"] = 4;
+                break;
+            case "incorrect_hp_flags":
+                change["after"]!["statuses0"] = 0;
+                Execution(report, 1)["before"]![0]!["statuses0"] = 0;
+                break;
+            case "duplicate_actor":
+                report["declared_repairs"]!.AsArray().Add(report["declared_repairs"]![0]!.DeepClone());
+                receipt["changes"]!.AsArray().Add(change.DeepClone());
+                break;
+            case "missing_receipt":
+                report["repairs"] = new JsonArray();
+                break;
+        }
+
+        Assert.Contains(expectedError, Validate(report).Errors);
+    }
+
+    [Theory]
+    [InlineData("random", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    [InlineData("items", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    [InlineData("callback_during_first", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    [InlineData("callback_during_second", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    [InlineData("callback_advanced", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    [InlineData("request", "REPAIR_DECLARATION_MISMATCH")]
+    [InlineData("restore", "REPAIR_OWNER_CONTINUITY_BROKEN")]
+    public void Forged_repair_receipts_cannot_hide_rng_changes_or_undeclared_mutations(string forgery, string expectedError)
+    {
+        JsonObject report = ReportWithRepair();
+        JsonObject receipt = report["repairs"]![0]!.AsObject();
+        switch (forgery)
+        {
+            case "random":
+                receipt["random_after"]!["battle"]!["lane"] = 1;
+                break;
+            case "items":
+                receipt["items_after"] = new JsonArray(new JsonObject { ["item_id"] = 1, ["quantity"] = 1 });
+                break;
+            case "callback_during_first":
+                receipt["callback_before"] = 11;
+                receipt["callback_after"] = 11;
+                break;
+            case "callback_during_second":
+                receipt["callback_before"] = 21;
+                receipt["callback_after"] = 21;
+                break;
+            case "callback_advanced":
+                receipt["callback_after"] = 17;
+                break;
+            case "request":
+                receipt["changes"]![0]!["request"]!["hit_points"] = 200;
+                break;
+            case "restore":
+                receipt["restore_count"] = 1;
+                break;
+        }
+
+        Assert.Contains(expectedError, Validate(report).Errors);
+    }
+
+    [Fact]
     public void Any_effect_can_pass_smoke_without_internal_copy_instrumentation()
     {
         JsonObject report = Report();
@@ -207,6 +376,29 @@ public sealed class LiveEvidenceValidationTests
     }
 
     private static JsonObject Execution(JsonObject report, int index) => report["executions"]![index]!.AsObject();
+
+    private static JsonObject ReportWithRepair()
+    {
+        JsonObject report = Report();
+        JsonObject second = Execution(report, 1);
+        second["before"]![0]!["current_hp"] = 100;
+        second["before"]![0]!["statuses0"] = 0x300;
+        second["after"]![0]!["current_hp"] = 200;
+        second["after"]![0]!["statuses0"] = 0x200;
+        second["resolutions"]![0]!["before_hp"] = 100;
+        second["resolutions"]![0]!["after_hp"] = 200;
+        JsonObject request = new() { ["actor_id"] = "party0", ["hit_points"] = 100, ["revive"] = false, ["remove_statuses0"] = 0, ["remove_statuses1"] = 0 };
+        report["declared_repairs"] = new JsonArray(request.DeepClone());
+        JsonObject random = new() { ["battle"] = new JsonObject { ["indexes"] = new JsonArray(0, 1, 2, 3, 4, 5, 6, 7), ["lane"] = 0 }, ["crt"] = null, ["ui"] = null, ["global"] = null };
+        report["repairs"] = new JsonArray(new JsonObject
+        {
+            ["lifecycle_id"] = "memory", ["frame"] = 5, ["callback_before"] = 16, ["callback_after"] = 16,
+            ["random_before"] = random.DeepClone(), ["random_after"] = random.DeepClone(), ["restore_count"] = 0, ["reset_count"] = 0,
+            ["items_before"] = new JsonArray(), ["items_after"] = new JsonArray(),
+            ["changes"] = new JsonArray(new JsonObject { ["request"] = request, ["before"] = Execution(report, 0)["after"]![0]!.DeepClone(), ["after"] = second["before"]![0]!.DeepClone() })
+        });
+        return report;
+    }
 
     private static JsonObject Report()
     {

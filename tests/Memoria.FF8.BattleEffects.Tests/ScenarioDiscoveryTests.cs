@@ -1,9 +1,22 @@
 using Memoria.FF8.BattleEffects;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class ScenarioDiscoveryTests
 {
+    [Fact]
+    public void IndependentGuardianItemWordSelectsChildActionRatherThanEffect()
+    {
+        BattleNativeAction item = NativeAction(4, 29, 7, 1) with { AttackType = 14 };
+        BattleNativeAction child = NativeAction(244, 1, 9, 107);
+        Assert.Equal(107, ScenarioDiscovery.ResolveCatalogEffect(item, [item, child]));
+        Assert.Null(ScenarioDiscovery.ResolveCatalogEffect(item, [item]));
+        Assert.Null(ScenarioDiscovery.ResolveCatalogEffect(item, [item, child, child with { KernelIndex = 2 }]));
+        Assert.Null(ScenarioDiscovery.ResolveCatalogEffect(item with { ActionId = 30 }, [item, child]));
+        Assert.Equal(1, ScenarioDiscovery.ResolveCatalogEffect(item with { AttackType = 2 }, [item, child]));
+    }
+
     [Fact]
     public void InstalledOutputIsRejectedBeforeResourceReads()
     {
@@ -84,4 +97,26 @@ public sealed class ScenarioDiscoveryTests
     private static InstalledScenarioInventory Inventory() => new(1, new string('0', 64), new string('1', 64), new string('2', 64), DateTimeOffset.UnixEpoch, Enumerable.Range(1, 400).Select(effect => new DiscoveredBinding(effect, 0, 0, [], "excluded_with_reason", "Synthetic null binding.", [])).ToArray(), [], [], []);
 
     private static DiscoveredScenario Scenario() => new("synthetic-case", 1, "synthetic-action", "magic", "PLANNED_BLOCKED", "unresolved", false, null, null, null, "Squall", null, 2, 1, null, null, "Unresolved", [], [], 2, [], ["Synthetic mapping"], ["Missing fixture"], ["Missing phase"], []);
+
+    private static BattleNativeAction NativeAction(byte command, ushort id, int section, ushort effect) => new(command, id, section, id)
+    {
+        MagicId = effect,
+        AttackType = 0,
+        Power = 0,
+        HitCount = 1,
+        TargetFlags = null,
+        AttackFlags = 0,
+        DamagePresentation = 0,
+        Element = 0,
+        ElementPercent = null,
+        StatusAttack = 0,
+        Statuses0 = 0,
+        Statuses1 = 0,
+        Hit = null,
+        Critical = null,
+        PowerModifier = null,
+        LevelModifier = null,
+        RawRecord = [],
+        SupplementalRecord = []
+    };
 }

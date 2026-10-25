@@ -9,6 +9,33 @@ public sealed class DiagnosticBattleDriverTests
     private static BattleDiagnosticEffectDispatch Dispatch(int serial, ushort executed = 2) => new(serial, serial, "party-0", BattleAbility.Magic, 1, 2, executed);
 
     [Fact]
+    public void Native_identity_can_differ_from_the_semantic_guardian_force_id()
+    {
+        DiagnosticBattleDriverRecipe recipe = Recipe with { Input = Recipe.Input with { Ability = BattleAbility.GuardianForce, ActionId = 0 }, ExpectedNativeAction = 64, ExpectedNativeCommand = 254 };
+        recipe.Validate();
+        DiagnosticBattleDriver driver = new(recipe, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0.1, 1));
+        driver.ObserveDispatch(new(1, 1, "party-0", BattleAbility.GuardianForce, 64, 2, 2, 254));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.Null(driver.Blocker);
+    }
+
+    [Fact]
+    public void Declared_supporting_dispatch_does_not_replace_the_focal_dispatch()
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { SupportingEffects = [3] }, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0.1, 1));
+        driver.ObserveDispatch(new(1, 1, "party-0", BattleAbility.Magic, 99, 3, 3));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        Assert.Empty(driver.Dispatches);
+        driver.ObserveDispatch(Dispatch(2));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        Assert.Single(driver.Dispatches);
+    }
+
+    [Fact]
     public void Two_dispatches_require_two_independent_drains_and_presented_tails()
     {
         DiagnosticBattleDriver driver = new(Recipe, 0);

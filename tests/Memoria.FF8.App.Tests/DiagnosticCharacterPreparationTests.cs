@@ -83,4 +83,35 @@ public sealed class DiagnosticCharacterPreparationTests
         using GameAssets assets = new(directory);
         return assets.ReadNewGameCharacterVitals();
     }
+
+    [Fact]
+    public void Installed_generic_command_preparation_uses_existing_learned_kernel_ability_without_magic_gate()
+    {
+        NativeCharacterVitals original = InstalledNewGame();
+        byte row = original.CombatParty.First(value => value != 255);
+        byte character = original.Records[row].CharacterId;
+        int ability = Enumerable.Range(20, 19).First(value => original.MenuDefinitions.CommandAbilityCommands[value - 20] != 2 && Enumerable.Range(0, 16).Any(id => original.GuardianForceAbilities(id).Any(entry => entry.Ability == value && entry.Learned)));
+        int gf = Enumerable.Range(0, 16).First(id => original.GuardianForceAbilities(id).Any(entry => entry.Ability == ability && entry.Learned));
+        DiagnosticBattlePreparation fixture = new([new(gf, true)], [new(row, character, [], [gf]) { Commands = [new(1, ability)] }], false);
+        JsonElement before = JsonSerializer.SerializeToElement(original);
+        DiagnosticPreparationResult result = GameWorld.PrepareDiagnosticCharacters(original, fixture);
+        Assert.Equal(ability, (byte)(result.Vitals.Records[row].Junction.Commands >> 8));
+        Assert.Contains(ability, result.Vitals.JunctionLearnedAbilities(row));
+        Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(original)));
+        Assert.Throws<InvalidDataException>(() => (fixture with { Characters = [fixture.Characters[0] with { MagicCommand = new(1, ability) }] }).Validate());
+    }
+
+    [Fact]
+    public void Installed_explicit_gf_learning_and_ap_use_native_progression_before_command_assignment()
+    {
+        NativeCharacterVitals original = InstalledNewGame();
+        int gf = Enumerable.Range(0, 16).First(id => original.AcquireGuardianForce(id).GuardianForceAbilities(id).Any(entry => !entry.Learned && entry.RequiredPoints is > 0 and <= 255));
+        NativeGuardianForceAbility available = original.AcquireGuardianForce(gf).GuardianForceAbilities(gf).First(entry => !entry.Learned && entry.RequiredPoints is > 0 and <= 255);
+        DiagnosticBattlePreparation fixture = new([new(gf, true) { LearningAbility = available.Ability, AbilityPoints = checked((ushort)available.RequiredPoints) }], [], false);
+        JsonElement before = JsonSerializer.SerializeToElement(original);
+        DiagnosticPreparationResult result = GameWorld.PrepareDiagnosticCharacters(original, fixture);
+        Assert.Contains(result.Vitals.GuardianForceAbilities(gf), entry => entry.Ability == available.Ability && entry.Learned);
+        Assert.Contains(result.Changes, change => change.Owner == "guardian-force" && change.Row == gf);
+        Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(original)));
+    }
 }

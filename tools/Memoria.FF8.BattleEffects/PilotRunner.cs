@@ -312,6 +312,21 @@ public static class PilotRunner
         {
             throw new InvalidDataException("Pilot action identity differs from its submitted recipe.");
         }
+        foreach (string name in new[] { "expected_native_action", "expected_native_command", "supporting_effects" })
+        {
+            bool supplied = driver.TryGetProperty(name, out JsonElement before) && before.ValueKind != JsonValueKind.Null;
+            bool recorded = observation.TryGetProperty(name, out JsonElement after) && after.ValueKind != JsonValueKind.Null;
+            if (supplied ? !recorded || !JsonElement.DeepEquals(before, after) : recorded && !(name == "supporting_effects" && after.ValueKind == JsonValueKind.Array && after.GetArrayLength() == 0))
+            {
+                throw new InvalidDataException("Pilot native invocation identity differs from its submitted recipe.");
+            }
+        }
+        bool submittedRepairs = driver.TryGetProperty("repairs", out JsonElement plannedRepairs);
+        JsonElement normalizedRepairs = submittedRepairs ? JsonSerializer.SerializeToElement(plannedRepairs.Deserialize<Memoria.FF8.Runtime.BattleDiagnosticCombatRepair[]>(RecordJson.Options), RecordJson.Options) : default;
+        if (observation.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) && (submittedRepairs ? !JsonElement.DeepEquals(normalizedRepairs, declaredRepairs) : declaredRepairs.GetArrayLength() != 0) || submittedRepairs && !observation.TryGetProperty("declared_repairs", out _))
+        {
+            throw new InvalidDataException("Pilot repair declaration differs from its submitted recipe.");
+        }
         return observation.Clone();
     }
 

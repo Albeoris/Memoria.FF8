@@ -13,9 +13,15 @@ public sealed record DiscoveredBinding(int EffectId, uint Entry, uint Initialize
 {
     public ImplementationBindingEvidence? Implementation { get; init; }
 }
-public sealed record DiscoveredAction(string Id, string Family, BattleNativeAction Native, string MappingEvidence);
+public sealed record DiscoveredAction(string Id, string Family, BattleNativeAction Native, string MappingEvidence)
+{
+    public int? MappedEffectId { get; init; }
+}
 public sealed record DiscoveredCommand(int Command, string? Name, int AbilityId, string[] ActionIds, string Disposition, string Reason);
-public sealed record DiscoveredScenario(string CaseId, int? EffectId, string ActionId, string Family, string Status, string Disposition, bool CampaignAcceptance, string? DiagnosticRecipe, int? FormationId, int? StageId, string Caster, string? CommandOwner, byte? Command, int? NativeActionId, byte? CrisisLevel, byte? TargetFlags, string TargetPolicy, string[] Preparation, string[] Invocation, int Executions, string[] RepeatPolicy, string[] MappingEvidence, string[] ExecutionBlockers, string[] AcceptanceBlockers, string[] OwnerContextIds);
+public sealed record DiscoveredScenario(string CaseId, int? EffectId, string ActionId, string Family, string Status, string Disposition, bool CampaignAcceptance, string? DiagnosticRecipe, int? FormationId, int? StageId, string Caster, string? CommandOwner, byte? Command, int? NativeActionId, byte? CrisisLevel, byte? TargetFlags, string TargetPolicy, string[] Preparation, string[] Invocation, int Executions, string[] RepeatPolicy, string[] MappingEvidence, string[] ExecutionBlockers, string[] AcceptanceBlockers, string[] OwnerContextIds)
+{
+    public string[] CoveredByCaseIds { get; init; } = [];
+}
 public sealed record CompiledImplementationSummary(string EvidenceFile, string Scope, string DispatcherIlSha256, string RuntimeAssemblySha256, int DirectRegistrations, int BindingRowsWithObservedDirectBranch, int BindingRowsUnknown, int OpaqueCalledMethods, bool PlayableSupportEstablished);
 public sealed record InstalledScenarioInventory(int SchemaVersion, string ExecutableSha256, string KernelSha256, string SceneSha256, DateTimeOffset CreatedUtc, DiscoveredBinding[] Bindings, DiscoveredAction[] Actions, DiscoveredCommand[] Commands, PlanIssue[] Issues)
 {
@@ -24,7 +30,7 @@ public sealed record InstalledScenarioInventory(int SchemaVersion, string Execut
 public sealed record ScenarioDiscoverySummary(int BindingRows, int NativeActions, int EnemyAbilityRows, int Scenarios, int RunnableDiagnostics, int BlockedScenarios, int ExcludedBindingRows, bool CampaignAcceptance, string OutputDirectory);
 
 /// <summary>Installed-data planning only. A runnable diagnostic is distinct from accepted campaign coverage.</summary>
-public static class ScenarioDiscovery
+public static partial class ScenarioDiscovery
 {
     private const string PhaseBlocker = "FINAL_PHASE_PROVENANCE: direct initialized formation participants and opening completion do not certify final-Ultimecia progression/phase initialization, subsidiary allocation and required AI state.";
 
@@ -49,6 +55,9 @@ public static class ScenarioDiscovery
         using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
         ResourceService resources = new(source);
         byte[] kernelBytes = resources.Read(new ResourceKey("main/kernel.bin"));
+        byte[] initialBytes = resources.Read(new ResourceKey("main/init.out"));
+        NativeCharacterVitals initialVitals = NativeCharacterInitialization.Read(initialBytes, kernelBytes);
+        NativeBattleExperienceDefinition experienceDefinition = NativeBattleExperienceDefinitionReader.Read(kernelBytes);
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
         using BattleAssets assets = new(gameDirectory, resources);
         List<BuildFile> resourceFiles = [new("FF8_EN.exe", executable.LongLength, Hash(executable)), new("main/kernel.bin", kernelBytes.LongLength, Hash(kernelBytes))];
@@ -61,7 +70,7 @@ public static class ScenarioDiscovery
             resourceFiles.Add(new(key, bytes.LongLength, Hash(bytes)));
         }
         EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
-        DiscoveredAction[] actions = assets.NativeActions.Select(action => new DiscoveredAction(ActionId(action), Family(action), action, $"main/kernel.bin:section:{action.KernelSection}:row:{action.KernelIndex}:sha256:{Hash(action.RawRecord.ToArray())}" + (action.SupplementalKernelIndex is int supplemental ? $":supplemental-row:{supplemental}:sha256:{Hash(action.SupplementalRecord.ToArray())}" : ""))).ToArray();
+        DiscoveredAction[] actions = assets.NativeActions.Select(action => new DiscoveredAction(ActionId(action), Family(action), action, $"main/kernel.bin:section:{action.KernelSection}:row:{action.KernelIndex}:sha256:{Hash(action.RawRecord.ToArray())}" + (action.SupplementalKernelIndex is int supplemental ? $":supplemental-row:{supplemental}:sha256:{Hash(action.SupplementalRecord.ToArray())}" : "") + (action.KernelSection == 7 && action.AttackType == 14 ? "; independent-GF item effect word is a kernel9/command244 action index; PocketStation selection is dynamic; BattleSession.IndependentGuardianForces.cs:PrepareIndependentGuardianItem" : "")) { MappedEffectId = ResolveCatalogEffect(action, assets.NativeActions) }).ToArray();
         List<DiscoveredScenario> scenarios = [];
         Dictionary<string, string> candidates = ReadCandidateRecipes(canonicalTemplatePath);
         foreach (KeyValuePair<string, string> candidate in candidates)
@@ -73,9 +82,12 @@ public static class ScenarioDiscovery
         }
         string? templatePath = candidates.Values.FirstOrDefault();
         Directory.CreateDirectory(output);
+        Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleEnemyBands = [];
+        Dictionary<int, NativeCharacterVitals> preparedLevels = [];
         foreach (DiscoveredAction action in actions)
         {
             BattleNativeAction native = action.Native;
+            int? mappedEffect = action.MappedEffectId;
             string caseId = "action-" + action.Id;
             string? recipePath = null;
             List<string> blockers = ActionBlockers(native);
@@ -93,6 +105,8 @@ public static class ScenarioDiscovery
                 recipe["driver"]!["input"]!["action_id"] = native.ActionId;
                 recipe["driver"]!["input"]!["target_id"] = partyTarget ? "party-0" : "enemy-6";
                 recipe["driver"]!["expected_effect"] = native.MagicId;
+                recipe["driver"]!["expected_native_action"] = native.ActionId;
+                recipe["driver"]!["expected_native_command"] = native.Command;
                 recipe["fixture"]!["characters"]![0]!["stocks"]![0]!["action"] = native.ActionId;
                 int preparedHitPoints = recipe["fixture"]!["characters"]![0]!["hit_points"]!.GetValue<int>();
                 recipe["fixture"]!["characters"]![0]!["hit_points"] = partyTarget && native.AttackType is 3 or 32 ? 1 : preparedHitPoints;
@@ -108,13 +122,45 @@ public static class ScenarioDiscovery
                 blockers.Clear();
                 blockers.Add("REVIVAL_REPEAT_PRECONDITION: a legal KO party recipient and a narrow typed rearm to recreate KO after execution one are unavailable; current typed fixture accepts positive HP only. Do not target a living enemy or kill Squall merely to fabricate invocation.");
             }
+            if (recipePath is null && templatePath is not null && native.KernelSection is 2 or 7 or 10)
+            {
+                blockers.Clear();
+                if (TryPrepareOrdinaryPlayerRecipe(assets, initialVitals, native, templatePath, out JsonObject? ordinaryRecipe, out string? ordinaryBlocker))
+                {
+                    string copied = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
+                    File.WriteAllText(copied, ordinaryRecipe!.ToJsonString(RecordJson.Options));
+                    recipePath = copied;
+                    targetPolicy = "Installed ordinary command/semantic action and shared target rules; actual target=" + ordinaryRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
+                }
+                else
+                {
+                    blockers.Add(ordinaryBlocker ?? "PLAYER_COMMAND_PRECONDITION: exact ordinary command prerequisites remain unresolved.");
+                }
+            }
+            if (recipePath is null && templatePath is not null && native.KernelSection == 19 && native.Command == 15)
+            {
+                blockers.Clear();
+                if (TryPrepareBlueMagicRecipe(assets, initialVitals, native, templatePath, out JsonObject? blueRecipe, out string? blueBlocker))
+                {
+                    string copied = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(copied)!);
+                    File.WriteAllText(copied, blueRecipe!.ToJsonString(RecordJson.Options));
+                    recipePath = copied;
+                    targetPolicy = "Diagnostic borrowed original Blue Magic command owner; shared installed target flags; target=" + blueRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>();
+                }
+                else
+                {
+                    blockers.Add(blueBlocker ?? "BLUE_MAGIC_PRECONDITION: original crisis/learned/target prerequisites remain unresolved.");
+                }
+            }
             bool enemy = native.KernelSection == 3;
             string[] ownerIds = enemies.Owners.Where(owner => owner.Command == native.Command && owner.ActionId == native.ActionId).Select(OwnerId).ToArray();
             if (enemy && ownerIds.Length == 0)
             {
                 blockers.Add("OWNER_UNRESOLVED: no installed DAT ability-bank owner was found for this exact command/action variant; do not substitute a generic monster.");
             }
-            scenarios.Add(new(caseId, native.MagicId, action.Id, action.Family, recipePath is null ? "PLANNED_BLOCKED" : "RUNNABLE", recipePath is null ? "unresolved" : "scheduled", false, recipePath, enemy ? null : 982, enemy ? null : 142, enemy ? "Actual installed owner; see owner_context_ids" : "Squall", native.CharacterId?.ToString(System.Globalization.CultureInfo.InvariantCulture), native.Command, native.ActionId, native.CrisisLevel, native.TargetFlags, targetPolicy, Preparation(native), [$"native command={native.Command}; action={native.ActionId}; kernel={native.KernelSection}/{native.KernelIndex}; crisis={native.CrisisLevel?.ToString() ?? "not applicable"}", recipePath is null ? "Invocation adapter/prerequisites must be resolved before execution." : "Submit the copied recipe's ordinary semantic Action input twice."], 2, ["One uninterrupted BattleSession and owner lineage; no snapshot restore/reseed/allocator reset.", "No generic between-cast repair; terminal/KO/stock/trigger prerequisites require a proved typed repair if needed."], [action.MappingEvidence, "BattleActionKernelReader.Native.cs:ReadNativeActions; BattleSession.NativeActionAdmission.cs:BuildNativeActionHeaderPreparation"], blockers.Distinct().ToArray(), enemy ? ["ENEMY_REACHABILITY: table membership is not proof of a legal selectable AI/trigger path."] : [PhaseBlocker], ownerIds));
+            scenarios.Add(new(caseId, mappedEffect, action.Id, action.Family, recipePath is null ? "PLANNED_BLOCKED" : "RUNNABLE", recipePath is null ? "unresolved" : "scheduled", false, recipePath, enemy ? null : 982, enemy ? null : 142, enemy ? "Actual installed owner; see owner_context_ids" : "Squall", native.CharacterId?.ToString(System.Globalization.CultureInfo.InvariantCulture), native.Command, native.ActionId, native.CrisisLevel, native.TargetFlags, targetPolicy, Preparation(native), [$"native command={native.Command}; action={native.ActionId}; kernel={native.KernelSection}/{native.KernelIndex}; crisis={native.CrisisLevel?.ToString() ?? "not applicable"}", recipePath is null ? "Invocation adapter/prerequisites must be resolved before execution." : "Submit the copied recipe's declared semantic input and typed adapters twice."], 2, ["One uninterrupted BattleSession and owner lineage; no snapshot restore/reseed/allocator reset.", "No generic between-cast repair; terminal/KO/stock/trigger prerequisites require a proved typed repair if needed."], [action.MappingEvidence, "BattleActionKernelReader.Native.cs:ReadNativeActions; BattleSession.NativeActionAdmission.cs:BuildNativeActionHeaderPreparation"], blockers.Distinct().ToArray(), enemy ? ["ENEMY_REACHABILITY: table membership is not proof of a legal selectable AI/trigger path."] : [PhaseBlocker], ownerIds));
             if (native.TargetFlags is byte targetFlags && (targetFlags & 0x30) is 0 or 0x20 && (targetFlags & 2) == 0)
             {
                 scenarios.Add(scenarios[^1] with { CaseId = caseId + "-multiple-targets", Status = "PLANNED_BLOCKED", Disposition = "unresolved", DiagnosticRecipe = null, TargetPolicy = $"Multiple legal actual recipients required by installed group selector 0x{targetFlags:X2}; NativeBattleLimitRules.PlayerTargetMask and BattleHudController.SelectingTargetGroup preserve native group mode.", ExecutionBlockers = ["MULTI_TARGET_PRECONDITION: prove at least two legitimate actual recipients and their active targetable/life-state conditions in the required canonical phase or original enemy context. The current one-party/direct-participant recipe does not certify this branch; no synthetic enemy or arbitrary target-count override is substituted."] });
@@ -126,12 +172,66 @@ public static class ScenarioDiscovery
             string caseId = "enemy-" + ownerId;
             BattleNativeAction? native = owner.NativeAction;
             scenarios.Add(new(caseId, native?.MagicId, $"command-{owner.Command}-action-{owner.ActionId}", "enemy_owned_ability", "PLANNED_BLOCKED", "unresolved", false, null, null, null, $"Enemy model {owner.ModelId}: {owner.Name}", $"DAT model {owner.ModelId}; level band {owner.LevelBand}; ability slot {owner.AbilitySlot}; sequence {owner.Sequence}", owner.Command, owner.ActionId, null, native?.TargetFlags, "Hostile: Squall; self/ally/revival/counter recipients require actual AI selector and state proof.", ["Choose an exact formation/slot from enemy-owners.json; preserve level band, hidden/suspended/targetable flags, companions and reinforcement allocation.", "Run mandatory AI initialization, reactions and death callbacks; table membership alone does not authorize invocation."], [$"Select existing DAT ability row {owner.AbilitySlot} in level band {owner.LevelBand}, command {owner.Command}, action {owner.ActionId}, sequence {owner.Sequence} through normal native dispatch; adapter currently unavailable."], 2, ["Repeat the same focal effect twice in one battle, driving triggers separately from focal dispatches.", "No state reconstruction, RNG rewind or suppression of mandatory reactions."], owner.MappingEvidence, owner.Blockers, ["Enemy invocation, target legality and repeat trigger remain unverified."], [ownerId]));
+            if (templatePath is not null)
+            {
+                DiscoveredScenario candidate = scenarios[^1];
+                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, owner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? enemyRecipe, out EnemyScenarioFormation? context, out EnemyScenarioScriptedAction? selectorProof, out string? enemyBlocker))
+                {
+                    string path = Path.Combine(output, "recipes", caseId + ".json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    File.WriteAllText(path, enemyRecipe!.ToJsonString(RecordJson.Options));
+                    scenarios[^1] = candidate with { Status = "RUNNABLE", Disposition = "scheduled", DiagnosticRecipe = path, FormationId = context!.FormationId, StageId = context.StageId, ExecutionBlockers = [], TargetPolicy = $"Actual installed AI selector {selectorProof!.TargetSelector} at callback {selectorProof.Callback}, offset {selectorProof.Offset}; semantic target={enemyRecipe["driver"]!["input"]!["target_id"]!.GetValue<string>()}; live owner/band/row guard before both native queue submissions.", Invocation = [$"Normal diagnostic native ability-row selector: model={owner.ModelId}, scene={context.SceneSlot}, band={owner.LevelBand}, slot={owner.AbilitySlot}, command={owner.Command}, action={owner.ActionId}, sequence={owner.Sequence}, target_selector={selectorProof.TargetSelector}."], MappingEvidence = candidate.MappingEvidence.Concat(selectorProof.MappingEvidence).ToArray(), AcceptanceBlockers = ["An actual native ability-row diagnostic does not establish all phase/trigger variants or independent native outcome equivalence."] };
+                }
+                else
+                {
+                    scenarios[^1] = candidate with { ExecutionBlockers = [enemyBlocker ?? "ENEMY_CONTEXT_PRECONDITION: exact legal live context remains unresolved."] };
+                }
+            }
+            if (owner.ActionId == 0)
+            {
+                scenarios[^1] = scenarios[^1] with { Status = "EXCLUDED", Disposition = "excluded_with_reason", ExecutionBlockers = [], AcceptanceBlockers = ["Original QueuePreparedNativeAiCommand explicitly skips zero WORD action IDs, including this authenticated unused ability row."] };
+            }
+        }
+        for (int index = 0; index < scenarios.Count; index++)
+        {
+            DiscoveredScenario scenario = scenarios[index];
+            if (scenario.Family != "enemy_kernel_action" || scenario.Status == "RUNNABLE")
+            {
+                continue;
+            }
+            string[] covering = scenarios.Where(candidate => candidate.Family == "enemy_owned_ability" && candidate.Status == "RUNNABLE" && candidate.Command == scenario.Command && candidate.NativeActionId == scenario.NativeActionId && candidate.EffectId == scenario.EffectId).Select(candidate => candidate.CaseId).ToArray();
+            if (covering.Length != 0)
+            {
+                scenarios[index] = scenario with { Status = "COVERED_BY_CASE", Disposition = "covered_by_case", ExecutionBlockers = [], CoveredByCaseIds = covering };
+            }
         }
         for (int index = 0; index < enemies.ScriptedActions.Length; index++)
         {
             EnemyScenarioScriptedAction scripted = enemies.ScriptedActions[index];
             string caseId = $"script-{index:D6}-m{scripted.ModelId:D3}-cb{scripted.Callback}-off{scripted.Offset}-band{scripted.LevelBand}";
             scenarios.Add(new(caseId, scripted.NativeEffectId, $"scripted-row-{index}", "enemy_scripted_dispatch", "PLANNED_BLOCKED", "unresolved", false, null, null, null, $"Enemy model {scripted.ModelId}: {scripted.Name}", $"AI callback {scripted.Callback}; byte offset {scripted.Offset}; level band {scripted.LevelBand}; sequence {scripted.Sequence?.ToString() ?? "unresolved"}", scripted.Command, scripted.ActionId, null, scripted.NativeAction?.TargetFlags, "Preserve the AI selected recipient mask and real trigger conditions; unresolved until branch execution is proved.", ["Retain exact installed scene contexts in enemy-owners.json ScriptedActions at the matching row.", "Drive initialization/counter/death/turn callback and its branch prerequisites; direct graphics are not selectable generic abilities."], [$"Normal AI callback {scripted.Callback}, offset {scripted.Offset}, command {scripted.Command?.ToString() ?? "dynamic"}, action {scripted.ActionId?.ToString() ?? "dynamic"}; deterministic selector currently unavailable."], 2, ["Repeat original trigger twice without resetting owner lineage; dynamic selection must produce the same focal effect both times."], scripted.MappingEvidence, scripted.Blockers.Length == 0 ? ["SCRIPTED_SELECTOR_UNSUPPORTED: CFG discovery proves resource references, not legal branch reachability or repeated live invocation."] : scripted.Blockers, ["Static control-flow discovery is not a live ownership, targeting or repeatability receipt."], [$"scripted-row-{index}"]));
+            scenarios[^1] = scenarios[^1] with { ExecutionBlockers = [scripted.Callback switch
+            {
+                0 => "INITIALIZATION_REPEAT_PRECONDITION: the original effect is dispatched by actor initialization; a second legitimate initialization trigger preserving the same battle/process owners and effect cleanup has not been proved.",
+                2 => "COUNTER_TRIGGER_PRECONDITION: this original damage/reaction callback requires its real preceding attack, attacker/HP/status/AI conditions and the same focal response twice; a selectable ability-row or turn callback cannot replace that trigger.",
+                3 => "DEATH_REPEAT_PRECONDITION: the original effect belongs to death processing. A legitimate second death/revival/rearm sequence preserving owner lineage and terminal semantics has not been proved.",
+                1 => "TURN_SCRIPT_TARGET_OR_MAPPING_PRECONDITION: the normal turn adapter exists; this exact dispatch still needs an original legal recipient/effect mapping or genuine phase/level context. Dynamic filters, physical selectors and direct graphics are not replaced by guessed ability rows.",
+                _ => $"CALLBACK_TRIGGER_PRECONDITION: the original callback{scripted.Callback} event owner, legal trigger, state and repeated focal dispatch remain unresolved."
+            }] };
+            if (templatePath is not null && scripted.Callback == 1 && scripted.NativeAction is { MagicId: >= 1 and <= 400 } scriptedNative && scripted.Command is byte scriptedCommand && scripted.ActionId is ushort scriptedAction && scripted.Sequence is byte scriptedSequence)
+            {
+                EnemyScenarioActionOwner scriptedOwner = new(scripted.ModelId, scripted.Name, scripted.LevelBand, -1, scriptedCommand, scriptedAction, scriptedSequence, scriptedNative, scripted.Formations, scripted.MappingEvidence, scripted.Blockers);
+                if (TryPrepareEnemyRecipe(assets, initialVitals, experienceDefinition, scriptedOwner, enemies.ScriptedActions, possibleEnemyBands, preparedLevels, templatePath, out JsonObject? turnRecipe, out EnemyScenarioFormation? turnContext, out EnemyScenarioScriptedAction? turnProof, out string? turnBlocker, useTurnScript: true))
+                {
+                    string path = Path.Combine(output, "recipes", caseId + ".json");
+                    File.WriteAllText(path, turnRecipe!.ToJsonString(RecordJson.Options));
+                    scenarios[^1] = scenarios[^1] with { Status = "RUNNABLE", Disposition = "scheduled", DiagnosticRecipe = path, FormationId = turnContext!.FormationId, StageId = turnContext.StageId, ExecutionBlockers = [], TargetPolicy = $"The original complete turn callback owns target selection; observed selector {turnProof!.TargetSelector}, callback1 offset{turnProof.Offset}. Actual targets and branch dispatch must be verified in each execution.", Invocation = ["Queue the existing normal stage1 callback producer twice on the original owner. Do not directly invoke the effect or force the conditional/random branch."], AcceptanceBlockers = ["A valid native turn attempt is not proof the seeded branch reaches the focal effect twice; unreached/wrong branch produces ERROR."] };
+                }
+                else
+                {
+                    scenarios[^1] = scenarios[^1] with { ExecutionBlockers = [turnBlocker ?? "TURN_SCRIPT_PRECONDITION: original legal owner/target/band remains unresolved."] };
+                }
+            }
         }
         for (int index = 0; index < enemies.Issues.Length; index++)
         {
@@ -172,19 +272,19 @@ public static class ScenarioDiscovery
         Write(output, "implementation-evidence.json", implementation);
         Write(output, "enemy-owners.json", enemies);
         Write(output, "scenarios.json", scenarios);
-        Write(output, "cases-manifest.json", scenarios.Select(scenario => new PilotCase(scenario.CaseId, scenario.DiagnosticRecipe, scenario.Status, scenario.ExecutionBlockers, scenario.EffectId, scenario.DiagnosticRecipe is string path ? Hash(File.ReadAllBytes(path)) : null)).ToArray());
+        Write(output, "cases-manifest.json", scenarios.Where(scenario => scenario.Disposition is not ("covered_by_case" or "excluded_with_reason")).Select(scenario => new PilotCase(scenario.CaseId, scenario.DiagnosticRecipe, scenario.Status, scenario.ExecutionBlockers, scenario.EffectId, scenario.DiagnosticRecipe is string path ? Hash(File.ReadAllBytes(path)) : null)).ToArray());
         foreach (DiscoveredBinding row in rows)
         {
             Write(output, $"effects/effect-{row.EffectId:D3}/scenarios.json", new { schema_version = 1, binding = row, scenarios = scenarios.Where(scenario => scenario.EffectId == row.EffectId).ToArray() });
         }
         Write(output, "unmapped-scenarios.json", scenarios.Where(scenario => scenario.EffectId is null or 0 or > 400).ToArray());
         Write(output, "coverage-reconciliation.json", new { schema_version = 1, inventory_binding_rows = rows.Length, native_action_rows = actions.Length, enemy_ability_rows = enemies.Owners.Length, enemy_scripted_dispatch_rows = enemies.ScriptedActions.Length, command_rows = commands.Length, generated_scenarios = scenarios.Count, binding_rows_without_plan = rows.Where(row => row.Disposition != "excluded_with_reason" && row.ScenarioIds.Length == 0).Select(row => row.EffectId).ToArray(), action_rows_without_plan = actions.Where(action => !scenarios.Any(scenario => scenario.ActionId == action.Id)).Select(action => action.Id).ToArray(), implementation_summary = implementationSummary, dispositions = scenarios.GroupBy(scenario => scenario.Disposition).ToDictionary(group => group.Key, group => group.Count()), campaign_acceptance = false, issues = enemies.Issues });
-        ScenarioDiscoverySummary summary = new(rows.Length, actions.Length, enemies.Owners.Length, scenarios.Count, scenarios.Count(scenario => scenario.Status == "RUNNABLE"), scenarios.Count(scenario => scenario.Status != "RUNNABLE"), rows.Count(row => row.Disposition == "excluded_with_reason"), false, output);
+        ScenarioDiscoverySummary summary = new(rows.Length, actions.Length, enemies.Owners.Length, scenarios.Count, scenarios.Count(scenario => scenario.Status == "RUNNABLE"), scenarios.Count(scenario => scenario.Status is "PLANNED_BLOCKED" or "UNRESOLVED"), rows.Count(row => row.Disposition == "excluded_with_reason"), false, output);
         Write(output, "discovery-summary.json", summary);
         string toolAssembly = typeof(ScenarioDiscovery).Assembly.Location;
         string? informationalVersion = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(ScenarioDiscovery).Assembly)?.InformationalVersion;
         BuildFile[] planFiles = EvidenceStore.DescribeFiles(output);
-        Write(output, "plan-seal.json", new { schema_version = 1, planner_revision = 1, revision_id = Guid.NewGuid().ToString("N"), created_utc = DateTimeOffset.UtcNow, source_commit = sourceCommit, dirty_patch_sha256 = sourcePatchHash, source_identity_availability = sourceCommit is null ? "unavailable; caller did not provide source identity" : "caller supplied; tool binary identity is independently hashed", tool_informational_version = informationalVersion, tool_assembly_sha256 = Hash(File.ReadAllBytes(toolAssembly)), template_sha256 = canonicalTemplatePath is null ? null : Hash(File.ReadAllBytes(canonicalTemplatePath)), inventory.ExecutableSha256, inventory.KernelSha256, inventory.SceneSha256, plan_sha256 = EvidenceStore.HashRecord(planFiles), files = planFiles, campaign_acceptance = false });
+        Write(output, "plan-seal.json", new { schema_version = 1, planner_revision = 1, revision_id = Guid.NewGuid().ToString("N"), created_utc = DateTimeOffset.UtcNow, source_commit = sourceCommit, dirty_patch_sha256 = sourcePatchHash, source_identity_availability = sourceCommit is null ? "unavailable; caller did not provide source identity" : "caller supplied; tool binary identity is independently hashed", tool_informational_version = informationalVersion, tool_assembly_sha256 = Hash(File.ReadAllBytes(toolAssembly)), template_sha256 = canonicalTemplatePath is null ? null : Hash(File.ReadAllBytes(canonicalTemplatePath)), init_out_sha256 = Hash(initialBytes), inventory.ExecutableSha256, inventory.KernelSha256, inventory.SceneSha256, plan_sha256 = EvidenceStore.HashRecord(planFiles), files = planFiles, campaign_acceptance = false });
         return summary;
     }
 
@@ -229,14 +329,14 @@ public static class ScenarioDiscovery
         }
         foreach (DiscoveredAction action in inventory.Actions)
         {
-            if (!scenarios.Any(scenario => scenario.ActionId == action.Id && scenario.EffectId == action.Native.MagicId))
+            if (!scenarios.Any(scenario => scenario.ActionId == action.Id && scenario.EffectId == action.MappedEffectId))
             {
                 throw new InvalidDataException($"Missing exact action/effect scenario: {action.Id}.");
             }
         }
         foreach (DiscoveredScenario scenario in scenarios)
         {
-            if (scenario.CampaignAcceptance || scenario.Status == "RUNNABLE" && (scenario.DiagnosticRecipe is null || scenario.ExecutionBlockers.Length != 0) || scenario.Status != "RUNNABLE" && scenario.ExecutionBlockers.Length == 0)
+            if (scenario.CampaignAcceptance || scenario.Status == "RUNNABLE" && (scenario.DiagnosticRecipe is null || scenario.ExecutionBlockers.Length != 0) || scenario.Status is "PLANNED_BLOCKED" or "UNRESOLVED" && scenario.ExecutionBlockers.Length == 0 || scenario.Status == "COVERED_BY_CASE" && (scenario.CoveredByCaseIds.Length == 0 || scenario.CoveredByCaseIds.Any(id => !scenarios.Any(candidate => candidate.CaseId == id && candidate.Status == "RUNNABLE" && candidate.EffectId == scenario.EffectId && candidate.Command == scenario.Command && candidate.NativeActionId == scenario.NativeActionId))))
             {
                 throw new InvalidDataException($"Unproved readiness/acceptance or missing blocker: {scenario.CaseId}.");
             }
@@ -244,6 +344,20 @@ public static class ScenarioDiscovery
     }
 
     public static string ActionId(BattleNativeAction action) => $"c{action.Command:D3}-a{action.ActionId:D3}-s{action.KernelSection:D2}-r{action.KernelIndex:D3}" + (action.CrisisLevel is byte crisis ? $"-crisis{crisis}" : "");
+
+    public static int? ResolveCatalogEffect(BattleNativeAction action, IReadOnlyList<BattleNativeAction> actions)
+    {
+        if (action.KernelSection == 7 && action.AttackType == 14)
+        {
+            if (action.ActionId == 30)
+            {
+                return null;
+            }
+            BattleNativeAction[] children = actions.Where(child => child.Command == 244 && child.ActionId == action.MagicId).ToArray();
+            return children.Length == 1 ? children[0].MagicId : null;
+        }
+        return action.MagicId;
+    }
 
     public static string Family(BattleNativeAction action) => action.KernelSection switch
     {
@@ -271,19 +385,23 @@ public static class ScenarioDiscovery
         }
         if (action.KernelSection == 3)
         {
-            blockers.Add("ENEMY_SELECTOR_UNSUPPORTED: current driver lacks an adapter selecting the actual legal DAT ability row/AI trigger while preserving required callbacks.");
+            blockers.Add("ENEMY_OWNERSHIP_PRECONDITION: select a proved actual DAT owner/level/scene invocation from owner_context_ids. A normal row/turn adapter exists; unresolved phase, trigger and target contexts cannot be substituted by a generic enemy.");
         }
-        else if (action.KernelSection is 5 or 18 or 19 or 21 or 22 or 25)
+        else if (action.KernelSection == 5)
         {
-            blockers.Add("OWNER_DEPENDENT: current driver rejects timed limits and borrowed capabilities; prove Squall diagnostic capability, original owner resources, crisis/learned/input prerequisites and a twice-reachable branch.");
+            blockers.Add("RENZOKUKEN_BRANCH_PRECONDITION: resolve the actual final target's seven-entry native Renzokuken effect table, crisis-dependent two-entry base selection, weapon finisher flags and naturally advancing RNG/input sequence that reaches this same finisher twice. The normal own-Squall adapter does not force random branches or invent supporting effect IDs.");
+        }
+        else if (action.KernelSection is 18 or 19 or 21 or 22 or 25)
+        {
+            blockers.Add("OWNER_DEPENDENT: this original command requires a proved Squall diagnostic capability with original owner/pose/weapon resources, crisis/learned/input prerequisites and a twice-reachable branch. Ordinary own-Squall and the explicit borrowed Blue Magic adapter do not authorize unrelated limit owners.");
         }
         else if (action.KernelSection == 7)
         {
-            blockers.Add("ITEM_PREPARATION_UNSUPPORTED: current typed fixture cannot supply item inventory/command prerequisites; resolve native stock, targeting, consumption and repeat conditions.");
+            blockers.Add("ITEM_INVOCATION_PRECONDITION: provide the verified canonical fixture and establish the installed ordinary item command/stock, legal recipient, consumption and repetition prerequisites; command variants retain their own trigger requirements.");
         }
         else if (action.KernelSection is 2 or 9)
         {
-            blockers.Add("SUMMON_PREPARATION_UNRESOLVED: GF acquisition/assignment alone does not prove summon command readiness, HP/compatibility, independent-summon trigger or required original auxiliary processing.");
+            blockers.Add("SUMMON_PREPARATION_UNRESOLVED: provide the verified canonical fixture and prove original acquired/junctioned GF, learned command, positive HP and semantic-to-native action mapping; independent summon rows retain their actual trigger owners.");
         }
         else if (action.KernelSection == 1 && action.Command == 2)
         {

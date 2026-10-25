@@ -6,6 +6,33 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class ScenarioImplementationDiscoveryTests
 {
+    private static int mutation;
+
+    [Fact]
+    public void Compiler_captured_argument_field_reads_preserve_direct_registration_evidence()
+    {
+        MethodInfo method = typeof(ScenarioImplementationDiscoveryTests).GetMethod(nameof(DispatchCaptured), BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        ImplementationDiscoveryEvidence result = ScenarioImplementationDiscovery.Inspect(method, [new(1, 0x123456, 0)]);
+
+        Assert.Equal("direct_equality_branch_observed", Assert.Single(result.Bindings).Disposition);
+        Assert.EndsWith(".EnterSynthetic", Assert.Single(result.Registrations).CalledMethod);
+    }
+
+    [Fact]
+    public void Branches_with_state_mutations_remain_unknown_without_executing_them()
+    {
+        MethodInfo method = typeof(ScenarioImplementationDiscoveryTests).GetMethod(nameof(DispatchMutating), BindingFlags.Static | BindingFlags.NonPublic)!;
+        int before = mutation;
+
+        ImplementationDiscoveryEvidence result = ScenarioImplementationDiscovery.Inspect(method, [new(1, 0x123456, 0)]);
+
+        Assert.Equal("unknown", Assert.Single(result.Bindings).Disposition);
+        Assert.Empty(result.Registrations);
+        Assert.Contains(result.OpaqueCalledMethods, name => name.EndsWith(".EnterSynthetic", StringComparison.Ordinal));
+        Assert.Equal(before, mutation);
+    }
+
     [Fact]
     public void Direct_compiled_equality_links_all_shared_rows_without_invoking_the_target()
     {
@@ -37,6 +64,26 @@ public sealed class ScenarioImplementationDiscoveryTests
     {
         if (binding.Entry == 0x123456)
         {
+            return EnterSynthetic(binding);
+        }
+        return 0;
+    }
+
+    private static int DispatchCaptured(NativeBattleEffectBinding binding)
+    {
+        GC.KeepAlive((Func<NativeBattleEffectBinding>)(() => binding));
+        if (binding.Entry == 0x123456)
+        {
+            return EnterSynthetic(binding);
+        }
+        return 0;
+    }
+
+    private static int DispatchMutating(NativeBattleEffectBinding binding)
+    {
+        if (binding.Entry == 0x123456)
+        {
+            mutation++;
             return EnterSynthetic(binding);
         }
         return 0;

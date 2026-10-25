@@ -78,7 +78,7 @@ internal sealed partial class GameWorld
                 {
                     return false;
                 }
-                return request.Driver is null || active.CanChoosePlayerCommand(request.Driver.Input.ActorId!);
+                return request.Driver is null || RecreateGame.DiagnosticCommandReady(active, request.Driver);
             }
             int callbacks = 0;
             while (!Ready() && callbacks < request.EntryCallbackBudget)
@@ -113,7 +113,9 @@ internal sealed partial class GameWorld
         long started = Stopwatch.GetTimestamp();
         NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
         string executable = retained.ColdExecutableSha256 ?? throw new NotSupportedException("Diagnostic initialization requires an authenticated executable identity.");
-        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture);
+        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture, request.Fixture.Characters.Any(character => character.Level.HasValue) ? assets.ReadNativeBattleExperienceDefinition() : null);
+        DiagnosticInventoryPreparationResult? inventory = request.Fixture is null ? null : PrepareDiagnosticInventory(session.State.Economy, request.Fixture);
+        DiagnosticLimitPreparationResult? limits = request.Fixture?.Limits is { } limitRecipe ? PrepareDiagnosticLimits(session.State.LimitProgress ?? throw new NotSupportedException("Diagnostic Limit preparation requires the actual initialized saved progress owner."), limitRecipe) : null;
         Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
         PreparedNativeBattleMusicEntry preparedMusic = Events.PrepareNativeDiagnosticBattleMusicEntry(checked((ushort)request.Encounter), request.Flags, BattleMusicEntryResources, request.BattleMusic, request.PrimaryMusicChannel, request.MusicFieldWord, retained.MusicProcess?.ReturnChannel);
         diagnosticBattle = new(request, Guid.NewGuid());
@@ -123,12 +125,20 @@ internal sealed partial class GameWorld
             {
                 session.SetCharacterVitals(characters.Vitals);
             }
+            if (inventory is not null)
+            {
+                session.SetEconomy(inventory.Economy);
+            }
+            if (limits is not null)
+            {
+                session.SetLimitProgress(limits.Progress);
+            }
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, BattleAtbMode.Normal, preparedMusic);
             prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false);
             battle = CommitPreparedBattleEntry(prepared);
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
-            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.Capture().Definition.StageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = characters?.Changes ?? [] };
+            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.Capture().Definition.StageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? []] };
             return battle;
         }
         catch

@@ -14,6 +14,12 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public string? ProgressPath { get; init; }
     public bool RequiresCapabilityAdapter { get; init; }
     public bool RequiresCombatRepairs { get; init; }
+    public BattleDiagnosticEnemyAbility? EnemyAbility { get; init; }
+    public BattleDiagnosticLimitSelection? LimitSelection { get; init; }
+    public int? ExpectedNativeAction { get; init; }
+    public byte? ExpectedNativeCommand { get; init; }
+    public ushort[] SupportingEffects { get; init; } = [];
+    public BattleDiagnosticCombatRepair[] Repairs { get; init; } = [];
 
     internal void Validate()
     {
@@ -22,9 +28,23 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
             throw new InvalidDataException("Diagnostic driver requires a semantic input.");
         }
         Input.Validate();
-        if (Input.Kind is not (BattleInputKind.Action or BattleInputKind.Attack) || Input.Ability == BattleAbility.LimitBreak || RequiresCapabilityAdapter || RequiresCombatRepairs)
+        EnemyAbility?.Validate();
+        LimitSelection?.Validate();
+        if (SupportingEffects is null || SupportingEffects.Any(effect => effect == 0 || effect == ExpectedEffect) || SupportingEffects.Distinct().Count() != SupportingEffects.Length || Repairs is null || Repairs.Length > 3 || Repairs.Any(repair => repair is null))
         {
-            throw new NotSupportedException("The preparation driver supports ordinary semantic Action/Attack only; timed limits, borrowed capabilities and combat repairs require explicit future adapters.");
+            throw new InvalidDataException("Diagnostic supporting dispatches and between-execution repairs must be explicit and bounded.");
+        }
+        foreach (BattleDiagnosticCombatRepair repair in Repairs)
+        {
+            repair.Validate();
+        }
+        if (ExpectedNativeAction is < 0 or > ushort.MaxValue || ExpectedNativeAction.HasValue != ExpectedNativeCommand.HasValue)
+        {
+            throw new InvalidDataException("Explicit native invocation identity requires a command/action pair.");
+        }
+        if (Input.Kind is not (BattleInputKind.Action or BattleInputKind.Attack) || Input.Ability == BattleAbility.LimitBreak && LimitSelection is null || RequiresCapabilityAdapter || RequiresCombatRepairs || EnemyAbility is not null && (Input.Ability != BattleAbility.EnemyAbility || Input.ActionId != EnemyAbility.ActionId) || EnemyAbility is not null && LimitSelection is not null)
+        {
+            throw new NotSupportedException("The driver requires ordinary semantic input or an explicit native enemy/Limit selection; unresolved capabilities and combat repairs need typed adapters.");
         }
         if (!double.IsFinite(BaselineSeconds) || BaselineSeconds < 0 || !double.IsFinite(ReadinessTimeoutSeconds) || ReadinessTimeoutSeconds <= 0 || !double.IsFinite(ActionTimeoutSeconds) || ActionTimeoutSeconds <= 0 || !double.IsFinite(OverallTimeoutSeconds) || OverallTimeoutSeconds <= 0 || TailFrames < 2)
         {
@@ -90,7 +110,11 @@ internal sealed class DiagnosticBattleDriver
         {
             return;
         }
-        if (dispatch.Ability != recipe.Input.Ability || dispatch.ActionId != recipe.Input.ActionId)
+        if (recipe.SupportingEffects.Contains(dispatch.RequestedEffect) && dispatch.ExecutedEffect == dispatch.RequestedEffect)
+        {
+            return;
+        }
+        if (dispatch.Ability != recipe.Input.Ability || dispatch.ActionId != (recipe.ExpectedNativeAction ?? recipe.Input.ActionId) || recipe.ExpectedNativeCommand is byte command && dispatch.NativeCommand != command)
         {
             Fail("ACTION_IDENTITY_UNAVAILABLE_OR_MISMATCH");
             return;

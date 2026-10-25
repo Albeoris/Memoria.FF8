@@ -12,6 +12,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
 {
     private readonly BattleSession battle;
     private readonly string instance;
+    private readonly ushort expectedEffect;
     private readonly List<DiagnosticLiveExecution> executions = [];
     private readonly List<BattleEvent> events = [];
     private readonly List<BattleDiagnosticResolution> resolutions = [];
@@ -40,6 +41,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     {
         this.battle = battle;
         this.instance = instance.ToString();
+        this.expectedEffect = expectedEffect;
         coverage = TelemetryCoverageManifest.ManagedPayload(expectedEffect);
         battle.DiagnosticEventPublished += ObserveEvent;
         battle.DiagnosticResolution += ObserveResolution;
@@ -168,7 +170,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         {
             if (dispatches.Count < EventCapacity)
             {
-                if (dispatches.Count == 0)
+                if (effectStartedTicks == 0 && value.RequestedEffect == expectedEffect && value.ExecutedEffect == expectedEffect)
                 {
                     effectStartedTicks = Stopwatch.GetTimestamp();
                 }

@@ -93,6 +93,16 @@ public sealed class ScenarioEnemyDiscoveryTests
     }
 
     [Fact]
+    public void ScriptTargetSelectorRemainsAttachedToItsActualDispatch()
+    {
+        EnemyScenarioDiscoveryResult result = DiscoverScript([4, 201, 7, 18, 6, 4, 200, 6, 0]);
+        Assert.Equal(6, result.ScriptedActions.Length);
+        Assert.Equal(3, result.ScriptedActions.Count(action => action.TargetSelector == 201 && action.Offset == 4));
+        Assert.Equal(3, result.ScriptedActions.Count(action => action.TargetSelector == 200 && action.Offset == 7));
+        Assert.All(result.ScriptedActions, action => Assert.Contains(action.MappingEvidence, evidence => evidence.Contains("target-selector:", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void DiscoveryRetainsAllBandsAndDisabledHiddenOwnerContexts()
     {
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();

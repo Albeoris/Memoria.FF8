@@ -56,12 +56,12 @@ public static class ScenarioImplementationDiscovery
             return new ImplementationBindingEvidence(binding.Effect, binding.Entry, matches.Length > 0 ? "direct_equality_branch_observed" : "unknown", matches);
         }).ToArray();
         string assemblyPath = dispatcher.Module.Assembly.Location;
-        return new(1, "compiled_dispatch_registration_evidence_only", Name(dispatcher), Hash(bytes), string.IsNullOrEmpty(assemblyPath) ? "unavailable" : Hash(File.ReadAllBytes(assemblyPath)), registrations.ToArray(), opaque, links, ["Direct mappings require get_Entry, an immediate integer constant, forward bne.un and a straight-line Enter*/Run* return block. Unrecognized IL remains unknown.", "Opaque calls include generic range/status/cinematic dispatch without safely decoded entry equality; no binding mapping is inferred.", "A registered dispatch branch is not proof of effect completeness, initialization, owner legality, native parity or playable scenario support.", "IL hashes identify this compiled build; metadata tokens and branch layouts can change between builds."]);
+        return new(1, "compiled_dispatch_registration_evidence_only", Name(dispatcher), Hash(bytes), string.IsNullOrEmpty(assemblyPath) ? "unavailable" : Hash(File.ReadAllBytes(assemblyPath)), registrations.ToArray(), opaque, links, ["Direct mappings require get_Entry, an immediate integer constant, forward bne.un and a straight-line Enter*/Run* return block. Argument loads may include instance field reads, including compiler-captured arguments; writes and additional control flow remain unknown.", "Opaque calls include generic range/status/cinematic dispatch without safely decoded entry equality; no binding mapping is inferred.", "A registered dispatch branch is not proof of effect completeness, initialization, owner legality, native parity or playable scenario support.", "IL hashes identify this compiled build; metadata tokens and branch layouts can change between builds."]);
     }
 
     private static bool IsDirectReturnInstruction(Instruction instruction)
     {
-        return instruction.Code == OpCodes.Nop || instruction.Code == OpCodes.Ret || instruction.Code == OpCodes.Call || instruction.Code == OpCodes.Callvirt || instruction.Code.Name?.StartsWith("ldarg", StringComparison.Ordinal) == true || instruction.Code.Name?.StartsWith("ldloc", StringComparison.Ordinal) == true || instruction.Code.Name?.StartsWith("ldc.i4", StringComparison.Ordinal) == true;
+        return instruction.Code == OpCodes.Nop || instruction.Code == OpCodes.Ret || instruction.Code == OpCodes.Call || instruction.Code == OpCodes.Callvirt || instruction.Code == OpCodes.Ldfld && instruction.Operand is FieldInfo || instruction.Code.Name?.StartsWith("ldarg", StringComparison.Ordinal) == true || instruction.Code.Name?.StartsWith("ldloc", StringComparison.Ordinal) == true || instruction.Code.Name?.StartsWith("ldc.i4", StringComparison.Ordinal) == true;
     }
 
     private static bool TryConstant(Instruction instruction, out uint value)
@@ -113,6 +113,10 @@ public static class ScenarioImplementationDiscovery
             if (operation.OperandType == OperandType.InlineMethod)
             {
                 operand = owner.Module.ResolveMethod(BitConverter.ToInt32(bytes, position), owner.DeclaringType?.GetGenericArguments(), owner.GetGenericArguments());
+            }
+            else if (operation.OperandType == OperandType.InlineField)
+            {
+                operand = owner.Module.ResolveField(BitConverter.ToInt32(bytes, position), owner.DeclaringType?.GetGenericArguments(), owner.GetGenericArguments());
             }
             else if (operation.OperandType == OperandType.InlineBrTarget)
             {
