@@ -56,6 +56,7 @@ public static class Program
 
             if (args[0] == "pilot")
             {
+                SchemaValidation.ValidateFile(Get("input"), "pilot");
                 PilotManifest manifest = RecordJson.Read<PilotManifest>(Get("input"));
                 PilotBatchSummary summary = PilotRunner.RunAsync(manifest, completed: result => Print(new { case_id = result.Id, verdict = result.Verdict, result.Executions, total_ms = result.TotalMs, effect_duration_ms = result.EffectDurationMs, execution_window_ms = result.ExecutionWindowMs, overhead_ms = result.OverheadMs, overhead_within_budget = result.OverheadWithinBudget, error_count = result.Errors.Length, first_error = result.Errors.FirstOrDefault() })).GetAwaiter().GetResult();
                 Print(new { summary.Verdict, summary.Requested, summary.Passed, summary.Failed, summary.Errors, total_ms = summary.TotalMs, output = manifest.OutputRoot });

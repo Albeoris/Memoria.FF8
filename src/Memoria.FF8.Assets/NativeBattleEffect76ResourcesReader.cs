@@ -11,7 +11,11 @@ public static class NativeBattleEffect76ResourcesReader
 {
     public static NativeBattleEffect76Resources Read(byte[] executable, NativeBattleEffectInitializerAsset mainTim, NativeBattleEffectFileAsset stageFile)
     {
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable), mainTim, stageFile);
+    }
+
+    public static NativeBattleEffect76Resources Read(IGameNativeMemorySource memory, NativeBattleEffectInitializerAsset mainTim, NativeBattleEffectFileAsset stageFile)
+    {
         if (Encoding.ASCII.GetString(memory.Read(TextureNameAddress, 11)) != "mag075.tim\0")
         {
             throw new InvalidDataException("Effect76 initializer texture name changed.");
@@ -42,8 +46,7 @@ public sealed partial class GameAssets
     {
         if (nativeEffect76Resources is null)
         {
-            byte[] executable = ReadNativeExecutable();
-            NativeExecutableMemory memory = new(executable);
+            IGameNativeMemorySource memory = ReadNativeMemory();
             uint namePointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0xB84CCCu + StageFileId * 4), 4));
             byte[] nameBytes = memory.Read(namePointer, 128);
             int length = nameBytes.AsSpan().IndexOf((byte)0);
@@ -54,7 +57,7 @@ public sealed partial class GameAssets
             using IFlArchive magic = OpenArchive("magic");
             using IFlArchive battle = OpenArchive("battle");
             NativeBattleEffectFileAsset stage = new(StageFileId, "A0STG038.X", Read(battle, "A0STG038.X").ToImmutableArray());
-            nativeEffect76Resources = NativeBattleEffect76ResourcesReader.Read(executable, new("mag075.tim", Read(magic, "mag075.tim").ToImmutableArray()), stage) with
+            nativeEffect76Resources = NativeBattleEffect76ResourcesReader.Read(memory, new("mag075.tim", Read(magic, "mag075.tim").ToImmutableArray()), stage) with
             {
                 DecodeReloadStage = bytes => BattleResourceReader.ReadStage(StageFileId, bytes).NativeSource ?? throw new InvalidDataException("Effect76 stage reload requires its decoded current stage source.")
             };

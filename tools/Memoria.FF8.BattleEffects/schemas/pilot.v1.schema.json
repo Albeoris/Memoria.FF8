@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:pilot:v1",
+  "title": "Bounded unattended existing-effect pilot",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "executable": { "$ref": "#/$defs/path" },
+    "working_directory": { "$ref": "#/$defs/path" },
+    "game_dir": { "$ref": "#/$defs/path" },
+    "output_root": { "$ref": "#/$defs/path" },
+    "build_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "initialization_ms": { "$ref": "#/$defs/deadline" },
+        "action_one_ms": { "$ref": "#/$defs/deadline" },
+        "cleanup_rearm_ms": { "$ref": "#/$defs/deadline" },
+        "action_two_ms": { "$ref": "#/$defs/deadline" },
+        "teardown_ms": { "$ref": "#/$defs/deadline" },
+        "total_ms": { "$ref": "#/$defs/deadline" },
+        "no_progress_ms": { "$ref": "#/$defs/deadline" }
+      },
+      "required": ["initialization_ms", "action_one_ms", "cleanup_rearm_ms", "action_two_ms", "teardown_ms", "total_ms", "no_progress_ms"],
+      "additionalProperties": false
+    },
+    "cases": {
+      "type": "array",
+      "description": "Runtime validation limits a pilot to ten explicitly selected cases with unique identities.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$" },
+          "recipe": { "$ref": "#/$defs/path" }
+        },
+        "required": ["id", "recipe"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "executable", "working_directory", "game_dir", "output_root", "budgets", "cases"],
+  "additionalProperties": false,
+  "$defs": {
+    "path": { "type": "string", "minLength": 1, "description": "Explicit absolute path, verified against local filesystem at runtime." },
+    "deadline": { "type": "number", "exclusiveMinimum": 0, "maximum": 86400000 }
+  }
+}

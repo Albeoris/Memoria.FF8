@@ -1,5 +1,6 @@
 using Memoria.FF8.BattleEffects;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
@@ -106,6 +107,37 @@ public sealed class PilotRunnerTests : IDisposable
         File.WriteAllText(Path.Combine(manifest.OutputRoot, "result.json"), "preserved");
         Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest));
         Assert.Equal("preserved", File.ReadAllText(Path.Combine(manifest.OutputRoot, "result.json")));
+    }
+
+    [Fact]
+    public void Manifest_schema_rejects_missing_fields_duplicate_keys_and_enum_strings_in_deadlines()
+    {
+        JsonObject value = JsonSerializer.SerializeToNode(Manifest(), RecordJson.Options)!.AsObject();
+        SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot");
+        string duplicate = value.ToJsonString().Replace("\"schema_version\":1", "\"schema_version\":1,\"schema_version\":1", StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(duplicate), "pilot"));
+        value["budgets"]!["action_one_ms"] = "Fast";
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot"));
+        value.Remove("budgets");
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot"));
+    }
+
+    [Fact]
+    public void Unknown_manifest_budget_and_case_fields_are_rejected_before_a_host_can_start()
+    {
+        JsonSerializerOptions permissive = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+        JsonObject value = JsonSerializer.SerializeToNode(Manifest(), RecordJson.Options)!.AsObject();
+        value["mode"] = "magic";
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<PilotManifest>(value.ToJsonString(), permissive));
+        value.Remove("mode");
+        value["budgets"]!["speed"] = "fast";
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<PilotManifest>(value.ToJsonString(), permissive));
+        value["budgets"]!.AsObject().Remove("speed");
+        value["cases"]![0]!["effect"] = "cure";
+        Assert.Throws<InvalidDataException>(() => SchemaValidation.ValidateBytes(System.Text.Encoding.UTF8.GetBytes(value.ToJsonString()), "pilot"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<PilotManifest>(value.ToJsonString(), permissive));
     }
 
     private PilotManifest Manifest()

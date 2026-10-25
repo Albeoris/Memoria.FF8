@@ -1,6 +1,6 @@
 # Battle-effects validation
 
-This tool supports preparation plus a bounded live pilot for existing native effects 1, 2 and 3. It does not certify a complete effect campaign or discover its inventory automatically. Normal source projects contain the reusable harness; no copied engine source or overlay build is needed. Original resources, authored campaign inputs and generated evidence remain external.
+This tool supports preparation plus a bounded live pilot for the existing native effects `1, 2, 3, 102, 103, 104, 105, 142, 143, 144`, corresponding to ordinary actions `1..9` and `21`. This is the fixed instrumented set; the runner does not implement new effects, discover ready cases or certify a complete campaign. Normal source projects contain the reusable harness; no copied engine source or overlay build is needed. Original resources, authored campaign inputs and generated evidence remain external.
 
 ## Build and verify
 
@@ -14,6 +14,14 @@ dotnet $tool capabilities
 ```
 
 The tests use synthetic records and owned disposable Windows child processes, never installed game resources. Build the normal App project using [building and testing](building-and-testing.md). Focused App tests are `DiagnosticBattlePreparationTests` and `DiagnosticBattleDriverTests`; do not select unrelated battle-effect tests for harness changes. Build once and invoke the resulting executable rather than rebuilding for each case.
+
+An optional ahead-of-time build reduces managed startup compilation while preserving a fresh process and the cold first focal invocation:
+
+```powershell
+dotnet publish src/Memoria.FF8.App -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o $immutableBuild
+```
+
+Keep this published directory unchanged for the entire pass. Record source commit and dirty-patch identity with the authored inputs; the runner records the exact file hashes. Publish before acquiring the measurement slot. Do not add a focal warm-up cast or rebuild between cases.
 
 ## JSON storage and ownership
 
@@ -69,6 +77,27 @@ The supervisor creates a suspended child, attaches a kill-on-close Windows job, 
 
 The host supplies a candidate; the supervisor alone finalizes results. It verifies the fixed telemetry-report reference, SHA256, battle identity and sealed action/effect before independently validating the raw report. Telemetry verdicts are separate from campaign acceptance (`publication_accepted=false`). Coordination APIs support transactional receipt commits and idempotent immutable receipt projections; independent reviewer acceptance is a later contract.
 
+## Unattended ten-effect pilot
+
+Author an external manifest matching [pilot.v1](../../tools/Memoria.FF8.BattleEffects/schemas/pilot.v1.schema.json), then run:
+
+```powershell
+dotnet $tool validate-record --input $pilotManifest --schema pilot
+dotnet $tool pilot --input $pilotManifest
+```
+
+The manifest requires `schema_version: 1`, `executable`, `working_directory`, `game_dir`, a fresh `output_root`, `budgets` and `cases`. All filesystem paths are explicit absolute paths. Evidence must be outside repositories and disjoint from the supplied build and game directories. Each case contains a unique safe `id` and an existing authored bootstrap `recipe` path. A ten-effect pass selects one case for each member of the fixed set above; runtime validation permits one through ten cases for focused diagnostics. No unsupported effect is substituted automatically.
+
+`budgets` requires finite positive `initialization_ms`, `action_one_ms`, `cleanup_rearm_ms`, `action_two_ms`, `teardown_ms`, `total_ms` and `no_progress_ms`, each at most one day. Unknown fields, duplicate JSON properties, missing fields and incorrect types are rejected before a host starts. Runtime checks also reject duplicate case identities, unsafe paths, more than ten cases and reused evidence. Optional `build_fingerprint` pins the lowercase SHA256 of the canonical snake_case `BuildFile[]` manifest returned by `EvidenceStore.DescribeFiles(working_directory)`; the runner always retains its actual build manifest and fingerprint.
+
+The runner holds an OS-exclusive measurement file for the batch and starts fresh graphical hosts sequentially. Each host receives isolated settings, control and disposable-save paths, the actual installed game directory and a 1920×1080 GPU window. Each case performs two commands in one uninterrupted battle. Unsupported prerequisites, errors and performance failures are recorded before proceeding to the next case; there are no automatic retries. An unconfirmed owned-process exit prevents further launches and quarantines the measurement slot. Do not run builds, profilers, captures or competing graphical hosts during a batch.
+
+Each case retains its copied bootstrap, `output/telemetry-report.json`, authenticated candidate, supervisor result and immutable `pilot-result.json`. The batch retains `manifest.json`, `build-fingerprint.json` and `batch-summary.json`. Console output contains compact case counts, verdicts and timing; full observations remain in JSON. Original attempts are preserved.
+
+The timing budget uses actual native effect entry through first verified full drain, separately for both invocations. The validator recomputes `effect_duration_ms` from `effect_started_ticks`, `effect_completed_ticks` and the timestamp frequency, and checks those markers against the retained presentation window. `effect_duration_ms` in the pilot summary sums these two durations. `execution_window_ms` instead includes command admission, casting windup, effect work, cleanup and presented tails. They are different measurements.
+
+`total_ms` measures the whole per-case operation, including bootstrap staging, process startup, entry preparation, readiness/baseline, both commands, rearm, tails, teardown, validation and result finalization. `overhead_ms = total_ms - effect_duration_ms`; it must be **at most 10,000 ms**. A larger overhead fails even if both commands complete. Disjoint `stages` report staging, supervision, validation and result-finalization costs, whose sum must reconcile to `total_ms`. Nothing is removed from the total to satisfy the budget. An execution can also fail the separate strict 30 FPS gate. Completing twenty commands does not establish performance success or campaign acceptance.
+
 ## Direct graphical host
 
 `--battle-test` reuses installed cold-process memory, hardcoded/resource-derived New Game owners, shared encounter construction and lazy effect resources before field allocation. Diagnostic clocks, field-derived inputs and teardown ownership are explicit; no fake suspended field is created. Missing owners fail. Initialization receipts are preparation evidence, not native-parity certification.
@@ -77,9 +106,11 @@ The snake_case recipe requires `encounter` (formation WORD), `seed` (BYTE), `fla
 
 The driver supports ordinary Action/Attack; timed limits, arbitrary borrowed capabilities and between-command repairs fail explicitly. It waits for normal entry/readiness, submits semantic commands, checks requested/executed binding, observes conservative drain plus presented tails, then repeats in the same battle without restore/reset. Wrong fallback, missing dispatch, replaced/rewound owners, terminal state and missing prerequisites block completion. Legitimate persistent owners may need future typed drain contracts. Natural terminal-path certification remains separately required.
 
-An optional `fixture` declares `guardian_forces` (`id`, explicit `acquire`), `characters` (saved `row`, `character_id`, `stocks` with `action` and `count`, assigned `guardian_forces`, optional `magic_command` with `slot` and kernel `ability`, optional positive `hit_points`) and `hold_enemy_commands`. Initial stock preparation accepts only actions 21, 1 and 7, with 2..100 units. Preparation copies the actual New Game records and invokes existing acquisition/junction/command/HP APIs before encounter allocation. Immutable before/after receipts identify every change; no preparation runs between executions. Holding enemy commands suppresses autonomous full-gauge selection, while initialization, reactions, counters, allocations and deaths continue normally.
+An optional `fixture` declares `guardian_forces` (`id`, explicit `acquire`), `characters` (saved `row`, `character_id`, `stocks` with `action` and `count`, assigned `guardian_forces`, optional `magic_command` with `slot` and kernel `ability`, optional positive `hit_points`) and `hold_enemy_commands`. Initial stock preparation accepts only actions `1..9` and `21`, with 2..100 units. Preparation copies the actual New Game records and invokes existing acquisition/junction/command/HP APIs before encounter allocation. Immutable before/after receipts identify every change; no preparation runs between executions. Holding enemy commands suppresses autonomous full-gauge selection, while initialization, reactions, counters, allocations and deaths continue normally.
 
 An optional `target` declares `actor_id`, `stage`, `model`, `scene_slot`, `physical_index`, `flags_mask`, `flags_value`, `opening_action` and `opening_effect`. The driver waits for the original opening dispatch, normal completion and full drain, then verifies actual live identity, initialized statistics, active/visible/targetable flags and original initialization-script hash. This certifies the declared direct participant contract; full story progression requires separate provenance. Never infer a phase from a model screenshot. Original resource-only companions retain their own information/AI and the existing native shared-model contract.
+
+An authored `prepare_entry_before_presentation: true` executes ordinary native entry callbacks before the real-time baseline. `entry_callback_budget` is finite (`1..18000`, default 1024). Preparation must reach native entry completion, declared target verification, full drain and command readiness within that budget. Actual callbacks advance the existing clock and owners; no save restore or fabricated field is used. A focal-effect dispatch during preparation is rejected. This explicitly accelerated setup is outside the scored presentation window, but its full wall time remains in the per-case total and overhead. Both focal invocations and their presentation remain normally paced. A case may explicitly select a short steady baseline such as `baseline_seconds: 0.1`; this never authorizes a focal warm-up invocation.
 
 For standalone preparation diagnostics:
 
@@ -87,7 +118,7 @@ For standalone preparation diagnostics:
 & $gameExecutable --game-dir $env:MEMORIA_FF8_GAME_DIR --battle-test $bootstrapRecipe --settings-dir $isolatedSettings --control-dir $isolatedControl --save-state $disposableSave --resolution 1920x1080
 ```
 
-Saved-state startup, software rendering, accelerated stepping and incompatible UI startup are rejected. The active driver owns commands; status/quit remain available. Without a driver, ordinary battle-input is available. battle-close releases isolation without persistent rewards. Exploration-save serialization is rejected. Global user settings are not selected.
+Saved-state startup, software rendering, control stepping and incompatible UI startup are rejected. The explicit entry-preparation option above is the only accelerated setup adapter. The active driver owns commands; status/quit remain available. Without a driver, ordinary battle-input is available. battle-close releases isolation without persistent rewards. Exploration-save serialization is rejected. Global user settings are not selected.
 
 Diagnostic hosts also use an isolated player-save directory and ignore physical keyboard/controller/battle-pointer input; commands come through the driver or control queue. The window keeps the requested dimensions instead of automatically maximizing. This prevents unrelated hotkeys and save menus from changing the measured scene.
 
@@ -95,7 +126,7 @@ Diagnostic hosts also use an isolated player-save directory and ignore physical 
 
 Bounded collectors retain events/raw frame intervals without snapshots. The preceding presentation boundary includes first-use stalls. Each execution separately rejects intervals strictly above `1000 / 30` ms. Median FPS is calculated directly (average two central samples when even); percentiles use nearest rank. Lost samples cannot pass. Metrics describe successful host presentation, not physical scan-out.
 
-Copy/fill/GPU/diagnostic categories use checked 64-bit payload totals and numeric sites. Execution totals include cleanup; never add child phase totals to an inclusive parent. At least 1 GiB copied requires review. Scoped hooks observe managed arena/writer/known-range/staging/resource/first-three payload copies, fills, GPU vertex/texture uploads and framebuffer transfers. The manifest lists exact sites and exclusions; effects outside 1..3 have unavailable mandatory payload coverage. CLR/driver/OS internal copying and collection bookkeeping are outside these payload counters. Arena-writer rentals expose actual live count/capacity and lifetime peaks. Hooks are optional during ordinary play.
+Copy/fill/GPU/diagnostic categories use checked 64-bit payload totals and numeric sites. Execution totals include cleanup; never add child phase totals to an inclusive parent. At least 1 GiB copied requires independently authenticated review; an explanatory note or a completed cast does not clear `LARGE_COPY_REVIEW_REQUIRED`. Scoped hooks observe managed arena/writer/known-range/staging/resource payload copies for the fixed ten-effect set, fills, GPU vertex/texture uploads and framebuffer transfers. The manifest lists exact sites and exclusions; effects outside that set have unavailable mandatory payload coverage. CLR/driver/OS internal copying and collection bookkeeping are outside these payload counters. Arena-writer rentals expose actual live count/capacity and lifetime peaks. Hooks are optional during ordinary play.
 
 `telemetry-report.json` retains every successful-present interval from the boundary preceding admission through cleanup/tails, dispatches, live semantic events and resolved-versus-applied HP contacts, compact HP/status/stock observations, allocation/GC changes, pool observations and actual lifecycle/renderer identities. Collection is bounded and loss blocks acceptance. No full snapshot is serialized per frame. Scored drivers reject screenshot capture; perform captures in a separate evidence replay. Audio uses the normal entry receipt/dispatch path even with diagnostic control transport; `--mute-audio` remains explicit and cannot certify the audio route.
 
@@ -110,4 +141,4 @@ The validator recomputes raw intervals from ticks/frequency, checks all presente
 
 Schemas cover implemented records. The validator supports their checked-in vocabulary and rejects unknown keywords/types. Breaking changes need a new version and separately named migration output; immutable records never change. Full result/review/fix contracts are prerequisites for acceptance. Byte counts remain integers, `_ms` means milliseconds, timestamps are UTC.
 
-Exit codes: 0 success, 1 input/I/O/coordination error, 2 planning blockers or a live performance failure, 3 no claim, 4 unavailable/incomplete execution evidence. General `worker`, `run`, `replay`, `retry`, `validate-results`, `compare` and accepted-coverage `report` remain unavailable; use `supervise` and `validate-live` for the bounded pilot. `capabilities` lists these boundaries. Preparation never displays a green campaign.
+Exit codes: 0 success, 1 input/I/O/coordination error, 2 planning blockers or a live performance/overhead failure, 3 no claim, 4 unavailable/incomplete execution evidence. General `worker`, `run`, `replay`, `retry`, `validate-results`, `compare` and accepted-coverage `report` remain unavailable; use `pilot`, `supervise` and `validate-live` for the bounded pilot. `capabilities` lists these boundaries. Preparation never displays a green campaign.

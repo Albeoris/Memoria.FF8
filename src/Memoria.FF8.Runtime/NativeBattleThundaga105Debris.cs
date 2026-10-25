@@ -15,12 +15,12 @@ public static class NativeBattleThundaga105Debris
 
     public static NativeBattleEffectMemory ClearAlive(NativeBattleEffectMemory memory)
     {
-        NativeBattleEffectArena arena = RequireArena(memory);
+        using NativeBattleEffectArenaBatch arena = new(RequireArena(memory));
         for (int row = 0; row < Capacity; row++)
         {
-            arena = arena.Write(ArenaOffset + row * Stride + 6, new byte[2]);
+            arena.Write(ArenaOffset + row * Stride + 6, new byte[2]);
         }
-        return memory with { Arena = arena };
+        return memory with { Arena = arena.Publish() };
     }
 
     public static NativeBattleThundaga105DebrisSpawn Spawn6D5CF0(NativeBattleEffectMemory memory, NativeCrtRandomState random, NativeBattleThundaga105Triangle triangle, NativeBattleVector position, NativeBattleVector velocity, NativeBattleVector acceleration, NativeBattleActionMatrix rotation)
@@ -74,7 +74,7 @@ public static class NativeBattleThundaga105Debris
 
     public static NativeBattleThundaga105DebrisUpdate Update6D40E0(NativeBattleEffectMemory memory)
     {
-        NativeBattleEffectArena arena = RequireArena(memory);
+        using NativeBattleEffectArenaBatch arena = new(RequireArena(memory));
         int survivors = 0;
         for (int row = 0; row < Capacity; row++)
         {
@@ -91,12 +91,12 @@ public static class NativeBattleThundaga105Debris
                 NativeBattleVector point = V(arena.Read(vertexOffset, 6), 0);
                 byte[] changed = new byte[6];
                 Vector(changed, 0, NativeBattleGfMatrices.Transform460840(rotation, point));
-                arena = arena.Write(vertexOffset, changed);
+                arena.Write(vertexOffset, changed);
             }
             short scale = unchecked((short)(oldScale + ReadWord(arena, offset + 0x4E)));
             byte[] scaleBytes = new byte[2];
             W(scaleBytes, 0, scale <= 1024 ? 0 : scale);
-            arena = arena.Write(offset + 6, scaleBytes);
+            arena.Write(offset + 6, scaleBytes);
             if (scale <= 1024)
             {
                 continue;
@@ -116,10 +116,11 @@ public static class NativeBattleThundaga105Debris
             {
                 W(velocity, axis * 2, S(velocity, axis * 2) + S(acceleration, axis * 2));
             }
-            arena = arena.Write(offset, position).Write(offset + 8, velocity);
+            arena.Write(offset, position);
+            arena.Write(offset + 8, velocity);
             survivors++;
         }
-        return new(memory with { Arena = arena }, survivors);
+        return new(memory with { Arena = arena.Publish() }, survivors);
     }
 
     public static NativeBattleGfGeometryBatch Draw6D41E0(NativeBattleEffectMemory memory, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
@@ -172,6 +173,7 @@ public static class NativeBattleThundaga105Debris
 
     private static NativeBattleEffectArena RequireArena(NativeBattleEffectMemory memory) => memory.Arena ?? throw new NotSupportedException("Native Thundaga debris requires its actual arena owner.");
     private static short ReadWord(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
+    private static short ReadWord(NativeBattleEffectArenaBatch arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private static short S(byte[] data, int offset) => BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset));
     private static void W(byte[] data, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset), unchecked((short)value));
     private static NativeBattleVector V(byte[] data, int offset) => new(S(data, offset), S(data, offset + 2), S(data, offset + 4));
