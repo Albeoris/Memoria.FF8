@@ -69,7 +69,7 @@ public sealed class NativeBattleEffect31StateTests
     [Fact]
     public void Older_json_cannot_infer_current_memory_or_source_origin()
     {
-        foreach (string property in new[] { "Storage", "FixedBanks", "FixedQueues", "ColdSourceOrigin", "StaticSourcesBound" })
+        foreach (string property in new[] { "Storage", "FixedBanks", "FixedQueues", "ColdSourceOrigin", "StaticSourcesBound", "CallbackStack" })
         {
             JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffect31State.FromColdProcess()))!.AsObject();
             Assert.True(json.Remove(property));

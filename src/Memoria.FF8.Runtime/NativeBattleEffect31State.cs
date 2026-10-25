@@ -7,7 +7,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect31State([property: JsonRequired] NativeBattleEffectArena Storage, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedBanks, [property: JsonRequired] ImmutableDictionary<uint, NativeBattleEffectArena?> FixedQueues, [property: JsonRequired] bool ColdSourceOrigin, [property: JsonRequired] bool StaticSourcesBound)
 {
-    public static NativeBattleEffect31State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), Pools.ToImmutableDictionary(pool => pool.Descriptor, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), true, false);
+    [JsonRequired]
+    public NativeBattleStackBytes? CallbackStack { get; init; }
+
+    public NativeBattleStackBytes ReadCallbackStack() => CallbackStack ?? throw new NotSupportedException("Effect31 requires its retained callback stack owner.");
+
+    public static NativeBattleEffect31State FromColdProcess() => new(NativeBattleEffectArena.Clear(), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), Pools.ToImmutableDictionary(pool => pool.Descriptor, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear()), true, false) { CallbackStack = NativeBattleEffect31Stack.Begin() };
 
     public static NativeBattleEffect31State FromUnknown()
     {
@@ -16,7 +21,7 @@ public sealed record NativeBattleEffect31State([property: JsonRequired] NativeBa
         {
             storage = storage.MarkUnknown(checked((int)(address - BaseAddress)), length);
         }
-        return new(storage, Pools.ToImmutableDictionary(pool => pool.Bank, pool => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, checked(pool.Stride * pool.Capacity))), Pools.ToImmutableDictionary(pool => pool.Descriptor, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, 8)), false, false);
+        return new(storage, Pools.ToImmutableDictionary(pool => pool.Bank, pool => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, checked(pool.Stride * pool.Capacity))), Pools.ToImmutableDictionary(pool => pool.Descriptor, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear().MarkUnknown(0, 8)), false, false) { CallbackStack = NativeBattleEffect31Stack.Begin() };
     }
 
     public byte[] Read(uint address, int length) => ReadView(address, length).Read(0, length);
@@ -70,6 +75,7 @@ public sealed record NativeBattleEffect31State([property: JsonRequired] NativeBa
     public void Validate()
     {
         Storage.Validate();
+        NativeBattleEffect31Stack.Validate(ReadCallbackStack());
         foreach (NativeBattleEffectMemoryRegion region in Storage.Regions)
         {
             _ = Require(checked(BaseAddress + (uint)region.Offset), region.Data.Length);

@@ -131,6 +131,7 @@ public static partial class NativeBattleEffect31Controller
         0x86CF60 => AdvanceOverlay(frame, address, resources, inputs),
         0x86D100 => AdvanceEmpty(frame, address),
         0x86D1D0 => NativeBattleEffect31Nodes.Advance(frame, address, resources, inputs),
+        0x871F60 or 0x872170 or 0x8723E0 or 0x872920 or 0x872B10 or 0x873010 or 0x8730C0 or 0x8731D0 => NativeBattleEffect31Actors.Advance(frame, address, resources, inputs),
         _ => throw new NotSupportedException("Effect31 callback requires its selected current leaf implementation.")
     };
 

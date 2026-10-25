@@ -89,6 +89,8 @@ internal sealed record NativeBattleEffectNodeInputs(NativeBattleActionMatrix? Co
     public NativeBattleEffectNodeActorAnchor? ActorAnchor { get; init; }
     public Action? EmitterAdvanced { get; init; }
     public Action<int, bool>? GeometryAdvanced { get; init; }
+    public Action<int, int>? SpriteNodeSelected { get; init; }
+    public Action<int, int, int>? SpriteCall { get; init; }
 }
 internal delegate NativeBattleGfGeometryBatch NativeBattleEffectNodeMeshInstance(ImmutableArray<byte> resource, NativeBattleActionMatrix matrix);
 internal delegate NativeBattleEffectNodeMeshInstance NativeBattleEffectNodePrepareMesh(int node, byte[] source);

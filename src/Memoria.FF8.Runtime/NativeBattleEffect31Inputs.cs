@@ -12,6 +12,7 @@ public sealed record NativeBattleEffect31StackReadStep(NativeBattleEffect31Frame
 public sealed record NativeBattleEffect31Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect31Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect31Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect31Frame, int, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect31Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect31Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect31Frame, short> ReadCameraRoll, Func<NativeBattleEffect31Frame, uint, int, NativeBattleEffectArena> ReadPhysical, Func<NativeBattleEffect31Frame, uint, int, int, NativeBattleEffectArena, NativeBattleEffect31PointStep> Point502170, Func<NativeBattleEffect31Frame, NativeBattleEffect31Operation, NativeBattleEffect31Frame> Execute)
 {
     public Func<NativeBattleEffect31Frame, uint, uint, NativeBattleEffect31StackReadStep>? ReadActorStack { get; init; }
+    public Func<NativeBattleEffect31Frame, uint, uint, uint, NativeBattlePackedMatrix32, NativeBattleEffect31Frame>? ObserveActorStack { get; init; }
 }
 
 public abstract record NativeBattleEffect31Operation;

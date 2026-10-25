@@ -33,6 +33,11 @@ public sealed class NativeBattleEffect31ResourcesTests
         NativeBattleEffect31Resources resources = game.ReadNativeEffect31Resources();
         resources.Validate();
         Assert.Same(resources, game.ReadNativeEffect31Resources());
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([Effect])[Effect - 1];
+        Assert.Equal(Entry, binding.Entry);
+        Assert.Equal(Initializer, binding.Initializer);
+        Assert.Equal(new NativeBattleEffectInitializerResource(InitializerTextureName, InitializerGlobal), binding.InitializerResource);
+        Assert.Same(resources, binding.Effect31Resources);
         Assert.Equal(TextureLength, resources.MainTim.Data.Length);
         Assert.Equal(10u, BinaryPrimitives.ReadUInt32LittleEndian(resources.Mesh(MeshAddresses[0]).Bytes.AsSpan(8, 4)));
         Assert.Equal(0x61B68u, resources.Sound);

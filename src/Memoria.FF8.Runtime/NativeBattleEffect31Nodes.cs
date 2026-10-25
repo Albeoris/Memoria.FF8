@@ -83,7 +83,26 @@ public static class NativeBattleEffect31Nodes
         ushort emitterCursor = frame.State.ReadWord(EmitterIndexGlobal);
         ushort particleCursor = frame.State.ReadWord(ParticleIndexGlobal);
         NativeBattlePackedMatrix32 camera = Packed(ReadBytes(frame, frame.State.ReadDword(ViewGlobal), 32));
-        NativeBattleEffectNodeInputs nodeInputs = new(camera.ReadMatrix(), actor => inputs.ReadModel(frame, actor), (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, ParticleCapacity, ref particleCursor, emitter, source));
+        int walkerEbp = unchecked((int)Pools[3].Descriptor);
+        NativeBattleEffectNodeInputs nodeInputs = new(camera.ReadMatrix(), actor => inputs.ReadModel(frame, actor), (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, first, EmitterCapacity, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, second, ParticleCapacity, ref particleCursor, emitter, source))
+        {
+            SpriteNodeSelected = (_, count) =>
+            {
+                if (count != 1)
+                {
+                    walkerEbp = 0;
+                }
+            },
+            SpriteCall = (node, count, instance) =>
+            {
+                int savedEbp = count == 1 ? walkerEbp : instance;
+                frame = frame with { State = frame.State with { CallbackStack = NativeBattleEffect31Stack.ObserveDraw(frame.State.ReadCallbackStack(), NativeBattleEffectNodeContextMemory.Address, savedEbp, memory.Pointer(node + 0xAC)) } };
+                if (count != 1)
+                {
+                    walkerEbp = instance + 1;
+                }
+            }
+        };
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, nodeInputs);
         NativeCrtRandomState random = frame.Random;
         lifecycle.Birth();
@@ -91,6 +110,7 @@ public static class NativeBattleEffect31Nodes
         {
             if (kind == 0)
             {
+                frame = frame with { State = frame.State with { CallbackStack = NativeBattleEffect31Stack.InvalidateCustom(frame.State.ReadCallbackStack(), 0x86F522) } };
                 byte[] source = lifecycle.ReadSource(unchecked((sbyte)memory.Byte(node + 0x6A)));
                 bool transforms = memory.Word(node + 0x62) == 0 || source[0x11] == 4;
                 short emitterFrame = unchecked((short)memory.Word(node + 0x60));
@@ -102,6 +122,7 @@ public static class NativeBattleEffect31Nodes
             }
             else if (kind == 1)
             {
+                frame = frame with { State = frame.State with { CallbackStack = NativeBattleEffect31Stack.InvalidateCustom(frame.State.ReadCallbackStack(), 0x86F51A) } };
                 byte[] source = lifecycle.ReadSource(unchecked((sbyte)memory.Byte(node + 0x1D6)));
                 ushort priorState = memory.Word(node + 0x1CC);
                 lifecycle.AdvanceGeometry(node, source);

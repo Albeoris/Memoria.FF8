@@ -5,6 +5,103 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect31NodeTests
 {
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(-1, 0)]
+    [InlineData(1, 0x26D2990)]
+    [InlineData(2, 2)]
+    public void Rejected_sprite_calls_publish_actual_walker_ebp_through_signed_counts_and_later_single_instances(int firstCount, int expectedSingleEbp)
+    {
+        const uint directoryAddress = NativeBattleEffect31Profile.CustomDirectoryAddress;
+        const uint sourceAddress = 0x2000;
+        const uint rotationAddress = 0x100000;
+        const uint spriteAddress = 0x200000;
+        byte[] directory = new byte[0x104];
+        BinaryPrimitives.WriteUInt32LittleEndian(directory, 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(directory.AsSpan(4), sourceAddress);
+        BinaryPrimitives.WriteUInt32LittleEndian(directory.AsSpan(0x44), spriteAddress);
+        byte[] source = new byte[0x148];
+        source[0x13] = 23;
+        foreach (int offset in new[] { 0xD8, 0xDC, 0xE0 })
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(source.AsSpan(offset), rotationAddress);
+        }
+        byte[] sprite = new byte[56];
+        BinaryPrimitives.WriteUInt16LittleEndian(sprite.AsSpan(8), 9);
+        for (int frameIndex = 0; frameIndex <= 9; frameIndex++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(sprite.AsSpan(10 + frameIndex * 2), 32);
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(sprite.AsSpan(32), 1);
+        sprite[36] = 1;
+        sprite[37] = 0x80;
+        sprite[38] = 1;
+        sprite[39] = 0x2C;
+        NativeBattleModuleResource module = new(0, spriteAddress, 0, 0, sprite.ToImmutableArray());
+        NativeBattleEffect31Resources resources = new(null!, null!, ImmutableDictionary<uint, NativeBattleGfAnimationSource>.Empty, ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, NativeBattleModuleResource>.Empty.Add(spriteAddress, module), new Dictionary<uint, ImmutableArray<byte>>
+        {
+            [directoryAddress] = directory.ToImmutableArray(),
+            [sourceAddress] = source.ToImmutableArray(),
+            [sourceAddress + 0x148] = new byte[6].ToImmutableArray(),
+            [sourceAddress + 0x150] = new byte[6].ToImmutableArray(),
+            [rotationAddress] = [0, 0]
+        }.ToImmutableDictionary());
+        Fixture fixture = new();
+        fixture.Memory.ContextDword(0x224, directoryAddress + 4);
+        fixture.Memory.ContextDword(0x228, directoryAddress + 0x44);
+        fixture.Memory.ContextWord(0x20, 1);
+        fixture.Memory.ContextWord(0x1A, 100);
+        fixture.Memory.ContextWord(0x16, 2);
+        for (int index = 0; index < 2; index++)
+        {
+            int node = Fixture.Particle + index * NativeBattleEffect31Profile.ParticleStride;
+            int count = index == 0 ? firstCount : 1;
+            fixture.Memory.Link882930(node, 1);
+            fixture.Memory.Byte(node + 0x1D7, 1);
+            fixture.Memory.Byte(node + 0x1D8, unchecked((byte)count));
+            fixture.Memory.Byte(node + 0x1D1, 8);
+            fixture.Memory.Dword(node + 0x170, spriteAddress);
+            for (int instance = 0; instance < Math.Max(1, count); instance++)
+            {
+                fixture.Memory.Dword(node + 0x12C + instance * 16 + 8, unchecked((uint)(-1 << 16)));
+            }
+        }
+        NativeBattleEffectNodeMemoryWrite captured = fixture.Memory.FlushStorage();
+        NativeBattleEffectMemory memory = captured.Memory with
+        {
+            GeometryRegisters = NativeBattleGeometryRegisters.Unknown(),
+            ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(),
+            ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(),
+            SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0)
+        };
+        NativeBattleEffect31State state = NativeBattleEffect31State.FromColdProcess().WriteDword(NativeBattleEffect31Profile.EmitterBankGlobal, NativeBattleEffect31Controller.CommonAddress).WriteDword(NativeBattleEffect31Profile.ParticleBankGlobal, NativeBattleEffect31Controller.CommonAddress + 0x438).WriteDword(NativeBattleEffect31Profile.ContextGlobal, 0x234).WriteDword(NativeBattleEffect31Profile.ScratchCursorGlobal, 0x2793E58).WriteDword(NativeBattleEffect31Profile.ViewGlobal, 0x2793E58);
+        NativeBattleEffect31Frame frame = new(memory, captured.Effect, new(99), state) { Staging = NativeBattleFileStaging.Unknown().Write(directoryAddress, directory) };
+        frame = NativeBattleEffect31Controller.Write(frame, 0x200, NativeBattleEffect31Controller.Read(frame, 0x200).WriteByte(0x29, 1).WriteDword(0x30, directoryAddress));
+        List<uint> savedEbp = [];
+        NativeBattleEffect31Inputs inputs = new(null!, _ => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => new(null, 100, 160, 108), _ => 0, (_, _, _) => throw new InvalidOperationException(), (_, _, _, _, _) => throw new InvalidOperationException(), (current, operation) =>
+        {
+            NativeBattleEffect31DrawBatch draw = Assert.IsType<NativeBattleEffect31DrawBatch>(operation);
+            Assert.Equal(0, draw.Batch.AllocationBytes);
+            Assert.NotEmpty(draw.Batch.Attempts);
+            Assert.All(draw.Batch.Attempts, attempt => Assert.Null(attempt.Primitive));
+            NativeBattleStackBytes stack = current.State.ReadCallbackStack();
+            Assert.Equal(NativeBattleEffectNodeContextMemory.Address, stack.ReadUInt32(-0xE0));
+            Assert.Equal(0x86F4DDu, stack.ReadUInt32(-0xD4));
+            savedEbp.Add(stack.ReadUInt32(-0xDC));
+            return current with { State = current.State.WriteDword(0x26D10A4, checked((uint)savedEbp.Count)) };
+        });
+        NativeBattleEffect31Step advanced = NativeBattleEffect31Nodes.Advance(frame, 0x200, resources, inputs);
+        Assert.Equal(Math.Max(0, firstCount) + 1, savedEbp.Count);
+        Assert.Equal(unchecked((uint)expectedSingleEbp), savedEbp[^1]);
+        if (firstCount == 2)
+        {
+            Assert.Equal(new uint[] { 0, 1, 2 }, savedEbp);
+        }
+        Assert.Equal(checked((uint)savedEbp.Count), advanced.Frame.State.ReadDword(0x26D10A4));
+        Assert.Equal(unchecked((uint)expectedSingleEbp), advanced.Frame.State.ReadCallbackStack().ReadUInt32(-0xDC));
+        Assert.Equal(fixture.Memory.Pointer(Fixture.Particle + NativeBattleEffect31Profile.ParticleStride + 0xAC), advanced.Frame.State.ReadCallbackStack().ReadUInt32(-0xD8));
+    }
+
     [Fact]
     public void Context_start_and_completion_preserve_the_outer_callback_clock_and_child_barrier()
     {
