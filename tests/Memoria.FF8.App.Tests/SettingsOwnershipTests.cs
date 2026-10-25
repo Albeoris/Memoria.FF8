@@ -9,9 +9,9 @@ public sealed class SettingsOwnershipTests
     [Fact]
     public void Every_registry_entry_has_an_explicit_disposition_and_supported_owner()
     {
-        Assert.Equal(44, MenuSettings.Definitions.Count);
+        Assert.Equal(45, MenuSettings.Definitions.Count);
         Assert.Equal(MenuSettings.Definitions.Select(setting => setting.Id).Order(), SettingsPlacement.All.Select(placement => placement.LegacyKey).Order());
-        Assert.Equal(44, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
+        Assert.Equal(45, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
         Assert.Equal(new[] { "Controller", "Sound" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Excluded).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "ATB", "Battle control", "Battle message", "Battle speed", "Camera movement", "Scan" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Fixture).Select(placement => placement.LegacyKey).Order());
         Assert.Equal("Battle policy", Assert.Single(SettingsPlacement.All, placement => placement.Audience == SettingsAudience.Developer).LegacyKey);
@@ -53,7 +53,7 @@ public sealed class SettingsOwnershipTests
             }
         }
         Assert.Equal(player.Count, player.Distinct().Count());
-        Assert.Equal(35, player.Count);
+        Assert.Equal(36, player.Count);
         menus.Open("debug-battle", true);
         List<string> developer = menus.Entries.Where(entry => SettingsPlacement.All.Any(placement => placement.LegacyKey == entry.Id)).Select(entry => SettingsPlacement.All.Single(placement => placement.LegacyKey == entry.Id)).Select(placement => placement.Target + "/" + placement.Scope).ToList();
         Assert.Single(developer);
@@ -78,9 +78,11 @@ public sealed class SettingsOwnershipTests
             }
             menus.Open("debug-shortcuts", true);
             string[] developer = menus.Entries.Where(entry => entry.Action?.Kind == "controls-select").Select(entry => entry.Action!.SubjectId).ToArray();
-            Assert.Equal(24, player.Count);
-            Assert.Equal(3, developer.Length);
+            Assert.Equal(ControlsProfile.PlayerActions.Select(action => action.ToString()).Order(), player.Order());
+            Assert.Equal(ControlsProfile.DeveloperActions.Select(action => action.ToString()).Order(), developer.Order());
             Assert.Contains(nameof(ControlAction.GuardianSwitchColumn), player);
+            Assert.Contains(nameof(ControlAction.BattleInstantVictory), player);
+            Assert.Contains(nameof(ControlAction.BattleInstantDefeat), player);
             Assert.Empty(player.Intersect(developer));
             Assert.Equal(ControlsProfile.Definitions.Select(definition => definition.Action.ToString()).Order(), player.Concat(developer).Order());
             Assert.DoesNotContain(nameof(ControlAction.SkipMovie), player.Concat(developer));

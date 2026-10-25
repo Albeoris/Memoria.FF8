@@ -144,6 +144,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        UpdateWindowModeHotkey();
         ShowPendingNewGameChocoboClaim();
         UpdateAchievements();
         // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
@@ -201,6 +202,7 @@ internal sealed partial class RecreateGame : Game
             SynchronizeNativeNamePrompt();
         }
         KeyboardState keys = options.BattleTestPath is null ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        keys = windowModeHotkey.Filter(keys);
         keyboard.ControllerPresentation = inputController.Presentation;
         keyboard.ControllerGeneration = inputController.Generation;
         bool wasCapturing = gameMenus?.IsCapturingControls == true;

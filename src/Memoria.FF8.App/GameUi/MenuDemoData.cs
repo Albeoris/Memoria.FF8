@@ -173,6 +173,7 @@ public static class MenuSettings
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
         new("Show FPS", "Show presentation FPS and visual Changes/s. A static scene can present frames while Changes/s is zero.", ["Off", "On"]),
+        new("Window mode", "Choose a resizable window or borderless full-screen display. Alt+Enter toggles the mode. Shared across saves and retained across launches.", ["Windowed", "Borderless"]),
         new("V-Sync", "Synchronize presentation with display refresh; frame limits may cap it further. Shared across saves for this user.", ["On", "Off"]),
         new("Anti-aliasing", "Smooth rendered edges with multisample anti-aliasing. Applies immediately and is shared by every save on this installation. Unsupported sample counts use the highest supported count up to the selected value.", ["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"]),
         new("Field FPS", "Field and movie presentation at 30 or 60 FPS. At 60, field movement and animation interpolate between original simulation frames. Gameplay timing is unchanged. V-Sync may limit output further.", ["30", "60"]),

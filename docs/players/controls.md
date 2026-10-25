@@ -50,6 +50,7 @@ Instant victory and instant defeat appear at the top of Debug Room only while a 
 
 | Shortcut | Default key | Effect |
 | --- | --- | --- |
+| Window mode | Alt+Enter | Toggle between windowed and borderless full-screen display. The choice is saved across launches. |
 | Event speed | F1 | Toggle x1 / x3 for ordinary field and world simulation. Movies remain at normal speed. This setting is not saved in the gameplay snapshot. |
 | Debug room | F2 | Open the host debug UI where available. |
 | Instant victory | Unbound | Win the current battle or Triple Triad match during your turn. |
@@ -71,6 +72,8 @@ On a GF's ability screen, select learned **Move-Find** and press **Card / detail
 Active Move-Find reveals hidden field draw points and save points and permits using them. Revealed hidden draw-point glows appear over foreground scenery so furniture cannot conceal them. Hidden field points cannot be used while the passive is inactive. Ordinary visible draw points remain available. World-map draw points retain their usual invisible presentation.
 
 ## Display settings
+
+**Config → Graphics → Window mode** selects **Windowed** (the default) or **Borderless** full-screen display. **Alt+Enter** toggles the same setting. Your choice is shared across saves and saved across launches.
 
 Open **Config → Graphics → Frame rate limits** to choose **Field and movies: 30 or 60** (default 60). At 60 FPS, field movement and animation interpolate between the original simulation frames. Scripts, movement rules and gameplay timing retain their original rate. Movies retain their own playback timing. **V-Sync** can limit presentation further when the display cannot reach the selected rate.
 

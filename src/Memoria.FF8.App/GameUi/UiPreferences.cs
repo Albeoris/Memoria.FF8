@@ -10,6 +10,7 @@ internal sealed record UiPreferences
     public GraphicsPreferences Graphics { get; init; } = new();
     public int WindowWidth { get; init; } = 1024;
     public int WindowHeight { get; init; } = 768;
+    public bool BorderlessWindow { get; init; }
     public bool VSync { get; init; } = true;
     public bool ShowFps { get; init; }
     public int FieldFps { get; init; } = 60;
@@ -67,7 +68,7 @@ internal sealed record UiPreferences
     public bool WeaponUpgradeOrder { get; init; }
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
-    public string BattlePolicy { get; init; } = "ResearchInstantVictory";
+    public string BattlePolicy { get; init; } = "NewGameFullCombat";
     [System.Text.Json.Serialization.JsonIgnore]
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
     public bool GuardianFormsEnabled { get; init; }
@@ -142,6 +143,15 @@ internal sealed record UiPreferences
                 "On" => this with { ShowFps = true },
                 "Off" => this with { ShowFps = false },
                 _ => throw new ArgumentException("Show FPS requires On or Off.")
+            };
+        }
+        if (key == "Window mode")
+        {
+            return value switch
+            {
+                "Windowed" => this with { BorderlessWindow = false },
+                "Borderless" => this with { BorderlessWindow = true },
+                _ => throw new ArgumentException("Window mode requires Windowed or Borderless.")
             };
         }
         if (key == "V-Sync")

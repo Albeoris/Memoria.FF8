@@ -53,7 +53,7 @@ public sealed class EncounterPreferenceTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameWorld world = new(session, game);
-        UiPreferences preferences = new();
+        UiPreferences preferences = new UiPreferences().WithSetting("Battle policy", "Instant victory");
         MenuData data = new();
         data.Settings["Random encounters"] = "On";
         data.SupportedActions.Add("config:Random encounters");

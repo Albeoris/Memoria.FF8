@@ -186,6 +186,8 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Gunblade trigger");
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Random encounters");
+        data.Settings["Window mode"] = uiPreferences.BorderlessWindow ? "Borderless" : "Windowed";
+        data.SupportedActions.Add("config:Window mode");
         data.Settings["V-Sync"] = uiPreferences.VSync ? "On" : "Off";
         data.Settings["Anti-aliasing"] = uiPreferences.Graphics.AntiAliasingLabel;
         data.SupportedActions.Add("config:Anti-aliasing");

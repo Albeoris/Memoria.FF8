@@ -164,7 +164,7 @@ internal sealed partial class RecreateGame
             RefreshModelBrowserEntries();
         }
         ModelBrowserController browser = modelBrowser;
-        KeyboardState keys = Keyboard.GetState();
+        KeyboardState keys = windowModeHotkey.Filter(Keyboard.GetState());
         bool enter = IsActive && keys.IsKeyDown(Keys.Enter);
         bool escape = IsActive && keys.IsKeyDown(Keys.Escape);
         if (modelBrowserDialogInputDrain)

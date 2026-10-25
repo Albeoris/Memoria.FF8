@@ -22,7 +22,7 @@ internal static class SettingsPlacement
     internal static readonly IReadOnlyDictionary<string, SettingsPage> Pages = new Dictionary<string, SettingsPage>(StringComparer.Ordinal)
     {
         ["config-graphics"] = new("Graphics", "Presentation preferences shared across saves.",
-            ["Anti-aliasing", "V-Sync", "config-frame-limits", "Show FPS"]),
+            ["Anti-aliasing", "Window mode", "V-Sync", "config-frame-limits", "Show FPS"]),
         ["config-frame-limits"] = new("Frame rate limits", "Presentation caps; simulation speed is unchanged. V-Sync can limit output further.",
             ["Field FPS", "World FPS", "Battle FPS", "Menu FPS"]),
         ["config-audio"] = new("Audio", "Output levels shared across saves.",
@@ -51,6 +51,7 @@ internal static class SettingsPlacement
         Dictionary<string, string> identities = new(StringComparer.Ordinal)
         {
             ["Show FPS"] = "frame-counter",
+            ["Window mode"] = "window-mode",
             ["V-Sync"] = "vsync",
             ["Anti-aliasing"] = "msaa",
             ["Field FPS"] = "field-cap",
@@ -124,6 +125,7 @@ internal static class SettingsPlacement
             string target = setting.Id switch
             {
                 "Show FPS" => "UiPreferences.ShowFps",
+                "Window mode" => "UiPreferences.BorderlessWindow",
                 "V-Sync" => "UiPreferences.VSync",
                 "Anti-aliasing" => "UiPreferences.Graphics.MsaaSamples",
                 "Field FPS" => "UiPreferences.FieldFps",
