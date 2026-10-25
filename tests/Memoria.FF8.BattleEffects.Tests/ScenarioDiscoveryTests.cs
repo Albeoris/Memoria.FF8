@@ -50,6 +50,19 @@ public sealed class ScenarioDiscoveryTests
     }
 
     [Fact]
+    public void CompiledEvidenceMustMatchActualBindingAndCannotAssertPlayableSupport()
+    {
+        InstalledScenarioInventory inventory = Inventory();
+        DiscoveredBinding[] bindings = inventory.Bindings.Select(binding => binding with { Implementation = new(binding.EffectId, binding.Entry, "unknown", []) }).ToArray();
+        CompiledImplementationSummary summary = new("implementation-evidence.json", "compiled_dispatch_registration_evidence_only", new string('0', 64), new string('1', 64), 0, 0, 400, 1, false);
+        inventory = inventory with { Bindings = bindings, ImplementationSummary = summary };
+        ScenarioDiscovery.ValidateCoverage(inventory, []);
+        Assert.Throws<InvalidDataException>(() => ScenarioDiscovery.ValidateCoverage(inventory with { ImplementationSummary = summary with { PlayableSupportEstablished = true } }, []));
+        bindings[0] = bindings[0] with { Implementation = new(2, 0, "unknown", []) };
+        Assert.Throws<InvalidDataException>(() => ScenarioDiscovery.ValidateCoverage(inventory, []));
+    }
+
+    [Fact]
     public void BlockedScenarioCannotLoseItsBlockerOrClaimAcceptance()
     {
         DiscoveredScenario scenario = Scenario();

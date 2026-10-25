@@ -87,6 +87,8 @@ dotnet $tool discover --game-dir $env:MEMORIA_FF8_GAME_DIR --output $discoveryDi
 
 Optional `--fixture $canonicalTemplatePath` supplies one explicitly selected authored canonical bootstrap template; discovery does not scan directories or infer a fixture from a filename. Supply `--source-commit $sourceCommit` and, for dirty source, `--patch-hash $patchHash` to retain caller-declared source identity alongside the tool binary identity and sealed manifest hashes. Discovery writes the installed inventory, scenario catalog, per-effect scenario records and `cases-manifest.json`. Inspect their evidence and blockers before execution. Discovery does not invent missing native identities or phase initialization contracts, and a candidate recipe alone does not establish the required canonical encounter. Supply the discovered case array as `cases` in the execution manifest alongside the explicit build, game, output and budget configuration.
 
+`implementation-evidence.json` reconciles installed binding entries with the current compiled dispatcher. It retains dispatcher, target-method and assembly hashes plus safely decoded direct equality branches. Per-binding links report `direct_equality_branch_observed` or `unknown`; generic and range dispatch calls remain opaque when no exact entry mapping is proved. `ImplementationSummary` in the installed inventory and `coverage-reconciliation.json` retain reconciliation counts. This is registration evidence, with no claim of playable support, effect completeness or campaign acceptance.
+
 Author an external manifest matching [pilot.v1](../../tools/Memoria.FF8.BattleEffects/schemas/pilot.v1.schema.json), then run:
 
 ```powershell

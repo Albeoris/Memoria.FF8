@@ -9,11 +9,18 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects;
 
-public sealed record DiscoveredBinding(int EffectId, uint Entry, uint Initializer, int[] SharedBindingRows, string Disposition, string Reason, string[] ScenarioIds);
+public sealed record DiscoveredBinding(int EffectId, uint Entry, uint Initializer, int[] SharedBindingRows, string Disposition, string Reason, string[] ScenarioIds)
+{
+    public ImplementationBindingEvidence? Implementation { get; init; }
+}
 public sealed record DiscoveredAction(string Id, string Family, BattleNativeAction Native, string MappingEvidence);
 public sealed record DiscoveredCommand(int Command, string? Name, int AbilityId, string[] ActionIds, string Disposition, string Reason);
 public sealed record DiscoveredScenario(string CaseId, int? EffectId, string ActionId, string Family, string Status, string Disposition, bool CampaignAcceptance, string? DiagnosticRecipe, int? FormationId, int? StageId, string Caster, string? CommandOwner, byte? Command, int? NativeActionId, byte? CrisisLevel, byte? TargetFlags, string TargetPolicy, string[] Preparation, string[] Invocation, int Executions, string[] RepeatPolicy, string[] MappingEvidence, string[] ExecutionBlockers, string[] AcceptanceBlockers, string[] OwnerContextIds);
-public sealed record InstalledScenarioInventory(int SchemaVersion, string ExecutableSha256, string KernelSha256, string SceneSha256, DateTimeOffset CreatedUtc, DiscoveredBinding[] Bindings, DiscoveredAction[] Actions, DiscoveredCommand[] Commands, PlanIssue[] Issues);
+public sealed record CompiledImplementationSummary(string EvidenceFile, string Scope, string DispatcherIlSha256, string RuntimeAssemblySha256, int DirectRegistrations, int BindingRowsWithObservedDirectBranch, int BindingRowsUnknown, int OpaqueCalledMethods, bool PlayableSupportEstablished);
+public sealed record InstalledScenarioInventory(int SchemaVersion, string ExecutableSha256, string KernelSha256, string SceneSha256, DateTimeOffset CreatedUtc, DiscoveredBinding[] Bindings, DiscoveredAction[] Actions, DiscoveredCommand[] Commands, PlanIssue[] Issues)
+{
+    public CompiledImplementationSummary? ImplementationSummary { get; init; }
+}
 public sealed record ScenarioDiscoverySummary(int BindingRows, int NativeActions, int EnemyAbilityRows, int Scenarios, int RunnableDiagnostics, int BlockedScenarios, int ExcludedBindingRows, bool CampaignAcceptance, string OutputDirectory);
 
 /// <summary>Installed-data planning only. A runnable diagnostic is distinct from accepted campaign coverage.</summary>
@@ -37,11 +44,22 @@ public static class ScenarioDiscovery
         EvidenceStore outputBoundary = new(output);
         byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
         NativeBattleEffectBinding[] bindings = NativeBattleEffectCatalogReader.Read(executable).ToArray();
+        ImplementationDiscoveryEvidence implementation = ScenarioImplementationDiscovery.Discover(bindings);
+        Dictionary<int, ImplementationBindingEvidence> implementationByEffect = implementation.Bindings.ToDictionary(binding => binding.EffectId);
         using IResourceSource source = GameDataSourceFactory.Open(gameDirectory);
         ResourceService resources = new(source);
         byte[] kernelBytes = resources.Read(new ResourceKey("main/kernel.bin"));
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
         using BattleAssets assets = new(gameDirectory, resources);
+        List<BuildFile> resourceFiles = [new("FF8_EN.exe", executable.LongLength, Hash(executable)), new("main/kernel.bin", kernelBytes.LongLength, Hash(kernelBytes))];
+        byte[] sceneBytes = resources.Read(new ResourceKey("battle/scene.out"));
+        resourceFiles.Add(new("battle/scene.out", sceneBytes.LongLength, Hash(sceneBytes)));
+        foreach (int model in assets.EnemyModelIds)
+        {
+            string key = $"battle/c0m{model:000}.dat";
+            byte[] bytes = resources.Read(new ResourceKey(key));
+            resourceFiles.Add(new(key, bytes.LongLength, Hash(bytes)));
+        }
         EnemyScenarioDiscoveryResult enemies = ScenarioEnemyDiscovery.Discover(assets);
         DiscoveredAction[] actions = assets.NativeActions.Select(action => new DiscoveredAction(ActionId(action), Family(action), action, $"main/kernel.bin:section:{action.KernelSection}:row:{action.KernelIndex}:sha256:{Hash(action.RawRecord.ToArray())}" + (action.SupplementalKernelIndex is int supplemental ? $":supplemental-row:{supplemental}:sha256:{Hash(action.SupplementalRecord.ToArray())}" : ""))).ToArray();
         List<DiscoveredScenario> scenarios = [];
@@ -142,13 +160,16 @@ public static class ScenarioDiscovery
             {
                 scenarios.Add(new(bindingCase, binding.Effect, bindingCase, "native_binding", "PLANNED_BLOCKED", disposition, false, null, null, null, "Unresolved until an owning action scenario is proved", null, null, null, null, null, "Use the owning action's legitimate target selector.", [], [], 2, ["Binding identity alone does not establish invocability or repeatability."], [$"FF8_EN.exe:effect-binding-row:{binding.Effect}:entry:{binding.Entry:X8}:initializer:{binding.Initializer:X8}"], ["BINDING_NOT_INVOCATION: no installed action/owner mapping was established; resolve original scripted/trigger path rather than invoking an arbitrary callback."], [], []));
             }
-            return new DiscoveredBinding(binding.Effect, binding.Entry, binding.Initializer, bindings.Where(other => other.Effect != binding.Effect && other.Entry == binding.Entry && other.Initializer == binding.Initializer).Select(other => (int)other.Effect).ToArray(), disposition, reason, needsBindingScenario ? [bindingCase] : mapped.Select(scenario => scenario.CaseId).ToArray());
+            return new DiscoveredBinding(binding.Effect, binding.Entry, binding.Initializer, bindings.Where(other => other.Effect != binding.Effect && other.Entry == binding.Entry && other.Initializer == binding.Initializer).Select(other => (int)other.Effect).ToArray(), disposition, reason, needsBindingScenario ? [bindingCase] : mapped.Select(scenario => scenario.CaseId).ToArray()) { Implementation = implementationByEffect[binding.Effect] };
         }).ToArray();
-        InstalledScenarioInventory inventory = new(1, Hash(executable), Hash(kernelBytes), assets.EncounterSourceHash.ToLowerInvariant(), DateTimeOffset.UtcNow, rows, actions, commands, enemies.Issues);
+        CompiledImplementationSummary implementationSummary = new("implementation-evidence.json", implementation.Scope, implementation.DispatcherIlSha256, implementation.RuntimeAssemblySha256, implementation.Registrations.Length, implementation.Bindings.Count(binding => binding.Disposition == "direct_equality_branch_observed"), implementation.Bindings.Count(binding => binding.Disposition == "unknown"), implementation.OpaqueCalledMethods.Length, false);
+        InstalledScenarioInventory inventory = new(1, Hash(executable), Hash(kernelBytes), assets.EncounterSourceHash.ToLowerInvariant(), DateTimeOffset.UtcNow, rows, actions, commands, enemies.Issues) { ImplementationSummary = implementationSummary };
         ValidateCoverage(inventory, scenarios);
         SchemaValidation.ValidateRecord(inventory, "scenario-discovery");
         SchemaValidation.ValidateRecord(scenarios, "scenario-plans");
         Write(output, "installed-inventory.json", inventory);
+        Write(output, "resources.json", new ResourceRecord(1, "installed-original-battle-scenarios", resourceFiles.ToArray(), []));
+        Write(output, "implementation-evidence.json", implementation);
         Write(output, "enemy-owners.json", enemies);
         Write(output, "scenarios.json", scenarios);
         Write(output, "cases-manifest.json", scenarios.Select(scenario => new PilotCase(scenario.CaseId, scenario.DiagnosticRecipe, scenario.Status, scenario.ExecutionBlockers, scenario.EffectId, scenario.DiagnosticRecipe is string path ? Hash(File.ReadAllBytes(path)) : null)).ToArray());
@@ -157,7 +178,7 @@ public static class ScenarioDiscovery
             Write(output, $"effects/effect-{row.EffectId:D3}/scenarios.json", new { schema_version = 1, binding = row, scenarios = scenarios.Where(scenario => scenario.EffectId == row.EffectId).ToArray() });
         }
         Write(output, "unmapped-scenarios.json", scenarios.Where(scenario => scenario.EffectId is null or 0 or > 400).ToArray());
-        Write(output, "coverage-reconciliation.json", new { schema_version = 1, inventory_binding_rows = rows.Length, native_action_rows = actions.Length, enemy_ability_rows = enemies.Owners.Length, enemy_scripted_dispatch_rows = enemies.ScriptedActions.Length, command_rows = commands.Length, generated_scenarios = scenarios.Count, binding_rows_without_plan = rows.Where(row => row.Disposition != "excluded_with_reason" && row.ScenarioIds.Length == 0).Select(row => row.EffectId).ToArray(), action_rows_without_plan = actions.Where(action => !scenarios.Any(scenario => scenario.ActionId == action.Id)).Select(action => action.Id).ToArray(), dispositions = scenarios.GroupBy(scenario => scenario.Disposition).ToDictionary(group => group.Key, group => group.Count()), campaign_acceptance = false, issues = enemies.Issues });
+        Write(output, "coverage-reconciliation.json", new { schema_version = 1, inventory_binding_rows = rows.Length, native_action_rows = actions.Length, enemy_ability_rows = enemies.Owners.Length, enemy_scripted_dispatch_rows = enemies.ScriptedActions.Length, command_rows = commands.Length, generated_scenarios = scenarios.Count, binding_rows_without_plan = rows.Where(row => row.Disposition != "excluded_with_reason" && row.ScenarioIds.Length == 0).Select(row => row.EffectId).ToArray(), action_rows_without_plan = actions.Where(action => !scenarios.Any(scenario => scenario.ActionId == action.Id)).Select(action => action.Id).ToArray(), implementation_summary = implementationSummary, dispositions = scenarios.GroupBy(scenario => scenario.Disposition).ToDictionary(group => group.Key, group => group.Count()), campaign_acceptance = false, issues = enemies.Issues });
         ScenarioDiscoverySummary summary = new(rows.Length, actions.Length, enemies.Owners.Length, scenarios.Count, scenarios.Count(scenario => scenario.Status == "RUNNABLE"), scenarios.Count(scenario => scenario.Status != "RUNNABLE"), rows.Count(row => row.Disposition == "excluded_with_reason"), false, output);
         Write(output, "discovery-summary.json", summary);
         string toolAssembly = typeof(ScenarioDiscovery).Assembly.Location;
@@ -179,6 +200,10 @@ public static class ScenarioDiscovery
         }
         foreach (DiscoveredBinding binding in inventory.Bindings)
         {
+            if (binding.Implementation is { } implementation && (implementation.EffectId != binding.EffectId || implementation.Entry != binding.Entry || implementation.Registrations.Any(registration => registration.Entry != binding.Entry) || implementation.Disposition == "direct_equality_branch_observed" && implementation.Registrations.Length == 0 || implementation.Disposition == "unknown" && implementation.Registrations.Length != 0))
+            {
+                throw new InvalidDataException($"Compiled registration evidence disagrees with binding {binding.EffectId}.");
+            }
             if (binding.Disposition == "excluded_with_reason")
             {
                 if (binding.Entry != 0 || binding.Initializer != 0 || string.IsNullOrWhiteSpace(binding.Reason))
@@ -197,6 +222,10 @@ public static class ScenarioDiscovery
                     throw new InvalidDataException($"Binding {binding.EffectId} references a missing or mismatched scenario: {scenarioId}.");
                 }
             }
+        }
+        if (inventory.ImplementationSummary is { } summary && (summary.PlayableSupportEstablished || summary.BindingRowsWithObservedDirectBranch != inventory.Bindings.Count(binding => binding.Implementation?.Disposition == "direct_equality_branch_observed") || summary.BindingRowsUnknown != inventory.Bindings.Count(binding => binding.Implementation?.Disposition == "unknown") || summary.BindingRowsWithObservedDirectBranch + summary.BindingRowsUnknown != inventory.Bindings.Length))
+        {
+            throw new InvalidDataException("Compiled registration counts disagree or incorrectly claim playable support.");
         }
         foreach (DiscoveredAction action in inventory.Actions)
         {

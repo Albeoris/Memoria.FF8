@@ -3,7 +3,7 @@
   "$id": "urn:memoria:ff8:battle-effects:scenario-discovery:v1",
   "title": "Installed scenario discovery inventory v1",
   "type": "object",
-  "required": ["schema_version", "executable_sha256", "kernel_sha256", "scene_sha256", "created_utc", "bindings", "actions", "commands", "issues"],
+  "required": ["schema_version", "executable_sha256", "kernel_sha256", "scene_sha256", "created_utc", "bindings", "actions", "commands", "issues", "implementation_summary"],
   "additionalProperties": false,
   "properties": {
     "schema_version": { "const": 1 },
@@ -15,7 +15,7 @@
       "type": "array", "minItems": 400,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["effect_id", "entry", "initializer", "shared_binding_rows", "disposition", "reason", "scenario_ids"],
+        "required": ["effect_id", "entry", "initializer", "shared_binding_rows", "disposition", "reason", "scenario_ids", "implementation"],
         "properties": {
           "effect_id": { "type": "integer", "minimum": 1, "maximum": 400 },
           "entry": { "type": "integer", "minimum": 0 },
@@ -23,13 +23,38 @@
           "shared_binding_rows": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 400 } },
           "disposition": { "enum": ["scheduled", "covered_by_case", "unresolved", "excluded_with_reason"] },
           "reason": { "type": "string", "minLength": 1 },
-          "scenario_ids": { "type": "array", "items": { "type": "string" } }
+          "scenario_ids": { "type": "array", "items": { "type": "string" } },
+          "implementation": {
+            "type": "object", "additionalProperties": false,
+            "required": ["effect_id", "entry", "disposition", "registrations"],
+            "properties": {
+              "effect_id": { "type": "integer", "minimum": 1, "maximum": 400 },
+              "entry": { "type": "integer", "minimum": 0 },
+              "disposition": { "enum": ["direct_equality_branch_observed", "unknown"] },
+              "registrations": { "type": "array", "items": { "type": "object", "required": ["entry", "comparison_il_offset", "branch_target_il_offset", "called_method", "called_method_il_sha256"] } }
+            }
+          }
         }
       }
     },
     "actions": { "type": "array", "items": { "type": "object", "required": ["id", "family", "native", "mapping_evidence"] } },
     "commands": { "type": "array", "items": { "type": "object", "required": ["command", "name", "ability_id", "action_ids", "disposition", "reason"] } },
-    "issues": { "type": "array", "items": { "type": "object", "required": ["identity", "message"] } }
+    "issues": { "type": "array", "items": { "type": "object", "required": ["identity", "message"] } },
+    "implementation_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_file", "scope", "dispatcher_il_sha256", "runtime_assembly_sha256", "direct_registrations", "binding_rows_with_observed_direct_branch", "binding_rows_unknown", "opaque_called_methods", "playable_support_established"],
+      "properties": {
+        "evidence_file": { "const": "implementation-evidence.json" },
+        "scope": { "const": "compiled_dispatch_registration_evidence_only" },
+        "dispatcher_il_sha256": { "$ref": "#/$defs/hash" },
+        "runtime_assembly_sha256": { "$ref": "#/$defs/hash" },
+        "direct_registrations": { "type": "integer", "minimum": 0 },
+        "binding_rows_with_observed_direct_branch": { "type": "integer", "minimum": 0, "maximum": 400 },
+        "binding_rows_unknown": { "type": "integer", "minimum": 0, "maximum": 400 },
+        "opaque_called_methods": { "type": "integer", "minimum": 0 },
+        "playable_support_established": { "const": false }
+      }
+    }
   },
   "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
 }
