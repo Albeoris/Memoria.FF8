@@ -57,6 +57,20 @@ public sealed record NativeBattleGraphicsRemoval(NativeBattleGraphicsModel Model
 
 public static class NativeBattleGraphicsModels
 {
+    public static NativeBattleGraphicsModel PublishResourceOnlyReadiness502AB0(NativeBattleGraphicsModel model)
+    {
+        if (model.ModelId4 != 0x8F)
+        {
+            return model;
+        }
+        ushort flags = model.ResourceFlags44 ?? throw new NotSupportedException("Native502AB0 requires the loaded resource-only model's actual resource WORD44.");
+        if ((model.Flags0 & 0xC) == 0xC && (flags & 0x40) != 0)
+        {
+            return model;
+        }
+        return model with { Flags0 = (ushort)(model.Flags0 | 0xC), ResourceFlags44 = (ushort)(flags | 0x40) };
+    }
+
     public static NativeBattleGraphicsModel[] ClearBank(System.Collections.Immutable.ImmutableArray<uint?>? retainedColors40 = null, System.Collections.Immutable.ImmutableArray<System.Collections.Immutable.ImmutableArray<byte?>>? retainedStatusTimers = null, System.Collections.Immutable.ImmutableArray<NativeBattleActionMatrix?>? retainedWorldMatrices64 = null, System.Collections.Immutable.ImmutableArray<NativeBattleModelRetainedFields>? retainedTransformRows = null)
     {
         //502340 clears only Flags0 of each of seven records. Unknown retained fields must not be supplied as zeros.

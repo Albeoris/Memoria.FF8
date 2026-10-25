@@ -130,6 +130,7 @@ public sealed partial class BattleSession
                 {
                     continue;
                 }
+                model = NativeBattleGraphicsModels.PublishResourceOnlyReadiness502AB0(model);
                 ushort modelFlags = model.Flags2 ?? throw new InvalidDataException("Native loaded graphics model lacks Flags2.");
                 if ((modelFlags & 4) == 0)
                 {
