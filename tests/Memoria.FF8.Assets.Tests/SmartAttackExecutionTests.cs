@@ -112,17 +112,21 @@ public sealed class SmartAttackExecutionTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void InstalledSmartDrawUsesSeparateRecipientAndRestoresWithoutSpendingMagic(bool shared, bool infinite)
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void InstalledSmartDrawUsesSeparateRecipientAndRestoresWithoutSpendingMagic(bool shared, bool infinite, bool drawOnce)
     {
         BattleDefinition definition = Create(shared, infinite, true, stock: 0).Capture().Definition;
         using GameAssets game = new(TestResources.GameDirectory);
         BattleCombatantDefinition caster = definition.Combatants[0] with { Abilities = [BattleAbility.Attack, BattleAbility.Draw] };
         BattleCombatantDefinition source = definition.Combatants[1] with { Id = "source", Name = "Source", ModelId = 3, NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
-        BattleSession battle = new(definition with { NativeKnownMagic = game.ReadNewGameKnownMagic().Add(1), Combatants = [caster, definition.Combatants[1], source] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition with { DrawOncePerSpell = drawOnce, NativeKnownMagic = game.ReadNewGameKnownMagic().Add(1), Combatants = [caster, definition.Combatants[1], source] }, BattleAtbMode.TurnBased);
         string before = JsonSerializer.Serialize(battle.MagicVitals);
         BattleSmartAttackPreview preview = battle.PreviewSmartAttack("caster", "enemy");
         Assert.Equal(BattleAbility.Draw, preview.Ability);
@@ -133,10 +137,16 @@ public sealed class SmartAttackExecutionTests
         Complete(restored);
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "enemy" && item.Amount > 0);
         Assert.Equal(10_000, battle.Combatants.Single(actor => actor.Id == "source").CurrentHp);
-        BattleCombatant depleted = battle.Combatants.Single(actor => actor.Id == "source");
-        Assert.Contains((byte)1, depleted.DrawnMagicIds);
-        Assert.DoesNotContain(depleted.NativeDrawSlots, slot => slot.Id == 1);
-        Assert.DoesNotContain(restored.Combatants.Single(actor => actor.Id == "source").NativeDrawSlots, slot => slot.Id == 1);
+        foreach (BattleSession completed in new[] { battle, restored })
+        {
+            BattleCombatant drawSource = completed.Combatants.Single(actor => actor.Id == "source");
+            Assert.Equal(drawOnce, completed.Capture().Definition.DrawOncePerSpell);
+            Assert.Equal(drawOnce, drawSource.DrawnMagicIds.Contains((byte)1));
+            Assert.Equal(!drawOnce, drawSource.NativeDrawSlots.Any(slot => slot.Id == 1));
+            BattleSmartAttackPreview next = completed.PreviewSmartAttack("caster", "enemy");
+            Assert.Equal(drawOnce ? BattleAbility.Attack : BattleAbility.Draw, next.Ability);
+            Assert.Equal(drawOnce ? null : "source", next.DrawSourceId);
+        }
         Assert.Equal(before, JsonSerializer.Serialize(battle.MagicVitals));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
