@@ -1,0 +1,112 @@
+using System.Collections.Frozen;
+
+namespace Memoria.FF8.Runtime;
+
+public static partial class NativeBattleCinematicDispatch
+{
+    private static readonly FrozenDictionary<(string Table, int Index), (uint Handler, uint Canonical)> Effect267Slots = new Dictionary<(string Table, int Index), (uint Handler, uint Canonical)>
+    {
+        [("vm_table", 0x0)] = (0x91F1A0, 0xB2FEB0),
+        [("vm_table", 0x1)] = (0x91EE10, 0xB2FB20),
+        [("vm_table", 0x2)] = (0x91A2F0, 0xB2AE30),
+        [("vm_table", 0x3)] = (0x91A310, 0xB2AE50),
+        [("vm_table", 0x4)] = (0x91A370, 0xB2AEB0),
+        [("vm_table", 0x5)] = (0x91B550, 0xB2C030),
+        [("vm_table", 0x6)] = (0x91AF30, 0xB2BA10),
+        [("vm_table", 0x8)] = (0x91B0F0, 0xB2BBD0),
+        [("vm_table", 0x9)] = (0x91F170, 0xB2FE80),
+        [("vm_table", 0xA)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0xB)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0xD)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0xE)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x10)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x11)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x12)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x13)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x15)] = (0x91B9A0, 0xB2C480),
+        [("vm_table", 0x1E)] = (0x91A3C0, 0xB2AF00),
+        [("vm_table", 0x1F)] = (0x91A440, 0xB2AF80),
+        [("vm_table", 0x20)] = (0x91D810, 0xB2E2F0),
+        [("vm_table", 0x21)] = (0x91A970, 0xB2B450),
+        [("vm_table", 0x22)] = (0x91AA50, 0xB2B530),
+        [("vm_table", 0x23)] = (0x91D4C0, 0xB2DFA0),
+        [("vm_table", 0x24)] = (0x91D010, 0xB2DAF0),
+        [("vm_table", 0x25)] = (0x91CFC0, 0xB2DAA0),
+        [("vm_table", 0x26)] = (0x91C9E0, 0xB2D4C0),
+        [("vm_table", 0x27)] = (0x91DA60, 0xB2E540),
+        [("vm_table", 0x29)] = (0x91D960, 0xB2E440),
+        [("vm_table", 0x2A)] = (0x91CAB0, 0xB2D590),
+        [("vm_table", 0x2B)] = (0x912420, 0xB25BB0),
+        [("vm_table", 0x2F)] = (0x91BDF0, 0xB2C8D0),
+        [("vm_table", 0x32)] = (0x91CB30, 0xB2D610),
+        [("vm_table", 0x33)] = (0x91A4E0, 0xB2B020),
+        [("vm_table", 0x39)] = (0x91AC70, 0xB2B750),
+        [("vm_table", 0x3B)] = (0x91AEA0, 0xB2B980),
+        [("vm_table", 0x3C)] = (0x91E900, 0xB2F3E0),
+        [("vm_table", 0x40)] = (0x91D250, 0xB2DD30),
+        [("vm_table", 0x43)] = (0x91A6E0, 0xB2B220),
+        [("vm_table", 0x44)] = (0x91A670, 0xB2B1B0),
+        [("vm_table", 0x45)] = (0x91B1A0, 0xB2BC80),
+        [("vm_table", 0x47)] = (0x91AEF0, 0xB2B9D0),
+        [("vm_table", 0x4D)] = (0x9166A0, 0xB26DF0),
+        [("vm_table", 0x52)] = (0x91DAE0, 0xB2E5C0),
+        [("vm_table", 0x53)] = (0x912580, 0xB4AAC0),
+        [("vm_table", 0x58)] = (0x919370, 0xB29D70),
+        [("vm_table", 0x59)] = (0x9193E0, 0xB29DE0),
+        [("vm_table", 0x5A)] = (0x91CDF0, 0xB2D8D0),
+        [("vm_table", 0x5B)] = (0x91E5B0, 0xB2F090),
+        [("vm_table", 0x5F)] = (0x91BCA0, 0xB2C780),
+        [("vm_table", 0x60)] = (0x91C320, 0xB2CE00),
+        [("vm_table", 0x61)] = (0x91C1E0, 0xB2CCC0),
+        [("vm_table", 0x64)] = (0x91A5A0, 0xB2B0E0),
+        [("vm_table", 0x67)] = (0x91DE70, 0xB2E950),
+        [("vm_table", 0x68)] = (0x91E1D0, 0xB2ECB0),
+        [("vm_table", 0x74)] = (0x91B880, 0xB2C360),
+        [("vm_table", 0x7D)] = (0x91B3B0, 0xB2BE90),
+        [("vm_table", 0x8B)] = (0x91CA40, 0xB2D520),
+        [("vm_table", 0xB1)] = (0x91A610, 0xB2B150),
+        [("vm_table", 0xD0)] = (0x91D120, 0xB2DC00),
+        [("vm_table", 0xD3)] = (0x91D350, 0xB2DE30),
+        [("vm_table", 0xE7)] = (0x91B770, 0xB2C250),
+        [("vm_table", 0x13D)] = (0x91AAF0, 0xB2B5D0),
+        [("bone_table", 0x0)] = (0x912B50, 0xB262E0),
+        [("bone_table", 0x1)] = (0x912B50, 0xB262E0),
+        [("bone_table", 0x3)] = (0x912C60, 0xB263F0),
+        [("draw_table", 0x2)] = (0x916900, 0xB27050),
+        [("draw_table", 0x4)] = (0x9166D0, 0xB26E20),
+        [("draw_table", 0x5)] = (0x918ED0, 0xB298D0),
+        [("draw_table", 0x6)] = (0x919520, 0xB29F20),
+        [("draw_table", 0x15)] = (0x9130D0, 0xB266C0),
+        [("draw_table", 0x16)] = (0x9136A0, 0xB4BBE0),
+        [("prim_table", 0x7)] = (0x917650, 0xB27E90),
+        [("prim_table", 0x10)] = (0x917E90, 0xB105B0),
+        [("prim_table", 0x11)] = (0x918100, 0xB28B00),
+        [("prim_table", 0x12)] = (0x9183D0, 0xB28DD0),
+        [("prim_table", 0x13)] = (0x9186B0, 0xB290B0),
+        [("pop_table", 0x0)] = (0x919AC0, 0xB2A4C0),
+        [("pop_table", 0x1)] = (0x919AF0, 0xB2A4F0),
+        [("pop_table", 0x2)] = (0x919B10, 0xB2A510),
+        [("pop_table", 0x4)] = (0x919B70, 0xB2A570),
+        [("pop_table", 0x5)] = (0x919C30, 0xB2A630),
+        [("pop_table", 0x7)] = (0x919E20, 0xB2A820),
+        [("pop_table", 0x9)] = (0x919D50, 0xB2A750),
+        [("pop_table", 0xA)] = (0x919DC0, 0xB2A7C0),
+        [("pop_table", 0xB)] = (0x919E90, 0xB2A890),
+        [("pop_table", 0xC)] = (0x919ED0, 0xB2A8D0),
+        [("pop_table", 0x10)] = (0x919FB0, 0xB2A9B0),
+        [("ptype_table", 0x1)] = (0x9198E0, 0xB2A2E0),
+        [("ptype_table", 0x2)] = (0x919930, 0xB2A330),
+        [("spr_table", 0x9)] = (0x918E30, 0xB29830),
+    }.ToFrozenDictionary();
+
+    private static readonly FrozenDictionary<uint, uint> Effect267Aliases = Effect267Slots.Values.Where(pair => pair.Handler != pair.Canonical).Distinct().ToFrozenDictionary(pair => pair.Handler, pair => pair.Canonical);
+
+    private static uint RequireEffect267Slot(string table, int index, uint handler)
+    {
+        if (!Effect267Slots.TryGetValue((table, index), out var selected) || handler != selected.Handler)
+        {
+            throw new NotSupportedException($"Native cinematic effect 267 table {table} slot {index:X} requires its selected handler contract.");
+        }
+        return selected.Canonical;
+    }
+}

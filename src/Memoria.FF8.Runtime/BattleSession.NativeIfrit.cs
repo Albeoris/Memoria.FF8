@@ -538,6 +538,7 @@ public sealed partial class BattleSession
                 case 0x2F:
                 case 0x25:
                 case 0x81:
+                case 0x73:
                     return NativeBattleWaterRectangleCommands.Execute(current, program, bank, index, (frame, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex).Selected, (frame, shapeIndex) =>
                     {
                         var selected = NativeBattleWaterShapeSelection.ResolveCinematic(frame, resources, shapeIndex);

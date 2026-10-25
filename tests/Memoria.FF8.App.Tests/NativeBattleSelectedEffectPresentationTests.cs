@@ -23,7 +23,13 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([effect])[effect - 1];
         source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(effect - 1, binding) } };
-        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_INVOCATION") is { } invocation)
+        bool livePartyFollowup = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_LIVE_PARTY_FOLLOWUP") == "1";
+        if (livePartyFollowup)
+        {
+            Assert.True(Restore(source).NativeEntryReady);
+            source = QueueLivePartyFollowing(source, effect);
+        }
+        else if (Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_INVOCATION") is { } invocation)
         {
             Assert.True(Restore(source).NativeEntryReady);
             source = QueueFollowing(source, NativeBattleEffectFamilyRunner.LoadSnapshot(invocation), effect);
@@ -39,6 +45,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
         Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)2);
         int contactTransitions = 0;
+        int expectedContactTransitions = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS") is { } expectedContacts ? int.Parse(expectedContacts) : 1;
+        Assert.InRange(expectedContactTransitions, 0, 1);
         int maximum = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_MAX_CALLBACKS") is { } limit ? int.Parse(limit) : 2400;
         Assert.True(maximum > 0);
         BattleSession battle = Restore(source);
@@ -77,6 +85,17 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 {
                     completions++;
                 }
+                Assert.Equal(source.NativeGraphics!.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
+                if (livePartyFollowup)
+                {
+                    for (int actor = 0; actor < source.NativeGraphics.Models.Length; actor++)
+                    {
+                        if ((source.NativeGraphics.Models[actor].Flags0 & 8) != 0)
+                        {
+                            Assert.NotEqual(0, current.NativeGraphics.Models[actor].Flags0 & 8);
+                        }
+                    }
+                }
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
                 NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
                 NativeBattleLogicalCommand[] ownedCommands = currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect) ? NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value) : [];
@@ -114,13 +133,19 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             }
             Assert.True(callbacks < maximum, "The selected component exceeded its diagnostic callback budget.");
             Assert.Equal(1, completions);
-            Assert.Equal(1, contactTransitions);
-            Assert.True(peakChanged > 0, "The selected component did not produce visible physical commands.");
+            Assert.Equal(expectedContactTransitions, contactTransitions);
+            if (!livePartyFollowup)
+            {
+                Assert.True(peakChanged > 0, "The selected component did not produce visible physical commands.");
+            }
             BattleSnapshot completed = battle.Capture();
-            Cold("peak", peak!);
+            if (peak is not null)
+            {
+                Cold("peak", peak);
+                NativeBattleRestorationPresentationTests.Publish(output!, "visible-peak", peak, peakPixels!);
+                File.WriteAllBytes(Path.Combine(output!, "without-effect.rgba"), peakPlain!);
+            }
             Cold("completed", completed);
-            NativeBattleRestorationPresentationTests.Publish(output!, "visible-peak", peak!, peakPixels!);
-            File.WriteAllBytes(Path.Combine(output!, "without-effect.rgba"), peakPlain!);
             for (int cleanup = 0; cleanup < 4; cleanup++)
             {
                 battle.Tick();
@@ -128,7 +153,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             }
             Cold("caller-ready", battle.Capture());
             observer?.Write(output!);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, Callbacks = callbacks + 1, Completions = completions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RestoredBoundaries = boundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RestoredBoundaries = boundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
         }
         catch (Exception error)
         {
@@ -168,6 +193,25 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         }
     }
 
+    private static BattleSnapshot QueueLivePartyFollowing(BattleSnapshot current, ushort effect)
+    {
+        Assert.True(current.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
+        Assert.NotNull(current.NativeGraphics.ActorIds[0]);
+        Assert.Equal(0, current.NativeGraphics.Models[0].Flags0 & 8);
+        BattleNativeAction action = Assert.Single(current.Definition.NativeActions, action => action.Command == 2 && action.ActionId == 1);
+        Assert.Equal(effect, checked((ushort)action.MagicId));
+        NativeBattleActionPacketsState packets = current.NativeActionPackets!;
+        NativeBattleContactPacket contact = Assert.IsType<NativeBattleContactPacket>(packets.Contacts.First(contact => contact is not null));
+        Assert.Equal(0, contact.Primary.ActorIndex);
+        Assert.Equal(7, contact.Primary.Amount6);
+        byte sequence = NativeBattleEffectFixtureExporter.SelectSequence(current.Definition.NativeCommandSequences, action.Command, action.ActionId);
+        (packets, int header) = packets.Prepare(new(0, action.Command, sequence, -1, action.ActionId, effect, null));
+        (packets, _) = packets.AppendContact(contact);
+        (packets, _) = packets.Publish(1);
+        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header * 20));
+        return current with { NativeActionPackets = packets, NativeGraphics = current.NativeGraphics with { Descriptors = descriptors } };
+    }
+
     private static BattleSnapshot QueueFollowing(BattleSnapshot current, BattleSnapshot invocation, ushort effect)
     {
         Assert.True(current.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
@@ -180,7 +224,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Assert.Equal(effect, NativeBattleActionGraphics.Word(header, 6));
         Assert.Equal(1, header.ReadByte(0x10));
         Assert.Equal(0, header.ReadByte(0x11));
-        Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics.ActorIds.ToArray());
+        Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
         (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), effect, null));
         Assert.NotNull(header.FirstContactIndex);

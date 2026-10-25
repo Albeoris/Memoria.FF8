@@ -28,14 +28,12 @@ public sealed partial class BattleSession
         var objectRecords = new List<(ImmutableArray<ushort> Counts, int Offset)>();
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => ReadGeometry(checked(geometryAddress + (uint)offset), length), pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
         ushort mode = Word(payload + 8);
-        if (mode is not (2 or 7) || Word(payload + 0xE) != 0)
+        if (mode is not (1 or 2 or 5 or 7))
         {
             throw new NotSupportedException($"Native breakup drawing requires its selected control program: mode {Word(payload + 8)}, hook {Word(payload + 0xE)}, auxiliary capacity {Word(payload + 0x2E)}, emissions {Word(payload + 0x30)}.");
         }
-        if (ReadSlot(frame, 0xE1, 1)[0] != 0)
-        {
-            throw new NotSupportedException("Native breakup drawing requires its original lit-normal publication before entering the lit branch.");
-        }
+        bool initializeNormals = false;
+        bool initializeRadialCache = false;
         uint clone = Slot32(0xBC);
         if (clone == 0)
         {
@@ -78,7 +76,19 @@ public sealed partial class BattleSession
             {
                 Put32(allocatedWork + 32u + (uint)(index * 68), 0);
             }
+            if (mode == 5)
+            {
+                (frame, uint allocatedAnchors) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, checked((uint)(faceCount * 4)));
+                Put32(allocatedWork + 0x18, allocatedAnchors);
+                initializeRadialCache = true;
+            }
             Put32(allocatedWork + 0x14, 0);
+            if (ReadSlot(frame, 0xE1, 1)[0] != 0)
+            {
+                (frame, uint allocatedNormals) = NativeBattleWaterParticleCommands.AllocateB656E0(frame, checked((uint)(faceCount * 8)));
+                Put32(allocatedWork + 0x14, allocatedNormals);
+                initializeNormals = true;
+            }
             actor = actor with { Flags0 = (ushort)(actor.Flags0 | 4) };
         }
         uint work = Slot32(0xC0);
@@ -93,6 +103,37 @@ public sealed partial class BattleSession
         }
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, pose);
         ImmutableArray<NativeBattleActionMatrix> localBones = NativeBattleBodyBoneMatrices.Require(actor, pose);
+        if (initializeRadialCache)
+        {
+            byte[] globalBasis = frame.Core.Read(0x2797968, 32);
+            NativeBattleActionMatrix anchorBasis = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(globalBasis.AsSpan(index * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(globalBasis.AsSpan(28)), 4096);
+            NativeBattleWaterActorAnchorResult anchor = CreateNativeActorAnchorServices().EvaluateB66B80(frame, pose.Skeleton, localBones, 0xF1, 4096, anchorBasis);
+            frame = anchor.Frame;
+            List<NativeBattleControl18Face> radialFaces = BuildFaces();
+            NativeBattleCinematicBreakupMode5Step initialized = NativeBattleCinematicBreakupMode5.Initialize(frame, new(unchecked((short)anchor.Anchor.X), unchecked((short)anchor.Anchor.Y), unchecked((short)anchor.Anchor.Z)), radialFaces);
+            frame = initialized.Frame;
+            Put(Dword(work + 0x18), initialized.Anchors.AsSpan());
+        }
+        if (initializeNormals)
+        {
+            uint normalPointer = Dword(work + 0x14);
+            uint scratch = CoreDword(frame, manager + 0x74) + checked((uint)(meshes.Sum(mesh => mesh.Vertices.Length) * 8));
+            for (int meshIndex = 0; meshIndex < meshes.Length; meshIndex++)
+            {
+                NativeBattleRawMesh mesh = meshes[meshIndex];
+                NativeBattleVector[] points = mesh.Vertices.Select((vertex, index) => TransformLocal(localBones[vertex.Bone], vertex.Position, scratch + (uint)(index * 8), true)).ToArray();
+                int faces = objectRecords[meshIndex].Counts[0] + objectRecords[meshIndex].Counts[1];
+                for (int faceIndex = 0; faceIndex < faces; faceIndex++)
+                {
+                    ReadOnlySpan<byte> face = mesh.Polygons[faceIndex].Bytes.AsSpan();
+                    NativeBattleVector normal = NativeBattleCinematicBreakupLighting.FaceNormal(points[BinaryPrimitives.ReadUInt16LittleEndian(face) & 0xFFF], points[BinaryPrimitives.ReadUInt16LittleEndian(face[2..]) & 0xFFF], points[BinaryPrimitives.ReadUInt16LittleEndian(face[4..]) & 0xFFF]);
+                    Put16(normalPointer, unchecked((ushort)normal.X));
+                    Put16(normalPointer + 2, unchecked((ushort)normal.Y));
+                    Put16(normalPointer + 4, unchecked((ushort)normal.Z));
+                    normalPointer += 8;
+                }
+            }
+        }
         byte[] recordBytes = frame.Arena.ReadSnapshot(ArenaOffset(work + 32, recordsLength), recordsLength).Data;
         byte[] polygonStates = Read(states, polygonCount);
         if (CoreDword(frame, 0x27973B8) != frame.TemporaryFrame.Address + 0x100)
@@ -109,23 +150,8 @@ public sealed partial class BattleSession
                 limit = 1;
             }
             frame = frame.WriteTemporaryDword(0x50, mode).WriteTemporaryDword(0x54, unchecked((uint)controlX)).WriteTemporaryDword(0x58, unchecked((uint)controlZ)).WriteTemporaryDword(0x5C, 0).WriteTemporaryDword(0x40, unchecked((uint)limit)).WriteTemporaryDword(0x44, unchecked((uint)limit)).WriteTemporaryDword(0xF0, unchecked((uint)(short)SlotWord(frame, 0x96)));
-            var faces = new List<NativeBattleControl18Face>();
-            for (int meshIndex = 0; meshIndex < meshes.Length; meshIndex++)
-            {
-                NativeBattleRawMesh mesh = meshes[meshIndex];
-                NativeBattleVector[] points = mesh.Vertices.Select((vertex, index) => TransformLocal(localBones[vertex.Bone], vertex.Position, CoreDword(frame, manager + 0x74) + (uint)(index * 8))).ToArray();
-                uint cursor = geometryAddress + (uint)objectRecords[meshIndex].Offset;
-                int plain = objectRecords[meshIndex].Counts[0] + objectRecords[meshIndex].Counts[1];
-                for (int faceIndex = 0; faceIndex < plain; faceIndex++)
-                {
-                    NativeBattleRawPolygon face = mesh.Polygons[faceIndex];
-                    int corners = face.Quad ? 4 : 3;
-                    ImmutableArray<NativeBattleVector> vertices = Enumerable.Range(0, corners).Select(index => points[BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(index * 2)) & 0xFFF]).ToImmutableArray();
-                    faces.Add(new(cursor, face.Quad, vertices));
-                    cursor += face.Quad ? 20u : 16u;
-                }
-            }
-            NativeBattleControl18SpawnServices? spawnServices = mode == 7 || Word(payload + 0x2E) != 0 || Word(payload + 0x30) != 0 ? new(limit, (random, x, y, z, count) =>
+            List<NativeBattleControl18Face> faces = BuildFaces();
+            NativeBattleControl18SpawnServices? spawnServices = mode is 1 or 5 or 7 || Word(payload + 0xE) != 0 || Word(payload + 0x2E) != 0 || Word(payload + 0x30) != 0 ? new(limit, (random, x, y, z, count) =>
             {
                 frame = frame with { Random = random };
                 for (int index = 0; index < count; index++)
@@ -133,8 +159,16 @@ public sealed partial class BattleSession
                     frame = NativeBattleCinematicBreakupAuxiliary.Emit(frame, x, y, z);
                 }
                 return frame.Random;
-            }) : null;
-            NativeBattleControl18SpawnStep spawn = NativeBattleControl18Spawn.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, spawnServices is not null ? 0x4C : 0x32), faces, unchecked((short)SlotWord(frame, 0x96)), frame.Random, spawnServices);
+            })
+            {
+                EmitFragmentHook = (random, x, y, z) =>
+                {
+                    frame = frame with { Random = random };
+                    frame = NativeBattleCinematicBreakupParticleHook.Emit(frame, x, y, z, ResolveHookOwner);
+                    return frame.Random;
+                }
+            } : null;
+            NativeBattleControl18SpawnStep spawn = mode == 5 ? NativeBattleCinematicBreakupMode5.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, 0x4C), faces, unchecked((short)SlotWord(frame, 0x96)), Read(Dword(work + 0x18), polygonCount * 4), frame.Random, spawnServices!) : NativeBattleControl18Spawn.Advance(recordBytes, polygonStates, Word(work + 6), Read(payload, spawnServices is not null ? 0x4C : 0x32), faces, unchecked((short)SlotWord(frame, 0x96)), frame.Random, spawnServices);
             frame = frame with { Random = spawn.Random };
             if (spawn.FallbackCountdown is int countdown)
             {
@@ -256,7 +290,8 @@ public sealed partial class BattleSession
                     Put16(clone + 0x4C, directory.Counts[2]);
                     Put16(clone + 0x4E, directory.Counts[3]);
                     Put32(clone + 0x40, geometryAddress + (uint)directory.Offset);
-                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(ReadGeometry(geometryAddress + (uint)directory.Offset, directory.Counts[0] * 16), ReadGeometry(geometryAddress + (uint)directory.Offset + (uint)(directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, null, OtBucket(frame.ReadTemporaryDword(0x14C)));
+                    Func<int, ImmutableArray<uint>, uint, uint>? light = ReadSlot(frame, 0xE1, 1)[0] != 0 ? ShadeFace : null;
+                    NativeBattleGfGeometryBatch body = NativeBattleControl18Body.Emit(ReadGeometry(geometryAddress + (uint)directory.Offset, directory.Counts[0] * 16), ReadGeometry(geometryAddress + (uint)directory.Offset + (uint)(directory.Counts[0] * 16), directory.Counts[1] * 20), projected, polygonStates.AsSpan(globalFace, faces), bodyColor, light, OtBucket(frame.ReadTemporaryDword(0x14C)));
                     Append(body);
                     globalFace += faces;
                     frame = frame.WriteTemporaryDword(0x60, unchecked((uint)globalFace));
@@ -266,16 +301,53 @@ public sealed partial class BattleSession
                     Append(shards);
                 }
             }
+            uint ShadeFace(int faceIndex, ImmutableArray<uint> screen, uint material)
+            {
+                uint address = Dword(work + 0x14) + checked((uint)((globalFace + faceIndex) * 8));
+                NativeBattleEffectMemory memory = RequireWaterMemory();
+                NativeBattleScriptedColorRegisters registers = NativeBattleCinematicRibbonInput.Capture(frame, address, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native breakup lighting requires its current packed input owner."));
+                NativeBattleGeometryRegisters geometryRegisters = memory.GeometryRegisters ?? throw new NotSupportedException("Native breakup lighting requires its current geometry registers.");
+                NativeBattleGeometryRegisterStep clipped = NativeBattleGeometry.Clip45EE10(new(geometryRegisters with { Sxy = [screen[0], screen[1], screen[2]] }, registers));
+                registers = NativeBattleCinematicBreakupLighting.Shade(memory.ScriptedLighting ?? throw new NotSupportedException("Native breakup lighting requires its current light controls."), registers.NormalInput!.Value.AsSpan(), Dword(clone + 0x5C), clipped.Colors);
+                NativeEffectMemory = memory with { ScriptedColorRegisters = registers, GeometryRegisters = clipped.Geometry };
+                uint color = registers.Rgb[2] ?? throw new NotSupportedException("Native breakup lighting requires its current RGB output.");
+                frame = frame.WriteTemporaryDword(0xFC, color);
+                return color;
+            }
         }
-        NativeBattleVector TransformLocal(NativeBattleActionMatrix matrix, NativeBattleVector input, uint destination)
+        List<NativeBattleControl18Face> BuildFaces()
+        {
+            var faces = new List<NativeBattleControl18Face>();
+            for (int meshIndex = 0; meshIndex < meshes.Length; meshIndex++)
+            {
+                NativeBattleRawMesh mesh = meshes[meshIndex];
+                NativeBattleVector[] points = mesh.Vertices.Select((vertex, index) => TransformLocal(localBones[vertex.Bone], vertex.Position, CoreDword(frame, manager + 0x74) + (uint)(index * 8))).ToArray();
+                uint cursor = geometryAddress + (uint)objectRecords[meshIndex].Offset;
+                int plain = objectRecords[meshIndex].Counts[0] + objectRecords[meshIndex].Counts[1];
+                for (int faceIndex = 0; faceIndex < plain; faceIndex++)
+                {
+                    NativeBattleRawPolygon face = mesh.Polygons[faceIndex];
+                    int corners = face.Quad ? 4 : 3;
+                    ImmutableArray<NativeBattleVector> vertices = Enumerable.Range(0, corners).Select(index => points[BinaryPrimitives.ReadUInt16LittleEndian(face.Bytes.AsSpan().Slice(index * 2)) & 0xFFF]).ToImmutableArray();
+                    faces.Add(new(cursor, face.Quad, vertices));
+                    cursor += face.Quad ? 20u : 16u;
+                }
+            }
+            return faces;
+        }
+        NativeBattleVector TransformLocal(NativeBattleActionMatrix matrix, NativeBattleVector input, uint destination, bool wrap = false)
         {
             frame = frame.WriteTemporaryWord(0xF0, unchecked((ushort)input.X)).WriteTemporaryWord(0xF2, unchecked((ushort)input.Y)).WriteTemporaryWord(0xF4, unchecked((ushort)input.Z));
+            if (wrap)
+            {
+                frame = frame.WriteTemporaryWord(0xF6, 0);
+            }
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeBattleScriptedColorRegisters registers = NativeBattleCinematicRibbonInput.Capture(frame, frame.TemporaryFrame.Address + 0xF0, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native breakup local projection requires its packed input owner."));
             NativeBattleFullMacVertex result = NativeBattleGfMatrices.TransformMac460840(matrix, input);
             NativeEffectMemory = memory with { ScriptedColorRegisters = TransformRegisters(registers, result) };
             frame = frame.WriteTemporaryDword(0xFC, result.Flags);
-            NativeBattleVector transformed = new((short)Math.Clamp(result.X, short.MinValue, short.MaxValue), (short)Math.Clamp(result.Y, short.MinValue, short.MaxValue), (short)Math.Clamp(result.Z, short.MinValue, short.MaxValue));
+            NativeBattleVector transformed = wrap ? new(unchecked((short)result.X), unchecked((short)result.Y), unchecked((short)result.Z)) : new((short)Math.Clamp(result.X, short.MinValue, short.MaxValue), (short)Math.Clamp(result.Y, short.MinValue, short.MaxValue), (short)Math.Clamp(result.Z, short.MinValue, short.MaxValue));
             byte[] packed = new byte[6];
             BinaryPrimitives.WriteInt16LittleEndian(packed, transformed.X);
             BinaryPrimitives.WriteInt16LittleEndian(packed.AsSpan(2), transformed.Y);
@@ -325,9 +397,16 @@ public sealed partial class BattleSession
                     Put(address, after.Slice(offset, 16));
                     Put(address + 0x16, after.Slice(offset + 0x16, 2));
                     Put(address + 0x2E, after.Slice(offset + 0x2E, 1));
-                    if (mode == 7)
+                    if (mode is 5 or 7)
                     {
                         Put(address + 0x32, after.Slice(offset + 0x32, 2));
+                    }
+                    if (mode == 1 && BinaryPrimitives.ReadInt32LittleEndian(after.Slice(offset + 8)) > 0)
+                    {
+                        foreach (int acceleration in new[] { 0x1E, 0x3E, 0x42 })
+                        {
+                            Put(address + (uint)acceleration, after.Slice(offset + acceleration, 2));
+                        }
                     }
                     Put(address + 0x3C, after.Slice(offset + 0x3C, 2));
                     Put(address + 0x40, after.Slice(offset + 0x40, 2));
@@ -338,6 +417,13 @@ public sealed partial class BattleSession
         {
             int offset = checked(geometry.Offset + (int)((long)address - geometryAddress));
             return NativeBattleModelEnemyHeap.Read(cpu, staging, geometry with { Offset = offset }, length);
+        }
+        uint ResolveHookOwner(NativeBattleWaterExecutionFrame current, short selector)
+        {
+            NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resourceLength);
+            int currentIndex = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
+            int selected = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, currentIndex, current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
+            return checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, selected));
         }
         byte[] Read(uint address, int length) => frame.Arena.Read(ArenaOffset(address, length), length);
         ushort Word(uint address) => BinaryPrimitives.ReadUInt16LittleEndian(Read(address, 2));

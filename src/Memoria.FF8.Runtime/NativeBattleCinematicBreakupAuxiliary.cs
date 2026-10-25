@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memory = Memoria.FF8.Runtime.NativeBattleApocalypse221BreakupMemory;
 
@@ -92,7 +92,18 @@ public static class NativeBattleCinematicBreakupAuxiliary
                 uint position = row + (uint)(axis * 4);
                 memory.Dword(position, unchecked(memory.Dword(position) + (uint)(memory.Signed(velocity) << 4)));
             }
+            if (memory.Word(payload + 8) == 1 && unchecked((int)memory.Dword(row + 4)) > 0)
+            {
+                memory.Word(row + 0x10, 0);
+                memory.Word(row + 0x12, 0);
+            }
             NativeBattleVector positionVector = new(unchecked((short)((int)memory.Dword(row) >> 8)), unchecked((short)((int)memory.Dword(row + 4) >> 8)), unchecked((short)((int)memory.Dword(row + 8) >> 8)));
+            if (memory.Word(payload + 8) == 6)
+            {
+                int radius = unchecked((int)memory.Dword(row)) >> 8;
+                int angle = unchecked((int)memory.Dword(row + 8)) >> 4;
+                positionVector = new(unchecked((short)(unchecked(NativeBattleCameraMath.Sine(angle) * radius) >> 12)), positionVector.Y, unchecked((short)(unchecked(NativeBattleCameraMath.Cosine(angle) * radius) >> 12)));
+            }
             memory.Frame = memory.Frame.WriteTemporaryWord(0xF0, unchecked((ushort)positionVector.X)).WriteTemporaryWord(0xF2, unchecked((ushort)positionVector.Y)).WriteTemporaryWord(0xF4, unchecked((ushort)positionVector.Z));
             uint color = memory.Dword(unchecked(memory.Dword(state + 0xC) + (uint)(unchecked((sbyte)lifetime) * 4))) | 0x6A000000;
             NativeBattleCinematicBreakupAuxiliaryProjection projected = services.Project(memory.Frame, positionVector);
@@ -118,7 +129,7 @@ public static class NativeBattleCinematicBreakupAuxiliary
 
     private static void RequireMode(Memory memory, uint payload)
     {
-        if (memory.Word(payload + 8) is not (2 or 7))
+        if (memory.Word(payload + 8) is not (1 or 2 or 5 or 6 or 7))
         {
             throw new NotSupportedException("Native breakup auxiliary particles require their supported current mode.");
         }

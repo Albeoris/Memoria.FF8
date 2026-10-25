@@ -37,10 +37,59 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             byte kind = raw[0x1C];
             uint shape = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xD8));
             uint retained = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xBC));
-            slots.Add(new { Index = index, Kind = kind, Shape = shape, Retained = retained, Flags = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(0x4C)), Light = raw[0xE1] });
+            uint context = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xC0));
+            uint polygonStates = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xC4));
+            uint normals = kind == 22 && context != 0 ? BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(checked((int)(context + 0x14 - 0x20DFAB8)), 4)) : 0;
+            slots.Add(new { Index = index, Kind = kind, Shape = shape, Retained = retained, Context = context, PolygonStates = polygonStates, Normals = normals, Flags = BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(0x4C)), Light = raw[0xE1] });
+            if (kind == 22)
+            {
+                transitions.Add("draw-22");
+                if (retained != 0 && context != 0)
+                {
+                    transitions.Add("draw-22-init");
+                    int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                    if (CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C))
+                    {
+                        transitions.Add("draw-22-body");
+                    }
+                    ushort live = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(checked((int)(context + 6 - 0x20DFAB8)), 2));
+                    if (live != 0)
+                    {
+                        transitions.Add("draw-22-live");
+                    }
+                }
+            }
             if (kind == 2 && shape >= basis)
             {
                 transitions.Add($"mesh-{shape - basis}-{(retained == 0 ? "base" : "morph")}");
+            }
+            if (kind == 52)
+            {
+                transitions.Add("draw-52");
+                if (retained != 0 && context != 0 && polygonStates != 0)
+                {
+                    transitions.Add("draw-52-init");
+                    int count = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(checked((int)(context - 0x20DFAB8)), 2));
+                    Assert.InRange(count, 0, 16384);
+                    byte[] counters = arena.Read(checked((int)(polygonStates - 0x20DFAB8)), count);
+                    int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                    if (counters.Any(counter => counter != 255) && CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) is 0x24 or 0x2C))
+                    {
+                        transitions.Add("draw-52-live");
+                    }
+                }
+            }
+            if (kind == 5)
+            {
+                transitions.Add("draw-5");
+                if (raw[0x1E] == 2)
+                {
+                    int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                    if (CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) == 0x2C))
+                    {
+                        transitions.Add("draw-5-mode-2");
+                    }
+                }
             }
             if (kind == 21)
             {
@@ -170,6 +219,10 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         {
             if (markers.Add(transition))
             {
+                if (transition is "draw-52-live" or "draw-22-body" or "draw-22-live")
+                {
+                    publish($"{transition}-before", prior);
+                }
                 publish(transition, current);
             }
         }

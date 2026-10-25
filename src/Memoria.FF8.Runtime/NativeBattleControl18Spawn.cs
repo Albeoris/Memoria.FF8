@@ -1,11 +1,15 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleControl18Face(uint Address, bool Quad, ImmutableArray<NativeBattleVector> Vertices);
 public sealed record NativeBattleControl18SpawnStep(ImmutableArray<byte> Records, ImmutableArray<byte> PolygonStates, ushort LiveCount, NativeCrtRandomState Random, int? LastDistance, ImmutableArray<NativeBattleVector> LastVertices, int? FallbackCountdown = null);
-public sealed record NativeBattleControl18SpawnServices(int Interval, Func<NativeCrtRandomState, int, int, int, int, NativeCrtRandomState> EmitAuxiliary);
+public sealed record NativeBattleControl18SpawnServices(int Interval, Func<NativeCrtRandomState, int, int, int, int, NativeCrtRandomState> EmitAuxiliary)
+{
+    public ImmutableArray<byte> Mode5Anchors { get; init; }
+    public Func<NativeCrtRandomState, int, int, int, NativeCrtRandomState>? EmitFragmentHook { get; init; }
+}
 
 public static class NativeBattleControl18Spawn
 {
@@ -19,9 +23,17 @@ public static class NativeBattleControl18Spawn
         byte[] states = polygonStates.ToArray();
         byte[] controls = payload.ToArray();
         ushort mode = U16(8);
-        if (mode is not (2 or 7) || U16(0xE) != 0 || (mode == 7 || U16(0x2E) != 0 || U16(0x30) != 0) && services is null)
+        if (mode is not (1 or 2 or 5 or 6 or 7) || (mode is 5 or 7 || U16(0x2E) != 0 || U16(0x30) != 0 || U16(0xE) != 0) && services is null)
         {
             throw new NotSupportedException("Native breakup spawning requires its selected threshold mode and auxiliary services.");
+        }
+        if (U16(0xE) != 0 && services!.EmitFragmentHook is null)
+        {
+            throw new NotSupportedException("Native breakup spawning requires its selected fragment hook service.");
+        }
+        if (mode == 5 && (services!.Mode5Anchors.IsDefault || services.Mode5Anchors.Length != checked(faces.Count * 4)))
+        {
+            throw new NotSupportedException("Native radial breakup spawning requires its retained per-polygon anchor records.");
         }
         int countdown = services?.Interval ?? 0;
         int? lastDistance = null;
@@ -43,9 +55,18 @@ public static class NativeBattleControl18Spawn
             {
                 throw new InvalidDataException("Native breakup polygon has an incomplete corner directory.");
             }
-            int y = face.Vertices.Sum(value => value.Y);
             bool fallback = false;
-            if (mode == 2 ? y >= threshold * count : y <= threshold * count)
+            bool selected;
+            if (mode == 5)
+            {
+                selected = BinaryPrimitives.ReadInt16LittleEndian(services!.Mode5Anchors.AsSpan().Slice(polygon * 4 + 2, 2)) > threshold;
+            }
+            else
+            {
+                int y = face.Vertices.Sum(value => value.Y);
+                selected = mode is 1 or 2 or 6 ? y < threshold * count : y > threshold * count;
+            }
+            if (!selected)
             {
                 if (U16(0x2E) == 0)
                 {
@@ -104,8 +125,19 @@ public static class NativeBattleControl18Spawn
             Write16(0x34, unchecked(S16(0x2A) + spin.Value));
             if (services is not null)
             {
-                int emissions = U16(0x30) * (fallback ? 2 : 1);
-                random = services!.EmitAuxiliary(random, unchecked(center[0] << 8), unchecked(center[1] << 8), unchecked(center[2] << 8), emissions);
+                int emissions = U16(0x30);
+                if (emissions > 0)
+                {
+                    random = services.EmitAuxiliary(random, unchecked(center[0] << 8), unchecked(center[1] << 8), unchecked(center[2] << 8), emissions);
+                }
+                if (U16(0xE) != 0)
+                {
+                    random = services.EmitFragmentHook!(random, unchecked(center[0] << 8), unchecked(center[1] << 8), unchecked(center[2] << 8));
+                }
+                if (fallback && emissions > 0)
+                {
+                    random = services.EmitAuxiliary(random, unchecked(center[0] << 8), unchecked(center[1] << 8), unchecked(center[2] << 8), emissions);
+                }
             }
             lastVertices = face.Vertices;
             liveCount = unchecked((ushort)(liveCount + 1));

@@ -11,6 +11,53 @@ public sealed class NativeBattleWaterRectangleCommandsTests
     private static readonly NativeBattleWater222Resources Resources = new([new("current0", new byte[0x1799C].ToImmutableArray()), new("current1", new byte[0x26258].ToImmutableArray())], new(new("tables", new byte[0x70].ToImmutableArray()), new("directory", new byte[0x1C].ToImmutableArray()), new("owners", new byte[0x14].ToImmutableArray())));
     private static readonly NativeBattleEffectHeapAllocation Map = new("map", new byte[16].ToImmutableArray());
 
+    [Theory]
+    [InlineData(256)]
+    [InlineData(-256)]
+    [InlineData(-32768)]
+    public void Effect236_sequence73_consumes_its_signed_scale_after_sequence_registration(short scale)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0x73, 1);
+        frame = frame with { Arena = WriteWord(frame.Arena, 0x1004, unchecked((ushort)scale)) };
+        NativeBattleWaterExecutionFrame result = NativeBattleWaterRectangleCommands.Execute(frame, new(0x1000, 6, 0x1000), Bank, 0, Resources, Map);
+        Assert.Equal(0x1006u, Pc(result));
+        Assert.Equal(unchecked((uint)(int)scale), SlotDword(result, 0xB8));
+        Assert.Equal((byte)2, result.Arena.Read(0x201E, 1)[0]);
+        Assert.Equal((byte)5, result.Arena.Read(0x201C, 1)[0]);
+        Assert.Equal(Address(0x5320), SlotDword(result, 0xD8));
+        Assert.Equal(new byte[] { 0, 0xFF }, result.Core.Read(0x2797554, 2));
+    }
+
+    [Theory]
+    [InlineData(256, 4096, true)]
+    [InlineData(-128, -2048, false)]
+    [InlineData(65664, 2048, false)]
+    public void Effect236_draw5_mode2_uses_the_selected_basis_and_full_dword_uniform_scale(int scale, short expected, bool paddingKnown)
+    {
+        NativeBattleWaterExecutionFrame frame = Selected();
+        frame = frame with { Arena = frame.Arena.Write(0x201E, new byte[] { 2 }).Write(0x20DE, new byte[] { 6 }) };
+        frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xB8, unchecked((uint)scale));
+        NativeBattleActionMatrix basis = new(new short[] { 0, 4096, 0, -4096, 0, 0, 0, 0, 4096 }.ToImmutableArray(), 0, 0, 0, 4096);
+        frame = WriteMatrix(frame, 0x27979A8, basis, false);
+        frame = paddingKnown ? WaterSchedulerFixture.CoreWord(frame, 0x27979BA, 0xBEEF) : frame with { Core = frame.Core.MarkUnknown(0x27979BA, 2) };
+        NativeBattleWaterExecutionFrame result = Draw(frame, (current, matrix) =>
+        {
+            Assert.Equal(new short[] { 0, expected, 0, unchecked((short)-expected), 0, 0, 0, 0, expected }, matrix.Rotation);
+            Assert.Equal((110, -180, 330), (matrix.X, matrix.Y, matrix.Z));
+            Assert.Equal(unchecked((uint)(scale << 4)), current.ReadTemporaryDword(0xF0));
+            Assert.Equal(current.ReadTemporaryDword(0xF0), current.ReadTemporaryDword(0xF4));
+            Assert.Equal(current.ReadTemporaryDword(0xF4), current.ReadTemporaryDword(0xF8));
+            Assert.Equal(paddingKnown, current.TemporaryFrame.Known[0xE2]);
+            Assert.Equal(paddingKnown, current.TemporaryFrame.Known[0xE3]);
+            if (paddingKnown)
+            {
+                Assert.Equal((ushort)0xBEEF, current.ReadTemporaryWord(0xE2));
+            }
+        });
+        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored, (_, _) => { })));
+    }
+
     [Fact]
     public void SharedGetterDoesNotReadShapeOrDirectoryCountAndOnlySelectionPublishesDirectory()
     {

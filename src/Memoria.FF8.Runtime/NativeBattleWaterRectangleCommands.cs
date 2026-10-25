@@ -52,12 +52,19 @@ public static class NativeBattleWaterRectangleCommands
                 return frame;
             case 0x25:
             case 0x81:
+            case 0x73:
                 frame = InitializeSequenceB66270(frame, Operand(), selectSequence);
                 frame = SlotByte(frame, 0x1E, 1);
                 frame = Advance(4);
+                if ((instruction & 0x1FF) == 0x73)
+                {
+                    frame = SlotByte(frame, 0x1E, 2);
+                    frame = WriteSlotDword(frame, 0xB8, unchecked((uint)(int)ReadWord(CoreDword(frame, 0x2797450))));
+                    return Advance(2);
+                }
                 return SlotByte(frame, 0x1E, (instruction & 0x1FF) == 0x25 ? (byte)9 : (byte)(frame.ReadTemporaryWord(0x14A) >> 12));
             default:
-                throw new NotSupportedException("Native rectangle commands admit only selected operations 25, 2F, 3C, 4A and 56.");
+                throw new NotSupportedException("Native rectangle commands admit only selected operations 25, 2F, 3C, 4A, 56, 73 and 81.");
         }
 
         NativeBattleWaterExecutionFrame Advance(uint amount) => WriteCoreDword(frame, 0x2797450, unchecked(CoreDword(frame, 0x2797450) + amount));
@@ -132,6 +139,27 @@ public static class NativeBattleWaterRectangleCommands
         registers = NativeBattleGeometry.Transform(registers);
         registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };
         byte mode = ReadSlot(frame, 0x1E, 1)[0];
+        if (mode == 2)
+        {
+            uint basisAddress = 0x2797968 + (uint)(32 * (ReadSlot(frame, 0xDE, 1)[0] & 3));
+            (byte[] bytes, bool[] known) = frame.Core.ReadSnapshot(basisAddress, 20);
+            byte[] temporary = frame.TemporaryFrame.Bytes.ToArray();
+            bool[] temporaryKnown = frame.TemporaryFrame.Known.ToArray();
+            bytes.CopyTo(temporary, 0xD0);
+            known.CopyTo(temporaryKnown, 0xD0);
+            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = temporary.ToImmutableArray(), Known = temporaryKnown.ToImmutableArray() } };
+            int scale = unchecked((int)BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4)) << 4);
+            frame = frame.WriteTemporaryDword(0xF0, unchecked((uint)scale)).WriteTemporaryDword(0xF4, unchecked((uint)scale)).WriteTemporaryDword(0xF8, unchecked((uint)scale));
+            NativeBattleActionMatrix scaled = NativeBattlePoseMatrices.Scale56BEF0(ReadMatrix(frame, basisAddress, false), scale, scale, scale);
+            for (int component = 0; component < 9; component++)
+            {
+                frame = frame.WriteTemporaryWord(0xD0 + 2 * component, unchecked((ushort)scaled.Rotation[component]));
+            }
+            matrix = scaled with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };
+            short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(18)) : null;
+            registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, false, padding) };
+            return FinishDraw5(frame, registers, matrix, drawRectangles, publishRegisters);
+        }
         if (mode is not (7 or 8 or 9))
         {
             throw new NotSupportedException($"Native selected animated rectangle matrix mode {mode} requires its reached contract.");
@@ -171,6 +199,11 @@ public static class NativeBattleWaterRectangleCommands
         matrix = rotation with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };
         short? rotationPadding = frame.TemporaryFrame.Known[0xF2] && frame.TemporaryFrame.Known[0xF3] ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, false, rotationPadding) };
+        return FinishDraw5(frame, registers, matrix, drawRectangles, publishRegisters);
+    }
+
+    private static NativeBattleWaterExecutionFrame FinishDraw5(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, NativeBattleActionMatrix matrix, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> drawRectangles, Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep, NativeBattleWaterExecutionFrame> publishRegisters)
+    {
         frame = frame.WriteTemporaryDword(0x90, BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4))).WriteTemporaryDword(0x94, unchecked((uint)(short)SlotWord(frame, 0x92))).WriteTemporaryDword(0x98, BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4))).WriteTemporaryDword(0x9C, unchecked((uint)(short)SlotWord(frame, 0x9A)));
         return drawRectangles(publishRegisters(frame, registers), matrix);
     }

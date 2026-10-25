@@ -16,16 +16,16 @@ public sealed class NativeBattleCinematicBreakupMode7Tests
         int calls = 0;
         NativeBattleControl18SpawnServices services = new(1, (random, x, fixedY, z, count) =>
         {
+            Assert.Equal(Advance(afterFragment, calls * 48), random);
             calls++;
-            Assert.Equal(afterFragment, random);
             Assert.Equal(3 << 8, x);
             Assert.Equal(y << 8, fixedY);
             Assert.Equal(5 << 8, z);
-            Assert.Equal(emissions, count);
+            Assert.Equal(8, count);
             return Advance(random, count * 6);
         });
         NativeBattleControl18SpawnStep result = NativeBattleControl18Spawn.Advance(new byte[68], new byte[1], 0, Controls(mode), [new(0x123456, false, [new(3, y, 5), new(3, y, 5), new(3, y, 5)])], 0, initial, services);
-        Assert.Equal(1, calls);
+        Assert.Equal(emissions / 8, calls);
         Assert.Equal((ushort)1, result.LiveCount);
         Assert.Equal((byte)1, result.PolygonStates[0]);
         Assert.Equal(1, result.FallbackCountdown);
@@ -40,10 +40,10 @@ public sealed class NativeBattleCinematicBreakupMode7Tests
         NativeBattleControl18SpawnStep result = NativeBattleControl18Spawn.Advance(new byte[136], new byte[] { 0, 255, 0, 0 }, 0, Controls(), [face, face, face, face], 0, new(123), new(2, (random, _, _, _, count) =>
         {
             calls++;
-            Assert.Equal(16, count);
+            Assert.Equal(8, count);
             return Advance(random, 6 * count);
         }));
-        Assert.Equal(1, calls);
+        Assert.Equal(2, calls);
         Assert.Equal(new byte[] { 0, 255, 1, 0 }, result.PolygonStates.ToArray());
         Assert.Equal(1, result.FallbackCountdown);
     }

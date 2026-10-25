@@ -1318,6 +1318,30 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (effect == 268)
+        {
+            return RequireEffect268Slot(table, index, handler);
+        }
+        if (effect == 267)
+        {
+            return RequireEffect267Slot(table, index, handler);
+        }
+        if (effect == 266)
+        {
+            return RequireEffect266Slot(table, index, handler);
+        }
+        if (effect == 236)
+        {
+            return RequireEffect236Slot(table, index, handler);
+        }
+        if (effect == 265)
+        {
+            return RequireEffect265Slot(table, index, handler);
+        }
+        if (effect == 264)
+        {
+            return RequireEffect264Slot(table, index, handler);
+        }
         if (effect == 254)
         {
             return RequireEffect254Slot(table, index, handler);
@@ -1396,6 +1420,30 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint Canonicalize(int effect, uint handler)
     {
+        if (effect == 268 && Effect268Aliases.TryGetValue(handler, out uint effect268Canonical))
+        {
+            return effect268Canonical;
+        }
+        if (effect == 267 && Effect267Aliases.TryGetValue(handler, out uint effect267Canonical))
+        {
+            return effect267Canonical;
+        }
+        if (effect == 266 && Effect266Aliases.TryGetValue(handler, out uint effect266Canonical))
+        {
+            return effect266Canonical;
+        }
+        if (effect == 236 && Effect236Aliases.TryGetValue(handler, out uint effect236Canonical))
+        {
+            return effect236Canonical;
+        }
+        if (effect == 265 && Effect265Aliases.TryGetValue(handler, out uint effect265Canonical))
+        {
+            return effect265Canonical;
+        }
+        if (effect == 264 && Effect264Aliases.TryGetValue(handler, out uint effect264Canonical))
+        {
+            return effect264Canonical;
+        }
         if (effect == 254 && Effect254Aliases.TryGetValue(handler, out uint effect254Canonical))
         {
             return effect254Canonical;
