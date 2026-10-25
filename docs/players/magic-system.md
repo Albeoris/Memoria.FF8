@@ -50,6 +50,8 @@ Battle and field allowances are independent. A genuine new encounter starts its 
 
 Spent uses persist through sorting, menu changes, Junction changes, transfers, dropping and reacquiring stock, saving and loading, and toggling the options. Reducing capacity does not erase usage history. Double and Triple spend one use for each cast that actually begins; canceled remaining casts release their reservations. Refinement ingredients, discards and transfers still consume or move real stock. Free or special-source effects retain their own rules.
 
+For manual Magic, Double and Triple default to the highest affordable cast count. Page Left/Right in the spell menu selects a different count, including a single cast. Confirm each target separately; Cancel during target selection backs up one selection. The target caption shows the spell and its selected repetition count.
+
 ## Choosing Smart Attack
 
 Enable **Smart Attack**, then open **Junction → Ability** and select the first Attack slot. Choose **Physical only** or **Smart magic** for that character. The initial choice is Physical only. Disabling the global option makes attacks physical while preserving personal choices for later.

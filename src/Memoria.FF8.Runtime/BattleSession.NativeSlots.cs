@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         NativeBattleCommandPacket packet = nativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot];
         for (int repeat = 0; repeat < slots.Repetitions; repeat++)
         {
-            ushort mask = packet.ReadWord(6 + 2 * repeat);
+            ushort mask = SelectNativeSlotsTargetMask(native, packet.ReadWord(6 + 2 * repeat));
             BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? GetActor(command.TargetId);
             //485610 submits one104 for the group; the effect consumes the following headers itself.
             if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action, queueGraphics: repeat == 0))
@@ -70,5 +70,63 @@ public sealed partial class BattleSession
                 break;
             }
         }
+    }
+
+    private ushort SelectNativeSlotsTargetMask(BattleNativeAction action, ushort originalMask)
+    {
+        byte flags = action.TargetFlags!.Value;
+        if ((flags & 0x30) != 0x10)
+        {
+            return originalMask;
+        }
+        bool players = (flags & 0x40) == 0;
+        bool healing = players && action.AttackType is 3 or 4 or 21 or 25 or 32;
+        bool statuses = action.AttackType is not (3 or 4 or 5 or 6 or 13 or 16 or 21 or 25 or 32) && (action.Statuses0 != 0 || action.Statuses1 != 0);
+        bool damaging = !players && action.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
+        if (!healing && !statuses && !damaging)
+        {
+            return originalMask;
+        }
+        IEnumerable<BattleCombatant> candidates = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 7 && (candidate.NativeIndex < 3) == players && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
+        BattleCombatant? target = candidates.OrderBy(candidate => damaging && ModifyNativeElement(candidate, action, 100, false) < 0 ? 1 : 0)
+            .ThenBy(candidate => statuses ? NativeSlotsStatusPriority(candidate, action, !players) : 0)
+            .ThenBy(candidate => healing ? candidate.CurrentHp : 0)
+            .ThenBy(candidate => (originalMask & (1 << candidate.NativeIndex)) != 0 ? 0 : 1)
+            .ThenBy(candidate => candidate.NativeIndex)
+            .FirstOrDefault();
+        // A selected target must not retain the random-target modifier, which would replace it again.
+        return target is null ? originalMask : (ushort)((originalMask & 0x4000) | (1 << target.NativeIndex));
+    }
+
+    private static int NativeSlotsStatusPriority(BattleCombatant candidate, BattleNativeAction action, bool considerImmunity)
+    {
+        if (considerImmunity && action.StatusAttack != 255 && !NativeSlotsHasSusceptibleStatus(candidate, action.Statuses0, action.Statuses1))
+        {
+            return 2;
+        }
+        ushort missingSaved = (ushort)(action.Statuses0 & ~NativeSavedStatusBits(candidate) & 0x7F);
+        uint missingBattle = action.Statuses1 & ~NativeBattleStatusBits(candidate);
+        if (missingSaved == 0 && missingBattle == 0)
+        {
+            return 1;
+        }
+        if (!considerImmunity || action.StatusAttack == 255)
+        {
+            return 0;
+        }
+        return NativeSlotsHasSusceptibleStatus(candidate, missingSaved, missingBattle) ? 0 : 2;
+    }
+
+    private static bool NativeSlotsHasSusceptibleStatus(BattleCombatant candidate, ushort saved, uint battle)
+    {
+        for (int bit = 0; bit < 40; bit++)
+        {
+            bool included = bit < 7 ? (saved & (1 << bit)) != 0 : bit >= 8 && (battle & (1u << (bit - 8))) != 0;
+            if (included && GetNativeStatusResistance(candidate, bit) < 200)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

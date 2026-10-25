@@ -34,7 +34,11 @@ public sealed partial class BattleHudController
                 return GuardianFormCommandLabel;
             }
             BattleSmartAttackPreview? preview = TargetActionPreview;
-            return preview is not null ? preview.Name + (preview.CastCount > 1 ? $" ×{preview.CastCount}" : "") : SelectedAction?.Name ?? CommandLabel(SelectedCommand);
+            if (preview is not null)
+            {
+                return preview.Name + (preview.CastCount > 1 ? $" ×{preview.CastCount}" : "");
+            }
+            return (SelectedAction?.Name ?? CommandLabel(SelectedCommand)) + (SelectedCommand == BattleAbility.Magic && magicCastCount > 1 ? $" ×{magicCastCount}" : "");
         }
     }
     public string PhysicalOverrideCaption => HasGuardianFormCommands ? "" : SelectedCommand == BattleAbility.Attack ? MagicUiText.Format("PhysicalOverride", PhysicalOverrideBindingHint) : "";

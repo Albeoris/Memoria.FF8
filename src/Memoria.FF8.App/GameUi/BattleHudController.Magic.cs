@@ -7,6 +7,7 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class BattleHudController
 {
     private int magicCastCount = 1;
+    private bool magicCastCountSelected;
     private readonly List<string> selectedMagicTargets = [];
 
     public int MagicCastCount => magicCastCount;
@@ -49,6 +50,7 @@ public sealed partial class BattleHudController
             {
                 int index = choices.ToList().IndexOf(magicCastCount);
                 magicCastCount = choices[(Math.Max(0, index) + direction + choices.Count) % choices.Count];
+                magicCastCountSelected = true;
                 selectedMagicTargets.Clear();
                 Message = $"Magic ×{magicCastCount}. Page Left/Right: number of casts.";
                 SoundRequested?.Invoke(MenuSound.Move);
@@ -64,9 +66,13 @@ public sealed partial class BattleHudController
     private void BeginMagicTargetSelection(BattleCombatant actor)
     {
         selectedMagicTargets.Clear();
-        if (SelectedCommand == BattleAbility.Magic && SelectedAction is { } action && magicCastCount > 1 && !session.GetNativeMagicCastCounts(actor.Id, action.Id).Contains(magicCastCount))
+        if (SelectedCommand == BattleAbility.Magic && SelectedAction is { } action)
         {
-            magicCastCount = 1;
+            IReadOnlyList<int> choices = session.GetNativeMagicCastCounts(actor.Id, action.Id);
+            if (!magicCastCountSelected || !choices.Contains(magicCastCount))
+            {
+                magicCastCount = choices.Count == 0 ? 1 : choices[^1];
+            }
         }
     }
 

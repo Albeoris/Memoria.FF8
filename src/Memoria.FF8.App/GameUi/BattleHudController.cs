@@ -448,6 +448,7 @@ public sealed partial class BattleHudController
             }
             selectedMagicTargets.Clear();
             magicCastCount = 1;
+            magicCastCountSelected = false;
             selectedDrawSourceId = null;
             PrepareNativeLimitChoices();
             SelectingAction = true;
@@ -599,6 +600,7 @@ public sealed partial class BattleHudController
             guardianFormMenuActorId = null;
             selectedMagicTargets.Clear();
             magicCastCount = 1;
+            magicCastCountSelected = false;
             SelectingAction = false;
             SelectingDrawMode = false;
             selectedDrawSourceId = null;

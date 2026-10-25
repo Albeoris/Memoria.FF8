@@ -185,6 +185,7 @@ public sealed partial class BattleHudController
             selectedTargetId = null;
             selectedMagicTargets.Clear();
             magicCastCount = 1;
+            magicCastCountSelected = false;
             session.CloseNativeActionMenu();
         }
         nativeLimitSelectionActorId = actor?.Id;
