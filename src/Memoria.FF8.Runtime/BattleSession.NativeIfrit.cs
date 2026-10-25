@@ -421,6 +421,10 @@ public sealed partial class BattleSession
                     return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
                 case 0x5D:
                     return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                case 0x6F:
+                    var groundCapture = ExecuteNativeCinematicOffscreen(current, program, assets[1].Data.Length, graphics);
+                    graphics = groundCapture.Graphics;
+                    return groundCapture.Frame;
                 case 0x4F:
                 case 0x90:
                     if (selectedHandler is 0xB62F70 or 0xAFDA00 or 0xB23AF0)

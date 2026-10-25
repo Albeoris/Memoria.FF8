@@ -25,11 +25,11 @@ public static class NativeBattleCinematicOffscreen
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleCinematicOffscreenServices services)
     {
         int command = frame.ReadTemporaryWord(0x14A) & 0x1FF;
-        if (command is not (0x4F or 0x90))
+        if (command is not (0x4F or 0x6F or 0x90))
         {
             throw new NotSupportedException("Native offscreen capture requires its selected command.");
         }
-        uint advance = command == 0x4F ? 8u : 10u;
+        uint advance = command switch { 0x4F => 8u, 0x6F => 6u, _ => 10u };
         uint control = CoreDword(frame, 0x27973BC);
         if (BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(unchecked(control + 0x30), 2)) != 0)
         {
@@ -42,7 +42,7 @@ public static class NativeBattleCinematicOffscreen
         }
         else
         {
-            for (uint offset = 2; offset <= 8; offset += 2)
+            for (uint offset = 2; offset <= (command == 0x6F ? 4u : 8u); offset += 2)
             {
                 frame = frame.WriteTemporaryWord(0xCE + (int)offset, Operand(offset));
             }
@@ -83,6 +83,10 @@ public static class NativeBattleCinematicOffscreen
             frame = services.ProjectAnchor(frame);
             frame = frame.WriteTemporaryDword(0xF0, descriptor);
             frame = Render4F(frame, descriptor, services);
+        }
+        else if (command == 0x6F)
+        {
+            frame = Render6F(frame, descriptor, services);
         }
         else
         {
@@ -134,7 +138,11 @@ public static class NativeBattleCinematicOffscreen
         }
     }
 
-    public static NativeBattleWaterExecutionFrame Render90(NativeBattleWaterExecutionFrame frame, uint descriptor, NativeBattleCinematicOffscreenServices services)
+    public static NativeBattleWaterExecutionFrame Render6F(NativeBattleWaterExecutionFrame frame, uint descriptor, NativeBattleCinematicOffscreenServices services) => RenderGround(frame, descriptor, services, 0x6F);
+
+    public static NativeBattleWaterExecutionFrame Render90(NativeBattleWaterExecutionFrame frame, uint descriptor, NativeBattleCinematicOffscreenServices services) => RenderGround(frame, descriptor, services, 0x90);
+
+    private static NativeBattleWaterExecutionFrame RenderGround(NativeBattleWaterExecutionFrame frame, uint descriptor, NativeBattleCinematicOffscreenServices services, int command)
     {
         frame = services.SetDebug45B580(frame);
         frame = services.SetFocalLength(frame, 256);
@@ -143,7 +151,10 @@ public static class NativeBattleCinematicOffscreen
         {
             frame = frame.WriteTemporaryWord(0xB0 + lane * 2, unchecked((ushort)euler.Rotation[lane]));
         }
-        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xC2, false).SetItem(0xC3, false) } };
+        if (command == 0x90)
+        {
+            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xC2, false).SetItem(0xC3, false) } };
+        }
         frame = frame.WriteTemporaryDword(0xC4, unchecked((uint)-(int)(short)SlotWord(frame, 0x94)));
         frame = frame.WriteTemporaryDword(0xC8, unchecked((uint)-(int)(short)SlotWord(frame, 0x98)));
         frame = frame.WriteTemporaryDword(0xCC, unchecked((uint)(int)(short)SlotWord(frame, 0x96)));
@@ -154,11 +165,11 @@ public static class NativeBattleCinematicOffscreen
         uint capture = unchecked(descriptor + 0x50);
         frame = CopyEnvironment(frame, capture, source);
         frame = ArenaDword(frame, capture, frame.ReadTemporaryDword(0xD0));
-        frame = ArenaDword(frame, unchecked(capture + 4), frame.ReadTemporaryDword(0xD4));
+        frame = ArenaDword(frame, unchecked(capture + 4), command == 0x6F ? 0x01000100u : frame.ReadTemporaryDword(0xD4));
         frame = ArenaWord(frame, unchecked(capture + 8), unchecked((ushort)(frame.ReadTemporaryWord(0xD0) - 32)));
         frame = ArenaWord(frame, unchecked(capture + 0xA), frame.ReadTemporaryWord(0xD2));
         frame = ArenaByte(frame, unchecked(capture + 0x18), 1);
-        if (services.ReadCurrentEffect(frame) == 204)
+        if (command == 0x90 && services.ReadCurrentEffect(frame) == 204)
         {
             frame = ArenaByte(frame, unchecked(capture + 0x1B), 8);
         }
