@@ -121,7 +121,7 @@ internal sealed class NativeBattleEffect239PresentationObserver(BattleSnapshot s
                 Assert.Equal(22984, initializerAssets[0].Data.Length);
                 Assert.Equal(170592, initializerAssets[1].Data.Length);
                 NativeBattleCinematicResources resources = effect.Binding.CinematicResources!;
-                Assert.Equal(5, resources.TextureProfile.Count);
+                Assert.Equal(6, resources.TextureProfile.Count);
                 NativeBattleEffectTextureRectangle[] pixels = [new(576, 256, 128, 256), new(704, 256, 64, 256), new(512, 256, 32, 128), new(384, 256, 128, 256), new(544, 256, 16, 64)];
                 short[] clutRows = [253, 252, 254, 255, 252];
                 for (int texture = 0; texture < pixels.Length; texture++)
@@ -209,7 +209,7 @@ internal sealed class NativeBattleEffect239PresentationObserver(BattleSnapshot s
                 NativeBattleCinematicResources resources = effect.Binding.CinematicResources!;
                 List<int> pixels = [];
                 List<int> cluts = [];
-                for (int texture = 0; texture < resources.TextureProfile.Count; texture++)
+                for (int texture = 0; texture < 5; texture++)
                 {
                     if (rectangle == resources.Rectangle(texture, false))
                     {

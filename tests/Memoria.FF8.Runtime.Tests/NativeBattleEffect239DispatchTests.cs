@@ -79,7 +79,7 @@ public sealed class NativeBattleEffect239DispatchTests
         Assert.Equal(0x1864A18u, profile.ParticleInstructionTable);
         Assert.Equal(0x1864A04u, profile.PlacementTable);
         Assert.Equal(0x1864A78u, profile.DrawTable);
-        Assert.Equal(5, profile.TextureCount);
+        Assert.Equal(6, profile.TextureCount);
         Assert.Equal(0x233, profile.SourceBase);
         Assert.Equal(0x232, profile.LastSource);
         Assert.Empty(Enumerable.Range(profile.SourceBase, Math.Max(0, profile.LastSource - profile.SourceBase + 1)));

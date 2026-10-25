@@ -115,7 +115,7 @@ public sealed class NativeBattleEffect239ResourcesTests
         using GameAssets game = Open();
         NativeBattleCinematicResources resources = game.ReadNativeCinematicResources(239);
         ImmutableArray<NativeBattleEffectInitializerAsset> files = NativeBattleEffectInitializerPolicy.Assets(Binding(game));
-        Assert.Equal(5, resources.TextureProfile.Count);
+        Assert.Equal(6, resources.TextureProfile.Count);
         Assert.Equal(new byte[] { 0x81, 1, 0x80, 0x81, 1 }, resources.ReadStatic(resources.TextureProfile.PixelSourceMapAddress, 5).ToArray());
         Assert.Equal(new byte[] { 1, 1, 1, 1, 1 }, resources.ReadStatic(resources.TextureProfile.ClutSourceMapAddress, 5).ToArray());
         Assert.Equal(0x60, Dword(files[1].Data, 0x1C));
@@ -150,6 +150,16 @@ public sealed class NativeBattleEffect239ResourcesTests
             Assert.Equal(new NativeBattleEffectTextureRectangle(index == 4 ? (short)336 : (short)320, (short)paletteRows[index], index is 1 or 4 ? (short)16 : (short)256, 1), clut.Rectangle);
             Assert.Equal(pixel.Rectangle.Width * pixel.Rectangle.Height * 2, frame.Arena.Read(checked((int)(pixel.SourceAddress - arena)), pixel.Rectangle.Width * pixel.Rectangle.Height * 2).Length);
         }
+        Assert.Equal((byte)0xFF, resources.ReadStatic(resources.TextureProfile.PixelSourceMapAddress + 5, 1)[0]);
+        NativeBattleCinematicTextureSelection bodyPalette = NativeBattleCinematicTextureMetadata.ResolveClutB66560(frame, resources, 5);
+        Assert.Equal(new NativeBattleEffectTextureRectangle(320, 240, 256, 1), bodyPalette.Rectangle);
+        Assert.Equal((byte)0, bodyPalette.SourceMapByte);
+        Assert.Equal(arena + file0 + 0x57C8u, bodyPalette.SourceAddress);
+        Assert.Equal(resources.TextureProfile.ClutRectangleAddress + 5 * 8u, bodyPalette.RectangleAddress);
+        Assert.Equal(22984, 0x57C8 + 256 * 2);
+        Assert.Equal(files[0].Data.AsSpan().Slice(0x57C8, 512).ToArray(), frame.Arena.Read(file0 + 0x57C8, 512));
+        frame = frame with { Arena = frame.Arena.Write(file0 + 0x57C8, new byte[] { 0x34, 0x12 }) };
+        Assert.Equal((ushort)0x1234, BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(checked((int)(NativeBattleCinematicTextureMetadata.ResolveClutB66560(frame, resources, 5).SourceAddress - arena)), 2)));
         frame = frame with { Core = frame.Core.Write(header + 0x38, BitConverter.GetBytes((ushort)8)) };
         frame = Store(frame, 0x2797450, arena + file0 + 0x8C).WriteTemporaryWord(0x14A, 0x7D);
         frame = NativeBattleWaterWorkCommands.Execute(frame, new(file0, files[0].Data.Length, arena + file0));
@@ -170,7 +180,7 @@ public sealed class NativeBattleEffect239ResourcesTests
         Assert.Equal(file1 + pixelOffsets[0], queued.Slots[0]!.ArenaOffset);
         Assert.Null(queued.Slots[0]!.Source);
         Assert.Equal(files[1].Data.ToArray(), NativeBattleEffectInitializerPolicy.Assets(Binding(game))[1].Data.ToArray());
-        Assert.Throws<NotSupportedException>(() => resources.Rectangle(5, false));
+        Assert.Throws<NotSupportedException>(() => resources.Rectangle(6, false));
     }
 
     [Fact]
