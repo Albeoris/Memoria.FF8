@@ -8,9 +8,7 @@ public enum BattleResultPage
 {
     Experience,
     Items,
-    AbilityPoints,
-    GuardianForce,
-    LearnedAbilities
+    GuardianForce
 }
 
 public sealed partial class BattleHudController
@@ -35,10 +33,9 @@ public sealed partial class BattleHudController
     private long resultAgeSubticks = 16 * TimeSpan.TicksPerSecond;
     private long itemTransitionSubticks;
     private int resultItem;
-    private int resultGuardianForce;
-    private int resultLearnedAbilityPage;
-    private BattleGuardianForceRewardPresentation[] resultGuardianForceLevels = [];
-    private (int GuardianForceId, int AbilityId)[] resultLearnedAbilities = [];
+    private const int GuardianForceRowsPerPage = 16;
+    private int resultGuardianForcePage;
+    private (BattleGuardianForceRewardPresentation Growth, int? AbilityId)[] resultGuardianForceRows = [];
     private bool itemAcknowledged;
     private IReadOnlyList<string?> resultTexts = [];
     private Func<int, string> resultItemDescription = _ => "";
@@ -58,8 +55,8 @@ public sealed partial class BattleHudController
     internal int ResultItemIndex => resultItem;
     internal IReadOnlyList<BattleRewardOffer> ResultLoot => resultLoot;
     internal bool ItemAcknowledged => itemAcknowledged;
-    internal BattleGuardianForceRewardPresentation? ResultGuardianForce => resultGuardianForceLevels.ElementAtOrDefault(resultGuardianForce);
-    internal IReadOnlyList<(int GuardianForceId, int AbilityId)> ResultLearnedAbilities => resultLearnedAbilities.Skip(resultLearnedAbilityPage * 12).Take(12).ToArray();
+    internal IReadOnlyList<(BattleGuardianForceRewardPresentation Growth, int? AbilityId)> ResultGuardianForceRows => resultGuardianForceRows.Skip(resultGuardianForcePage * GuardianForceRowsPerPage).Take(GuardianForceRowsPerPage).ToArray();
+    internal double ResultAnimationSeconds => resultAgeSubticks / (double)(BattleSession.FramesPerSecond * TimeSpan.TicksPerSecond);
     internal int ResultAbilityPoints => ResultRewards is { } rewards ? rewards.AbilityPointsNotice ?? rewards.GuardianForceAbilityPoints.Values.Select(value => (int)value).DefaultIfEmpty().Max() : 0;
     internal float ResultOpacity
     {
@@ -84,8 +81,12 @@ public sealed partial class BattleHudController
             return;
         }
         resultRewards = previewRewards?.Invoke();
-        resultGuardianForceLevels = resultRewards?.GuardianForceGrowth.Where(growth => growth.FinalLevel > growth.PreviousLevel).ToArray() ?? [];
-        resultLearnedAbilities = resultRewards?.GuardianForceGrowth.SelectMany(growth => growth.LearnedAbilityIds.Select(ability => (growth.Id, ability))).ToArray() ?? [];
+        resultGuardianForceRows = resultRewards?.GuardianForceGrowth
+            .Where(growth => growth.FinalLevel > growth.PreviousLevel || growth.LearnedAbilityIds.Length > 0)
+            .SelectMany(growth => growth.LearnedAbilityIds.Length == 0
+                ? new[] { (growth, (int?)null) }
+                : growth.LearnedAbilityIds.Select(ability => (growth, (int?)ability)))
+            .ToArray() ?? [];
         resultVitals = session.MagicVitals;
         resultLoot = resultRewards is null ? [] : resultRewards.LootOffers.Length > 0 ? resultRewards.LootOffers.ToArray() : [.. resultRewards.Items.Select(item => new BattleRewardOffer(false, item.Id, item.Count, true)), .. resultRewards.Cards.Select(id => new BattleRewardOffer(true, id, 1, true))];
         resultLoot = NativeBattleResultPresentation.GroupLootOffers(resultLoot);
@@ -264,13 +265,9 @@ public sealed partial class BattleHudController
                 return;
             }
         }
-        else if (ResultPage == BattleResultPage.AbilityPoints)
+        else if (ResultPage == BattleResultPage.GuardianForce)
         {
-            BeginGuardianForceResults();
-        }
-        else if (ResultPage == BattleResultPage.LearnedAbilities)
-        {
-            if (++resultLearnedAbilityPage * 12 >= resultLearnedAbilities.Length)
+            if (++resultGuardianForcePage * GuardianForceRowsPerPage >= resultGuardianForceRows.Length)
             {
                 BeginGuardianForceLearning();
             }
@@ -278,14 +275,6 @@ public sealed partial class BattleHudController
             {
                 resultAgeSubticks = 0;
             }
-        }
-        else if (++resultGuardianForce >= resultGuardianForceLevels.Length)
-        {
-            BeginLearnedAbilityResults();
-        }
-        else
-        {
-            resultAgeSubticks = 0;
         }
         if (!completionRequested)
         {
@@ -299,11 +288,6 @@ public sealed partial class BattleHudController
         {
             itemAcknowledged = false;
         }
-        else if (ResultAbilityPoints > 0)
-        {
-            ResultPage = BattleResultPage.AbilityPoints;
-            resultAgeSubticks = 0;
-        }
         else
         {
             BeginGuardianForceResults();
@@ -312,22 +296,9 @@ public sealed partial class BattleHudController
 
     private void BeginGuardianForceResults()
     {
-        if (resultGuardianForceLevels.Length > 0)
+        if (ResultAbilityPoints > 0 || resultGuardianForceRows.Length > 0)
         {
             ResultPage = BattleResultPage.GuardianForce;
-            resultAgeSubticks = 0;
-        }
-        else
-        {
-            BeginLearnedAbilityResults();
-        }
-    }
-
-    private void BeginLearnedAbilityResults()
-    {
-        if (resultLearnedAbilities.Length > 0)
-        {
-            ResultPage = BattleResultPage.LearnedAbilities;
             resultAgeSubticks = 0;
         }
         else

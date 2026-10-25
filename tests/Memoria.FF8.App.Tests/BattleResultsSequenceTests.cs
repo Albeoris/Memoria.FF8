@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleResultsSequenceTests
 {
     [Fact]
-    public void ExplicitZeroNoticeSuppressesApPageDespiteNonzeroAwards()
+    public void ExplicitZeroNoticeSuppressesGuardianSummaryDespiteNonzeroAwards()
     {
         BattleRewardSummary rewards = Summary() with { AbilityPointsNotice = 0, GuardianForceAbilityPoints = new Dictionary<int, ushort> { [0] = 12 } };
         BattleSession session = Session();
@@ -35,13 +35,14 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
-        Assert.Equal(BattleResultPage.AbilityPoints, hud.ResultPage);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
         Settle(hud);
         RecordingCanvas canvas = new();
 
         hud.BuildView().Draw(canvas, new UiTheme());
 
         Assert.Contains("Received 7 AP!", canvas.Texts);
+        Assert.Empty(hud.ResultGuardianForceRows);
         Assert.Empty(rewards.GuardianForceAbilityPoints);
         Assert.Equal(0, completions);
         Confirm(hud);
@@ -76,7 +77,7 @@ public sealed class BattleResultsSequenceTests
     }
 
     [Fact]
-    public void ConsecutiveGuardianNoticesRequireTheirOwnTransitionBeforeConfirm()
+    public void GuardianLevelChangesShareOneSummaryAndOneConfirmation()
     {
         BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = [new(0, 1, 2, []), new(1, 1, 2, [])] };
         BattleSession session = Session();
@@ -87,15 +88,13 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
-        Confirm(hud);
-        Assert.Equal(1, hud.ResultGuardianForce!.Id);
-        Assert.Equal(0f, hud.ResultOpacity);
+        Assert.Equal(new[] { 0, 1 }, hud.ResultGuardianForceRows.Select(row => row.Growth.Id));
         hud.ConfirmResult();
         Assert.Equal(0, completions);
-        Assert.Equal(1, hud.ResultGuardianForce!.Id);
         Confirm(hud);
         Assert.Equal(1, completions);
     }
+
     [Fact]
     public void LearnedGuardiansOpenTheirMenuBeforeTheSingleFinalCompletion()
     {
@@ -122,12 +121,8 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
-        Confirm(hud);
         Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
-        Assert.Equal(1, hud.ResultGuardianForce!.Id);
-        Confirm(hud);
-        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
-        Assert.Equal(new[] { (0, 11), (7, 71) }, hud.ResultLearnedAbilities);
+        Assert.Equal(new[] { (0, (int?)11), (1, (int?)null), (7, (int?)71) }, hud.ResultGuardianForceRows.Select(row => (row.Growth.Id, row.AbilityId)));
         Assert.Equal(0, menusOpened);
         Confirm(hud);
         Assert.Equal(1, menusOpened);
@@ -145,9 +140,9 @@ public sealed class BattleResultsSequenceTests
     }
 
     [Fact]
-    public void TwelveLearnedGuardiansShareThreeColumnsAndFourRowsAndOneConfirmation()
+    public void SixteenLearnedGuardiansShareTwoColumnsAndEightRowsAndOneConfirmation()
     {
-        BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = Enumerable.Range(0, 12).Select(id => new BattleGuardianForceRewardPresentation(id, 1, 1, [20 + id])).ToArray() };
+        BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = Enumerable.Range(0, 16).Select(id => new BattleGuardianForceRewardPresentation(id, 1, 1, [20 + id])).ToArray() };
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, guardianForceName: id => $"Guardian {id}");
@@ -155,7 +150,7 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
-        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
         Settle(hud);
         RecordingCanvas canvas = new();
         UiView view = hud.BuildView();
@@ -164,11 +159,23 @@ public sealed class BattleResultsSequenceTests
         view.Draw(canvas, new UiTheme());
 
         var portraits = canvas.Images.Where(image => image.Source.Kind == UiImageKind.GuardianForcePortrait).ToArray();
-        Assert.Equal(Enumerable.Range(0, 12), portraits.Select(image => image.Source.Id));
-        Assert.Equal(3, portraits.Select(image => image.Bounds.X).Distinct().Count());
-        Assert.Equal(4, portraits.Select(image => image.Bounds.Y).Distinct().Count());
-        Assert.All(portraits.GroupBy(image => image.Bounds.X), column => Assert.Equal(4, column.Count()));
-        Assert.All(portraits.GroupBy(image => image.Bounds.Y), row => Assert.Equal(3, row.Count()));
+        Assert.Equal(Enumerable.Range(0, 16), portraits.Select(image => image.Source.Id));
+        Assert.Equal(2, portraits.Select(image => image.Bounds.X).Distinct().Count());
+        Assert.Equal(8, portraits.Select(image => image.Bounds.Y).Distinct().Count());
+        Assert.All(portraits.GroupBy(image => image.Bounds.X), column => Assert.Equal(8, column.Count()));
+        Assert.All(portraits.GroupBy(image => image.Bounds.Y), row => Assert.Equal(2, row.Count()));
+        var levels = canvas.TextDraws.Where(draw => draw.Text == "Lv. 1").ToArray();
+        var abilities = canvas.TextDraws.Where(draw => draw.Text.StartsWith("Ability ", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(16, levels.Length);
+        Assert.Equal(16, abilities.Length);
+        Assert.Equal(2, levels.Select(draw => draw.Bounds.X).Distinct().Count());
+        Assert.Equal(2, abilities.Select(draw => draw.Bounds.X).Distinct().Count());
+        for (int index = 0; index < portraits.Length; index++)
+        {
+            Assert.Equal(levels[index].Bounds.Y, abilities[index].Bounds.Y);
+            Assert.True(levels[index].Bounds.X > portraits[index].Bounds.X);
+            Assert.True(abilities[index].Bounds.X > levels[index].Bounds.X + levels[index].Bounds.Width);
+        }
         Assert.All(portraits, portrait =>
         {
             Assert.True(portrait.Bounds.Width > 0);
@@ -177,7 +184,7 @@ public sealed class BattleResultsSequenceTests
             Assert.InRange(portrait.Bounds.Y, 0, 672 - portrait.Bounds.Height);
         });
         Assert.DoesNotContain(canvas.Texts, text => text.StartsWith("Guardian ", StringComparison.Ordinal));
-        Assert.All(Enumerable.Range(20, 12), ability => Assert.Contains(canvas.Texts, text => text.Contains($"Ability {ability}", StringComparison.Ordinal)));
+        Assert.All(Enumerable.Range(20, 16), ability => Assert.Contains(canvas.Texts, text => text.Contains($"Ability {ability}", StringComparison.Ordinal)));
         Assert.Equal(0, completions);
         Confirm(hud);
         Assert.Equal(1, completions);
@@ -188,7 +195,7 @@ public sealed class BattleResultsSequenceTests
     [Fact]
     public void LearnedSummaryPreservesEveryAbilityAcrossPages()
     {
-        int[] abilities = Enumerable.Range(20, 14).ToArray();
+        int[] abilities = Enumerable.Range(20, 18).ToArray();
         BattleRewardSummary rewards = Summary() with { GuardianForceGrowth = [new(7, 1, 1, abilities)] };
         BattleSession session = Session();
         int completions = 0;
@@ -197,18 +204,68 @@ public sealed class BattleResultsSequenceTests
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
-        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
-        Assert.Equal(abilities.Take(12).Select(ability => (7, ability)), hud.ResultLearnedAbilities);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
+        Assert.Equal(abilities.Take(16).Select(ability => (7, (int?)ability)), hud.ResultGuardianForceRows.Select(row => (row.Growth.Id, row.AbilityId)));
 
         Confirm(hud);
 
-        Assert.Equal(BattleResultPage.LearnedAbilities, hud.ResultPage);
-        Assert.Equal(abilities.Skip(12).Select(ability => (7, ability)), hud.ResultLearnedAbilities);
+        Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
+        Assert.Equal(abilities.Skip(16).Select(ability => (7, (int?)ability)), hud.ResultGuardianForceRows.Select(row => (row.Growth.Id, row.AbilityId)));
         Assert.Equal(0f, hud.ResultOpacity);
         hud.ConfirmResult();
         Assert.Equal(0, completions);
         Confirm(hud);
         Assert.Equal(1, completions);
+    }
+
+    [Fact]
+    public void MixedGuardianSummaryAlignsRowsAndAnimatesOnlyLearnedAbilitiesAndIncreasedLevels()
+    {
+        BattleRewardSummary rewards = Summary() with
+        {
+            AbilityPointsNotice = 7,
+            GuardianForceGrowth = [new(0, 1, 2, [20, 21]), new(1, 3, 3, [22]), new(2, 4, 5, []), new(3, 6, 6, [])]
+        };
+        BattleSession session = Session();
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
+        session.InstantVictory();
+        Confirm(hud);
+        Confirm(hud);
+        Confirm(hud);
+        Settle(hud);
+        Assert.Equal(new[] { (0, (int?)20), (0, (int?)21), (1, (int?)22), (2, (int?)null) }, hud.ResultGuardianForceRows.Select(row => (row.Growth.Id, row.AbilityId)));
+        UiView view = hud.BuildView();
+        view.Resize(960, 672);
+        RecordingCanvas first = new();
+        view.Draw(first, new UiTheme());
+        hud.AdvancePresentation(TimeSpan.FromSeconds(0.25));
+        RecordingCanvas later = new();
+        view.Draw(later, new UiTheme());
+
+        Assert.Contains("Received 7 AP!", first.Texts);
+        Assert.DoesNotContain("Lv. 6", first.Texts);
+        Assert.Equal(4, first.Images.Count(image => image.Source.Kind == UiImageKind.GuardianForcePortrait));
+        Assert.Equal(3, first.TextDraws.Count(draw => draw.Text == "↑"));
+        Assert.Equal(2, first.TextDraws.Count(draw => draw.Text == "Lv. 2"));
+        Assert.Single(first.TextDraws, draw => draw.Text == "Lv. 3");
+        Assert.Single(first.TextDraws, draw => draw.Text == "Lv. 5");
+        foreach (var portrait in first.Images.Where(image => image.Source.Kind == UiImageKind.GuardianForcePortrait))
+        {
+            var level = Assert.Single(first.TextDraws, draw => draw.Text.StartsWith("Lv. ", StringComparison.Ordinal) && draw.Bounds.Y >= portrait.Bounds.Y && draw.Bounds.Y < portrait.Bounds.Y + portrait.Bounds.Height);
+            Assert.True(level.Bounds.X > portrait.Bounds.X);
+        }
+        foreach (string text in new[] { "Ability 20", "Ability 21", "Ability 22", "Lv. 2", "Lv. 5", "↑" })
+        {
+            UiColor[] before = first.TextDraws.Where(draw => draw.Text == text).Select(draw => draw.Color).ToArray();
+            UiColor[] after = later.TextDraws.Where(draw => draw.Text == text).Select(draw => draw.Color).ToArray();
+            Assert.NotEmpty(before);
+            Assert.Equal(before.Length, after.Length);
+            Assert.All(before.Zip(after), pair => Assert.NotEqual(pair.First, pair.Second));
+        }
+        foreach (string text in new[] { "Lv. 3", "Received 7 AP!" })
+        {
+            Assert.Equal(first.TextDraws.Where(draw => draw.Text == text).Select(draw => draw.Color), later.TextDraws.Where(draw => draw.Text == text).Select(draw => draw.Color));
+        }
     }
 
     private static BattleRewardSummary Summary()
@@ -239,6 +296,7 @@ public sealed class BattleResultsSequenceTests
     private sealed class RecordingCanvas : IUiCanvas
     {
         public List<string> Texts { get; } = [];
+        public List<(string Text, UiRect Bounds, UiColor Color)> TextDraws { get; } = [];
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = [];
 
         public UiSize MeasureText(string text, float fontSize, float maximumWidth)
@@ -249,6 +307,7 @@ public sealed class BattleResultsSequenceTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
             Texts.Add(text);
+            TextDraws.Add((text, bounds, color));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)

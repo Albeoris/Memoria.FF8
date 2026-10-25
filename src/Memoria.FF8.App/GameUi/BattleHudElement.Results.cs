@@ -75,34 +75,35 @@ internal sealed partial class BattleHudElement
                 ResultPopup(canvas, theme, controller.ResultText(controller.ResultLoot[index].Accepted ? 6 : 24, controller.ResultLoot[index].Accepted ? "Received!" : "Cannot carry any more.", quantity, controller.ResultItemName(index)), 113);
             }
         }
-        else if (controller.ResultPage == BattleResultPage.AbilityPoints)
+        else if (controller.ResultPage == BattleResultPage.GuardianForce)
         {
-            ResultPopup(canvas, theme, controller.ResultText(109, "Received {Var 32} AP!", controller.ResultAbilityPoints), 99);
-        }
-        else if (controller.ResultPage == BattleResultPage.GuardianForce && controller.ResultGuardianForce is { } growth)
-        {
-            string name = controller.ResultText(121, "G.F. ") + controller.GuardianForceDisplayName(growth.Id);
-            ResultPopup(canvas, theme, name + " " + controller.ResultText(48, "Level Up!"), 99);
-        }
-        else if (controller.ResultPage == BattleResultPage.LearnedAbilities)
-        {
-            DrawResultLearnedAbilities(canvas, theme);
+            DrawResultGuardianForces(canvas, theme);
         }
     }
 
-    private void DrawResultLearnedAbilities(IUiCanvas canvas, UiTheme theme)
+    private void DrawResultGuardianForces(IUiCanvas canvas, UiTheme theme)
     {
-        theme.Panel(canvas, ResultRect(16, 68, 352, 106));
-        string learned = controller.ResultText(127, "Learned").Trim().TrimEnd(':');
-        ResultLabel(canvas, theme, char.ToUpperInvariant(learned[0]) + learned[1..] + ":", 26, 76, 332);
-        IReadOnlyList<(int GuardianForceId, int AbilityId)> entries = controller.ResultLearnedAbilities;
+        theme.Panel(canvas, ResultRect(16, 38, 352, 142));
+        ResultLabel(canvas, theme, controller.ResultText(109, "Received {Var 32} AP!", controller.ResultAbilityPoints), 26, 44, 332);
+        IReadOnlyList<(BattleGuardianForceRewardPresentation Growth, int? AbilityId)> entries = controller.ResultGuardianForceRows;
+        float glow = (float)((Math.Cos(controller.ResultAnimationSeconds * Math.Tau) + 1) / 2);
+        UiColor highlight = new(255, (byte)(208 + 47 * glow), (byte)(96 + 159 * glow));
         for (int index = 0; index < entries.Count; index++)
         {
-            (int guardianForce, int ability) = entries[index];
-            float x = 26 + index / 4 * 114;
-            float y = 96 + index % 4 * 18;
-            canvas.Image(new UiImageSource(UiImageKind.GuardianForcePortrait, guardianForce), ResultRect(x, y, 14, 14));
-            ResultLabel(canvas, theme, controller.ResultLearnedAbility(ability), x + 18, y + 1, 88);
+            (BattleGuardianForceRewardPresentation growth, int? ability) = entries[index];
+            float x = 26 + index / 8 * 170;
+            float y = 61 + index % 8 * 14.5f;
+            bool leveled = growth.FinalLevel > growth.PreviousLevel;
+            canvas.Image(new UiImageSource(UiImageKind.GuardianForcePortrait, growth.Id), ResultRect(x, y, 13, 13));
+            if (leveled)
+            {
+                ResultLabel(canvas, theme, "↑", x + 14, y + 1, 9, color: highlight);
+            }
+            ResultLabel(canvas, theme, "Lv. " + growth.FinalLevel.ToString(CultureInfo.InvariantCulture), x + 24, y + 1, 38, color: leveled ? highlight : theme.Foreground);
+            if (ability is int abilityId)
+            {
+                ResultLabel(canvas, theme, controller.ResultLearnedAbility(abilityId), x + 64, y + 1, 98, color: highlight);
+            }
         }
     }
 
