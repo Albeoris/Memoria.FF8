@@ -19,14 +19,23 @@ public sealed partial class BattleSession
         remove => events.Published -= value;
     }
     private bool diagnosticHoldEnemyCommands;
+    private bool diagnosticInstantGuardianForceCharge;
+    private BattleCombatant? diagnosticReadinessActor;
 
-    public void ConfigureDiagnosticScheduling(bool holdEnemyCommands)
+    public void ConfigureDiagnosticScheduling(bool holdEnemyCommands, bool instantGuardianForceCharge = false, string? readinessActorId = null)
     {
-        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Count != 0)
+        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any() || guardianForceCasts.Count != 0)
         {
             throw new InvalidOperationException("Diagnostic scheduling must be declared before the first battle callback or command.");
         }
+        BattleCombatant? readinessActor = null;
+        if (readinessActorId is not null && !byId.TryGetValue(readinessActorId, out readinessActor))
+        {
+            throw new ArgumentException("Diagnostic readiness requires an actor in this battle.", nameof(readinessActorId));
+        }
+        diagnosticReadinessActor = readinessActor;
         diagnosticHoldEnemyCommands = holdEnemyCommands;
+        diagnosticInstantGuardianForceCharge = instantGuardianForceCharge;
     }
 
     public BattleDiagnosticCombatant[] ObserveDiagnosticCombatants()

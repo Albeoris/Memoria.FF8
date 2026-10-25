@@ -198,7 +198,9 @@ public sealed partial class BattleSession
 
     private bool CanAdvanceTurnBasedTime => Outcome == BattleOutcome.Active && !HasPendingNativeOutcome && NativeEntryReady && !HasPendingTurn && !HasGuardianForceTimeBoundary && NativeGraphics?.UiServices?.PauseDE9 != true && (nativeBattleClock is null || NativeGraphics is null || NativeBattleClockRules.Admit(nativeBattleClock, true, false, NativeScriptAllocationPaused).AtbAdmitted != 0);
 
-    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && CanAdvanceTurnBasedTime && nativeShotProcesses.Count == 0 && nativeDuelProcesses.Count == 0 && nativeRenzokukenProcesses.Count == 0 && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
+    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && CanAdvanceTurnBasedTime && nativeShotProcesses.Count == 0 && nativeDuelProcesses.Count == 0 && nativeRenzokukenProcesses.Count == 0 && HasAutomaticTurnWaiter;
+
+    private bool HasAutomaticTurnWaiter => diagnosticReadinessActor is { } selected ? CanNativeBattleActorAct(selected) && !selected.IsBusy && !selected.IsReady : !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
 
     private void DispatchTurnBasedFrame()
     {

@@ -17,11 +17,17 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     public DiagnosticTargetExpectation? Target { get; init; }
     public bool PrepareEntryBeforePresentation { get; init; }
     public int EntryCallbackBudget { get; init; } = 1024;
+    public bool InstantGuardianForceCharge { get; init; } = true;
+    public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
 
     internal void Validate()
     {
         Driver?.Validate();
         Fixture?.Validate();
+        if (!Enum.IsDefined(AtbMode))
+        {
+            throw new InvalidDataException("Diagnostic ATB mode must select an existing battle mode.");
+        }
         if (EntryCallbackBudget is < 1 or > 18000)
         {
             throw new InvalidDataException("Diagnostic entry preparation requires a finite native callback budget of 1..18000.");
@@ -43,6 +49,7 @@ internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string Ini
     public ImmutableArray<DiagnosticPreparationChange> PreparationChanges { get; init; } = [];
     public DiagnosticTargetReceipt? Target { get; init; }
     public DiagnosticEntryPreparationReceipt? EntryPreparation { get; init; }
+    public bool InstantGuardianForceCharge { get; init; }
 }
 
 internal sealed record DiagnosticEntryPreparationReceipt(long NativeCallbacks, double Milliseconds, string Scope);
@@ -133,12 +140,13 @@ internal sealed partial class GameWorld
             {
                 session.SetLimitProgress(limits.Progress);
             }
-            PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, BattleAtbMode.Normal, preparedMusic);
-            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false);
+            PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);
+            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Driver?.Input.ActorId);
             battle = CommitPreparedBattleEntry(prepared);
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
             DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.Capture().Definition.StageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? []] };
+            DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge };
             return battle;
         }
         catch

@@ -38,10 +38,14 @@ public sealed partial class BattleSession
         byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).NativeIndex);
         EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
-        guardianForceCasts.Add(actor.Id, new(actor.Id, command, ticks, ticks));
+        guardianForceCasts.Add(actor.Id, new(actor.Id, command, diagnosticInstantGuardianForceCharge ? (ushort)0 : ticks, ticks));
         BeginNativePresentedGuardianForce(actor, gf);
         actor.NativeStatus1 |= 0x80000000;
         Log("GuardianForceCharging", actor.Id, actor.Id, ticks, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)} charging.");
+        if (diagnosticInstantGuardianForceCharge)
+        {
+            Log("DiagnosticGuardianForceChargeSkipped", actor.Id, actor.Id, ticks, "Diagnostic scheduling completed only the GF charge wait; native task admission and effect callbacks remain unchanged.");
+        }
     }
 
     private void DispatchGuardianForceCasts()
