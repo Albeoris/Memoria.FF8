@@ -285,7 +285,7 @@ public static class PilotRunner
         return lease;
     }
 
-    private static JsonElement ValidateCandidate(byte[] candidate, string reportPath, byte[] recipe)
+    internal static JsonElement ValidateCandidate(byte[] candidate, string reportPath, byte[] recipe)
     {
         FileInfo info = new(reportPath);
         if (info.Length is <= 0 or > 64 * 1024 * 1024 || (info.Attributes & FileAttributes.ReparsePoint) != 0)

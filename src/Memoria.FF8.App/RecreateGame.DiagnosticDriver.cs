@@ -31,6 +31,7 @@ internal sealed partial class RecreateGame
         {
             throw new NotSupportedException("Scored live diagnostics require captures in a separate evidence replay.");
         }
+        diagnosticHostWasActive = IsActive;
         diagnosticDriverRecipe = recipe;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
@@ -45,6 +46,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
+        diagnosticHostWasActive &= IsActive;
         diagnosticPresentedFrames++;
         long presentedTimestamp = Stopwatch.GetTimestamp();
         try
@@ -61,11 +63,6 @@ internal sealed partial class RecreateGame
             if (!ReferenceEquals(diagnosticDriverBattle, world?.Battle))
             {
                 driver.Fail("BATTLE_SESSION_REPLACED");
-            }
-            else if (!IsActive)
-            {
-                diagnosticHostWasActive = false;
-                driver.Fail("GRAPHICAL_HOST_INACTIVE");
             }
             else if (fieldFaulted || fieldRenderFaulted)
             {

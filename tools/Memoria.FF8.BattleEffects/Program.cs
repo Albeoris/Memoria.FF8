@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -59,6 +59,31 @@ public static class Program
             if (args[0] == "discover")
             {
                 Print(ScenarioDiscovery.Generate(Get("game-dir"), Get("output"), Optional("fixture"), Optional("source-commit"), Optional("patch-hash")));
+                return 0;
+            }
+
+            if (args[0] == "resume-plan")
+            {
+                SchemaValidation.ValidateFile(Get("input"), "pilot");
+                PilotManifest requested = RecordJson.Read<PilotManifest>(Get("input"));
+                PilotRunner.ValidateManifest(requested);
+                string output = Path.GetFullPath(Get("output"));
+                string report = Path.GetFullPath(Get("report"));
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(output)!);
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(report)!);
+                if (File.Exists(output) || File.Exists(report) || output.Equals(report, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException("Resume outputs must be distinct fresh files.");
+                }
+                PilotResumePlan plan = PilotResume.Plan(requested, Get("history"));
+                if (plan.PendingCases.Length > 0)
+                {
+                    PilotManifest pending = requested with { Cases = plan.PendingCases };
+                    SchemaValidation.ValidateRecord(pending, "pilot");
+                    OwnedChildSupervisor.PublishTransientImmutable(output, JsonSerializer.SerializeToUtf8Bytes(pending, RecordJson.Options));
+                }
+                OwnedChildSupervisor.PublishTransientImmutable(report, JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, requested_manifest = Path.GetFullPath(Get("input")), requested_cases = requested.Cases.Length, pending_manifest = plan.PendingCases.Length > 0 ? output : null, pending_cases = plan.PendingCases.Length, reused_cases = plan.ReusedCases, diagnostics = plan.Diagnostics, current_build_fingerprint = requested.BuildFingerprint, campaign_acceptance = false }, RecordJson.Options));
+                Print(new { requested_cases = requested.Cases.Length, pending_cases = plan.PendingCases.Length, reused_cases = plan.ReusedCases.Length, report });
                 return 0;
             }
 

@@ -47,7 +47,7 @@ public static class LiveEvidenceValidation
                 errors.Add("DRIVER_BLOCKED");
             }
             JsonElement environment = report.GetProperty("environment");
-            if (!Flag(environment, "gpu") || !Flag(environment, "real_time") || !Flag(environment, "active") || Number(environment, "width") != 1920 || Number(environment, "height") != 1080 || string.IsNullOrWhiteSpace(Text(environment, "renderer")))
+            if (!Flag(environment, "gpu") || !Flag(environment, "real_time") || Number(environment, "width") != 1920 || Number(environment, "height") != 1080 || string.IsNullOrWhiteSpace(Text(environment, "renderer")))
             {
                 errors.Add("REFERENCE_ENVIRONMENT_UNVERIFIED");
             }

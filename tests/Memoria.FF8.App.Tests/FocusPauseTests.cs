@@ -81,7 +81,12 @@ public sealed class FocusPauseTests
         PresentationTiming timing = Get<PresentationTiming>(game, "presentationTiming");
         timing.Accumulate(PresentationTiming.SimulationStep);
         game.SetWindowActive(false);
+        game.SetWindowActive(true);
+        game.SetWindowActive(false);
         Assert.False(Get<bool>(game, "focusPaused"));
+        Assert.False((bool)Invoke(game, "UpdateFocusPause")!);
+        Assert.False(Get<bool>(game, "discardFocusElapsed"));
+        Assert.Equal(TimeSpan.Zero, game.InactiveSleepTime);
         Assert.True(timing.TryStep());
     }
 

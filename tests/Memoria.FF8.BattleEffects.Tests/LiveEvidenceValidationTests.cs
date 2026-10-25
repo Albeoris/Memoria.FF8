@@ -7,6 +7,42 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void Background_presentation_can_pass_with_truthful_inactive_metadata()
+    {
+        JsonObject report = Report();
+        report["environment"]!["active"] = false;
+        report["host_status"] = new JsonObject { ["active"] = false, ["update_faulted"] = false, ["render_faulted"] = false, ["error"] = null };
+
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Assert.False(report["environment"]!["active"]!.GetValue<bool>());
+        Assert.False(report["host_status"]!["active"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public void Legacy_inactive_blocker_remains_invalid_even_with_complete_presentations()
+    {
+        JsonObject report = Report();
+        report["environment"]!["active"] = false;
+        report["blocker"] = "GRAPHICAL_HOST_INACTIVE";
+
+        LiveEvidenceVerdict verdict = Validate(report);
+        Assert.Equal("ERROR", verdict.Verdict);
+        Assert.Contains("DRIVER_BLOCKED", verdict.Errors);
+    }
+
+    [Fact]
+    public void Background_host_still_requires_actual_renderer_frames()
+    {
+        JsonObject report = Report();
+        report["environment"]!["active"] = false;
+        Execution(report, 0)["renderer_frames"] = 0;
+
+        LiveEvidenceVerdict verdict = Validate(report);
+        Assert.Equal("ERROR", verdict.Verdict);
+        Assert.Contains("PRESENTATION_OR_CONTINUITY_UNVERIFIED", verdict.Errors);
+    }
+
+    [Fact]
     public void Native_dispatch_identity_can_differ_from_the_semantic_guardian_force_selection()
     {
         JsonObject report = Report();
@@ -230,10 +266,13 @@ public sealed class LiveEvidenceValidationTests
         Assert.Equal(40, result.Executions.Sum(execution => execution.DurationMs));
     }
 
-    [Fact]
-    public void Slow_interval_is_fail_only_when_all_required_observations_are_valid()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Slow_interval_is_fail_only_when_all_required_observations_are_valid(bool active)
     {
         JsonObject report = Report();
+        report["environment"]!["active"] = active;
         JsonObject first = Execution(report, 0);
         first["frames"] = JsonSerializer.SerializeToNode(Frames(100, 0, 10, true), RecordJson.Options);
         Assert.Equal("FAIL", Validate(report).Verdict);
