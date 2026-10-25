@@ -101,7 +101,7 @@ public static class NativeBattleThundaga105Controller
                 {
                     int actor = Actor(sequence);
                     (primary, int slot) = primary!.Append(0x6D43B0);
-                    NativeBattleModulePoolTask child = primary.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1246, new byte[0x884 - 12]) };
+                    NativeBattleModulePoolTask child = primary.Slots[slot] with { Payload = new byte[0x884 - 12].ToImmutableArray() };
                     child = child.WriteWord(0xE, (ushort)sequence).WriteDword(0x10, ActorBank + (uint)(156 * actor)).WriteDword(0x14, inputs.ReadActorColor40(actor)).WriteDword(0x18, unchecked((uint)(((inputs.ReadActorScale38(actor) >> 1) + 3718) >> 1)));
                     child = NativeBattleThundaga105ProgramDrawing.InitializeWorkspace7016B0(child, resources.ProgramSource);
                     primary = Put(primary, slot, child);
@@ -143,7 +143,7 @@ public static class NativeBattleThundaga105Controller
                     throw new InvalidOperationException("Native Thundaga final load task exhausted its tertiary bank.");
                 }
                 (tertiary, int finalSlot) = tertiary!.Append(0x6D62B0);
-                tertiary = Put(tertiary, finalSlot, tertiary.Slots[finalSlot] with { Payload = NativeBattleTelemetry.Immutable(1247, new byte[0x20]) });
+                tertiary = Put(tertiary, finalSlot, tertiary.Slots[finalSlot] with { Payload = new byte[0x20].ToImmutableArray() });
                 task = task.WriteByte(0x14, 2);
             }
             else if (task.ReadByte(0x14) == 2 && thirdCount == 0)
@@ -325,7 +325,7 @@ public static class NativeBattleThundaga105Controller
 
     internal static int MovingAngle(ushort random, int direction) => random + direction * 512;
 
-    private static NativeBattleModulePoolTask ClearSprite(NativeBattleModulePoolTask task, uint address, ushort duration) => (task with { Payload = NativeBattleTelemetry.Immutable(1248, new byte[0x20]) }).WriteDword(0x10, address).WriteWord(0xE, duration).WriteWord(0x1A, 4096);
+    private static NativeBattleModulePoolTask ClearSprite(NativeBattleModulePoolTask task, uint address, ushort duration) => (task with { Payload = new byte[0x20].ToImmutableArray() }).WriteDword(0x10, address).WriteWord(0xE, duration).WriteWord(0x1A, 4096);
     private static uint HalfColor(uint saved, uint current) => (current & 0xFF000000) | (((saved & 255) + 255) >> 1) | (((((saved >> 8) & 255) + 255) >> 1) << 8) | (((((saved >> 16) & 255) + 255) >> 1) << 16);
     private static int ActorIndex(uint address) => address >= ActorBank && address < ActorBank + 7 * 156 && (address - ActorBank) % 156 == 0 ? (int)((address - ActorBank) / 156) : throw new InvalidDataException("Native Thundaga requires its actual seven-row actor address.");
     private static NativeBattleVector Vector(ImmutableArray<byte> raw) => new(Signed(raw, 0), Signed(raw, 2), Signed(raw, 4));

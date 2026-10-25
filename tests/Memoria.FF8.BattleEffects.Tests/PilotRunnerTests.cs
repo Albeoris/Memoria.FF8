@@ -45,6 +45,18 @@ public sealed class PilotRunnerTests : IDisposable
     }
 
     [Fact]
+    public void Optional_copy_diagnostics_remain_separate_from_the_external_smoke_verdict()
+    {
+        PilotCaseSummary result = PilotRunner.Summarize("case", "PASS", [], 2, 100, 50, directory, true, diagnosticIssues: ["LARGE_COPY_REVIEW_REQUIRED"], copyTrafficScope: "shared_partial_lower_bound");
+        Assert.Equal("PASS", result.Verdict);
+        Assert.Empty(result.Errors);
+        Assert.Equal(new[] { "LARGE_COPY_REVIEW_REQUIRED" }, result.DiagnosticIssues);
+        JsonElement record = JsonSerializer.SerializeToElement(result, RecordJson.Options);
+        Assert.Equal("shared_partial_lower_bound", record.GetProperty("copy_traffic_scope").GetString());
+        Assert.Equal("LARGE_COPY_REVIEW_REQUIRED", record.GetProperty("diagnostic_issues")[0].GetString());
+    }
+
+    [Fact]
     public void Nonoverlapping_stage_costs_reconcile_to_the_entire_end_to_end_total()
     {
         PilotStageDurations stages = new(10, 20000, 500, 20);
@@ -93,9 +105,64 @@ public sealed class PilotRunnerTests : IDisposable
         PilotRunner.ValidateManifest(manifest);
         Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = [] }));
         Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = [manifest.Cases[0], manifest.Cases[0]] }));
-        Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = Enumerable.Range(0, 11).Select(index => new PilotCase("case" + index, manifest.Cases[0].Recipe)).ToArray() }));
+        PilotRunner.ValidateManifest(manifest with { Cases = Enumerable.Range(0, 400).Select(index => new PilotCase("case" + index, manifest.Cases[0].Recipe)).ToArray() });
         Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Budgets = manifest.Budgets with { TotalMs = double.PositiveInfinity } }));
         Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Budgets = manifest.Budgets with { ActionOneMs = 0 } }));
+    }
+
+    [Fact]
+    public async Task Full_explicit_manifest_records_each_blocker_and_independent_recipe_error_without_launching()
+    {
+        PilotManifest manifest = Manifest();
+        PilotCase[] cases = Enumerable.Range(0, 12).Select(index => new PilotCase("effect-" + index, null, "PLANNED_BLOCKED", ["OWNER_UNRESOLVED_" + index], index)).ToArray();
+        cases[1] = new("missing-recipe", Path.Combine(directory, "missing.json"));
+        manifest = manifest with { Cases = cases };
+        PilotBatchSummary summary = await PilotRunner.RunAsync(manifest, TestContext.Current.CancellationToken, measurementPath: Path.Combine(directory, "measurement.lock"));
+        Assert.Equal(12, summary.Requested);
+        Assert.Equal(12, summary.Errors);
+        Assert.All(summary.Cases, result => Assert.Equal("ERROR", result.Verdict));
+        Assert.Contains("OWNER_UNRESOLVED_0", summary.Cases[0].Errors);
+        Assert.Contains(summary.Cases[1].Errors, error => error.StartsWith("FileNotFoundException:", StringComparison.Ordinal));
+        Assert.Contains("OWNER_UNRESOLVED_11", summary.Cases[11].Errors);
+        Assert.All(summary.Cases, result => Assert.True(result.ProcessExited));
+        Assert.All(summary.Cases, result => Assert.True(File.Exists(Path.Combine(result.Directory, "pilot-result.json"))));
+        Assert.DoesNotContain(summary.Cases, result => File.Exists(Path.Combine(result.Directory, "bootstrap.json")));
+    }
+
+    [Fact]
+    public void Nonrunnable_scenarios_require_explicit_blockers_and_cannot_claim_a_pass()
+    {
+        PilotManifest manifest = Manifest();
+        PilotCase blocked = new("blocked", null, "UNRESOLVED", ["REAL_ENCOUNTER_UNKNOWN"], 399);
+        PilotRunner.ValidateManifest(manifest with { Cases = [blocked] });
+        PilotCaseSummary result = PilotRunner.BlockedResult(blocked, directory);
+        Assert.Equal("ERROR", result.Verdict);
+        Assert.Contains("SCENARIO_UNRESOLVED", result.Errors);
+        Assert.Contains("REAL_ENCOUNTER_UNKNOWN", result.Errors);
+        Assert.Equal(0, result.Executions);
+        Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = [blocked with { Blockers = [] }] }));
+        Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = [blocked with { Status = "RUNNABLE" }] }));
+        SchemaValidation.ValidateRecord(manifest with { Cases = [blocked] }, "pilot");
+    }
+
+    [Fact]
+    public async Task Edited_frozen_recipe_is_an_independent_error_before_a_host_can_start()
+    {
+        PilotManifest manifest = Manifest();
+        string recipe = manifest.Cases[0].Recipe!;
+        string hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(recipe)));
+        PilotCase frozen = manifest.Cases[0] with { RecipeSha256 = hash };
+        SchemaValidation.ValidateRecord(manifest with { Cases = [frozen] }, "pilot");
+        PilotRunner.ValidateManifest(manifest with { Cases = [frozen] });
+        Assert.Throws<InvalidDataException>(() => PilotRunner.ValidateManifest(manifest with { Cases = [frozen with { RecipeSha256 = "invalid" }] }));
+        File.WriteAllText(recipe, "{\"edited\":true}");
+        PilotCase next = new("later-blocked", null, "PLANNED_BLOCKED", ["OWNER_UNRESOLVED"]);
+        PilotBatchSummary summary = await PilotRunner.RunAsync(manifest with { Cases = [frozen, next] }, TestContext.Current.CancellationToken, measurementPath: Path.Combine(directory, "measurement.lock"));
+        Assert.Equal(2, summary.Errors);
+        Assert.Contains(summary.Cases[0].Errors, error => error.Contains("RECIPE_SHA256_MISMATCH", StringComparison.Ordinal));
+        Assert.Contains("OWNER_UNRESOLVED", summary.Cases[1].Errors);
+        Assert.All(summary.Cases, result => Assert.False(File.Exists(Path.Combine(result.Directory, "bootstrap.json"))));
+        Assert.All(summary.Cases, result => Assert.True(result.ProcessExited));
     }
 
     [Fact]

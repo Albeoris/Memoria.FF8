@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -22,12 +22,14 @@ public static class Program
             {
                 Print(new
                 {
-                    stage = "bounded_live_pilot",
-                    execution_ready = false,
-                    bounded_live_effects = Memoria.FF8.Runtime.NativeBattleTelemetry.CoveredEffects,
+                    stage = "external_scenario_runner",
+                    runner_available = true,
+                    campaign_acceptance_available = false,
                     runtime_copy_instrumentation = new { version = Memoria.FF8.Runtime.NativeBattleTelemetry.InstrumentationVersion, scope = Memoria.FF8.Runtime.NativeBattleTelemetry.MeasurementScope, sites = Memoria.FF8.Runtime.NativeBattleTelemetry.Sites, blind_spots = Memoria.FF8.Runtime.NativeBattleTelemetry.KnownBlindSpots },
                     live_validation_command = "validate-live --input [--case]",
-                    blockers = new[] { "Full installed coverage discovery and scenario planning have not been performed.", "Typed preparation and traffic coverage are bounded to the first three effects; arbitrary capabilities, timed limits and between-execution repairs remain unsupported.", "Telemetry admission is separate from independent fixture provenance, reviewer acceptance and a final campaign sweep." }
+                    scenario_discovery_command = "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]",
+                    execution_command = "run --input",
+                    blockers = new[] { "Discovery records unsupported action paths and unproved fixtures as explicit planning blockers; discovery is not playable certification.", "Typed preparation, arbitrary capabilities, timed limits and between-execution repairs remain bounded by current engine contracts.", "Telemetry admission is separate from independent fixture provenance, reviewer acceptance and a final campaign sweep." }
                 });
                 return 0;
             }
@@ -54,7 +56,13 @@ public static class Program
                 return result.Verdict == "PASS" ? 0 : result.Verdict == "FAIL" ? 2 : 4;
             }
 
-            if (args[0] == "pilot")
+            if (args[0] == "discover")
+            {
+                Print(ScenarioDiscovery.Generate(Get("game-dir"), Get("output"), Optional("fixture"), Optional("source-commit"), Optional("patch-hash")));
+                return 0;
+            }
+
+            if (args[0] is "run" or "pilot")
             {
                 SchemaValidation.ValidateFile(Get("input"), "pilot");
                 PilotManifest manifest = RecordJson.Read<PilotManifest>(Get("input"));
@@ -250,7 +258,6 @@ public static class Program
                     return verdict == "PASS" ? 0 : verdict == "FAIL" ? 2 : 4;
                 }
                 case "worker":
-                case "run":
                 case "replay":
                 case "retry":
                 case "validate-results":

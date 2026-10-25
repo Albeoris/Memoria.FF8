@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter, long EffectStartedTicks, long EffectCompletedTicks, double EffectDurationMs);
+internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter, long EffectStartedTicks, long EffectCompletedTicks, double EffectDurationMs, TelemetryProcessSample ProcessBefore, TelemetryProcessSample ProcessAfter);
 
 /// <summary>Observes one live session. Scored windows include ordinary admission, first-use work, cleanup and presented tails.</summary>
 internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDisposable
@@ -31,6 +31,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private int[] collections = [];
     private string? rendererOwner;
     private NativeBattlePoolObservation poolBefore;
+    private TelemetryProcessSample? processBefore;
     private long effectStartedTicks;
     private long effectCompletedTicks;
     private const int EventCapacity = 65536;
@@ -74,6 +75,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         traffic = new(coverage);
         allocations = GC.GetTotalAllocatedBytes();
         poolBefore = NativeBattleTelemetry.PoolSnapshot();
+        processBefore = TelemetryProcessSample.Capture();
         collections = Enumerable.Range(0, GC.MaxGeneration + 1).Select(GC.CollectionCount).ToArray();
         runtimeScope = NativeBattleTelemetry.BeginScope(this);
         resourceScope = ResourceTrafficTelemetry.BeginScope((site, bytes) => Record(site, NativeBattleTrafficKind.CpuCopyPayload, bytes));
@@ -123,7 +125,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             error ??= "ARENA_WRITER_RENTAL_NOT_RELEASED";
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration));
+        TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter));
         start = null;
         frames = null;
         traffic = null;

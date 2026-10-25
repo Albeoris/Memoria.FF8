@@ -67,7 +67,7 @@ public static class NativeBattleEffect3
             }
             uint buffer = BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(4));
             drawArenaOffset = buffer != 0 ? 0 : 0x8000;
-            byte[] payload = NativeBattleTelemetry.Materialize(1139, task.Payload.AsSpan());
+            byte[] payload = task.Payload.ToArray();
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), buffer != 0 ? 0u : 1u);
             if (Word(task, 12) == 1)
             {
@@ -94,7 +94,7 @@ public static class NativeBattleEffect3
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(10), anchor.Y);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(12), anchor.Z);
                         BinaryPrimitives.WriteInt16LittleEndian(childPayload.AsSpan(14), unchecked((short)((-4096 - inputs.ReadTransform(model).Scale38) >> 2)));
-                        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot] with { Payload = NativeBattleTelemetry.Immutable(1140, childPayload) }) };
+                        children = children with { Slots = children.Slots.SetItem(childSlot, children.Slots[childSlot] with { Payload = childPayload.ToImmutableArray() }) };
                         payload[2] = unchecked((byte)(sequence + 1));
                     }
                 }
@@ -107,7 +107,7 @@ public static class NativeBattleEffect3
                 short counter = unchecked((short)(BinaryPrimitives.ReadInt16LittleEndian(payload) + 1));
                 BinaryPrimitives.WriteInt16LittleEndian(payload, counter >= 5 ? (short)0 : counter);
             }
-            return new(pool with { Slots = pool.Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1141, payload) }) }, released ? 2 : 0);
+            return new(pool with { Slots = pool.Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) }, released ? 2 : 0);
         });
         return new(effect with { Pools = [main.Pool, children], ReturnedDescriptor = main.Survivors == 0 ? 0 : main.Pool.DescriptorAddress, DrawArenaOffset = drawArenaOffset }, draws.ToImmutable(), contacts.ToImmutable(), sounds.ToImmutable());
 

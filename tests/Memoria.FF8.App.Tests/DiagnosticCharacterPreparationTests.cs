@@ -16,8 +16,7 @@ public sealed class DiagnosticCharacterPreparationTests
 
     [Theory]
     [InlineData(0, 2)]
-    [InlineData(10, 2)]
-    [InlineData(22, 2)]
+    [InlineData(64, 2)]
     [InlineData(21, 1)]
     [InlineData(1, 101)]
     public void Preparation_rejects_unrelated_actions_and_insufficient_or_excessive_stock(int action, int count)
@@ -27,9 +26,9 @@ public sealed class DiagnosticCharacterPreparationTests
     }
 
     [Fact]
-    public void Preparation_accepts_only_the_ten_declared_existing_magic_stocks()
+    public void Preparation_accepts_native_magic_identities_without_an_effect_allowlist()
     {
-        DiagnosticBattlePreparation recipe = new([], [new(0, 0, Enumerable.Range(1, 9).Append(21).Select(action => new DiagnosticMagicStockPreparation(action, 2)).ToImmutableArray(), [])], false);
+        DiagnosticBattlePreparation recipe = new([], [new(0, 0, Enumerable.Range(10, 32).Select(action => new DiagnosticMagicStockPreparation(action, 2)).ToImmutableArray(), [])], false);
         recipe.Validate();
     }
 
@@ -42,7 +41,7 @@ public sealed class DiagnosticCharacterPreparationTests
         int ability = Enumerable.Range(20, 19).Single(value => original.MenuDefinitions.CommandAbilityCommands[value - 20] == 2);
         int gf = Enumerable.Range(0, 16).First(id => original.GuardianForceAbilities(id).Any(entry => entry.Ability == ability && entry.Learned));
         ushort hp = checked((ushort)Math.Max(1, original.GetMagicMaximumHitPoints(row) / 2));
-        DiagnosticBattlePreparation recipe = new([new(gf, true)], [new(row, character, [new(21, 2), new(1, 2), new(7, 2)], [gf]) { MagicCommand = new(0, ability), HitPoints = hp }], true);
+        DiagnosticBattlePreparation recipe = new([new(gf, true)], [new(row, character, [new(21, 2), new(10, 2), new(22, 2)], [gf]) { MagicCommand = new(0, ability), HitPoints = hp }], true);
         JsonElement source = JsonSerializer.SerializeToElement(original);
 
         DiagnosticPreparationResult result = GameWorld.PrepareDiagnosticCharacters(original, recipe);
@@ -52,7 +51,7 @@ public sealed class DiagnosticCharacterPreparationTests
         Assert.Equal(hp, result.Vitals.Records[row].HitPoints.Maximum);
         Assert.Equal(ability, (byte)result.Vitals.Records[row].Junction.Commands);
         Assert.Contains(ability, result.Vitals.JunctionLearnedAbilities(row));
-        foreach (int action in new[] { 21, 1, 7 })
+        foreach (int action in new[] { 21, 10, 22 })
         {
             Assert.Equal(2, result.Vitals.GetMagicCount(row, action));
         }
@@ -74,6 +73,7 @@ public sealed class DiagnosticCharacterPreparationTests
         Assert.Throws<InvalidOperationException>(() => GameWorld.PrepareDiagnosticCharacters(original, new([], [preparation with { HitPoints = ushort.MaxValue }], false)));
         int ability = Enumerable.Range(20, 19).Single(value => original.MenuDefinitions.CommandAbilityCommands[value - 20] == 2);
         Assert.Throws<InvalidOperationException>(() => GameWorld.PrepareDiagnosticCharacters(original, new([], [preparation with { MagicCommand = new(0, ability) }], false)));
+        Assert.Throws<InvalidDataException>(() => GameWorld.PrepareDiagnosticCharacters(original, new([], [preparation with { Stocks = [new(63, 2)] }], false)));
     }
 
     private static NativeCharacterVitals InstalledNewGame()

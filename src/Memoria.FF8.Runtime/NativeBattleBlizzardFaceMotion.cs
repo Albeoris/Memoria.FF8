@@ -80,8 +80,8 @@ public static class NativeBattleBlizzardFaceMotion
             {
                 continue;
             }
-            ImmutableArray<byte> primary = NativeBattleTelemetry.Immutable(1222, NativeBattleTelemetry.Materialize(1220, resources.PrimaryMesh.Bytes.AsSpan().Slice(group + 4 + index * 20, 20)));
-            ImmutableArray<byte> partner = NativeBattleTelemetry.Immutable(1223, NativeBattleTelemetry.Materialize(1221, resources.PartnerMesh.Bytes.AsSpan().Slice(partnerGroup + 4 + index * 20, 20)));
+            ImmutableArray<byte> primary = resources.PrimaryMesh.Bytes.AsSpan().Slice(group + 4 + index * 20, 20).ToArray().ToImmutableArray();
+            ImmutableArray<byte> partner = resources.PartnerMesh.Bytes.AsSpan().Slice(partnerGroup + 4 + index * 20, 20).ToArray().ToImmutableArray();
             NativeBattleVector[] vertices = Enumerable.Range(0, 3).Select(corner => Vertex(resources.PrimaryMesh.Bytes, BinaryPrimitives.ReadUInt16LittleEndian(primary.AsSpan().Slice(4 + corner * 2)))).ToArray();
             NativeBattleActionMatrix matrix = outer;
             uint primaryColor = 0x24808080;

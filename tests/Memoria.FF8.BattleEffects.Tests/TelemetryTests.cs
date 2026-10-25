@@ -172,7 +172,9 @@ public sealed class TelemetryTests
         Assert.Contains("DISPATCH_UNVERIFIED", Validate(first, second with { Started = false }).Errors);
         Assert.Contains("TELEMETRY_LOSS", Validate(first, second with { DroppedEvents = 1 }).Errors);
         Assert.Contains("CONTINUITY_BROKEN", Validate(first, second with { StartOwners = Owners with { ConstructorCount = 2 } }).Errors);
-        Assert.Contains("TELEMETRY_UNAVAILABLE", TelemetryEvidenceValidator.Validate([first, second], true, true, true).Errors);
+        TelemetryEvidenceVerdict noCopyCounters = TelemetryEvidenceValidator.Validate([first, second], true, true, true);
+        Assert.Equal("PASS", noCopyCounters.Verdict);
+        Assert.Contains("COPY_TRAFFIC_NOT_MEASURED", noCopyCounters.DiagnosticIssues!);
         TelemetryFrameSummary forged = first.Frames with { SlowIntervalCount = 0, Intervals = [new(new(100, 1, "admission", 1, 1, 1, 0), 100)] };
         Assert.Contains("PRESENTATION_BELOW_30_FPS", Validate(first, second with { Frames = forged }).Errors);
     }

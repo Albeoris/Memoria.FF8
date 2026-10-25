@@ -16,18 +16,18 @@ public static class NativeBattleBlizzagaRibbon
         {
             throw new InvalidDataException("Native ribbon insertion requires both complete8-byte source points.");
         }
-        byte[] next = NativeBattleTelemetry.Materialize(1195, nodes);
+        byte[] next = nodes.ToArray();
         if (count < 30)
         {
-            NativeBattleTelemetry.Copy(1202, next.AsSpan(0, count * 36), next.AsSpan(36));
+            next.AsSpan(0, count * 36).CopyTo(next.AsSpan(36));
             count++;
         }
-        NativeBattleTelemetry.Copy(1203, firstPoint.AsSpan(), next);
-        NativeBattleTelemetry.Copy(1204, secondPoint.AsSpan(), next.AsSpan(8));
+        firstPoint.AsSpan().CopyTo(next);
+        secondPoint.AsSpan().CopyTo(next.AsSpan(8));
         next[0x20] = brightness;
         next[0x21] = unchecked((byte)velocity);
         next[0x22] = uBasis;
-        return new(count, NativeBattleTelemetry.Immutable(1198, next));
+        return new(count, next.ToImmutableArray());
     }
 
     public static ImmutableArray<byte> Point6D9CF0(ImmutableArray<byte> initialPoint, int angle, int height, int radius)
@@ -36,11 +36,11 @@ public static class NativeBattleBlizzagaRibbon
         {
             throw new InvalidDataException("Native ribbon point construction requires its retained fourth WORD.");
         }
-        byte[] point = NativeBattleTelemetry.Materialize(1196, initialPoint);
+        byte[] point = initialPoint.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(point, unchecked((short)(unchecked(NativeBattleCameraMath.Cosine(angle) * radius) >> 14)));
         BinaryPrimitives.WriteInt16LittleEndian(point.AsSpan(2), unchecked((short)(unchecked(NativeBattleCameraMath.Sine(angle) * radius) >> 14)));
         BinaryPrimitives.WriteInt16LittleEndian(point.AsSpan(4), unchecked((short)((height >> 2) - height)));
-        return NativeBattleTelemetry.Immutable(1199, point);
+        return point.ToImmutableArray();
     }
 
     public static NativeBattleBlizzagaRibbonResult Emit6D9A40(int count, ImmutableArray<byte> nodes, sbyte velocityDelta, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection)
@@ -59,7 +59,7 @@ public static class NativeBattleBlizzagaRibbon
     {
         Validate(count, nodes);
         matrix.Validate();
-        byte[] next = NativeBattleTelemetry.Materialize(1197, nodes);
+        byte[] next = nodes.ToArray();
         if (!paused)
         {
             for (int index = 0; index < count; index++)
@@ -117,11 +117,11 @@ public static class NativeBattleBlizzagaRibbon
                 {
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(word * 4), words[word]);
                 }
-                attempts.Add(new(allocated, NativeBattleTelemetry.Immutable(1200, data), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 52).ToImmutableArray(), primitive));
+                attempts.Add(new(allocated, data.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 52).ToImmutableArray(), primitive));
                 allocated += 52;
             }
         }
-        return new(count, NativeBattleTelemetry.Immutable(1201, next), new(attempts.ToImmutable(), allocated));
+        return new(count, next.ToImmutableArray(), new(attempts.ToImmutable(), allocated));
 
         short I16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(next.AsSpan(offset));
         uint U32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(next.AsSpan(offset));

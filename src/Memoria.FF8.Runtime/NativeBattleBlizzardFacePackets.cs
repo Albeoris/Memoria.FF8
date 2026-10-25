@@ -15,7 +15,7 @@ public static class NativeBattleBlizzardFacePackets
             throw new InvalidDataException("Native61B9A0 requires two original20-byte FT3 records, three actual projected corners and its depth shift.");
         }
         Span<byte> source = stackalloc byte[20];
-        NativeBattleTelemetry.Copy(1224, primaryFace.AsSpan(), source);
+        primaryFace.AsSpan().CopyTo(source);
         //The controller supplies either61BC56's stationary color or the moving branch's updated-age gray command26.
         BinaryPrimitives.WriteUInt32LittleEndian(source, context.PrimaryColor);
         NativeBattleEffectMeshPacketContext shared = new(context.Flags & 0x41, context.FarColor, context.Fade, null, null, 0, false, null, context.TableBaseBucket, context.DepthShift);

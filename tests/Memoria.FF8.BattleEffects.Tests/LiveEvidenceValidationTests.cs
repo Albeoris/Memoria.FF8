@@ -7,6 +7,41 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void Any_effect_can_pass_smoke_without_internal_copy_instrumentation()
+    {
+        JsonObject report = Report();
+        report["expected_effect"] = 77;
+        report.Remove("coverage");
+        foreach (JsonNode? entry in report["executions"]!.AsArray())
+        {
+            entry!.AsObject().Remove("traffic");
+            entry["dispatches"]![0]!["requested_effect"] = 77;
+            entry["dispatches"]![0]!["executed_effect"] = 77;
+        }
+        LiveEvidenceVerdict result = Validate(report);
+        Assert.Equal("PASS", result.Verdict);
+        Assert.Contains("COPY_TRAFFIC_NOT_MEASURED", result.DiagnosticIssues);
+        Assert.Contains("not measured", result.CopyTrafficScope);
+        Execution(report, 1)["dispatches"] = new JsonArray();
+        Assert.Contains("DISPATCH_COUNT_INVALID", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Non_hp_actions_require_normal_action_completion_without_fabricated_damage_contacts()
+    {
+        JsonObject report = Report();
+        foreach (JsonNode? entry in report["executions"]!.AsArray())
+        {
+            entry!["resolutions"] = new JsonArray();
+            entry["after"]![0]!["current_hp"] = entry["before"]![0]!["current_hp"]!.DeepClone();
+            entry["events"] = new JsonArray(new JsonObject { ["kind"] = "ActionComplete", ["actor_id"] = "party0" });
+        }
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Execution(report, 0)["events"] = new JsonArray();
+        Assert.Contains("SEMANTIC_RESOLUTION_UNVERIFIED", Validate(report).Errors);
+    }
+
+    [Fact]
     public void Complete_synthetic_observations_pass_telemetry_admission_without_campaign_acceptance()
     {
         LiveEvidenceVerdict result = Validate(Report());
@@ -51,14 +86,15 @@ public sealed class LiveEvidenceValidationTests
     }
 
     [Fact]
-    public void Reconstructed_owner_missing_coverage_and_muted_route_are_errors()
+    public void Reconstructed_owner_and_muted_route_are_errors_but_optional_copy_coverage_is_separate()
     {
         JsonObject report = Report();
         Execution(report, 1)["start_owners"]!["renderer_owner_id"] = "replacement";
         Assert.Contains("CONTINUITY_BROKEN", Validate(report).Errors);
         report = Report();
         report["coverage"] = JsonSerializer.SerializeToNode(TelemetryCoverageManifest.PreparationOnly, RecordJson.Options);
-        Assert.Contains("TELEMETRY_UNAVAILABLE", Validate(report).Errors);
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Assert.Contains("COPY_TRAFFIC_UNAVAILABLE", Validate(report).DiagnosticIssues);
         report = Report();
         report["audio"]!["enabled"] = false;
         Assert.Contains("AUDIO_ROUTE_UNVERIFIED", Validate(report).Errors);
@@ -111,13 +147,14 @@ public sealed class LiveEvidenceValidationTests
         copy["bytes"] = 1024L * 1024 * 1024;
         copy["operations"] = 1;
         copy["largest_operation_bytes"] = 1024L * 1024 * 1024;
-        Assert.Contains("LARGE_COPY_REVIEW_REQUIRED", Validate(report).Errors);
+        Assert.Contains("LARGE_COPY_REVIEW_REQUIRED", Validate(report).DiagnosticIssues);
+        Assert.Equal("PASS", Validate(report).Verdict);
         counters.Remove(copy);
         LiveEvidenceVerdict missing = Validate(report);
-        Assert.Equal("ERROR", missing.Verdict);
-        Assert.Contains("TRAFFIC_UNAVAILABLE_OR_INVALID", missing.Errors);
+        Assert.Equal("PASS", missing.Verdict);
+        Assert.Contains("COPY_TRAFFIC_INVALID_OR_INCOMPLETE", missing.DiagnosticIssues);
         Execution(report, 0)["traffic"]!["sites"] = new JsonArray(counters.Where(node => node!["kind"]!.GetValue<int>() == (int)TelemetryTrafficKind.Fill).Select(node => node!.DeepClone()).ToArray());
-        Assert.Contains("TRAFFIC_UNAVAILABLE_OR_INVALID", Validate(report).Errors);
+        Assert.Contains("COPY_TRAFFIC_INVALID_OR_INCOMPLETE", Validate(report).DiagnosticIssues);
     }
 
     [Fact]
@@ -125,13 +162,13 @@ public sealed class LiveEvidenceValidationTests
     {
         JsonObject report = Report();
         report["coverage"]!["instrumentation_version"] = "invented";
-        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+        Assert.Contains("COPY_TELEMETRY_MANIFEST_MISMATCH", Validate(report).DiagnosticIssues);
         report = Report();
         report["coverage"]!["sites"]!.AsArray().RemoveAt(0);
-        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+        Assert.Contains("COPY_TELEMETRY_MANIFEST_MISMATCH", Validate(report).DiagnosticIssues);
         report = Report();
         report["coverage"]!["sites"]![0]!["api"] = "omitted native owner";
-        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+        Assert.Contains("COPY_TELEMETRY_MANIFEST_MISMATCH", Validate(report).DiagnosticIssues);
     }
 
     [Fact]
@@ -142,7 +179,7 @@ public sealed class LiveEvidenceValidationTests
         Assert.Contains("FOCAL_RESOLUTION_TARGET_MISMATCH", Validate(report).Errors);
         report = Report();
         Execution(report, 0)["resolutions"]![0]!["actor_id"] = "other";
-        Assert.Contains("SEMANTIC_RESOLUTION_UNVERIFIED", Validate(report).Errors);
+        Assert.Contains("RESOLUTION_ACTOR_UNKNOWN", Validate(report).Errors);
     }
 
     [Fact]
@@ -192,7 +229,7 @@ public sealed class LiveEvidenceValidationTests
                 dispatches = new[] { new { serial = index + 1, callback = callback + 1, actor_id = "party0", ability = "Magic", action_id = 21, requested_effect = 1, executed_effect = 1 } },
                 frames = Frames(100 + index * 100, frame, callback),
                 traffic = new TelemetryTrafficCollector(coverage).Complete(),
-                events = new[] { new { kind = "heal", actor_id = "party0" } },
+                events = new[] { new { kind = "heal", actor_id = "party0" }, new { kind = "ActionComplete", actor_id = "party0" } },
                 resolutions = new[] { new { frame = frame + 1, callback = callback + 1, kind = "heal", actor_id = "party0", original_target_id = "party0", actual_target_id = "party0", resolved_amount = 100, actual_amount = 100, before_hp = hp, after_hp = hp + 100, hp_owner = "character" } },
                 before = new[] { State(hp, 10 - index) }, after = new[] { State(hp + 100, 9 - index) }, dropped_events = 0, integrity_error = (string?)null
             };

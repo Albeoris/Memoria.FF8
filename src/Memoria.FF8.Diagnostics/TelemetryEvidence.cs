@@ -29,7 +29,7 @@ public sealed class TelemetryContinuityGuard
 }
 
 public sealed record TelemetryExecutionEvidence(string RequestedAction, string AdmittedAction, string ExpectedBinding, string ActualBinding, bool Started, bool Completed, bool CleanupCompleted, int TailPresentedFrames, bool RendererParticipated, bool ExpectedMilestonesObserved, bool PendingWorkDrained, bool IntegrityChecksPassed, long NativeCallbackProgress, long UniqueRenderProgress, long DroppedEvents, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners);
-public sealed record TelemetryEvidenceVerdict(string Verdict, IReadOnlyList<string> Errors);
+public sealed record TelemetryEvidenceVerdict(string Verdict, IReadOnlyList<string> Errors, IReadOnlyList<string>? DiagnosticIssues = null);
 
 /// <summary>Conservative independent telemetry admission. Semantic fixture/outcome and authenticated-host validation remain separately required.</summary>
 public static class TelemetryEvidenceValidator
@@ -53,9 +53,10 @@ public static class TelemetryEvidenceValidator
         {
             errors.Add("MISSING_SECOND_EXECUTION");
         }
+        List<string> diagnostics = [];
         if (coverage is null || !coverage.MandatoryCoverageAvailable)
         {
-            errors.Add("TELEMETRY_UNAVAILABLE");
+            diagnostics.Add("COPY_TRAFFIC_NOT_MEASURED");
         }
         TelemetryContinuityGuard? continuity = executions.Count > 0 ? new(executions[0].StartOwners) : null;
         foreach (TelemetryExecutionEvidence execution in executions)
@@ -101,13 +102,13 @@ public static class TelemetryEvidenceValidator
             }
             if (!execution.Traffic.Available)
             {
-                errors.Add("TELEMETRY_UNAVAILABLE");
+                diagnostics.Add("COPY_TRAFFIC_UNAVAILABLE");
             }
             if (!execution.IntegrityChecksPassed)
             {
                 errors.Add("INTEGRITY_CHECK_FAILED");
             }
         }
-        return new(errors.Count == 0 ? "PASS" : "ERROR", errors.Distinct().ToArray());
+        return new(errors.Count == 0 ? "PASS" : "ERROR", errors.Distinct().ToArray(), diagnostics.Distinct().ToArray());
     }
 }

@@ -45,7 +45,7 @@ public static partial class NativeBattleTelemetry
     private static readonly AsyncLocal<Scope?> Current = new();
     private static readonly object PoolSync = new();
     private static NativeBattlePoolObservation pool;
-    public const string InstrumentationVersion = "managed-payload-v2";
+    public const string InstrumentationVersion = "shared-payload-v3";
 
     /// <summary>Process-wide arena-writer rentals only; includes rentals predating a scored scope. Peaks are lifetime observations.</summary>
     public static NativeBattlePoolObservation PoolSnapshot()

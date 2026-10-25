@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.BattleEffects;
 
-public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope);
+public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope, string[] DiagnosticIssues, string CopyTrafficScope);
 
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
 public static class LiveEvidenceValidation
@@ -24,6 +24,7 @@ public static class LiveEvidenceValidation
     public static LiveEvidenceVerdict Validate(JsonElement report, CaseRecipe? recipe = null)
     {
         List<string> errors = [];
+        List<string> diagnostics = [];
         List<TelemetryFrameSummary> frames = [];
         List<double> effectDurations = [];
         try
@@ -55,11 +56,6 @@ public static class LiveEvidenceValidation
             {
                 errors.Add("AUDIO_ROUTE_UNVERIFIED");
             }
-            TelemetryCoverageManifest coverage = report.GetProperty("coverage").Deserialize<TelemetryCoverageManifest>(Json) ?? throw new InvalidDataException("Missing coverage.");
-            if (!coverage.MandatoryCoverageAvailable)
-            {
-                errors.Add("TELEMETRY_UNAVAILABLE");
-            }
             JsonElement input = report.GetProperty("input");
             long frequency = Number(report, "timestamp_frequency");
             if (frequency <= 0)
@@ -67,14 +63,6 @@ public static class LiveEvidenceValidation
                 throw new InvalidDataException("Timestamp frequency must be positive.");
             }
             long effect = Number(report, "expected_effect");
-            if (effect is >= 1 and <= ushort.MaxValue)
-            {
-                TelemetryCoverageManifest authoritative = TelemetryCoverageManifest.ManagedPayload((ushort)effect);
-                if (!authoritative.MandatoryCoverageAvailable || coverage.InstrumentationVersion != authoritative.InstrumentationVersion || !coverage.Sites.OrderBy(site => site.SiteId).SequenceEqual(authoritative.Sites.OrderBy(site => site.SiteId)))
-                {
-                    errors.Add("TELEMETRY_MANIFEST_MISMATCH");
-                }
-            }
             string actor = Text(input, "actor_id");
             string target = Text(input, "target_id");
             string ability = Text(input, "ability");
@@ -186,17 +174,7 @@ public static class LiveEvidenceValidation
                 {
                     errors.Add("PRESENTATION_BELOW_30_FPS");
                 }
-                TelemetryTrafficSnapshot traffic = execution.GetProperty("traffic").Deserialize<TelemetryTrafficSnapshot>(Json)!;
-                HashSet<(int SiteId, TelemetryTrafficKind Kind)> expectedCounters = coverage.Sites.SelectMany(site => Enum.GetValues<TelemetryTrafficKind>().Select(kind => (site.SiteId, kind))).ToHashSet();
-                HashSet<(int SiteId, TelemetryTrafficKind Kind)> actualCounters = traffic.Sites.Select(site => (site.SiteId, site.Kind)).ToHashSet();
-                if (!traffic.Available || traffic.Error is not null || actualCounters.Count != traffic.Sites.Count || !actualCounters.SetEquals(expectedCounters) || traffic.Sites.Any(site => site.Bytes < 0 || site.Operations < 0 || site.Operations == 0 && site.Bytes != 0 || site.LargestOperationBytes < 0 || site.LargestOperationBytes > site.Bytes))
-                {
-                    errors.Add("TRAFFIC_UNAVAILABLE_OR_INVALID");
-                }
-                if (traffic.RequiresLargeCopyReview)
-                {
-                    errors.Add("LARGE_COPY_REVIEW_REQUIRED");
-                }
+                ValidateOptionalTraffic(report, execution, effect, diagnostics);
                 if (execution.GetProperty("integrity_error").ValueKind != JsonValueKind.Null)
                 {
                     errors.Add("INTEGRITY_CHECK_FAILED");
@@ -210,7 +188,48 @@ public static class LiveEvidenceValidation
         }
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
-        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.");
+        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.");
+    }
+
+    private static void ValidateOptionalTraffic(JsonElement report, JsonElement execution, long effect, List<string> diagnostics)
+    {
+        try
+        {
+            if (!report.TryGetProperty("coverage", out JsonElement manifest) || manifest.ValueKind == JsonValueKind.Null || !execution.TryGetProperty("traffic", out JsonElement counters) || counters.ValueKind == JsonValueKind.Null)
+            {
+                diagnostics.Add("COPY_TRAFFIC_NOT_MEASURED");
+                return;
+            }
+            TelemetryCoverageManifest coverage = manifest.Deserialize<TelemetryCoverageManifest>(Json)!;
+            if (!coverage.MandatoryCoverageAvailable || effect is < 1 or > ushort.MaxValue)
+            {
+                diagnostics.Add("COPY_TRAFFIC_UNAVAILABLE");
+                return;
+            }
+            TelemetryCoverageManifest authoritative = TelemetryCoverageManifest.ManagedPayload((ushort)effect);
+            if (coverage.InstrumentationVersion != authoritative.InstrumentationVersion || !coverage.Sites.OrderBy(site => site.SiteId).SequenceEqual(authoritative.Sites.OrderBy(site => site.SiteId)))
+            {
+                diagnostics.Add("COPY_TELEMETRY_MANIFEST_MISMATCH");
+                return;
+            }
+            TelemetryTrafficSnapshot traffic = counters.Deserialize<TelemetryTrafficSnapshot>(Json)!;
+            HashSet<(int SiteId, TelemetryTrafficKind Kind)> expected = coverage.Sites.SelectMany(site => Enum.GetValues<TelemetryTrafficKind>().Select(kind => (site.SiteId, kind))).ToHashSet();
+            HashSet<(int SiteId, TelemetryTrafficKind Kind)> actual = traffic.Sites.Select(site => (site.SiteId, site.Kind)).ToHashSet();
+            if (!traffic.Available || traffic.Error is not null || actual.Count != traffic.Sites.Count || !actual.SetEquals(expected) || traffic.Sites.Any(site => site.Bytes < 0 || site.Operations < 0 || site.Operations == 0 && site.Bytes != 0 || site.LargestOperationBytes < 0 || site.LargestOperationBytes > site.Bytes))
+            {
+                diagnostics.Add("COPY_TRAFFIC_INVALID_OR_INCOMPLETE");
+                return;
+            }
+            diagnostics.Add("COPY_TRAFFIC_PARTIAL_SHARED_OPERATIONS");
+            if (traffic.RequiresLargeCopyReview)
+            {
+                diagnostics.Add("LARGE_COPY_REVIEW_REQUIRED");
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or ArgumentException or NullReferenceException or OverflowException)
+        {
+            diagnostics.Add("COPY_TRAFFIC_INVALID_OR_INCOMPLETE");
+        }
     }
 
     private static void ValidateSemantics(JsonElement execution, string actor, string requestedTarget, string ability, long action, long startCallback, long endCallback, List<string> errors)
@@ -219,7 +238,8 @@ public static class LiveEvidenceValidation
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, long> observedHp = beforeStates.ToDictionary(pair => pair.Key, pair => Number(pair.Value, "current_hp"), StringComparer.Ordinal);
         JsonElement[] resolutions = execution.GetProperty("resolutions").EnumerateArray().ToArray();
-        if (execution.GetProperty("events").GetArrayLength() == 0 || !resolutions.Any(resolution => Text(resolution, "actor_id") == actor && Number(resolution, "resolved_amount") > 0))
+        bool completed = execution.GetProperty("events").EnumerateArray().Any(value => Text(value, "kind") == "ActionComplete" && Text(value, "actor_id") == actor);
+        if (!completed)
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
         }
@@ -237,6 +257,10 @@ public static class LiveEvidenceValidation
             long callback = Number(resolution, "callback");
             string target = Text(resolution, "actual_target_id");
             string kind = Text(resolution, "kind");
+            if (!beforeStates.ContainsKey(Text(resolution, "actor_id")))
+            {
+                errors.Add("RESOLUTION_ACTOR_UNKNOWN");
+            }
             long delta = after - before;
             bool healing = kind.Contains("heal", StringComparison.OrdinalIgnoreCase);
             bool damage = kind.Contains("damage", StringComparison.OrdinalIgnoreCase);

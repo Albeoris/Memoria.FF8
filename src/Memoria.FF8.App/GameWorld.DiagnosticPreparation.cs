@@ -46,9 +46,9 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
         }
         foreach (DiagnosticCharacterPreparation character in Characters)
         {
-            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 10 || character.Stocks.Any(stock => stock is null || stock.Action is not (>= 1 and <= 9 or 21) || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.HitPoints == 0)
+            if (character.Stocks.IsDefault || character.GuardianForces.IsDefault || character.Stocks.Length > 32 || character.Stocks.Any(stock => stock is null || stock.Action is < 1 or >= 64 || stock.Count is < 2 or > 100) || character.Stocks.Select(stock => stock.Action).Distinct().Count() != character.Stocks.Length || character.GuardianForces.Any(id => id is < 0 or >= 16) || character.GuardianForces.Distinct().Count() != character.GuardianForces.Length || character.HitPoints == 0)
             {
-                throw new InvalidDataException("Diagnostic preparation supports explicit action1..9 and21 stocks of 2..100, distinct GF assignments and positive HP only.");
+                throw new InvalidDataException("Diagnostic preparation requires native magic stock identities, at most32 distinct stocks of2..100, distinct GF assignments and positive HP.");
             }
             if (character.MagicCommand is { } command && (command.Slot is < 0 or >= 3 || command.Ability is < 20 or >= 39))
             {
@@ -155,6 +155,10 @@ internal sealed partial class GameWorld
             }
             foreach (DiagnosticMagicStockPreparation stock in character.Stocks)
             {
+                if (stock.Action >= next.Definitions.MagicHitPoints.Length)
+                {
+                    throw new InvalidDataException("Diagnostic stock identity is absent from the installed magic kernel.");
+                }
                 int delta = stock.Count - next.GetMagicCount(character.Row, stock.Action);
                 next = next.ChangeMagicStock(character.Row, stock.Action, delta, delta >= 0 ? MagicOperationReason.ScriptReward : MagicOperationReason.ScriptRemoval, out MagicStockMutation mutation);
                 if (mutation.Rejected != 0 || next.GetMagicCount(character.Row, stock.Action) != stock.Count)

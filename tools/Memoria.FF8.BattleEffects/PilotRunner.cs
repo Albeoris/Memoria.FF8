@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.BattleEffects;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record PilotCase(string Id, string Recipe);
+public sealed record PilotCase(string Id, string? Recipe, string Status = "RUNNABLE", string[]? Blockers = null, int? EffectId = null, string? RecipeSha256 = null);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, double CleanupRearmMs, double ActionTwoMs, double TeardownMs, double TotalMs, double NoProgressMs)
@@ -25,19 +25,19 @@ public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, d
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null);
 public sealed record PilotStageDurations(double StagingMs, double SupervisionMs, double ValidationMs, double ResultFinalizationMs);
-public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors, int Executions, double TotalMs, double EffectDurationMs, double ExecutionWindowMs, double OverheadMs, bool OverheadWithinBudget, string Directory, bool ProcessExited, PilotStageDurations? Stages = null);
+public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors, int Executions, double TotalMs, double EffectDurationMs, double ExecutionWindowMs, double OverheadMs, bool OverheadWithinBudget, string Directory, bool ProcessExited, PilotStageDurations? Stages = null, int? EffectId = null, string ScenarioStatus = "RUNNABLE", string[]? DiagnosticIssues = null, string? CopyTrafficScope = null);
 public sealed record PilotBatchSummary(int SchemaVersion, string Verdict, string BuildFingerprint, int Requested, int Passed, int Failed, int Errors, double TotalMs, PilotCaseSummary[] Cases);
 
-/// <summary>Bounded unattended pilot. Each fresh owned host performs two ordinary commands; graphics and measurements never overlap.</summary>
+/// <summary>External manifest runner. Each runnable case gets a fresh bounded owned host and two live executions; measurements never overlap.</summary>
 public static class PilotRunner
 {
     public const double MaximumOverheadMs = 10000;
     private static string MeasurementPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "Validation", "measurement.lock");
 
-    public static async Task<PilotBatchSummary> RunAsync(PilotManifest manifest, CancellationToken cancellationToken = default, Action<PilotCaseSummary>? completed = null)
+    public static async Task<PilotBatchSummary> RunAsync(PilotManifest manifest, CancellationToken cancellationToken = default, Action<PilotCaseSummary>? completed = null, string? measurementPath = null)
     {
         ValidateManifest(manifest);
-        using FileStream slot = AcquireMeasurementSlot();
+        using FileStream slot = AcquireMeasurementSlot(measurementPath);
         Stopwatch batchTime = Stopwatch.StartNew();
         Directory.CreateDirectory(manifest.OutputRoot);
         using (new FileStream(Path.Combine(manifest.OutputRoot, "pilot-owner"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -59,15 +59,20 @@ public static class PilotRunner
             index++;
             string directory = Path.Combine(manifest.OutputRoot, $"{index:D2}-{item.Id}");
             PilotCaseSummary result;
-            if (!safeToContinue)
+            if (item.Status != "RUNNABLE")
+            {
+                result = BlockedResult(item, directory);
+            }
+            else if (!safeToContinue)
             {
                 result = Summarize(item.Id, "ERROR", ["PREVIOUS_PROCESS_EXIT_UNCONFIRMED"], 0, 0, 0, directory, false);
             }
             else
             {
-                result = await RunCaseAsync(manifest, item, index, directory, cancellationToken).ConfigureAwait(false);
+                result = await RunCaseAsync(manifest, item, index, directory, measurementPath ?? MeasurementPath, cancellationToken).ConfigureAwait(false);
                 safeToContinue = result.ProcessExited;
             }
+            result = result with { EffectId = item.EffectId, ScenarioStatus = item.Status };
             Directory.CreateDirectory(directory);
             WriteNew(Path.Combine(directory, "pilot-result.json"), result);
             results.Add(result);
@@ -79,7 +84,7 @@ public static class PilotRunner
         return summary;
     }
 
-    private static async Task<PilotCaseSummary> RunCaseAsync(PilotManifest manifest, PilotCase item, int index, string directory, CancellationToken cancellationToken)
+    private static async Task<PilotCaseSummary> RunCaseAsync(PilotManifest manifest, PilotCase item, int index, string directory, string measurementPath, CancellationToken cancellationToken)
     {
         Stopwatch total = Stopwatch.StartNew();
         long stagingEnded = 0;
@@ -87,6 +92,8 @@ public static class PilotRunner
         long validationEnded = 0;
         string verdict = "ERROR";
         List<string> errors = [];
+        string[] diagnosticIssues = [];
+        string? copyTrafficScope = null;
         double effectMs = 0;
         double executionWindowMs = 0;
         int executions = 0;
@@ -98,7 +105,15 @@ public static class PilotRunner
             string control = Path.Combine(directory, "control");
             string save = Path.Combine(directory, "saves", "checkpoint.json");
             Directory.CreateDirectory(directory);
+            if (item.Recipe is null || !Path.IsPathFullyQualified(item.Recipe))
+            {
+                throw new InvalidDataException("A runnable scenario requires an explicit absolute recipe path.");
+            }
             byte[] recipe = File.ReadAllBytes(item.Recipe);
+            if (item.RecipeSha256 is not null && Convert.ToHexStringLower(SHA256.HashData(recipe)) != item.RecipeSha256)
+            {
+                throw new InvalidDataException("RECIPE_SHA256_MISMATCH: Submitted recipe differs from the frozen scenario input.");
+            }
             string bootstrap = Path.Combine(directory, "bootstrap.json");
             OwnedChildSupervisor.PublishTransientImmutable(bootstrap, recipe);
             SupervisionRequest request = new($"pilot-{index:D2}-{item.Id}", manifest.Executable, ["--game-dir", manifest.GameDir, "--battle-test", bootstrap, "--resolution", "1920x1080", "--settings-dir", settings, "--control-dir", control, "--save-state", save], manifest.WorkingDirectory, settings, output, control, manifest.Budgets.ToSupervision(), new Dictionary<string, string> { ["MEMORIA_FF8_GAME_DIR"] = manifest.GameDir });
@@ -108,15 +123,21 @@ public static class PilotRunner
             exited = outcome.ProcessExited;
             if (!exited)
             {
-                WriteNew(MeasurementPath + ".blocked.json", new { outcome.AttemptId, outcome.Process, outcome.Message, process_exited = false });
+                WriteNew(measurementPath + ".blocked.json", new { outcome.AttemptId, outcome.Process, outcome.Message, process_exited = false });
             }
             if (outcome.Status == "candidate_ready")
             {
                 string path = Path.Combine(output, "telemetry-report.json");
                 JsonElement report = ValidateCandidate(outcome.CandidatePayload!, path, recipe);
+                if (item.EffectId is int effectId && report.GetProperty("expected_effect").GetInt32() != effectId)
+                {
+                    throw new InvalidDataException("Live report differs from the manifest scenario effect identity.");
+                }
                 LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(report);
                 verdict = validation.Verdict;
                 errors.AddRange(validation.Errors);
+                diagnosticIssues = validation.DiagnosticIssues;
+                copyTrafficScope = validation.CopyTrafficScope;
                 effectMs = validation.EffectDurationsMs.Sum();
                 executionWindowMs = validation.Executions.Sum(execution => execution.DurationMs);
                 executions = validation.Executions.Length;
@@ -126,12 +147,12 @@ public static class PilotRunner
                     verdict = "ERROR";
                 }
                 validationEnded = total.ElapsedTicks;
-                OwnedChildSupervisor.PublishValidatedCandidate(outcome, _ => JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, verdict, errors = errors.ToArray(), executions, effect_duration_ms = effectMs, execution_window_ms = executionWindowMs, campaign_acceptance = false }, RecordJson.Options));
+                OwnedChildSupervisor.PublishValidatedCandidate(outcome, _ => JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, verdict, errors = errors.ToArray(), diagnostic_issues = diagnosticIssues, copy_traffic_scope = copyTrafficScope, executions, effect_duration_ms = effectMs, execution_window_ms = executionWindowMs, campaign_acceptance = false }, RecordJson.Options));
             }
             else
             {
                 validationEnded = supervisionEnded;
-                errors.Add(outcome.ErrorCategory ?? "SUPERVISION_FAILED");
+                errors.Add((outcome.ErrorCategory ?? "SUPERVISION_FAILED") + (outcome.Message is null ? "" : ": " + outcome.Message));
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or JsonException or ArgumentException or FormatException or OverflowException or KeyNotFoundException)
@@ -152,15 +173,15 @@ public static class PilotRunner
         double supervisionMs = (supervisionEnded - stagingEnded) * millisecondsPerTick;
         double validationMs = (validationEnded - supervisionEnded) * millisecondsPerTick;
         PilotStageDurations stages = new(stagingMs, supervisionMs, validationMs, totalMs - stagingMs - supervisionMs - validationMs);
-        return Summarize(item.Id, verdict, errors.ToArray(), executions, totalMs, effectMs, directory, exited, executionWindowMs, stages);
+        return Summarize(item.Id, verdict, errors.ToArray(), executions, totalMs, effectMs, directory, exited, executionWindowMs, stages, diagnosticIssues, copyTrafficScope);
     }
 
-    public static PilotCaseSummary Summarize(string id, string verdict, string[] errors, int executions, double totalMs, double effectDurationMs, string directory, bool processExited, double? executionWindowMs = null, PilotStageDurations? stages = null)
+    public static PilotCaseSummary Summarize(string id, string verdict, string[] errors, int executions, double totalMs, double effectDurationMs, string directory, bool processExited, double? executionWindowMs = null, PilotStageDurations? stages = null, string[]? diagnosticIssues = null, string? copyTrafficScope = null)
     {
         bool stagesInvalid = stages is not null && (new[] { stages.StagingMs, stages.SupervisionMs, stages.ValidationMs, stages.ResultFinalizationMs }.Any(value => !double.IsFinite(value) || value < -0.0000001) || Math.Abs(stages.StagingMs + stages.SupervisionMs + stages.ValidationMs + stages.ResultFinalizationMs - totalMs) > 0.0000001);
         if (!double.IsFinite(totalMs) || !double.IsFinite(effectDurationMs) || totalMs < 0 || effectDurationMs < 0 || effectDurationMs > totalMs || executions is < 0 or > 2 || executionWindowMs is double window && (!double.IsFinite(window) || window < effectDurationMs || window > totalMs) || stagesInvalid)
         {
-            return new(id, "ERROR", [.. errors, "TIMING_EVIDENCE_INVALID"], executions, double.IsFinite(totalMs) && totalMs >= 0 ? totalMs : 0, double.IsFinite(effectDurationMs) && effectDurationMs >= 0 ? effectDurationMs : 0, 0, 0, false, directory, processExited, stages);
+            return new(id, "ERROR", [.. errors, "TIMING_EVIDENCE_INVALID"], executions, double.IsFinite(totalMs) && totalMs >= 0 ? totalMs : 0, double.IsFinite(effectDurationMs) && effectDurationMs >= 0 ? effectDurationMs : 0, 0, 0, false, directory, processExited, stages, DiagnosticIssues: diagnosticIssues, CopyTrafficScope: copyTrafficScope);
         }
         double overhead = totalMs - effectDurationMs;
         bool within = overhead <= MaximumOverheadMs;
@@ -183,14 +204,20 @@ public static class PilotRunner
             allErrors.Add("PROCESS_EXIT_UNCONFIRMED");
             verdict = "ERROR";
         }
-        return new(id, verdict, allErrors.Distinct(StringComparer.Ordinal).ToArray(), executions, totalMs, effectDurationMs, executionWindowMs ?? effectDurationMs, overhead, within, directory, processExited, stages);
+        return new(id, verdict, allErrors.Distinct(StringComparer.Ordinal).ToArray(), executions, totalMs, effectDurationMs, executionWindowMs ?? effectDurationMs, overhead, within, directory, processExited, stages, DiagnosticIssues: diagnosticIssues, CopyTrafficScope: copyTrafficScope);
+    }
+
+    public static PilotCaseSummary BlockedResult(PilotCase item, string directory)
+    {
+        string[] errors = ["SCENARIO_" + item.Status, .. (item.Blockers ?? [])];
+        return Summarize(item.Id, "ERROR", errors, 0, 0, 0, directory, true);
     }
 
     public static void ValidateManifest(PilotManifest manifest)
     {
-        if (manifest.SchemaVersion != 1 || manifest.Cases is null || manifest.Cases.Length is < 1 or > 10 || manifest.Budgets is null)
+        if (manifest.SchemaVersion != 1 || manifest.Cases is null || manifest.Cases.Length < 1 || manifest.Budgets is null)
         {
-            throw new InvalidDataException("A pilot manifest requires schema v1, finite budgets and one through ten explicitly selected cases.");
+            throw new InvalidDataException("A scenario manifest requires schema v1, finite budgets and at least one explicitly selected case.");
         }
         manifest.Budgets.ToSupervision().Validate();
         if (!Path.IsPathFullyQualified(manifest.Executable) || !File.Exists(manifest.Executable) || !Path.IsPathFullyQualified(manifest.WorkingDirectory) || !Directory.Exists(manifest.WorkingDirectory) || !Path.IsPathFullyQualified(manifest.GameDir) || !Directory.Exists(manifest.GameDir) || !Path.IsPathFullyQualified(manifest.OutputRoot))
@@ -225,9 +252,21 @@ public static class PilotRunner
         HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
         foreach (PilotCase item in manifest.Cases)
         {
-            if (item is null || !ids.Add(EvidenceStore.Id(item.Id)) || !Path.IsPathFullyQualified(item.Recipe) || !File.Exists(item.Recipe))
+            if (item is null || !ids.Add(EvidenceStore.Id(item.Id)))
             {
-                throw new InvalidDataException("Pilot cases require unique safe identities and existing explicit recipe paths.");
+                throw new InvalidDataException("Scenarios require unique safe identities.");
+            }
+            if (item.Status is not ("RUNNABLE" or "PLANNED_BLOCKED" or "UNRESOLVED") || item.Blockers?.Any(string.IsNullOrWhiteSpace) == true || item.Status != "RUNNABLE" && item.Blockers is not { Length: > 0 } || item.EffectId is < 0)
+            {
+                throw new InvalidDataException("Scenarios require a known status, a nonnegative optional effect ID and explicit blockers for every nonrunnable case.");
+            }
+            if (item.Status == "RUNNABLE" && item.Blockers is { Length: > 0 })
+            {
+                throw new InvalidDataException("A runnable scenario cannot retain unresolved blockers.");
+            }
+            if (item.RecipeSha256 is not null && (item.RecipeSha256.Length != 64 || item.RecipeSha256.Any(character => character is not (>= '0' and <= '9' or >= 'a' and <= 'f'))))
+            {
+                throw new InvalidDataException("A scenario recipe SHA256 must contain exactly 64 lowercase hexadecimal characters.");
             }
         }
     }

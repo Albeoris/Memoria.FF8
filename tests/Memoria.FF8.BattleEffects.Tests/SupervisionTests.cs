@@ -9,6 +9,21 @@ public sealed class SupervisionTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "battle-supervision-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public async Task Failed_host_preserves_the_actual_reason_without_claiming_complete_stages()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows job-object test.");
+        }
+        SupervisionRequest request = ScriptRequest("[IO.File]::WriteAllText((Join-Path $env:MEMORIA_FF8_OUTPUT_DIRECTORY 'candidate.json'), '{\"status\":\"ERROR\",\"reason\":\"UNSUPPORTED_OWNER: required model unavailable\"}')");
+        SupervisionOutcome outcome = await OwnedChildSupervisor.RunAsync(request, TestContext.Current.CancellationToken);
+        Assert.Equal("HOST_REPORTED_ERROR", outcome.ErrorCategory);
+        Assert.Equal("UNSUPPORTED_OWNER: required model unavailable", outcome.Message);
+        Assert.True(outcome.ProcessExited);
+        AssertError(outcome, "HOST_REPORTED_ERROR");
+    }
+
+    [Fact]
     public async Task StartedRecordIsPersistedBeforeOwnedChildMayExecute()
     {
         if (!OperatingSystem.IsWindows())

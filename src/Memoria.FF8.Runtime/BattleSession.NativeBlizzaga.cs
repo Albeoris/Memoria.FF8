@@ -43,12 +43,12 @@ public sealed partial class BattleSession
             int countOffset = second ? 24 : 32;
             int nodesOffset = second ? 64 : 44;
             int count = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(countOffset - 12)));
-            ImmutableArray<byte> nodes = NativeBattleTelemetry.Immutable(1162, NativeBattleTelemetry.Materialize(1160, task.Payload.AsSpan().Slice(nodesOffset - 12, 30 * 36)));
+            ImmutableArray<byte> nodes = task.Payload.AsSpan().Slice(nodesOffset - 12, 30 * 36).ToArray().ToImmutableArray();
             NativeBattleBlizzagaRibbonResult ribbon = NativeBattleBlizzagaRibbon.Emit6D9A40(count, nodes, delta, matrix, projection);
-            byte[] payload = NativeBattleTelemetry.Materialize(1161, task.Payload);
+            byte[] payload = task.Payload.ToArray();
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(countOffset - 12), (uint)ribbon.Count);
-            NativeBattleTelemetry.Copy(1164, ribbon.Nodes.AsSpan(), payload.AsSpan(nodesOffset - 12));
-            return new(AppendGeometry(current, ribbon.Packets), task with { Payload = NativeBattleTelemetry.Immutable(1163, payload) });
+            ribbon.Nodes.AsSpan().CopyTo(payload.AsSpan(nodesOffset - 12));
+            return new(AppendGeometry(current, ribbon.Packets), task with { Payload = payload.ToImmutableArray() });
         }
 
         NativeBattleBlizzagaFrame Execute(NativeBattleBlizzagaFrame current, NativeBattleBlizzagaOperation operation)

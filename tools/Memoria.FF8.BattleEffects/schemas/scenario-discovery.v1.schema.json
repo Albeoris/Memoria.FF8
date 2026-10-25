@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:scenario-discovery:v1",
+  "title": "Installed scenario discovery inventory v1",
+  "type": "object",
+  "required": ["schema_version", "executable_sha256", "kernel_sha256", "scene_sha256", "created_utc", "bindings", "actions", "commands", "issues"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "executable_sha256": { "$ref": "#/$defs/hash" },
+    "kernel_sha256": { "$ref": "#/$defs/hash" },
+    "scene_sha256": { "$ref": "#/$defs/hash" },
+    "created_utc": { "type": "string" },
+    "bindings": {
+      "type": "array", "minItems": 400,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["effect_id", "entry", "initializer", "shared_binding_rows", "disposition", "reason", "scenario_ids"],
+        "properties": {
+          "effect_id": { "type": "integer", "minimum": 1, "maximum": 400 },
+          "entry": { "type": "integer", "minimum": 0 },
+          "initializer": { "type": "integer", "minimum": 0 },
+          "shared_binding_rows": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 400 } },
+          "disposition": { "enum": ["scheduled", "covered_by_case", "unresolved", "excluded_with_reason"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "scenario_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "actions": { "type": "array", "items": { "type": "object", "required": ["id", "family", "native", "mapping_evidence"] } },
+    "commands": { "type": "array", "items": { "type": "object", "required": ["command", "name", "ability_id", "action_ids", "disposition", "reason"] } },
+    "issues": { "type": "array", "items": { "type": "object", "required": ["identity", "message"] } }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

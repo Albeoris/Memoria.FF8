@@ -21,6 +21,7 @@ public sealed record TelemetryCoverageManifest(string InstrumentationVersion, IR
 
     public static TelemetryCoverageManifest ManagedPayload(ushort expectedEffect)
     {
+        ArgumentOutOfRangeException.ThrowIfZero(expectedEffect);
         List<TelemetryCoverageSite> sites = NativeBattleTelemetry.Sites.Select(site => new TelemetryCoverageSite(site.SiteId, site.Subsystem, site.Api, true, true, null)).ToList();
         sites.AddRange([
             new(2001, "renderer", "DrawUserPrimitives managed vertex payload", true, true, null),
@@ -29,10 +30,6 @@ public sealed record TelemetryCoverageManifest(string InstrumentationVersion, IR
             new(2004, "renderer", "Framebuffer ARGB conversion payload", true, true, null),
             new(2005, "diagnostics", "Diagnostic JSON output UTF-8 payload", true, true, null)
         ]);
-        if (!NativeBattleTelemetry.CoveredEffects.Contains(expectedEffect))
-        {
-            sites.Add(new(2999, "effect_payload", "Effect-specific payload materialization coverage", true, false, $"This instrumentation manifest covers native effects {string.Join(", ", NativeBattleTelemetry.CoveredEffects)} only."));
-        }
         return new(NativeBattleTelemetry.InstrumentationVersion, sites);
     }
 

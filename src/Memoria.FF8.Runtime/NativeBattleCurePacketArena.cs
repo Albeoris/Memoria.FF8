@@ -60,8 +60,7 @@ public static partial class NativeBattleEffectPacketArena
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4 * word), primitive.Words[word]);
             }
-            bool[] written = new bool[length];
-            NativeBattleTelemetry.Fill(1132, written, true, 0, length);
+            bool[] written = Enumerable.Repeat(true, length).ToArray();
             switch (command & 0xFC)
             {
                 case 0x28 when length == 24:
@@ -124,7 +123,7 @@ public static partial class NativeBattleEffectPacketArena
                 arena = arena.Write(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink));
             }
 
-            void Preserve(int first, int count) => NativeBattleTelemetry.Fill(1133, written, false, first, count);
+            void Preserve(int first, int count) => Array.Fill(written, false, first, count);
         }
         return new(memory with { Arena = arena.Freeze() }, checked(cursor + batch.AllocationBytes), links.ToImmutable());
     }

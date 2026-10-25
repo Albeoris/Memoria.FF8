@@ -151,11 +151,6 @@ public static class OwnedChildSupervisor
                         category = "MISSING_CANDIDATE";
                         message = "The owned process exited without a candidate report.";
                     }
-                    else if (stage != "teardown")
-                    {
-                        category = "INCOMPLETE_STAGES";
-                        message = "The owned process did not report all mandatory stages.";
-                    }
                     else
                     {
                         FileInfo info = new(candidatePath);
@@ -168,6 +163,16 @@ public static class OwnedChildSupervisor
                         if (parsed.RootElement.ValueKind != JsonValueKind.Object)
                         {
                             throw new InvalidDataException("A candidate report must be a JSON object.");
+                        }
+                        if (parsed.RootElement.TryGetProperty("status", out JsonElement status) && status.GetString() == "ERROR")
+                        {
+                            category = "HOST_REPORTED_ERROR";
+                            message = parsed.RootElement.TryGetProperty("reason", out JsonElement reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : "The graphical host reported an error without a reason.";
+                        }
+                        else if (stage != "teardown")
+                        {
+                            category = "INCOMPLETE_STAGES";
+                            message = "The owned process did not report all mandatory stages.";
                         }
                     }
                     break;

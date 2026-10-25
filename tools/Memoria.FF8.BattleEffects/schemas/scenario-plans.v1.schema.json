@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:scenario-plans:v1",
+  "title": "Installed scenario plans v1; diagnostic readiness does not certify campaign acceptance",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["case_id", "effect_id", "action_id", "family", "status", "disposition", "campaign_acceptance", "diagnostic_recipe", "formation_id", "stage_id", "caster", "command_owner", "command", "native_action_id", "crisis_level", "target_flags", "target_policy", "preparation", "invocation", "executions", "repeat_policy", "mapping_evidence", "execution_blockers", "acceptance_blockers", "owner_context_ids"],
+    "properties": {
+      "case_id": { "type": "string", "minLength": 1 },
+      "effect_id": { "type": ["integer", "null"], "minimum": 0 },
+      "action_id": { "type": "string", "minLength": 1 },
+      "family": { "type": "string", "minLength": 1 },
+      "status": { "enum": ["RUNNABLE", "PLANNED_BLOCKED", "UNRESOLVED"] },
+      "disposition": { "enum": ["scheduled", "covered_by_case", "unresolved", "excluded_with_reason"] },
+      "campaign_acceptance": { "const": false },
+      "diagnostic_recipe": { "type": ["string", "null"] },
+      "formation_id": { "type": ["integer", "null"] },
+      "stage_id": { "type": ["integer", "null"] },
+      "caster": { "type": "string", "minLength": 1 },
+      "command_owner": { "type": ["string", "null"] },
+      "command": { "type": ["integer", "null"], "minimum": 0, "maximum": 255 },
+      "native_action_id": { "type": ["integer", "null"], "minimum": 0 },
+      "crisis_level": { "type": ["integer", "null"], "minimum": 1, "maximum": 4 },
+      "target_flags": { "type": ["integer", "null"], "minimum": 0, "maximum": 255 },
+      "target_policy": { "type": "string", "minLength": 1 },
+      "preparation": { "$ref": "#/$defs/strings" },
+      "invocation": { "$ref": "#/$defs/strings" },
+      "executions": { "type": "integer", "minimum": 2 },
+      "repeat_policy": { "$ref": "#/$defs/strings" },
+      "mapping_evidence": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+      "execution_blockers": { "$ref": "#/$defs/strings" },
+      "acceptance_blockers": { "$ref": "#/$defs/strings" },
+      "owner_context_ids": { "$ref": "#/$defs/strings" }
+    }
+  },
+  "$defs": { "strings": { "type": "array", "items": { "type": "string", "minLength": 1 } } }
+}

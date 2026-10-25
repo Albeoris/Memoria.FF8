@@ -28,6 +28,19 @@ public sealed class DiagnosticLiveTelemetryTests
         Assert.Equal(battle.DiagnosticLifecycleId.ToString(), execution.StartOwners.RetainedMemoryOwnerId);
         Assert.False(execution.Completed);
         Assert.Equal("TEST_BOUNDARY", execution.IntegrityError);
+        Assert.True(execution.ProcessBefore.WorkingSetBytes > 0);
+        Assert.True(execution.ProcessAfter.PrivateMemoryBytes > 0);
+        Assert.True(execution.ProcessAfter.CpuMilliseconds >= execution.ProcessBefore.CpuMilliseconds);
+    }
+
+    [Fact]
+    public void Shared_observers_do_not_have_an_effect_allowlist()
+    {
+        using DiagnosticLiveTelemetry first = new(Battle(), Guid.NewGuid(), 1);
+        using DiagnosticLiveTelemetry last = new(Battle(), Guid.NewGuid(), 400);
+        Assert.Equal(first.Coverage.InstrumentationVersion, last.Coverage.InstrumentationVersion);
+        Assert.Equal(first.Coverage.Sites, last.Coverage.Sites);
+        Assert.DoesNotContain(last.Coverage.Sites, site => !site.Enabled);
     }
 
     [Fact]

@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Memoria.FF8.Diagnostics/Memoria.FF8.Diagnostics.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <Content Include="schemas/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

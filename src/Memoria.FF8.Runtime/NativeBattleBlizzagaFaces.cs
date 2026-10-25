@@ -22,13 +22,13 @@ public static class NativeBattleBlizzagaFaces
     public const int MeshLength = 0x2328;
 
     public static int MeshOffset(int sequence) => sequence is >= 0 and < 3 ? 0x11FB0 + sequence * MeshLength : throw new NotSupportedException("Native Blizzaga owns exactly three header-indexed geometry clones.");
-    public static ImmutableArray<byte> ReadPrimaryMesh(NativeBattleEffectMemory memory, int sequence) => NativeBattleTelemetry.Immutable(1188, Arena(memory).Read(MeshOffset(sequence), MeshLength));
+    public static ImmutableArray<byte> ReadPrimaryMesh(NativeBattleEffectMemory memory, int sequence) => Arena(memory).Read(MeshOffset(sequence), MeshLength).ToImmutableArray();
     public static ImmutableArray<byte> Companion(NativeBattleEffectMemory memory) => memory.BlizzagaCompanion is { } bytes && !bytes.IsDefault && bytes.Length == 0x1928 ? bytes : throw new NotSupportedException("Native Blizzaga requires its retained shared companion geometry.");
 
     public static ImmutableArray<byte> ExpandedVertices(NativeBattleModulePoolTask task, int phase)
     {
         RequireTask(task);
-        return NativeBattleTelemetry.Immutable(1189, NativeBattleTelemetry.Materialize(1183, task.Payload.AsSpan().Slice(VertexOffset - 12, phase <= 32 ? 177 * 8 : ExpandedLength)));
+        return task.Payload.AsSpan().Slice(VertexOffset - 12, phase <= 32 ? 177 * 8 : ExpandedLength).ToArray().ToImmutableArray();
     }
 
     public static (short Minimum, short Span) Extents(NativeBattleBlizzagaResources resources)
@@ -58,7 +58,7 @@ public static class NativeBattleBlizzagaFaces
         RequireTask(task);
         resources.PrimaryMesh.Validate(6, 28);
         resources.PartnerMesh.Validate(2, 20);
-        byte[] mesh = NativeBattleTelemetry.Materialize(1184, resources.PrimaryMesh.Bytes);
+        byte[] mesh = resources.PrimaryMesh.Bytes.ToArray();
         (int first, _) = NativeBattleIceMeshVertices.Group(mesh, 6);
         for (int face = 0; face < FaceCount; face++)
         {
@@ -80,17 +80,17 @@ public static class NativeBattleBlizzagaFaces
             ImmutableArray<byte> morphed = NativeBattleGfMorphGeometry.Morph45E9D0(resources.MorphSourceVertices.Bytes, 8, resources.ReferenceVertices.Bytes, 8, 177, 682 + (phase - 28) * 1365, task.Payload, VertexOffset - 12);
             return new(memory, task with { Payload = morphed }, random);
         }
-        byte[] payload = NativeBattleTelemetry.Materialize(1185, task.Payload);
+        byte[] payload = task.Payload.ToArray();
         if (phase == 31)
         {
-            NativeBattleTelemetry.Copy(1193, resources.ReferenceVertices.Bytes.AsSpan().Slice(8, 177 * 8), payload.AsSpan(VertexOffset - 12));
+            resources.ReferenceVertices.Bytes.AsSpan().Slice(8, 177 * 8).CopyTo(payload.AsSpan(VertexOffset - 12));
         }
         if (phase <= 32)
         {
-            return new(memory, task with { Payload = NativeBattleTelemetry.Immutable(1190, payload) }, random);
+            return new(memory, task with { Payload = payload.ToImmutableArray() }, random);
         }
-        byte[] mesh = NativeBattleTelemetry.Materialize(1186, ReadPrimaryMesh(memory, sequence));
-        byte[] companion = NativeBattleTelemetry.Materialize(1187, Companion(memory));
+        byte[] mesh = ReadPrimaryMesh(memory, sequence).ToArray();
+        byte[] companion = Companion(memory).ToArray();
         (int first, int count) = NativeBattleIceMeshVertices.Group(mesh, 6);
         (int second, int companionCount) = NativeBattleIceMeshVertices.Group(companion, 2);
         if (count != FaceCount || companionCount != FaceCount)
@@ -106,7 +106,7 @@ public static class NativeBattleBlizzagaFaces
                 Set(0x28 + index * 0x38 + 6, 0);
                 Set(0x28 + index * 0x38 + 14, 1);
                 BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(face), BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan(face)) & 0xFDFFFFFF);
-                NativeBattleTelemetry.Copy(1194, mesh.AsSpan(face + 4, 6), companion.AsSpan(second + index * 20 + 4));
+                mesh.AsSpan(face + 4, 6).CopyTo(companion.AsSpan(second + index * 20 + 4));
             }
         }
         if (phase >= 51)
@@ -194,7 +194,7 @@ public static class NativeBattleBlizzagaFaces
                 Set(selected[corner] + 4, transformed.Z);
             }
         }
-        return new(memory with { Arena = Arena(memory).Write(MeshOffset(sequence), mesh), BlizzagaCompanion = NativeBattleTelemetry.Immutable(1191, companion) }, task with { Payload = NativeBattleTelemetry.Immutable(1192, payload) }, random);
+        return new(memory with { Arena = Arena(memory).Write(MeshOffset(sequence), mesh), BlizzagaCompanion = companion.ToImmutableArray() }, task with { Payload = payload.ToImmutableArray() }, random);
 
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(offset - 12));
         void Set(int offset, int value) => BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), unchecked((ushort)value));
