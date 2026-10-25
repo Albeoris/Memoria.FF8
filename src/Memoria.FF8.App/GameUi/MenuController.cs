@@ -677,9 +677,23 @@ public sealed partial class MenuController
         SoundRequested?.Invoke(MenuSound.Move);
     }
 
+    internal string PendingAngeloMove { get; private set; } = "";
+
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (action.Kind == "angelo-confirm")
+        {
+            PendingAngeloMove = action.SubjectId;
+            Push("status-angelo-warning");
+            SelectEntry("status-angelo-warning", "no");
+            return;
+        }
+        if (action.Kind == "angelo-cancel")
+        {
+            Back();
+            return;
+        }
         if (ExecuteHardcoreConfirmation(ref action))
         {
             return;
@@ -878,6 +892,10 @@ public sealed partial class MenuController
             };
             _liveAction(action);
             _liveData = null;
+            if (action.Kind == "angelo-learn" && ScreenId == "status-angelo-warning")
+            {
+                Back();
+            }
             if (action.Kind == "native-refine" && ScreenId == "ability-recipes")
             {
                 _selections[ScreenId] = Math.Clamp(SelectedIndex, 0, Math.Max(0, Entries.Count - 1));

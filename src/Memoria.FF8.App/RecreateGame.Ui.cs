@@ -255,6 +255,15 @@ internal sealed partial class RecreateGame
         {
             return;
         }
+        if (action.Kind == "angelo-learn")
+        {
+            if (!action.SubjectId.StartsWith("limit-", StringComparison.Ordinal) || !int.TryParse(action.SubjectId.AsSpan("limit-".Length), out int index))
+            {
+                throw new InvalidDataException("Invalid Angelo training ability.");
+            }
+            session.SelectAngeloLearning(index);
+            return;
+        }
         if (action.Kind == "new-game-start")
         {
             StartNewGameSession();

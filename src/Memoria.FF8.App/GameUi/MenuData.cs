@@ -89,6 +89,9 @@ public sealed class MenuLimitMove
     public string Name { get; set; } = "";
     public bool? Learned { get; set; }
     public int? LearningProgress { get; set; }
+    public int? TrainingProgress { get; set; }
+    public bool? TrainingAvailable { get; set; }
+    public bool IsLearning { get; set; }
     public string InputSequence { get; set; } = "Unavailable";
     public int? Stock { get; set; }
     public string Description { get; set; } = "";

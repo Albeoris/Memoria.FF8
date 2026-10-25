@@ -26,6 +26,11 @@ public static class LiveMenuData
             SourceDescription = "Live session: native inventory, party and junction records",
             UnavailableReason = "The current engine does not support this native menu action."
         };
+        IReadOnlyDictionary<int, string> textNames = TextNames(state, names);
+        if (state.LimitProgress?.PetPalsFlags is not null)
+        {
+            result.SupportedActions.Add("angelo-learn");
+        }
         if (state.Economy is { } economy)
         {
             economy.Validate();
@@ -92,7 +97,7 @@ public static class LiveMenuData
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
                 };
-                catalog?.ProjectLimit(character, native.Weapon, state);
+                catalog?.ProjectLimit(character, native.Weapon, state, textNames);
                 if (native.Status != 0)
                 {
                     character.Conditions.Add($"Native status 0x{native.Status:X4}");
@@ -375,6 +380,24 @@ public static class LiveMenuData
         return named ?? Nonempty(catalog?.CharacterName(identity)) ?? GameNames.DefaultName(subject);
     }
 
+    internal static IReadOnlyDictionary<int, string> TextNames(GameState state, IReadOnlyDictionary<int, string>? names)
+    {
+        Dictionary<int, string> result = [];
+        for (int subject = 0; subject <= GameNames.BokoSubject; subject++)
+        {
+            if (!GameNames.IsValidSubject(subject))
+            {
+                continue;
+            }
+            string? name = Nonempty(names?.GetValueOrDefault(subject)) ?? SavedName(state, subject);
+            if (name is not null)
+            {
+                result.Add(subject, name);
+            }
+        }
+        return result;
+    }
+
     private static string? SavedName(GameState state, int identity)
     {
         System.Text.Json.JsonElement? snapshot = state.EventState ?? state.DepartingFieldState;
@@ -404,6 +427,7 @@ public sealed partial class LiveMenuCatalog
     private readonly byte[] fieldItems;
     private NativeSolomonRingDefinition? solomonRing;
     private readonly TripleTriadCatalog tripleTriad;
+    private ImmutableArray<NativeAngeloTrainingDefinition> angeloMoves = [];
 
     private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad)
     {
@@ -481,6 +505,7 @@ public sealed partial class LiveMenuCatalog
         byte[] itemIconKinds = assets.ReadItemIconKinds();
         LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources));
         catalog.resources = assets.Resources;
+        catalog.angeloMoves = NativeAngeloTrainingDefinitionReader.Read(ReadMenu("pet_exp.bin"), ReadMenu("pet_exp.msg"), encoding);
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), itemIconKinds);
@@ -488,6 +513,8 @@ public sealed partial class LiveMenuCatalog
     }
 
     public NativeFieldItem? FieldItem(int id) => id > 0 && id < fieldItems.Length / 4 ? new NativeFieldItem(fieldItems[id * 4], fieldItems[id * 4 + 1], fieldItems[id * 4 + 2], fieldItems[id * 4 + 3]) { SolomonRingDefinition = fieldItems[id * 4] == 15 ? solomonRing : null } : null;
+
+    public NativeAngeloTrainingDefinition AngeloMove(int index) => (uint)index < angeloMoves.Length ? angeloMoves[index] : throw new ArgumentOutOfRangeException(nameof(index));
 
     public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? kernel.Characters[id].Name : null;
     public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? guardianForceNames[id] : null;
@@ -503,7 +530,9 @@ public sealed partial class LiveMenuCatalog
     public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Name : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Name : null;
     public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Description : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Description : null);
 
-    private static string? FormatDescription(string? encoded) => encoded is null ? null : DialogueTextFormatter.Format(encoded).Replace('\n', ' ');
+    internal static string? FormatText(string? encoded, IReadOnlyDictionary<int, string>? names = null) => encoded is null ? null : DialogueTextFormatter.Format(encoded, names).Replace('\n', ' ');
+
+    private static string? FormatDescription(string? encoded) => FormatText(encoded);
     public string? AbilityName(int id)
     {
         return (uint)id < abilityNames.Length ? abilityNames[id] : null;

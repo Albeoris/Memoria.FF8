@@ -107,6 +107,10 @@ public sealed partial class MenuController
 
     private UiElement BuildNativeStatus()
     {
+        if (ScreenId == "status-angelo" && !IsDemo)
+        {
+            return BuildNativeAngeloStatus();
+        }
         bool primary = ScreenId is "status" or "status-stats" or "status-info";
         var page = NativeCollectionPage("Status", Entries.Count > 0 ? NativePageCommands(true, 34, ScreenId == "status-renzokuken" && !IsDemo ? 20 : 23) : null);
         var body = Grid([2.6f, 1.05f, 2.4f], [1.1f, 0.9f], 3);
@@ -137,6 +141,28 @@ public sealed partial class MenuController
         {
             Place(body, Panel(Character?.LimitBreak ?? "Limit Break", Details()), 2, 0, 1, 2);
         }
+        Place(page, body, 2);
+        return page;
+    }
+
+    private UiElement BuildNativeAngeloStatus()
+    {
+        var page = NativeCollectionPage("Status", Label(Character?.LimitSettings.GetValueOrDefault("Angelo name", "Angelo") ?? "Angelo", 26));
+        var body = Grid([1], [1, 2.4f], 10);
+        var identity = Grid([1.4f, 1, 1.2f], [1], 10);
+        Place(identity, Portrait(Character), 0);
+        Place(identity, Readouts([Character?.Name ?? "--", $"Lv    {Number(Character?.Level)}", $"HP    {(Character is null ? "--" : Hp(Character))}"], 26), 1);
+        Place(identity, Artwork(UiImageKind.AngeloPortrait, 0), 2);
+        Place(body, identity, 0, 0);
+        UiList abilities = NativePageCommands(false, 42, 25);
+        abilities.Id = "angelo-abilities";
+        abilities.PageSize = 8;
+        abilities.FitPageRows = true;
+        abilities.AutoSecondaryWidth = true;
+        MenuLimitMove[] moves = Entries.Select(entry => Character!.LimitMoves.Single(move => move.Id == entry.Id)).ToArray();
+        abilities.SecondaryItems = moves.Select(move => move.Learned == true ? "Complete!" : move.TrainingProgress is int progress ? $"{progress * 100 / 64}%{(move.IsLearning ? " · Learning" : "")}" : "?").ToList();
+        abilities.LeadingImages = moves.Select(move => move.IsLearning ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
+        Place(body, Panel("ABILITY", abilities), 0, 1);
         Place(page, body, 2);
         return page;
     }

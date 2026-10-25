@@ -53,7 +53,7 @@ public static class MenuCatalog
         Add("status-limit", "Status · Limit Break", "Browse character Limit Break information.", true, c => LimitFamily(c.Character) switch
         {
             "Renzokuken" => [Link("status-renzokuken", "Renzokuken", "Gunblade trigger and finishing move options.")],
-            "Combine" => [Link("status-angelo", "Angelo", "Angelo learned moves and progress."), Link("status-angel-wing", "Angel Wing", "Angel Wing details.")],
+            "Combine" => [Link("status-angelo", c.Character?.LimitSettings.GetValueOrDefault("Angelo name", "Angelo") ?? "Angelo", "Choose an ability to learn and view training progress."), Link("status-angel-wing", "Angel Wing", "Angel Wing details.")],
             "Duel" => [Link("status-duel", "Duel", "Duel input sequence reference.")],
             "Slot" => [Link("status-slot", "Slot", "Slot limit overview.")],
             "Blue Magic" => [Link("status-blue-magic", "Blue Magic", "Learned Blue Magic overview.")],
@@ -61,7 +61,8 @@ public static class MenuCatalog
             _ => []
         }, LimitOverview, MenuLayout.Character);
         Add("status-renzokuken", "Limit · Renzokuken", "Auto / Indicator setup and finishing moves.", true, RenzokukenEntries, c => LimitDetails(c, "Renzokuken"), MenuLayout.Character);
-        Add("status-angelo", "Limit · Angelo", "Inspect learned Angelo tricks.", true, c => LimitEntries(c, "Combine", learn: c.IsDemo), c => LimitDetails(c, "Combine"), MenuLayout.Character);
+        Add("status-angelo", "Limit · Angelo", "Choose an ability for Angelo to learn.", true, AngeloEntries, c => LimitDetails(c, "Combine"), MenuLayout.Character);
+        Add("status-angelo-warning", "Limit � Angelo", "This ability is already learned. Stop the current training?", false, c => [Action("yes", "Yes", "Stop the current training by selecting the learned ability.", "angelo-learn", c.PendingAngeloMove, c.Character?.Id ?? ""), Action("no", "No", "Keep the current training.", "angelo-cancel")], _ => ["This ability is already learned. Stop the current training?"]);
         Add("status-angel-wing", "Limit · Angel Wing", "Inspect Angel Wing's separate state.", true, c => c.IsDemo ? [Action("wing", "Angel Wing preview", "Toggle the explicit fixture mode; no battle state changes.", "limit-setting", "Angel Wing", LimitCharacter(c, "Combine")?.Id ?? "", LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing") == "On" ? "Off" : "On")] : [], c => !c.IsDemo ? ["Angel Wing", $"Availability: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", "Unavailable") ?? "Unavailable"}"] : [$"Fixture mode: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", c.IsDemo ? "Off" : "Unavailable") ?? "Unavailable"}", "Native story availability and battle behavior unsupported.", .. Boundary(c)], MenuLayout.Character);
         Add("status-duel", "Limit · Duel", "Inspect learned Duel moves.", true, c => LimitEntries(c, "Duel"), c => LimitDetails(c, "Duel"), MenuLayout.Character);
         Add("status-slot", "Limit · Slot", "Inspect Slot magic.", true, c => !c.IsDemo ? LimitEntries(c, "Slot") : [Action("select", "Select", "Select only the fixture preview; no spell is cast.", "slot-select"), Action("do-over", "Do Over", "Advance the deterministic fixture preview.", "slot-do-over", target: LimitCharacter(c, "Slot")?.Id ?? "")], c => c.IsDemo ? SlotDetails(c) : LimitDetails(c, "Slot"), MenuLayout.Character);
@@ -268,6 +269,19 @@ public static class MenuCatalog
     {
         var owner = LimitCharacter(c, family);
         return (owner?.LimitMoves ?? []).Select(move => new MenuEntry(move.Id, $"{move.Name}   {(move.Stock.HasValue ? "×" + move.Stock : move.LearningProgress.HasValue ? move.LearningProgress + "%" : move.Learned == true ? "Learned" : move.Learned == false ? "--" : "?")}", move.Description, Action: learn ? new MenuAction("limit-setting", "Learning", owner?.Id ?? "", move.Name) : null)).ToArray();
+    }
+    private static IReadOnlyList<MenuEntry> AngeloEntries(MenuController c)
+    {
+        if (c.IsDemo)
+        {
+            return LimitEntries(c, "Combine", learn: true);
+        }
+        MenuCharacter? owner = LimitCharacter(c, "Combine");
+        if (LimitFamily(owner) != "Combine")
+        {
+            return [];
+        }
+        return (owner?.LimitMoves ?? []).Where(move => move.Learned == true || move.TrainingAvailable != false).Select(move => new MenuEntry(move.Id, move.Name, move.Description, Action: c.Data.SupportedActions.Contains("angelo-learn") && (move.TrainingAvailable == true || move.Learned == true) ? new MenuAction(move.Learned == true ? "angelo-confirm" : "angelo-learn", move.Id, owner?.Id ?? "") : null, Enabled: move.TrainingAvailable == true || move.Learned == true)).ToArray();
     }
     private static IReadOnlyList<string> LimitDetails(MenuController c, string family)
     {

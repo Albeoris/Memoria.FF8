@@ -4,7 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class LiveMenuCatalog
 {
-    public void ProjectLimit(MenuCharacter character, int weaponId, GameState state)
+    public void ProjectLimit(MenuCharacter character, int weaponId, GameState state, IReadOnlyDictionary<int, string>? names = null)
     {
         if (character.NativeId is not int id || (uint)id >= kernel.Characters.Count)
         {
@@ -32,10 +32,18 @@ public sealed partial class LiveMenuCatalog
         }
         else if (command == 19)
         {
+            character.LimitSettings["Angelo name"] = FormatText("{Char Angelo2}", names)!;
             for (int index = 0; index < 8; index++)
             {
-                string? name = index < 4 ? kernel.IndependentGuardianAttacks[11 + index].AttackName : kernel.RinoaAngeloAttacks[index - 4].Name;
-                character.LimitMoves.Add(LimitMove(index, name, null, progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0));
+                var definition = AngeloMove(index);
+                MenuLimitMove move = LimitMove(index, FormatText(definition.Name, names), FormatText(definition.Description, names), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
+                if (progress is not null)
+                {
+                    move.TrainingProgress = AngeloTrainingProgress(definition.TrainingTotal, progress.TrainingCounters[index], move.Learned == true);
+                }
+                move.TrainingAvailable = progress?.PetPalsFlags is byte available ? (available & (1 << index)) != 0 : null;
+                move.IsLearning = progress is not null && progress.TrainingSelection == index && move.Learned == false;
+                character.LimitMoves.Add(move);
             }
             if (state.SavedBattleFlags is { } flags && (flags.EffectiveKnownMask & 0x20) != 0)
             {
@@ -86,6 +94,19 @@ public sealed partial class LiveMenuCatalog
                 Learned = (finishers & (1 << index)) != 0
             });
         }
+    }
+
+    internal static int AngeloTrainingProgress(byte total, byte remaining, bool learned)
+    {
+        if (learned)
+        {
+            return 64;
+        }
+        if (total == 0)
+        {
+            throw new InvalidDataException("An unfinished Angelo ability requires a nonzero training total.");
+        }
+        return Math.Clamp((total - remaining) * 64 / total, 0, remaining == 0 ? 64 : 63);
     }
 
     private static MenuLimitMove LimitMove(int index, string? name, string? description, bool? learned)
