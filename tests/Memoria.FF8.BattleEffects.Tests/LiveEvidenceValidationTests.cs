@@ -66,6 +66,14 @@ public sealed class LiveEvidenceValidationTests
     }
 
     [Fact]
+    public void Repair_native_simulation_frames_are_distinct_from_successful_presentation_indexes()
+    {
+        JsonObject report = ReportWithRepair();
+        report["repairs"]![0]!["frame"] = 135;
+        Assert.Equal("PASS", Validate(report).Verdict);
+    }
+
+    [Fact]
     public void Repair_status_validation_preserves_unremoved_bits_and_recomputes_native_low_hp_flags()
     {
         JsonObject report = ReportWithRepair();

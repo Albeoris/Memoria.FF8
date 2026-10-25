@@ -218,7 +218,7 @@ public static class LiveEvidenceValidation
         }
         JsonElement receipt = receipts[0];
         long callback = Number(receipt, "callback_before");
-        if (callback != Number(receipt, "callback_after") || callback < Number(executions[0], "end_callback") || callback > Number(executions[1], "start_callback") || Number(receipt, "frame") < Number(executions[0], "end_frame") || Number(receipt, "frame") > Number(executions[1], "start_frame") || Number(receipt, "restore_count") != 0 || Number(receipt, "reset_count") != 0 || Text(receipt, "lifecycle_id") != Text(executions[0].GetProperty("start_owners"), "retained_memory_owner_id") || !JsonElement.DeepEquals(receipt.GetProperty("random_before"), receipt.GetProperty("random_after")) || !JsonElement.DeepEquals(receipt.GetProperty("items_before"), receipt.GetProperty("items_after")))
+        if (callback != Number(receipt, "callback_after") || callback < Number(executions[0], "end_callback") || callback > Number(executions[1], "start_callback") || Number(receipt, "frame") < 0 || Number(receipt, "restore_count") != 0 || Number(receipt, "reset_count") != 0 || Text(receipt, "lifecycle_id") != Text(executions[0].GetProperty("start_owners"), "retained_memory_owner_id") || !JsonElement.DeepEquals(receipt.GetProperty("random_before"), receipt.GetProperty("random_after")) || !JsonElement.DeepEquals(receipt.GetProperty("items_before"), receipt.GetProperty("items_after")))
         {
             errors.Add("REPAIR_OWNER_CONTINUITY_BROKEN");
         }
