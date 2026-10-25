@@ -9,6 +9,26 @@ public sealed partial class MenuController
     private bool UseHostControls => !IsFixtureContext && IsControlsScreen;
     private Func<bool>? _hasActiveBattle;
     private Action<bool>? _completeActiveBattle;
+    private Func<bool>? hasOutcomeContext;
+    private Func<bool>? canCompleteOutcome;
+
+    internal void ConnectInstantOutcomes(Func<bool> hasContext, Func<bool> canComplete, Action<bool> complete)
+    {
+        hasOutcomeContext = hasContext;
+        canCompleteOutcome = canComplete;
+        _completeActiveBattle = complete;
+    }
+
+    internal IReadOnlyList<MenuEntry> InstantOutcomeEntries()
+    {
+        if (!(hasOutcomeContext?.Invoke() ?? _hasActiveBattle?.Invoke() ?? false))
+        {
+            return [];
+        }
+        bool enabled = canCompleteOutcome?.Invoke() ?? _hasActiveBattle?.Invoke() == true;
+        return [new("instant-victory", "Instant victory", "Win the current battle or Triple Triad match. Available only on your turn.", Action: new("battle-debug-outcome", Value: "Victory"), Enabled: enabled),
+            new("instant-defeat", "Instant defeat", "Lose the current battle or Triple Triad match. Available only on your turn.", Action: new("battle-debug-outcome", Value: "Defeat"), Enabled: enabled)];
+    }
 
     internal void ConnectBattleSettings(Func<bool> hasActiveBattle, Action<bool> completeActiveBattle)
     {
@@ -18,11 +38,8 @@ public sealed partial class MenuController
 
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
-        bool active = _hasActiveBattle?.Invoke() == true;
         return [new MenuEntry("battle-laboratory", "Battle laboratory…", "Edit an isolated scenario; Start launches it explicitly.", Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
-            .. HostSettingsEntries("Battle policy"),
-            new MenuEntry("instant-victory", "Win current battle", active ? "Immediately win the displayed active battle." : "No active battle is available.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
-            new MenuEntry("instant-defeat", "Lose current battle", active ? "Immediately lose the displayed active battle." : "No active battle is available.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
+            .. HostSettingsEntries("Battle policy")];
     }
 
     internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? "Active battle" : "No active battle"), "Encounter execution: " + (HostSettingValue("Battle policy") == "Instant victory" ? "Automatic victory" : "Full combat"), "Applies to the current game; at Title it is the new-game default.", "Save normally to retain current-game changes.", SelectedEntry?.Help ?? ""];
@@ -104,9 +121,9 @@ public sealed partial class MenuController
         }
         if (action.Kind == "battle-debug-outcome")
         {
-            if (_completeActiveBattle is null || _hasActiveBattle?.Invoke() != true)
+            if (_completeActiveBattle is null || !(canCompleteOutcome?.Invoke() ?? _hasActiveBattle?.Invoke() == true))
             {
-                Message = "An active game battle or laboratory battle is required.";
+                Message = "Instant outcomes are available only on your turn in battle or Triple Triad.";
                 return true;
             }
             if (action.Value is not ("Victory" or "Defeat"))

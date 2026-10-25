@@ -91,6 +91,7 @@ internal sealed partial class RecreateGame
         gameMenus.ConnectEncounterPolicyConsequence(() => world?.HasPendingBattle == true || world?.Battle?.Outcome == BattleOutcome.Active);
         gameMenus.ConnectBattleSource(() => ActiveBattle is null ? "No active battle" : debugBattle is not null ? "Laboratory battle" : "Game battle");
         gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));
+        gameMenus.ConnectInstantOutcomes(() => ActiveBattle is not null || world?.ActiveTripleTriad is not null, () => CanCompleteInstantOutcome, CompleteInstantOutcome);
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
         {

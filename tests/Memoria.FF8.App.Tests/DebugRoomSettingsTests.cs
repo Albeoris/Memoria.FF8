@@ -33,16 +33,50 @@ public sealed class DebugRoomSettingsTests
                 battle!.InstantDefeat();
             }
         });
-        menus.Open("debug-battle", true);
-        Assert.False(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
-        Assert.False(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
+        menus.Open("debug-room", true);
+        Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
         battle = new BattleSession(Scenario(), BattleAtbMode.TurnBased);
+        Assert.Equal(new[] { "instant-victory", "instant-defeat" }, menus.Entries.Take(2).Select(row => row.Id));
         Assert.True(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
         Assert.True(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
         menus.Execute(new MenuAction("battle-debug-outcome", Value: victory ? "Victory" : "Defeat"));
         Assert.Equal(victory ? BattleOutcome.Victory : BattleOutcome.Defeat, battle.Outcome);
-        Assert.False(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
-        Assert.False(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
+        Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
+        menus.Open("debug-battle", true);
+        Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
+    }
+
+    [Fact]
+    public void InstantOutcomesStayVisibleButCannotExecuteDuringOpponentTurn()
+    {
+        bool playerTurn = false;
+        bool active = true;
+        int completions = 0;
+        MenuController menus = new();
+        menus.ConnectInstantOutcomes(() => active, () => active && playerTurn, _ => completions++);
+        menus.Open("debug-room", true);
+        Assert.All(menus.Entries.Take(2), row => Assert.False(row.Enabled));
+        menus.Execute(new("battle-debug-outcome", Value: "Victory"));
+        Assert.Equal(0, completions);
+        playerTurn = true;
+        Assert.All(menus.Entries.Take(2), row => Assert.True(row.Enabled));
+        menus.Execute(new("battle-debug-outcome", Value: "Defeat"));
+        Assert.Equal(1, completions);
+        active = false;
+        Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
+    }
+
+    [Fact]
+    public void InstantBattleOutcomesRequireAReadyPlayerCommand()
+    {
+        Assert.False(RecreateGame.CanCompleteBattleInstantly(null));
+        BattleDefinition definition = Scenario();
+        BattleSession waiting = new(definition, BattleAtbMode.Normal);
+        Assert.False(RecreateGame.CanCompleteBattleInstantly(waiting));
+        BattleSession ready = new(definition with { Combatants = [definition.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, definition.Combatants[1]] }, BattleAtbMode.Normal);
+        Assert.True(RecreateGame.CanCompleteBattleInstantly(ready));
+        ready.InstantVictory();
+        Assert.False(RecreateGame.CanCompleteBattleInstantly(ready));
     }
 
     [Fact]

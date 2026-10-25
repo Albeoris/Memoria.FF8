@@ -336,6 +336,26 @@ public sealed class TripleTriadMatch
         return new TripleTriadMoveResult(cardId, player, handIndex, cellIndex, captured.AsReadOnly(), sameTriggered, plusTriggered, comboTriggered, Outcome) { Captures = captures.AsReadOnly() };
     }
 
+    /// <summary>Completes the board deterministically for a debug result while preserving every card instance and the unplayed hand.</summary>
+    public void CompleteInstantly(bool victory)
+    {
+        if (Outcome != TripleTriadOutcome.InProgress)
+        {
+            throw new InvalidOperationException("The round has ended.");
+        }
+        while (Outcome == TripleTriadOutcome.InProgress)
+        {
+            int handIndex = Array.FindIndex(hands[CurrentPlayer], card => card.HasValue);
+            int cellIndex = Array.FindIndex(board, card => card is null);
+            Play(handIndex, cellIndex);
+        }
+        int winner = victory ? 0 : 1;
+        for (int cell = 0; cell < board.Length; cell++)
+        {
+            board[cell] = board[cell]! with { Owner = winner };
+        }
+    }
+
     public void RestartSuddenDeath(int startingPlayer, IReadOnlyList<TripleTriadElement>? boardElements = null)
     {
         if (!CanRestartSuddenDeath)

@@ -46,9 +46,18 @@ internal sealed partial class RecreateGame
             preparedTripleTriadMatch = controller.Match;
             tripleTriadDelay = 0;
         }
+        if (UpdateGameUi(elapsed, input, hostOnly: true))
+        {
+            return true;
+        }
         controller.AdvancePresentation(elapsed);
         if (UpdatePlayerSaves(input))
         {
+            return true;
+        }
+        if ((keyboard.BattleInstantVictoryRequested || keyboard.BattleInstantDefeatRequested) && controller.CanCompleteInstantly)
+        {
+            CompleteInstantOutcome(keyboard.BattleInstantVictoryRequested);
             return true;
         }
         UiView view = controller.BuildView();

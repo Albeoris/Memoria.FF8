@@ -44,13 +44,16 @@ Set **Config → Interface → Battle cursor memory → Memory** to restore each
 
 ## Host shortcuts
 
-These shortcuts use the defaults below. Player shortcuts can also be assigned to controller buttons or combinations under Config → Controls. The three service shortcuts (Debug Room, battle laboratory and battle victory) are edited under Debug Room → Shortcuts.
+These shortcuts use the defaults below. Player shortcuts, including instant victory and instant defeat, can also be assigned to controller buttons or combinations under Config → Controls. Debug Room and battle laboratory shortcuts are edited under Debug Room → Shortcuts.
+
+Instant victory and instant defeat appear at the top of Debug Room only while a battle or Triple Triad session is open. They are disabled outside your turn. In Triple Triad they fill the board with cards in the winning side's color and show the normal result; confirmation continues to the applicable card trade.
 
 | Shortcut | Default key | Effect |
 | --- | --- | --- |
 | Event speed | F1 | Toggle x1 / x3 for ordinary field and world simulation. Movies remain at normal speed. This setting is not saved in the gameplay snapshot. |
 | Debug room | F2 | Open the host debug UI where available. |
-| Instant victory | F3 | Debug command for an active battle. |
+| Instant victory | Unbound | Win the current battle or Triple Triad match during your turn. |
+| Instant defeat | Unbound | Lose the current battle or Triple Triad match during your turn. |
 | Battle editor | F4 | Open battle debug controls. |
 | GF animation Skip | D / left trigger (Escape battle, left) | Play only the finale of the active GF summon, including the Ifrit form finisher; preserve earned Boost, damage and statuses. |
 | Quick save | F5 | Write the configured quick-save snapshot. |

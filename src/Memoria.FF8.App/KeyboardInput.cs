@@ -78,6 +78,7 @@ internal sealed class KeyboardInput
     public string CancelBindingHint { get; private set; } = "";
     public bool BattleDebugRequested { get; private set; }
     public bool BattleInstantVictoryRequested { get; private set; }
+    public bool BattleInstantDefeatRequested { get; private set; }
     public bool BattleAdvanceTurnRequested { get; private set; }
     public bool GunbladeTriggerRequested { get; private set; }
     public bool GuardianBoostRequested { get; private set; }
@@ -218,6 +219,7 @@ internal sealed class KeyboardInput
         DebugRoomRequested = Pressed(ControlAction.DebugRoom);
         BattleDebugRequested = Pressed(ControlAction.BattleDebug);
         BattleInstantVictoryRequested = Pressed(ControlAction.BattleInstantVictory);
+        BattleInstantDefeatRequested = Pressed(ControlAction.BattleInstantDefeat);
         BattleAdvanceTurnRequested = Pressed(ControlAction.BattleAdvanceTurn);
         GunbladeTriggerRequested = Pressed(ControlAction.RotateRight);
         GuardianBoostRequested = Pressed(ControlAction.Card);

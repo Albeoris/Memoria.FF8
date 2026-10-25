@@ -6,6 +6,72 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class TripleTriadMatchTests
 {
     [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    [InlineData(false, 1)]
+    public void InstantResultPreservesInstancesAndRestoresThroughJson(bool victory, int startingPlayer)
+    {
+        TripleTriadCard[] cards = Catalog();
+        int[] playerHand = [0, 0, 1, 2, 3];
+        int[] opponentHand = [4, 5, 6, 7, 8];
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, playerHand, opponentHand, TripleTriadRules.Same | TripleTriadRules.Plus, startingPlayer);
+        match.Play(2, 4);
+        TripleTriadPlacedCard original = match.Board[4]!;
+        match.CompleteInstantly(victory);
+
+        int winner = victory ? 0 : 1;
+        Assert.Equal(victory ? TripleTriadOutcome.PlayerWin : TripleTriadOutcome.OpponentWin, match.Outcome);
+        Assert.All(match.Board, card => Assert.Equal(winner, card!.Owner));
+        Assert.Equal(original with { Owner = winner }, match.Board[4]);
+        Assert.Single(match.Hands.SelectMany(hand => hand), card => card.HasValue);
+        Assert.Equal(10, match.PlayerScore + match.OpponentScore);
+        Assert.Equal(match.PlayerScore, match.OriginalInstanceFinalOwners.Count(owner => owner == 0));
+        Assert.Equal(playerHand, match.InitialHands[0]);
+        Assert.Equal(opponentHand, match.InitialHands[1]);
+        Assert.Empty(match.GetLegalMoves());
+
+        string json = JsonSerializer.Serialize(match.CaptureSnapshot());
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, JsonSerializer.Deserialize<TripleTriadSnapshot>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(restored.CaptureSnapshot()));
+        Assert.Equal(match.Outcome, restored.Outcome);
+        Assert.Equal(match.OriginalInstanceFinalOwners, restored.OriginalInstanceFinalOwners);
+        Assert.Throws<InvalidOperationException>(() => restored.CompleteInstantly(!victory));
+
+        NativeCardInventory inventory = NativeCardInventory.CreateNewGame();
+        foreach (int card in playerHand)
+        {
+            inventory = inventory.Acquire(card, out _);
+        }
+        TripleTriadTradeResult trade = TripleTriadTrade.Settle(inventory, playerHand, opponentHand, restored.OriginalInstanceFinalOwners, TripleTriadTradeRule.Direct, 121);
+        int[] owners = restored.OriginalInstanceFinalOwners.ToArray();
+        Assert.Equal(opponentHand.Where((_, slot) => owners[5 + slot] == 0), trade.GainedCardIds);
+        Assert.Equal(playerHand.Where((_, slot) => owners[slot] == 1), trade.LostCardIds);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void InstantResultPreservesSuddenDeathOriginalInstanceOrder(bool victory)
+    {
+        TripleTriadCard[] cards = Catalog();
+        TripleTriadMatch match = TripleTriadMatch.Create(cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], TripleTriadRules.SuddenDeath);
+        for (int cell = 0; cell < 9; cell++)
+        {
+            match.Play(cell / 2, cell);
+        }
+        Assert.Equal(TripleTriadOutcome.Draw, match.Outcome);
+        match.RestartSuddenDeath(1);
+        int[] instanceOrder = match.CaptureSnapshot().InstanceOrder;
+        match.CompleteInstantly(victory);
+        TripleTriadMatch restored = TripleTriadMatch.Restore(cards, match.CaptureSnapshot());
+        Assert.Equal(1, restored.Round);
+        Assert.Equal(instanceOrder, restored.CaptureSnapshot().InstanceOrder);
+        Assert.Equal(restored.PlayerScore, restored.OriginalInstanceFinalOwners.Count(owner => owner == 0));
+        Assert.All(restored.Board, card => Assert.Equal(victory ? 0 : 1, card!.Owner));
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(3)]
     [InlineData(5)]

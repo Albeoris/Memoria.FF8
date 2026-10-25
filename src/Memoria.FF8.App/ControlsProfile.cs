@@ -52,7 +52,8 @@ public enum ControlAction
     UiPageDown,
     // Retained for reading older controls profiles; no longer a separate binding.
     GuardianFormSkip,
-    GuardianSwitchColumn
+    GuardianSwitchColumn,
+    BattleInstantDefeat
 }
 
 public sealed record ControlActionDefinition(ControlAction Action, string Label, string Category);
@@ -208,7 +209,7 @@ public sealed class ControlsProfile
         return new ControlsProfile(bindings.Where(binding => binding.Action != action || binding.Device != device), Controller);
     }
 
-    public static bool IsDeveloperAction(ControlAction action) => action is ControlAction.DebugRoom or ControlAction.BattleDebug or ControlAction.BattleInstantVictory;
+    public static bool IsDeveloperAction(ControlAction action) => action is ControlAction.DebugRoom or ControlAction.BattleDebug;
 
     public static IReadOnlyList<ControlAction> PlayerActions { get; } = Definitions.Where(definition => !IsDeveloperAction(definition.Action)).Select(definition => definition.Action).ToArray();
     public static IReadOnlyList<ControlAction> DeveloperActions { get; } = Definitions.Where(definition => IsDeveloperAction(definition.Action)).Select(definition => definition.Action).ToArray();
@@ -264,7 +265,6 @@ public sealed class ControlsProfile
         Key(ControlAction.RotateRight, Keys.G);
         Key(ControlAction.SpeedToggle, Keys.F1);
         Key(ControlAction.DebugRoom, Keys.F2);
-        Key(ControlAction.BattleInstantVictory, Keys.F3);
         Key(ControlAction.BattleDebug, Keys.F4);
         Key(ControlAction.QuickSave, Keys.F5);
         Key(ControlAction.SaveMenu, Keys.F6);
@@ -372,7 +372,8 @@ public sealed class ControlsProfile
         ControlAction.RotateRight => "Rotate world right / Gunblade / Next character",
         ControlAction.SpeedToggle => "Event speed",
         ControlAction.DebugRoom => "Debug room",
-        ControlAction.BattleInstantVictory => "Battle victory",
+        ControlAction.BattleInstantVictory => "Instant victory",
+        ControlAction.BattleInstantDefeat => "Instant defeat",
         ControlAction.BattleDebug => "Battle laboratory",
         ControlAction.QuickSave => "Quick save",
         ControlAction.SaveMenu => "Save menu",

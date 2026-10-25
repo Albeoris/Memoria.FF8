@@ -10,6 +10,76 @@ public sealed class TripleTriadControllerTests
     private static readonly TripleTriadCard[] Cards = Enumerable.Range(0, 110).Select(id => new TripleTriadCard(id, 1 + id % 10, 1 + id % 9, 1 + id % 8, 1 + id % 7, TripleTriadElement.None)).ToArray();
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void InstantResultPublishesStateAndSoundThenUsesNormalConfirmation(bool victory)
+    {
+        TripleTriadController controller = Create();
+        controller.RestoreMatch(TripleTriadMatch.Create(Cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9]));
+        controller.SelectHand(2);
+        List<TripleTriadSound> sounds = [];
+        controller.SoundRequested += sounds.Add;
+        int changes = 0;
+        TripleTriadSnapshot? captured = null;
+        controller.Changed += () =>
+        {
+            changes++;
+            captured = controller.Match!.CaptureSnapshot();
+        };
+        int completions = 0;
+        controller.CompletionRequested += () => completions++;
+
+        Assert.True(controller.CanCompleteInstantly);
+        Assert.True(controller.CompleteInstantly(victory));
+        Assert.False(controller.CanCompleteInstantly);
+        Assert.False(controller.ChoosingCell);
+        Assert.False(controller.IsAnimating);
+        Assert.Equal(victory ? "You win!" : "You lose.", controller.Message);
+        Assert.Equal(new[] { victory ? TripleTriadSound.Win : TripleTriadSound.Lose }, sounds);
+        Assert.Equal(1, changes);
+        Assert.NotNull(captured);
+        Assert.Equal(victory ? TripleTriadOutcome.PlayerWin : TripleTriadOutcome.OpponentWin, TripleTriadMatch.Restore(Cards, captured).Outcome);
+        Assert.Equal(0, completions);
+        Assert.False(controller.CompleteInstantly(!victory));
+        controller.Navigate(UiKey.Confirm);
+        Assert.Equal(1, completions);
+    }
+
+    [Fact]
+    public void InstantResultIsBlockedOutsideIdlePlayerTurns()
+    {
+        TripleTriadController controller = Create();
+        Assert.False(controller.CanCompleteInstantly);
+        Assert.False(controller.CompleteInstantly(true));
+        TripleTriadMatch match = TripleTriadMatch.Create(Cards, [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], startingPlayer: 1);
+        controller.RestoreMatch(match);
+        string unchanged = System.Text.Json.JsonSerializer.Serialize(controller.Match!.CaptureSnapshot());
+        Assert.False(controller.CanCompleteInstantly);
+        Assert.False(controller.CompleteInstantly(false));
+        Assert.Equal(unchanged, System.Text.Json.JsonSerializer.Serialize(controller.Match.CaptureSnapshot()));
+
+        controller.ChooseOpponentMove = state => state.GetLegalMoves().Last();
+        Assert.True(controller.AdvanceOpponent());
+        controller.EnablePresentation();
+        controller.Play(0, 0);
+        Assert.True(controller.IsAnimating);
+        Assert.False(controller.CompleteInstantly(true));
+        controller.AdvancePresentation(TimeSpan.FromSeconds(10));
+        Assert.True(controller.AdvanceOpponent());
+        Assert.False(controller.CompleteInstantly(true));
+        controller.AdvancePresentation(TimeSpan.FromSeconds(10));
+        Assert.True(controller.CanCompleteInstantly);
+        controller.BeginRulesPrompt("One", () => { }, () => { });
+        Assert.False(controller.CompleteInstantly(true));
+        controller.CompleteRulesPrompt(true);
+        controller.BeginTradeSelection([5, 6, 7, 8, 9], 1, _ => { });
+        Assert.False(controller.CompleteInstantly(true));
+        controller.RestoreMatch(match);
+        controller.BeginReplayPrompt(() => { }, () => { });
+        Assert.False(controller.CompleteInstantly(true));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public void EveryPlayerTurnStartsAtCenterEvenWhenOccupied(int startingPlayer)

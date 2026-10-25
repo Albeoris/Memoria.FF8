@@ -398,6 +398,24 @@ public sealed partial class TripleTriadController
         return true;
     }
 
+    public bool CanCompleteInstantly => !replayResolved && !AwaitingRules && !AwaitingReplay && !IsAnimating && TradingHand is null && TradePhase == TripleTriadTradePhase.None && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress };
+
+    public bool CompleteInstantly(bool victory)
+    {
+        if (!CanCompleteInstantly)
+        {
+            return false;
+        }
+        Match!.CompleteInstantly(victory);
+        ClearPresentation();
+        ChoosingCell = false;
+        ResetTurnSelection();
+        Message = ResultText();
+        RequestSound(victory ? TripleTriadSound.Win : TripleTriadSound.Lose);
+        Changed?.Invoke();
+        return true;
+    }
+
     public void SelectHand(int index)
     {
         if (!AwaitingReplay && !IsAnimating && (uint)index < 5 && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)

@@ -40,6 +40,45 @@ public sealed class ControlsMenuTests
         Assert.True(menus.IsCapturingControls);
     }
 
+    [Theory]
+    [InlineData(ControlAction.BattleInstantVictory, "config-keyboard", ControlDevice.Keyboard)]
+    [InlineData(ControlAction.BattleInstantDefeat, "config-keyboard", ControlDevice.Keyboard)]
+    [InlineData(ControlAction.BattleInstantVictory, "config-controller", ControlDevice.Controller)]
+    [InlineData(ControlAction.BattleInstantDefeat, "config-controller", ControlDevice.Controller)]
+    public void Instant_outcomes_can_be_assigned_from_config_controls(ControlAction action, string screen, ControlDevice device)
+    {
+        ControlsProfile profile = ControlsProfile.CreateDefault();
+        MenuController menus = Connected(() => profile, next => profile = next);
+        menus.Open(screen);
+        menus.SelectEntry(screen, action.ToString());
+        Assert.Equal(action.ToString(), menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.True(menus.IsCapturingControls);
+        menus.UpdateControlsCapture(default, default, true);
+        if (device == ControlDevice.Keyboard)
+        {
+            menus.UpdateControlsCapture(new(Keys.F3), default, true);
+        }
+        else
+        {
+            GamePadState buttons = new(Microsoft.Xna.Framework.Vector2.Zero, Microsoft.Xna.Framework.Vector2.Zero, 0, 0, [Buttons.LeftStick]);
+            menus.UpdateControlsCapture(default, buttons, true);
+        }
+        GamePadState neutral = device == ControlDevice.Controller ? new(Microsoft.Xna.Framework.Vector2.Zero, Microsoft.Xna.Framework.Vector2.Zero, 0, 0, []) : default;
+        menus.UpdateControlsCapture(default, neutral, true);
+        Assert.Equal(screen, menus.ScreenId);
+        Assert.Equal(action.ToString(), menus.SelectedEntry?.Id);
+        InputChord binding = Assert.Single(profile.GetBindings(action, device));
+        if (device == ControlDevice.Keyboard)
+        {
+            Assert.Equal(Keys.F3, Assert.Single(binding.Keys));
+        }
+        else
+        {
+            Assert.Equal(Buttons.LeftStick, Assert.Single(binding.Buttons));
+        }
+    }
+
     [Fact]
     public void Clicking_an_action_starts_capture_directly()
     {
@@ -197,7 +236,9 @@ public sealed class ControlsMenuTests
             Assert.All(player, action => Assert.False(ControlsProfile.IsDeveloperAction(action)));
             menus.Open("debug-shortcuts", true);
             ControlAction[] developer = menus.Entries.Where(entry => Enum.TryParse<ControlAction>(entry.Id, out _)).Select(entry => Enum.Parse<ControlAction>(entry.Id)).ToArray();
-            Assert.Equal(3, developer.Length);
+            Assert.Equal(2, developer.Length);
+            Assert.Contains(ControlAction.BattleInstantVictory, player);
+            Assert.Contains(ControlAction.BattleInstantDefeat, player);
             Assert.Empty(player.Intersect(developer));
             Assert.Equal(ControlsProfile.Definitions.Select(definition => definition.Action).Order(), player.Concat(developer).Order());
             Assert.NotNull(menus.BuildView());

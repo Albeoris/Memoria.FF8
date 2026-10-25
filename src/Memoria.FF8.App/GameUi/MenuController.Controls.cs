@@ -26,7 +26,7 @@ public sealed partial class MenuController
         [ControlAction.MoveUp, ControlAction.MoveDown, ControlAction.MoveLeft, ControlAction.MoveRight, ControlAction.UiTab, ControlAction.UiPageUp, ControlAction.UiPageDown, ControlAction.GuardianSwitchColumn],
         [ControlAction.Confirm, ControlAction.Cancel, ControlAction.Menu, ControlAction.Card, ControlAction.Select, ControlAction.Pause],
         [ControlAction.CameraLeft, ControlAction.CameraRight, ControlAction.RotateLeft, ControlAction.RotateRight, ControlAction.BattleAdvanceTurn],
-        [ControlAction.SpeedToggle, ControlAction.QuickSave, ControlAction.QuickLoad, ControlAction.SaveMenu, ControlAction.LoadMenu]
+        [ControlAction.SpeedToggle, ControlAction.QuickSave, ControlAction.QuickLoad, ControlAction.SaveMenu, ControlAction.LoadMenu, ControlAction.BattleInstantVictory, ControlAction.BattleInstantDefeat]
     ];
     private readonly Dictionary<int, string> _controlsGroupSelection = [];
     private string ControlsOwnerName => _developerControls ? "Debug shortcuts" : "Player bindings";
@@ -293,7 +293,8 @@ public sealed partial class MenuController
         {
             ControlAction.DebugRoom => "Open Debug Room",
             ControlAction.BattleDebug => "Open battle laboratory",
-            ControlAction.BattleInstantVictory => "Win current battle",
+            ControlAction.BattleInstantVictory => "Instant victory",
+            ControlAction.BattleInstantDefeat => "Instant defeat",
             ControlAction.RotateLeft => "Rotate left / Previous character",
             ControlAction.RotateRight => "Rotate right / Gunblade / Next",
             ControlAction.CameraRight => "Camera mode / Escape battle (R)",

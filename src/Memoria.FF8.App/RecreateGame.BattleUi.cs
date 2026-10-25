@@ -146,9 +146,9 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GunbladeTrigger));
         }
-        if (!slotsOwned && !duelOwned && keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
+        if (!slotsOwned && !duelOwned && (keyboard.BattleInstantVictoryRequested || keyboard.BattleInstantDefeatRequested) && CanCompleteInstantOutcome)
         {
-            ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
+            CompleteInstantOutcome(keyboard.BattleInstantVictoryRequested);
         }
         else if (!slotsOwned && !duelOwned && keyboard.BattleAdvanceTurnRequested && active.Mode == BattleAtbMode.TurnBased && active.Outcome == BattleOutcome.Active)
         {

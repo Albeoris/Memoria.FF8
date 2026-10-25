@@ -17,6 +17,7 @@ public sealed class ControlsCaptureIsolationTests
         menus.Open("config-controls");
         menus.SelectEntry("config-controls", "config-controller");
         menus.Navigate(MenuInput.Confirm);
+        menus.SelectEntry("config-controller", nameof(ControlAction.Menu));
         UiList controllerList = Assert.IsType<UiList>(menus.BuildView().FocusedElement);
         Assert.Contains(controllerList.SecondaryItems, text => text.Contains("North button", StringComparison.Ordinal));
         menus.Navigate(MenuInput.Cancel);

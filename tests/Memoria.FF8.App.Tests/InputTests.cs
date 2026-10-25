@@ -19,11 +19,35 @@ public sealed class InputTests
         input.Read(new KeyboardState(Keys.F1, Keys.F2, Keys.F3, Keys.F4, Keys.F5, Keys.F6, Keys.F9, Keys.F10), true);
         Assert.True(input.SpeedToggleRequested);
         Assert.True(input.DebugRoomRequested);
-        Assert.True(input.BattleInstantVictoryRequested);
+        Assert.False(input.BattleInstantVictoryRequested);
+        Assert.False(input.BattleInstantDefeatRequested);
         Assert.True(input.BattleDebugRequested);
         Assert.False(input.UiConfirmRequested);
         Assert.True(input.Read(new KeyboardState(Keys.Enter, Keys.Space, Keys.Escape), true).Confirm);
         Assert.True(input.UiCancelRequested);
+    }
+
+    [Theory]
+    [InlineData(ControlAction.BattleInstantVictory)]
+    [InlineData(ControlAction.BattleInstantDefeat)]
+    public void Instant_outcomes_are_unbound_by_default_and_bindable_on_each_device(ControlAction action)
+    {
+        ControlsProfile defaults = ControlsProfile.CreateDefault();
+        Assert.Empty(defaults.GetBindings(action, ControlDevice.Keyboard));
+        Assert.Empty(defaults.GetBindings(action, ControlDevice.Controller));
+        Assert.Contains(action, ControlsProfile.PlayerActions);
+        KeyboardInput input = new() { Profile = defaults.WithBinding(action, ControlDevice.Keyboard, new InputChord([Keys.F3], [])) };
+        input.Read(new KeyboardState(Keys.F3), true);
+        Assert.Equal(action == ControlAction.BattleInstantVictory, input.BattleInstantVictoryRequested);
+        Assert.Equal(action == ControlAction.BattleInstantDefeat, input.BattleInstantDefeatRequested);
+        input.Read(new KeyboardState(Keys.F3), true);
+        Assert.False(input.BattleInstantVictoryRequested);
+        Assert.False(input.BattleInstantDefeatRequested);
+        input.Profile = defaults.WithBinding(action, ControlDevice.Controller, new InputChord([], [Buttons.LeftStick]));
+        input.Read(default, Pad(), true);
+        input.Read(default, Pad(Buttons.LeftStick), true);
+        Assert.Equal(action == ControlAction.BattleInstantVictory, input.BattleInstantVictoryRequested);
+        Assert.Equal(action == ControlAction.BattleInstantDefeat, input.BattleInstantDefeatRequested);
     }
 
     [Fact]

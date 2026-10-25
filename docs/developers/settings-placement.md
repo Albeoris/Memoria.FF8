@@ -61,19 +61,19 @@ Quick-save editing stages a draft. Save previews the exact removal count and ask
 
 ## Binding and device coverage
 
-Each of these 26 actions has distinct keyboard and controller values in the same controls profile. Both devices use the same owner partition and capture/conflict workflow.
+Each action has distinct keyboard and controller values in the same controls profile. Both devices use the same owner partition and capture/conflict workflow.
 
 | Group / canonical editor | Action IDs (both devices) |
 | --- | --- |
 | Config / Controls / Navigation | MoveUp, MoveDown, MoveLeft, MoveRight, UiTab, UiPageUp, UiPageDown |
 | Config / Controls / Interaction | Confirm, Cancel, Menu, Card, Select, Pause |
 | Config / Controls / Camera and battle | CameraLeft, CameraRight, RotateLeft, RotateRight, BattleAdvanceTurn |
-| Config / Controls / Shortcuts | SpeedToggle, QuickSave, QuickLoad, SaveMenu, LoadMenu |
-| Debug Room / Shortcuts | DebugRoom, BattleDebug, BattleInstantVictory |
+| Config / Controls / Shortcuts | SpeedToggle, QuickSave, QuickLoad, SaveMenu, LoadMenu, BattleInstantVictory, BattleInstantDefeat |
+| Debug Room / Shortcuts | DebugRoom, BattleDebug |
 
 Previously, all 26 action bindings for both devices appeared in Config / Controls and Debug / Controls. Their kind is **binding**; capture, clear, restore and Keep/Replace are **commands**, with filtering and group selection local **navigation**. The five controller fields are **scalar** preferences previously reachable through controller device settings in both trees.
 
-This gives 23 player and three developer actions per device. CameraLeft/Right retain their escape/camera roles; RotateRight retains gunblade/next-character behavior. Permanent Enter/Escape and F7 behavior remain outside editable profile fields.
+Instant victory and instant defeat are unbound player shortcuts; Debug Room and Battle Laboratory remain developer shortcuts. CameraLeft/Right retain their escape/camera roles; RotateRight retains gunblade/next-character behavior. Permanent Enter/Escape and F7 behavior remain outside editable profile fields.
 
 Controller settings has exactly five preferences: vibration, button labels, left stick deadzone, right stick deadzone and run threshold. Their defaults remain On, Automatic, 20%, 20% and 50%. Vibration is the registry row above, not another preference.
 
