@@ -1,12 +1,18 @@
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
 using Albeoris.Games.FF8.Imaging.Mim;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
 /// <summary>Preserves the original CLUT STP bit for textured primitive composition.</summary>
 public static class FieldBackgroundTileDecoder
 {
+    public static TextureSourceAddress Address(ResourceKey owner, MapTile tile)
+    {
+        return new(owner, $"page/{16 + tile.TextureId}", tile.PaletteId, tile.SourceX, tile.SourceY, MimFile.TileSize, MimFile.TileSize, 256, 256);
+    }
+
     public static PixelImage Decode(MimFile mim, MapTile tile)
     {
         PixelImage image = new(MimFile.TileSize, MimFile.TileSize);

@@ -327,7 +327,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     IEnumerable<(string Path, FileStamp Stamp)> before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
                     IEnumerable<(string Path, FileStamp Stamp)> after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
-                    if (!before.SequenceEqual(after))
+                    if (!before.SequenceEqual(after) || candidate.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority != catalog.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority)
                     {
                         changedPackageIds.Add(id);
                     }
@@ -371,7 +371,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
             catch (Exception exception) when (IsPreparationError(exception))
             {
                 ModTextureLoadException? textureFailure = exception as ModTextureLoadException;
-                diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId, textureFailure?.RelativePath) });
+                PackagePriorityException? priorityFailure = exception as PackagePriorityException;
+                List<ModDiagnostic> errors = [new("reload-failed", $"{exception.Message} The last committed generation remains active.", textureFailure?.PackageId ?? priorityFailure?.PackageId, textureFailure?.RelativePath ?? priorityFailure?.RelativePath)];
+                if (priorityFailure is not null)
+                {
+                    errors.Add(new("invalid-package-priority", priorityFailure.Message, priorityFailure.PackageId, priorityFailure.RelativePath));
+                }
+                diagnostics = Array.AsReadOnly(errors.ToArray());
                 updateOutcome = ModUpdateOutcome.Failed;
                 ScheduleRetry();
                 return false;
@@ -523,10 +529,22 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     continue;
                 }
                 bool? explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
+                int priority = 0;
+                if (format is ModFormat.Tonberry or ModFormat.Demaster)
+                {
+                    try
+                    {
+                        priority = ModConfiguration.ReadPriority(Path.Combine(root, "mod.ini"));
+                    }
+                    catch (InvalidDataException exception)
+                    {
+                        throw new PackagePriorityException(id, exception.Message);
+                    }
+                }
                 bool requested = explicitEnabled ?? nextAutoEnable;
                 bool compatible = isCompatible(format);
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
-                identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}");
+                identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
                 List<(string Root, string Physical, string Relative)> packageFiles = [];
                 foreach (string packageRoot in packageRoots)
@@ -575,7 +593,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, name, format, explicitEnabled, requested, status, root));
+                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { Priority = priority });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -584,7 +602,15 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
         identity = string.Join('\n', identities);
         forceRevalidate = false;
-        return new(catalog.Generation + 1, packages, files, notices);
+        Dictionary<string, int> priorities = packages.ToDictionary(package => package.Id, package => package.Priority, StringComparer.OrdinalIgnoreCase);
+        IEnumerable<ModFile> orderedFiles = files.OrderBy(file => file.Format).ThenByDescending(file => file.Format is ModFormat.Tonberry or ModFormat.Demaster ? priorities[file.PackageId] : 0);
+        return new(catalog.Generation + 1, packages, orderedFiles, notices);
+    }
+
+    private sealed class PackagePriorityException(string packageId, string message) : IOException(message)
+    {
+        public string PackageId { get; } = packageId;
+        public string RelativePath => "mod.ini";
     }
 
     private static void EnumerateFiles(string packageRoot, string directory, string prefix, string id, HashSet<string> ancestors, List<(string Physical, string Relative)> files, List<ModDiagnostic> diagnostics)

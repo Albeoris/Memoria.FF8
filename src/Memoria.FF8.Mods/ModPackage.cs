@@ -21,6 +21,7 @@ public sealed record ModDiagnostic(string Code, string Message, string? PackageI
 
 public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? ExplicitEnabled, bool RequestedEnabled, ModEffectiveStatus Status, string RootDirectory)
 {
+    public int Priority { get; init; }
     public JunctionManifestMetadata? JunctionMetadata { get; init; }
 }
 

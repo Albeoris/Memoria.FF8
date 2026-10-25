@@ -16,11 +16,14 @@ Each texture package may contain `mod.ini`:
 
 ```ini
 enabled = 1
+priority = 0
 ```
 
 Only `0` and `1` are valid boolean values. Missing global policy means automatic enablement is on. Missing package enablement inherits that policy; explicit `0` or `1` overrides it. Discovery does not create missing configuration files. Menu changes write to the selected package's own directory. Turning automatic enablement off first preserves the current state of discovered inherited packages. Explicit disables survive turning it on again. Writes preserve unrelated keys/comments and use temporary-file replacement.
 
-Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate IDs, the game-directory copy owns the entire package. Distinct packages and files use ordinal case-insensitive alphabetical order, with ordinal spelling as tie-breaker; Junction additionally applies its manifest dependency/order relationships. The first contribution to a virtual filename wins. Removing or disabling it exposes the next contribution. Across texture formats, resolution tries Demaster, Junction FFNx textures, Tonberry, then the source's own replacement/original content.
+Tonberry and Demaster packages may set `priority` to a signed 32-bit integer (`-2147483648` through `2147483647`); the default is `0`. Higher values win before lower values. An invalid priority rejects the reload and reports its package and `mod.ini`; the previous committed generation remains active.
+
+Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate IDs, the game-directory copy owns the entire package. Within Tonberry or Demaster, descending priority precedes ordinal case-insensitive alphabetical package order, with ordinal spelling as tie-breaker. Files retain their alphabetical ordering. The first contribution to a virtual filename wins. Removing or disabling it exposes the next contribution. Priority applies to contributions to the same virtual filename; the adapter's candidate-path preference is evaluated first. For example, an exact-palette DDS in a lower-priority package precedes a plain-page PNG in a higher-priority package. Junction retains its manifest dependency/order relationships and does not use this texture-package priority. Across texture formats, resolution tries Demaster, Junction FFNx textures, Tonberry, then the source's own replacement/original content.
 
 ## Supported layouts
 
@@ -29,12 +32,13 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Tonberry | Classic `classic-world-texl`, `classic-world-road-region`, and explicitly supplied `tonberry-classic-page` | Requires original color/page semantics. Generic field tiles, model atlases and battle images are not automatically equivalent. Remastered is incompatible. |
 | Demaster | Classic world TEXL pages and original road regions represented by world page 29 | Compatibility of a package does not make every target compatible. Other families require a source-published compatible layout. |
 | Demaster card artwork | `demaster-card-artwork`: menu card atlases, Triple Triad fronts, back, elements and split backgrounds | Square 256 × 256 source sheets at an integer scale; localized alternatives follow the source language. |
+| Demaster field backgrounds | `native-field-background-page`: original MAP tiles addressed within their MIM pages | Square 256 × 256 source pages at a positive integer scale; native page, palette and pixel UV metadata select each tile. |
 | Demaster battle stages | `native-battle-stage-page`: original stage pages 16–21 under `textures/battle.fs/hd_new/` | Independent 256 × 256 page canvases; static and numbered animation frames. Model and effect layouts are separate contracts. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
 | Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. |
 | Junction FFNx | Source-published `classic-ffnx` identities under selected `mods/textures/` resources | Card/menu atlases, native field/world model textures, terrain TEXL pages, roads, static world objects and implemented native world section consumers. |
 
-Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full field/UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
+Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
 
 FFNx lookup preserves native model/texture indexes and world section/member identities. DDS and PNG replacements must preserve the native canvas aspect ratio and map crop boundaries to whole pixels. Crops used by terrain redirects and native atlas copies apply to the enlarged replacement image. When an exact palette suffix is absent, lookup uses the lowest available palette, following the external texture convention. The localized `eng/` root precedes the common root for English resources.
 
@@ -53,6 +57,16 @@ Menu icons use `mods/textures/data/eng/menu/hires/iconfl<page>_<palette>`, with 
 Single-source indexed world section textures may use FFNx VRAM page names `<native-name>_<page>_<palette-x>_<palette-y>`. These addresses use original VRAM word coordinates and CLUT coordinates, independently of the engine atlas layout. Each replacement page is a square 256 × 256 logical canvas at an integer scale. The resolver crops and composes the native texture rectangle, tries the exact palette coordinates before the zero-coordinate fallback, and retains logical UV dimensions. The same page-address contract applies to native `cardgame/icons` regions, including elemental icons and win/loss/draw banners. A matching VRAM page takes precedence over the whole-image `_00` replacement. World and card page identities remain single-source.
 
 Registered field model pages also support concatenated source identities: `field/model/<kind>_chr/<name>-<member>_[f<frame>_]...<page>_<palette-x>_<palette-y>` under `mods/textures/`. Source membership and order come from the actual registered VRAM rectangles. The adapter selects the exact native page and CLUT, crops the square 256 × 256 page at an integer scale and retains the original source UV dimensions. An animated `_fN` suffix records the first-seen order of actual texture-copy rectangles; this history survives snapshots and battle capture. A restored active registration lacking that history rejects matching page replacements until the original field resources are actually reloaded. Frames are never inferred from an eye-open or eye-closed flag.
+
+### Demaster field background pages
+
+Field backgrounds use `textures/field_bg/<first two map characters>/<map>/<map>_<page>[_<palette>].dds` or `.png`. The directory prefix and both map names must agree. Page numbers are the original MAP `TextureId`, 0 through 15, corresponding to native pages 16 through 31. The optional palette suffix is the original MAP palette, 0 through 15. Write page and palette numbers without leading zeroes.
+
+The Classic source publishes `native-field-background-page` metadata for each `classic-field-tile`: the original MIM owner, native page and palette, and the MAP tile's `SourceX`/`SourceY` pixel coordinates in a 256 × 256 canvas. These coordinates retain their pixel meaning at either indexed bit depth. The adapter crops the original 16 × 16 logical tile from the replacement page, preserving its enlarged pixels. Pages must be square images at a positive integral scale of 256 × 256; a 1024 × 1024 page produces 64 × 64 tile images. DDS mip crops are retained while every crop boundary falls on a whole pixel.
+
+Lookup tries the exact palette's DDS, exact palette's PNG, plain-page DDS, then plain-page PNG. There is no fallback to palette zero for another palette. A missing target retains the original tile. Corrupt winning content or incompatible image dimensions fail preparation with package/file diagnostics.
+
+The suffix selects a palette; it does not create animation frames. Original MAP `Parameter`/`State` selection still chooses animated tiles and their independent source UVs. Destination coordinates, layers, draw order, visibility and native blend modes remain unchanged, including transparent and semitransparent texels. Enabling, disabling or refreshing a package republishes resident tile handles and refreshes cached CPU rendering and GPU atlases, including replacements whose dimensions stay the same.
 
 ### Demaster battle stage pages
 

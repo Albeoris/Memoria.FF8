@@ -265,7 +265,10 @@ public sealed partial class GameAssets : IDisposable
         for (int index = 0; index < tiles.Length; index++)
         {
             BackgroundTile tile = tiles[index];
-            tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(new ResourceKey($"field/{name}/{name}.mim"), $"tile/{index}", map.Tiles[index].PaletteId), tile.Image, "classic-field-tile") };
+            ResourceKey owner = new($"field/{name}/{name}.mim");
+            MapTile original = map.Tiles[index];
+            TextureSourceRegion region = new(original.TextureId * 64, 256, original.Uses8BitIndices ? 8 : 4, 256, 256);
+            tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(owner, $"tile/{index}", original.PaletteId), tile.Image, "classic-field-tile", region, nativeAlias: FieldBackgroundTileDecoder.Address(owner, original)) };
         }
         byte[] one = Read(nested, "chara.one");
         List<NativeFieldOneModelEntry> nativeDirectory = [];

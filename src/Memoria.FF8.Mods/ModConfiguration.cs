@@ -5,6 +5,35 @@ namespace Memoria.FF8.Mods;
 
 internal static class ModConfiguration
 {
+    public static int ReadPriority(string path)
+    {
+        int priority = 0;
+        if (!File.Exists(path))
+        {
+            return priority;
+        }
+        foreach (string line in File.ReadAllLines(path))
+        {
+            string text = line.Trim().TrimStart('\uFEFF');
+            if (text.Length == 0 || text[0] is ';' or '#' or '[')
+            {
+                continue;
+            }
+            int equals = text.IndexOf('=');
+            string key = (equals < 0 ? text : text[..equals]).Trim();
+            if (!key.Equals("priority", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            string setting = equals < 0 ? "" : text[(equals + 1)..].Split([';', '#'], 2)[0].Trim();
+            if (!int.TryParse(setting, NumberStyles.Integer, CultureInfo.InvariantCulture, out priority))
+            {
+                throw new InvalidDataException("Invalid priority: expected a signed 32-bit integer.");
+            }
+        }
+        return priority;
+    }
+
     public static bool? ReadBoolean(string path, string key)
     {
         if (!File.Exists(path))

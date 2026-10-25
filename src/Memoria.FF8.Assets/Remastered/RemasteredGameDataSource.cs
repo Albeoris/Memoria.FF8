@@ -37,7 +37,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         }
     }
 
-    public ResourceSourceDescriptor Descriptor => new("remastered", GameDataEdition.Remastered, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle", "demaster-card-artwork", "native-battle-stage-page", "classic-ffnx"], language);
+    public ResourceSourceDescriptor Descriptor => new("remastered", GameDataEdition.Remastered, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle", "demaster-card-artwork", "native-battle-stage-page", "native-field-background-page", "classic-ffnx"], language);
 
     public IFlArchive OpenArchive(string family)
     {

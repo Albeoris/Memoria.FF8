@@ -44,7 +44,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             }
             bool battleTarget = stem.StartsWith(BattlePagePrefix, StringComparison.OrdinalIgnoreCase);
             supported |= battleTarget && HasLayout(source, BattlePageLayout) && IsBattlePageTarget(stem);
-            supported |= !battleTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
+            bool fieldTarget = stem.StartsWith(FieldPagePrefix, StringComparison.OrdinalIgnoreCase);
+            supported |= fieldTarget && HasLayout(source, FieldPageLayout) && IsFieldPageTarget(stem);
+            supported |= !battleTarget && !fieldTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
                 usable.Add(file.PackageId);
@@ -59,6 +61,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == "classic-field-tile")
+        {
+            return ResolveFieldPage(context);
+        }
         if (context.Layout == BattlePageLayout)
         {
             return ResolveBattlePage(context);
@@ -93,6 +99,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == "classic-field-tile")
+        {
+            return TryFieldPageAddress(context, out string map, out int nativePage, out _) ? FieldBackgroundCandidates(map, nativePage, context.Key.Palette) : Array.Empty<string>();
+        }
         if (context.Layout == BattlePageLayout)
         {
             return TryBattlePageStem(context, out string battleStem) ? WithExtensions($"{battleStem}_0").Concat(WithExtensions(battleStem)).ToArray() : Array.Empty<string>();
@@ -135,7 +145,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
     public static IReadOnlyList<string> FieldBackgroundCandidates(string map, int nativePage, int palette)
     {
         ValidateName(map);
-        if (map.Length < 2 || nativePage < 16 || palette < 0)
+        if (map.Length < 2 || nativePage is < 16 or > 31 || palette is < 0 or > 15)
         {
             throw new ArgumentOutOfRangeException(nameof(nativePage));
         }

@@ -94,6 +94,11 @@ An explicitly selected native execution-stack profile can be stored in `Memoria.
 | `MEMORIA_FF8_TEST_FIXTURES` | Base directory for relative catalog paths; otherwise they resolve against the catalog directory. |
 | `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE=1` | Opt into the full automated New Game-to-ending acceptance attempt in the App tests. It stops at unsupported contracts or traversal failures. |
 | `MEMORIA_FF8_REMASTERED_DIR` | Optional Remastered installation for its separate read-only resource checks. |
+| `MEMORIA_FF8_FIELD_TEXTURE_PACKAGES` | Path to an external JSON array of unpacked field texture package directories, ordered base then addon. Relative paths resolve against the catalog directory. Enables installed field-page coverage and CPU/GPU acceptance tests; packages must share a `Mods/Demaster` parent for App.Tests. |
+| `MEMORIA_FF8_FIELD_TEXTURE_OPTIONAL_IMAGES` | Path to an external JSON array of directories containing optional extracted PNGs for independent field-image decode checks. Relative paths resolve against the catalog directory. |
+| `MEMORIA_FF8_FIELD_STATE` | Concrete standalone field save for read-only installed CPU/GPU presentation acceptance. The test renders without advancing gameplay and checks state and source-save hashes. |
+| `MEMORIA_FF8_FIELD_PATCH_FIELD` | Optional original field ID restricting the addon comparison to that field. Otherwise the test searches native fields addressed by changed addon files for a visible CPU/GPU difference. |
+| `MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY` | Optional directory retaining installed mod coverage reports, render hashes and CPU/GPU field PNGs. |
 
 Fixture catalogs and original game data stay local. Use neutral fixture identifiers in shared tests, and do not check in proprietary assets or personal saved games. See [Environment variables](../reference/environment-variables.md) for runtime and specialized integration configuration, and [Remastered resources](remastered-resources.md) for that optional test project.
 
