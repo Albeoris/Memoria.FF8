@@ -14,8 +14,8 @@ internal static class MovieSkipHint
         float scale = Math.Min(viewport.Width / 960, viewport.Height / 720);
         float fontSize = 16 * scale;
         using var measurer = SystemTextLayout.CreateMeasurer(fontSize, fontFamily);
-        binding = ButtonPromptText.PlainText(binding);
-        float keyWidth = ButtonPrompt.Advance(measurer.Measure(binding), measurer.LineHeight);
+        binding = ButtonPromptText.Mark(binding);
+        float keyWidth = ButtonPromptText.Measure(binding, fontSize, float.PositiveInfinity, fontFamily).Width;
         float labelWidth = measurer.Measure("Hold to skip");
         float radius = Math.Max(22 * scale, keyWidth / 2 + 10 * scale);
         float margin = 24 * scale;
@@ -25,7 +25,7 @@ internal static class MovieSkipHint
         float lineY = centerY - measurer.LineHeight / 2;
         canvas.Fill(new UiRect(labelX - 12 * scale, centerY - radius - 8 * scale, labelWidth + 2 * radius + 40 * scale, 2 * radius + 16 * scale), new UiColor(0, 0, 0, 150));
         canvas.Text("Hold to skip", fontSize, new UiRect(labelX, lineY, labelWidth + 2 * scale, measurer.LineHeight + 2 * scale), new UiColor(240, 240, 240), fontFamily);
-        ButtonPrompt.DrawCanvas(canvas, binding, fontSize, new UiRect(centerX - keyWidth / 2, lineY, keyWidth, measurer.LineHeight), 1, fontFamily);
+        canvas.Text(binding, fontSize, new UiRect(centerX - keyWidth / 2, lineY, keyWidth, measurer.LineHeight), new UiColor(255, 255, 255), fontFamily);
         DrawArc(canvas, centerX, centerY, radius, 1, new UiColor(150, 150, 150, 180), 2 * scale);
         DrawArc(canvas, centerX, centerY, radius, Math.Clamp(gesture.Progress, 0, 1), new UiColor(255, 255, 255), 3 * scale);
     }

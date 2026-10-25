@@ -10,6 +10,8 @@ Press **F7** to switch between **Vector** (default) and **Classic** presentation
 
 Controller names below use physical positions. The button-label setting can display Generic, Xbox, PlayStation or Nintendo names; changing labels does not exchange button positions.
 
+On-screen hints follow the last device you use. A keyboard press shows keyboard bindings; controller buttons or stick movement show controller bindings. Mouse movement, clicks and scrolling do not change this choice. If an action has no controller binding, its assigned keyboard binding can still appear while using a controller. Keyboard hints never substitute a controller-only binding. PlayStation and Xbox hints use scalable vector button artwork in their traditional shapes and colors, including remapped buttons and button combinations.
+
 | Action | Keyboard | Controller |
 | --- | --- | --- |
 | Move / menu direction | Arrow keys | D-pad or left stick |

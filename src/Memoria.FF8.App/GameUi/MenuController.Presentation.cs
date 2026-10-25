@@ -315,7 +315,7 @@ public sealed partial class MenuController
         return branded;
     }
 
-    private UiElement VectorPrompts() => new VectorText($"{BindingText(ControlAction.MoveUp, CurrentControlDevice)}{BindingText(ControlAction.MoveDown, CurrentControlDevice)}  Navigate    {BindingText(ControlAction.Confirm, CurrentControlDevice)}  Select    {BindingText(ControlAction.Cancel, CurrentControlDevice)}  Back    F7  UI", 10 * TextScale, horizontalAlignment: UiAlignment.End);
+    private UiElement VectorPrompts() => new VectorText($"{CurrentBindingText(ControlAction.MoveUp)}{CurrentBindingText(ControlAction.MoveDown)}  Navigate    {CurrentBindingText(ControlAction.Confirm)}  Select    {CurrentBindingText(ControlAction.Cancel)}  Back    F7  UI", 10 * TextScale, horizontalAlignment: UiAlignment.End);
 
     private static UiGrid VectorRows(float[] heights, float[] columns, float gap)
     {

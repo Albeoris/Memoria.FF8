@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256">
+<title>Original Sony controller prompt vector atlas</title>
+<desc>Sixteen physical button positions; independently drawn geometric symbols. Each group uses a 64 by 64 local coordinate system.</desc>
+<g id="button-128" transform="translate(0 0)">
+<polygon points="17,9 47,9 53,43 43,55 21,55 11,43" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,21 16.6,43 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,25.4 38.6,21 43,21 47.4,25.4 47.4,29.8 34.2,43 47.4,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-129" transform="translate(64 0)">
+<polygon points="17,9 47,9 53,43 43,55 21,55 11,43" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,43 16.6,21 25.4,21 29.8,25.4 29.8,27.6 25.4,32 16.6,32" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="23.2,32 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,25.4 38.6,21 43,21 47.4,25.4 47.4,29.8 34.2,43 47.4,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-130" transform="translate(128 0)">
+<rect x="7" y="16" width="50" height="32" rx="8" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,21 16.6,43 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="36.4,25.4 40.8,21 40.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,43 47.4,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-131" transform="translate(192 0)">
+<rect x="7" y="16" width="50" height="32" rx="8" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,43 16.6,21 25.4,21 29.8,25.4 29.8,27.6 25.4,32 16.6,32" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="23.2,32 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="36.4,25.4 40.8,21 40.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,43 47.4,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-132" transform="translate(0 64)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="20,42 32,20 44,42 20,42" fill="none" stroke="#54D9A1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-133" transform="translate(64 64)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<circle cx="32" cy="32" r="12" fill="none" stroke="#FF6C78" stroke-width="3"/>
+</g>
+<g id="button-134" transform="translate(128 64)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="22,22 42,42" fill="none" stroke="#70A6FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><polyline points="42,22 22,42" fill="none" stroke="#70A6FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-135" transform="translate(192 64)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<rect x="21" y="21" width="22" height="22" fill="none" stroke="#F395CC" stroke-width="3"/>
+</g>
+<g id="button-136" transform="translate(0 128)">
+<rect x="7" y="16" width="50" height="32" rx="8" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="23,32 41,23" fill="none" stroke="#E8EDF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="23,32 41,41" fill="none" stroke="#E8EDF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="23" cy="32" r="3" fill="#E8EDF5"/>
+<circle cx="41" cy="23" r="3" fill="#E8EDF5"/>
+<circle cx="41" cy="41" r="3" fill="#E8EDF5"/>
+</g>
+<g id="button-137" transform="translate(64 128)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<circle cx="32" cy="32" r="19" fill="none" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,21 16.6,43 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,21 47.4,21 40.8,32 47.4,36.4 47.4,40.8 43,43 34.2,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-138" transform="translate(128 128)">
+<circle cx="32" cy="32" r="27" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<circle cx="32" cy="32" r="19" fill="none" stroke="#8997A8" stroke-width="2"/>
+<polyline points="16.6,43 16.6,21 25.4,21 29.8,25.4 29.8,27.6 25.4,32 16.6,32" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="23.2,32 29.8,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="34.2,21 47.4,21 40.8,32 47.4,36.4 47.4,40.8 43,43 34.2,43" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-139" transform="translate(192 128)">
+<rect x="7" y="16" width="50" height="32" rx="8" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polyline points="23,24 41,24" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="23,32 41,32" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="23,40 41,40" fill="none" stroke="#E8EDF5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="button-140" transform="translate(0 192)">
+<polygon points="23,9 41,9 41,23 55,23 55,41 41,41 41,55 23,55 23,41 9,41 9,23 23,23" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polygon points="32,19 43,32 36,32 36,44 28,44 28,32 21,32" fill="#E8EDF5"/>
+</g>
+<g id="button-141" transform="translate(64 192)">
+<polygon points="23,9 41,9 41,23 55,23 55,41 41,41 41,55 23,55 23,41 9,41 9,23 23,23" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polygon points="32,45 43,32 36,32 36,20 28,20 28,32 21,32" fill="#E8EDF5"/>
+</g>
+<g id="button-142" transform="translate(128 192)">
+<polygon points="23,9 41,9 41,23 55,23 55,41 41,41 41,55 23,55 23,41 9,41 9,23 23,23" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polygon points="19,32 32,21 32,28 44,28 44,36 32,36 32,43" fill="#E8EDF5"/>
+</g>
+<g id="button-143" transform="translate(192 192)">
+<polygon points="23,9 41,9 41,23 55,23 55,41 41,41 41,55 23,55 23,41 9,41 9,23 23,23" fill="#202731" stroke="#8997A8" stroke-width="2"/>
+<polygon points="45,32 32,21 32,28 20,28 20,36 32,36 32,43" fill="#E8EDF5"/>
+</g>
+</svg>

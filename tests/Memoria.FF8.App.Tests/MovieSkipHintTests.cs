@@ -52,9 +52,24 @@ public sealed class MovieSkipHintTests
         Assert.Equal(0, canvas.Lines);
     }
 
+    [Fact]
+    public void Controller_and_chord_metadata_reach_the_movie_hint_canvas()
+    {
+        MovieSkipGesture gesture = new();
+        gesture.Update(TimeSpan.FromSeconds(0.1), cancelHeld: true);
+        string prompt = new InputChord([], [Buttons.LeftShoulder, Buttons.B]).FormatPrompt(ControllerPresentation.PlayStation);
+        RecordingCanvas canvas = new();
+
+        MovieSkipHint.Draw(canvas, new UiRect(0, 0, 960, 720), SceneKind.Movie, gesture, prompt, "Arial");
+
+        Assert.Contains(prompt, canvas.RawTexts);
+        Assert.Equal(2, ButtonPromptText.Runs(prompt).Count(run => run.IsButton));
+    }
+
     private sealed class RecordingCanvas : IUiCanvas
     {
         public List<string> Texts { get; } = [];
+        public List<string> RawTexts { get; } = [];
         public int Lines { get; private set; }
 
         public void Fill(UiRect bounds, UiColor color)
@@ -63,7 +78,8 @@ public sealed class MovieSkipHintTests
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
-            Texts.Add(text);
+            RawTexts.Add(text);
+            Texts.Add(ButtonPromptText.PlainText(text));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)

@@ -37,7 +37,7 @@ internal sealed partial class RecreateGame
         gameMenus?.Close();
         modelBrowser = new([], CloseModelBrowser, ExportBrowserModel, ImportBrowserModel);
         modelBrowser.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
-        modelBrowser.SetHints($"Arrows: select / rotate · {keyboard.BindingHint(ControlAction.Confirm)}: view / commands · {keyboard.BindingHint(ControlAction.Cancel)}: back\n{keyboard.BindingHint(ControlAction.CameraLeft)} / {keyboard.BindingHint(ControlAction.CameraRight)}: model · {keyboard.BindingHint(ControlAction.RotateLeft)} / {keyboard.BindingHint(ControlAction.RotateRight)}: zoom · {keyboard.BindingHint(ControlAction.Card)}: variant · Tab: search");
+        UpdateModelBrowserHints();
         MouseState mouse = Mouse.GetState();
         previousModelBrowserMouse = mouse.LeftButton == ButtonState.Pressed;
         previousModelBrowserWheel = mouse.ScrollWheelValue;
@@ -137,6 +137,18 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private void UpdateModelBrowserHints()
+    {
+        if (modelBrowser is null)
+        {
+            return;
+        }
+        string directions = $"{keyboard.BindingPrompt(ControlAction.MoveUp)} / {keyboard.BindingPrompt(ControlAction.MoveDown)} / {keyboard.BindingPrompt(ControlAction.MoveLeft)} / {keyboard.BindingPrompt(ControlAction.MoveRight)}";
+        modelBrowser.SetHints(modelBrowser.AssetsOpen
+            ? $"{keyboard.BindingPrompt(ControlAction.UiTab)}: preview / list · {directions}: navigate · {keyboard.BindingPrompt(ControlAction.Confirm)} / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · {keyboard.BindingPrompt(ControlAction.Cancel)}: cancel selection"
+            : $"{directions}: select / rotate · {keyboard.BindingPrompt(ControlAction.Confirm)}: view / commands · {keyboard.BindingPrompt(ControlAction.Cancel)}: back\n{keyboard.BindingPrompt(ControlAction.CameraLeft)} / {keyboard.BindingPrompt(ControlAction.CameraRight)}: model · {keyboard.BindingPrompt(ControlAction.RotateLeft)} / {keyboard.BindingPrompt(ControlAction.RotateRight)}: zoom · {keyboard.BindingPrompt(ControlAction.Card)}: variant · {keyboard.BindingPrompt(ControlAction.UiTab)}: search");
+    }
+
     private bool UpdateModelBrowserUi(InputFrame input, TimeSpan elapsed)
     {
         if (modelBrowser is null)
@@ -144,6 +156,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         ReadMoreModelCatalogEntries();
+        UpdateModelBrowserHints();
         ReadMoreBrowserAssets();
         modelBrowser.AdvancePlayback((float)Math.Min(elapsed.TotalSeconds, 0.1));
         if (resourceHost is not null && modelBrowserModGeneration != resourceHost.Mods.Catalog.Generation)

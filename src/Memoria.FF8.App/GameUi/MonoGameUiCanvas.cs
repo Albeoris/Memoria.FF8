@@ -16,6 +16,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private string? cardFontFamily;
     private readonly UiTextOverflow textOverflow = new();
     private long artworkGeneration = -1;
+    private readonly Dictionary<(int Icon, ControllerPresentation Presentation, int Size), Texture2D> controllerButtons = [];
     private readonly Dictionary<(string Text, float Size, float Width, string Family), UiSize> textMeasurements = [];
 
     public void BeginFrame(TimeSpan time)
@@ -71,15 +72,45 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         }
     }
 
-    public bool TryDrawControllerButton(int nativeIconId, UiRect bounds, float opacity)
+    public bool TryDrawControllerButton(int nativeIconId, ControllerPresentation presentation, UiRect bounds, float opacity)
     {
-        if (artwork.ReadControllerButton(nativeIconId) is null)
+        if (!ControllerVectorArtwork.Supports(nativeIconId, presentation))
         {
             return false;
         }
-        DrawImage(new UiImageSource(UiImageKind.ControllerButton, nativeIconId), bounds, stretch: false, opacity);
+        if (bounds.IsEmpty)
+        {
+            return true;
+        }
+        int size = Math.Clamp((int)MathF.Ceiling(Math.Min(bounds.Width, bounds.Height)), 1, 2048);
+        var key = (nativeIconId, presentation, size);
+        if (!controllerButtons.TryGetValue(key, out Texture2D? texture))
+        {
+            using System.Drawing.Bitmap bitmap = ControllerVectorArtwork.Render(nativeIconId, presentation, size);
+            texture = new Texture2D(device, size, size);
+            Color[] colors = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    System.Drawing.Color color = bitmap.GetPixel(x, y);
+                    colors[y * size + x] = Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
+                }
+            }
+            texture.SetData(colors);
+            controllerButtons[key] = texture;
+        }
+        UiRect destination = UiImage.Fit(bounds, size, size);
+        Rectangle target = RectangleFor(destination);
+        Rectangle clipped = Rectangle.Intersect(target, CurrentClip);
+        if (clipped.Width > 0 && clipped.Height > 0)
+        {
+            Rectangle source = new((clipped.X - target.X) * size / target.Width, (clipped.Y - target.Y) * size / target.Height, Math.Max(1, clipped.Width * size / target.Width), Math.Max(1, clipped.Height * size / target.Height));
+            batch.Draw(texture, clipped, source, Color.White * opacity);
+        }
         return true;
     }
+
     public void Image(UiImageSource source, UiRect bounds)
     {
         DrawImage(source, bounds, stretch: false);
@@ -364,6 +395,11 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     {
         paper?.Dispose();
         menuPointer?.Dispose();
+        foreach (Texture2D button in controllerButtons.Values)
+        {
+            button.Dispose();
+        }
+        controllerButtons.Clear();
         foreach (Texture2D texture in images.Values)
         {
             texture.Dispose();

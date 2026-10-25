@@ -18,7 +18,7 @@ internal static class DialogueLayout
 
     internal static float MeasureRun(DialogueRun run, Func<string, float> measure, float lineHeight)
     {
-        return run.IsButton ? ButtonPrompt.Advance(measure(ButtonPrompt.Label(run.Text)), lineHeight) : measure(run.Text);
+        return run.IsButton ? ButtonPrompt.Measure(run.Text, measure, lineHeight) : measure(run.Text);
     }
 
     private static float MeasureRuns(IEnumerable<DialogueRun> runs, Func<string, float> measure, float lineHeight)

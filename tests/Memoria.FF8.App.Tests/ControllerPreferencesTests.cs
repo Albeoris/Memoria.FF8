@@ -69,7 +69,7 @@ public sealed class ControllerPreferencesTests
             .WithBinding(ControlAction.QuickSave, ControlDevice.Keyboard, new([Keys.K], []))
             .WithBinding(ControlAction.DebugRoom, ControlDevice.Keyboard, new([Keys.L], []))
             .WithBinding(ControlAction.QuickSave, ControlDevice.Controller, new([], [Buttons.LeftStick]))
-            .WithBinding(ControlAction.DebugRoom, ControlDevice.Controller, new([], [Buttons.RightStick]));
+            .WithBinding(ControlAction.DebugRoom, ControlDevice.Controller, new([], [Buttons.RightStick, Buttons.LeftShoulder]));
         ControlsProfile reset = profile.ResetBindings(device, developer);
         ControlsProfile defaults = ControlsProfile.CreateDefault();
         foreach (ControlDevice inspectedDevice in Enum.GetValues<ControlDevice>())
@@ -104,7 +104,7 @@ public sealed class ControllerPreferencesTests
     {
         Assert.Equal(face, new InputChord([], [Buttons.A]).FormatDisplayName(presentation));
         Assert.Equal(click, new InputChord([], [Buttons.RightStick]).FormatDisplayName(presentation));
-        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Confirm, ControlDevice.Controller, new([], [Buttons.RightStick]));
+        ControlsProfile profile = ControlsProfile.CreateDefault().WithBinding(ControlAction.Confirm, ControlDevice.Controller, new([], [Buttons.RightStick]), replaceConflicts: true);
         Assert.Throws<ArgumentException>(() => profile.WithBinding(ControlAction.Cancel, ControlDevice.Controller, new([], [Buttons.RightThumbstickUp])));
     }
 

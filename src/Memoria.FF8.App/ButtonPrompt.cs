@@ -7,11 +7,15 @@ namespace Memoria.FF8;
 /// <summary>Inline input labels keep their own silhouette and spacing next to authored text.</summary>
 internal interface IControllerButtonCanvas
 {
-    bool TryDrawControllerButton(int nativeIconId, UiRect bounds, float opacity);
+    bool TryDrawControllerButton(int nativeIconId, ControllerPresentation presentation, UiRect bounds, float opacity);
 }
 
 internal static class ButtonPrompt
 {
+    internal static bool HasVectorArtwork(string label) => ControllerIcon(label) is int icon && ControllerVectorArtwork.Supports(icon, Presentation(label));
+
+    internal static float Measure(string label, Func<string, float> measure, float lineHeight) => HasVectorArtwork(label) ? lineHeight * 1.24f : Advance(measure(Label(label)), lineHeight);
+
     internal static float Advance(float textWidth, float lineHeight) => Math.Max(lineHeight, textWidth * 0.82f + lineHeight * 0.45f) + lineHeight * 0.24f;
 
     internal static string VisibleText(DialogueRun run, ref int remaining)
@@ -35,13 +39,15 @@ internal static class ButtonPrompt
             return;
         }
         int? icon = ControllerIcon(label);
+        ControllerPresentation presentation = Presentation(label);
+        bool vector = HasVectorArtwork(label);
         label = Label(label);
         float textWidth = SystemTextLayout.MeasureAdvance(label, size, family);
-        float width = Advance(textWidth, lineHeight) - lineHeight * 0.24f;
+        float width = vector ? lineHeight : Advance(textWidth, lineHeight) - lineHeight * 0.24f;
         float inset = Math.Max(1, lineHeight * 0.055f);
         float top = position.Y + lineHeight * 0.04f;
         float height = lineHeight * 0.92f;
-        if (icon is int id && canvas is IControllerButtonCanvas controller && controller.TryDrawControllerButton(id, new UiRect(position.X, top, width, height), opacity))
+        if (icon is int id && canvas is IControllerButtonCanvas controller && controller.TryDrawControllerButton(id, presentation, new UiRect(position.X, top, width, height), opacity))
         {
             return;
         }
@@ -65,13 +71,15 @@ internal static class ButtonPrompt
     {
         float lineHeight = bounds.Height;
         int? icon = ControllerIcon(label);
+        ControllerPresentation presentation = Presentation(label);
+        bool vector = HasVectorArtwork(label);
         label = Label(label);
         float textWidth = SystemTextLayout.MeasureAdvance(label, size, family);
-        float width = Advance(textWidth, lineHeight) - lineHeight * 0.24f;
+        float width = vector ? lineHeight : Advance(textWidth, lineHeight) - lineHeight * 0.24f;
         float inset = Math.Max(1, lineHeight * 0.055f);
         float top = bounds.Y + lineHeight * 0.04f;
         float height = lineHeight * 0.92f;
-        if (icon is int id && canvas is IControllerButtonCanvas controller && controller.TryDrawControllerButton(id, new UiRect(bounds.X, top, width, height), opacity))
+        if (icon is int id && canvas is IControllerButtonCanvas controller && controller.TryDrawControllerButton(id, presentation, new UiRect(bounds.X, top, width, height), opacity))
         {
             return;
         }
@@ -82,9 +90,11 @@ internal static class ButtonPrompt
         canvas.Text(label, labelSize, new UiRect(bounds.X + (width - textWidth * 0.82f) / 2, top + (height - labelHeight) / 2, width, measurer.LineHeight), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
     }
 
-    internal static int? ControllerIcon(string label) => label.Length > 0 && label[0] is >= '\uF100' and <= '\uF10B' ? 128 + label[0] - '\uF100' : null;
+    internal static int? ControllerIcon(string label) => label.Length > 0 && label[0] is >= '\uF100' and <= '\uF10F' ? 128 + label[0] - '\uF100' : null;
 
-    internal static string Label(string label) => ControllerIcon(label) is null ? label : label[1..];
+    internal static ControllerPresentation Presentation(string label) => label.Length > 1 && label[1] is >= '\uF180' and <= '\uF184' ? (ControllerPresentation)(label[1] - '\uF180') : ControllerPresentation.Generic;
+
+    internal static string Label(string label) => ControllerIcon(label) is null ? label : label[(label.Length > 1 && label[1] is >= '\uF180' and <= '\uF184' ? 2 : 1)..];
 
     private static void DrawShape(float x, float top, float width, float height, float inset, Action<float, float, float, float, Color> fill)
     {

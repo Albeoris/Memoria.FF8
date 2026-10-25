@@ -12,6 +12,7 @@
     <ProjectReference Include="../Memoria.FF8.Diagnostics/Memoria.FF8.Diagnostics.csproj" />
     <Content Include="../../vendor/Steamworks/redistributable_bin/win64/steam_api64.dll" Link="Steam/steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../vendor/Steamworks/README.md" Link="Steam/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Artwork/Controller/*.svg" />
     <EmbeddedResource Include="Shaders/Triangles.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" />
     <EmbeddedResource Include="Shaders/FrameDifference.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" />
     <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />

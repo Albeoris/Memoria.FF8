@@ -14,7 +14,7 @@ internal static class ButtonPromptText
         return label.Length == 0 || Contains(label) ? label : $"{Open}{label}{Close}";
     }
 
-    internal static string MarkController(Microsoft.Xna.Framework.Input.Buttons button, string label)
+    internal static string MarkController(Microsoft.Xna.Framework.Input.Buttons button, string label, ControllerPresentation presentation = ControllerPresentation.Generic)
     {
         int? id = button switch
         {
@@ -28,9 +28,15 @@ internal static class ButtonPromptText
             Microsoft.Xna.Framework.Input.Buttons.X => 135,
             Microsoft.Xna.Framework.Input.Buttons.Back => 136,
             Microsoft.Xna.Framework.Input.Buttons.Start => 139,
+            Microsoft.Xna.Framework.Input.Buttons.LeftStick => 137,
+            Microsoft.Xna.Framework.Input.Buttons.RightStick => 138,
+            Microsoft.Xna.Framework.Input.Buttons.DPadUp => 140,
+            Microsoft.Xna.Framework.Input.Buttons.DPadDown => 141,
+            Microsoft.Xna.Framework.Input.Buttons.DPadLeft => 142,
+            Microsoft.Xna.Framework.Input.Buttons.DPadRight => 143,
             _ => null
         };
-        return Mark(id is int icon ? $"{(char)('\uF100' + icon - 128)}{label}" : label);
+        return Mark(id is int icon ? $"{(char)('\uF100' + icon - 128)}{(char)('\uF180' + (int)presentation)}{label}" : label);
     }
     internal static bool Contains(string value)
     {
@@ -39,7 +45,7 @@ internal static class ButtonPromptText
 
     internal static string PlainText(string value)
     {
-        return new string(value.Where(character => character != Open && character != Close && character is not (>= '\uF100' and <= '\uF10B')).ToArray());
+        return new string(value.Where(character => character != Open && character != Close && character is not (>= '\uF100' and <= '\uF10F') && character is not (>= '\uF180' and <= '\uF184')).ToArray());
     }
 
     internal static IEnumerable<DialogueRun> Runs(string value)

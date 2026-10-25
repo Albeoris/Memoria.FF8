@@ -20,6 +20,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
     private readonly Dictionary<UiImageSource, Bitmap> images = [];
     private readonly UiTextOverflow textOverflow = new();
     private long artworkGeneration = -1;
+    private readonly Dictionary<(int Icon, ControllerPresentation Presentation, int Size), Bitmap> controllerButtons = [];
 
     public void BeginFrame(TimeSpan time)
     {
@@ -76,15 +77,31 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         graphics.DrawImageUnscaled(paper, (int)MathF.Round(bounds.X), (int)MathF.Round(bounds.Y));
     }
 
-    public bool TryDrawControllerButton(int nativeIconId, UiRect bounds, float opacity)
+    public bool TryDrawControllerButton(int nativeIconId, ControllerPresentation presentation, UiRect bounds, float opacity)
     {
-        if (artwork.ReadControllerButton(nativeIconId) is null)
+        if (!ControllerVectorArtwork.Supports(nativeIconId, presentation))
         {
             return false;
         }
-        DrawImage(new UiImageSource(UiImageKind.ControllerButton, nativeIconId), bounds, stretch: false, opacity);
+        if (bounds.IsEmpty)
+        {
+            return true;
+        }
+        int size = Math.Clamp((int)MathF.Ceiling(Math.Min(bounds.Width, bounds.Height)), 1, 2048);
+        var key = (nativeIconId, presentation, size);
+        if (!controllerButtons.TryGetValue(key, out Bitmap? bitmap))
+        {
+            bitmap = ControllerVectorArtwork.Render(nativeIconId, presentation, size);
+            controllerButtons[key] = bitmap;
+        }
+        UiRect destination = UiImage.Fit(bounds, size, size);
+        using ImageAttributes attributes = new();
+        attributes.SetColorMatrix(new ColorMatrix { Matrix00 = 1, Matrix11 = 1, Matrix22 = 1, Matrix33 = opacity, Matrix44 = 1 });
+        PointF[] corners = [new(destination.X, destination.Y), new(destination.Right, destination.Y), new(destination.X, destination.Bottom)];
+        graphics.DrawImage(bitmap, corners, new RectangleF(0, 0, bitmap.Width, bitmap.Height), GraphicsUnit.Pixel, attributes);
         return true;
     }
+
     public void Image(UiImageSource source, UiRect bounds)
     {
         DrawImage(source, bounds, stretch: false);
@@ -385,6 +402,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
     public void Dispose()
     {
         menuPointer?.Dispose();
+        foreach (Bitmap button in controllerButtons.Values)
+        {
+            button.Dispose();
+        }
+        controllerButtons.Clear();
         foreach (Bitmap image in images.Values)
         {
             image.Dispose();

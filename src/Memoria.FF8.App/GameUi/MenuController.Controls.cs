@@ -270,8 +270,21 @@ public sealed partial class MenuController
 
     private string CurrentBindingText(ControlAction action)
     {
-        ControlDevice device = CurrentControls.GetBindings(action, CurrentControlDevice).Count != 0 ? CurrentControlDevice : CurrentControlDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard;
-        return ButtonPromptText.PlainText(BindingText(action, device));
+        ControlDevice device = CurrentControlDevice;
+        IReadOnlyList<InputChord> bindings = CurrentControls.GetBindings(action, device);
+        if (bindings.Count == 0)
+        {
+            bindings = ControlsProfile.GetPermanentBindings(action, device);
+        }
+        if (device == ControlDevice.Controller && bindings.Count == 0)
+        {
+            bindings = CurrentControls.GetBindings(action, ControlDevice.Keyboard);
+            if (bindings.Count == 0)
+            {
+                bindings = ControlsProfile.GetPermanentBindings(action, ControlDevice.Keyboard);
+            }
+        }
+        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
     }
 
     private static string ControlsLabel(ControlAction action)

@@ -111,13 +111,13 @@ internal sealed class KeyboardInput
         {
             bindings = ControlsProfile.GetPermanentBindings(action, LastInputDevice);
         }
-        if (bindings.Count == 0)
+        if (bindings.Count == 0 && LastInputDevice == ControlDevice.Controller)
         {
-            bindings = Profile.GetBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
-        }
-        if (bindings.Count == 0)
-        {
-            bindings = ControlsProfile.GetPermanentBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
+            bindings = Profile.GetBindings(action, ControlDevice.Keyboard);
+            if (bindings.Count == 0)
+            {
+                bindings = ControlsProfile.GetPermanentBindings(action, ControlDevice.Keyboard);
+            }
         }
         return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(chord => prompt ? chord.FormatPrompt(ControllerPresentation) : chord.FormatDisplayName(ControllerPresentation)));
     }
@@ -197,6 +197,8 @@ internal sealed class KeyboardInput
         {
             camera = Vector2.Zero;
         }
+        bool leftStickEngaged = movement != Vector2.Zero && ApplyRadialDeadZone(previousPad.ThumbSticks.Left, Profile.LeftStickDeadZone) == Vector2.Zero;
+        bool rightStickEngaged = camera != Vector2.Zero && ApplyRadialDeadZone(previousPad.ThumbSticks.Right, Profile.RightStickDeadZone) == Vector2.Zero;
         if (!pad.IsConnected)
         {
             LastInputDevice = ControlDevice.Keyboard;
@@ -205,7 +207,7 @@ internal sealed class KeyboardInput
         {
             LastInputDevice = ControlDevice.Keyboard;
         }
-        else if (active && (movement != Vector2.Zero || camera != Vector2.Zero || ControlsProfile.BindableButtons.Any(button => pad.IsButtonDown(button) && previousPad.IsButtonUp(button) && !disarmedButtons.Contains(button))))
+        else if (active && (leftStickEngaged || rightStickEngaged || ControlsProfile.BindableButtons.Any(button => pad.IsButtonDown(button) && previousPad.IsButtonUp(button) && !disarmedButtons.Contains(button))))
         {
             LastInputDevice = ControlDevice.Controller;
         }
