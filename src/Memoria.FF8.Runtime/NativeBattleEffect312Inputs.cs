@@ -33,6 +33,6 @@ public sealed record NativeBattleEffect312Sound501330(uint SourceAddress, uint F
 public sealed record NativeBattleEffect312WriteModelBytes(uint ModelAddress, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312SetModelAnimation505C00(uint ModelAddress, short Mode) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312Contact506690(uint TargetArgumentAddress) : NativeBattleEffect312Operation;
-public sealed record NativeBattleEffect312DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal = NativeBattleEffect312Profile.CursorGlobal, ushort Flags = 0) : NativeBattleEffect312Operation;
+public sealed record NativeBattleEffect312DrawBatch(NativeBattleGfGeometryBatch Batch, uint CursorGlobal = NativeBattleEffect312Profile.CursorGlobal, ushort Flags = 0, int CursorAdvanceAfterBatch = 0) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312CommonTextureLoad508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect312Operation;
 public sealed record NativeBattleEffect312CaptureStage59D400(uint TargetAddress) : NativeBattleEffect312Operation;

@@ -177,6 +177,13 @@ public static partial class NativeBattleEffect312Controller
         }
         return length;
     }
+    public static void RequirePacketCapacity(NativeBattleEffect312Frame frame, NativeBattleGfGeometryBatch batch, int cursorAdvanceAfterBatch = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cursorAdvanceAfterBatch);
+        int span = Math.Max(checked(batch.AllocationBytes + cursorAdvanceAfterBatch), batch.Attempts.Select(attempt => checked(attempt.ByteOffsetRelative + attempt.PacketLength)).DefaultIfEmpty(0).Max());
+        RequirePacketCapacity(frame, span);
+    }
+
     public static void RequirePacketCapacity(NativeBattleEffect312Frame frame, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);

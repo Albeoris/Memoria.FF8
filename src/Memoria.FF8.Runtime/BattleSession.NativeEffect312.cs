@@ -101,7 +101,7 @@ public sealed partial class BattleSession
                     {
                         throw new NotSupportedException("Effect312 selected an unsupported packet cursor.");
                     }
-                    NativeBattleEffect312Controller.RequirePacketCapacity(current, draw.Batch.AllocationBytes);
+                    NativeBattleEffect312Controller.RequirePacketCapacity(current, draw.Batch, draw.CursorAdvanceAfterBatch);
                     uint packetAddress = current.State.ReadDword(draw.CursorGlobal);
                     int cursor = NativeBattleWaterExecutionFields.ArenaOffset(packetAddress, 0);
                     NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect312 requires its current COMMON arena.");

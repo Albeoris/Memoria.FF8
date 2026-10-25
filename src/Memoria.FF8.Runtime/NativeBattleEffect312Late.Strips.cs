@@ -132,7 +132,7 @@ public static partial class NativeBattleEffect312Late
                 allocated += 72;
             }
             frame = WriteBytes(Publish(frame, registers), temporary, scratch, 64);
-            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(new(attempts.ToImmutable(), allocated)));
+            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(new(attempts.ToImmutable(), allocated), CursorAdvanceAfterBatch: 36));
             frame = frame with { State = frame.State.WriteDword(0x2240EDC, unchecked(frame.State.ReadDword(0x2240EDC) + 36)) };
         }
         frame = Release(frame, 64);
@@ -244,7 +244,7 @@ public static partial class NativeBattleEffect312Late
                 allocated += 72;
             }
             frame = WriteBytes(Publish(frame, registers), temporary, scratch, 144);
-            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(new(attempts.ToImmutable(), allocated)));
+            frame = inputs.Execute(frame, new NativeBattleEffect312DrawBatch(new(attempts.ToImmutable(), allocated), CursorAdvanceAfterBatch: 36));
             frame = frame with { State = frame.State.WriteDword(0x2240EDC, unchecked(frame.State.ReadDword(0x2240EDC) + 36)) };
         }
         frame = Release(frame, 144);

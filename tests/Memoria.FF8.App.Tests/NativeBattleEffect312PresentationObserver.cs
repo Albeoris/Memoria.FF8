@@ -108,7 +108,31 @@ internal sealed class NativeBattleEffect312PresentationObserver
             NativeBattleEffectArena packet = state.ReadCapturePacket();
             Assert.Equal(5, packet.Read(3, 1)[0]);
             Assert.Equal(0x28000000u, BinaryPrimitives.ReadUInt32LittleEndian(packet.Read(4, 4)));
-            stageCapture |= allCommands.Any(command => command.Packet.Bank == "CDF6B0");
+            if (oldAge == 43)
+            {
+                NativeBattleLogicalOrdering pending = graphics.PrimitiveFrame!.Pending;
+                Assert.Contains(pending.Proxies, proxy => proxy.Packet == new NativeBattlePrimitiveReference("CDF6B0", 0, 0) && proxy.Flags20 == 1);
+                Assert.Equal(resources.CapturePacket.AsSpan()[4..].ToArray(), packet.Read(4, CapturePacketLength - 4));
+                byte[] beforeVram = prior.NativeEffectMemory!.Textures!.ReadVram();
+                byte[] afterVram = textures.ReadVram();
+                int changed = 0;
+                int nonzero = 0;
+                for (int y = 256; y < 512; y++)
+                {
+                    for (int x = 384; x < 640; x++)
+                    {
+                        int at = (y * 1024 + x) * 2;
+                        ushort oldPixel = BinaryPrimitives.ReadUInt16LittleEndian(beforeVram.AsSpan(at));
+                        ushort newPixel = BinaryPrimitives.ReadUInt16LittleEndian(afterVram.AsSpan(at));
+                        changed += oldPixel != newPixel ? 1 : 0;
+                        nonzero += newPixel != 0 ? 1 : 0;
+                    }
+                }
+                Assert.True(changed > 100, "The current two-group stage capture did not change its VRAM rectangle.");
+                Assert.True(nonzero > 100, "The stage capture contains no current geometry after the black clear.");
+                Assert.Equal(1u, current.NativeEffectMemory.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
+                stageCapture = true;
+            }
             environmentPackets |= allCommands.Any(command => command.Packet.Bank == "223CCA0");
             Mark("effect312-stage-capture-current-owners", current, cold);
         }

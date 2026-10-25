@@ -83,7 +83,7 @@ public sealed partial class BattleSession
 
         void Deliver(NativeBattleGfGeometryBatch batch)
         {
-            RequirePacketCapacity(frame, batch.AllocationBytes);
+            RequirePacketCapacity(frame, batch);
             NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect312 capture requires its current ordering table.");
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(CursorGlobal), 0);
             NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect312 capture requires its current packet arena.");
