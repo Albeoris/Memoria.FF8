@@ -11,6 +11,10 @@ public static partial class NativeBattleEffect315BodyDrawing
         {
             throw new InvalidDataException("Effect315 body requires its actual bounded renderer scratch.");
         }
+        using NativeBattleEffectArenaTransaction? scratchTransaction = scratch.Transaction is null ? new(scratch) : null;
+        using NativeBattleEffectArenaTransaction? temporaryTransaction = temporary156.Transaction is null ? new(temporary156) : null;
+        scratch = scratchTransaction?.View ?? scratch;
+        temporary156 = temporaryTransaction?.View ?? temporary156;
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Effect315 body requires current GTE geometry."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect315 body requires current GTE arithmetic."));
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -164,7 +168,7 @@ public static partial class NativeBattleEffect315BodyDrawing
                 }
             }
         }
-        return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporary156, scratch, new(attempts.ToImmutable(), allocated));
+        return new(memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors }, temporaryTransaction?.Freeze() ?? temporary156, scratchTransaction?.Freeze() ?? scratch, new(attempts.ToImmutable(), allocated));
 
         int ReadInt(uint address) => BinaryPrimitives.ReadInt32LittleEndian(readGeometry(address, 4).Read(0, 4));
         short ReadWord(uint address) => BinaryPrimitives.ReadInt16LittleEndian(readGeometry(address, 2).Read(0, 2));

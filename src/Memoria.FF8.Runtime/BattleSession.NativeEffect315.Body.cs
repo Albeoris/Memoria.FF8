@@ -96,14 +96,23 @@ public sealed partial class BattleSession
             NativeBattleEffect315BodyDrawingStep drawn = NativeBattleEffect315BodyDrawing.DrawBody(current.Memory, current.Temporary156, ReadGeometry, sourceAddress, bones, camera.CapturePackedView1D97778(), projection, current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect315 body requires its current projection controls."), scratch, scratchAddress, scratchLength);
             current = current with { Memory = drawn.Memory, Temporary156 = drawn.Temporary156, Staging = NativeBattleTemporaryMemory.PublishView(current.Staging, scratchAddress, drawn.Scratch, scratchLength) };
             uint start = current.CommonCursor;
+            int allocated = 0;
             foreach (NativeBattleGfGeometryAttempt attempt in drawn.Batch.Attempts)
             {
-                if (current.CommonCursor != start + attempt.ByteOffsetRelative)
+                if (attempt.ByteOffsetRelative != allocated)
                 {
                     throw new InvalidDataException("Effect315 body packet order lost its current ordinary cursor.");
                 }
-                current = Deliver(current, new([attempt with { ByteOffsetRelative = 0 }], attempt.Primitive is null ? 0 : attempt.PacketLength));
+                if (attempt.Primitive is not null)
+                {
+                    allocated = checked(allocated + attempt.PacketLength);
+                }
             }
+            if (allocated != drawn.Batch.AllocationBytes)
+            {
+                throw new InvalidDataException("Effect315 body packet allocation differs from its ordinary cursor advance.");
+            }
+            current = Deliver(current, drawn.Batch);
             if (current.CommonCursor != start + drawn.Batch.AllocationBytes)
             {
                 throw new InvalidDataException("Effect315 body packet allocation differs from its ordinary cursor advance.");

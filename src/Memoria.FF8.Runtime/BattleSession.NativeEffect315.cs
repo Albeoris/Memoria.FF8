@@ -9,16 +9,47 @@ public sealed partial class BattleSession
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Effect315 requires its selected original effect.");
         NativeBattleEffect315Resources resources = effect.Binding.Effect315Resources ?? throw new NotSupportedException("Effect315 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect315 requires its actual process memory.");
-        NativeBattleEffect315Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect315 requires its current CRT stream."), memory.Effect315 ?? throw new NotSupportedException("Effect315 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect315 requires its temporary memory.") };
+        using NativeBattleEffectArenaTransaction arena = new(memory.Arena ?? throw new NotSupportedException("Effect315 requires its effect packet arena."));
+        using NativeBattleFileStagingTransaction staging = new(NativeFileStaging ?? throw new NotSupportedException("Effect315 requires its temporary memory."));
+        using NativeBattleCommonPacketTransaction common = new(memory.PrimitiveProcess ?? throw new NotSupportedException("Effect315 requires its current primitive owner."));
+        using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect315 requires its ordering table.")).Pending);
+        memory = memory with { Arena = arena.View, PrimitiveProcess = common.View };
+        graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
+        NativeBattleEffect315Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect315 requires its current CRT stream."), memory.Effect315 ?? throw new NotSupportedException("Effect315 requires its retained executable storage.")) { Staging = staging.View };
         NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect315 requires its arithmetic constants.");
         NativeBattleEffect315Inputs inputs = new(colors, _ => graphics.Flags, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, pointer) => graphics.Models[Actor(pointer)], _ => nativeActionPackets, Anchor, _ => (NativeStage?.ModelColors ?? throw new NotSupportedException("Effect315 requires its current stage colors.")).Color40, Execute, StartVibration, (_, handle) => (NativeVibrationProcess ?? throw new NotSupportedException("Effect315 requires its vibration process.")).IsPlaying(handle));
-        frame = initialize ? NativeBattleEffect315Controller.Initialize(frame, resources, inputs) : NativeBattleEffect315Controller.Advance(frame, resources, inputs);
-        Publish(frame);
-        if (initialize)
+        try
         {
-            NativeCamera = Camera().RegisterControlResource(frame.Memory.Textures!.Animation);
+            frame = initialize ? NativeBattleEffect315Controller.Initialize(frame, resources, inputs) : NativeBattleEffect315Controller.Advance(frame, resources, inputs);
+            frame = frame with { Memory = frame.Memory with { Arena = arena.Freeze(), PrimitiveProcess = common.Freeze(frame.Memory.PrimitiveProcess!) }, Staging = staging.Freeze(frame.Staging!) };
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+            Publish(frame);
+            if (initialize)
+            {
+                NativeCamera = Camera().RegisterControlResource(frame.Memory.Textures!.Animation);
+            }
+            return graphics with { OriginalEffect = frame.Effect };
         }
-        return graphics with { OriginalEffect = frame.Effect };
+        catch
+        {
+            if (NativeEffectMemory is { Arena.Transaction: { } activeArena } published && activeArena == arena)
+            {
+                NativeEffectMemory = published with { Arena = arena.Freeze() };
+            }
+            if (NativeEffectMemory is { PrimitiveProcess.CommonTransaction: { } activeCommon } publishedCommon && activeCommon == common)
+            {
+                NativeEffectMemory = publishedCommon with { PrimitiveProcess = common.Freeze(publishedCommon.PrimitiveProcess!) };
+            }
+            if (NativeGraphics is { PrimitiveFrame.Pending.Transaction: { } activeOrdering } publishedGraphics && activeOrdering == ordering)
+            {
+                NativeGraphics = publishedGraphics with { PrimitiveFrame = publishedGraphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+            }
+            if (NativeFileStaging is { Transaction: { } activeStaging } publishedStaging && activeStaging == staging)
+            {
+                NativeFileStaging = staging.Freeze(publishedStaging);
+            }
+            throw;
+        }
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect315 requires its current camera.");
         NativeBattleCameraProjection Projection() => Camera().Projection ?? throw new NotSupportedException("Effect315 requires its current projection.");

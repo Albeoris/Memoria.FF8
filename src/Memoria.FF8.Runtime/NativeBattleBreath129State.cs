@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleBreath129State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleEffectArena? MutableSources, [property: JsonRequired] NativeBattleEffectArena? RootBankStorage)
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonRequired]
     public bool PendingColdSources { get; init; }
     private static readonly (uint Address, int Length)[] GlobalRanges = [(BaseAddress, 0x54), (CursorGlobal, 4)];
 

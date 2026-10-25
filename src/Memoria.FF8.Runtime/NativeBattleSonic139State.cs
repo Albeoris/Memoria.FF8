@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleSonic139State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleEffectArena? OriginalFrames, [property: JsonRequired] NativeBattleEffectArena? RootBankStorage)
 {
     private static readonly (uint Address, int Length)[] GlobalRanges = [(BaseAddress, checked((int)(RootBank - BaseAddress))), (CursorGlobal, 4), (MatrixAddress, 32)];
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonRequired]
     public bool PendingColdSources { get; init; }
 
     public static NativeBattleSonic139State FromColdProcess() => new(NativeBattleEffectArena.Clear(), null, NativeBattleEffectArena.Clear()) { PendingColdSources = true };
