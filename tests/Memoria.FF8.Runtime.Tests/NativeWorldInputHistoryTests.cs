@@ -30,15 +30,20 @@ public sealed class NativeWorldInputHistoryTests
     }
 
     [Fact]
-    public void SharedProcessHistorySurvivesSnapshotsAndWarmNewGameWhileOldSnapshotsStayUnknown()
+    public void SharedProcessHistorySurvivesSnapshotsButNewGameResetsItWhileOldSnapshotsStayUnknown()
     {
         GameSession session = GameSession.CreateColdProcess();
         Assert.Equal(NativeWorldInputHistory.FromColdProcess(), session.WorldProcess!.InputHistory);
         NativeWorldInputHistory history = NativeWorldInputHistory.Sample(NativeWorldInputHistory.Sample(null, 0), 0x40);
         session.SetWorldProcess(session.WorldProcess.AdvanceMainLoopCallbacks(2) with { InputHistory = history });
-        session.StartNewGame();
         Assert.Equal(history, session.WorldProcess.InputHistory);
         NativeWorldProcess restored = JsonSerializer.Deserialize<NativeWorldProcess>(JsonSerializer.Serialize(session.WorldProcess))!;
+        Assert.Equal(history, restored.InputHistory);
+        session.Restore(session.State with { WorldProcess = restored });
+        Assert.Equal(history, session.WorldProcess!.InputHistory);
+        session.StartNewGame();
+        Assert.Equal(NativeWorldInputHistory.FromColdProcess(), session.WorldProcess!.InputHistory);
+        Assert.Equal(0, session.WorldProcess.MainLoopCallbacks);
         Assert.Equal(history, restored.InputHistory);
         JsonObject old = JsonNode.Parse(JsonSerializer.Serialize(restored))!.AsObject();
         old.Remove("InputHistory");

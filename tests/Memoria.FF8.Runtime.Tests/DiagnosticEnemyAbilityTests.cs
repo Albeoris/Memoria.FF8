@@ -16,7 +16,10 @@ public sealed class DiagnosticEnemyAbilityTests
             NativeActions = [action],
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, SceneSlot = 0, NativeCombatantFlags = 1, NativeAi = ai, InitialAtb = BattleSession.AtbMaximum }]
         }, BattleAtbMode.Normal);
+        string before = JsonSerializer.Serialize(battle.Capture());
+        Assert.Contains(battle.Capture().NativeCommandBanks!.BoundCommands, command => command.NativeCallback?.Stage == 0);
         battle.ConfigureDiagnosticScheduling(hold);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
         return battle;
     }
 
@@ -48,6 +51,22 @@ public sealed class DiagnosticEnemyAbilityTests
         Assert.Equal(new BattleNativeCallback(3, 1), callback.NativeCallback);
         Assert.Equal("enemy", callback.ActorId);
         Assert.DoesNotContain(saved.QueuedActions, command => command.NativeCallback is null && command.ActionId == 7);
+    }
+
+    [Fact]
+    public void Scheduling_cannot_be_changed_after_an_enemy_command_is_admitted()
+    {
+        BattleSession battle = Create();
+        battle.SubmitDiagnosticEnemyAbility("enemy", Selection, 3);
+        Assert.Throws<InvalidOperationException>(() => battle.ConfigureDiagnosticScheduling(false));
+    }
+
+    [Fact]
+    public void Scheduling_cannot_be_changed_after_a_turn_callback_is_admitted()
+    {
+        BattleSession battle = Create();
+        battle.SubmitDiagnosticEnemyAbility("enemy", Selection with { UseTurnScript = true, AbilitySlot = -1 }, 3);
+        Assert.Throws<InvalidOperationException>(() => battle.ConfigureDiagnosticScheduling(false));
     }
 
     [Fact]

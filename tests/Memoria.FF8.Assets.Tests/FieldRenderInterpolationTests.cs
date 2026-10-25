@@ -68,18 +68,25 @@ public sealed class FieldRenderInterpolationTests
         Assert.Throws<NotSupportedException>(() => Render(new FieldRenderer(field), current, new(current, invalid, 0.5f)));
     }
 
-    [Fact]
-    public void FractionalShadowCenterCancelsMatchingCameraMovement()
+    [Theory]
+    [InlineData(0.25f, 160, 171)]
+    [InlineData(0.5f, 160, 172)]
+    [InlineData(0.75f, 161, 172)]
+    public void FractionalShadowCenterUsesNativeRoundingBeforeCameraMovement(float offset, float centerX, float diagonalX)
     {
         FieldModel model = new("shadow", [new(-1, 0)], [], [], [], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         FieldAssets field = CreateField(0) with { Background = [], Models = [model] };
         CaptureRenderer capture = new();
         FieldRenderer renderer = new(field) { TriangleRenderer = capture };
         ActorVisual actor = new(0, 0, 0, 0, 100, 0, 0, 0, true, GroundShadowRadius601To608: 2, GroundShadowLevel609: 128, GroundShadowCentre: new(0, 0, 100));
+        actor = actor with { GroundShadowCentre = new(offset, 0, 100), AnimationBlend = new(0, 0, 1) };
         renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
-        TriangleVertex[] expected = capture.Vertices.ToArray();
-        Assert.Equal(24, expected.Length);
-        renderer.Render(new Dictionary<int, int>(), [actor with { GroundShadowCentre = new(0.5f, 0, 100), AnimationBlend = new(0, 0, 1) }], TimeSpan.Zero, actorScrollOffset: new(-0.5f, 0));
+        Assert.Equal(24, capture.Vertices.Count);
+        // Native projection rounds camera-space rows before applying the fractional DRAWENV pan.
+        Assert.Equal(centerX, capture.Vertices[0].Position.X);
+        Assert.Equal(diagonalX, capture.Vertices[2].Position.X);
+        TriangleVertex[] expected = capture.Vertices.Select(vertex => vertex with { Position = vertex.Position - new Vector2(offset, 0) }).ToArray();
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero, actorScrollOffset: new(-offset, 0));
         Assert.Equal(expected, capture.Vertices);
     }
 

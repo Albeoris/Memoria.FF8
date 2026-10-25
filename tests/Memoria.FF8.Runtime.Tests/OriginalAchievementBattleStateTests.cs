@@ -7,7 +7,7 @@ public sealed class OriginalAchievementBattleStateTests
     [InlineData(6)]
     [InlineData(15)]
     [InlineData(5)]
-    public void NativeLiveGuardianAcquisitionIsObservedBeforeResultsAndSurvivesRollback(int id)
+    public void NativeLiveGuardianAcquisitionIsObservedBeforeResultsAndRecordedProgressSurvivesRestore(int id)
     {
         NativeCharacterVitals vitals = Vitals();
         vitals.GuardianForces[2] = vitals.GuardianForces[2] with { Flags = 2 };
@@ -23,7 +23,8 @@ public sealed class OriginalAchievementBattleStateTests
         service.Record(fact);
         Assert.Equal(id != 5, service.Get(OriginalAchievementCatalog.Entries[id].Id).Unlocked);
         session.Restore(earlier);
-        Assert.Equal(fact, Assert.Single(session.State.PendingOriginalAchievementObservations));
+        Assert.Empty(session.State.PendingOriginalAchievementObservations);
+        Assert.Equal(id != 5, service.Get(OriginalAchievementCatalog.Entries[id].Id).Unlocked);
     }
 
     [Theory]
@@ -100,12 +101,13 @@ public sealed class OriginalAchievementBattleStateTests
         Assert.True(fact.Progress.OmegaProof);
         session.SetLiveBattle(battle);
         Assert.Single(session.State.PendingOriginalAchievementObservations);
-        session.Restore(earlier);
         GameState saved = System.Text.Json.JsonSerializer.Deserialize<GameState>(System.Text.Json.JsonSerializer.Serialize(session.State))!;
         GameSession restarted = new(saved);
         Assert.Equal(fact, Assert.Single(restarted.State.PendingOriginalAchievementObservations));
         using AchievementService service = new(OriginalAchievementCatalog.CreateRegistry(), new MemoryRepository());
         service.Record(fact);
+        session.Restore(earlier);
+        Assert.Empty(session.State.PendingOriginalAchievementObservations);
         Assert.True(service.Get(OriginalAchievementCatalog.Id("omega")).Unlocked);
     }
 

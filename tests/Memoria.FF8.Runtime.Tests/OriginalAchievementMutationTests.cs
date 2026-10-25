@@ -69,9 +69,9 @@ public sealed class OriginalAchievementMutationTests
         SetFirstByte(session, 1);
         OriginalAchievementActionEvent first = Assert.Single(session.State.PendingOriginalAchievementActions);
         session.Restore(earlier);
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
         SetFirstByte(session, 1);
-        Assert.Equal(2, session.State.PendingOriginalAchievementActions.Length);
-        OriginalAchievementActionEvent repeated = session.State.PendingOriginalAchievementActions[1];
+        OriginalAchievementActionEvent repeated = Assert.Single(session.State.PendingOriginalAchievementActions);
         Assert.NotEqual(first.ContextId, repeated.ContextId);
         Assert.Equal(1, session.State.OriginalAchievementMutationSequence);
         Assert.Equal(OriginalAchievementActionKind.DrawPoint, repeated.Kind);
@@ -96,7 +96,7 @@ public sealed class OriginalAchievementMutationTests
     }
 
     [Fact]
-    public void RollbackPreservesPendingDrawBeforeNewSalaryReceipt()
+    public void RestoreDiscardsAbandonedDrawBeforeNewSalaryReceipt()
     {
         GameSession session = Session();
         SetFirstByte(session, 1);
@@ -106,9 +106,9 @@ public sealed class OriginalAchievementMutationTests
         SetFirstByte(session, 1);
         OriginalAchievementActionEvent draw = Assert.Single(session.State.PendingOriginalAchievementActions);
         session.Restore(earlier);
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
         session.RecordOriginalSalaryPayment();
-        Assert.Equal(draw, session.State.PendingOriginalAchievementActions[0]);
-        OriginalAchievementActionEvent salary = session.State.PendingOriginalAchievementActions[1];
+        OriginalAchievementActionEvent salary = Assert.Single(session.State.PendingOriginalAchievementActions);
         Assert.Equal(OriginalAchievementActionKind.FirstSalary, salary.Kind);
         Assert.NotEqual(draw.ContextId, salary.ContextId);
     }

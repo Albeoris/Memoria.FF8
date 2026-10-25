@@ -115,7 +115,7 @@ public sealed class OriginalAchievementActionTests
     }
 
     [Fact]
-    public void ReexecutedStockDrawUsesNewLiveBranchWhilePreservingAcceptedPendingFacts()
+    public void ReexecutedStockDrawUsesNewLiveBranchAfterReplacingPendingFacts()
     {
         BattleSession battle = Create(0);
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, PendingBattleEncounter = Encounter(), Battle = battle.Capture() });
@@ -128,19 +128,17 @@ public sealed class OriginalAchievementActionTests
         OriginalAchievementActionEvent first = Assert.Single(session.State.PendingOriginalAchievementActions);
 
         session.Restore(beforeDraw);
-        Assert.Equal(first, Assert.Single(session.State.PendingOriginalAchievementActions));
+        Assert.Empty(session.State.PendingOriginalAchievementActions);
         BattleSession rewound = BattleSession.Restore(beforeDraw.Battle!);
         rewound.QueueAction("party", "source", BattleAbility.Draw, 1);
         rewound.Tick();
         session.SetLiveBattle(rewound);
-        Assert.Equal(2, session.State.PendingOriginalAchievementActions.Length);
-        Assert.Contains(first, session.State.PendingOriginalAchievementActions);
-        OriginalAchievementActionEvent second = Assert.Single(session.State.PendingOriginalAchievementActions, fact => fact != first);
+        OriginalAchievementActionEvent second = Assert.Single(session.State.PendingOriginalAchievementActions);
         Assert.Equal(first.EventId, second.EventId);
         Assert.NotEqual(first.ContextId, second.ContextId);
         Assert.Equal(first.StockDraw, second.StockDraw);
         session.SetLiveBattle(rewound);
-        Assert.Equal(2, session.State.PendingOriginalAchievementActions.Length);
+        Assert.Equal(second, Assert.Single(session.State.PendingOriginalAchievementActions));
 
         GameSession cold = new(beforeDraw);
         BattleSession coldBattle = BattleSession.Restore(beforeDraw.Battle!);

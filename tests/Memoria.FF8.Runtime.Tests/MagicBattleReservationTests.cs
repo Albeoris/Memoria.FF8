@@ -146,6 +146,8 @@ public sealed class MagicBattleReservationTests
             character[offset + 3] = 1;
         }
         BattleNativePlayerStatRules rules = new(4, 1, character.ToImmutableArray(), new byte[12].ToImmutableArray(), Enumerable.Range(0, 57).Select(_ => new byte[60].ToImmutableArray()).ToImmutableArray(), Enumerable.Range(0, 19).Select(_ => new byte[8].ToImmutableArray()).ToImmutableArray(), vitals.Records[4].Junction.MagicJunctions.ToImmutableArray(), 0, vitals.Definitions) { NativeStatusPassiveFlags = 0 };
+        BattleNativeCharacterGrowth growth = new(0, new byte[6].ToImmutableArray());
+        int maximumHp = rules.Project(vitals.GetMagicInventory(4), growth).MaximumHp;
         return new(new BattleDefinition
         {
             MagicVitals = vitals,
@@ -155,7 +157,7 @@ public sealed class MagicBattleReservationTests
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Spell", BattleActionEffect.Native, 0, false) { NativeAction = spell }],
             Combatants =
             [
-                new() { Id = "caster", Name = "Caster", IsPlayer = true, ModelId = 1, MagicRecordId = 4, InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Attack, BattleAbility.Magic], NativePlayerStatRules = rules, NativeStatusResistances = new byte[40], NativeGrowth = new(0, new byte[6].ToImmutableArray()), NativeCommandSlots = [1, 2, 0, 0], NativeStatus1 = transient },
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, ModelId = 1, MagicRecordId = 4, MaximumHp = maximumHp, CurrentHp = maximumHp, InitialAtb = BattleSession.AtbMaximum, Magic = 100, Abilities = [BattleAbility.Attack, BattleAbility.Magic], NativePlayerStatRules = rules, NativeStatusResistances = new byte[40], NativeGrowth = growth, NativeCommandSlots = [1, 2, 0, 0], NativeStatus1 = transient },
                 new() { Id = "enemy", Name = "Enemy", ModelId = 2, MaximumHp = enemyHp, CurrentHp = enemyHp, ElementDefenses = [800, 800, 800, 800, 800, 800, 800, 800] }
             ]
         }, BattleAtbMode.TurnBased);

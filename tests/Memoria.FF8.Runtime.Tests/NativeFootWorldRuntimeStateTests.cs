@@ -60,14 +60,34 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Throws<InvalidDataException>(() => (first with { ReloadSourceWorldFrame = 0 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { MapDisplayMode = 4 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { EntityType = 3 }).Validate());
-        Assert.Throws<NotSupportedException>(() => (first with { MapDisplayMode = 1 }).RequireSupportedNormalFoot());
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeFootWorldRuntimeState>("{}"));
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(new WorldState(), 159, 17, 1, 1, 0);
         NativeFootWorldRuntimeState reload = NativeFootWorldRuntimeState.CreateSavedReload(receipt);
         reload.RequireSupportedNormalFoot();
         Assert.Equal(640, reload.CameraTransition!.ProjectionDistance);
+        Assert.Throws<NotSupportedException>(() => (reload with { CameraTransition = null }).RequireSupportedNormalFoot());
+        Assert.Throws<InvalidDataException>(() => (reload with { AnimationVariant = 2 }).Validate());
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = null }).Validate());
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = -1 }).Validate());
+    }
+
+    [Theory]
+    [InlineData((byte)0, (byte)0)]
+    [InlineData((byte)1, (byte)1)]
+    [InlineData((byte)2, (byte)2)]
+    [InlineData((byte)3, (byte)0)]
+    public void SupportedMapDisplayModesSurviveSnapshotsAndNormalizeFullscreenOnDeparture(byte liveMode, byte savedMode)
+    {
+        NativeFootWorldRuntimeState runtime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()) with { MapDisplayMode = liveMode };
+        runtime.RequireSupportedNormalFoot();
+        NativeFootWorldRuntimeState restored = JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(runtime))!;
+        Assert.Equal(runtime, restored);
+        restored.RequireSupportedNormalFoot();
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(new WorldState { Frame = 1, NativeFootRuntime = restored }, 159, 17, 1);
+        Assert.Equal<byte?>(savedMode, receipt.MapDisplayMode110);
+        NativeFootWorldRuntimeState reload = NativeFootWorldRuntimeState.CreateSavedReload(receipt);
+        reload.RequireSupportedNormalFoot();
+        Assert.Equal(savedMode, reload.MapDisplayMode);
     }
 
     [Theory]
