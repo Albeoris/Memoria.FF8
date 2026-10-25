@@ -835,6 +835,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xA0E3D0)
+                {
+                    var clamped = DrawNativeCinematicClampedMesh22(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = clamped.Graphics;
+                    return clamped.Frame;
+                }
                 if (selectedDrawHandler == 0xA52E90)
                 {
                     var ground = DrawNativeCinematicGroundProfile18(frame, assets[1].Data.Length, graphics);

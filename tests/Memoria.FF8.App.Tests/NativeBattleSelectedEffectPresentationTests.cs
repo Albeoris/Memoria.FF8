@@ -1,0 +1,192 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class NativeBattleSelectedEffectPresentationTests
+{
+    [Fact]
+    public void Selected_queued_component_completes_and_restores_its_live_owners()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_SNAPSHOT");
+        string? selected = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_ID");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EVIDENCE");
+        Assert.SkipUnless(directory is not null && path is not null && selected is not null && output is not null, "Select original resources, a queued standalone component, its effect and a distinct evidence directory.");
+        ushort effect = ushort.Parse(selected!);
+        Assert.False(Directory.Exists(output));
+        Directory.CreateDirectory(output!);
+        using GameAssets game = new(directory!);
+        using BattleAssets assets = new(directory!);
+        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([effect])[effect - 1];
+        source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(effect - 1, binding) } };
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_INVOCATION") is { } invocation)
+        {
+            Assert.True(Restore(source).NativeEntryReady);
+            source = QueueFollowing(source, NativeBattleEffectFamilyRunner.LoadSnapshot(invocation), effect);
+        }
+        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
+        uint argument = graphics.Descriptors.Packets[descriptor].Argument;
+        Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
+        int headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
+        Assert.Equal(effect, NativeBattleActionGraphics.Word(source.NativeActionPackets!.Headers[headerIndex], 6));
+        NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.Headers[headerIndex];
+        Assert.NotNull(selectedHeader.FirstContactIndex);
+        NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
+        Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)2);
+        int contactTransitions = 0;
+        int maximum = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_MAX_CALLBACKS") is { } limit ? int.Parse(limit) : 2400;
+        Assert.True(maximum > 0);
+        BattleSession battle = Restore(source);
+        BattleScenePresentation scene = new(assets, source.Definition, true);
+        NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) ? new(source, effect) : null;
+        HashSet<string> boundaries = [];
+        int completions = 0;
+        int callbacks = 0;
+        int peakChanged = 0;
+        BattleSnapshot? peak = null;
+        byte[]? peakPixels = null;
+        byte[]? peakPlain = null;
+        try
+        {
+            Cold("queued", source);
+            BattleSnapshot prior = source;
+            for (; callbacks < maximum; callbacks++)
+            {
+                battle.Tick();
+                BattleSnapshot current = battle.Capture();
+                observer?.Observe(prior, current, Cold);
+                NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
+                int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
+                int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
+                if (beforeHp != afterHp)
+                {
+                    Assert.Equal(Math.Max(0, beforeHp - selectedContact.Primary.Amount6), afterHp);
+                    contactTransitions++;
+                    Cold("contact", current);
+                }
+                if (currentEffect is { ReturnedDescriptor: > 0 } && currentEffect.Binding.Effect == effect)
+                {
+                    Cold("initialized", current);
+                }
+                if (prior.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 } before && before.Binding.Effect == effect && currentEffect is { ReturnedDescriptor: 0 })
+                {
+                    completions++;
+                }
+                Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
+                NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
+                NativeBattleLogicalCommand[] ownedCommands = currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect) ? NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value) : [];
+                if (primitive is not null && ownedCommands.Length > 0)
+                {
+                    byte[] pixels = scene.Render(battle, 320, 224).ToArray();
+                    ImmutableHashSet<NativeBattlePrimitiveReference> owned = ownedCommands.Select(command => command.Packet).ToImmutableHashSet();
+                    BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
+                    byte[] plain = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(without), 320, 224).ToArray();
+                    int changed = 0;
+                    for (int pixel = 0; pixel < pixels.Length; pixel += 4)
+                    {
+                        if (pixels[pixel] != plain[pixel] || pixels[pixel + 1] != plain[pixel + 1] || pixels[pixel + 2] != plain[pixel + 2])
+                        {
+                            changed++;
+                        }
+                    }
+                    if (changed > peakChanged)
+                    {
+                        peakChanged = changed;
+                        peak = current;
+                        peakPixels = pixels;
+                        peakPlain = plain;
+                    }
+                    if (changed > 0)
+                    {
+                        Cold("visible", current);
+                    }
+                }
+                prior = current;
+                if (Released(current))
+                {
+                    break;
+                }
+            }
+            Assert.True(callbacks < maximum, "The selected component exceeded its diagnostic callback budget.");
+            Assert.Equal(1, completions);
+            Assert.Equal(1, contactTransitions);
+            Assert.True(peakChanged > 0, "The selected component did not produce visible physical commands.");
+            BattleSnapshot completed = battle.Capture();
+            Cold("peak", peak!);
+            Cold("completed", completed);
+            NativeBattleRestorationPresentationTests.Publish(output!, "visible-peak", peak!, peakPixels!);
+            File.WriteAllBytes(Path.Combine(output!, "without-effect.rgba"), peakPlain!);
+            for (int cleanup = 0; cleanup < 4; cleanup++)
+            {
+                battle.Tick();
+                Assert.True(Released(battle.Capture()));
+            }
+            Cold("caller-ready", battle.Capture());
+            observer?.Write(output!);
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, Callbacks = callbacks + 1, Completions = completions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RestoredBoundaries = boundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
+        }
+        catch (Exception error)
+        {
+            observer?.Write(output!);
+            NativeBattleRestorationPresentationTests.Publish(output!, "unsupported", battle.Capture(), null);
+            File.WriteAllText(Path.Combine(output!, "error.txt"), error.ToString());
+            throw;
+        }
+
+        BattleSession Restore(BattleSnapshot snapshot)
+        {
+            BattleSession restored = BattleSession.Restore(snapshot);
+            restored.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
+            return restored;
+        }
+
+        void Cold(string name, BattleSnapshot snapshot)
+        {
+            if (!boundaries.Add(name))
+            {
+                return;
+            }
+            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, null);
+            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json"));
+            BattleSession cold = Restore(json);
+            BattleSession direct = Restore(snapshot);
+            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
+            cold.Tick();
+            direct.Tick();
+            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition, true).Render(direct, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition, true).Render(cold, 320, 224).ToArray());
+        }
+
+        bool Released(BattleSnapshot snapshot)
+        {
+            return snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } original && original.Binding.Effect == effect && original.Pools.All(pool => pool.Head is null && pool.Tail is null && pool.Slots.All(slot => slot.Flags == 0)) && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
+        }
+    }
+
+    private static BattleSnapshot QueueFollowing(BattleSnapshot current, BattleSnapshot invocation, ushort effect)
+    {
+        Assert.True(current.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
+        NativeBattleGraphicsState graphics = invocation.NativeGraphics!;
+        int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
+        uint offset = graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+        Assert.Equal(0u, offset % 20);
+        NativeBattleActionPacketsState original = invocation.NativeActionPackets!;
+        NativeBattleActionHeaderSlot header = original.Headers[checked((int)(offset / 20))];
+        Assert.Equal(effect, NativeBattleActionGraphics.Word(header, 6));
+        Assert.Equal(1, header.ReadByte(0x10));
+        Assert.Equal(0, header.ReadByte(0x11));
+        Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics.ActorIds.ToArray());
+        NativeBattleActionPacketsState packets = current.NativeActionPackets!;
+        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), effect, null));
+        Assert.NotNull(header.FirstContactIndex);
+        (packets, _) = packets.AppendContact(Assert.IsType<NativeBattleContactPacket>(original.Contacts[header.FirstContactIndex.Value]));
+        (packets, _) = packets.Publish(1);
+        (NativeBattleDescriptorState descriptors, _) = current.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)nextHeader * 20));
+        return current with { NativeActionPackets = packets, NativeGraphics = current.NativeGraphics with { Descriptors = descriptors } };
+    }
+}

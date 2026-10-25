@@ -1318,6 +1318,18 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (effect == 258)
+        {
+            return RequireEffect258Slot(table, index, handler);
+        }
+        if (effect == 240)
+        {
+            return RequireEffect240Slot(table, index, handler);
+        }
+        if (effect == 252)
+        {
+            return RequireCoronaSlot(table, index, handler);
+        }
         if (BlueNonCallableSlots.Contains((effect, table, index)))
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable original table slot.");
@@ -1368,6 +1380,18 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint Canonicalize(int effect, uint handler)
     {
+        if (effect == 258 && Effect258Aliases.TryGetValue(handler, out uint effect258Canonical))
+        {
+            return effect258Canonical;
+        }
+        if (effect == 240 && Effect240Aliases.TryGetValue(handler, out uint effect240Canonical))
+        {
+            return effect240Canonical;
+        }
+        if (effect == 252 && CoronaAliases.TryGetValue(handler, out uint coronaCanonical))
+        {
+            return coronaCanonical;
+        }
         if (handler == 0)
         {
             throw new NotSupportedException("Native cinematic dispatch selected a noncallable table entry.");

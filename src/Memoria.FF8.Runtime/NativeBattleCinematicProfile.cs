@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The physical directories and entry points of the cinematic effect families.</summary>
 public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint Initializer, uint InitializationAddress, uint OwnerDirectoryAddress, uint QueueAddress, uint BankAddress, uint Callback, uint LoadCallback, uint File0Publication, uint File1Publication, uint InstructionTable, int TextureCount, int SourceBase, int LastSource, string InitialFile, bool Lit)
 {
-    public static bool IsSupported(int effect) => effect is 6 or 18 or 75 or 77 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 208 or 211 or 219 or 220 or 221 or 223 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 238 or 239 or 241 or 242 or 249 or 256 or 257 or 261 or 262 or 263;
+    public static bool IsSupported(int effect) => effect is 6 or 18 or 75 or 77 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 208 or 211 or 219 or 220 or 221 or 223 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 238 or 239 or 240 or 241 or 242 or 249 or 252 or 256 or 257 or 258 or 261 or 262 or 263;
 
     public static NativeBattleCinematicProfile ForInitializationAddress(uint address)
     {
@@ -36,11 +36,14 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             0x186D234 => 221,
             0x1865154 => 238,
             0x1864760 => 239,
+            0x1863D68 => 240,
             0x1863388 => 241,
             0x18629A4 => 242,
             0x185E51C => 249,
+            0x185D1C0 => 252,
             0x185AA9C => 256,
             0x185A064 => 257,
+            0x18596D4 => 258,
             0x1858BD8 => 261,
             0x18581A8 => 262,
             0x185777C => 263,
@@ -77,12 +80,15 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             232 => new(232, 0xA5C2E0, 0xA5C2B0, 0x1868C88, 0x1868D60, 0x2796A58, 0x2796A70, 0xA5C950, 0, 0x2796A6C, 0x2796A68, 0x1869118, 4, 0x233, 0x232, "mag231_b.00", false),
             223 => new(223, 0xA8F890, 0xA8F860, 0x186BE34, 0x186BF5C, 0x2796B70, 0x2796B80, 0xA8FF00, 0xA96AF0, 0x2796BA4, 0x2796BA0, 0x186C314, 7, 0x233, 0x232, "mag222_b.00", false),
             221 => new(221, 0xAA5560, 0xAA5530, 0x186D234, 0x186D37C, 0x2796BE0, 0x2796BF0, 0xAA5BD0, 0xAAEA40, 0x2796C10, 0x2796C14, 0x186D7B4, 8, 0x233, 0x232, "mag220_b.00", false),
+            240 => new(240, 0xA0B360, 0xA0B330, 0x1863D68, 0x1863E20, 0x27968A0, 0x27968B0, 0xA0B9D0, 0, 0x2796898, 0x279689C, 0x1864228, 3, 0x233, 0x232, "mag239_b.00", false),
             239 => new(239, 0xA15A30, 0xA15A00, 0x1864760, 0x1864864, 0x27968D8, 0x27968E8, 0xA160A0, 0xA1B840, 0x27968D4, 0x27968D0, 0x1864C1C, 6, 0x233, 0x232, "mag238_b.00", false),
             242 => new(242, 0x9F7D10, 0x9F7CE0, 0x18629A4, 0x1862A98, 0x2796828, 0x2796840, 0x9F8380, 0, 0x279683C, 0x2796838, 0x1862E50, 5, 0x233, 0x232, "mag241_b.00", false),
             241 => new(241, 0xA01E10, 0xA01DE0, 0x1863388, 0x1863478, 0x2796860, 0x2796878, 0xA02480, 0, 0x2796874, 0x2796870, 0x1863830, 5, 0x233, 0x232, "mag240_b.00", false),
             249 => new(249, 0x9B7380, 0x9B7350, 0x185E51C, 0x185E60C, 0x27966A0, 0x27966B8, 0x9B79F0, 0, 0x27966B0, 0x27966B4, 0x185E9C4, 5, 0x233, 0x232, "mag248_b.00", false),
             238 => new(238, 0xA1FDC0, 0xA1FD90, 0x1865154, 0x1865278, 0x2796910, 0x2796920, 0xA20430, 0xA25630, 0x279690C, 0x2796908, 0x1865630, 7, 0x233, 0x232, "mag237_b.00", false),
+            252 => new(252, 0x9A2870, 0x9A2840, 0x185D1C0, 0x185D248, 0x2796630, 0x2796640, 0x9A2EE0, 0, 0x2796628, 0x279662C, 0x185D600, 1, 0x233, 0x232, "mag251_b.00", false),
             256 => new(256, 0x979400, 0x9793D0, 0x185AA9C, 0x185AB20, 0x2796548, 0x2796560, 0x979A70, 0x97E0A0, 0x2796558, 0x2796540, 0x185AED8, 1, 0x233, 0x232, "mag255_b.00", false),
+            258 => new(258, 0x964A00, 0x9649D0, 0x18596D4, 0x1859774, 0x27964D0, 0x27964E0, 0x965070, 0x96AC00, 0x27964F4, 0x27964F0, 0x1859B2C, 2, 0x233, 0x232, "mag257_b.00", false),
             257 => new(257, 0x96F290, 0x96F260, 0x185A064, 0x185A1AC, 0x2796510, 0x2796520, 0x96F900, 0x974E80, 0x279650C, 0x2796508, 0x185A564, 8, 0x233, 0x232, "mag256_b.00", false),
             261 => new(261, 0x9598D0, 0x9598A0, 0x1858BD8, 0x1858DE4, 0x2796158, 0x27963F8, 0x959F40, 0x960270, 0x27961E8, 0x27961EC, 0x185919C, 16, 0x2C8, 0x2CA, "mag260_b.00", false),
             262 => new(262, 0x94F9F0, 0x94F9C0, 0x18581A8, 0x18582E8, 0x2795DE0, 0x2796080, 0x950060, 0x955350, 0x2795DF0, 0x2795DD8, 0x18586A0, 8, 0x233, 0x232, "mag261_b.00", false),
@@ -91,7 +97,7 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         };
     }
 
-    public bool HasVibrationDirectory => Effect is not (75 or 219 or 220 or 248 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 238 or 239 or 241 or 242 or 249 or 256 or 257 or 261 or 262 or 263);
+    public bool HasVibrationDirectory => Effect is not (75 or 219 or 220 or 248 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 238 or 239 or 240 or 241 or 242 or 249 or 252 or 256 or 257 or 258 or 261 or 262 or 263);
 
     public int StaticLength => checked((int)(InstructionTable + 0x147 * 4 - InitializationAddress));
 
@@ -119,11 +125,14 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         221 => 0x186D3A4,
         238 => 0x18652A0,
         239 => 0x186488C,
+        240 => 0x1863E48,
         241 => 0x18634A0,
         242 => 0x1862AC0,
         249 => 0x185E634,
+        252 => 0x185D270,
         256 => 0x185AB48,
         257 => 0x185A1D4,
+        258 => 0x185979C,
         261 => 0x1858E0C,
         262 => 0x1858310,
         263 => 0x18578E0,
@@ -133,8 +142,13 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
     public int BoneCount => Effect == 206 ? 32 : 18;
     public uint PrimitiveTable => checked(BoneTable + (uint)(BoneCount * 4));
     public uint PrimitiveSizes => checked(PrimitiveTable + 60 * 4);
-    public uint SpriteTable => Effect == 221 ? 0x186D570 : checked(PrimitiveSizes + 20);
-    public uint PlacementTable => checked(SpriteTable + 11 * 4);
+    public uint SpriteTable => Effect switch
+    {
+        221 => 0x186D570,
+        240 => throw new NotSupportedException("The selected cinematic effect invokes its particle sprite renderer directly."),
+        _ => checked(PrimitiveSizes + 20)
+    };
+    public uint PlacementTable => Effect == 240 ? 0x1864010 : checked(SpriteTable + 11 * 4);
     public uint ParticleInstructionTable => checked(PlacementTable + 5 * 4);
     public uint DrawTable => checked(ParticleInstructionTable + 24 * 4);
 }
