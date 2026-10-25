@@ -11,6 +11,13 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeFieldModelSheetTests
 {
+    [Fact]
+    public void OriginalClassicModelsDoNotAdvertiseRemasteredMaterialAtlasCompatibility()
+    {
+        using ClassicGameDataSource source = new(Path.GetTempPath());
+        Assert.DoesNotContain("native-field-model-sheet", source.Descriptor.Layouts);
+    }
+
     [Theory]
     [InlineData(true, "main_chr")]
     [InlineData(false, "second_chr")]
