@@ -421,6 +421,12 @@ public sealed partial class BattleSession
                     return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
                 case 0x5D:
                     return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                case 0x70:
+                    return NativeBattleCinematicProfileHeight70.Execute(current, program, new(ResolveCurrentNode, (frame, address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2)), UpdateSlot));
+                case 0x71:
+                    var explicitShadow = ExecuteNativeCinematicShadow71(current, graphics);
+                    graphics = explicitShadow.Graphics;
+                    return explicitShadow.Frame;
                 case 0x6F:
                     var groundCapture = ExecuteNativeCinematicOffscreen(current, program, assets[1].Data.Length, graphics);
                     graphics = groundCapture.Graphics;
