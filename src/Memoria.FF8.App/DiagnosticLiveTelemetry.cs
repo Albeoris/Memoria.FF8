@@ -39,19 +39,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     {
         this.battle = battle;
         this.instance = instance.ToString();
-        List<TelemetryCoverageSite> sites = NativeBattleTelemetry.Sites.Select(site => new TelemetryCoverageSite(site.SiteId, site.Subsystem, site.Api, true, true, null)).ToList();
-        sites.AddRange([
-            new(2001, "renderer", "DrawUserPrimitives managed vertex payload", true, true, null),
-            new(2002, "renderer", "Texture2D.SetData pixel payload", true, true, null),
-            new(2003, "renderer", "Framebuffer GetData pixel payload", true, true, null),
-            new(2004, "renderer", "Framebuffer ARGB conversion payload", true, true, null),
-            new(2005, "diagnostics", "Diagnostic JSON output UTF-8 payload", true, true, null)
-        ]);
-        if (!NativeBattleTelemetry.CoveredEffects.Contains(expectedEffect))
-        {
-            sites.Add(new(2999, "effect_payload", "Effect-specific payload materialization coverage", true, false, "This instrumentation manifest covers native effects 1, 2 and 3 only."));
-        }
-        coverage = new(NativeBattleTelemetry.InstrumentationVersion, sites);
+        coverage = TelemetryCoverageManifest.ManagedPayload(expectedEffect);
         battle.DiagnosticEventPublished += ObserveEvent;
         battle.DiagnosticResolution += ObserveResolution;
         battle.DiagnosticEffectDispatched += ObserveDispatch;

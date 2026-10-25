@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.BattleEffects;
 
 public enum TelemetryTrafficKind
@@ -16,6 +18,23 @@ public sealed record TelemetryCoverageSite(int SiteId, string Subsystem, string 
 public sealed record TelemetryCoverageManifest(string InstrumentationVersion, IReadOnlyList<TelemetryCoverageSite> Sites)
 {
     public bool MandatoryCoverageAvailable => Sites.Count > 0 && Sites.Any(site => site.Mandatory) && Sites.All(site => !site.Mandatory || (site.Enabled && site.BlindSpot is null)) && Sites.Select(site => site.SiteId).Distinct().Count() == Sites.Count;
+
+    public static TelemetryCoverageManifest ManagedPayload(ushort expectedEffect)
+    {
+        List<TelemetryCoverageSite> sites = NativeBattleTelemetry.Sites.Select(site => new TelemetryCoverageSite(site.SiteId, site.Subsystem, site.Api, true, true, null)).ToList();
+        sites.AddRange([
+            new(2001, "renderer", "DrawUserPrimitives managed vertex payload", true, true, null),
+            new(2002, "renderer", "Texture2D.SetData pixel payload", true, true, null),
+            new(2003, "renderer", "Framebuffer GetData pixel payload", true, true, null),
+            new(2004, "renderer", "Framebuffer ARGB conversion payload", true, true, null),
+            new(2005, "diagnostics", "Diagnostic JSON output UTF-8 payload", true, true, null)
+        ]);
+        if (!NativeBattleTelemetry.CoveredEffects.Contains(expectedEffect))
+        {
+            sites.Add(new(2999, "effect_payload", "Effect-specific payload materialization coverage", true, false, $"This instrumentation manifest covers native effects {string.Join(", ", NativeBattleTelemetry.CoveredEffects)} only."));
+        }
+        return new(NativeBattleTelemetry.InstrumentationVersion, sites);
+    }
 
     public static TelemetryCoverageManifest PreparationOnly { get; } = new("preparation-v1", new TelemetryCoverageSite[]
     {

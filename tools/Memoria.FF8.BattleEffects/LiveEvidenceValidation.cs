@@ -67,10 +67,19 @@ public static class LiveEvidenceValidation
                 throw new InvalidDataException("Timestamp frequency must be positive.");
             }
             long effect = Number(report, "expected_effect");
+            if (effect is >= 1 and <= ushort.MaxValue)
+            {
+                TelemetryCoverageManifest authoritative = TelemetryCoverageManifest.ManagedPayload((ushort)effect);
+                if (!authoritative.MandatoryCoverageAvailable || coverage.InstrumentationVersion != authoritative.InstrumentationVersion || !coverage.Sites.OrderBy(site => site.SiteId).SequenceEqual(authoritative.Sites.OrderBy(site => site.SiteId)))
+                {
+                    errors.Add("TELEMETRY_MANIFEST_MISMATCH");
+                }
+            }
             string actor = Text(input, "actor_id");
+            string target = Text(input, "target_id");
             string ability = Text(input, "ability");
             long action = Number(input, "action_id");
-            if (effect is < 1 or > ushort.MaxValue || string.IsNullOrWhiteSpace(actor) || Flag(input, "draw_cast"))
+            if (effect is < 1 or > ushort.MaxValue || string.IsNullOrWhiteSpace(actor) || string.IsNullOrWhiteSpace(target) || Flag(input, "draw_cast"))
             {
                 errors.Add("INPUT_UNSUPPORTED");
             }
@@ -178,7 +187,9 @@ public static class LiveEvidenceValidation
                     errors.Add("PRESENTATION_BELOW_30_FPS");
                 }
                 TelemetryTrafficSnapshot traffic = execution.GetProperty("traffic").Deserialize<TelemetryTrafficSnapshot>(Json)!;
-                if (!traffic.Available || traffic.Error is not null || coverage.Sites.Any(site => site.Mandatory && !traffic.Sites.Any(aggregate => aggregate.SiteId == site.SiteId)) || traffic.Sites.Select(site => (site.SiteId, site.Kind)).Distinct().Count() != traffic.Sites.Count || traffic.Sites.Any(site => !Enum.IsDefined(site.Kind) || site.Bytes < 0 || site.Operations < 0 || site.Operations == 0 && site.Bytes != 0 || site.LargestOperationBytes < 0 || site.LargestOperationBytes > site.Bytes || !coverage.Sites.Any(registered => registered.SiteId == site.SiteId && registered.Enabled)))
+                HashSet<(int SiteId, TelemetryTrafficKind Kind)> expectedCounters = coverage.Sites.SelectMany(site => Enum.GetValues<TelemetryTrafficKind>().Select(kind => (site.SiteId, kind))).ToHashSet();
+                HashSet<(int SiteId, TelemetryTrafficKind Kind)> actualCounters = traffic.Sites.Select(site => (site.SiteId, site.Kind)).ToHashSet();
+                if (!traffic.Available || traffic.Error is not null || actualCounters.Count != traffic.Sites.Count || !actualCounters.SetEquals(expectedCounters) || traffic.Sites.Any(site => site.Bytes < 0 || site.Operations < 0 || site.Operations == 0 && site.Bytes != 0 || site.LargestOperationBytes < 0 || site.LargestOperationBytes > site.Bytes))
                 {
                     errors.Add("TRAFFIC_UNAVAILABLE_OR_INVALID");
                 }
@@ -190,7 +201,7 @@ public static class LiveEvidenceValidation
                 {
                     errors.Add("INTEGRITY_CHECK_FAILED");
                 }
-                ValidateSemantics(execution, actor, ability, action, startCallback, endCallback, errors);
+                ValidateSemantics(execution, actor, target, ability, action, startCallback, endCallback, errors);
             }
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException or InvalidDataException or ArgumentException or NullReferenceException or FormatException or OverflowException)
@@ -202,7 +213,7 @@ public static class LiveEvidenceValidation
         return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.");
     }
 
-    private static void ValidateSemantics(JsonElement execution, string actor, string ability, long action, long startCallback, long endCallback, List<string> errors)
+    private static void ValidateSemantics(JsonElement execution, string actor, string requestedTarget, string ability, long action, long startCallback, long endCallback, List<string> errors)
     {
         Dictionary<string, JsonElement> beforeStates = execution.GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
@@ -211,6 +222,10 @@ public static class LiveEvidenceValidation
         if (execution.GetProperty("events").GetArrayLength() == 0 || !resolutions.Any(resolution => Text(resolution, "actor_id") == actor && Number(resolution, "resolved_amount") > 0))
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
+        }
+        if (resolutions.Where(resolution => Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget))
+        {
+            errors.Add("FOCAL_RESOLUTION_TARGET_MISMATCH");
         }
         Dictionary<string, long> deltas = [];
         foreach (JsonElement resolution in resolutions)

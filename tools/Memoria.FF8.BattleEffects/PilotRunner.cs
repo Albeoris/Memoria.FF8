@@ -139,6 +139,8 @@ public static class PilotRunner
             verdict = "ERROR";
             errors.Add(exception.GetType().Name + ": " + exception.Message);
         }
+        // The test ends after validated result.json publication. The timing envelope,
+        // batch inventory and caller progress reporting are supervisor bookkeeping.
         total.Stop();
         long totalTicks = total.ElapsedTicks;
         stagingEnded = stagingEnded == 0 ? totalTicks : stagingEnded;

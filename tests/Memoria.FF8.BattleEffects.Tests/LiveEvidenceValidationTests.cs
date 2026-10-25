@@ -102,6 +102,67 @@ public sealed class LiveEvidenceValidationTests
         Assert.Equal("ERROR", Validate(report).Verdict);
     }
 
+    [Fact]
+    public void Removing_copy_counters_cannot_replace_a_complete_table_with_zero_fill_claims()
+    {
+        JsonObject report = Report();
+        JsonArray counters = Execution(report, 0)["traffic"]!["sites"]!.AsArray();
+        JsonNode copy = counters.First(node => node!["site_id"]!.GetValue<int>() == 1002 && node["kind"]!.GetValue<int>() == (int)TelemetryTrafficKind.CpuCopyPayload)!;
+        copy["bytes"] = 1024L * 1024 * 1024;
+        copy["operations"] = 1;
+        copy["largest_operation_bytes"] = 1024L * 1024 * 1024;
+        Assert.Contains("LARGE_COPY_REVIEW_REQUIRED", Validate(report).Errors);
+        counters.Remove(copy);
+        LiveEvidenceVerdict missing = Validate(report);
+        Assert.Equal("ERROR", missing.Verdict);
+        Assert.Contains("TRAFFIC_UNAVAILABLE_OR_INVALID", missing.Errors);
+        Execution(report, 0)["traffic"]!["sites"] = new JsonArray(counters.Where(node => node!["kind"]!.GetValue<int>() == (int)TelemetryTrafficKind.Fill).Select(node => node!.DeepClone()).ToArray());
+        Assert.Contains("TRAFFIC_UNAVAILABLE_OR_INVALID", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Coverage_must_match_the_authoritative_version_and_exact_selected_effect_sites()
+    {
+        JsonObject report = Report();
+        report["coverage"]!["instrumentation_version"] = "invented";
+        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+        report = Report();
+        report["coverage"]!["sites"]!.AsArray().RemoveAt(0);
+        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+        report = Report();
+        report["coverage"]!["sites"]![0]!["api"] = "omitted native owner";
+        Assert.Contains("TELEMETRY_MANIFEST_MISMATCH", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Focal_resolutions_require_the_submitted_actor_and_original_recipient()
+    {
+        JsonObject report = Report();
+        Execution(report, 0)["resolutions"]![0]!["original_target_id"] = "unrequested";
+        Assert.Contains("FOCAL_RESOLUTION_TARGET_MISMATCH", Validate(report).Errors);
+        report = Report();
+        Execution(report, 0)["resolutions"]![0]!["actor_id"] = "other";
+        Assert.Contains("SEMANTIC_RESOLUTION_UNVERIFIED", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Reflection_preserves_the_original_recipient_and_reconciles_the_separate_actual_recipient()
+    {
+        JsonObject report = Report();
+        JsonObject execution = Execution(report, 0);
+        JsonNode recipientBefore = execution["before"]![0]!.DeepClone();
+        JsonNode recipientAfter = execution["after"]![0]!.DeepClone();
+        recipientBefore["id"] = "reflected-recipient";
+        recipientAfter["id"] = "reflected-recipient";
+        recipientBefore["magic_stocks"] = new JsonArray();
+        recipientAfter["magic_stocks"] = new JsonArray();
+        execution["before"]!.AsArray().Add(recipientBefore);
+        execution["after"]!.AsArray().Add(recipientAfter);
+        execution["after"]![0]!["current_hp"] = 100;
+        execution["resolutions"]![0]!["actual_target_id"] = "reflected-recipient";
+        Assert.Equal("PASS", Validate(report).Verdict);
+    }
+
     private static LiveEvidenceVerdict Validate(JsonObject report)
     {
         using JsonDocument document = JsonDocument.Parse(report.ToJsonString());
@@ -113,7 +174,7 @@ public sealed class LiveEvidenceValidationTests
     private static JsonObject Report()
     {
         string battle = "b8de1951-3be9-4360-85ac-9238406b20c8";
-        TelemetryCoverageManifest coverage = new("synthetic-test-v1", [new(1, "test", "synthetic observer", true, true, null)]);
+        TelemetryCoverageManifest coverage = TelemetryCoverageManifest.ManagedPayload(1);
         object[] executions = Enumerable.Range(0, 2).Select(index =>
         {
             long callback = 10 + index * 10;
@@ -130,7 +191,7 @@ public sealed class LiveEvidenceValidationTests
                 start_owners = Owners(callback, frame), end_owners = Owners(callback + 2, frame + 2),
                 dispatches = new[] { new { serial = index + 1, callback = callback + 1, actor_id = "party0", ability = "Magic", action_id = 21, requested_effect = 1, executed_effect = 1 } },
                 frames = Frames(100 + index * 100, frame, callback),
-                traffic = new TelemetryTrafficSnapshot([new(1, TelemetryTrafficKind.CpuCopyPayload, 0, 0, 0)], true, null),
+                traffic = new TelemetryTrafficCollector(coverage).Complete(),
                 events = new[] { new { kind = "heal", actor_id = "party0" } },
                 resolutions = new[] { new { frame = frame + 1, callback = callback + 1, kind = "heal", actor_id = "party0", original_target_id = "party0", actual_target_id = "party0", resolved_amount = 100, actual_amount = 100, before_hp = hp, after_hp = hp + 100, hp_owner = "character" } },
                 before = new[] { State(hp, 10 - index) }, after = new[] { State(hp + 100, 9 - index) }, dropped_events = 0, integrity_error = (string?)null
@@ -139,7 +200,7 @@ public sealed class LiveEvidenceValidationTests
         return JsonSerializer.SerializeToNode(new
         {
             schema_version = 1, battle_instance_id = battle, expected_effect = 1,
-            input = new { actor_id = "party0", ability = "Magic", action_id = 21, draw_cast = false },
+            input = new { actor_id = "party0", target_id = "party0", ability = "Magic", action_id = 21, draw_cast = false },
             initialization_verified = true, fixture_verified = true, fixture_blockers = Array.Empty<string>(), blocker = (string?)null,
             environment = new { renderer = "synthetic-gpu", width = 1920, height = 1080, gpu = true, real_time = true, active = true },
             audio = new { entry_receipts = 1, dispatch_receipts = 1, enabled = true, audibility_verified = false },
