@@ -178,6 +178,8 @@ public sealed record BattleDefinition
     public NativeKnownMagic? NativeKnownMagic { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
     public bool? NativeScanAlwaysShow { get; init; }
+    public ChocoboWorldMode? ChocoboWorldMode { get; init; }
+    public ChocoboRewardLedger ChocoboRewards { get; init; } = new();
     public NativeCardInventory? NativeCards { get; init; }
     public NativeCrtRandomState? NativeCrtRandom { get; init; }
     public NativeBattleUiRandomState? NativeBattleUiRandom { get; init; }
@@ -377,6 +379,7 @@ public sealed record BattleSnapshot
     public ulong NativeGlobalRandomCalls { get; init; }
     public NativeKnownMagic? NativeKnownMagic { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
+    public ChocoboRewardLedger ChocoboRewards { get; init; } = new();
     public NativeCardInventory? NativeCards { get; init; }
     public NativeCrtRandomState? NativeCrtRandom { get; init; }
     public NativeBattleUiRandomState? NativeBattleUiRandom { get; init; }

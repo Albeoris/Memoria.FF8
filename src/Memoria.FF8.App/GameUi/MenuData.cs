@@ -1,4 +1,4 @@
-using Memoria.FF8.Ui;
+﻿using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -12,6 +12,7 @@ public sealed record MenuAction(string Kind, string SubjectId = "", string Targe
 public sealed class MenuData
 {
     public bool? CardCollectionComplete { get; set; }
+    public string? ChocoboWorldUnavailableReason { get; set; }
     public bool SharedMagicStock { get; set; }
     public bool SmartAttack { get; set; }
     public bool LimitOncePerTurnPreferenceLocked { get; set; }

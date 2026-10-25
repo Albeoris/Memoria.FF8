@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private ChocoboRewardLedger chocoboRewards = new();
     private NativeCardInventory? nativeCards;
     private NativeCrtRandomState? nativeCrtRandom;
 
@@ -103,14 +104,30 @@ public sealed partial class BattleSession
             case 23:
                 NativeCrtRandomState crt = nativeCrtRandom ?? throw new NotSupportedException("Angelo Search requires its existing CRT thread random DWORD, independent of battle RNG.");
                 NativeCrtRandomState nextCrt = crt.Draw(out ushort crtRoll);
-                NativeBattleRandomState nextBattleRandom = random.Draw(out byte itemRoll);
-                int item = NativeAngeloSearchItem(unchecked((byte)crtRoll), itemRoll);
+                int item;
+                if (definition.ChocoboWorldMode == ChocoboWorldMode.AngeloSearch)
+                {
+                    nextCrt = nextCrt.Draw(out ushort remasteredItemRoll);
+                    item = ChocoboAngeloSearch.Select(crtRoll, remasteredItemRoll, 258 + (definition.RareItem ? 1 : 0));
+                }
+                else
+                {
+                    NativeBattleRandomState nextBattleRandom = random.Draw(out byte itemRoll);
+                    item = NativeAngeloSearchItem(unchecked((byte)crtRoll), itemRoll);
+                    random = nextBattleRandom;
+                }
                 string itemName = NativeSpecialName(definition.NativeItemNames, item, "item");
                 nativeCrtRandom = nextCrt;
-                random = nextBattleRandom;
-                //The native Draw result is a direct inventory gain, rather than an ordinary enemy drop.
-                AddNativeBattleItem(item, 1);
-                QueueNativeSpecialText(actor, recipient, NativeBattleGlobalText(71) + itemName + NativeBattleGlobalText(64));
+                ChocoboRewardDefinition? reward = ChocoboRewardCatalog.FindItem(item);
+                bool alreadyAcquired = reward is not null && chocoboRewards.AcquiredUniqueRewardIds.Contains(reward.Id);
+                int added = 0;
+                if (ChocoboRewardTransactions.TryGrantInventory(nativeItems, chocoboRewards, [new((byte)item, 1)], out NativeItemStock[] awardedItems, out ChocoboRewardLedger awardedLedger, out ImmutableArray<NativeItemStock> delivered))
+                {
+                    RestoreNativeItems(awardedItems);
+                    chocoboRewards = awardedLedger;
+                    added = delivered.Sum(stock => stock.Count);
+                }
+                QueueNativeSpecialText(actor, recipient, added > 0 ? NativeBattleGlobalText(71) + itemName + NativeBattleGlobalText(64) : alreadyAcquired ? $"{itemName}: already obtained." : $"{itemName}: inventory full.");
                 RecordNativeActionMemory(actor, recipient, command);
                 return true;
             default:
@@ -192,6 +209,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native special-action state lacks its explicit card inventory or CRT random owner.");
         }
+        snapshot.ChocoboRewards.Validate();
+        chocoboRewards = snapshot.ChocoboRewards.ObserveInventory(nativeItems);
         nativeCards = snapshot.NativeCards?.DeepCopy();
         nativeCrtRandom = snapshot.NativeCrtRandom;
     }

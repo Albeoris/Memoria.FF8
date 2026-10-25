@@ -118,6 +118,7 @@ public sealed record GameState
     public NativeShotAvailabilityState? ShotAvailability { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
     public NativePocketStationState? PocketStation { get; init; }
+    public ChocoboRewardLedger ChocoboRewards { get; init; } = new();
     public NativeGlobalRandomState? GlobalRandom { get; init; }
     public NativeSavedBattleFlags? SavedBattleFlags { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

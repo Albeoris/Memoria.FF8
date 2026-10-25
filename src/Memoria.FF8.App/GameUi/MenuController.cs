@@ -1,4 +1,4 @@
-using Memoria.FF8.Ui;
+﻿using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -39,6 +39,7 @@ public sealed partial class MenuController
         RegisterFontPickerScreen();
         RegisterQuickSaveRetentionScreen();
         RegisterNamingScreens();
+        RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
     }
 
@@ -676,6 +677,10 @@ public sealed partial class MenuController
     {
         _view = null;
         if (ExecuteHardcoreConfirmation(ref action))
+        {
+            return;
+        }
+        if (ExecuteChocoboWorldAction(action))
         {
             return;
         }

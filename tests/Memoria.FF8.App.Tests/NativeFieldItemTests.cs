@@ -128,7 +128,10 @@ public sealed class NativeFieldItemTests
         var taught = scroll.Use(vitals, economy, 42, 16);
         Assert.True(taught.Changed);
         Assert.True(taught.Vitals.GuardianForces[0].LearnedBank.Has(scroll.Power));
-        Assert.Equal(scroll.Power, taught.Vitals.GuardianForces[0].Learning);
+        HashSet<int> available = taught.Vitals.GuardianForceAbilities(0).Where(ability => !ability.Learned).Select(ability => ability.Ability).ToHashSet();
+        int next = taught.Vitals.ResolveGuardianForceTemplates()[0].OrderBy(ability => ability.LearningPriority).First(ability => available.Contains(ability.Ability)).Ability;
+        Assert.Equal(next, taught.Vitals.GuardianForces[0].Learning);
+        Assert.DoesNotContain(taught.Vitals.GuardianForceAbilities(0), ability => ability.Ability == taught.Vitals.GuardianForces[0].Learning && ability.Learned);
         Assert.Equal(vitals.GuardianForces[0].AbilityProgress, taught.Vitals.GuardianForces[0].AbilityProgress);
         Assert.False(scroll.Use(taught.Vitals, taught.Economy, 42, 16).Changed);
         int compatibilityId = Enumerable.Range(1, 197).First(id => catalog.FieldItem(id) is { Type: 16, Power: 0 });

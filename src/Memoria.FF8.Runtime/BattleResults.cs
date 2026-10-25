@@ -43,6 +43,8 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
 {
     public BattleNativeGrowthChange[] NativeGrowthChanges { get; init; } = [];
     public BattleNativeCardChange? NativeCardChange { get; init; }
+    public ChocoboRewardLedger? ChocoboRewardsBefore { get; init; }
+    public ChocoboRewardLedger? ChocoboRewardsAfter { get; init; }
     public NativeCrtRandomState? NativeCrtRandomBefore { get; init; }
     public NativeCrtRandomState? NativeCrtRandomAfter { get; init; }
     public NativeItemStock[]? NativeItemInventoryAfter { get; init; }

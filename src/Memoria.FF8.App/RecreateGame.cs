@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -144,6 +144,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        ShowPendingNewGameChocoboClaim();
         UpdateAchievements();
         // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
         updateControls?.Poll();
@@ -346,6 +347,7 @@ internal sealed partial class RecreateGame : Game
                 fieldAudio?.PlayUiSound(GameUi.MenuSound.Confirm);
                 if (titleSelection == 0)
                 {
+                    newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };
                     gameMenus!.Open("new-game-options", false);
                 }
                 else if (titleSelection == 1)
@@ -834,7 +836,8 @@ internal sealed partial class RecreateGame : Game
         fieldAudio?.StopAll();
         world?.Dispose();
         world = null;
-        session.Restore(state);
+        session.Restore(ChocoboWorldSettings.Migrate(state, resourceHost!.Resources.Source.Edition));
+        promptNewGameChocoboClaim = session.State.GameplayPreferences.ChocoboWorldMode == ChocoboWorldMode.Memoria;
         presentedDialogue = null;
         dialoguePages.Clear();
         fieldSeconds = 0;
@@ -867,7 +870,7 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        session.SetGameplayPreferences(newGameMagicPreferences with { WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
+        session.SetGameplayPreferences(newGameMagicPreferences with { ChocoboWorldMode = newGameMagicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode, WeaponMagazineRequired = uiPreferences.WeaponMagazineRequired, WeaponUpgradeOrder = uiPreferences.WeaponUpgradeOrder, CardModOnce = uiPreferences.CardModOnce, LimitOncePerTurn = uiPreferences.LimitOncePerTurn, SelphieCardSlots = uiPreferences.SelphieCardSlots, DrawOncePerSpell = uiPreferences.DrawOncePerSpell, Difficulty = uiPreferences.Difficulty, AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode, GuardianFormsEnabled = uiPreferences.GuardianFormsEnabled });
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {
@@ -877,6 +880,7 @@ internal sealed partial class RecreateGame : Game
                 world.ApplyBattleInput(input);
             }
         }
+        promptNewGameChocoboClaim = session.State.GameplayPreferences.ChocoboWorldMode == ChocoboWorldMode.Memoria;
         presentedDialogue = null;
         dialoguePages.Clear();
         fieldSeconds = 0;

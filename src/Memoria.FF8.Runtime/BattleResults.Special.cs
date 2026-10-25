@@ -4,6 +4,19 @@ public sealed partial record BattleResult
 {
     private void ValidateNativeSpecialEffects()
     {
+        if ((ChocoboRewardsBefore is null) != (ChocoboRewardsAfter is null))
+        {
+            throw new InvalidDataException("Battle Chocobo rewards require both ledger snapshots.");
+        }
+        if (ChocoboRewardsBefore is { } before && ChocoboRewardsAfter is { } after)
+        {
+            before.Validate();
+            after.Validate();
+            if (!before.AcquiredUniqueRewardIds.IsSubsetOf(after.AcquiredUniqueRewardIds))
+            {
+                throw new InvalidDataException("Battle rewards cannot erase existing acquisition history.");
+            }
+        }
         if (NativeGrowthChanges is null || NativeGrowthChanges.Any(change => change is null) || Party is null || NativeGrowthChanges.Select(change => change.Row).Distinct().Count() != NativeGrowthChanges.Length || NativeGrowthChanges.Any(change => !Party.Any(member => member is not null && member.Row == change.Row)) || (NativeCrtRandomBefore is null) != (NativeCrtRandomAfter is null))
         {
             throw new InvalidDataException("Native battle special effects lack valid party growth or CRT before/after owners.");

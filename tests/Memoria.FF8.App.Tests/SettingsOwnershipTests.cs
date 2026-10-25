@@ -1,4 +1,4 @@
-using Memoria.FF8.GameUi;
+﻿using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Microsoft.Xna.Framework.Input;
 
@@ -9,9 +9,9 @@ public sealed class SettingsOwnershipTests
     [Fact]
     public void Every_registry_entry_has_an_explicit_disposition_and_supported_owner()
     {
-        Assert.Equal(43, MenuSettings.Definitions.Count);
+        Assert.Equal(44, MenuSettings.Definitions.Count);
         Assert.Equal(MenuSettings.Definitions.Select(setting => setting.Id).Order(), SettingsPlacement.All.Select(placement => placement.LegacyKey).Order());
-        Assert.Equal(43, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
+        Assert.Equal(44, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
         Assert.Equal(new[] { "Controller", "Sound" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Excluded).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "ATB", "Battle control", "Battle message", "Battle speed", "Camera movement", "Scan" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Fixture).Select(placement => placement.LegacyKey).Order());
         Assert.Equal("Battle policy", Assert.Single(SettingsPlacement.All, placement => placement.Audience == SettingsAudience.Developer).LegacyKey);
@@ -53,7 +53,7 @@ public sealed class SettingsOwnershipTests
             }
         }
         Assert.Equal(player.Count, player.Distinct().Count());
-        Assert.Equal(34, player.Count);
+        Assert.Equal(35, player.Count);
         menus.Open("debug-battle", true);
         List<string> developer = menus.Entries.Where(entry => SettingsPlacement.All.Any(placement => placement.LegacyKey == entry.Id)).Select(entry => SettingsPlacement.All.Single(placement => placement.LegacyKey == entry.Id)).Select(placement => placement.Target + "/" + placement.Scope).ToList();
         Assert.Single(developer);

@@ -1,4 +1,4 @@
-using Memoria.FF8.Ui;
+﻿using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -187,6 +187,7 @@ public static class MenuSettings
         new("Selphie card Slots", "Choose one of a finite set of native Slot results shown as cards. Some cards begin hidden. Saved with this game; change outside battles only. Required on Hardcore. Title sets the new-game default.", ["Off", "On"]),
         new("Limit once per turn", "Check Limit Break availability once per ATB cycle. Cycling party members keeps the same result until the character takes an action. Saved with this game; Title sets the new-game default.", ["Off", "On"]),
         new("Difficulty", "Normal keeps reduced enemy magic damage and hidden random idle turns. Hard and Hardcore remove both aids; explicit do-not-attack actions remain. Hardcore permanently enables and locks every optional new-game rule; ATB mode and rare card markers remain editable. Saved with this game; Title sets the new-game default.", ["Normal", "Hard", "Hardcore"]),
+        new("Chocobo World", "Choose the source of Chocobo World rewards. Saved with this game; changing modes preserves acquisition history.", ["Native Import", "Angelo Search", "Memoria"]),
         new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
         new("Weapon magazine required", "Remodel weapons only after their recipe has been unlocked by a Weapons Monthly magazine.", ["Off", "On"]),
         new("Weapon upgrade order", "Remodel weapons only after obtaining the preceding weapon in that character's upgrade sequence.", ["Off", "On"]),

@@ -60,6 +60,10 @@ public sealed partial class BattleSession
         if (added > 0)
         {
             nativeItems[index] = new NativeItemStock(checked((byte)id), checked((byte)(nativeItems[index].Count + added)));
+            if (ChocoboRewardCatalog.FindItem(id) is { } reward)
+            {
+                chocoboRewards = chocoboRewards with { AcquiredUniqueRewardIds = chocoboRewards.AcquiredUniqueRewardIds.Add(reward.Id) };
+            }
         }
         return added;
     }

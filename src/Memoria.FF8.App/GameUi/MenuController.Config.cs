@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -68,6 +68,7 @@ public sealed partial class MenuController
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
             string? unavailableReason = setting.Id switch
             {
+                "Chocobo World" => Data.ChocoboWorldUnavailableReason,
                 "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.",
                 "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => "Limit once per turn is unavailable until the active or pending battle ends.",
                 "Selphie card Slots" when Data.SelphieCardSlotsPreferenceLocked => "Selphie card Slots is unavailable until the active or pending battle ends.",
@@ -83,6 +84,10 @@ public sealed partial class MenuController
             string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description);
             MenuAction action = setting.Id == "Quick saves" && !newGame ? new("quick-save-open") : setting.Id is "UI font" or "Dialogue font" ? new("font-picker-open", setting.Id) : new("config", setting.Id, Value: setting.Values[next]);
             entries.Add(new MenuEntry(setting.Id, newGame ? MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
+        }
+        if (ScreenId == "config-chocobo")
+        {
+            entries.AddRange(ChocoboWorldActions());
         }
         if (newGame)
         {
@@ -185,7 +190,7 @@ public sealed partial class MenuController
                 ReadOnly = !entry.Enabled,
                 OptionGap = 12 * TextScale,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),
-                LabelWidthRatio = 0.52f,
+                LabelWidthRatio = setting.Id == "Chocobo World" ? 0.27f : 0.52f,
                 ColumnGap = 12 * TextScale,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,

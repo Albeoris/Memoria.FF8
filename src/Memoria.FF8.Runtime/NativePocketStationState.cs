@@ -8,6 +8,7 @@ public sealed record NativePocketStationState([property: JsonRequired] string In
 {
     /// <summary>Nullable original FF8 name buffer1CFDC94..1CFDC9F; missing historical state is not a default name.</summary>
     public ImmutableArray<byte>? ChocoboName { get; init; }
+    public uint WorldId => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(Raw.AsSpan(0x28, 4));
     public byte Flags => Raw[0];
     public byte Level => Raw[1];
     public byte AttackVariant => Raw[45];

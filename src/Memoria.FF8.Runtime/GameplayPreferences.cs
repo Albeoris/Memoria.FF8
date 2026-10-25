@@ -30,6 +30,7 @@ public sealed record GameplayPreferences
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;
     public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
+    public ChocoboWorldMode? ChocoboWorldMode { get; init; }
 
     [NewGameOption("Limit once per turn")]
     public bool LimitOncePerTurn { get; init; }
@@ -71,7 +72,7 @@ public sealed record GameplayPreferences
 
     public void Validate()
     {
-        if (!Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode))
+        if (!Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || ChocoboWorldMode is { } mode && !Enum.IsDefined(mode))
         {
             throw new InvalidDataException("Invalid saved gameplay preferences.");
         }

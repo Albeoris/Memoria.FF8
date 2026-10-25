@@ -43,6 +43,7 @@ public sealed partial class BattleSession
         }
         this.definition = CloneDefinition(definition);
         NativeCamera = this.definition.NativeStageCameraBank is null ? null : NativeBattleCameraState.Initialize();
+        chocoboRewards = this.definition.ChocoboRewards.ObserveInventory(this.definition.NativeItemInventory ?? []);
         nativeCards = this.definition.NativeCards?.DeepCopy();
         nativeCrtRandom = this.definition.NativeCrtRandom;
         nativeBattleUiRandom = this.definition.NativeBattleUiRandom;
@@ -359,6 +360,7 @@ public sealed partial class BattleSession
             NativeActionMemory = nativeActionMemory.State,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
+            ChocoboRewards = chocoboRewards,
             NativeCards = nativeCards?.DeepCopy(),
             NativeCrtRandom = nativeCrtRandom,
             NativeBattleUiRandom = nativeBattleUiRandom,
@@ -1480,6 +1482,7 @@ public sealed partial class BattleSession
         DebugOutcome = candidate.DebugOutcome;
         ActiveAction = candidate.ActiveAction;
         RestoreNativeItems(candidate.nativeItems);
+        chocoboRewards = candidate.chocoboRewards;
         nativeScannedModels = candidate.nativeScannedModels;
         nativeKnownMagic = candidate.nativeKnownMagic;
         random = candidate.random;

@@ -1,4 +1,4 @@
-using Memoria.FF8.GameUi;
+﻿using Memoria.FF8.GameUi;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -40,6 +40,8 @@ internal sealed partial class RecreateGame
 
     private void InitializeGameUi()
     {
+        newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };
+        session.Restore(ChocoboWorldSettings.Migrate(session.State, resourceHost!.Resources.Source.Edition));
         uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources);
         if (!File.Exists(UiPreferencesPath))
         {
@@ -49,6 +51,7 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction) { Presentation = uiPreferences.MenuPresentation };
+        InitializeChocoboWorldIntegration();
         InitializeAutoPlayUi();
         ConnectNativeTutorialUi();
         gameMenus.ScreenOpened += screen =>
@@ -133,6 +136,9 @@ internal sealed partial class RecreateGame
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
         data.Settings["Smart Attack"] = magicPreferences.SmartAttack ? "On" : "Off";
         data.MagicPreferencesUnavailableReason = MagicRuleBoundaryUnavailableReason;
+        data.Settings["Chocobo World"] = ChocoboWorldSettings.Label(magicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode);
+        data.ChocoboWorldUnavailableReason = ChocoboWorldBoundaryUnavailableReason;
+        data.SupportedActions.Add("config:Chocobo World");
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "config:Smart Attack", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
         data.SupportedActions.Add("config:Limit once per turn");
@@ -230,6 +236,10 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (ApplyChocoboWorldMenuAction(action))
+        {
+            return;
+        }
         if (ApplyHardcoreMenuAction(action))
         {
             return;

@@ -31,7 +31,7 @@ public sealed partial class GameSession : IEventServices
 
     public GameSession(GameState state)
     {
-        state = NormalizeGuardianForceCompatibilityState(state);
+        state = ChocoboRewardTransactions.Reconcile(NormalizeGuardianForceCompatibilityState(state));
         Validate(state);
         State = state;
         movieReturnScene = SceneKind.Field;
@@ -42,7 +42,12 @@ public sealed partial class GameSession : IEventServices
         return new GameSession(new GameState { NativeBattleMemory = battleMemory ?? NativeBattleRetainedMemory.FromColdProcess(), Playtime = NativePlaytimeState.FromColdProcess(), CrtRandom = NativeCrtRandomState.FromColdProcess(), MenuRandom = NativeMenuRandomState.FromColdProcess(), FieldFade = NativeFieldFadeState.FromColdProcess(), VibrationProcess = NativeVibrationProcessState.FromColdProcess(), EventRandom = NativeEventRandomState.FromColdProcess(), ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess(), FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
     }
 
-    public GameState State { get; private set; }
+    private GameState state = null!;
+    public GameState State
+    {
+        get => state;
+        private set => state = ChocoboRewardTransactions.Reconcile(value);
+    }
 
     public void BeginMovieAcceleration()
     {
@@ -679,7 +684,7 @@ public sealed partial class GameSession : IEventServices
         ValidatePartyMenuOwnersCheckpoint(state, currentVm);
         ValidateFieldRequestPacketCheckpoint(state, state.Scene == SceneKind.WorldMap ? null : state.EventState);
         ValidateBattleFactsCheckpoint(state);
-        return state;
+        return ChocoboRewardTransactions.Reconcile(state);
     }
 
     /// <summary>Reads only the display header of a compact save; legacy JSON has no header.</summary>

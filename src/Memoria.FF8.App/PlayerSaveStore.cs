@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -141,7 +141,7 @@ internal sealed partial class PlayerSaveStore
 
     public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
     {
-        return (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.SmartAttack || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false)

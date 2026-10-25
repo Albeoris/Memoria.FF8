@@ -34,6 +34,10 @@ public static partial class NativePcSaveConverter
     private static byte[] ExportCore(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState)
+        {
+            throw new NotSupportedException("Chocobo World provider choices and acquisition history require a Memoria save; native FFVIII exports cannot retain them.");
+        }
         if (state.Scene == SceneKind.Title || state.CharacterVitals is null || state.Economy is null)
         {
             throw new NotSupportedException("Original PC export requires an active game with initialized characters and inventory.");

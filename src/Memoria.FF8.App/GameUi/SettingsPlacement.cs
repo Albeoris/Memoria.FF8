@@ -1,4 +1,4 @@
-namespace Memoria.FF8.GameUi;
+﻿namespace Memoria.FF8.GameUi;
 
 internal enum SettingsAudience
 {
@@ -34,7 +34,8 @@ internal static class SettingsPlacement
         ["config-text"] = new("Text and fonts", "Menus: design pixels multiplied by text scale. Dialogue: field pixels.",
             ["Text scale", "UI font", "UI font size", "Dialogue font", "Dialogue font size", "Field message"]),
         ["config-gameplay"] = new("Gameplay", "Game rules apply to the current game; save normally to retain them. Title edits new-game defaults or session choices.",
-            ["config-combat", "config-magic", "config-exploration"]),
+            ["config-combat", "config-magic", "config-exploration", "config-chocobo"]),
+        ["config-chocobo"] = new("Chocobo World", "Choose a reward provider; acquired rewards remain recorded when switching modes.", ["Chocobo World"]),
         ["config-combat"] = new("Combat", "Rules for this game; Title sets new-game defaults.",
             ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
@@ -67,6 +68,7 @@ internal static class SettingsPlacement
             ["Weapon magazine required"] = "weapon-magazine-required",
             ["Weapon upgrade order"] = "weapon-upgrade-order",
             ["Draw once per spell"] = "draw-once-per-spell",
+            ["Chocobo World"] = "chocobo-world",
             ["Difficulty"] = "difficulty",
             ["Battle ATB mode"] = "atb-mode",
             ["Shared magic stock"] = "shared-magic",
@@ -116,7 +118,7 @@ internal static class SettingsPlacement
             string scope = setting.Id switch
             {
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => "Game / Title session",
-                "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
+                "Chocobo World" or "Weapon magazine required" or "Weapon upgrade order" or "Card Mod once" or "Draw once per spell" or "Limit once per turn" or "Selphie card Slots" or "Difficulty" or "Battle ATB mode" or "GF Transformations" or "Gunblade trigger" or "Battle policy" or "Random encounters" => "Game / Title default",
                 _ => audience is SettingsAudience.Excluded or SettingsAudience.Fixture ? "Fixture" : "Global"
             };
             string target = setting.Id switch
@@ -136,6 +138,7 @@ internal static class SettingsPlacement
                 "Weapon magazine required" => "GameplayPreferences.WeaponMagazineRequired",
                 "Weapon upgrade order" => "GameplayPreferences.WeaponUpgradeOrder",
                 "Draw once per spell" => "GameplayPreferences.DrawOncePerSpell",
+                "Chocobo World" => "GameplayPreferences.ChocoboWorldMode",
                 "Difficulty" => "GameplayPreferences.Difficulty",
                 "Battle ATB mode" => "GameplayPreferences.AtbMode",
                 "Shared magic stock" => "GameplayPreferences.SharedMagicStock",
