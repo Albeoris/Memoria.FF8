@@ -186,7 +186,7 @@ A required naming prompt cannot be replaced/closed through screen commands. Nati
 
 ## Battle commands
 
-These commands are windowed. They return `{Battle, DebugMenuOpen, Definition}`; use `battle-status` for inspection. A live encounter and an isolated debug scenario have different ownership and completion rules.
+These commands are windowed. They return `{DiagnosticInitialization, Battle, DebugMenuOpen, Definition}`; use `battle-status` for inspection. A live encounter, an isolated debug scenario and a direct diagnostic encounter have different ownership and completion rules. `DiagnosticInitialization` is null unless direct diagnostic initialization has produced a receipt.
 
 | Command | `Battle` payload |
 | --- | --- |
@@ -195,7 +195,7 @@ These commands are windowed. They return `{Battle, DebugMenuOpen, Definition}`; 
 | `battle-settings` | Optional `Mode`, `Policy` (`Full combat` or `Instant victory`), `RandomEncounters`; updates current settings through their owner. |
 | `battle-debug-open`, `battle-debug-close` | Opens/closes the battle configuration UI. |
 | `battle-debug-input` | Required `MenuInput` from the UI input enum. |
-| `battle-close` | Closes only an isolated debug scenario; cannot discard a game-owned encounter. |
+| `battle-close` | Closes an isolated debug scenario or direct diagnostic encounter; cannot discard an exploration-owned encounter. |
 | `battle-status` | No payload required. |
 
 `Battle.Input` has `Kind`, `Frames` (1..30000, default 1), `ActorId`, `TargetId`, `Mode` (`Normal` or `TurnBased`), `FullCombat`, `Ability`, `ActionId`, `DrawCast`, `RandomEncounters`, optional byte `NativeSeed`, and `GunbladeMode` (`Manual` or `Automatic`). `Ability` is `Attack`, `Magic`, `Draw`, `GuardianForce`, `Item`, `EnemyAbility`, `NativeCommand` or `LimitBreak`. Resolve actor/target IDs and available action IDs from the active battle, not from field actor IDs.
@@ -227,5 +227,11 @@ These commands are windowed. They return `{Battle, DebugMenuOpen, Definition}`; 
 {"Id":"051-tick","Command":"battle-input","Battle":{"Input":{"Kind":"Tick","Frames":30}}}
 {"Id":"052-attack","Command":"battle-input","Battle":{"Input":{"Kind":"Attack","ActorId":"party-0","TargetId":"enemy-0"}}}
 ```
+
+A host launched with `--battle-test` retains its explicit diagnostic lifecycle. Without an in-process driver, ordinary `battle-input` requests use normal command admission, while external `Tick`/`AdvanceTurn`, mode changes, debug outcomes and exploration configuration/start/return inputs are refused. Use normal real-time progression and `battle-close` for isolated teardown. `save` cannot persist this lifecycle as a resumable field snapshot.
+
+While the optional two-invocation driver runs, it owns command submission. Only `status`, `battle-status` and `quit` queue requests are accepted. The driver emits `progress.json` beside the queue directories with snake_case `stage`, monotonic `sequence` and `completed_stages`. Stages are `initialization`, `action_one`, `cleanup_rearm`, `action_two` and `teardown`; an early blocker retains the last attained stage. Observed callback progress can renew the progress sequence. These files are supervision records, not additional queue requests.
+
+With `MEMORIA_FF8_OUTPUT_DIRECTORY` selected, the host also writes `diagnostic-driver.json` and a final `candidate.json`. The candidate is always `ERROR/PREPARATION_ONLY` until complete instrumentation is available; process exit and two observed effect bindings do not establish a passed case. See [diagnostic launch](command-line.md#direct-diagnostic-battle-preparation) and [battle validation preparation](../developers/battle-effects-validation.md).
 
 For the full evolving definition/snapshot types, see [BattleDefinition](../../src/Memoria.FF8.Runtime/BattleDefinition.cs), [BattleInput](../../src/Memoria.FF8.Runtime/BattleInput.cs) and [PlayerActions](../../src/Memoria.FF8.Events/PlayerActions.cs). Transport implementation: [ControlQueue](../../src/Memoria.FF8.App/ControlQueue.cs), [windowed dispatch](../../src/Memoria.FF8.App/RecreateGame.cs) and [headless dispatch](../../src/Memoria.FF8.App/HeadlessControlHost.cs).

@@ -182,6 +182,10 @@ internal sealed partial class GameWorld
 
     private void CompleteNativeDefeatIfReady()
     {
+        if (diagnosticBattle is not null)
+        {
+            return;
+        }
         if (battle is { Outcome: BattleOutcome.Defeat, NativeResult: 1 } active && active.NativeGraphics?.NativeOutcome?.FadeDurationB0C == 0)
         {
             CompleteBattle(active);

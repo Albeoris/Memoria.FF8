@@ -1,0 +1,317 @@
+using System.Text.Json;
+
+namespace Memoria.FF8.BattleEffects;
+
+public static class Program
+{
+    public static int Main(string[] args)
+    {
+        try
+        {
+            if (args.Length == 0 || args[0] is "help" or "--help")
+            {
+                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                return 0;
+            }
+
+            Dictionary<string, string> options = ParseOptions(args.Skip(1).ToArray());
+            string Get(string name) => options.TryGetValue(name, out string? value) ? value : throw new ArgumentException($"Missing --{name}.");
+            string? Optional(string name) => options.GetValueOrDefault(name);
+
+            if (args[0] == "capabilities")
+            {
+                Print(new
+                {
+                    stage = "preparation",
+                    execution_ready = false,
+                    runtime_copy_instrumentation = TelemetryCoverageManifest.PreparationOnly,
+                    blockers = new[] { "Installed coverage discovery and scenario planning have not been performed.", "Typed fixture progression/capability/repair adapters and authenticated readiness/drain checks are not yet implemented.", "Runtime/render/event telemetry hooks and pilot calibration are not yet implemented.", "Scored worker execution, independent result/review reporting and final sweep are unavailable until those contracts are connected." }
+                });
+                return 0;
+            }
+
+            if (args[0] == "validate-record")
+            {
+                SchemaValidation.ValidateFile(Get("input"), Get("schema"));
+                Print(new { valid = true });
+                return 0;
+            }
+
+            if (args[0] == "inventory")
+            {
+                SchemaValidation.ValidateFile(Get("input"), "inventory");
+                InventoryRecord inventory = RecordJson.Read<InventoryRecord>(Get("input"));
+                Print(new { mode = "validate_planner_input", installed_discovery_performed = false, inventory });
+                return 0;
+            }
+
+            EvidenceStore store = new(Get("store"));
+            CampaignPlanning planning = new(store);
+            switch (args[0])
+            {
+                case "records":
+                    Print(store.ListPaths(Optional("prefix") ?? ""));
+                    return 0;
+                case "show":
+                {
+                    using JsonDocument record = JsonDocument.Parse(store.ReadBytes(Get("key")));
+                    Print(record.RootElement);
+                    return 0;
+                }
+                case "export":
+                {
+                    byte[] bytes = store.ReadBytes(Get("key"));
+                    using FileStream output = new(Get("output"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    output.Write(bytes);
+                    output.Flush(true);
+                    Print(new { exported = true, bytes = bytes.LongLength });
+                    return 0;
+                }
+                case "plan":
+                    SchemaValidation.ValidateFile(Get("inventory"), "inventory");
+                    SchemaValidation.ValidateFile(Get("profile"), "profile");
+                    SchemaValidation.ValidateFile(Get("resources"), "resources");
+                    SchemaValidation.ValidateFile(Get("cases"), "cases");
+                    planning.Create(Get("campaign"), int.Parse(Optional("revision") ?? "1", System.Globalization.CultureInfo.InvariantCulture), Optional("parent-campaign"), RecordJson.Read<InventoryRecord>(Get("inventory")), CaptureBuild(Get("build"), Get("source-commit"), Optional("patch-hash")), RecordJson.Read<PerformanceProfile>(Get("profile")), RecordJson.Read<ResourceRecord>(Get("resources")), RecordJson.Read<CaseRecipe[]>(Get("cases")));
+                    Print(new { created = true, store = store.Root, validation_scope = "declared_schema_and_plan_consistency_only", validation = planning.Validate() });
+                    return 0;
+                case "validate-plan":
+                    PlanValidation validation = planning.Validate();
+                    Print(new { validation_scope = "declared_schema_and_plan_consistency_only", native_fixture_verified = false, validation });
+                    return validation.Valid ? 0 : 2;
+                case "seal":
+                    Print(new { sealed_plan = planning.Seal(), execution_ready = false });
+                    return 0;
+                case "pass-create":
+                    PassRecord pass = planning.CreatePass(Get("pass"), Get("kind"), CaptureBuild(Get("build"), Get("source-commit"), Optional("patch-hash")), Optional("cases")?.Split(',', StringSplitOptions.RemoveEmptyEntries));
+                    RegisterPass(store, planning, pass);
+                    Print(pass);
+                    return 0;
+                case "claim-next":
+                case "claim-specific":
+                {
+                    PassRecord selectedPass = ReadPass(store, planning, Get("pass"));
+                    LocalCoordinator coordinator = new(store.Root);
+                    CoordinationScope scope = Scope(selectedPass);
+                    RegisterPass(store, planning, selectedPass);
+                    EffectClaim? claim = args[0] == "claim-specific" ? coordinator.ClaimSpecific(scope, Get("effect"), Get("agent"), ProcessIdentity.Current) : coordinator.ClaimNext(scope, Get("agent"), ProcessIdentity.Current);
+                    Print(claim);
+                    return claim == null ? 3 : 0;
+                }
+                case "heartbeat":
+                {
+                    EffectClaim claim = ReadClaim(store, planning, Get("claim"));
+                    Print(new LocalCoordinator(store.Root).Heartbeat(claim));
+                    return 0;
+                }
+                case "release":
+                {
+                    EffectClaim claim = ReadClaim(store, planning, Get("claim"));
+                    new LocalCoordinator(store.Root).Release(claim);
+                    Print(new { released = true });
+                    return 0;
+                }
+                case "recover-stale":
+                {
+                    PassRecord selectedPass = ReadPass(store, planning, Get("pass"));
+                    LocalCoordinator coordinator = new(store.Root);
+                    bool slotRecovered = coordinator.RecoverStalePerformanceSlot(Environment.MachineName);
+                    int recovered = coordinator.RecoverStale(Scope(selectedPass));
+                    Print(new { recovered, slot_recovered = slotRecovered });
+                    return 0;
+                }
+                case "status":
+                {
+                    PassRecord selectedPass = ReadPass(store, planning, Get("pass"));
+                    CaseRecipe[] cases = planning.ReadCases().Where(c => selectedPass.RequiredCases.Contains(c.CaseId)).ToArray();
+                    LocalCoordinator coordinator = new(store.Root);
+                    Print(new { execution_ready = false, pass = selectedPass, coordination = coordinator.GetStatus(Scope(selectedPass)), receipts = coordinator.GetReceipts(Scope(selectedPass)), required_cases = cases.Select(c => new { c.CaseId, c.EffectKey }), reviewed_accepted_cases = 0, overall = "UNRESOLVED_PREPARATION" });
+                    return 0;
+                }
+                case "supervise":
+                {
+                    EffectClaim claim = ReadClaim(store, planning, Get("claim"));
+                    string caseId = Get("case");
+                    PassRecord selectedPass = planning.ReadPass(claim.Scope.RunPassId);
+                    CaseRecipe recipe = planning.ReadCases().Single(c => c.CaseId == caseId && c.EffectKey == claim.EffectKey && selectedPass.RequiredCases.Contains(c.CaseId));
+                    SchemaValidation.ValidateFile(Get("request"), "supervisor-launch");
+                    SupervisorLaunch template = RecordJson.Read<SupervisorLaunch>(Get("request"));
+                    BuildRecord build = store.Read<BuildRecord>($"builds/{selectedPass.BuildHash}.json");
+                    BuildFile[] actual = EvidenceStore.DescribeFiles(template.WorkingDirectory);
+                    if (!actual.SequenceEqual(build.Files.OrderBy(file => file.Path, StringComparer.Ordinal)))
+                    {
+                        throw new InvalidDataException("The selected immutable build directory changed or differs from its pass.");
+                    }
+                    string executable = Path.GetFullPath(template.Executable);
+                    string relativeExecutable = Path.GetRelativePath(Path.GetFullPath(template.WorkingDirectory), executable).Replace('\\', '/');
+                    if (!build.Files.Any(file => file.Path == relativeExecutable))
+                    {
+                        throw new InvalidDataException("The supervised executable must belong to the pinned build directory.");
+                    }
+                    LocalCoordinator coordinator = new(store.Root);
+                    AllocatedAttempt attempt = coordinator.AllocateAttempt(claim, caseId);
+                    string settings = store.Resolve($"channels/{attempt.AttemptId}/settings");
+                    string control = store.Resolve($"channels/{attempt.AttemptId}/control");
+                    string save = store.Resolve($"channels/{attempt.AttemptId}/saves/checkpoint.json");
+                    CaseTimeouts t = recipe.Timeouts;
+                    SupervisionBudgets budgets = new(TimeSpan.FromMilliseconds(t.PreparationMs), TimeSpan.FromMilliseconds(t.ActionMs), TimeSpan.FromMilliseconds(t.CleanupMs), TimeSpan.FromMilliseconds(t.ActionMs + t.CleanupMs), TimeSpan.FromMilliseconds(t.TeardownMs), TimeSpan.FromMilliseconds(t.ProcessMs), TimeSpan.FromMilliseconds(template.NoProgressMs));
+                    string[] hostArguments = template.Arguments.ToArray();
+                    int recipeArgument = Array.IndexOf(hostArguments, "--battle-test");
+                    if (recipeArgument < 0 || recipeArgument + 1 >= hostArguments.Length)
+                    {
+                        throw new InvalidDataException("A preparation launch must name its --battle-test recipe.");
+                    }
+                    byte[] bootstrapRecipe = File.ReadAllBytes(hostArguments[recipeArgument + 1]);
+                    store.WriteBytesNew($"{attempt.RelativeDirectory}/bootstrap.json", bootstrapRecipe);
+                    string transientRecipe = store.Resolve($"channels/{attempt.AttemptId}/bootstrap.json");
+                    Directory.CreateDirectory(Path.GetDirectoryName(transientRecipe)!);
+                    File.WriteAllBytes(transientRecipe, bootstrapRecipe);
+                    hostArguments[recipeArgument + 1] = transientRecipe;
+                    store.WriteNew($"{attempt.RelativeDirectory}/launch.json", template);
+                    SupervisionRequest request = new(attempt.AttemptId, template.Executable, [.. hostArguments, "--settings-dir", settings, "--control-dir", control, "--save-state", save], template.WorkingDirectory, settings, store.Resolve(attempt.RelativeDirectory), control, budgets, template.Environment);
+                    using CancellationTokenSource cancellation = new();
+                    object leaseLock = new();
+                    PerformanceSlotLease? slot = null;
+                    string? heartbeatError = null;
+                    using Timer heartbeat = new(_ =>
+                    {
+                        lock (leaseLock)
+                        {
+                            try
+                            {
+                                claim = coordinator.Heartbeat(claim);
+                                if (slot != null)
+                                {
+                                    slot = coordinator.HeartbeatPerformanceSlot(slot);
+                                }
+                            }
+                            catch (Exception exception) when (exception is InvalidOperationException or IOException or InvalidDataException or TimeoutException)
+                            {
+                                heartbeatError = exception.Message;
+                                cancellation.Cancel();
+                            }
+                        }
+                    }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+                    SupervisionOutcome outcome;
+                    try
+                    {
+                        outcome = OwnedChildSupervisor.RunAsync(request, cancellation.Token, process =>
+                        {
+                            lock (leaseLock)
+                            {
+                                slot = coordinator.TryAcquirePerformanceSlot(claim, Environment.MachineName, process);
+                                return slot != null;
+                            }
+                        }, payload => store.WriteBytesNew($"{attempt.RelativeDirectory}/started.json", payload)).GetAwaiter().GetResult();
+                    }
+                    finally
+                    {
+                        heartbeat.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    }
+                    if (outcome.Status == "candidate_ready")
+                    {
+                        OwnedChildSupervisor.PublishValidatedCandidate(outcome, payload => JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, attempt_id = attempt.AttemptId, run_pass_id = selectedPass.RunPassId, case_id = caseId, verdict = "ERROR", error_category = "TELEMETRY_UNAVAILABLE", stage = "preparation", candidate_sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(payload)), message = "Preparation receipt preserved; runtime instrumentation and independent case assertions are not yet available." }, RecordJson.Options));
+                    }
+                    if (outcome.ProcessExited)
+                    {
+                        ImportTransientArtifacts(store, attempt.RelativeDirectory);
+                        ImportTransientArtifacts(store, $"channels/{attempt.AttemptId}");
+                        if (slot != null)
+                        {
+                            coordinator.ReleasePerformanceSlot(slot);
+                        }
+                        coordinator.Release(claim);
+                    }
+                    Print(new { stage = "preparation", execution_verdict = "ERROR", attempt, outcome = outcome with { CandidatePayload = null }, heartbeat_error = heartbeatError, publication_accepted = false, claim_released = outcome.ProcessExited });
+                    return 4;
+                }
+                case "worker":
+                case "run":
+                case "replay":
+                case "retry":
+                case "validate-results":
+                case "compare":
+                case "report":
+                    Print(new { error = "PREPARATION_ONLY", command = args[0], message = "Scored execution and acceptance are unavailable. Run capabilities for the remaining contracts; no game was launched and no case received a verdict." });
+                    return 4;
+                default:
+                    throw new ArgumentException($"Unknown command: {args[0]}");
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or IOException or InvalidDataException or JsonException or NotSupportedException or FormatException or OverflowException or TimeoutException)
+        {
+            Print(new { error = exception.GetType().Name, message = exception.Message });
+            return 1;
+        }
+    }
+
+    private static BuildRecord CaptureBuild(string directory, string commit, string? patchHash) => new(1, commit, patchHash != null, patchHash, "Release", EvidenceStore.DescribeFiles(directory));
+
+    private static PassRecord ReadPass(EvidenceStore store, CampaignPlanning planning, string id)
+    {
+        return planning.ReadPass(id);
+    }
+
+    private static void RegisterPass(EvidenceStore store, CampaignPlanning planning, PassRecord pass)
+    {
+        string[] effects = planning.ReadCases().Where(c => pass.RequiredCases.Contains(c.CaseId)).Select(c => c.EffectKey).Distinct().ToArray();
+        new LocalCoordinator(store.Root).RegisterEffects(Scope(pass), effects);
+    }
+
+    private static CoordinationScope Scope(PassRecord pass) => new(pass.CampaignId, pass.PlanHash, pass.RunPassId);
+
+    private static EffectClaim ReadClaim(EvidenceStore store, CampaignPlanning planning, string token)
+    {
+        EffectClaim claim = new LocalCoordinator(store.Root).GetClaim(token) ?? throw new InvalidDataException("No current claim has this token.");
+        PassRecord pass = ReadPass(store, planning, claim.Scope.RunPassId);
+        if (claim.Scope != Scope(pass))
+        {
+            throw new InvalidDataException("Claim scope differs from the requested store.");
+        }
+
+        return claim;
+    }
+
+    private static void ImportTransientArtifacts(EvidenceStore store, string relativeDirectory)
+    {
+        string directory = store.Resolve(relativeDirectory);
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+        foreach (BuildFile artifact in EvidenceStore.DescribeFiles(directory))
+        {
+            string key = relativeDirectory + "/" + artifact.Path;
+            string path = store.Resolve(key);
+            byte[] bytes = File.ReadAllBytes(path);
+            if (store.Exists(key))
+            {
+                if (!store.ReadBytes(key).AsSpan().SequenceEqual(bytes))
+                {
+                    throw new InvalidDataException("Transient artifact conflicts with an immutable database record.");
+                }
+            }
+            else
+            {
+                store.WriteBytesNew(key, bytes);
+            }
+            File.Delete(path);
+        }
+    }
+
+    private static Dictionary<string, string> ParseOptions(string[] args)
+    {
+        Dictionary<string, string> options = new(StringComparer.Ordinal);
+        for (int i = 0; i < args.Length; i += 2)
+        {
+            if (!args[i].StartsWith("--", StringComparison.Ordinal) || i + 1 == args.Length || !options.TryAdd(args[i][2..], args[i + 1]))
+            {
+                throw new ArgumentException("Options require unique --name value pairs.");
+            }
+        }
+
+        return options;
+    }
+
+    private static void Print<T>(T value) => Console.WriteLine(JsonSerializer.Serialize(value, RecordJson.Options));
+}

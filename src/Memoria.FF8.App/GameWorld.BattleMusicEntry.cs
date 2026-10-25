@@ -100,7 +100,11 @@ internal sealed partial class GameWorld
         while (remaining > 0)
         {
             int callbacks = (int)Math.Min(remaining, 30000);
-            if (Events.PendingMenuBattle is not null)
+            if (diagnosticBattle is not null)
+            {
+                session.SetExamTimer((session.ExamTimer ?? throw new InvalidDataException("Diagnostic battle lost its process clock.")).AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks));
+            }
+            else if (Events.PendingMenuBattle is not null)
             {
                 Events.AdvanceMenuBattleCallbacks(callbacks);
             }

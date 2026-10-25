@@ -26,6 +26,7 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--game-dir DIRECTORY` | Installed game directory. Overrides `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
 | `--state FILE` | Load a standalone snapshot, compact compressed or plain JSON. Its state overrides scene initialization options. |
 | `--save-state FILE` | Quick-save snapshot destination; default `%LOCALAPPDATA%/Memoria.FF8/checkpoint.json`. |
+| `--settings-dir DIRECTORY` | Redirect engine UI preferences, controls, Triple Triad deck history and save-bank configuration to a selected directory. Overrides `MEMORIA_FF8_SETTINGS_DIRECTORY`; otherwise these use `%LOCALAPPDATA%/Memoria/FF8/`. |
 | `--media-tools DIRECTORY` | Directory containing `ffmpeg.exe` and `ffprobe.exe`; overrides `MEMORIA_FF8_MEDIA_TOOLS` for direct engine startup. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/` and shared across releases. The launcher honors the same environment variable and default. |
 | `--scene NAME` | Initial scene: `Title`, `Field`, `Movie` or `WorldMap`, case insensitive. Scene selection alone does not construct a valid gameplay state. |
 | `--field ID_OR_NAME` | Request a field. Numeric IDs and aliases `start0`, `bghoke_1`, `bghoke_2`, `bghoke_3`, `bgroad_6` are accepted. This initializes a field; use a snapshot for exact continuation. |
@@ -43,10 +44,28 @@ Without a mode selector, the engine opens the game window. With no `--state` and
 | `--control-dir DIRECTORY` | Enable the local file control queue. |
 | `--update-control-dir DIRECTORY` | Launcher update handoff queue. Supports status, save-for-update, cancel-update and quit without enabling diagnostic stepping or disabling audio. |
 | `--control-step` | Disable automatic field/world time accumulation, so queue commands drive progression. Requires `--control-dir`. |
+| `--battle-test FILE` | Direct diagnostic encounter recipe; requires isolated settings/control/save paths and the normal graphical GPU host. See below. |
 | `--debug-room` | Open the debug-room UI on startup. |
 | `--ui-screen SCREEN_ID` | Open a registered UI screen on startup; diagnostic use. |
 
 Decimal times use a dot. Explicit path arguments are resolved against the invoking working directory before graphical startup changes to the game directory. Supply a full installed-game path in environment variables to avoid working-directory ambiguity.
+
+## Direct diagnostic battle preparation
+
+`--battle-test` is a graphical launch option. It skips startup navigation, runs the real cold-process and New Game initialization, and constructs the declared installed encounter before allocating exploration. Missing native owners or resources fail explicitly. It does not discover a usable formation, certify a fixture or grant an action to a different character.
+
+Use an authored recipe whose encounter, seed, flags and field-derived inputs have been resolved separately. Required snake_case fields are `encounter`, `seed`, `flags`, `field_battle_mode` and `elapsed_counter`. Music selection also requires `battle_music` and `primary_music_channel` unless the declared native flags keep music; a music path that needs a field identity requires `music_field_word`. Unknown root recipe and driver properties are rejected. See [battle validation preparation](../developers/battle-effects-validation.md) for driver inputs and remaining coverage contracts.
+
+```powershell
+$env:MEMORIA_FF8_OUTPUT_DIRECTORY = [IO.Path]::GetFullPath('./output/case')
+./Data/Memoria.FF8.exe --battle-test ./input/case.json --settings-dir ./output/case/settings --control-dir ./output/case/control --save-state ./output/case/save/checkpoint.json --resolution 1920x1080
+```
+
+The settings, control and save directories must be distinct, non-overlapping and outside the user's global settings directory. Supply `--save-state` explicitly. A selected `MEMORIA_FF8_SETTINGS_DIRECTORY` can supply the settings override. An explicit settings-directory override skips legacy preference import from the save directory. Use fresh directories for each independent process. `--state`, non-Title scene initialization, debug UI startup, `--control-step`, software rendering and `--validate` are incompatible.
+
+An optional `driver` recipe submits the same ordinary semantic `Action` or `Attack` twice through the normal graphical pipeline in one live battle. It checks the requested/executed effect binding, conservative owner drain and at least two further presented frames after each drain. Readiness, action and total timeouts are finite. Capability borrowing, timed limits, combat repairs and terminal replay are unsupported and produce blockers. Existing persistent tasks may also block the conservative drain check.
+
+Driver completion is `CANDIDATE_COMPLETED` with `PREPARATION_ONLY` coverage. It produces no accepted performance or effect verdict: `candidate.json` remains `ERROR` while mandatory telemetry is unavailable. The driver exits after completion or a blocker. Without a driver, the diagnostic host remains available through the [control queue](control-api.md#battle-commands); isolated closure uses `battle-close`. Diagnostic lifecycle snapshots cannot be saved for later continuation.
 
 ## Original PC save transfer
 

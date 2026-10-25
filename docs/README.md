@@ -33,6 +33,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Build and test](developers/building-and-testing.md) | A clean checkout, distribution layout, test projects and optional local inputs. |
 | [Architecture](developers/architecture.md) | Project responsibilities, state ownership and engine extension points. |
 | [Battle system](developers/battle-system.md) | Combat state, lifecycle, rewards, presentation and diagnostics. |
+| [Battle validation preparation](developers/battle-effects-validation.md) | Direct graphical initialization, bounded two-invocation diagnostics and remaining acceptance blockers. |
 | [GF ability architecture](developers/gf-abilities.md) | Canonical definitions, identity-based progression and legacy projection. |
 | [GF form architecture](developers/guardian-forms.md) | Ownership, native presentation, snapshots and the extension boundary. |
 | [Settings placement](developers/settings-placement.md) | Complete setting, binding and service-tool ownership map. |

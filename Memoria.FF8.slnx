@@ -12,9 +12,11 @@
     <Project Path="src/Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <Project Path="src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <Project Path="tools/Memoria.FF8.TitleScene.Preview/Memoria.FF8.TitleScene.Preview.csproj" />
+    <Project Path="tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Memoria.FF8.BattleEffects.Tests/Memoria.FF8.BattleEffects.Tests.csproj" />
     <Project Path="tests/Memoria.Launcher.Tests/Memoria.Launcher.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Mods.Tests/Memoria.FF8.Mods.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Battle.Tests/Memoria.FF8.Battle.Tests.csproj" />

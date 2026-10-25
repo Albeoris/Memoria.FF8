@@ -235,6 +235,10 @@ internal sealed partial class GameWorld
     public int ApplyBattleInput(BattleInput input, IReadOnlyDictionary<int, int>? guardianForceLearning = null)
     {
         input.Validate();
+        if (diagnosticBattle is not null)
+        {
+            return ApplyDiagnosticBattleInput(input);
+        }
         if (guardianForceLearning is { Count: > 0 } && input.Kind != BattleInputKind.Return)
         {
             throw new InvalidOperationException("Battle learning choices belong to result confirmation.");

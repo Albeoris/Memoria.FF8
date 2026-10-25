@@ -10,6 +10,7 @@ Set these in the shell before starting the launcher, engine or test process. An 
 | --- | --- |
 | `MEMORIA_FF8_GAME_DIR` | Installed game directory. Used when `--game-dir` is absent. |
 | `FF8_GAME_DIRECTORY` | Fallback game directory when `MEMORIA_FF8_GAME_DIR` is unset. |
+| `MEMORIA_FF8_SETTINGS_DIRECTORY` | Optional engine settings-directory override; `--settings-dir` takes precedence. Redirects UI settings, controls, Triple Triad deck history and save-bank configuration. Skips legacy preference import from the save directory. Does not relocate installed resources, media tools or player saves. |
 | `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, used by both the launcher and engine. Direct engine startup can override it with `--media-tools`. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/`. |
 | `MEMORIA_FF8_FFMPEG_RELEASE_URL` | Override the HTTPS release-download directory used by optional FFmpeg installation. Default `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/`. |
 | `MEMORIA_FF8_FFMPEG_ARCHIVE` | Override the optional FFmpeg ZIP filename. Default `ffmpeg-master-latest-win64-lgpl.zip`. Must be a filename ending in `-win64-lgpl.zip`. |
@@ -29,6 +30,14 @@ FFmpeg release/archive overrides affect the optional installer, not movie select
 The graphical launcher selects a game directory through its own settings and passes it explicitly. It resolves the media-tools directory using `MEMORIA_FF8_MEDIA_TOOLS` and the same default as the engine, then passes that path to the engine. The launcher does not use the game-directory variables as a replacement for its selection UI.
 
 The default media-tools folder is shared across releases. To avoid downloading again after upgrading from an older release, move the entire old `Data/media-tools/` folder, including its licenses and notices, to `%LOCALAPPDATA%/Memoria.FF8/media-tools/`.
+
+## Diagnostic battle output
+
+| Variable | Purpose |
+| --- | --- |
+| `MEMORIA_FF8_OUTPUT_DIRECTORY` | Optional output directory for the graphical `--battle-test` driver's `diagnostic-driver.json` and final `candidate.json`. Use a fresh absolute directory for each attempt. |
+
+The diagnostic recipe's optional `driver.progress_path` overrides only the detailed driver receipt path. Queue supervision progress always uses `progress.json` in `--control-dir`; the engine does not infer that command-line option from an environment variable. The final candidate remains `ERROR/PREPARATION_ONLY` until mandatory runtime telemetry is connected. See [diagnostic launch options](command-line.md#direct-diagnostic-battle-preparation).
 
 ## Optional installed-resource tests
 

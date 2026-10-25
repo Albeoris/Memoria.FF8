@@ -3,9 +3,9 @@ namespace Memoria.FF8;
 /// <summary>Host preferences belong to the user, independently of the active game or snapshot path.</summary>
 internal sealed class GlobalSettingsPaths
 {
-    public GlobalSettingsPaths(string? localApplicationData = null)
+    public GlobalSettingsPaths(string? localApplicationData = null, string? isolatedDirectory = null)
     {
-        DirectoryPath = Path.Combine(localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8");
+        DirectoryPath = isolatedDirectory is null ? Path.Combine(localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8") : Path.GetFullPath(isolatedDirectory);
     }
 
     public string DirectoryPath { get; }

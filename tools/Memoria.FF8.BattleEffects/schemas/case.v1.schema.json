@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:case:v1",
+  "title": "Battle effects case record v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "effect_key": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "action_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "requested_effect_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "variant": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_kind": {
+      "enum": [
+        "player",
+        "enemy",
+        "supplementary"
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "formation_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "caster": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_targets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "actor_resources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "scene_slots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "level_band": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ai_prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "initialization_recipe": {
+          "type": "string",
+          "minLength": 1
+        },
+        "preparation": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "mapping_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "legality_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "formation_id",
+        "phase",
+        "stage_id",
+        "caster",
+        "target_policy",
+        "expected_targets",
+        "actor_resources",
+        "scene_slots",
+        "level_band",
+        "ai_prerequisites",
+        "initialization_recipe",
+        "preparation",
+        "mapping_evidence",
+        "legality_evidence"
+      ],
+      "additionalProperties": false
+    },
+    "invocation": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command_owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invocation_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "rng_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "initial_rng_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "diagnostic_capability": {
+          "type": "boolean"
+        },
+        "auxiliary_resources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "command",
+        "command_owner",
+        "invocation_path",
+        "inputs",
+        "rng_policy",
+        "initial_rng_state",
+        "diagnostic_capability",
+        "auxiliary_resources"
+      ],
+      "additionalProperties": false
+    },
+    "executions": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "allowed_repairs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "terminal_policy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "milestones": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "completion_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "integrity_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "permitted_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "required_instrumentation": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "timeouts": {
+      "type": "object",
+      "properties": {
+        "preparation_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "action_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "cleanup_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "teardown_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "process_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "preparation_ms",
+        "action_ms",
+        "cleanup_ms",
+        "teardown_ms",
+        "process_ms",
+        "basis"
+      ],
+      "additionalProperties": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "case_id",
+    "effect_key",
+    "action_id",
+    "requested_effect_id",
+    "variant",
+    "scenario_kind",
+    "scenario",
+    "invocation",
+    "executions",
+    "allowed_repairs",
+    "terminal_policy",
+    "milestones",
+    "completion_conditions",
+    "integrity_checks",
+    "permitted_outcomes",
+    "required_instrumentation",
+    "timeouts",
+    "blockers"
+  ],
+  "additionalProperties": false
+}

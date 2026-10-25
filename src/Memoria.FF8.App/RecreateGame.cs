@@ -70,6 +70,7 @@ internal sealed partial class RecreateGame : Game
     public RecreateGame(LaunchOptions options, GameSession session)
     {
         this.options = options;
+        globalSettings = new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory);
         this.session = session;
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
@@ -83,7 +84,10 @@ internal sealed partial class RecreateGame : Game
         saveMenu.BeforeBankChange = EnsurePlayerSaveBank;
         saveMenu.RequiresMemoriaFormat = () => PlayerSaveStore.RequiresMemoriaFormat(session.State, allowGuardianForceProjection: true);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
-        globalSettings.ImportLegacyFiles(options.SavePath);
+        if (options.SettingsDirectory is null)
+        {
+            globalSettings.ImportLegacyFiles(options.SavePath);
+        }
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
         playerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
         (int width, int height) = uiPreferences.WindowSize(options);
@@ -128,6 +132,10 @@ internal sealed partial class RecreateGame : Game
         {
             fieldGpu = new GpuTriangleRenderer(GraphicsDevice);
             battleGpu = new GpuTriangleRenderer(GraphicsDevice);
+        }
+        if (options.BattleTestPath is not null)
+        {
+            StartDiagnosticBattleHost();
         }
         Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} scene-renderer={(options.SoftwareRenderer ? "software-diagnostic" : "gpu")} cwd={Environment.CurrentDirectory}");
     }
@@ -875,6 +883,10 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (diagnosticDriver is { Finished: false } && request.Command.ToLowerInvariant() is not ("status" or "battle-status" or "quit"))
+        {
+            throw new InvalidOperationException("The in-process diagnostic driver owns command submission until it exits.");
+        }
         if (request.Command.Equals("cancel-update", StringComparison.OrdinalIgnoreCase))
         {
             updateSave.Cancel();

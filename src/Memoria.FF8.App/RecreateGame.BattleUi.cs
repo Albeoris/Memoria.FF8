@@ -245,7 +245,7 @@ internal sealed partial class RecreateGame
             battleScene = preparedScene ?? new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
             battleGuardianForceLearning.Clear();
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
-            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
+            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.ConfigureResults(PresentationBattleResources.ReadNativeGlobalBattleMessages(), id => liveMenuCatalog?.ItemDescription(id) ?? "", id => liveMenuCatalog?.AbilityName(id) ?? $"Ability {id}");
             battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
@@ -580,6 +580,10 @@ internal sealed partial class RecreateGame
                 StartDebugBattle(command.Definition ?? throw new ArgumentException("Battle Definition is required."), command.Mode ?? ReadCurrentUiPreferences().AtbMode);
                 break;
             case "battle-input":
+                if (world?.IsDiagnosticBattle == true && command.Input?.Kind is BattleInputKind.Tick or BattleInputKind.AdvanceTurn)
+                {
+                    throw new NotSupportedException("Diagnostic graphical commands must use normal real-time simulation and presentation pacing.");
+                }
                 ApplyBattleCommand(command.Input ?? throw new ArgumentException("Battle Input is required."));
                 break;
             case "battle-settings":
@@ -595,6 +599,12 @@ internal sealed partial class RecreateGame
                 (battleDebug ?? throw new InvalidOperationException("Open Battle Debug first.")).Navigate(command.MenuInput ?? throw new ArgumentException("MenuInput is required."));
                 break;
             case "battle-close":
+                if (world?.IsDiagnosticBattle == true)
+                {
+                    world.EndDiagnosticBattle();
+                    ClearBattlePresentation();
+                    break;
+                }
                 if (debugBattle is null)
                 {
                     throw new InvalidOperationException("Only an isolated debug scenario can be closed without its game-owned outcome.");
@@ -606,7 +616,7 @@ internal sealed partial class RecreateGame
             default:
                 throw new ArgumentException("Battle commands: battle-start, battle-input, battle-status, battle-debug-open/close/input, battle-close.");
         }
-        return new { Battle = BattleStatus(), DebugMenuOpen = battleDebug is not null, Definition = battleDebug?.Definition };
+        return new { DiagnosticInitialization = world?.DiagnosticReceipt, Battle = BattleStatus(), DebugMenuOpen = battleDebug is not null, Definition = battleDebug?.Definition };
     }
 
     private void DisposeBattleTextures()

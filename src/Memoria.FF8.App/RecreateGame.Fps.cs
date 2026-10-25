@@ -28,6 +28,7 @@ internal sealed partial class RecreateGame
         base.EndDraw();
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
         visualFrameRate?.Presented(now);
+        AdvanceDiagnosticDriver(now);
         if (now >= nextFpsLabelUpdate)
         {
             double? fps = visualFrameRate?.PresentationsPerSecond;

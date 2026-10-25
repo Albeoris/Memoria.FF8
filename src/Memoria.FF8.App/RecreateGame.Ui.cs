@@ -34,7 +34,7 @@ internal sealed partial class RecreateGame
     private bool drainUiButtons;
     private DialogueState? nativeNamePrompt;
     private bool suppressNativeNameInput;
-    private readonly GlobalSettingsPaths globalSettings = new();
+    private readonly GlobalSettingsPaths globalSettings;
     private string UiPreferencesPath => globalSettings.UiPreferencesPath;
     private string ControlsPreferencesPath => globalSettings.ControlsPreferencesPath;
 

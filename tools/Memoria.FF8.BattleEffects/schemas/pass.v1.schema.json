@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:pass:v1",
+  "title": "Battle effects pass record v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_pass_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "plan_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "run_kind": {
+      "enum": [
+        "baseline",
+        "post_fix",
+        "diagnostic",
+        "final"
+      ]
+    },
+    "build_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "resource_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "instrumentation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_cases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_pass_id",
+    "campaign_id",
+    "plan_hash",
+    "run_kind",
+    "build_hash",
+    "profile_hash",
+    "resource_hash",
+    "instrumentation_version",
+    "required_cases",
+    "created_utc"
+  ],
+  "additionalProperties": false
+}

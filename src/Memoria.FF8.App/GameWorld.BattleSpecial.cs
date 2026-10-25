@@ -6,11 +6,19 @@ internal sealed partial class GameWorld
 {
     private ushort? ReadNativeFieldBattleMode()
     {
+        if (diagnosticBattle is { } diagnostic)
+        {
+            return diagnostic.Request.FieldBattleMode;
+        }
         return Events.Scene.NativeBattleFlagWrites is { Count: > 0 } history ? history[^1].PersistentFlags : null;
     }
 
     private uint? ReadNativeElapsedCounter()
     {
+        if (diagnosticBattle is { } diagnostic)
+        {
+            return diagnostic.Request.ElapsedCounter;
+        }
         NativeScalarValue value = Events.EventMemory.Read(4, 4);
         return value.IsExact ? unchecked((uint)value.Values[0]) : null;
     }

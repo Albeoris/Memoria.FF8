@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:memoria:ff8:battle-effects:profile:v1",
+  "title": "Battle effects profile record v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "renderer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "host_fps": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "audio_mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "window_mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vsync": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pacing": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ui_overlays": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instrumentation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mods": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "profile_id",
+    "width",
+    "height",
+    "renderer",
+    "host_fps",
+    "audio_mode",
+    "window_mode",
+    "vsync",
+    "pacing",
+    "ui_overlays",
+    "instrumentation_version",
+    "mods"
+  ],
+  "additionalProperties": false
+}

@@ -25,6 +25,8 @@ public sealed record LaunchOptions
     public int WorldRenderLimit { get; init; } = 2048;
     public bool SoftwareRenderer { get; init; }
     public string? DebugUiScreen { get; init; }
+    public string? BattleTestPath { get; init; }
+    public string? SettingsDirectory { get; init; } = Environment.GetEnvironmentVariable("MEMORIA_FF8_SETTINGS_DIRECTORY");
 
     public static LaunchOptions Parse(string[] args)
     {
@@ -64,10 +66,39 @@ public sealed record LaunchOptions
                 "--mute-audio" => options with { MuteAudio = true },
                 "--world-render-limit" => options with { WorldRenderLimit = int.Parse(Value()) },
                 "--software-renderer" => options with { SoftwareRenderer = true },
+                "--battle-test" => options with { BattleTestPath = Path.GetFullPath(Value()) },
+                "--settings-dir" => options with { SettingsDirectory = Path.GetFullPath(Value()) },
                 "--debug-room" => options with { DebugUiScreen = "debug-room" },
                 "--ui-screen" => options with { DebugUiScreen = Value() },
                 _ => throw new ArgumentException($"Unknown argument: {argument}")
             };
+        }
+        if (options.BattleTestPath is not null && (options.StatePath is not null || options.DebugUiScreen is not null || options.ControlStep || options.SoftwareRenderer || options.ValidateOnly || options.InitialState.Scene != SceneKind.Title))
+        {
+            throw new ArgumentException("--battle-test requires a fresh graphical GPU host with normal real-time pacing; state, scene, debug UI, validation, software rendering and control stepping are incompatible.");
+        }
+        if (options.BattleTestPath is not null && (options.SettingsDirectory is null || options.ControlDirectory is null || !args.Contains("--save-state", StringComparer.Ordinal)))
+        {
+            throw new ArgumentException("--battle-test requires isolated --settings-dir, --control-dir and an explicit disposable --save-state path.");
+        }
+        if (options.BattleTestPath is not null)
+        {
+            string[] paths = [Path.GetFullPath(options.SettingsDirectory!), Path.GetFullPath(options.ControlDirectory!), Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!];
+            string global = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8");
+            if (paths.Any(path => IsWithin(path, global) || IsWithin(global, path)))
+            {
+                throw new ArgumentException("Diagnostic output and settings must not overlap the user's global settings directory.");
+            }
+            for (int i = 0; i < paths.Length; i++)
+            {
+                for (int j = i + 1; j < paths.Length; j++)
+                {
+                    if (IsWithin(paths[i], paths[j]) || IsWithin(paths[j], paths[i]))
+                    {
+                        throw new ArgumentException("Diagnostic settings, control and disposable save directories must be distinct and non-overlapping.");
+                    }
+                }
+            }
         }
         if (options.StatePath is not null)
         {
@@ -87,6 +118,8 @@ public sealed record LaunchOptions
         }
         return options;
     }
+
+    private static bool IsWithin(string path, string root) => string.Equals(Path.TrimEndingDirectorySeparator(path), Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase) || path.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
     private static LaunchOptions SetField(LaunchOptions options, string value)
     {
