@@ -61,6 +61,46 @@ public sealed class MovieReplacementTimingTests
     }
 
     [Fact]
+    public void Interpolated_camera_cannot_admit_models_without_their_native_callback_sample()
+    {
+        string source = TestResources.FixturePath("App.Tests.MovieReplacementTimingTests.1");
+        string game = TestResources.GameDirectory;
+        GameSession session = new(GameSession.Load(source));
+        using GameResourceHost host = new(game, watch: false);
+        using MovieClock clock = new(session, game, resolveGameFile: host.ResolveGameFile);
+        using GameWorld world = new(session, game, clock, resources: host.Resources);
+        world.EnsureField();
+        world.SetRenderSize(320, 224);
+        MovieInformation native = clock.Prepare();
+        MovieInformation media = clock.PreparePresentation();
+        Assert.True(media.FramesPerSecond > native.FramesPerSecond);
+        var playback = world.Events.Scene.NativeMovieMask!.Playback!;
+        NativeMovieCameraFlags nativeFlags = NativeMovieCameraReader.Read(File.ReadAllBytes(clock.GetNativeCameraPath(clock.SourceDiscIndex, session.State.MovieSource!.MovieIndex)));
+        MoviePresentationCamera camera = new(File.ReadAllBytes(clock.CameraPath), nativeFlags, native, media);
+        int first = MovieFrameTimeline.FrameAt(session.State.MovieSeconds, media);
+        int last = MovieFrameTimeline.FrameAt((clock.State.FrameIndex + 1) / native.FramesPerSecond, media);
+        Assert.NotEqual(0, nativeFlags.Flags[playback.DrawRecord!.Value - 1] & 0x61);
+        Assert.Contains(Enumerable.Range(first, last - first), frame => (camera.Flags.Flags[camera.DrawRecord(frame) - 1] & 0x61) == 0);
+        Assert.Contains(world.Events.Scene.ModelParts!.Draws.Values, draw => draw.Frame < world.Events.Frame);
+        JsonElement before = world.Events.Capture();
+        byte[] pixels = new byte[320 * 224 * 4];
+        for (int offset = 3; offset < pixels.Length; offset += 4)
+        {
+            pixels[offset] = 255;
+        }
+        for (int frame = first; frame < last; frame++)
+        {
+            clock.SetPresentationFrame(frame);
+            Assert.Equal(pixels, world.RenderMovieFrame(pixels, 320, 224));
+        }
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        Assert.Equal(1, clock.AdvanceFrames(1));
+        clock.SetPresentationFrame(last);
+        world.RenderMovieFrame(pixels, 320, 224);
+        Assert.Null(world.Events.LastFault);
+    }
+
+    [Fact]
     public void Resolved_media_is_pinned_together_for_the_active_playback()
     {
         string game = TestResources.GameDirectory;
@@ -119,7 +159,7 @@ public sealed class MovieReplacementTimingTests
     }
 
     [Fact]
-    public void Installed_cinema_movie_uses_resolved_video_camera_and_actual_decoded_pixels()
+    public void Installed_movie_uses_resolved_video_camera_and_actual_decoded_pixels()
     {
         using IResourceSource movieSource = GameDataSourceFactory.Open(TestResources.GameDirectory);
         IGameFileSource movieFiles = Assert.IsAssignableFrom<IGameFileSource>(movieSource);
@@ -138,13 +178,22 @@ public sealed class MovieReplacementTimingTests
         MovieInformation native = clock.Prepare();
         MovieInformation media = clock.PreparePresentation();
         Assert.NotEqual(MovieClock.GetSourcePath(movieFiles, 0, 0), clock.SourcePath);
-        Assert.NotEqual(MovieClock.GetCameraPath(movieFiles, 0, 0), clock.CameraPath);
         Assert.True(media.Width > 0 && media.Height > 0);
-        Assert.True(media.FramesPerSecond > native.FramesPerSecond);
+        Assert.True(media.FramesPerSecond > 0);
         Assert.Equal(native.FrameCount - 1, session.State.MoviePlayback!.TerminalFrame);
         NativeMovieCameraFlags nativeFlags = NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(movieFiles, 0, 0)));
-        MoviePresentationCamera camera = new(File.ReadAllBytes(clock.CameraPath), nativeFlags, native, media);
-        Assert.True(camera.Flags.Flags.Length > nativeFlags.Flags.Length);
+        NativeMovieCameraFlags cameraFlags;
+        if (string.Equals(MovieClock.GetCameraPath(movieFiles, 0, 0), clock.CameraPath, StringComparison.OrdinalIgnoreCase))
+        {
+            cameraFlags = NativeMovieCameraReader.Read(File.ReadAllBytes(clock.CameraPath));
+            Assert.Equal(nativeFlags.Flags, cameraFlags.Flags);
+        }
+        else
+        {
+            MoviePresentationCamera camera = new(File.ReadAllBytes(clock.CameraPath), nativeFlags, native, media);
+            cameraFlags = camera.Flags;
+            Assert.True(cameraFlags.Flags.Length > nativeFlags.Flags.Length);
+        }
         using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: media);
         MovieFrame? first = null;
         System.Diagnostics.Stopwatch timeout = System.Diagnostics.Stopwatch.StartNew();
@@ -161,7 +210,7 @@ public sealed class MovieReplacementTimingTests
         Assert.Null(decoder.Error);
         MovieFrameTimeline nativeTimeline = new(native, 0);
         List<int> callbacks = [];
-        for (int mediaFrame = 0; mediaFrame < camera.Flags.Flags.Length; mediaFrame++)
+        for (int mediaFrame = 0; mediaFrame < cameraFlags.Flags.Length; mediaFrame++)
         {
             callbacks.AddRange(nativeTimeline.AdvanceTo(mediaFrame / media.FramesPerSecond));
         }
@@ -170,7 +219,7 @@ public sealed class MovieReplacementTimingTests
         string? proofOutput = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOVIE_PROOF_OUTPUT");
         if (!string.IsNullOrEmpty(proofOutput))
         {
-            File.WriteAllText(proofOutput, JsonSerializer.Serialize(new { Native = native, Media = media, NativeCamRecords = nativeFlags.Flags.Length, MediaCamRecords = camera.Flags.Flags.Length, FirstDecodedRgbaBytes = first.Rgba.Length, NativeFrameSamples = callbacks.Count, PostStartupNativeCallbackCount = Math.Max(0, callbacks.Count - 2) }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(proofOutput, JsonSerializer.Serialize(new { Native = native, Media = media, NativeCamRecords = nativeFlags.Flags.Length, MediaCamRecords = cameraFlags.Flags.Length, FirstDecodedRgbaBytes = first.Rgba.Length, NativeFrameSamples = callbacks.Count, PostStartupNativeCallbackCount = Math.Max(0, callbacks.Count - 2) }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

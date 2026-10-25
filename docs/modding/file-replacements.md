@@ -28,6 +28,8 @@ Replacement video preparation reads container metadata without scanning or decod
 
 Presentation frames and original movie callbacks use separate clocks. Replacement video and interpolated cameras follow detected replacement-media timing. Scripts, timers, original CAM receipts, saved frame indices and skip retain the original installed movie's timing. Replacement CAM flags must preserve the original script contract. Actor poses retain their existing update cadence. Additional actor interpolation, arbitrarily retimed videos and variable-frame-rate authoring remain outside the implemented contract.
 
+For a replaced movie, its presentation CAM comes from the selected video's package. A video-only package retains the original camera; a lower-priority video's interpolated CAM is not combined with it. Interpolated camera frames can change the view between original callbacks, while model visibility continues to follow the original callback that produced the current actor samples.
+
 See the [importer](../../src/Memoria.FF8.Mods/JunctionModImporter.cs), [catalog integration](../../src/Memoria.FF8.Mods/ModRuntime.Junction.cs) and [application resource boundary](../../src/Memoria.FF8.App/GameResourceHost.cs). From the product directory, run the focused package tests:
 
 ```powershell

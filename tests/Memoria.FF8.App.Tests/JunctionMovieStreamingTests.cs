@@ -77,6 +77,30 @@ public sealed class JunctionMovieStreamingTests(ITestOutputHelper output) : IDis
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Movie_camera_belongs_to_selected_video_package_or_original_timeline(bool ownCamera)
+    {
+        string movies = Path.Combine(root, "Data", "movies");
+        Directory.CreateDirectory(movies);
+        File.WriteAllText(Path.Combine(movies, "disc00_00.cam"), "native camera");
+        Package(("Assets/movies/disc00_00.cam", 0, "unrelated interpolated camera"u8.ToArray()));
+        var files = new List<(string Name, int Flags, byte[] Content)>
+        {
+            ("Assets/movies/disc00_00h.avi", 0, "selected video"u8.ToArray())
+        };
+        if (ownCamera)
+        {
+            files.Add(("Assets/movies/disc00_00.cam", 0, "selected camera"u8.ToArray()));
+        }
+        Package(files.ToArray());
+        using GameResourceHost host = Host();
+        Assert.StartsWith("subfile,", host.ResolveGameFile("movies/disc00_00h.avi"));
+        string camera = host.ResolveGameFile("MOVIES\\disc00_00.CAM");
+        Assert.Equal(ownCamera ? "selected camera" : "native camera", File.ReadAllText(camera));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void ChangedArchiveIsRejectedAtEveryResolutionAndRefreshIndexesTheNewVersion(bool resolveBeforeChange)
     {
         string archivePath = Package(("Assets/movies/opening.avi", 0, "old movie"u8.ToArray()));
@@ -144,10 +168,13 @@ public sealed class JunctionMovieStreamingTests(ITestOutputHelper output) : IDis
         Assert.SkipUnless(File.Exists(Path.Combine(tools, "ffprobe.exe")) && File.Exists(Path.Combine(tools, "ffmpeg.exe")), "Installed FFmpeg tools are required; MEMORIA_FF8_MEDIA_TOOLS may select their directory.");
         JunctionModPackage package = JunctionModImporter.Open(archivePath);
         JunctionReplacement movie = package.Files.FirstOrDefault(file => file.RelativePath == "movies/disc00_30h.avi" && file.FileSegment is not null) ?? package.Files.First(file => file.RelativePath.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) && file.FileSegment is not null);
-        var expected = movie.FileSegment!;
         using GameResourceHost host = new(game, Path.Combine(root, "application"), watch: false, modsDirectory: Path.GetDirectoryName(junctionDirectory)!);
         Stopwatch timer = Stopwatch.StartNew();
         string source = host.ResolveGameFile(movie.RelativePath);
+        // Other enabled video packs can override this archive's requested clip.
+        JunctionModPackage selectedPackage = JunctionModImporter.Open(MovieFileVersion.Capture(source)!.Path);
+        JunctionReplacement selectedMovie = selectedPackage.Files.Single(file => Path.GetFileNameWithoutExtension(file.RelativePath).Equals(Path.GetFileNameWithoutExtension(movie.RelativePath), StringComparison.OrdinalIgnoreCase) && file.FileSegment is not null);
+        var expected = selectedMovie.FileSegment!;
         Assert.Equal(Subfile(expected.Path, expected.Offset, expected.Length), source);
         output.WriteLine($"Archive source resolution: {timer.Elapsed.TotalMilliseconds:F1} ms; movie payload: {expected.Length} bytes.");
         timer.Restart();
@@ -159,7 +186,8 @@ public sealed class JunctionMovieStreamingTests(ITestOutputHelper output) : IDis
         Assert.Equal(0, information.FrameCount);
         DecodeFirstFrame(tools, source, information, 0);
         DecodeFirstFrame(tools, source, information, Math.Min(2, information.DurationSeconds / 2));
-        JunctionReplacement? camera = package.Files.FirstOrDefault(file => file.RelativePath == Path.ChangeExtension(movie.RelativePath, ".cam"));
+        string cameraRelative = movie.RelativePath[..^5] + ".cam";
+        JunctionReplacement? camera = selectedPackage.Files.FirstOrDefault(file => file.RelativePath == cameraRelative);
         if (camera is not null)
         {
             string cameraPath = host.ResolveGameFile(camera.RelativePath);
@@ -167,6 +195,10 @@ public sealed class JunctionMovieStreamingTests(ITestOutputHelper output) : IDis
             camera.CopyTo(expectedCamera);
             Assert.Equal(expectedCamera.ToArray(), File.ReadAllBytes(cameraPath));
             Assert.Single(Directory.GetFiles(Path.GetDirectoryName(cameraPath)!));
+        }
+        else
+        {
+            Assert.Equal(Path.GetFullPath(Path.Combine(game, "Data", cameraRelative)), Path.GetFullPath(host.ResolveGameFile(cameraRelative)));
         }
     }
 

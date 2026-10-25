@@ -97,6 +97,16 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private ModFile? FindJunctionFile(string relative)
     {
         ModCatalogSnapshot catalog = Mods.Catalog;
+        if (relative.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) && relative.EndsWith(".cam", StringComparison.OrdinalIgnoreCase))
+        {
+            ModFile? video = FindJunctionFile(Path.ChangeExtension(relative, null) + "h.avi");
+            if (video is not null)
+            {
+                // A lower-priority video's CAM may have a different frame cadence.
+                // Video-only replacements retain the original native camera timeline.
+                return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault(file => file.PackageId.Equals(video.PackageId, StringComparison.OrdinalIgnoreCase));
+            }
+        }
         if (!relative.StartsWith("movies/", StringComparison.OrdinalIgnoreCase) || !relative.EndsWith(".avi", StringComparison.OrdinalIgnoreCase))
         {
             return catalog.FindAll(ModFormat.Junction, relative).FirstOrDefault();

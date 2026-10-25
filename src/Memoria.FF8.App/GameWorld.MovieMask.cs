@@ -93,6 +93,9 @@ internal sealed partial class GameWorld
         }
         byte[] cameraBytes = movieCameraBytes[(source.DiscIndex, movie)];
         byte drawValue = playback.DrawValue ?? throw new InvalidDataException("Movie rendering has no retained draw-control phase.");
+        //4767B0 submits models only when the preceding original CAM flags admitted
+        //their current callback sample. Interpolated cameras do not execute that callback.
+        bool drawActors = (flags.Flags[record - 1] & 0x61) == 0;
         string originalPath = movieClock.GetNativeCameraPath(source.DiscIndex, movie);
         string presentationPath = movieClock.CameraPath;
         if (!string.Equals(Path.GetFullPath(originalPath), Path.GetFullPath(presentationPath), StringComparison.OrdinalIgnoreCase))
@@ -107,14 +110,10 @@ internal sealed partial class GameWorld
             int mediaFrame = movieClock.PresentationFrame((session.State.MoviePlayback?.FrameIndex ?? record) / nativeInformation.FramesPerSecond, mediaInformation);
             record = presentation.DrawRecord(mediaFrame);
             cameraBytes = presentation.Bytes;
-            flags = presentation.Flags;
             drawValue = presentation.DrawValue(record);
         }
         FieldCamera camera = ReadNativeMovieCamera(cameraBytes, record);
-        //4767B0 submits actors before the late55A620 CAM flag update. BYTE490D (bit64)
-        //and209A7A0 (bits1/32) therefore come from the previous consumed CAM record.
-        byte previousFlags = flags.Flags[record - 1];
-        IEnumerable<ActorVisual> actors = (previousFlags & 0x61) == 0 ? Events.Actors.Select(CreateVisual) : [];
+        IEnumerable<ActorVisual> actors = drawActors ? Events.Actors.Select(CreateVisual) : [];
         FieldMovieMask? mask = currentField.Information?.NativeMovieMaskFlag14 == 1 && drawValue == 0 ? currentField.MovieMask ?? throw new NotSupportedException("Movie presentation requires its original INF-selected MSK triangle bank.") : null;
         if (movieRenderer is null || movieRendererField != currentField || movieRenderer.OutputWidth != renderWidth || movieRenderer.OutputHeight != renderHeight)
         {
