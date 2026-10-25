@@ -85,6 +85,8 @@ For standalone preparation diagnostics:
 
 Saved-state startup, software rendering, accelerated stepping and incompatible UI startup are rejected. The active driver owns commands; status/quit remain available. Without a driver, ordinary battle-input is available. battle-close releases isolation without persistent rewards. Exploration-save serialization is rejected. Global user settings are not selected.
 
+Diagnostic hosts also use an isolated player-save directory and ignore physical keyboard/controller/battle-pointer input; commands come through the driver or control queue. The window keeps the requested dimensions instead of automatically maximizing. This prevents unrelated hotkeys and save menus from changing the measured scene.
+
 ## Telemetry and remaining boundary
 
 Bounded collectors retain events/raw frame intervals without snapshots. The preceding presentation boundary includes first-use stalls. Each execution separately rejects intervals strictly above `1000 / 30` ms. Median FPS is calculated directly (average two central samples when even); percentiles use nearest rank. Lost samples cannot pass. Metrics describe successful host presentation, not physical scan-out.

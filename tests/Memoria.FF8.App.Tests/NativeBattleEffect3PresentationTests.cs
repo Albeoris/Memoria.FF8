@@ -18,6 +18,7 @@ public sealed class NativeBattleEffect3PresentationTests
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Effect3 resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
         BattleActionDefinition effect3 = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.MagicId == 3);
@@ -50,7 +51,9 @@ public sealed class NativeBattleEffect3PresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([3]),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            NativeBattleSpeed = input.NativeBattleSpeedByte,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,

@@ -13,6 +13,21 @@ public sealed record NativeMusicPlayRequest(int Version, int FieldId, int Object
 
 public sealed partial class EventEngine
 {
+    /// <summary>Executes the original New Game music reset before the first field program is allocated.</summary>
+    public NativeMusicProcessState InitializeNewGameMusicOwners(NativeFieldRuntimeProfile profile)
+    {
+        if (program is not null || profile is not { IsVerified: true } || services is not GameSession session || session.State.Scene != SceneKind.Field || session.State.FieldId != 74 || session.State.EventState is not null || session.State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            throw new InvalidOperationException("Native New Game music initialization requires an authenticated fresh New Game before its first field program.");
+        }
+        if (Scene.MusicProcess is not null || Scene.MusicChannel108 is not null || Scene.MusicChannel112 is not null || Scene.NativeBattleMusic203 is not null || Scene.SoundMusicVolume197 is not null || Scene.SoundMusicVolume198 is not null)
+        {
+            throw new InvalidOperationException("Native New Game music initialization cannot replace existing music owners.");
+        }
+        InitializeNewGameMusic(profile, session.State.FieldId);
+        return Scene.MusicProcess ?? throw new NotSupportedException("Native New Game music initialization did not produce its music buffers.");
+    }
+
     private void InitializeNewGameMusic(NativeFieldRuntimeProfile? profile, int fieldId)
     {
         if (program is not null || fieldId != 74 || profile is not { IsVerified: true } || services is not GameSession session || session.State.Scene != SceneKind.Field || session.State.FieldId != 74 || session.State.EventState is not null || session.State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)

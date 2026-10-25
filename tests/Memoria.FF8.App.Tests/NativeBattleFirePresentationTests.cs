@@ -22,6 +22,7 @@ public sealed class NativeBattleFirePresentationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
+        NativeInputConfiguration inputConfiguration = game.ReadNewGameInputConfiguration();
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
@@ -45,7 +46,9 @@ public sealed class NativeBattleFirePresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalog(),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = inputConfiguration.Options,
+            NativeInputButtonMap = inputConfiguration.ButtonMap,
+            NativeBattleSpeed = inputConfiguration.NativeBattleSpeedByte,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,

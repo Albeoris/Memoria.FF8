@@ -229,6 +229,10 @@ internal sealed partial class RecreateGame
 
     private void PointerBattleView(UiView view)
     {
+        if (options.BattleTestPath is not null)
+        {
+            return;
+        }
         MouseState mouse = Mouse.GetState();
         bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);

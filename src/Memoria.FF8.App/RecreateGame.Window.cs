@@ -7,7 +7,10 @@ internal sealed partial class RecreateGame
     protected override void Initialize()
     {
         base.Initialize();
-        ShowWindow(Window.Handle, ShowMaximized);
+        if (options.BattleTestPath is null)
+        {
+            ShowWindow(Window.Handle, ShowMaximized);
+        }
     }
 
     private const int ShowMaximized = 3;

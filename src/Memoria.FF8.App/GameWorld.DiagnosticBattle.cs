@@ -49,9 +49,9 @@ internal sealed partial class GameWorld
         long started = Stopwatch.GetTimestamp();
         NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
         string executable = retained.ColdExecutableSha256 ?? throw new NotSupportedException("Diagnostic initialization requires an authenticated executable identity.");
-        NativeBattleMusicProcessState music = retained.MusicProcess ?? throw new NotSupportedException("Diagnostic initialization requires its actual retained music owner.");
+        NativeMusicProcessState music = Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
         NativeGlobalSoundProcess sound = session.State.GlobalSoundProcess ?? throw new NotSupportedException("Diagnostic initialization requires its actual global sound owner.");
-        NativeBattleMusicEntryPreparation preparedMusic = NativeBattleMusicEntry.Prepare52CE30(checked((ushort)request.Encounter), request.Flags, music.Buffers, request.BattleMusic, request.PrimaryMusicChannel, sound, BattleMusicEntryResources, music.ReturnChannel, request.MusicFieldWord);
+        NativeBattleMusicEntryPreparation preparedMusic = NativeBattleMusicEntry.Prepare52CE30(checked((ushort)request.Encounter), request.Flags, music, request.BattleMusic, request.PrimaryMusicChannel, sound, BattleMusicEntryResources, retained.MusicProcess?.ReturnChannel, request.MusicFieldWord);
         diagnosticBattle = new(request, Guid.NewGuid());
         try
         {

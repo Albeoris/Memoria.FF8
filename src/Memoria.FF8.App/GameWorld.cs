@@ -509,7 +509,15 @@ internal sealed partial class GameWorld : IDisposable
     {
         try
         {
-            session.CompleteSnapshotPreparation(snapshotPreparation);
+            if (diagnosticBattle is not null)
+            {
+                EndDiagnosticBattle();
+                snapshotPreparation.Dispose();
+            }
+            else
+            {
+                session.CompleteSnapshotPreparation(snapshotPreparation);
+            }
         }
         finally
         {

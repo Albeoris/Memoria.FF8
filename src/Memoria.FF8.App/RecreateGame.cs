@@ -76,7 +76,7 @@ internal sealed partial class RecreateGame : Game
         updateSave = new UpdateSaveHandoff(CaptureUpdateState, ValidatePlayerState, EnsureUpdateSaveIsSafe);
         startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
-        playerSaves = new PlayerSaveStore(options.SavePath, locationName: state =>
+        playerSaves = new PlayerSaveStore(options.SavePath, directory: options.BattleTestPath is null ? null : Path.Combine(globalSettings.DirectoryPath, "player-saves"), locationName: state =>
         {
             EnsureLiveMenuCatalog();
             return liveMenuCatalog!.LocationName(state);
@@ -189,7 +189,8 @@ internal sealed partial class RecreateGame : Game
     {
         long updateStarted = Stopwatch.GetTimestamp();
         SynchronizeMenuPresentation();
-        GamePadState pad = controller!.Read();
+        ControllerDevice inputController = controller ?? throw new InvalidOperationException("The graphical host requires its initialized input device.");
+        GamePadState pad = options.BattleTestPath is null ? inputController.Read() : default;
         if (gameMenus is not null)
         {
             gameMenus.NamingControllerConnected = pad.IsConnected;
@@ -198,9 +199,9 @@ internal sealed partial class RecreateGame : Game
         {
             SynchronizeNativeNamePrompt();
         }
-        KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-        keyboard.ControllerPresentation = controller.Presentation;
-        keyboard.ControllerGeneration = controller.Generation;
+        KeyboardState keys = options.BattleTestPath is null ? Microsoft.Xna.Framework.Input.Keyboard.GetState() : default;
+        keyboard.ControllerPresentation = inputController.Presentation;
+        keyboard.ControllerGeneration = inputController.Generation;
         bool wasCapturing = gameMenus?.IsCapturingControls == true;
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing || DuelOwnsInput);

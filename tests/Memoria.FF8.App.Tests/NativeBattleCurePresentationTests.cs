@@ -18,6 +18,7 @@ public sealed class NativeBattleCurePresentationTests
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original Cure resources are required.");
         using GameAssets game = new(gameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
         BattleActionDefinition cure = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == 21);
@@ -46,7 +47,9 @@ public sealed class NativeBattleCurePresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([1]),
-            NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
+            NativeSavedOptions = input.Options,
+            NativeInputButtonMap = input.ButtonMap,
+            NativeBattleSpeed = input.NativeBattleSpeedByte,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
