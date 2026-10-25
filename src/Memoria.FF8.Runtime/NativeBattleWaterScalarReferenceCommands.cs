@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterScalarReferenceServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, uint, byte> ReadParameterByte, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterActorAnchorSource> ReadAnchor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> UpdateSelected, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> CachePosition);
+public sealed record NativeBattleWaterScalarReferenceServices(Func<NativeBattleWaterExecutionFrame, short, uint> ResolveSlot, Func<NativeBattleWaterExecutionFrame, uint, byte> ReadParameterByte, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterActorAnchorSource> ReadAnchor, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> UpdateSelected, Func<NativeBattleWaterExecutionFrame, NativeBattleWaterExecutionFrame> CachePosition, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 /// <summary>Selected scalar and reference operations over current slots and explicit engine services.</summary>
 public static class NativeBattleWaterScalarReferenceCommands
@@ -42,7 +42,7 @@ public static class NativeBattleWaterScalarReferenceCommands
                 if ((instruction & 0x200) != 0)
                 {
                     NativeBattleWaterActorAnchorSource source = services.ReadAnchor(frame, actorPointer);
-                    NativeBattleWaterActorAnchorResult anchor = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, source.Skeleton, source.LocalBones, 0, 0x1000, source.Basis);
+                    NativeBattleWaterActorAnchorResult anchor = services.ActorAnchor.EvaluateB66B80(frame, source.Skeleton, source.LocalBones, 0, 0x1000, source.Basis);
                     frame = anchor.Frame;
                     NativeBattleEffectLocalBounds bounds = actor.GeometryBounds52 ?? throw new NotSupportedException("Native scalar anchor height requires its actual signed actor bounds.");
                     int lower = unchecked(anchor.Anchor.Y - bounds.Minimum.Y);

@@ -52,6 +52,6 @@ public sealed class NativeBattleControl18Primitive16Tests
             BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(corner * 8), screens[corner]);
             BinaryPrimitives.WriteUInt32LittleEndian(projected.AsSpan(corner * 8 + 4), clip | 100u);
         }
-        return NativeBattleScriptedMeshPackets.EmitSelected(frame, new(16, 1, face.ToImmutableArray()), handler, 0, projected.ToImmutableArray(), [0xFFFF0007, 11, 15, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), depthScale);
+        return NativeBattleScriptedMeshPackets.EmitSelected(frame, new(16, 1, face.ToImmutableArray()), handler, 0, projected.ToImmutableArray(), [0xFFFF0007, 11, 15, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), depthScale);
     }
 }

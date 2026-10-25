@@ -32,7 +32,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x2094u, address);
             return current;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services);
         Assert.Equal(1, updates);
         Assert.Equal(5 << 16, Position(result, 0));
@@ -64,7 +64,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services);
         Assert.Equal(new uint[] { 0x1D972C0, 0x1D9735C }, actors);
         Assert.Equal(-2 << 16, Position(result, 0));
@@ -98,7 +98,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             Assert.Equal(0x1000u + advance, WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
             return current;
-        }, (current, _) => current)
+        }, (current, _) => current, NativeBattleActorAnchorRegisterFixture.Services())
         {
             ReadScale38 = _ => 4096
         };
@@ -143,7 +143,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 2, 0x1000), services);
         Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 2, 0x1000), services)));
@@ -159,7 +159,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xAD);
         frame = frame with { Arena = frame.Arena.Write(0x1002, [0xFF, 0xFF]) };
-        NativeBattleCinematicActorAnchorServices services = new((current, _, _, _) => Pose(current, 0, 0, 0), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+        NativeBattleCinematicActorAnchorServices services = new((current, _, _, _) => Pose(current, 0, 0, 0), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), NativeBattleActorAnchorRegisterFixture.Services());
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services));
     }
 

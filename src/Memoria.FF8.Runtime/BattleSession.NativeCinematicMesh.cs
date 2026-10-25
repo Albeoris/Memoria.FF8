@@ -29,7 +29,18 @@ public sealed partial class BattleSession
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native cinematic mesh requires its canonical camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native cinematic mesh requires its current projection registers.");
         ushort focal = projection.FocalLength ?? throw new NotSupportedException("Native cinematic mesh requires its actual current GTE focal register.");
-        NativeBattleWaterMeshPrepared prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, bank, index, kind, unchecked((short)focal));
+        NativeBattleEffectMemory currentMemory = RequireWaterMemory();
+        NativeBattleGeometryRegisterStep currentStep = new(currentMemory.GeometryRegisters ?? throw new NotSupportedException("Native cinematic mesh requires its current geometry registers."), currentMemory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic mesh requires its current arithmetic registers."));
+        NativeBattleWaterMeshPrepared prepared;
+        if (kind == 2)
+        {
+            (prepared, currentStep) = NativeBattleWaterMeshPreparation.PrepareWrapper2(frame, bank, index, unchecked((short)focal), currentStep);
+        }
+        else
+        {
+            prepared = NativeBattleWaterMeshPreparation.PrepareWrapper(frame, bank, index, kind, unchecked((short)focal));
+            currentStep = currentStep with { Geometry = NativeBattleGeometry.LoadMatrix(currentStep.Geometry, prepared.Matrix, true, true, null) };
+        }
         NativeCamera = camera with { Projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) } };
         frame = prepared.Frame;
         uint shape = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4));
@@ -37,14 +48,13 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = RequireWaterMemory();
         NativeBattleScriptedGraphicsMemory registers = memory.ScriptedGraphics ?? throw new NotSupportedException("Native cinematic mesh requires its actual depth and depth-cue registers.");
         NativeBattleScriptedLightingMemory lighting = memory.ScriptedLighting ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared lighting controls.");
-        NativeBattleScriptedColorRegisters colors = memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic mesh requires its retained shared color registers.");
         uint start = CoreDword(frame, CoreDword(frame, 0x27973EC) + 0x7C);
         NativeBattleScriptedMeshMorphServices morph = new((current, selector) =>
         {
             int referenced = NativeBattleWaterSlots.LookupB65370(current.Arena, bank, NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank), current.Core.Read(0x2797454, 128).ToImmutableArray(), selector);
             return unchecked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)bank.SlotOffset(current.Arena, referenced));
         }, (current, shapeIndex) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, shapeIndex).Selected);
-        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, colors, morph, registers.DepthScaleBits1877DA8);
+        NativeBattleScriptedMeshProjected projected = NativeBattleScriptedMeshPreparation.Project(prepared, extent, projection, registers.Dqa, registers.Dqb, registers.Depths, lighting, currentStep, morph, registers.DepthScaleBits1877DA8);
         NativeBattleScriptedMeshSubmission submitted = NativeBattleScriptedMeshPreparation.Submit(projected, extent, ReadHandler, ReadStride, OtBucket);
         frame = submitted.Frame;
         memory = RequireWaterMemory() with
@@ -53,7 +63,8 @@ public sealed partial class BattleSession
             ScriptedEffects = frame.Core,
             ScriptedGraphics = registers with { Depths = projected.DepthOwner, DepthScaleBits1877DA8 = projected.DepthScaleBits1877DA8 },
             ScriptedLighting = submitted.Lighting,
-            ScriptedColorRegisters = submitted.Registers
+            ScriptedColorRegisters = submitted.Registers,
+            GeometryRegisters = submitted.Geometry ?? throw new NotSupportedException("Native cinematic mesh did not publish its geometry registers.")
         };
         if (!submitted.Packets.Attempts.IsEmpty)
         {

@@ -228,7 +228,7 @@ public sealed partial class BattleSession
             int index = NativeBattleWaterInstructionDispatcher.CurrentIndex(current, bank);
             switch (opcode)
             {
-                case 0x94 when profile.Effect == 230 && selectedHandler == 0xA77C10:
+                case 0x94 when (profile.Effect == 230 && selectedHandler == 0xA77C10) || (profile.Effect == 238 && selectedHandler == 0xA26E20):
                     return NativeBattleCinematicRangeBranch94.Execute(current, bank, program);
                 case 0x87 when selectedHandler == 0xB2D2B0:
                     return NativeBattleCinematicScale87.Execute(current, program);
@@ -767,7 +767,7 @@ public sealed partial class BattleSession
             NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native cinematic entity anchor requires its actual current rig.");
             NativeBattleActionMatrix basis = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic entity anchor requires its current entity matrix.");
-            NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), selector, 4096, basis);
+            NativeBattleWaterActorAnchorResult result = CreateNativeActorAnchorServices().EvaluateB66B80(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), selector, 4096, basis);
             return new(result.Frame, result.Anchor);
         }
 

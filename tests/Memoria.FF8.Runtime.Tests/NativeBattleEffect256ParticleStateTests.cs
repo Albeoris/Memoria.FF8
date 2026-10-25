@@ -48,11 +48,14 @@ public sealed class NativeBattleEffect256ParticleStateTests
         Assert.Equal(new int?[] { 110, -180, 330 }, registers.Geometry.Translation);
         Assert.Equal(new int?[] { 110, -180, 330 }, registers.Colors.Mac);
         Assert.Equal(new byte[] { 0xEF, 0xBE }, registers.Colors.NormalInput!.Value.AsSpan().Slice(6, 2).ToArray());
-        Assert.Equal(knownPad, frame.TemporaryFrame.Known[0xF2]);
-        Assert.Equal(knownPad, registers.Geometry.Rotation20[18].HasValue);
-        if (knownPad)
+        bool retainedPaddingKnown = mode == 8 && knownPad;
+        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.Known[0xF2]);
+        Assert.Equal(retainedPaddingKnown, frame.TemporaryFrame.Known[0xF3]);
+        Assert.Equal(retainedPaddingKnown, registers.Geometry.Rotation20[18].HasValue);
+        Assert.Equal(retainedPaddingKnown, registers.Geometry.Rotation20[19].HasValue);
+        if (retainedPaddingKnown)
         {
-            ushort expected = mode == 8 ? (ushort)0xBADA : (ushort)0xCAFE;
+            ushort expected = 0xBADA;
             Assert.Equal(expected, frame.ReadTemporaryWord(0xF2));
             Assert.Equal(unchecked((byte)expected), registers.Geometry.Rotation20[18]);
             Assert.Equal(unchecked((byte)(expected >> 8)), registers.Geometry.Rotation20[19]);

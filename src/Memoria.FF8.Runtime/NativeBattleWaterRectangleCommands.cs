@@ -162,6 +162,10 @@ public static class NativeBattleWaterRectangleCommands
         }
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(ReadMatrix(frame, modeMatrix, false), euler);
         frame = WriteEuler(frame, rotation);
+        if (mode is 7 or 9)
+        {
+            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xF2, false).SetItem(0xF3, false) } };
+        }
         rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scaleX, scaleY, 4096);
         frame = WriteEuler(frame, rotation);
         matrix = rotation with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };

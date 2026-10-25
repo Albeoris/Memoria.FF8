@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, address, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native actor anchor requires its retained packed input registers.")) };
             return current;
-        })
+        }, CreateNativeActorAnchorServices())
         {
             ReadScale38 = pointer =>
             {

@@ -3,7 +3,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicActorAnchorServices(Func<NativeBattleWaterExecutionFrame, uint, bool, bool, NativeBattleCinematicBonePose> ReadPose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> Update, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput)
+public sealed record NativeBattleCinematicActorAnchorServices(Func<NativeBattleWaterExecutionFrame, uint, bool, bool, NativeBattleCinematicBonePose> ReadPose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> Update, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor)
 {
     public Func<uint, short>? ReadScale38 { get; init; }
 }
@@ -29,7 +29,7 @@ public static class NativeBattleCinematicActorAnchorCommands
             {
                 selected = count - 1;
             }
-            NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
+            NativeBattleWaterActorAnchorResult result = services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
             frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
             Store(0, result.Anchor.X);
             Store(1, result.Anchor.Y);
@@ -75,8 +75,11 @@ public static class NativeBattleCinematicActorAnchorCommands
             frame = result.Frame;
             uint node = CoreDword(frame, 0x27973E8);
             frame = services.PublishInput(frame, node + 0x94);
-            byte[] local = ReadSlot(frame, 0x94, 6);
-            NativeBattleFullMacVertex position = NativeBattleGfMatrices.TransformMac460840(result.Matrix, new(BinaryPrimitives.ReadInt16LittleEndian(local), BinaryPrimitives.ReadInt16LittleEndian(local.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(local.AsSpan(4))));
+            NativeBattleGeometryRegisterStep registers = services.ActorAnchor.ReadRegisters(frame);
+            registers = registers with { Colors = NativeBattleCinematicRibbonInput.Capture(frame, node + 0x94, registers.Colors) };
+            registers = NativeBattleGeometry.Transform(registers);
+            frame = services.ActorAnchor.PublishRegisters(frame, registers);
+            NativeBattleFullMacVertex position = new(registers.Colors.Mac[0]!.Value, registers.Colors.Mac[1]!.Value, registers.Colors.Mac[2]!.Value, registers.Colors.Flags!.Value);
             frame = frame.WriteTemporaryDword(0xF0, unchecked((uint)position.X)).WriteTemporaryDword(0xF4, unchecked((uint)position.Y)).WriteTemporaryDword(0xF8, unchecked((uint)position.Z)).WriteTemporaryDword(0xFC, position.Flags);
             Store(0, position.X);
             Store(1, position.Y);
@@ -122,7 +125,7 @@ public static class NativeBattleCinematicActorAnchorCommands
         {
             NativeBattleCinematicBonePose pose = services.ReadPose(frame, actor, restore, linked);
             NativeBattleActionMatrix basis = pose.PhysicalBasis ?? throw new NotSupportedException("Native actor anchor requires the actual caller's physical matrix.");
-            return NativeBattleWaterActorAnchor.EvaluateB66B80(pose.Frame, pose.Skeleton, pose.Bones, selector, 4096, basis);
+            return services.ActorAnchor.EvaluateB66B80(pose.Frame, pose.Skeleton, pose.Bones, selector, 4096, basis);
         }
 
         void Store(int lane, int value)

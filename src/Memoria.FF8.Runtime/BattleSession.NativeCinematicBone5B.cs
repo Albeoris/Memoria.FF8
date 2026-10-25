@@ -48,7 +48,7 @@ public sealed partial class BattleSession
             NativeBattleEffectMemory memory = RequireWaterMemory();
             NativeEffectMemory = memory with { ScriptedColorRegisters = NativeBattleCinematicRibbonInput.Capture(current, address, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native bone positioning requires its canonical V0 input registers.")) };
             return current;
-        });
+        }, CreateNativeActorAnchorServices());
         return (NativeBattleCinematicBone5B.Execute(frame, program, services), graphics);
 
         NativeBattleCinematicBonePose RestorePhysical(NativeBattleWaterExecutionFrame current, uint address)

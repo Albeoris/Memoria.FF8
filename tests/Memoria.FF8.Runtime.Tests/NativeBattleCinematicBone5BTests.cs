@@ -16,7 +16,7 @@ public sealed class NativeBattleCinematicBone5BTests
         {
             Assert.Equal(ushort.MaxValue, selector);
             return Address(0x2100);
-        }, (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
+        }, (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBone5B.Execute(frame, Program(), services);
         Assert.Equal(Address(0x3008), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
     }
@@ -45,7 +45,7 @@ public sealed class NativeBattleCinematicBone5BTests
         {
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBone5B.Execute(frame, Program(), services);
         Assert.Equal(1, restores);
         Assert.Equal(0xF00Du, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
@@ -63,7 +63,7 @@ public sealed class NativeBattleCinematicBone5BTests
             Assert.Equal(Address(0x2100), source);
             Assert.Equal(Address(0x3008), WaterSchedulerFixture.ReadCoreDword(current, 0x2797450));
             return new(current, Skeleton(), Bones(), null);
-        }, (_, _) => throw new InvalidOperationException(), (current, _) => current);
+        }, (_, _) => throw new InvalidOperationException(), (current, _) => current, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBone5B.Execute(frame, Program(), services);
         Assert.Equal(15, Int(result, 0x2094));
         Assert.Equal(26, Int(result, 0x2098));
@@ -84,7 +84,7 @@ public sealed class NativeBattleCinematicBone5BTests
             reads.Add((offset, length));
             Assert.True(offset < 16 || offset % 48 is 16 or 18);
             return metadata.AsSpan(offset, length).ToArray();
-        }, Bones(), 0xF1, -4096, Identity());
+        }, Bones(), 0xF1, -4096, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(-70, result.Anchor.Z);
         Assert.Equal(new[] { (0, 1), (5, 1), (64, 2), (18, 2) }, reads);
     }

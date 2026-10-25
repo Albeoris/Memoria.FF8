@@ -18,6 +18,35 @@ public static class NativeBattleWaterMeshPreparation
     // Water overwrites its current vertex prefix of the process-retained shared workspace.
     public const int DepthLength = NativeBattleScriptedGraphicsMemory.DepthLength;
 
+    public static (NativeBattleWaterMeshPrepared Prepared, NativeBattleGeometryRegisterStep Registers) PrepareWrapper2(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, short globalFocal, NativeBattleGeometryRegisterStep registers)
+    {
+        int slot = bank.SlotOffset(frame.Arena, index);
+        uint address = NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, index, Word(frame.Arena, slot + 0x9C));
+        (byte[] bytes, bool[] known) = frame.Core.ReadSnapshot(address, 32);
+        NativeBattlePackedMatrix32 packed = new(bytes.ToImmutableArray(), known.ToImmutableArray());
+        NativeBattleActionMatrix basis = packed.ReadMatrix();
+        short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(18)) : null;
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, basis, true, true, padding) };
+        (byte[] pointBytes, bool[] pointKnown) = frame.Arena.ReadSnapshot(slot + 0x94, 8);
+        NativeBattleVector point = new(BinaryPrimitives.ReadInt16LittleEndian(pointBytes), BinaryPrimitives.ReadInt16LittleEndian(pointBytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(pointBytes.AsSpan(4)));
+        if (!pointKnown.AsSpan(0, 6).ToArray().All(value => value))
+        {
+            throw new NotSupportedException("Native mesh preparation requires its actual anchor XYZ bytes.");
+        }
+        short? w = pointKnown[6] && pointKnown[7] ? BinaryPrimitives.ReadInt16LittleEndian(pointBytes.AsSpan(6)) : null;
+        registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, point, w));
+        registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };
+        NativeBattleWaterMeshPrepared prepared = PrepareWrapper(frame, bank, index, 2, globalFocal);
+        ImmutableArray<bool>.Builder retained = prepared.Frame.TemporaryFrame.Known.ToBuilder();
+        for (int offset = 18; offset < 32; offset++)
+        {
+            retained[0xE0 + offset] = known[offset];
+        }
+        frame = prepared.Frame with { TemporaryFrame = prepared.Frame.TemporaryFrame with { Known = retained.ToImmutable() } };
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, prepared.Matrix, true, false, padding) };
+        return (prepared with { Frame = frame, Focal = globalFocal }, registers);
+    }
+
     public static NativeBattleWaterMeshPrepared PrepareWrapper(NativeBattleWaterExecutionFrame frame, NativeBattleWaterSlotBank bank, int index, byte wrapper, short globalFocal)
     {
         if (wrapper == 7)
@@ -52,10 +81,10 @@ public static class NativeBattleWaterMeshPreparation
             frame = frame.WriteTemporaryDword(0x4C, morph);
         }
         uint matrixAddress = NativeBattleWaterMatrixCommands.ResolveB65520(frame, bank, index, Word(frame.Arena, slot + 0x9C));
-        byte[] raw = frame.Core.Read(matrixAddress, 32);
-        short focalOverride = BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(18));
+        (byte[] raw, bool[] sourceKnown) = frame.Core.ReadSnapshot(matrixAddress, 32);
+        short focalOverride = wrapper == 2 ? (short)0 : BinaryPrimitives.ReadInt16LittleEndian(frame.Core.Read(matrixAddress + 18, 2));
         short focal = focalOverride == 0 ? globalFocal : focalOverride;
-        NativeBattleActionMatrix basis = new(Enumerable.Range(0, 9).Select(lane => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(lane * 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(20)), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(24)), BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(28)), 4096);
+        NativeBattleActionMatrix basis = new NativeBattlePackedMatrix32(raw.ToImmutableArray(), sourceKnown.ToImmutableArray()).ReadMatrix();
         NativeBattleVector point = new(SignedWord(frame.Arena, slot + 0x94), SignedWord(frame.Arena, slot + 0x96), SignedWord(frame.Arena, slot + 0x98));
         (int x, int y, int z) = NativeBattleGfMatrices.Rotate56C3D0(basis, point);
         NativeBattleActionMatrix matrix = basis with { X = unchecked(basis.X + x), Y = unchecked(basis.Y + y), Z = unchecked(basis.Z + z) };
@@ -70,6 +99,12 @@ public static class NativeBattleWaterMeshPreparation
             {
                 frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
             }
+            ImmutableArray<bool>.Builder copiedKnown = frame.TemporaryFrame.Known.ToBuilder();
+            for (int offset = 18; offset < 32; offset++)
+            {
+                copiedKnown[0xE0 + offset] = sourceKnown[offset];
+            }
+            frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = copiedKnown.ToImmutable() } };
         }
         return new(frame, matrix, focal);
     }
@@ -127,6 +162,11 @@ public static class NativeBattleWaterMeshPreparation
         {
             frame = frame.WriteTemporaryWord(0xE0 + lane * 2, unchecked((ushort)matrix.Rotation[lane]));
         }
+        // Composition copies its retained CPU stack padding WORD together with the nine rotation WORDs.
+        ImmutableArray<bool>.Builder known = frame.TemporaryFrame.Known.ToBuilder();
+        known[0xF2] = false;
+        known[0xF3] = false;
+        frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Known = known.ToImmutable() } };
         frame = frame.WriteTemporaryDword(0x48, 0).WriteTemporaryDword(0x44, 0).WriteTemporaryDword(0x40, 0).WriteTemporaryDword(0x4C, Dword(frame.Arena, slot + 0xBC));
         return new(frame, matrix, globalFocal);
     }

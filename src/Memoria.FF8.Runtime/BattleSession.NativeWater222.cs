@@ -82,7 +82,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = queued.Memory;
             NativeFileIo = queued.FileIo;
             return ReadMemory(current);
-        }, current => checked(current.TemporaryFrame.Address + 0x100)) { MagicTextureBufferAddress = RequireWaterMemory().MagicTextureBufferAddress1D99A88 };
+        }, current => checked(current.TemporaryFrame.Address + 0x100), CreateNativeActorAnchorServices()) { MagicTextureBufferAddress = RequireWaterMemory().MagicTextureBufferAddress1D99A88 };
         NativeBattleWaterActorPoseServices actors = new((current, actor) =>
         {
             NativeBattlePoseSource source = PoseSource(actor.Index);
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
             NativeBattleBodyBoneMatrices owner = graphics.Models[actor.Index].CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native Water actor composition requires its actual body publication.");
             graphics = graphics with { Models = graphics.Models.SetItem(actor.Index, actor with { CurrentBodyBoneMatrices = owner with { Matrices = matrices } }) };
             return current;
-        });
+        }, CreateNativeActorAnchorServices());
         NativeBattleWaterDrawInputs drawInput = new(resources, registers.Zsf3 ?? throw new NotSupportedException("Native Water requires its initialized current ZSF3."), registers.Dqa, registers.Dqb, 0);
         NativeBattleWaterDrawServices drawing = new(_ => ReadProjection(), PublishFocal, ShapeExtent, _ => RequireRegisters().Depths, (current, depths) =>
         {

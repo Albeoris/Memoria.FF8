@@ -196,7 +196,7 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
         Assert.Equal(JsonSerializer.Serialize(Run(frame, 0xD4, Resources(), Services())), JsonSerializer.Serialize(Run(clone, 0xD4, Resources(), Services())));
     }
 
-    private static NativeBattleWaterInstructionServices Services() => new(ResolveProgram, new(UnexpectedActorFlags, UnexpectedWriteFlags, UnexpectedSound), new(UnexpectedPointer, UnexpectedPointer, UnexpectedBytes, UnexpectedContact, UnexpectedFrame, UnexpectedStage), UnexpectedByte, UnexpectedActor, UnexpectedAnchor, UnexpectedHeaderBase, UnexpectedCapture, UnexpectedTextures, UnexpectedPublishTextures, UnexpectedFile, UnexpectedEcx);
+    private static NativeBattleWaterInstructionServices Services() => new(ResolveProgram, new(UnexpectedActorFlags, UnexpectedWriteFlags, UnexpectedSound), new(UnexpectedPointer, UnexpectedPointer, UnexpectedBytes, UnexpectedContact, UnexpectedFrame, UnexpectedStage), UnexpectedByte, UnexpectedActor, UnexpectedAnchor, UnexpectedHeaderBase, UnexpectedCapture, UnexpectedTextures, UnexpectedPublishTextures, UnexpectedFile, UnexpectedEcx, NativeBattleActorAnchorRegisterFixture.Services());
 
     private static NativeBattleWaterScriptProgram ResolveProgram(NativeBattleWaterExecutionFrame frame, uint pc) => new(0x1000, 16, Pc);
     private static NativeBattleWaterScriptProgram UnexpectedProgram(NativeBattleWaterExecutionFrame frame, uint pc) => throw new InvalidOperationException("Terminal header transition consumed an old program.");

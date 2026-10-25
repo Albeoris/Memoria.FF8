@@ -9,7 +9,7 @@ public sealed record NativeBattleWaterMeshResult(NativeBattleWaterExecutionFrame
 /// <summary>Selected mesh packet stores over already projected native records and their separate depth owner.</summary>
 public static class NativeBattleWaterMeshPackets
 {
-    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null, float depthScale = 1f)
+    public static NativeBattleWaterMeshResult EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> separateDepths, uint outputPointer, Func<uint, int> resolveActualOtBucket, Func<uint, uint>? shadeMaterial = null, float depthScale = 1f, Func<uint, uint, uint, int>? clipScreens = null)
     {
         (int stride, int length, int corners, int indexOffset, int sxyOffset) = group.Type switch
         {
@@ -48,7 +48,7 @@ public static class NativeBattleWaterMeshPackets
                 Dword(group.Type == 9 ? sxyOffset + 12 * corner : sxyOffset + 8 * corner, screens[corner]);
             }
             uint clip = depthAndClip.Aggregate(0u, (current, value) => current | value);
-            bool rejected = (flags & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;
+            bool rejected = (flags & 0x10) == 0 && (clipScreens is null ? NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) : clipScreens(screens[0], screens[1], screens[2])) < 0;
             rejected |= ((clip >> 16) & 0x46) != 0;
             NativeBattleGeometryPrimitive? primitive = null;
             if (!rejected)

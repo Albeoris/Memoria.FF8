@@ -20,7 +20,7 @@ public sealed class NativeBattleScriptedClippedMeshPacketsTests
             BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(16 + index * 2), words[index]);
         }
         NativeBattleWaterMeshGroup group = new(19, 1, face.ToImmutableArray());
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(Frame(), group, 0xB117F0, 32, Records([0, 10, 20, 30], [8, 8, 8, 0]), [65535, 11, 13, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), value => (int)(value / 4), 0.5f);
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(Frame(), group, 0xB117F0, 32, Records([0, 10, 20, 30], [8, 8, 8, 0]), [65535, 11, 13, 19], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), value => (int)(value / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(52, result.Packets.AllocationBytes);
         Assert.Equal(0x5034u, result.Frame.ReadTemporaryDword(0x60));

@@ -4,7 +4,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicBrothersActor38Services(Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> WriteActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleActionMatrix, NativeBattleVector, NativeBattleWaterExecutionFrame> DrawShadow, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput);
+public sealed record NativeBattleCinematicBrothersActor38Services(Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel> ReadActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleGraphicsModel, NativeBattleWaterExecutionFrame> WriteActor, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleActionMatrix, NativeBattleVector, NativeBattleWaterExecutionFrame> DrawShadow, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 public static class NativeBattleCinematicBrothersActor38
 {
@@ -36,7 +36,7 @@ public static class NativeBattleCinematicBrothersActor38
         NativeBattleActionMatrix oldBasis = PrepareBasis(HeaderAngles());
         NativeBattleCinematicBonePose pose = services.RestorePose(frame, address);
         frame = pose.Frame;
-        NativeBattleWaterActorAnchorResult first = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, 0xF1, 4096, oldBasis);
+        NativeBattleWaterActorAnchorResult first = services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, 0xF1, 4096, oldBasis);
         frame = services.PublishInput(first.Frame, first.Frame.TemporaryFrame.Address + 0xC0);
         NativeBattleVector headerAngles = HeaderAngles();
         NativeBattleVector changed = new(unchecked((short)(SlotWord(frame, 0x8C) + headerAngles.X)), unchecked((short)(SlotWord(frame, 0x8E) + headerAngles.Y)), unchecked((short)(SlotWord(frame, 0x90) + headerAngles.Z)));
@@ -44,7 +44,7 @@ public static class NativeBattleCinematicBrothersActor38
         NativeBattleGraphicsModel updated = services.ReadActor(frame, address);
         frame = services.WriteActor(frame, address, updated with { Rotation12 = changed.X, Rotation14 = changed.Y, Rotation16 = changed.Z });
         NativeBattleActionMatrix basis = PrepareBasis(changed);
-        NativeBattleWaterActorAnchorResult second = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, 0xF1, 4096, basis);
+        NativeBattleWaterActorAnchorResult second = services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, 0xF1, 4096, basis);
         frame = services.PublishInput(second.Frame, second.Frame.TemporaryFrame.Address + 0xC0);
         uint cached = unchecked(CoreDword(frame, 0x279744C) + 0x84u + actor * 8u);
         NativeBattleVector positionNext = new(unchecked((short)(SlotWord(frame, 0x94) + CoreWord(frame, cached) - unchecked(second.Anchor.X - first.Anchor.X))), unchecked((short)(SlotWord(frame, 0x96) + CoreWord(frame, cached + 2) - unchecked(second.Anchor.Y - first.Anchor.Y))), unchecked((short)(SlotWord(frame, 0x98) + CoreWord(frame, cached + 4) - unchecked(second.Anchor.Z - first.Anchor.Z))));

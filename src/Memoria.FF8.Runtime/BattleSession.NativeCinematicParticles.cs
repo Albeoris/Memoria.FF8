@@ -57,8 +57,9 @@ public sealed partial class BattleSession
         {
             if (kind == 5)
             {
-                uint selected = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.SpriteTable + 9u * 4), 4));
-                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "spr_table", 9, selected);
+                byte mode = ReadSlot(current, 0x1E, 1)[0];
+                uint selected = BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.SpriteTable + (uint)mode * 4), 4));
+                NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "spr_table", mode, selected);
             }
             NativeBattleScriptedGraphicsMemory registers = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native cinematic particles require their retained depth-cue controls.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic particles require their current camera projection.");

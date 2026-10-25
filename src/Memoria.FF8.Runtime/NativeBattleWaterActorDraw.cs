@@ -5,7 +5,7 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWaterActorPoseResult(NativeBattleWaterExecutionFrame Frame, ImmutableArray<byte> Skeleton, ImmutableArray<NativeBattleActionMatrix> LocalBones);
-public sealed record NativeBattleWaterActorPoseServices(Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, NativeBattleWaterActorPoseResult> ReadLocal508C90, Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, ImmutableArray<NativeBattleActionMatrix>, NativeBattleWaterExecutionFrame> PublishBones5095B0);
+public sealed record NativeBattleWaterActorPoseServices(Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, NativeBattleWaterActorPoseResult> ReadLocal508C90, Func<NativeBattleWaterExecutionFrame, NativeBattleGraphicsModel, ImmutableArray<NativeBattleActionMatrix>, NativeBattleWaterExecutionFrame> PublishBones5095B0, NativeBattleWaterActorAnchorServices ActorAnchor);
 public sealed record NativeBattleWaterActorDrawResult(NativeBattleWaterExecutionFrame Frame, ImmutableArray<NativeBattleGraphicsModel> Models, NativeBattleGfGeometryBatch Packets);
 public sealed record NativeBattleWaterActorShadowResult(NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsModel Actor, NativeBattleGfGeometryBatch Packets);
 
@@ -53,14 +53,14 @@ public static partial class NativeBattleWaterActorDraw
         frame = TemporaryMatrix(frame, oldBasis);
         NativeBattleWaterActorPoseResult localPose = services.ReadLocal508C90(frame, actor);
         frame = localPose.Frame;
-        NativeBattleWaterActorAnchorResult old = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, localPose.Skeleton, localPose.LocalBones, 0xF1, 0x1000, oldBasis);
+        NativeBattleWaterActorAnchorResult old = services.ActorAnchor.EvaluateB66B80(frame, localPose.Skeleton, localPose.LocalBones, 0xF1, 0x1000, oldBasis);
         frame = old.Frame;
         NativeBattleVector angles = new(unchecked((short)(SlotWord(frame, 0x8C) + cachedRotation.X)), unchecked((short)(SlotWord(frame, 0x8E) + cachedRotation.Y)), unchecked((short)(SlotWord(frame, 0x90) + cachedRotation.Z)));
         frame = TemporaryVector(frame, 0xD0, angles);
         actor = actor with { Rotation12 = angles.X, Rotation14 = angles.Y, Rotation16 = angles.Z };
         NativeBattleActionMatrix basis = Placement(angles, retained);
         frame = TemporaryMatrix(frame, basis);
-        NativeBattleWaterActorAnchorResult current = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, localPose.Skeleton, localPose.LocalBones, 0xF1, 0x1000, basis);
+        NativeBattleWaterActorAnchorResult current = services.ActorAnchor.EvaluateB66B80(frame, localPose.Skeleton, localPose.LocalBones, 0xF1, 0x1000, basis);
         frame = current.Frame;
         NativeBattleVector position = new(unchecked((short)(SlotWord(frame, 0x94) + cachedPosition.X + old.Anchor.X - current.Anchor.X)), unchecked((short)(SlotWord(frame, 0x96) + cachedPosition.Y + old.Anchor.Y - current.Anchor.Y)), unchecked((short)(SlotWord(frame, 0x98) + cachedPosition.Z + old.Anchor.Z - current.Anchor.Z)));
         frame = TemporaryVector(frame, 0x50, position);

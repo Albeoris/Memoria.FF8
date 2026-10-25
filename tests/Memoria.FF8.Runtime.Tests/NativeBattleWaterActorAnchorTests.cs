@@ -12,7 +12,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     [InlineData(0xF1)]
     public void Anchor_uses_parent_length_and_masks_alias_high_bit_without_fraction_override(short selector)
     {
-        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), selector, 0x800, Identity());
+        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), selector, 0x800, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(new NativeBattleFullMacVertex(10, 20, 80, 0), result.Anchor);
         Assert.Equal(50, result.Frame.ReadTemporaryWord(0xC4));
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xC0));
@@ -28,7 +28,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     public void Negative_parent_uses_zero_distance_and_preserves_unwritten_temporary_bytes()
     {
         NativeBattleWaterExecutionFrame frame = Frame();
-        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0, int.MaxValue, Identity());
+        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0, int.MaxValue, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(new NativeBattleFullMacVertex(0, 0, 0, 0), result.Anchor);
         Assert.Equal(frame.TemporaryFrame.Bytes[0xC6], result.Frame.TemporaryFrame.Bytes[0xC6]);
         Assert.Equal(frame.TemporaryFrame.Bytes[0xCF], result.Frame.TemporaryFrame.Bytes[0xCF]);
@@ -38,7 +38,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     [Fact]
     public void Parent_product_wraps_before_arithmetic_shift_and_word_store()
     {
-        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, int.MaxValue, Identity());
+        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, int.MaxValue, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(ushort.MaxValue, result.Frame.ReadTemporaryWord(0xC4));
         Assert.Equal(29, result.Anchor.Z);
     }
@@ -47,7 +47,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     public void Composed_basis_keeps_full_MAC_translation_and_exact_IR_flags()
     {
         NativeBattleActionMatrix basis = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 40000, -50000, 60000, 4096);
-        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, 0x1000, basis);
+        NativeBattleWaterActorAnchorResult result = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, 0x1000, basis, NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(new NativeBattleFullMacVertex(39980, -49990, 60130, 0x81C00000), result.Anchor);
         Assert.Equal(39980u, result.Frame.ReadTemporaryDword(0xE4));
         Assert.Equal(unchecked((uint)-49990), result.Frame.ReadTemporaryDword(0xE8));
@@ -74,7 +74,7 @@ public sealed class NativeBattleWaterActorAnchorTests
             Assert.Equal(0x1D97400u, actor);
             Assert.Equal(CoreDword(frame, 0x27973E8), CoreDword(current, 0x27973E8));
             return new(Skeleton(), Bones(), Identity());
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         Assert.Equal(1, calls);
         Assert.Equal(10u << 16, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x205C, 4)));
         Assert.Equal(20u << 16, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x2060, 4)));
@@ -88,10 +88,10 @@ public sealed class NativeBattleWaterActorAnchorTests
     [Fact]
     public void Unknown_padding_and_next_anchor_survive_independent_JSON()
     {
-        NativeBattleWaterExecutionFrame frame = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, 0x1000, Identity()).Frame;
+        NativeBattleWaterExecutionFrame frame = NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), 1, 0x1000, Identity(), NativeBattleActorAnchorRegisterFixture.Registers()).Frame;
         NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        NativeBattleWaterActorAnchorResult expected = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0xF1, -0x800, Identity());
-        NativeBattleWaterActorAnchorResult actual = NativeBattleWaterActorAnchor.EvaluateB66B80(restored, Skeleton(), Bones(), 0xF1, -0x800, Identity());
+        NativeBattleWaterActorAnchorResult expected = NativeBattleWaterActorAnchor.EvaluateB66B80(frame, Skeleton(), Bones(), 0xF1, -0x800, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
+        NativeBattleWaterActorAnchorResult actual = NativeBattleWaterActorAnchor.EvaluateB66B80(restored, Skeleton(), Bones(), 0xF1, -0x800, Identity(), NativeBattleActorAnchorRegisterFixture.Registers());
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
     }
 
@@ -101,7 +101,7 @@ public sealed class NativeBattleWaterActorAnchorTests
     [InlineData(0x7FFF)]
     public void Unsupported_bone_owner_does_not_fall_back(short selector)
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), selector, 0x1000, Identity()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterActorAnchor.EvaluateB66B80(Frame(), Skeleton(), Bones(), selector, 0x1000, Identity(), NativeBattleActorAnchorRegisterFixture.Registers()));
     }
 
     private static NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);

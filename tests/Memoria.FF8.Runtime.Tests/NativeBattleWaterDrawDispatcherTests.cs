@@ -78,7 +78,7 @@ public sealed class NativeBattleWaterDrawDispatcherTests
         (_, _) => throw new InvalidOperationException("Unexpected scroll enqueue."),
         _ => throw new InvalidOperationException("Unexpected actor read."),
         (_, _) => throw new InvalidOperationException("Unexpected actor publication."),
-        new((_, _) => throw new InvalidOperationException("Unexpected local pose read."), (_, _, _) => throw new InvalidOperationException("Unexpected bone publication.")),
+        new((_, _) => throw new InvalidOperationException("Unexpected local pose read."), (_, _, _) => throw new InvalidOperationException("Unexpected bone publication."), NativeBattleActorAnchorRegisterFixture.Services()),
         (_, _, _) => throw new InvalidOperationException("Unexpected metadata read."),
         _ => throw new InvalidOperationException("Unexpected ordering table read."));
 

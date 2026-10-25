@@ -83,7 +83,7 @@ public sealed class NativeBattleWaterActorDrawTests
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x12), 30000);
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(0x42), 1000);
         ImmutableArray<NativeBattleActionMatrix> bones = [Identity, Identity with { Z = 2000 }];
-        NativeBattleWaterActorPoseServices services = new((current, _) => new(current, skeleton.ToImmutableArray(), bones), KeepWorld);
+        NativeBattleWaterActorPoseServices services = new((current, _) => new(current, skeleton.ToImmutableArray(), bones), KeepWorld, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterActorShadowResult result = NativeBattleWaterActorDraw.FloorShadowA9C670(frame, Model(), Identity, new(0, 0, 0), services, Projection, 0, 0, 0, Resolve);
         Assert.Equal((ushort)1750, result.Frame.ReadTemporaryWord(0xB4));
         NativeBattleModuleProjectedVertex rootPaddedX = NativeBattleModuleProjection.Project45FAA0(Camera with { Y = -1250 }, new(500, 0, 0), Projection, 0, 0);
@@ -183,7 +183,7 @@ public sealed class NativeBattleWaterActorDrawTests
             calls.Add("world");
             observe?.Invoke(bones);
             return frame;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
     }
 
     private static NativeBattleWaterExecutionFrame KeepWorld(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsModel actor, ImmutableArray<NativeBattleActionMatrix> bones) => frame;

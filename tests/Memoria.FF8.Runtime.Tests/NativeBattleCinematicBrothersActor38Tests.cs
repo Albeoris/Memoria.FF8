@@ -101,7 +101,7 @@ public sealed class NativeBattleCinematicBrothersActor38Tests
             calls.Add("input");
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
-        });
+        }, NativeBattleActorAnchorRegisterFixture.Services());
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBrothersActor38.DrawAF59D0(frame, services);
         Assert.Equal(alreadyCaptured ? new[] { "restore", "input", "input", "shadow" } : new[] { "input", "restore", "input", "input", "shadow" }, calls);
         Assert.Equal(uint.MaxValue, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x2000 + 0xC4, 4)));

@@ -9,7 +9,7 @@ public sealed record NativeBattleCinematicBonePose(NativeBattleWaterExecutionFra
     public Func<int, int, byte[]>? ReadMetadata { get; init; }
     public int MetadataLength { get; init; }
 }
-public sealed record NativeBattleCinematicBone5BServices(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, bool, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput);
+public sealed record NativeBattleCinematicBone5BServices(Func<NativeBattleWaterExecutionFrame, ushort, uint> ResolveNode, Func<NativeBattleWaterExecutionFrame, uint, bool, NativeBattleCinematicBonePose> RestorePose, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> UpdateSlot, Func<NativeBattleWaterExecutionFrame, uint, NativeBattleWaterExecutionFrame> PublishInput, NativeBattleWaterActorAnchorServices ActorAnchor);
 
 public static class NativeBattleCinematicBone5B
 {
@@ -83,7 +83,7 @@ public static class NativeBattleCinematicBone5B
         NativeBattleCinematicBonePose pose = services.RestorePose(frame, physical ? source : reference, physical);
         frame = pose.Frame;
         NativeBattleActionMatrix selectedBasis = basis ?? pose.PhysicalBasis ?? throw new NotSupportedException("Native bone positioning requires its actual physical actor matrix.");
-        NativeBattleWaterActorAnchorResult result = pose.ReadMetadata is { } readMetadata ? NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.MetadataLength, readMetadata, pose.Bones, selector, fraction, selectedBasis) : NativeBattleWaterActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, selector, fraction, selectedBasis);
+        NativeBattleWaterActorAnchorResult result = pose.ReadMetadata is { } readMetadata ? services.ActorAnchor.EvaluateB66B80(frame, pose.MetadataLength, readMetadata, pose.Bones, selector, fraction, selectedBasis) : services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, selector, fraction, selectedBasis);
         frame = result.Frame;
         frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xC0);
         int mode = ControlWord(0x4A) >> 12;

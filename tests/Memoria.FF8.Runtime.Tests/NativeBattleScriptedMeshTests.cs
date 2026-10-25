@@ -45,7 +45,7 @@ public sealed class NativeBattleScriptedMeshTests
         bool triangle = handler == 0xAEB5B0;
         int length = triangle ? 28 : 32;
         NativeBattleWaterMeshGroup group = new(triangle ? (short)6 : (short)16, 1, face.ToImmutableArray());
-        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler == 0x95D100 ? NativeBattleCinematicDispatch.Canonicalize(261, handler) : handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler == 0x95D100 ? NativeBattleCinematicDispatch.Canonicalize(261, handler) : handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
         NativeBattleScriptedMeshSubmission result = Run(frame);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
@@ -92,7 +92,7 @@ public sealed class NativeBattleScriptedMeshTests
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         frame = frame with { Arena = frame.Arena.Write(0x20E1, [1]).Write(0x10048, [0, 0x10, 0, 0, 0, 0, 0xEF, 0xBE]).Write(0x2000C, [9, 8, 7, 6]) };
         NativeBattleScriptedLightingMemory lighting = UnitLighting();
-        NativeBattleScriptedMeshProjected result = NativeBattleScriptedMeshPreparation.Project(prepared with { Frame = frame }, 0x50, new(null, 216, 160, 108), 0, 0, NativeBattleEffectArena.Clear(), lighting, NativeBattleScriptedColorRegisters.Unknown());
+        NativeBattleScriptedMeshProjected result = NativeBattleScriptedMeshPreparation.Project(prepared with { Frame = frame }, 0x50, new(null, 216, 160, 108), 0, 0, NativeBattleEffectArena.Clear(), lighting, Step(prepared));
         Assert.Equal(new byte[] { 9, 8, 7, 6 }, result.Frame.Arena.Read(0x2000C, 4));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(result.Registers.NormalInput!.Value.AsSpan().Slice(6)));
         Assert.Equal(0x00000080u, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Arena.Read(0x20008, 4)));
@@ -117,7 +117,7 @@ public sealed class NativeBattleScriptedMeshTests
     {
         NativeBattleWaterExecutionFrame frame = NativeBattleWaterMeshPacketTests.Frame().WriteTemporaryDword(0x98, 1);
         byte[] face = Face(type, stride);
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler, 0, Records(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4));
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler, 0, Records(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown());
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.NotNull(packet.Primitive);
         Assert.Equal(length, result.Packets.AllocationBytes);
@@ -129,7 +129,7 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Equal(new NativeBattleScriptedBackColor(0, 0, 0), result.Lighting.BackColor);
         Assert.Equal(0x00808080u | ((uint)command << 24), BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(4)));
         Assert.Equal((byte)0, result.Registers.NormalInput!.Value[6]);
-        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler + 1, 0, Records(), [10, 20, 30, 40], 0, result.Lighting, result.Registers, _ => 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler + 1, 0, Records(), [10, 20, 30, 40], 0, result.Lighting, result.Registers, _ => 0, NativeBattleGeometryRegisters.Unknown()));
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class NativeBattleScriptedMeshTests
         }
         NativeBattleWaterMeshGroup group = new(9, 1, face.ToImmutableArray());
         NativeBattleWaterMeshResult existing = NativeBattleWaterMeshPackets.EmitSelected(frame, group, Records(), [10, 20, 30, 40], 0x5000, pointer => (int)(pointer / 4));
-        NativeBattleScriptedMeshSubmission current = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, 0xB283B0, 0, Records(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4));
+        NativeBattleScriptedMeshSubmission current = NativeBattleScriptedMeshPackets.EmitSelected(frame, group, 0xB283B0, 0, Records(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown());
         Assert.Equal(existing.Packets.Attempts[0].Data, current.Packets.Attempts[0].Data);
         Assert.Equal(new uint?[] { 0x34808080, 0x00808080, 0x00808080 }, current.Registers.Rgb);
     }
@@ -156,7 +156,7 @@ public sealed class NativeBattleScriptedMeshTests
         frame = frame with { Arena = frame.Arena.Write(0x10040, [0, 0x10, 0, 0, 0, 0, 0xEF, 0xBE]) };
         byte[] face = Face(12, 28);
         NativeBattleScriptedLightingMemory lighting = UnitLighting();
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(12, 1, face.ToImmutableArray()), 0xB28690, 0x48, Records(), [10, 20, 30, 40], 0x5000, lighting, NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4));
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(12, 1, face.ToImmutableArray()), 0xB28690, 0x48, Records(), [10, 20, 30, 40], 0x5000, lighting, NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown());
         Assert.Equal(48, result.Packets.AllocationBytes);
         Assert.Equal(2, result.Packets.Attempts.Length);
         Assert.Equal(36, result.Packets.Attempts[1].ByteOffsetRelative);
@@ -185,10 +185,17 @@ public sealed class NativeBattleScriptedMeshTests
             BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(18), 16);
         }
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x10040, 8) };
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler, 0x48, records.ToImmutableArray(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), registers, _ => 0);
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(type, 1, face.ToImmutableArray()), handler, 0x48, records.ToImmutableArray(), [10, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), registers, _ => 0, NativeBattleGeometryRegisters.Unknown());
         Assert.Equal(0, result.Packets.AllocationBytes);
         Assert.Equal(written, Assert.Single(result.Packets.Attempts).WriteMask.Count(value => value == NativeBattleGfPacketByteState.Known));
-        Assert.Same(registers, result.Registers);
+        Assert.Equal(0u, result.Registers.Flags);
+        Assert.Equal(registers.Mac, result.Registers.Mac);
+        Assert.Equal(registers.Ir, result.Registers.Ir);
+        Assert.Equal(registers.Rgb, result.Registers.Rgb);
+        Assert.Equal(registers.NormalInput, result.Registers.NormalInput);
+        Assert.Equal(registers.NormalInputKnown, result.Registers.NormalInputKnown);
+        Assert.Equal(registers.Material, result.Registers.Material);
+        Assert.Equal(registers.Ir0, result.Registers.Ir0);
     }
 
     [Fact]
@@ -200,7 +207,7 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(Project(restored, 0x58)));
     }
 
-    private static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int extent, short dqa = 0, int dqb = 0) => NativeBattleScriptedMeshPreparation.Project(prepared, extent, new(null, 216, 160, 108), dqa, dqb, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
+    private static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int extent, short dqa = 0, int dqb = 0) => NativeBattleScriptedMeshPreparation.Project(prepared, extent, new(null, 216, 160, 108), dqa, dqb, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), Step(prepared));
 
     [Fact]
     public void Leviathan_normal_triangle_uses_three_materials_and_shared_normal_then_links_mode_in_same_bucket()
@@ -213,7 +220,7 @@ public sealed class NativeBattleScriptedMeshTests
             BinaryPrimitives.WriteUInt32LittleEndian(face.AsSpan(corner * 4), 0x00808080u + (uint)(corner * 0x10));
             BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(14 + corner * 2), (ushort)(corner * 8));
         }
-        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB5C720, 0x48, Records(), [11, 13, 65535, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), 0.5f);
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB5C720, 0x48, Records(), [11, 13, 65535, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
         Assert.Equal(40, result.Packets.AllocationBytes);
         Assert.Equal(2, result.Packets.Attempts.Length);
         Assert.Equal(28, result.Packets.Attempts[1].ByteOffsetRelative);
@@ -230,7 +237,7 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Equal(0x32000000u, result.Frame.ReadTemporaryDword(0x84));
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(result.Registers.NormalInput!.Value.AsSpan().Slice(6)));
-        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB27E40, 0x48, Records(), [10, 20, 30, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), _ => 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleScriptedMeshPackets.EmitSelected(frame, new(2, 1, face.ToImmutableArray()), 0xB27E40, 0x48, Records(), [10, 20, 30, 40], 0x5000, UnitLighting(), NativeBattleScriptedColorRegisters.Unknown(), _ => 0, NativeBattleGeometryRegisters.Unknown()));
     }
 
     [Theory]
@@ -244,7 +251,7 @@ public sealed class NativeBattleScriptedMeshTests
     {
         NativeBattleWaterMeshPrepared prepared = Prepared(1, 0);
         prepared = prepared with { Frame = prepared.Frame with { Arena = prepared.Frame.Arena.Write(0x204C, [2]) } };
-        NativeBattleScriptedMeshProjected result = NativeBattleScriptedMeshPreparation.Project(prepared, 0x48, new(null, 216, x, y), 0, 0, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), retainedDepthScaleBits: 0x40000000);
+        NativeBattleScriptedMeshProjected result = NativeBattleScriptedMeshPreparation.Project(prepared, 0x48, new(null, 216, x, y), 0, 0, NativeBattleEffectArena.Clear(), NativeBattleScriptedLightingMemory.Unknown(), Step(prepared), retainedDepthScaleBits: 0x40000000);
         Assert.Equal(expectedClip, BinaryPrimitives.ReadUInt16LittleEndian(result.Frame.Arena.Read(0x20006, 2)));
         Assert.Equal((ushort)250, BinaryPrimitives.ReadUInt16LittleEndian(result.Frame.Arena.Read(0x20004, 2)));
         Assert.Equal(0x40000000u, result.DepthScaleBits1877DA8);
@@ -271,6 +278,8 @@ public sealed class NativeBattleScriptedMeshTests
         Assert.Equal(0x3F000000u, result.DepthScaleBits1877DA8);
         Assert.Equal(1000u, BinaryPrimitives.ReadUInt32LittleEndian(result.DepthOwner.Read(4, 4)));
     }
+
+    private static NativeBattleGeometryRegisterStep Step(NativeBattleWaterMeshPrepared prepared) => new(NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), prepared.Matrix, true, true, null), NativeBattleScriptedColorRegisters.Unknown());
 
     private static NativeBattleWaterMeshPrepared Prepared(int vertices, int normals)
     {

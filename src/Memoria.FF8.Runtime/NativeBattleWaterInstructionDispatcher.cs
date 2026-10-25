@@ -16,7 +16,8 @@ public sealed record NativeBattleWaterInstructionServices(
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState> ReadTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleEffectTextureState, NativeBattleWaterExecutionFrame> PublishTextures,
     Func<NativeBattleWaterExecutionFrame, NativeBattleWaterFileReadRequest, NativeBattleWaterExecutionFrame> SubmitFileRead,
-    Func<NativeBattleWaterExecutionFrame, uint> ReadIncomingEcx)
+    Func<NativeBattleWaterExecutionFrame, uint> ReadIncomingEcx,
+    NativeBattleWaterActorAnchorServices ActorAnchor)
 {
     public uint? MagicTextureBufferAddress { get; init; }
 }
@@ -149,13 +150,13 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x4C:
             case 0xD2:
             case 0xD3:
-                NativeBattleWaterScalarReferenceServices scalarServices = new((current, selector) => ResolveCurrentSlot(current, resources, selector), services.ReadParameterByte, services.ReadActor, services.ReadActorAnchor, current => UpdateCurrent(current, resources), current => CacheCurrent(current, resources));
+                NativeBattleWaterScalarReferenceServices scalarServices = new((current, selector) => ResolveCurrentSlot(current, resources, selector), services.ReadParameterByte, services.ReadActor, services.ReadActorAnchor, current => UpdateCurrent(current, resources), current => CacheCurrent(current, resources), services.ActorAnchor);
                 return NativeBattleWaterScalarReferenceCommands.Execute(frame, Program(), scalarServices);
             case 0x58:
             case 0x59:
                 return NativeBattleWaterParticleCommands.Execute(frame, Program());
             case 0x60:
-                return NativeBattleWaterActorAnchor.Execute60AA2190(frame, Program(), CurrentBank(frame, resources), services.ReadActorAnchor);
+                return NativeBattleWaterActorAnchor.Execute60AA2190(frame, Program(), CurrentBank(frame, resources), services.ReadActorAnchor, services.ActorAnchor);
             case 0x63:
             case 0x6A:
             case 0xC4:

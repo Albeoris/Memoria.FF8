@@ -6,31 +6,31 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Authenticated ordinary cinematic material and normal-lit packet writers over current projected owners.</summary>
 public static class NativeBattleScriptedMeshPackets
 {
-    public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale = 1f)
+    public static NativeBattleScriptedMeshSubmission EmitSelected(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, int shapeExtent, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedLightingMemory lighting, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, NativeBattleGeometryRegisters geometry, float depthScale = 1f)
     {
         if (group.Type == 14 && actualHandler == 0xB36F40)
         {
-            return NativeBattleCinematicFlatFt4Depth14.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleCinematicFlatFt4Depth14.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         if (group.Type == 18 && actualHandler == 0xAAAE60)
         {
-            return NativeBattleApocalypse221DepthQuad58.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleApocalypse221DepthQuad58.Emit(frame, group, actualHandler, projectedRecords, depths, outputPointer, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         if (group.Type == 19 && actualHandler == 0xB117F0)
         {
-            return NativeBattleScriptedClippedMeshPackets.EmitGt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleScriptedClippedMeshPackets.EmitGt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         if (group.Type == 18 && actualHandler == 0xB11580)
         {
-            return NativeBattleScriptedClippedMeshPackets.EmitFt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleScriptedClippedMeshPackets.EmitFt4(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         if (group.Type == 8 && actualHandler == 0xB11100)
         {
-            return NativeBattleScriptedClippedMeshPackets.EmitFt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleScriptedClippedMeshPackets.EmitFt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         if (group.Type == 9 && actualHandler is 0xB053E0 or 0xB11340)
         {
-            return NativeBattleScriptedClippedMeshPackets.EmitGt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale);
+            return NativeBattleScriptedClippedMeshPackets.EmitGt3(frame, group, actualHandler, projectedRecords, depths, outputPointer, lighting, registers, resolveActualOtBucket, depthScale) with { Geometry = geometry };
         }
         (uint expected, int stride, int length, int corners, int indices) = group.Type switch
         {
@@ -71,8 +71,8 @@ public static class NativeBattleScriptedMeshPackets
         }
         if (group.Type is 7 or 9 or 17)
         {
-            NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade, depthScale);
-            return new(reused.Frame, reused.Packets, lighting, registers);
+            NativeBattleWaterMeshResult reused = NativeBattleWaterMeshPackets.EmitSelected(frame, group, projectedRecords, depths, outputPointer, resolveActualOtBucket, Shade, depthScale, Clip);
+            return new(reused.Frame, reused.Packets, lighting, registers) { Geometry = geometry };
         }
         if (group.Type is 6 or 16)
         {
@@ -102,7 +102,7 @@ public static class NativeBattleScriptedMeshPackets
                 rawDepth[corner] = group.Type == 16 ? unchecked((int)(long)scaledDepth) : NativePrecision53.RoundInteger(scaledDepth);
                 StoreDword(group.Type is 6 or 16 ? 16 + corner * 4 : group.Type == 19 ? 8 + corner * 12 : 8 + corner * 8, screens[corner]);
             }
-            bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]) < 0;
+            bool reject = (frame.ReadTemporaryDword(0x90) & 0x10) == 0 && Clip(screens[0], screens[1], screens[2]) < 0;
             reject |= ((depthAndClip.Aggregate(0u, (value, next) => value | next) >> 16) & 0x46) != 0;
             NativeBattleGeometryPrimitive? primitive = null;
             int bucket = 0;
@@ -188,7 +188,15 @@ public static class NativeBattleScriptedMeshPackets
             }
         }
         frame = frame.WriteTemporaryDword(0x60, unchecked(outputPointer + (uint)allocated));
-        return new(frame, new(attempts.ToImmutable(), allocated), lighting, registers);
+        return new(frame, new(attempts.ToImmutable(), allocated), lighting, registers) { Geometry = geometry };
+
+        int Clip(uint first, uint second, uint third)
+        {
+            NativeBattleGeometryRegisterStep step = NativeBattleGeometry.Clip45EE10(new(geometry with { Sxy = [first, second, third] }, registers));
+            geometry = step.Geometry;
+            registers = step.Colors;
+            return unchecked((int)geometry.Mac0!.Value);
+        }
 
         uint Shade(uint material)
         {
