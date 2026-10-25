@@ -47,30 +47,42 @@ public sealed class EncounterPreferenceTests
     }
 
     [Fact]
-    public void DebugRoomBattleSettingsApplyImmediatelyThroughTheHostWithoutOpeningLaboratory()
+    public void BattlePolicyAndEncountersApplyThroughTheirCurrentMenuPagesWithoutOpeningLaboratory()
     {
         string game = InstalledGame();
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameWorld world = new(session, game);
         UiPreferences preferences = new();
-        MenuController menus = new();
-        menus.ConnectPreferences(() => preferences, action =>
+        MenuData data = new();
+        data.Settings["Random encounters"] = "On";
+        data.SupportedActions.Add("config:Random encounters");
+        void ApplyPreferences(MenuAction action)
         {
             preferences = preferences.WithSetting(action.SubjectId, action.Value);
+            data.Settings[action.SubjectId] = action.Value;
             foreach (BattleInput input in preferences.CreateBattleSettingsInputs())
             {
                 world.ApplyBattleInput(input);
             }
-        });
+        }
+        MenuController menus = new(() => data, ApplyPreferences);
+        menus.ConnectPreferences(() => preferences, ApplyPreferences);
         menus.Open("debug-battle", true);
+        menus.SelectEntry("debug-battle", "Battle policy");
         menus.Navigate(MenuInput.Confirm);
         Assert.True(session.State.FullBattlePlaythrough);
         Assert.Equal("Full combat", preferences.BattlePolicyLabel);
-        menus.Navigate(MenuInput.Down);
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "Random encounters");
+        menus.Open("config-exploration");
+        menus.SelectEntry("config-exploration", "Random encounters");
         menus.Navigate(MenuInput.Confirm);
         Assert.False(session.State.RandomEncounters!.Enabled);
-        menus.Navigate(MenuInput.Up);
+        Assert.False(preferences.RandomEncounters);
+        Assert.True(session.State.FullBattlePlaythrough);
+        Assert.Equal("config-exploration", menus.ScreenId);
+        menus.Open("debug-battle", true);
+        menus.SelectEntry("debug-battle", "Battle policy");
         menus.Navigate(MenuInput.Confirm);
         Assert.False(session.State.FullBattlePlaythrough == true);
         Assert.Equal("Instant victory", preferences.BattlePolicyLabel);
