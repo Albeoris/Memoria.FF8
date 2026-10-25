@@ -1,10 +1,52 @@
 using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class WorldBattlePublicationTests
 {
+    [Fact]
+    public void Completed_world_battle_return_preserves_achievement_transactions()
+    {
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("world-battle-result-achievement-cursor")));
+        BattleEncounterOccurrence encounter = session.State.PendingBattleEncounter!;
+        BattleAchievementCursor cursor = Assert.IsType<BattleAchievementCursor>(session.State.AchievementCursor);
+        Assert.Equal(encounter.OccurrenceId, cursor.OccurrenceId);
+        Assert.NotEmpty(cursor.Allocations);
+        EnemyDefeatedEvent[] pending = session.State.PendingAchievementFacts.ToArray();
+        Assert.NotEmpty(pending);
+        Assert.Empty(session.State.PendingAchievementObservations);
+        using GameWorld world = Restore(session);
+        Assert.Equal(BattleOutcome.Victory, world.Battle!.Outcome);
+
+        world.ApplyBattleInput(new(BattleInputKind.Return));
+
+        Assert.Null(session.State.AchievementCursor);
+        Assert.Null(session.State.PendingBattleEncounter);
+        Assert.Null(session.State.Battle);
+        Assert.Contains(encounter.OccurrenceId, session.State.AppliedBattleResultIds);
+        Assert.Equal(pending.Select(fact => fact.EventId), session.State.PendingAchievementFacts.Select(fact => fact.EventId));
+        Assert.All(session.State.PendingAchievementFacts, fact => Assert.Equal(BattleOutcome.Victory, fact.Facts.AcceptedOutcome));
+        BattleKillTotalObservedEvent observation = Assert.Single(session.State.PendingAchievementObservations);
+        Assert.Equal("battle-results/" + encounter.OccurrenceId, observation.ContextId.Value);
+        Assert.Equal(BattleOutcome.Victory, observation.Outcome);
+        Assert.True(observation.NativeKillTotal > 0);
+        session.Save(TestResources.ArtifactFile("world-battle-result-achievements-return.ff8"), compact: true);
+        GameSession restoredSession = new(GameSession.Load(TestResources.ArtifactFile("world-battle-result-achievements-return.ff8")));
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
+        restored.EnsureField();
+        Assert.NotNull(restored.WorldScene);
+        world.Apply(new(PlayerActionKind.Wait));
+        restored.Apply(new(PlayerActionKind.Wait));
+        Assert.Equal(JsonSerializer.Serialize(world.WorldScene!.State), JsonSerializer.Serialize(restored.WorldScene!.State));
+        Assert.Equal(observation, Assert.Single(restoredSession.State.PendingAchievementObservations));
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_WORLD_BATTLE_RETURN_OUTPUT") is { Length: > 0 } output)
+        {
+            session.Save(output, compact: true);
+        }
+    }
+
     private static readonly TimeSpan Callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
 
     [Fact]
