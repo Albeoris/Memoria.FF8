@@ -343,6 +343,8 @@ public sealed partial class BattleSession
                     return NativeBattleCinematicInlineData4E.Execute(current, program);
                 case 0xF2:
                     return NativeBattleCinematicControlCommands.BakeCachedPositionF2(current);
+                case 0x83 when selectedHandler == 0xB2DF10:
+                    return NativeBattleCinematicControlCommands.StoreCachedColor83(current);
                 case 0x9B:
                     return NativeBattleCinematicControlCommands.ClearFlags9B(current);
                 case 0xFB:
@@ -418,9 +420,9 @@ public sealed partial class BattleSession
                 case 0x7C:
                     return NativeBattleCinematicPolar7C.Execute(current, program);
                 case 0x9C:
-                    return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                    return NativeBattleWaterChildCommands.Execute9C(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot);
                 case 0x5D:
-                    return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100));
+                    return NativeBattleWaterChildCommands.Execute5D(current, program, bank, checked(current.TemporaryFrame.Address + 0x100), UpdateSlot);
                 case 0x70:
                     return NativeBattleCinematicProfileHeight70.Execute(current, program, new(ResolveCurrentNode, (frame, address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2)), UpdateSlot));
                 case 0x71:
@@ -550,7 +552,7 @@ public sealed partial class BattleSession
                 case 0x26:
                 case 0x32:
                 case 0x8B:
-                    return NativeBattleWaterChildCommands.Execute(current, program, bank, opcode == 0x32 ? checked(current.TemporaryFrame.Address + 0x100) : 0);
+                    return NativeBattleWaterChildCommands.Execute(current, program, bank, opcode == 0x32 ? checked(current.TemporaryFrame.Address + 0x100) : 0, UpdateSlot);
                 case 0x6D:
                     NativeBattleScriptedProcessFlagsStep flags = NativeBattleScriptedProcessFlags.Execute(current, NativeStage ?? throw new NotSupportedException("Native cinematic flags require their current four stage groups."));
                     NativeStage = flags.State;
@@ -799,6 +801,10 @@ public sealed partial class BattleSession
             if (handler == 0xA5D100)
             {
                 return NativeBattleCinematicBetween10.Update(current, ResolveCurrentNode);
+            }
+            if (handler == 0xA671C0)
+            {
+                return NativeBattleCinematicBetweenUpdate4.Update(current, ResolveCurrentNode);
             }
             if (handler == 0xB265B0)
             {

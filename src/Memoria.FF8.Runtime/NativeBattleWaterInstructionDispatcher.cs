@@ -126,7 +126,7 @@ public static class NativeBattleWaterInstructionDispatcher
             case 0x26:
             case 0x32:
             case 0x8B:
-                return NativeBattleWaterChildCommands.Execute(frame, Program(), CurrentBank(frame, resources), opcode == 0x32 ? services.ReadIncomingEcx(frame) : 0);
+                return NativeBattleWaterChildCommands.Execute(frame, Program(), CurrentBank(frame, resources), opcode == 0x32 ? services.ReadIncomingEcx(frame) : 0, (step, _) => UpdateCurrent(step, resources));
             case 0x27:
                 return ExecuteTexturePair(frame, Program(), resources, services);
             case 0x2B:

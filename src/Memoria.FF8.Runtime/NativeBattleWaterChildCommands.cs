@@ -1,18 +1,17 @@
 using System.Buffers.Binary;
-using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Finite physical-slot creation and secondary instruction-stream attachment.</summary>
 public static class NativeBattleWaterChildCommands
 {
-    public static NativeBattleWaterExecutionFrame Execute5D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx)
+    public static NativeBattleWaterExecutionFrame Execute5D(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
         int count = unchecked((sbyte)frame.Core.Read(unchecked(header + 0x41), 1)[0]);
         for (int index = 0; index < count; index++)
         {
-            frame = Spawn(frame, program, bank, incomingEcx);
+            frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
             uint temporary = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797624);
             header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
             uint pointer = frame.ReadTemporaryDword(0xFC);
@@ -24,9 +23,9 @@ public static class NativeBattleWaterChildCommands
         return NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x2797450, unchecked(NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450) + 4));
     }
 
-    public static NativeBattleWaterExecutionFrame Execute9C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx)
+    public static NativeBattleWaterExecutionFrame Execute9C(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
-        frame = Spawn(frame, program, bank, incomingEcx);
+        frame = Spawn(frame, program, bank, incomingEcx, updateSelected);
         uint pointer = frame.ReadTemporaryDword(0xFC);
         ushort predecessor = ReadAddressedWord(frame, unchecked(pointer - 0xEE));
         frame = WriteAddressedWord(frame, unchecked(pointer + 0x14), predecessor);
@@ -34,14 +33,14 @@ public static class NativeBattleWaterChildCommands
         return WriteAddressedWord(frame, unchecked(pointer + 0x16), ancestor);
     }
 
-    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx)
+    public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
         switch (instruction & 0x1FF)
         {
             case 0x32:
-                return Spawn(frame, program, bank, incomingEcx);
+                return Spawn(frame, program, bank, incomingEcx, updateSelected);
             case 0x26:
             case 0x8B:
                 int stream = unchecked((short)Operand(2));
@@ -83,7 +82,7 @@ public static class NativeBattleWaterChildCommands
         }
     }
 
-    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx)
+    public static NativeBattleWaterExecutionFrame Spawn(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterSlotBank bank, uint incomingEcx, Func<NativeBattleWaterExecutionFrame, byte, NativeBattleWaterExecutionFrame> updateSelected)
     {
         uint pc = NativeBattleWaterExecutionFields.CoreDword(frame, 0x2797450);
         uint header = NativeBattleWaterExecutionFields.CoreDword(frame, 0x279744C);
@@ -150,7 +149,7 @@ public static class NativeBattleWaterChildCommands
         uint childAddress = NativeBattleEffectNodeMemory.ArenaAddress + (uint)childOffset;
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x27973E8, childAddress);
         byte updateType = frame.Arena.Read(childOffset + 0x18, 1)[0];
-        frame = frame with { Arena = NativeBattleWaterSlots.UpdateSelected(frame.Arena, currentBank, child, updateType is 3 or 5 or 7 ? ActiveOrder(frame) : default) };
+        frame = updateSelected(frame, updateType);
         frame = frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, currentBank, child) };
         frame = NativeBattleWaterExecutionFields.WriteCoreDword(frame, 0x27973E8, parent);
         frame = frame.WriteTemporaryDword(0xFC, childAddress);
@@ -245,18 +244,4 @@ public static class NativeBattleWaterChildCommands
         return frame with { Arena = frame.Arena.Write(NativeBattleWaterExecutionFields.ArenaOffset(address, 2), bytes) };
     }
 
-    private static ImmutableArray<byte> ActiveOrder(NativeBattleWaterExecutionFrame frame)
-    {
-        //The unused suffix is a transient argument placeholder, not a claim about physical bytes beyond FF.
-        byte[] order = Enumerable.Repeat((byte)0xFF, 128).ToArray();
-        for (int index = 0; index < order.Length; index++)
-        {
-            order[index] = frame.Core.Read(0x2797454 + (uint)index, 1)[0];
-            if (order[index] == 0xFF)
-            {
-                return order.ToImmutableArray();
-            }
-        }
-        return order.ToImmutableArray();
-    }
 }
