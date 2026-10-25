@@ -22,9 +22,9 @@ internal sealed class PresentationTiming
         return menu ? preferences.MenuFps : battle ? preferences.BattleFps : worldMap ? preferences.WorldFps : preferences.FieldFps;
     }
 
-    public static TimeSpan UpdateStep(int frameLimit, int nativeCallbackRate)
+    public static TimeSpan UpdateStep(int frameLimit, double nativeCallbackRate)
     {
-        int rate = Math.Max(60, frameLimit == 0 ? nativeCallbackRate : Math.Min(frameLimit, nativeCallbackRate));
+        double rate = Math.Max(60, frameLimit == 0 ? nativeCallbackRate : Math.Min(frameLimit, nativeCallbackRate));
         return TimeSpan.FromSeconds(1d / rate);
     }
 

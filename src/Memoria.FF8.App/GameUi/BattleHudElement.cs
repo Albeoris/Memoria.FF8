@@ -187,7 +187,7 @@ internal sealed partial class BattleHudElement : UiElement
                 if (rightArrows[start + row])
                 {
                     // Native row flag4 uses icon6 and alternates CLUT offsets0/5 every two UI frames.
-                    int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond);
+                    int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate);
                     int palette = (phase & 2) != 0 ? 0 : 5;
                     canvas.Image(new UiImageSource(UiImageKind.Icon, 6, palette), Rect(30 + CommandWidth - 24 - (guardianHpColumn ? 12 + valueWidth : 0), y + 1, 12, 24));
                 }
@@ -222,7 +222,7 @@ internal sealed partial class BattleHudElement : UiElement
             UiColor hpColor = appearance.HitPointsKnockedOut ? new(255, 41, 24) : appearance.Critical ? new(255, 255, 123) : new(255, 255, 255);
             if (canAttack && controller.SelectedActor?.Id == actor.Id)
             {
-                int phase = (int)(controller.BattlePresentationSeconds * BattleSession.FramesPerSecond % 16);
+                int phase = (int)(controller.BattlePresentationSeconds * controller.BattleCallbackRate % 16);
                 int shade = ((phase < 8 ? phase : 15 - phase) + 2) << 4;
                 // Native name/HP glyphs share a 16-frame triangle; 128 is neutral texture modulation.
                 nameColor = Modulate(nameColor, shade);
@@ -237,7 +237,7 @@ internal sealed partial class BattleHudElement : UiElement
             DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
-                Text(canvas, theme, $"{(form.RemainingTicks + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond}s", 906, y - 5, 42, 18, 12);
+                Text(canvas, theme, $"{controller.GuardianFormSeconds(form.RemainingTicks)}s", 906, y - 5, 42, 18, 12);
             }
         }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))

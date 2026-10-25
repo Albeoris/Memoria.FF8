@@ -20,6 +20,10 @@ public sealed partial class BattleHudController
 
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
+    internal double BattleCallbackRate => session.NativeGraphics is null ? BattleSession.FramesPerSecond : NativeBattleGraphicsPresentationClock.CallbacksPerSecond;
+
+    internal int GuardianFormSeconds(int remainingTicks) => checked((int)Math.Ceiling(remainingTicks / BattleCallbackRate));
+
     internal DialogueDocument? BattleMessageDocument
     {
         get
@@ -73,7 +77,7 @@ public sealed partial class BattleHudController
         RefreshNativeLimitSelection();
         CollectBattleMessages();
         battlePresentationSeconds += elapsed.TotalSeconds;
-        battleMessageFrames += elapsed.TotalSeconds * BattleSession.FramesPerSecond;
+        battleMessageFrames += elapsed.TotalSeconds * BattleCallbackRate;
         while (activeBattleMessage is { } message && battleMessageFrames >= message.NativeMessageDelayFrames + Math.Max(1, message.Amount))
         {
             battleMessageFrames -= message.NativeMessageDelayFrames + Math.Max(1, message.Amount);

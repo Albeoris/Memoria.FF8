@@ -7,6 +7,39 @@ public sealed class PresentationTimingTests
     [Theory]
     [InlineData(30)]
     [InlineData(60)]
+    [InlineData(120)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Native_battle_clock_is_independent_of_display_cap_and_cap_changes(int displayCap)
+    {
+        PresentationTiming timing = new();
+        ManualTimeProvider costClock = new();
+        Memoria.FF8.Runtime.NativeBattleGraphicsPresentationStep native = new(0, 0, false);
+        long callbacks = 0;
+        long previous = 0;
+        for (int display = 1; display <= 252; display++)
+        {
+            int cap = displayCap == -1 ? display < 84 ? 30 : display < 168 ? 60 : 120 : displayCap;
+            // The display schedule may change; accumulated elapsed time remains authoritative.
+            long timestamp = (long)display * TimeSpan.TicksPerSecond / 120;
+            timing.Accumulate(TimeSpan.FromTicks(timestamp - previous));
+            previous = timestamp;
+            timing.RunUpdates(TimeSpan.FromSeconds(1d / (cap == 0 ? 120 : cap)), () => PresentationTiming.UpdateStep(cap, Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.CallbacksPerSecond), step =>
+            {
+                native = Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.Advance(native.Subticks, native.HalfSubtick, step);
+                callbacks += native.Callbacks;
+                return true;
+            }, costClock);
+        }
+        var expected = Memoria.FF8.Runtime.NativeBattleGraphicsPresentationClock.Advance(0, false, timing.SimulationTotal);
+        Assert.Equal(32, callbacks);
+        Assert.Equal(expected, new Memoria.FF8.Runtime.NativeBattleGraphicsPresentationStep(callbacks, native.Subticks, native.HalfSubtick));
+        Assert.Equal(PresentationTiming.SimulationStep * 126, timing.SimulationTotal);
+    }
+
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
     [InlineData(0)]
     public void Slow_updates_yield_each_display_without_losing_the_remaining_callbacks(int frameLimit)
     {

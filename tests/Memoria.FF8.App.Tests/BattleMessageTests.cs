@@ -6,6 +6,33 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleMessageTests
 {
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(120)]
+    public void Native_message_duration_and_guardian_seconds_use_fixed_callback_units(int displayRate)
+    {
+        BattleSession battle = Create([1, 0, 0]);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeGraphics))!.SetValue(battle, new NativeBattleGraphicsState([], [], 0, 0));
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
+        hud.BuildView();
+        Assert.Equal(15.5, hud.BattleCallbackRate);
+        Assert.Equal(2, hud.GuardianFormSeconds(31));
+        Assert.Equal(3, hud.GuardianFormSeconds(32));
+        long previous = 0;
+        for (int frame = 1; frame <= displayRate * 2; frame++)
+        {
+            long timestamp = (long)frame * TimeSpan.TicksPerSecond / displayRate;
+            hud.AdvancePresentation(TimeSpan.FromTicks(timestamp - previous));
+            previous = timestamp;
+            if (timestamp <= TimeSpan.TicksPerSecond)
+            {
+                Assert.Equal("First message", hud.BattleMessage);
+            }
+        }
+        Assert.Null(hud.BattleMessage);
+    }
+
     [Fact]
     public void Open_battle_message_updates_when_its_live_input_bindings_change()
     {
