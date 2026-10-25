@@ -1,0 +1,103 @@
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class NativeBattleCinematicEffect250DispatchTests
+{
+    [Theory]
+    [InlineData("vm_table", 0x0, 0x9B6F40u, 0xB2FEB0u)]
+    [InlineData("vm_table", 0x1, 0x9B6BB0u, 0xB2FB20u)]
+    [InlineData("vm_table", 0x2, 0x9B20F0u, 0xB2AE30u)]
+    [InlineData("vm_table", 0x5, 0x9B32F0u, 0xB2C030u)]
+    [InlineData("vm_table", 0x9, 0x9B6F10u, 0xB2FE80u)]
+    [InlineData("vm_table", 0xA, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0xB, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0xC, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0xD, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0xE, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x10, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x11, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x12, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x13, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x16, 0x9B3740u, 0xB2C480u)]
+    [InlineData("vm_table", 0x1A, 0x9B4330u, 0xB2D070u)]
+    [InlineData("vm_table", 0x1E, 0x9B21C0u, 0xB2AF00u)]
+    [InlineData("vm_table", 0x1F, 0x9B2240u, 0xB2AF80u)]
+    [InlineData("vm_table", 0x21, 0x9B2710u, 0xB2B450u)]
+    [InlineData("vm_table", 0x22, 0x9B27F0u, 0xB2B530u)]
+    [InlineData("vm_table", 0x23, 0x9B5260u, 0xB2DFA0u)]
+    [InlineData("vm_table", 0x24, 0x9B4DB0u, 0xB2DAF0u)]
+    [InlineData("vm_table", 0x26, 0x9B4780u, 0xB2D4C0u)]
+    [InlineData("vm_table", 0x27, 0x9B5800u, 0xB2E540u)]
+    [InlineData("vm_table", 0x2B, 0x9AC420u, 0xB25BB0u)]
+    [InlineData("vm_table", 0x2F, 0x9B3B90u, 0xB2C8D0u)]
+    [InlineData("vm_table", 0x32, 0x9B48D0u, 0xB2D610u)]
+    [InlineData("vm_table", 0x33, 0x9B22E0u, 0xB2B020u)]
+    [InlineData("vm_table", 0x39, 0x9B2A10u, 0xB2B750u)]
+    [InlineData("vm_table", 0x3B, 0x9B2C40u, 0xB2B980u)]
+    [InlineData("vm_table", 0x3C, 0x9B66A0u, 0xB2F3E0u)]
+    [InlineData("vm_table", 0x40, 0x9B4FF0u, 0xB2DD30u)]
+    [InlineData("vm_table", 0x43, 0x9B24E0u, 0xB2B220u)]
+    [InlineData("vm_table", 0x44, 0x9B2470u, 0xB2B1B0u)]
+    [InlineData("vm_table", 0x4D, 0x9AE580u, 0xB26DF0u)]
+    [InlineData("vm_table", 0x52, 0x9B5880u, 0xB2E5C0u)]
+    [InlineData("vm_table", 0x58, 0x9B1170u, 0xB29D70u)]
+    [InlineData("vm_table", 0x59, 0x9B11E0u, 0xB29DE0u)]
+    [InlineData("vm_table", 0x5B, 0x9B6350u, 0xB2F090u)]
+    [InlineData("vm_table", 0x5F, 0x9B3A40u, 0xB2C780u)]
+    [InlineData("vm_table", 0x64, 0x9B23A0u, 0xB2B0E0u)]
+    [InlineData("vm_table", 0x68, 0x9B5F70u, 0xB2ECB0u)]
+    [InlineData("vm_table", 0x72, 0x9B3AE0u, 0xB2C820u)]
+    [InlineData("vm_table", 0x74, 0x9B3620u, 0xB2C360u)]
+    [InlineData("vm_table", 0x7D, 0x9B3150u, 0xB2BE90u)]
+    [InlineData("vm_table", 0x82, 0x9B3BC0u, 0xB2C900u)]
+    [InlineData("vm_table", 0x8B, 0x9B47E0u, 0xB2D520u)]
+    [InlineData("vm_table", 0xA1, 0x9B2340u, 0xB2B080u)]
+    [InlineData("vm_table", 0xB1, 0x9B2410u, 0xB2B150u)]
+    [InlineData("vm_table", 0xB9, 0x9B3D40u, 0xB2CA80u)]
+    [InlineData("vm_table", 0xD3, 0x9B50F0u, 0xB2DE30u)]
+    [InlineData("vm_table", 0xD4, 0x9B5090u, 0xB2DDD0u)]
+    [InlineData("vm_table", 0x104, 0x9B6070u, 0xB2EDB0u)]
+    [InlineData("vm_table", 0x105, 0x9B6100u, 0xB2EE40u)]
+    [InlineData("bone_table", 0x0, 0x9ACB50u, 0xB262E0u)]
+    [InlineData("bone_table", 0x1, 0x9ACB50u, 0xB262E0u)]
+    [InlineData("bone_table", 0x9, 0x9ACE20u, 0xB265B0u)]
+    [InlineData("draw_table", 0x2, 0x9AE7E0u, 0xB27050u)]
+    [InlineData("draw_table", 0x4, 0x9AE5B0u, 0xB26E20u)]
+    [InlineData("draw_table", 0x6, 0x9B1320u, 0xB29F20u)]
+    [InlineData("draw_table", 0x15, 0x9ACF30u, 0xB266C0u)]
+    [InlineData("draw_table", 0x25, 0x9AD270u, 0xB1A130u)]
+    [InlineData("prim_table", 0x6, 0x9AF700u, 0xAEB5B0u)]
+    [InlineData("prim_table", 0x7, 0x9AF940u, 0xB27E90u)]
+    [InlineData("prim_table", 0x9, 0x9AFBD0u, 0xB283B0u)]
+    [InlineData("prim_table", 0x11, 0x9AFF00u, 0xB28B00u)]
+    [InlineData("prim_table", 0x12, 0x9B01D0u, 0xB28DD0u)]
+    [InlineData("prim_table", 0x13, 0x9B04B0u, 0xB290B0u)]
+    [InlineData("pop_table", 0x0, 0x9B18C0u, 0xB2A4C0u)]
+    [InlineData("pop_table", 0x1, 0x9B18F0u, 0xB2A4F0u)]
+    [InlineData("pop_table", 0x4, 0x9B1970u, 0xB2A570u)]
+    [InlineData("pop_table", 0x5, 0x9B1A30u, 0xB2A630u)]
+    [InlineData("pop_table", 0x7, 0x9B1C20u, 0xB2A820u)]
+    [InlineData("pop_table", 0x9, 0x9B1B50u, 0xB2A750u)]
+    [InlineData("pop_table", 0xA, 0x9B1BC0u, 0xB2A7C0u)]
+    [InlineData("pop_table", 0x13, 0x9B1EB0u, 0xB2AAB0u)]
+    [InlineData("ptype_table", 0x1, 0x9B16E0u, 0xB2A2E0u)]
+    [InlineData("ptype_table", 0x2, 0x9B1730u, 0xB2A330u)]
+    public void Selected_handlers_reuse_their_current_kernel(string table, int index, uint selected, uint canonical)
+    {
+        Assert.Equal(canonical, NativeBattleCinematicDispatch.RequireSlot(250, table, index, selected));
+        Assert.Equal(canonical, NativeBattleCinematicDispatch.Canonicalize(250, selected));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(250, table, index, canonical));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(253, table, index, selected));
+    }
+
+    [Theory]
+    [InlineData("vm_table", 0xF, 0x9B3740u)]
+    [InlineData("bone_table", 2, 0x9ACB50u)]
+    [InlineData("draw_table", 36, 0x9AD270u)]
+    [InlineData("pop_table", 8, 0x9B1C20u)]
+    public void Unselected_slots_do_not_inherit_an_alias(string table, int index, uint selected)
+    {
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(250, table, index, selected));
+    }
+}

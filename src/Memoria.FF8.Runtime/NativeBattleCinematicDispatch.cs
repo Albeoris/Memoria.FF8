@@ -1318,6 +1318,22 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint RequireSlot(int effect, string table, int index, uint handler)
     {
+        if (effect == 254)
+        {
+            return RequireEffect254Slot(table, index, handler);
+        }
+        if (effect == 255)
+        {
+            return RequireEffect255Slot(table, index, handler);
+        }
+        if (effect == 250)
+        {
+            return RequireEffect250Slot(table, index, handler);
+        }
+        if (effect == 253)
+        {
+            return RequireEffect253Slot(table, index, handler);
+        }
         if (effect == 258)
         {
             return RequireEffect258Slot(table, index, handler);
@@ -1380,6 +1396,22 @@ public static partial class NativeBattleCinematicDispatch
 
     public static uint Canonicalize(int effect, uint handler)
     {
+        if (effect == 254 && Effect254Aliases.TryGetValue(handler, out uint effect254Canonical))
+        {
+            return effect254Canonical;
+        }
+        if (effect == 255 && Effect255Aliases.TryGetValue(handler, out uint effect255Canonical))
+        {
+            return effect255Canonical;
+        }
+        if (effect == 250 && Effect250Aliases.TryGetValue(handler, out uint effect250Canonical))
+        {
+            return effect250Canonical;
+        }
+        if (effect == 253 && Effect253Aliases.TryGetValue(handler, out uint effect253Canonical))
+        {
+            return effect253Canonical;
+        }
         if (effect == 258 && Effect258Aliases.TryGetValue(handler, out uint effect258Canonical))
         {
             return effect258Canonical;

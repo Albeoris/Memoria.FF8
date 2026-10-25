@@ -42,6 +42,65 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             {
                 transitions.Add($"mesh-{shape - basis}-{(retained == 0 ? "base" : "morph")}");
             }
+            if (kind == 21)
+            {
+                transitions.Add("draw-21");
+                if (BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(0x96)) != 0)
+                {
+                    transitions.Add("draw-21-scroll");
+                }
+            }
+            if (raw[0x18] == 9)
+            {
+                transitions.Add("update-9");
+            }
+            if (kind == 37)
+            {
+                transitions.Add("draw-37");
+                if (retained != 0 && BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(0x90)) != 0)
+                {
+                    ushort visible = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(checked((int)(retained + 4 - 0x20DFAB8)), 2));
+                    int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                    if (visible >= 2 && CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) == 0x38))
+                    {
+                        transitions.Add("draw-37-live");
+                    }
+                }
+            }
+            if (kind is 26 or 43 or 53)
+            {
+                transitions.Add($"draw-{kind}");
+            }
+            if (kind == 43 && retained != 0 && BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(0x94)) >= 1)
+            {
+                int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                if (CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) is 0x2C or 0x3C))
+                {
+                    transitions.Add("draw-43-live");
+                }
+            }
+            if (kind == 53 && retained != 0)
+            {
+                uint payload = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xB8));
+                int count = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(checked((int)(payload + 4 - 0x20DFAB8)), 2));
+                Assert.InRange(count, 1, 4096);
+                for (int particle = 0; particle < count; particle++)
+                {
+                    if ((arena.Read(checked((int)(retained + 16 + 28u * (uint)particle + 24 - 0x20DFAB8)), 1)[0] & 128) == 0)
+                    {
+                        transitions.Add("draw-53-live");
+                        break;
+                    }
+                }
+            }
+            if (kind == 26 && BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xC4)) != 0 && raw[0xCC] == raw[0xCD] && raw[0xCD] == raw[0xCE])
+            {
+                int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                if (CurrentCommands(current, commonStart).Count(command => (command.Opcode & 0xFC) == 0x28) >= 5)
+                {
+                    transitions.Add("draw-26-live");
+                }
+            }
             if (kind == 34 && shape >= basis)
             {
                 uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xB8));
