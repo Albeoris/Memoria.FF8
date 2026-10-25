@@ -104,6 +104,7 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         223 => 0x186BF84,
         221 => 0x186D3A4,
         238 => 0x18652A0,
+        249 => 0x185E634,
         256 => 0x185AB48,
         261 => 0x1858E0C,
         262 => 0x1858310,
