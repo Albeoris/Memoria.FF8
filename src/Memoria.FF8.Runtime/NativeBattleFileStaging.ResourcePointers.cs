@@ -105,11 +105,11 @@ public sealed partial record NativeBattleFileStaging
                 }
                 if (range.Offset < first)
                 {
-                    ranges.Add(new(range.Offset, range.Data.Slice(0, first - range.Offset)));
+                    ranges.Add(new(range.Offset, NativeBattleTelemetry.Slice(1030, range.Data, 0, first - range.Offset)));
                 }
                 if (rangeEnd > end)
                 {
-                    ranges.Add(new(end, range.Data.Slice(end - range.Offset, rangeEnd - end)));
+                    ranges.Add(new(end, NativeBattleTelemetry.Slice(1031, range.Data, end - range.Offset, rangeEnd - end)));
                 }
             }
             current = (current with { KnownRanges = ranges.ToImmutable() }).ForgetLoaderZero(address, 4).InvalidateResourcePointers(address, 4);

@@ -35,7 +35,7 @@ public sealed partial record NativeBattleModuleState
         }
         NativeBattleModuleKind kind = effect switch { 0 => NativeBattleModuleKind.CastingSeed574C80, 1 => NativeBattleModuleKind.GuardianCastingSeed5742A0, 2 => NativeBattleModuleKind.SpectralCastingSeed5737C0, 3 => NativeBattleModuleKind.SpectralCastingSeed574260, 4 => NativeBattleModuleKind.BoneSpriteSeed573560, 5 => NativeBattleModuleKind.BoneSpriteLargeSeed5736E0, _ => throw new InvalidOperationException() };
         (NativeBattleModuleState state, int slot) = Append(kind);
-        byte[] payload = state.Slots[slot].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1057, state.Slots[slot].Payload.AsSpan());
         W(payload, 0, 0);
         W(payload, 2, 0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), ModelAddress(model));
@@ -50,7 +50,7 @@ public sealed partial record NativeBattleModuleState
         }
         NativeBattleModuleState state = this;
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1058, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         NativeCrtRandomState crt = inputs.CrtRandom ?? throw new NotSupportedException("Native574C80 requires the existing CRT random owner.");
         ImmutableArray<NativeBattleModuleDraw>.Builder draws = ImmutableArray.CreateBuilder<NativeBattleModuleDraw>();
@@ -66,7 +66,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 5; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingRing5753A0);
-                byte[] bytes = state.Slots[child].Payload.ToArray();
+                byte[] bytes = NativeBattleTelemetry.Materialize(1059, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, 0);
                 W(bytes, 2, index * 3);
                 WriteAnchor(bytes.AsSpan(4), anchor);
@@ -78,7 +78,7 @@ public sealed partial record NativeBattleModuleState
                 state = state.StoreCastingPayload(child, bytes);
             }
             (state, int ground) = state.Append(NativeBattleModuleKind.CastingGround575250);
-            byte[] groundBytes = state.Slots[ground].Payload.ToArray();
+            byte[] groundBytes = NativeBattleTelemetry.Materialize(1060, state.Slots[ground].Payload.AsSpan());
             W(groundBytes, 0, 0);
             WriteAnchor(groundBytes.AsSpan(4), anchor);
             W(groundBytes, 6, transform.Angle36);
@@ -90,7 +90,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 6; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingParticle574F50);
-                byte[] bytes = state.Slots[child].Payload.ToArray();
+                byte[] bytes = NativeBattleTelemetry.Materialize(1061, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, 0);
                 W(bytes, 2, Draw(ref crt) % 6 + index);
                 WriteAnchor(bytes.AsSpan(4), anchor);
@@ -111,7 +111,7 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceCastingRing(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1062, task.Payload.AsSpan());
         short delay = S16(task.Payload, 2);
         if (delay > 0)
         {
@@ -136,7 +136,7 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceCastingGround(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1063, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { Anchor = ReadAnchor(task.Payload, 4), MeshId = 7, MeshRotation = new(0, 0, 0), MeshScale = new(S16(task.Payload, 16), 4096, S16(task.Payload, 16)), MeshFlags = phase >= 0 ? 0xF3u : 0x33u, MeshFade = phase >= 0 ? phase * 292 : 0 };
         if ((inputs.GraphicsFlags & 1) == 0)
@@ -152,7 +152,7 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceCastingParticle(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1064, task.Payload.AsSpan());
         short delay = S16(task.Payload, 2);
         if (delay > 0)
         {
@@ -178,7 +178,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 3; index++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.CastingTrail5751A0);
-                byte[] bytes = state.Slots[child].Payload.ToArray();
+                byte[] bytes = NativeBattleTelemetry.Materialize(1065, state.Slots[child].Payload.AsSpan());
                 W(bytes, 0, Draw(ref crt) % 3 + 4);
                 WriteAnchor(bytes.AsSpan(4), anchor);
                 W(bytes, 4, anchor.X + 30 - Draw(ref crt) % 60);
@@ -213,7 +213,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1066, task.Payload.AsSpan());
         short velocity = S16(task.Payload, 10);
         short next = unchecked((short)(S16(task.Payload, 0) - 1));
         W(payload, 16, S16(task.Payload, 16) - 64);
@@ -229,7 +229,7 @@ public sealed partial record NativeBattleModuleState
         return new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = anchor, Scale = scale, DepthOffset = -(scale >> 3), Resource = resource, SpriteFrame = resource.SpriteFrame(phase), Phase = phase, SpriteFlags = 0 };
     }
 
-    private NativeBattleModuleState StoreCastingPayload(int slot, byte[] payload) => this with { Slots = Slots.SetItem(slot, Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+    private NativeBattleModuleState StoreCastingPayload(int slot, byte[] payload) => this with { Slots = Slots.SetItem(slot, Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1067, payload) }) };
     private static void W(byte[] payload, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(offset), unchecked((short)value));
     private static ushort Draw(ref NativeCrtRandomState crt)
     {

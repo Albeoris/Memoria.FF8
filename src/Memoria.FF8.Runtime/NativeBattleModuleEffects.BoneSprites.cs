@@ -11,7 +11,7 @@ public sealed partial record NativeBattleModuleState
             return new(this, false, []);
         }
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1054, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         int model = ModelIndex(U32(task.Payload, 20));
         NativeBattleModuleState state = this;
@@ -32,7 +32,7 @@ public sealed partial record NativeBattleModuleState
                 throw new InvalidDataException("Native573560 cannot divide its CRT value by a zero skeleton bone count.");
             }
             (state, int child) = state.Append(NativeBattleModuleKind.BoneSprite573640);
-            byte[] childPayload = state.Slots[child].Payload.ToArray();
+            byte[] childPayload = NativeBattleTelemetry.Materialize(1055, state.Slots[child].Payload.AsSpan());
             W(childPayload, 0, 0);
             NativeCrtRandomState crt = random ?? throw new NotSupportedException("Native573560 requires the existing CRT random owner.");
             short fraction = checked((short)(Draw(ref crt) % 4096));
@@ -64,7 +64,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1056, task.Payload.AsSpan());
         W(payload, 0, unchecked((short)(phase + 1)));
         return new(StoreCastingPayload(slot, payload), frame.NextOffset < 0, [draw]);
     }

@@ -14,7 +14,7 @@ public static class NativeBattleEffectStaticResourcesReader
 
     public static ImmutableArray<byte> Read(IGameNativeMemorySource memory, uint address, int length)
     {
-        return memory.Read(address, length).ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1045, memory.Read(address, length));
     }
 
     public static NativeBattleModuleResource ReadSprite(byte[] executable, uint address)
@@ -59,7 +59,7 @@ public static class NativeBattleEffectStaticResourcesReader
             uint quads = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(address + offset), 4)) & 0x7FFFFFFF;
             length = Math.Max(length, checked(offset + 4 + 20 * (int)quads));
         }
-        return memory.Read(address, length).ToImmutableArray();
+        return NativeBattleTelemetry.Immutable(1046, memory.Read(address, length));
     }
 
     public static NativeBattleStaticMeshResource ReadMesh(byte[] executable, byte id)
@@ -103,7 +103,7 @@ public static class NativeBattleEffectStaticResourcesReader
             }
             cursor = checked(cursor + 4 + checked((int)count) * stride);
         }
-        return new(id, address, memory.Read(address, cursor).ToImmutableArray());
+        return new(id, address, NativeBattleTelemetry.Immutable(1047, memory.Read(address, cursor)));
 
         uint U32(uint location) => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(location, 4));
     }

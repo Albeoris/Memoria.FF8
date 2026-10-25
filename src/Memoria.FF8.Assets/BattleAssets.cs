@@ -347,7 +347,23 @@ public sealed partial class BattleAssets : IDisposable
         if (!models.TryGetValue(name, out BattleModel? model))
         {
             byte[] content = Read(name);
-            model = resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + name), content) ?? BattleResourceReader.ReadModel(name, content);
+            if (name.Equals("c0m127.dat", StringComparison.OrdinalIgnoreCase))
+            {
+                if (System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(content) != 2)
+                {
+                    throw new InvalidDataException("Native507F80 requires the original two-section companion resource.");
+                }
+                _ = NativeBattleDatDirectory.Section(content, 0);
+                _ = NativeBattleDatDirectory.Section(content, 1);
+                //507F80 retains model142's skeleton, animations, sequences and camera;
+                //the companion owns its information/AI and the zero-object geometry sentinel.
+                BattleModel shared = LoadEnemy(126);
+                model = shared with { Name = name, Meshes = [], Textures = [], TextureRegions = [], NativeControlMeshes = [], NativeRenderGeometry = [], NativeGeometryBytes = null, EditableOverride = null, NativeTextureAnimations = [], NativeBodyTexturePack = null, NativeWeaponTexturePack = null };
+            }
+            else
+            {
+                model = resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + name), content) ?? BattleResourceReader.ReadModel(name, content);
+            }
             model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(name, model);
         }

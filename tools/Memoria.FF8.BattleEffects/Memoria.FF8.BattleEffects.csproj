@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Memoria.FF8.Diagnostics/Memoria.FF8.Diagnostics.csproj" />
     <Content Include="schemas/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

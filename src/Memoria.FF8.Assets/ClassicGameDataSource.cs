@@ -118,7 +118,7 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
     {
         IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
         using Stream stream = entry.OpenForRead();
-        using MemoryStream result = new();
+        using MemoryStream result = ResourceTrafficTelemetry.CreateStagingStream();
         stream.CopyTo(result);
         return result.ToArray();
     }

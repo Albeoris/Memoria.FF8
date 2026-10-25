@@ -13,7 +13,7 @@ public sealed partial record NativeBattleModuleState
         }
         NativeBattleModuleState state = this;
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1072, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         int model = ModelIndex(U32(task.Payload, 20));
         NativeBattleModelTransform transform = (inputs.ReadModelTransform ?? throw new NotSupportedException("Native5742A0 requires the original model WORD36/38."))(model);
@@ -30,9 +30,9 @@ public sealed partial record NativeBattleModuleState
         {
             int scale = Math.Min(32767, unchecked(transform.Scale38 * 7572) >> 12);
             (state, int ring) = state.Append(NativeBattleModuleKind.GuardianCastingRing574AE0);
-            byte[] bytes = state.Slots[ring].Payload.ToArray();
+            byte[] bytes = NativeBattleTelemetry.Materialize(1073, state.Slots[ring].Payload.AsSpan());
             W(bytes, 0, 0);
-            payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+            NativeBattleTelemetry.Copy(1080, payload.AsSpan(4, 8), bytes.AsSpan(4));
             W(bytes, 6, transform.Angle36);
             W(bytes, 12, Draw(ref crt) % 2048);
             int speed = Draw(ref crt) % 10 + 80;
@@ -48,9 +48,9 @@ public sealed partial record NativeBattleModuleState
         {
             int scale = Math.Min(32767, unchecked(transform.Scale38 * 9011) >> 12);
             (state, int ground) = state.Append(NativeBattleModuleKind.GuardianCastingGround574990);
-            byte[] bytes = state.Slots[ground].Payload.ToArray();
+            byte[] bytes = NativeBattleTelemetry.Materialize(1074, state.Slots[ground].Payload.AsSpan());
             W(bytes, 0, 0);
-            payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+            NativeBattleTelemetry.Copy(1081, payload.AsSpan(4, 8), bytes.AsSpan(4));
             W(bytes, 6, transform.Angle36);
             W(bytes, 16, scale * 2);
             W(bytes, 18, unchecked((short)(scale * 2)) / 4);
@@ -60,10 +60,10 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 5; index++)
             {
                 (state, int particle) = state.Append(NativeBattleModuleKind.GuardianCastingParticle574670);
-                bytes = state.Slots[particle].Payload.ToArray();
+                bytes = NativeBattleTelemetry.Materialize(1075, state.Slots[particle].Payload.AsSpan());
                 W(bytes, 0, 0);
                 W(bytes, 2, Draw(ref crt) % 6);
-                payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+                NativeBattleTelemetry.Copy(1082, payload.AsSpan(4, 8), bytes.AsSpan(4));
                 W(bytes, 6, transform.Angle36 - 500);
                 W(bytes, 10, -38);
                 W(bytes, 20, angle + index * 819);
@@ -72,7 +72,7 @@ public sealed partial record NativeBattleModuleState
                 for (int trailIndex = 0; trailIndex < 3; trailIndex++)
                 {
                     (state, int trail) = state.Append(NativeBattleModuleKind.GuardianCastingTrail574580);
-                    bytes = state.Slots[trail].Payload.ToArray();
+                    bytes = NativeBattleTelemetry.Materialize(1076, state.Slots[trail].Payload.AsSpan());
                     W(bytes, 0, 0);
                     W(bytes, 2, trailIndex);
                     W(bytes, 10, -1);
@@ -95,7 +95,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1077, task.Payload.AsSpan());
         short speed = S16(task.Payload, 14);
         short heightSpeed = S16(task.Payload, 22);
         W(payload, 12, S16(task.Payload, 12) + speed);
@@ -110,7 +110,7 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceGuardianCastingParticle(int slot, NativeBattleModuleInputs inputs)
     {
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1078, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         bool paused = (inputs.GraphicsFlags & 1) != 0;
         NativeCrtRandomState crt = inputs.CrtRandom ?? throw new NotSupportedException("Native574670 requires the existing CRT random owner.");
@@ -186,9 +186,9 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, []);
         }
-        byte[] payload = task.Payload.ToArray();
-        task.Payload.AsSpan(4, 8).CopyTo(payload.AsSpan(12));
-        parent.Payload.AsSpan(12, 8).CopyTo(payload.AsSpan(4));
+        byte[] payload = NativeBattleTelemetry.Materialize(1079, task.Payload.AsSpan());
+        NativeBattleTelemetry.Copy(1083, task.Payload.AsSpan(4, 8), payload.AsSpan(12));
+        NativeBattleTelemetry.Copy(1084, parent.Payload.AsSpan(12, 8), payload.AsSpan(4));
         NativeBattleModuleAnchor anchor = new(S16(parent.Payload, 12), S16(parent.Payload, 14), S16(parent.Payload, 16), 0);
         byte color = unchecked((byte)(72 - unchecked((sbyte)task.Payload[2]) * 24));
         NativeBattleModuleDraw draw = GuardianCastingSprite(inputs, anchor, unchecked((ushort)BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(10))), (uint)(color * 0x10101), 4);

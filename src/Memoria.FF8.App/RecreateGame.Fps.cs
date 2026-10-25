@@ -14,7 +14,7 @@ internal sealed partial class RecreateGame
 
     private void BeginMeasuredFrame()
     {
-        if (!uiPreferences.ShowFps)
+        if (!uiPreferences.ShowFps || diagnosticDriver is { Finished: false })
         {
             DisposeFrameRate();
             return;

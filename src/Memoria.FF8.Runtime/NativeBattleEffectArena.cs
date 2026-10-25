@@ -78,14 +78,15 @@ public sealed partial record NativeBattleEffectArena([property: JsonRequired] Im
         }
         Validate();
         RequireRange(offset, count);
-        bool[] known = Enumerable.Repeat(true, count).ToArray();
+        bool[] known = new bool[count];
+        NativeBattleTelemetry.Fill(1050, known, true, 0, count);
         foreach (NativeBattleEffectUnknownRegion region in UnknownRegions)
         {
             int first = Math.Max(offset, region.Offset);
             int end = Math.Min(offset + count, region.Offset + region.Length);
             if (end > first)
             {
-                Array.Clear(known, first - offset, end - first);
+                NativeBattleTelemetry.Clear(1001, known, first - offset, end - first);
             }
         }
         return (ReadStorage(offset, count), known);
@@ -102,7 +103,7 @@ public sealed partial record NativeBattleEffectArena([property: JsonRequired] Im
             int end = Math.Min(offset + count, region.Offset + region.Data.Length);
             if (end > first)
             {
-                region.Data.AsSpan().Slice(first - region.Offset, end - first).CopyTo(result.AsSpan(first - offset));
+                NativeBattleTelemetry.Copy(1002, region.Data.AsSpan().Slice(first - region.Offset, end - first), result.AsSpan(first - offset));
             }
         }
         return result;
@@ -147,9 +148,9 @@ public sealed partial record NativeBattleEffectArena([property: JsonRequired] Im
         for (int index = firstRegion; index < afterRegion; index++)
         {
             NativeBattleEffectMemoryRegion region = Regions[index];
-            region.Data.AsSpan().CopyTo(data.AsSpan(region.Offset - first));
+            NativeBattleTelemetry.Copy(1003, region.Data.AsSpan(), data.AsSpan(region.Offset - first));
         }
-        bytes.CopyTo(data.AsSpan(offset - first));
+        NativeBattleTelemetry.Copy(1004, bytes, data.AsSpan(offset - first));
         ImmutableArray<NativeBattleEffectUnknownRegion> updatedUnknown = UnknownRegions;
         if (changesUnknown)
         {

@@ -27,7 +27,7 @@ public static partial class NativeBattleModulePackets
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * 4), words[index]);
             }
             ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, length).Select(index => index < words.Length * 4 ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched).ToImmutableArray();
-            attempts.Add(new(packet.ByteOffset, bytes.ToImmutableArray(), mask, packet.Primitive));
+            attempts.Add(new(packet.ByteOffset, NativeBattleTelemetry.Immutable(1120, bytes), mask, packet.Primitive));
         }
         return new(attempts.ToImmutable(), batch.AllocationBytes);
     }

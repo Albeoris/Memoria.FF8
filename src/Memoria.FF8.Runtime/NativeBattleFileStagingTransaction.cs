@@ -50,7 +50,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             uint pageAddress = current / PageLength * PageLength;
             int first = checked((int)(current - pageAddress));
             int count = Math.Min(length - offset, PageLength - first);
-            pages[pageAddress].Data.AsSpan(first, count).CopyTo(data.AsSpan(offset));
+            NativeBattleTelemetry.Copy(1032, pages[pageAddress].Data.AsSpan(first, count), data.AsSpan(offset));
             offset += count;
         }
         return data;
@@ -68,8 +68,8 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             int first = checked((int)(current - pageAddress));
             int count = Math.Min(length - offset, PageLength - first);
             Page page = CachedPage(pageAddress);
-            page.Data.AsSpan(first, count).CopyTo(data.AsSpan(offset));
-            page.Known.AsSpan(first, count).CopyTo(known.AsSpan(offset));
+            NativeBattleTelemetry.Copy(1033, page.Data.AsSpan(first, count), data.AsSpan(offset));
+            NativeBattleTelemetry.Copy(1034, page.Known.AsSpan(first, count), known.AsSpan(offset));
             offset += count;
         }
         return (data, known);
@@ -86,8 +86,8 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             int count = Math.Min(bytes.Length - offset, PageLength - first);
             Page page = CachedPage(pageAddress);
             page.Dirty = true;
-            bytes.Slice(offset, count).CopyTo(page.Data.AsSpan(first));
-            Array.Fill(page.Known, true, first, count);
+            NativeBattleTelemetry.Copy(1035, bytes.Slice(offset, count), page.Data.AsSpan(first));
+            NativeBattleTelemetry.Fill(1036, page.Known, true, first, count);
             offset += count;
         }
     }
@@ -103,8 +103,8 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
             int count = Math.Min(length - offset, PageLength - first);
             Page page = CachedPage(pageAddress);
             page.Dirty = true;
-            Array.Clear(page.Data, first, count);
-            Array.Fill(page.Known, false, first, count);
+            NativeBattleTelemetry.Clear(1037, page.Data, first, count);
+            NativeBattleTelemetry.Fill(1038, page.Known, false, first, count);
             offset += count;
         }
     }
@@ -144,7 +144,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
 
             void Keep(int first, int last)
             {
-                ranges.Add(first == region.Offset && last == end ? region : new(first, region.Data.Slice(first - region.Offset, last - first)));
+                ranges.Add(first == region.Offset && last == end ? region : new(first, NativeBattleTelemetry.Slice(1040, region.Data, first - region.Offset, last - first)));
             }
         }
         foreach (uint address in changed)
@@ -162,7 +162,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
                 {
                     index++;
                 }
-                ranges.Add(new(checked((int)((long)address + first - current.BaseAddress)), ImmutableCollectionsMarshal.AsImmutableArray(page.Data.AsSpan(first, index - first).ToArray())));
+                ranges.Add(new(checked((int)((long)address + first - current.BaseAddress)), ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleTelemetry.Materialize(1039, page.Data.AsSpan(first, index - first)))));
             }
         }
         NativeBattleFileStaging result = current with { KnownRanges = ranges.OrderBy(range => range.Offset).ToImmutableArray(), Transaction = null };

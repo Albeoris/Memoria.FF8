@@ -10,6 +10,7 @@ public sealed partial record NativeBattleFileStaging
         {
             throw new ArgumentOutOfRangeException(nameof(length));
         }
+        NativeBattleTelemetry.Record(1041, NativeBattleTrafficKind.LogicalMemoryCopy, length);
         NativeBattleFileStaging current = Rebase(Math.Min(BaseAddress, Math.Min(source, destination)));
         if (current.Transaction is not null || current.IntersectsLoaderZero(source, length) || current.IntersectsLoaderZero(destination, length))
         {
@@ -44,7 +45,7 @@ public sealed partial record NativeBattleFileStaging
             int b = Math.Min(sourceEnd, rangeEnd);
             if (a < b)
             {
-                copied.Add(new(checked(first + a - sourceFirst), range.Data.Slice(a - range.Offset, b - a)));
+                copied.Add(new(checked(first + a - sourceFirst), NativeBattleTelemetry.Slice(1022, range.Data, a - range.Offset, b - a)));
             }
             if (rangeEnd <= first || range.Offset >= end)
             {
@@ -54,11 +55,11 @@ public sealed partial record NativeBattleFileStaging
             {
                 if (range.Offset < first)
                 {
-                    kept.Add(new(range.Offset, range.Data.Slice(0, first - range.Offset)));
+                    kept.Add(new(range.Offset, NativeBattleTelemetry.Slice(1023, range.Data, 0, first - range.Offset)));
                 }
                 if (rangeEnd > end)
                 {
-                    kept.Add(new(end, range.Data.Slice(end - range.Offset, rangeEnd - end)));
+                    kept.Add(new(end, NativeBattleTelemetry.Slice(1024, range.Data, end - range.Offset, rangeEnd - end)));
                 }
             }
         }

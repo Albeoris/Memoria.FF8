@@ -18,9 +18,9 @@ public sealed partial record NativeBattleModuleState
             return new(this, true, []);
         }
         (NativeBattleModuleState state, int child) = Append(NativeBattleModuleKind.Impact570860);
-        byte[] payload = state.Slots[child].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1085, state.Slots[child].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
-        task.Payload.AsSpan().Slice(4, 8).CopyTo(payload.AsSpan(4));
+        NativeBattleTelemetry.Copy(1089, task.Payload.AsSpan().Slice(4, 8), payload.AsSpan(4));
         short rotation = (inputs.ReadModelRotation14 ?? throw new NotSupportedException("Native impact requires its current model rotationWORD14."))(ModelIndex(modelAddress));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(12), rotation);
         NativeCrtRandomState random = inputs.CrtRandom ?? throw new NotSupportedException("Native impact requires its current CRT thread random owner.");
@@ -31,7 +31,7 @@ public sealed partial record NativeBattleModuleState
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(16), unchecked((short)(unchecked(intensity * (scaleXY % 768 + 1280)) >> 12)));
         random = random.Draw(out ushort scaleZ);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(20), unchecked((short)(scaleZ % 896 + 1536)));
-        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = payload.ToImmutableArray() }) };
+        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = NativeBattleTelemetry.Immutable(1087, payload) }) };
         return new(state, true, []) { CrtRandomAfter = random };
     }
 
@@ -44,9 +44,9 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1086, task.Payload.AsSpan());
         short next = unchecked((short)(age + 1));
         BinaryPrimitives.WriteInt16LittleEndian(payload, next);
-        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) }, next >= 4, [draw]);
+        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1088, payload) }) }, next >= 4, [draw]);
     }
 }

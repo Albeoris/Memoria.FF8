@@ -47,7 +47,7 @@ public sealed class ResourceService : IResourceChangeFeed
         }
         using Stream stream = Get(key).OpenRead();
         long? size = stream.CanSeek ? stream.Length - stream.Position : null;
-        using MemoryStream bytes = new();
+        using ResourceTrafficTelemetry.StagingStream bytes = new();
         byte[] buffer = new byte[Math.Min(8192, maximumBytes)];
         while (bytes.Length < maximumBytes)
         {
@@ -65,7 +65,7 @@ public sealed class ResourceService : IResourceChangeFeed
     public byte[] Read(ResourceKey key)
     {
         using Stream stream = Get(key).OpenRead();
-        using MemoryStream bytes = new();
+        using ResourceTrafficTelemetry.StagingStream bytes = new();
         stream.CopyTo(bytes);
         return bytes.ToArray();
     }

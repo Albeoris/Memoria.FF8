@@ -8,11 +8,11 @@ public sealed partial record NativeBattleModuleState
     private NativeBattleModuleCallback AdvanceSpectralCastingSeed(int slot, ushort material)
     {
         (NativeBattleModuleState state, int child) = Append(NativeBattleModuleKind.SpectralCasting573800);
-        byte[] payload = state.Slots[child].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1103, state.Slots[child].Payload.AsSpan());
         W(payload, 0, 0);
         W(payload, 2, 0);
         W(payload, 16, material);
-        Slots[slot].Payload.AsSpan().Slice(20, 4).CopyTo(payload.AsSpan(20));
+        NativeBattleTelemetry.Copy(1115, Slots[slot].Payload.AsSpan().Slice(20, 4), payload.AsSpan(20));
         return new(state.StoreCastingPayload(child, payload), true, []);
     }
 
@@ -23,7 +23,7 @@ public sealed partial record NativeBattleModuleState
             return new(this, false, []);
         }
         NativeBattleModuleTask task = Slots[slot];
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1104, task.Payload.AsSpan());
         short phase = S16(task.Payload, 0);
         int model = ModelIndex(U32(task.Payload, 20));
         NativeBattleModuleState state = this;
@@ -46,10 +46,10 @@ public sealed partial record NativeBattleModuleState
             NativeBattleModelTransform currentTransform = transform ?? throw new InvalidDataException("Native573800 phase1 lacks its just-read model transform.");
             int scale = Math.Min(32767, unchecked(currentTransform.Scale38 * 9011) >> 12);
             (state, int column) = state.Append(NativeBattleModuleKind.SpectralCastingColumn573F40);
-            byte[] bytes = state.Slots[column].Payload.ToArray();
+            byte[] bytes = NativeBattleTelemetry.Materialize(1105, state.Slots[column].Payload.AsSpan());
             W(bytes, 0, 0);
             W(bytes, 2, 0);
-            payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+            NativeBattleTelemetry.Copy(1116, payload.AsSpan(4, 8), bytes.AsSpan(4));
             W(bytes, 6, currentTransform.Angle36);
             W(bytes, 12, Rand() % 2048);
             W(bytes, 14, Rand() % 20 + 120);
@@ -64,9 +64,9 @@ public sealed partial record NativeBattleModuleState
             for (int ring = 0; ring < 4; ring++)
             {
                 (state, int child) = state.Append(NativeBattleModuleKind.SpectralCastingRing5740D0);
-                bytes = state.Slots[child].Payload.ToArray();
+                bytes = NativeBattleTelemetry.Materialize(1106, state.Slots[child].Payload.AsSpan());
                 W(bytes, 2, ring * 4);
-                payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+                NativeBattleTelemetry.Copy(1117, payload.AsSpan(4, 8), bytes.AsSpan(4));
                 W(bytes, 0, 0);
                 W(bytes, 6, currentTransform.Angle36);
                 W(bytes, 10, S16(task.Payload, 16));
@@ -86,8 +86,8 @@ public sealed partial record NativeBattleModuleState
             }
 
             (state, int ground) = state.Append(NativeBattleModuleKind.SpectralCastingGround573DF0);
-            bytes = state.Slots[ground].Payload.ToArray();
-            payload.AsSpan(4, 8).CopyTo(bytes.AsSpan(4));
+            bytes = NativeBattleTelemetry.Materialize(1107, state.Slots[ground].Payload.AsSpan());
+            NativeBattleTelemetry.Copy(1118, payload.AsSpan(4, 8), bytes.AsSpan(4));
             W(bytes, 6, currentTransform.Angle36);
             W(bytes, 0, 0);
             short doubled = unchecked((short)(scale * 2));
@@ -100,7 +100,7 @@ public sealed partial record NativeBattleModuleState
             for (int index = 0; index < 20; index++)
             {
                 (state, int particle) = state.Append(NativeBattleModuleKind.SpectralCastingParticle573C40);
-                byte[] bytes = state.Slots[particle].Payload.ToArray();
+                byte[] bytes = NativeBattleTelemetry.Materialize(1108, state.Slots[particle].Payload.AsSpan());
                 W(bytes, 2, index);
                 var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(Rand() % 4096 - 2048, Rand() % 4096 - 2048, Rand() % 4096 - 2048);
                 int radius = Rand() % 1000 + 1500;
@@ -145,7 +145,7 @@ public sealed partial record NativeBattleModuleState
             {
                 return new(this, false, []);
             }
-            byte[] waiting = task.Payload.ToArray();
+            byte[] waiting = NativeBattleTelemetry.Materialize(1109, task.Payload.AsSpan());
             W(waiting, 2, S16(task.Payload, 2) - 1);
             return new(StoreCastingPayload(slot, waiting), false, []);
         }
@@ -158,7 +158,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1110, task.Payload.AsSpan());
         W(payload, 4, S16(task.Payload, 4) + S16(task.Payload, 12));
         W(payload, 6, S16(task.Payload, 6) + S16(task.Payload, 14));
         W(payload, 8, S16(task.Payload, 8) + S16(task.Payload, 16));
@@ -179,7 +179,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1111, task.Payload.AsSpan());
         short growth = S16(task.Payload, 18);
         W(payload, 16, scale + growth);
         W(payload, 18, growth - growth / 8);
@@ -197,7 +197,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1112, task.Payload.AsSpan());
         short speed = S16(task.Payload, 14);
         short growth = S16(task.Payload, 18);
         short vertical = S16(task.Payload, 22);
@@ -221,7 +221,7 @@ public sealed partial record NativeBattleModuleState
             {
                 return new(this, false, []);
             }
-            byte[] waiting = task.Payload.ToArray();
+            byte[] waiting = NativeBattleTelemetry.Materialize(1113, task.Payload.AsSpan());
             W(waiting, 2, S16(task.Payload, 2) - 1);
             return new(StoreCastingPayload(slot, waiting), false, []);
         }
@@ -231,7 +231,7 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1114, task.Payload.AsSpan());
         short vertical = S16(task.Payload, 22);
         W(payload, 16, S16(task.Payload, 16) + S16(task.Payload, 18));
         W(payload, 20, S16(task.Payload, 20) + vertical);

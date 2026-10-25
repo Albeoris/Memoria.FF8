@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "preparation", commands = new[] { "capabilities", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -22,10 +22,12 @@ public static class Program
             {
                 Print(new
                 {
-                    stage = "preparation",
+                    stage = "bounded_live_pilot",
                     execution_ready = false,
-                    runtime_copy_instrumentation = TelemetryCoverageManifest.PreparationOnly,
-                    blockers = new[] { "Installed coverage discovery and scenario planning have not been performed.", "Typed fixture progression/capability/repair adapters and authenticated readiness/drain checks are not yet implemented.", "Runtime/render/event telemetry hooks and pilot calibration are not yet implemented.", "Scored worker execution, independent result/review reporting and final sweep are unavailable until those contracts are connected." }
+                    bounded_live_effects = Memoria.FF8.Runtime.NativeBattleTelemetry.CoveredEffects,
+                    runtime_copy_instrumentation = new { version = Memoria.FF8.Runtime.NativeBattleTelemetry.InstrumentationVersion, scope = Memoria.FF8.Runtime.NativeBattleTelemetry.MeasurementScope, sites = Memoria.FF8.Runtime.NativeBattleTelemetry.Sites, blind_spots = Memoria.FF8.Runtime.NativeBattleTelemetry.KnownBlindSpots },
+                    live_validation_command = "validate-live --input [--case]",
+                    blockers = new[] { "Full installed coverage discovery and scenario planning have not been performed.", "Typed preparation and traffic coverage are bounded to the first three effects; arbitrary capabilities, timed limits and between-execution repairs remain unsupported.", "Telemetry admission is separate from independent fixture provenance, reviewer acceptance and a final campaign sweep." }
                 });
                 return 0;
             }
@@ -43,6 +45,13 @@ public static class Program
                 InventoryRecord inventory = RecordJson.Read<InventoryRecord>(Get("input"));
                 Print(new { mode = "validate_planner_input", installed_discovery_performed = false, inventory });
                 return 0;
+            }
+
+            if (args[0] == "validate-live")
+            {
+                LiveEvidenceVerdict result = LiveEvidenceValidation.ValidateFile(Get("input"), Optional("case") is { } casePath ? RecordJson.Read<CaseRecipe>(casePath) : null);
+                Print(result);
+                return result.Verdict == "PASS" ? 0 : result.Verdict == "FAIL" ? 2 : 4;
             }
 
             EvidenceStore store = new(Get("store"));
@@ -210,7 +219,7 @@ public static class Program
                     }
                     if (outcome.Status == "candidate_ready")
                     {
-                        OwnedChildSupervisor.PublishValidatedCandidate(outcome, payload => JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, attempt_id = attempt.AttemptId, run_pass_id = selectedPass.RunPassId, case_id = caseId, verdict = "ERROR", error_category = "TELEMETRY_UNAVAILABLE", stage = "preparation", candidate_sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(payload)), message = "Preparation receipt preserved; runtime instrumentation and independent case assertions are not yet available." }, RecordJson.Options));
+                        OwnedChildSupervisor.PublishValidatedCandidate(outcome, payload => ValidateSupervisedLiveCandidate(payload, store.Resolve(attempt.RelativeDirectory), attempt.AttemptId, selectedPass.RunPassId, recipe));
                     }
                     if (outcome.ProcessExited)
                     {
@@ -222,8 +231,14 @@ public static class Program
                         }
                         coordinator.Release(claim);
                     }
-                    Print(new { stage = "preparation", execution_verdict = "ERROR", attempt, outcome = outcome with { CandidatePayload = null }, heartbeat_error = heartbeatError, publication_accepted = false, claim_released = outcome.ProcessExited });
-                    return 4;
+                    string verdict = "ERROR";
+                    if (store.Exists(attempt.RelativeDirectory + "/result.json"))
+                    {
+                        using JsonDocument result = JsonDocument.Parse(store.ReadBytes(attempt.RelativeDirectory + "/result.json"));
+                        verdict = result.RootElement.GetProperty("verdict").GetString() ?? "ERROR";
+                    }
+                    Print(new { stage = "live_evidence", execution_verdict = verdict, attempt, outcome = outcome with { CandidatePayload = null }, heartbeat_error = heartbeatError, publication_accepted = false, claim_released = outcome.ProcessExited });
+                    return verdict == "PASS" ? 0 : verdict == "FAIL" ? 2 : 4;
                 }
                 case "worker":
                 case "run":
@@ -246,6 +261,35 @@ public static class Program
     }
 
     private static BuildRecord CaptureBuild(string directory, string commit, string? patchHash) => new(1, commit, patchHash != null, patchHash, "Release", EvidenceStore.DescribeFiles(directory));
+
+    internal static byte[] ValidateSupervisedLiveCandidate(byte[] payload, string outputDirectory, string attemptId, string passId, CaseRecipe recipe)
+    {
+        using JsonDocument candidate = JsonDocument.Parse(payload);
+        JsonElement summary = candidate.RootElement;
+        if (!summary.TryGetProperty("telemetry_report", out JsonElement reportName) || reportName.ValueKind != JsonValueKind.String || reportName.GetString() != "telemetry-report.json")
+        {
+            throw new InvalidDataException("Candidate must reference the fixed local live telemetry artifact.");
+        }
+        string path = Path.Combine(outputDirectory, "telemetry-report.json");
+        FileInfo info = new(path);
+        if (info.Length is <= 0 or > 64 * 1024 * 1024 || (info.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException("Live telemetry artifact must be a bounded ordinary local file.");
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        string hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+        if (!summary.TryGetProperty("telemetry_sha256", out JsonElement digest) || digest.ValueKind != JsonValueKind.String || digest.GetString() != hash)
+        {
+            throw new InvalidDataException("Candidate live telemetry digest differs from the retained artifact.");
+        }
+        using JsonDocument report = JsonDocument.Parse(bytes);
+        if (!summary.TryGetProperty("battle_instance_id", out JsonElement candidateBattle) || candidateBattle.ValueKind != JsonValueKind.String || !report.RootElement.TryGetProperty("battle_instance_id", out JsonElement reportBattle) || reportBattle.ValueKind != JsonValueKind.String || candidateBattle.GetString() != reportBattle.GetString())
+        {
+            throw new InvalidDataException("Candidate and live report identify different battles.");
+        }
+        LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(report.RootElement, recipe);
+        return JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, attempt_id = attemptId, run_pass_id = passId, case_id = recipe.CaseId, verdict = validation.Verdict, stage = "live_evidence", telemetry_sha256 = hash, candidate_sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(payload)), validation, publication_accepted = false }, RecordJson.Options);
+    }
 
     private static PassRecord ReadPass(EvidenceStore store, CampaignPlanning planning, string id)
     {

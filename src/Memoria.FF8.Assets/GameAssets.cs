@@ -393,7 +393,7 @@ public sealed partial class GameAssets : IDisposable
             throw new FileNotFoundException($"Resource '{basename}' is unavailable from its archive.");
         }
         using Stream source = entry.OpenForRead();
-        using MemoryStream result = new(checked((int)entry.Size));
+        using MemoryStream result = ResourceTrafficTelemetry.CreateStagingStream(checked((int)entry.Size));
         source.CopyTo(result);
         return result.ToArray();
     }

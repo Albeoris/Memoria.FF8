@@ -28,7 +28,7 @@ public static partial class NativeBattleModulePackets
             throw new InvalidDataException("Native572200 requires its original mesh header.");
         }
         NativeBattleActionMatrix matrix = NativeBattlePoseMatrices.ModuleMeshCamera(draw, projection.View ?? throw new NotSupportedException("Native572200 requires its previous published camera matrix."));
-        return EmitMesh572200WithVertices(draw, resource, projection, matrix, resource.Bytes.AsSpan().Slice(8).ToArray().ToImmutableArray(), tableBaseBucket, depthShift, colors: colors);
+        return EmitMesh572200WithVertices(draw, resource, projection, matrix, NativeBattleTelemetry.Immutable(1145, NativeBattleTelemetry.Materialize(1144, resource.Bytes.AsSpan().Slice(8))), tableBaseBucket, depthShift, colors: colors);
     }
 
     /// <summary>572200's explicit contextDWORD4 vertex pointer and already-published GTE matrix.</summary>

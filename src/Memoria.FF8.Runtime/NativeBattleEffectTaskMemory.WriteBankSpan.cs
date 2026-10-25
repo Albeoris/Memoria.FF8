@@ -26,7 +26,7 @@ public static partial class NativeBattleEffectTaskMemory
                 BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(2), task.State);
                 BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4), task.Next is int next ? checked(pool.BankAddress + (uint)(next * pool.Stride)) : 0);
                 BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), task.Callback);
-                source.Read(copied, count).CopyTo(header, field);
+                NativeBattleTelemetry.Copy(1149, source.Read(copied, count).AsSpan(), header.AsSpan(field));
                 uint physicalNext = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(4));
                 int? linked = null;
                 if (physicalNext != 0)

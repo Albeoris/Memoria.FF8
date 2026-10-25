@@ -76,7 +76,7 @@ public static partial class NativeBattleModulePackets
                 //571DC0 reserves52 bytes, puts E1 at+40, inserts it first, then inserts the FT4 at+0.
                 result.Add(new(new(bucket, [0x1000000, 0xE1000220], [0, 0, 0, 0]), allocated + 40, 0));
             }
-            result.Add(new(new(bucket, words.ToImmutableArray(), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray()), allocated, 0));
+            result.Add(new(new(bucket, NativeBattleTelemetry.Immutable(1119, words), vertices.Select(vertex => (int)vertex.Depth).ToImmutableArray()), allocated, 0));
             allocated += extended ? 52 : 40;
             //571DC0 stores the first accepted AVSZ4 in contextDWORD60 and reuses its bucket for subsequent quads.
             retainedBucket = bucket;

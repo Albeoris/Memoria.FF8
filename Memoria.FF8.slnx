@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Memoria.FF8.Diagnostics/Memoria.FF8.Diagnostics.csproj" />
     <Project Path="src/Memoria.Launcher/Memoria.Launcher.csproj" />
     <Project Path="src/Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
     <Project Path="src/Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />

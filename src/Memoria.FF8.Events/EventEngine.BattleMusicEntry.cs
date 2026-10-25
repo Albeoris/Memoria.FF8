@@ -22,6 +22,19 @@ public sealed partial class EventEngine
         return PrepareNativeBattleMusicEntry(encounter, flags, resources, priorReturnChannel);
     }
 
+    public PreparedNativeBattleMusicEntry PrepareNativeDiagnosticBattleMusicEntry(ushort encounter, ushort flags, NativeBattleMusicEntryResources resources, byte? music203, int? primaryChannel, ushort? currentFieldWord, ushort? priorReturnChannel = null)
+    {
+        NativeMusicProcessState buffers = Scene.MusicProcess ?? throw new NotSupportedException("Diagnostic battle music requires its initialized New Game physical buffers.");
+        if (program is not null || services is not GameSession session || session.State.Scene != SceneKind.Field || session.State.FieldId != 74 || session.State.EventState is not null || session.State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame || buffers.Bootstrap?.ExecutableHash != resources.ExecutableSha256 || !NativeFieldRuntimeProfile.IsSupportedImage(resources.ExecutableSha256))
+        {
+            throw new InvalidOperationException("Diagnostic battle music requires authenticated New Game owners before exploration allocation.");
+        }
+        NativeGlobalSoundProcess sound = RequireMusicSoundProcess();
+        NativeBattleMusicEntryPreparation native = NativeBattleMusicEntry.Prepare52CE30(encounter, flags, buffers, music203, primaryChannel, sound, resources, priorReturnChannel, currentFieldWord);
+        // Explicit diagnostic inputs do not replace field music cells; commit still authenticates their actual source owners.
+        return new(native, Scene, buffers, sound, Scene.NativeBattleMusic203, Scene.MusicChannel108);
+    }
+
     public void CommitNativeBattleMusicEntry(PreparedNativeBattleMusicEntry prepared, Action<NativeBattleMusicEntryPreparation> publishNativeBattle)
     {
         ArgumentNullException.ThrowIfNull(prepared);

@@ -64,7 +64,7 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
 
     public static NativeBattleModuleState Clear()
     {
-        return new(Enumerable.Range(0, 300).Select(_ => new NativeBattleModuleTask(0, 0, null, NativeBattleModuleKind.None, ImmutableArray.CreateRange(new byte[24]))).ToImmutableArray(), null, null);
+        return new(Enumerable.Range(0, 300).Select(_ => new NativeBattleModuleTask(0, 0, null, NativeBattleModuleKind.None, NativeBattleTelemetry.Immutable(1143, new byte[24]))).ToImmutableArray(), null, null);
     }
 
     public void Validate()
@@ -130,11 +130,11 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
     public NativeBattleModuleState AppendFlash(short rise, short hold, short fall, short intensity)
     {
         (NativeBattleModuleState state, int slot) = Append(NativeBattleModuleKind.CriticalFlash571300);
-        byte[] payload = state.Slots[slot].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1068, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), unchecked((short)((ushort)rise | 16 * ((ushort)hold | 16 * (ushort)fall))));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(16), intensity);
-        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1070, payload) }) };
     }
 
     public NativeBattleModuleStep Advance(NativeBattleModuleInputs inputs)
@@ -245,9 +245,9 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
         {
             return new(this, false, []);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1069, task.Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, unchecked((short)(frame + 1)));
-        NativeBattleModuleState state = this with { Slots = Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) };
+        NativeBattleModuleState state = this with { Slots = Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1071, payload) }) };
         return brightness < 0 ? new(state, true, []) : new(state, false, [new(NativeBattleModuleDrawKind.Flash, unchecked((byte)brightness))]);
     }
 }

@@ -101,7 +101,7 @@ public sealed partial class BattleSession
         if (batch.AllocationBytes != 0)
         {
             links.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), batch.AllocationBytes);
-            stores.Add(new(cursor, new byte[batch.AllocationBytes].ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, batch.AllocationBytes).ToImmutableArray()));
+            stores.Add(new(cursor, NativeBattleTelemetry.Immutable(1151, new byte[batch.AllocationBytes]), Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, batch.AllocationBytes).ToImmutableArray()));
         }
         foreach (NativeBattleAllocatedPrimitive allocated in batch.Primitives)
         {
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(address, primitive, linked));
             if (linked)
             {
-                stores.Add(new(address, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink).ToImmutableArray(), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
+                stores.Add(new(address, NativeBattleTelemetry.Immutable(1152, NativeBattleLogicalOrdering.LinkBytes(links.LastHeaderLink)), [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Known]));
             }
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = next } };

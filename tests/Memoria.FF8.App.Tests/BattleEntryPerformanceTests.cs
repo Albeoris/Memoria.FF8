@@ -39,16 +39,28 @@ public sealed class BattleEntryPerformanceTests
         {
             ushort flags = world.CaptureBattleEntryFlags();
             NativeBattleEntryTransition transition = world.CreateBattleEntryTransition();
+            int entryMusicReceipts = 0;
+            world.Events.AudioCommandExecuted += command =>
+            {
+                if (command is NativeBattleMusicEntryReceipt)
+                {
+                    entryMusicReceipts++;
+                }
+            };
             NativeBattleMusicEntryPreparation music = world.BeginBattleEntryMusic(session.State.PendingBattleEncounter!.Formation, flags);
+            Assert.Equal(1, entryMusicReceipts);
             GameState suspended = session.State;
             JsonElement vm = world.Events.Capture();
-            GameWorld.PreparedBattleEntry entry = await Task.Run(() => world.PrepareBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, 0, suspended.GameplayPreferences.AtbMode, music));
+            Assert.Throws<InvalidOperationException>(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, 0, suspended.GameplayPreferences.AtbMode, music with { Receipt = music.Receipt with { } }));
+            GameWorld.PreparedBattleEntry entry = await Task.Run(() => world.PrepareCommittedBattleEntry(suspended.PendingBattleEncounter!.Formation, flags, 0, suspended.GameplayPreferences.AtbMode, music));
             Assert.Null(world.Battle);
             Assert.Same(suspended, session.State);
             Assert.True(JsonElement.DeepEquals(vm, world.Events.Capture()));
             Assert.Equal(0, entry.Battle.NativeHostCallbacks);
             Assert.Equal(82, transition.CompletionCounter);
             world.PublishPreparedBattleEntry(entry);
+            Assert.Equal(1, entryMusicReceipts);
+            Assert.Same(music.Receipt, world.Events.Scene.NativeBattleMusicEntry);
         }
         else
         {

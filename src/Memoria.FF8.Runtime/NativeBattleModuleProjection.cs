@@ -112,8 +112,8 @@ public static partial class NativeBattlePoseMatrices
         NativeBattleVector rotation = draw.MeshRotation ?? throw new InvalidDataException("Native mesh lacks its original rotation.");
         NativeBattleVector scale = draw.MeshScale ?? throw new InvalidDataException("Native mesh lacks its original scale.");
         Matrix world = Scale(Rotation(rotation), [scale.X, scale.Y, scale.Z]) with { X = anchor.X, Y = anchor.Y, Z = anchor.Z };
-        Matrix result = Compose(new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z), world);
-        return new(result.Rotation.ToImmutableArray(), result.X, result.Y, result.Z, 4096);
+        Matrix result = Compose(new(NativeBattleTelemetry.Materialize(1134, camera.Rotation.AsSpan()), camera.X, camera.Y, camera.Z), world);
+        return new(NativeBattleTelemetry.Immutable(1138, result.Rotation), result.X, result.Y, result.Z, 4096);
     }
 
     public static NativeBattleActionMatrix ModuleSpriteCamera(NativeBattleModuleDraw draw, NativeBattleActionMatrix camera, short cameraRoll)
@@ -124,7 +124,7 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new NotSupportedException("Native sprite setup requires its original matrix and supported571C80 flags.");
         }
-        Matrix view = new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z);
+        Matrix view = new(NativeBattleTelemetry.Materialize(1135, camera.Rotation.AsSpan()), camera.X, camera.Y, camera.Z);
         (int x, int y, int z) = ApplyRounded(view, anchor.X, anchor.Y, anchor.Z);
         x = unchecked(x + camera.X);
         y = unchecked(y + camera.Y);
@@ -143,7 +143,7 @@ public static partial class NativeBattlePoseMatrices
         }
         if ((draw.SpriteFlags & 2) != 0)
         {
-            short[] words = main.Rotation.ToArray();
+            short[] words = NativeBattleTelemetry.Materialize(1136, main.Rotation.AsSpan());
             for (int column = 0; column < 3; column++)
             {
                 words[column] = unchecked((short)(words[column] * draw.Direction >> 12));
@@ -177,7 +177,7 @@ public static partial class NativeBattlePoseMatrices
         NativeBattleActionMatrix multiplied = MultiplyGteRotation45E470(main, new(local.ToImmutableArray(), 0, 0, 0, 4096));
         short dx = unchecked((short)(8 * quad[0] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[8..])));
         short dy = unchecked((short)(8 * quad[2] + 16 * BinaryPrimitives.ReadInt16LittleEndian(quad[10..])));
-        (int x, int y, int z) = ApplyRounded(new(main.Rotation.ToArray()), dx, dy, 0);
+        (int x, int y, int z) = ApplyRounded(new(NativeBattleTelemetry.Materialize(1137, main.Rotation.AsSpan())), dx, dy, 0);
         return new(multiplied.Rotation, unchecked(main.X + x), unchecked(main.Y + y), unchecked(main.Z + z), 4096);
     }
 

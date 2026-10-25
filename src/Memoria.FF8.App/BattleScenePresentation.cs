@@ -97,8 +97,9 @@ internal sealed partial class BattleScenePresentation
             throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");
         }
         BattleModel? weapon = playerResource && actor.WeaponId is int weaponId ? assets.ResolveWeaponModel(actor.ModelId, weaponId, model) : null;
-        float ground = model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
-        float height = model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - ground;
+        bool emptyGeometry = model.Meshes.Count == 0 && model.NativeRenderGeometry is { IsEmpty: true };
+        float ground = emptyGeometry ? 0 : model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
+        float height = emptyGeometry ? 0 : model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - ground;
         BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequenceResolver = () => playerResource ? 13 : modelId == -1 ? 0 : assets.ReadEnemyAttackSequence(modelId) };
         models.Add(actor.Id, model);
         animations.Add(actor.Id, animation);

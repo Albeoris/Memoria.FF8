@@ -49,14 +49,14 @@ public sealed partial record NativeBattleModuleState
     {
         NativeBattleModuleState state = AppendModelResource(model, resource, packedParameters);
         int slot = state.Tail!.Value;
-        byte[] payload = state.Slots[slot].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1090, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 4);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(4), local.X);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6), local.Y);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(8), local.Z);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(10), 0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), ModelAddress(model));
-        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1096, payload) }) };
     }
 
     public NativeBattleModuleState AppendModelResource(int model, NativeBattleModuleResource resource, uint packedParameters)
@@ -71,13 +71,13 @@ public sealed partial record NativeBattleModuleState
             throw new NotSupportedException($"Native module wrapper{resource.WrapperCallback:X} requires its own original callback.");
         }
         (NativeBattleModuleState state, int slot) = Append(NativeBattleModuleKind.Placement570CC0);
-        byte[] payload = state.Slots[slot].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1091, state.Slots[slot].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), 1);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), ModelAddress(model));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), packedParameters);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), resource.Address);
-        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+        return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = NativeBattleTelemetry.Immutable(1097, payload) }) };
     }
 
     private NativeBattleModuleCallback AdvancePlacement(int slot, NativeBattleModuleInputs inputs)
@@ -115,13 +115,13 @@ public sealed partial record NativeBattleModuleState
             _ => throw new NotSupportedException($"Native module callback{resource.Callback:X} requires its original implementation.")
         };
         (NativeBattleModuleState state, int child) = Append(kind);
-        byte[] payload = state.Slots[child].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1092, state.Slots[child].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         WriteAnchor(payload.AsSpan(4), anchor);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12), ModelAddress(model));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16), U32(task.Payload, 16));
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20), resource.Address);
-        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = payload.ToImmutableArray() }) };
+        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = NativeBattleTelemetry.Immutable(1098, payload) }) };
         return new(state, true, []);
     }
 
@@ -144,14 +144,14 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleResource resource = Resource(inputs, U32(task.Payload, 20));
         uint packed = U32(task.Payload, 16);
         (NativeBattleModuleState state, int child) = Append(NativeBattleModuleKind.DefensiveDraw570650);
-        byte[] payload = state.Slots[child].Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1093, state.Slots[child].Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, 0);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2), resource.Bytes[0]);
-        task.Payload.AsSpan().Slice(4, 8).CopyTo(payload.AsSpan(4));
+        NativeBattleTelemetry.Copy(1102, task.Payload.AsSpan().Slice(4, 8), payload.AsSpan(4));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(12), rotation);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(14), (short)(roll % 4096));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(16), unchecked((short)(((packed >> 16) & 0x7F) * 320)));
-        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = payload.ToImmutableArray() }) };
+        state = state with { Slots = state.Slots.SetItem(child, state.Slots[child] with { Payload = NativeBattleTelemetry.Immutable(1099, payload) }) };
         return new(state, true, [new(NativeBattleModuleDrawKind.Sound, 0) { Anchor = ReadAnchor(task.Payload, 4), Sound = 0x72, SoundFlags = 0x8000 }]) { CrtRandomAfter = after };
     }
 
@@ -164,10 +164,10 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1094, task.Payload.AsSpan());
         short next = unchecked((short)(phase + 1));
         BinaryPrimitives.WriteInt16LittleEndian(payload, next);
-        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) }, next >= 8, [draw]);
+        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1100, payload) }) }, next >= 8, [draw]);
     }
 
     private NativeBattleModuleCallback AdvanceSprite(int slot, NativeBattleModuleInputs inputs)
@@ -184,9 +184,9 @@ public sealed partial record NativeBattleModuleState
         {
             return new(this, false, [draw]);
         }
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1095, task.Payload.AsSpan());
         BinaryPrimitives.WriteInt16LittleEndian(payload, unchecked((short)(phase + 1)));
-        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = payload.ToImmutableArray() }) }, frame.NextOffset < 0, [draw]);
+        return new(this with { Slots = Slots.SetItem(slot, task with { Payload = NativeBattleTelemetry.Immutable(1101, payload) }) }, frame.NextOffset < 0, [draw]);
     }
 
     private static NativeBattleModuleResource Resource(NativeBattleModuleInputs inputs, uint address)

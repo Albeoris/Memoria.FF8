@@ -144,7 +144,7 @@ public static class NativeBattleCureActorPackets
             words[9] = BinaryPrimitives.ReadUInt16LittleEndian(source[18..]);
         }
         ImmutableArray<int> depths = actual.Select(vertex => (int)vertex.Depth).ToImmutableArray();
-        return new(bucket, words.ToImmutableArray(), quad ? depths : depths.Add(0));
+        return new(bucket, NativeBattleTelemetry.Immutable(1128, words), quad ? depths : NativeBattleTelemetry.Add(1130, depths, 0));
     }
 
     private static NativeBattleGeometryPrimitive Overlay(bool quad, IReadOnlyList<NativeBattleModuleProjectedVertex> actual, IReadOnlyList<NativeBattleModuleProjectedVertex> projected, int bucket, uint rgb, NativeBattleCureTextureProjection texture)
@@ -171,6 +171,6 @@ public static class NativeBattleCureActorPackets
         }
         //45C7A0 captures the SECOND projection's depth FIFO, while45C870 receives saved actual-view depths.
         ImmutableArray<int> depths = projected.Select(vertex => (int)vertex.Depth).ToImmutableArray();
-        return new(bucket, words.ToImmutableArray(), quad ? depths : depths.Add(0));
+        return new(bucket, NativeBattleTelemetry.Immutable(1129, words), quad ? depths : NativeBattleTelemetry.Add(1131, depths, 0));
     }
 }

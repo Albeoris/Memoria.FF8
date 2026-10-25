@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -39,6 +40,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     }
 
     public RenderTarget2D Target => target ?? throw new InvalidOperationException("No scene has been rendered.");
+    internal Guid TelemetryOwnerId { get; } = Guid.NewGuid();
     internal long PresentationVersion { get; private set; }
     internal int FrameDrawCalls { get; private set; }
     internal int FrameTextureUploads { get; private set; }
@@ -138,6 +140,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             // Unbinding resolves multisampled color before readback. PreserveContents keeps the scene available for subsequent draws.
             device.SetRenderTarget(null);
             workingTarget.GetData(colors);
+            NativeBattleTelemetry.Record(2003, NativeBattleTrafficKind.GpuReadback, checked((long)colors.Length * 4));
         }
         catch (InvalidOperationException)
         {
@@ -150,6 +153,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             device.Viewport = viewport;
         }
         pixels = new uint[colors.Length];
+        NativeBattleTelemetry.Record(2004, NativeBattleTrafficKind.CpuCopyPayload, checked((long)colors.Length * 4));
         for (int index = 0; index < colors.Length; index++)
         {
             Color color = colors[index];
@@ -171,6 +175,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             pass.Apply();
             device.SamplerStates[0] = sampler;
             device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
+            NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
             FrameDrawCalls++;
         }
         vertexCount = 0;
@@ -249,6 +254,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             if (refresh)
             {
                 texture.SetData(image.Pixels);
+                NativeBattleTelemetry.Record(2002, NativeBattleTrafficKind.GpuUpload, checked((long)image.Pixels.Length * 4));
                 FrameTextureUploads++;
             }
             return texture;
@@ -261,6 +267,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         texture = new Texture2D(device, image.Width, image.Height, false, SurfaceFormat.Color);
         texture.SetData(image.Pixels);
+        NativeBattleTelemetry.Record(2002, NativeBattleTrafficKind.GpuUpload, checked((long)image.Pixels.Length * 4));
         FrameTextureUploads++;
         textures.Add(image, texture);
         return texture;

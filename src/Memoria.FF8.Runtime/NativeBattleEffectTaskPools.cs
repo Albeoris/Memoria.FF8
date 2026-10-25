@@ -17,7 +17,7 @@ public sealed partial record NativeBattleModulePoolTask([property: JsonRequired]
     public NativeBattleModulePoolTask WriteWord(int offset, ushort value)
     {
         RequirePayloadRange(offset, 2);
-        byte[] payload = Payload.ToArray();
+        byte[] payload = NativeBattleTelemetry.Materialize(1142, Payload.AsSpan());
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(offset - 12), value);
         return (this with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(payload) }).WithoutResourcePointers(offset, 2).WithoutUnknownPayload(offset, 2);
     }
@@ -36,7 +36,7 @@ public sealed record NativeBattleEffectTaskPool([property: JsonRequired] uint De
             throw new ArgumentException("Native508300 requires its aligned descriptor/bank and physical task dimensions.");
         }
         _ = checked(bankAddress + (uint)stride * capacity);
-        return new(descriptorAddress, bankAddress, stride, Enumerable.Range(0, capacity).Select(_ => new NativeBattleModulePoolTask(0, 0, null, 0, ImmutableArray.CreateRange(new byte[stride - 12]))).ToImmutableArray(), null, null);
+        return new(descriptorAddress, bankAddress, stride, Enumerable.Range(0, capacity).Select(_ => new NativeBattleModulePoolTask(0, 0, null, 0, NativeBattleTelemetry.Immutable(1121, new byte[stride - 12]))).ToImmutableArray(), null, null);
     }
 
     public void Validate()

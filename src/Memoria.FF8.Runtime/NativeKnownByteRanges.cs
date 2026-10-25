@@ -52,7 +52,7 @@ internal static class NativeKnownByteRanges
             int end = Math.Min(offset + length, region.Offset + region.Data.Length);
             if (end > first)
             {
-                region.Data.AsSpan().Slice(first - region.Offset, end - first).CopyTo(bytes.AsSpan(first - offset));
+                NativeBattleTelemetry.Copy(1019, region.Data.AsSpan().Slice(first - region.Offset, end - first), bytes.AsSpan(first - offset));
             }
         }
         return bytes;
@@ -111,13 +111,13 @@ internal static class NativeKnownByteRanges
                     NativeBattleEffectMemoryRegion region = ranges[index];
                     int copyStart = Math.Max(start, region.Offset);
                     int copyEnd = Math.Min(blockEnd, region.Offset + region.Data.Length);
-                    region.Data.AsSpan().Slice(copyStart - region.Offset, copyEnd - copyStart).CopyTo(data.AsSpan(copyStart - start));
+                    NativeBattleTelemetry.Copy(1020, region.Data.AsSpan().Slice(copyStart - region.Offset, copyEnd - copyStart), data.AsSpan(copyStart - start));
                 }
                 int writtenStart = Math.Max(start, offset);
                 int writtenEnd = Math.Min(blockEnd, writeEnd);
                 if (writtenEnd > writtenStart)
                 {
-                    bytes.Slice(writtenStart - offset, writtenEnd - writtenStart).CopyTo(data.AsSpan(writtenStart - start));
+                    NativeBattleTelemetry.Copy(1021, bytes.Slice(writtenStart - offset, writtenEnd - writtenStart), data.AsSpan(writtenStart - start));
                 }
                 result.Add(new(start, ImmutableCollectionsMarshal.AsImmutableArray(data)));
             }

@@ -20,7 +20,7 @@ public sealed class NativeExecutableMemory : IGameNativeMemorySource
 
     public NativeExecutableMemory(byte[] executable)
     {
-        this.executable = executable.ToArray();
+        this.executable = NativeBattleTelemetry.Materialize(1043, executable.AsSpan());
         SourceHash = Convert.ToHexString(SHA256.HashData(this.executable));
         if (SourceHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
         {
@@ -44,7 +44,7 @@ public sealed class NativeExecutableMemory : IGameNativeMemorySource
         int mapped = checked((int)Math.Clamp(section.SizeOfRawData - offset, 0, count));
         if (mapped != 0)
         {
-            executable.AsSpan(checked((int)(section.PointerToRawData + offset)), mapped).CopyTo(bytes);
+            NativeBattleTelemetry.Copy(1044, executable.AsSpan(checked((int)(section.PointerToRawData + offset)), mapped), bytes);
         }
         return bytes;
     }

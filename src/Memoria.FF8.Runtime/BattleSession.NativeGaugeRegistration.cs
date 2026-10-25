@@ -9,6 +9,10 @@ public sealed partial class BattleSession
             return;
         }
         NativeBattleGaugeRegistration registration = NativeBattleGaugeRegistrations.Evaluate4842B0(gauge, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+        if (diagnosticHoldEnemyCommands && !actor.IsPlayer && registration.Kind == NativeBattleGaugeRegistrationKind.DeferredScript)
+        {
+            return;
+        }
         switch (registration.Kind)
         {
             case NativeBattleGaugeRegistrationKind.None:
@@ -35,6 +39,10 @@ public sealed partial class BattleSession
     {
         foreach (BattleCombatant actor in combatants.Where(candidate => candidate.NativeIndex is >= 3 and < 7 && (candidate.NativeCombatantFlags & 0x200) != 0).OrderBy(candidate => candidate.NativeIndex))
         {
+            if (diagnosticHoldEnemyCommands)
+            {
+                continue;
+            }
             ObserveNativeUnknownStackCallback(0x484720, "registered actor callback");
             //484720(actor,1,2): any nonzero third argument selects physical bank1, not a packet flags BYTE.
             QueueNativeCallback(actor, 1, 1);

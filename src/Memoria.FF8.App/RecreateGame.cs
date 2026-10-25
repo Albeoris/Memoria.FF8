@@ -1355,6 +1355,7 @@ internal sealed partial class RecreateGame : Game
             world?.Dispose();
             movieClock.Dispose();
             DisposeAchievements();
+            diagnosticTelemetry?.Dispose();
             presentationPacer.Dispose();
             resourceHost?.Dispose();
             DisposeBattlePresentation();

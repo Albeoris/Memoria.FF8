@@ -104,7 +104,7 @@ public sealed partial record NativeBattleFileStaging([property: JsonRequired] Im
         {
             throw new InvalidDataException("Native staging DAT declares an extent shorter than its directory.");
         }
-        ImmutableArray<byte> bytes = Read(address, length).ToImmutableArray();
+        ImmutableArray<byte> bytes = NativeBattleTelemetry.Immutable(1042, Read(address, length));
         _ = NativeBattleDatDirectory.Section(bytes.AsSpan(), 0);
         return bytes;
     }

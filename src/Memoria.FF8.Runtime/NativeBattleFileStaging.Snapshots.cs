@@ -26,7 +26,7 @@ public sealed partial record NativeBattleFileStaging
             ulong last = Math.Min((ulong)address + (uint)length, (ulong)region.Address + (uint)region.Length);
             if (last > start)
             {
-                Array.Fill(known, true, checked((int)(start - address)), checked((int)(last - start)));
+                NativeBattleTelemetry.Fill(1025, known, true, checked((int)(start - address)), checked((int)(last - start)));
             }
         }
         long first = (long)address - BaseAddress;
@@ -39,8 +39,8 @@ public sealed partial record NativeBattleFileStaging
             {
                 int count = checked((int)(last - start));
                 int target = checked((int)(start - first));
-                range.Data.AsSpan().Slice(checked((int)(start - range.Offset)), count).CopyTo(data.AsSpan(target));
-                Array.Fill(known, true, target, count);
+                NativeBattleTelemetry.Copy(1026, range.Data.AsSpan().Slice(checked((int)(start - range.Offset)), count), data.AsSpan(target));
+                NativeBattleTelemetry.Fill(1027, known, true, target, count);
             }
         }
         return (data, known);

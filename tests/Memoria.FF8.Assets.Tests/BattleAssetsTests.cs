@@ -95,7 +95,17 @@ public sealed class BattleAssetsTests
     public void InformationOnlyEnemyAndEmptyWeaponDoNotFabricateGraphics()
     {
         using BattleAssets assets = new(GameDirectory);
-        Assert.Throws<NotSupportedException>(() => assets.LoadEnemy(127));
+        BattleModel original = assets.LoadEnemy(126);
+        BattleModel companion = assets.LoadEnemy(127);
+        Assert.Equal("c0m127.dat", companion.Name);
+        Assert.Same(original.Bones, companion.Bones);
+        Assert.Same(original.Animations, companion.Animations);
+        Assert.Same(original.Sequences, companion.Sequences);
+        Assert.Same(original.NativePoseSource, companion.NativePoseSource);
+        Assert.Empty(companion.Meshes);
+        Assert.Empty(companion.Textures);
+        Assert.True(companion.NativeRenderGeometry!.Value.IsEmpty);
+        Assert.Null(companion.NativeBodyTexturePack);
         Assert.Throws<EndOfStreamException>(() => assets.LoadWeapon(0, 7, assets.LoadPlayer(0)));
     }
 }

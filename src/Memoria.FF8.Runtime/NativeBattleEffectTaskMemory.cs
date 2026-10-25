@@ -122,7 +122,7 @@ public static partial class NativeBattleEffectTaskMemory
             uint next = task.Next is int linked ? checked(pool.BankAddress + (uint)(linked * pool.Stride)) : 0;
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), next);
             BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8), task.Callback);
-            task.Payload.AsSpan().CopyTo(data.AsSpan(12));
+            NativeBattleTelemetry.Copy(1150, task.Payload.AsSpan(), data.AsSpan(12));
             int target = checked(offset + slot * pool.Stride);
             arena = arena.Write(target, data);
             if (task.UnknownPayloadRanges is { } unknown)

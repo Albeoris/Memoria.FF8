@@ -156,7 +156,7 @@ public sealed partial class GameAssets
             using IFlArchive magic = OpenArchive("magic");
             //6298A0 passes DED5FC to5099A0; its next static object is the first Fire sprite at DEDC2C.
             NativeBattleEffectProgramResources program = new(new("FF8_EN:DED5FC", NativeBattleEffectStaticResourcesReader.Read(executable, 0xDED5FC, 0x630)), [NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDC2C), NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDDD8), NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDF84)], BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0xDEE130, 4).AsSpan()));
-            nativeEffectCatalog = catalog.SetItem(1, fire with { InitializerAsset = new("mag001.tim", Read(magic, "mag001.tim").ToImmutableArray()), ProgramResources = program });
+            nativeEffectCatalog = catalog.SetItem(1, fire with { InitializerAsset = new("mag001.tim", NativeBattleTelemetry.Immutable(1153, Read(magic, "mag001.tim"))), ProgramResources = program });
         }
         return nativeEffectCatalog;
     }
@@ -1827,7 +1827,7 @@ public sealed partial class GameAssets
             {
                 continue;
             }
-            ImmutableArray<NativeBattleEffectInitializerAsset> assets = resources.Select(resource => new NativeBattleEffectInitializerAsset(resource.Name, Read(magic, resource.Name).ToImmutableArray())).ToImmutableArray();
+            ImmutableArray<NativeBattleEffectInitializerAsset> assets = resources.Select(resource => new NativeBattleEffectInitializerAsset(resource.Name, NativeBattleTelemetry.Immutable(1154, Read(magic, resource.Name)))).ToImmutableArray();
             catalog = catalog.SetItem(index, binding.InitializerResources is null ? binding with { InitializerAsset = assets[0] } : binding with { InitializerAssets = assets });
         }
         return catalog;

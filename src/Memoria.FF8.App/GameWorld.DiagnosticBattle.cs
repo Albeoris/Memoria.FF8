@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -11,10 +13,14 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     public byte? BattleMusic { get; init; }
     public int? PrimaryMusicChannel { get; init; }
     public ushort? MusicFieldWord { get; init; }
+    public DiagnosticBattlePreparation? Fixture { get; init; }
+    public DiagnosticTargetExpectation? Target { get; init; }
 
     internal void Validate()
     {
         Driver?.Validate();
+        Fixture?.Validate();
+        Target?.Validate();
         if (Encounter is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("Diagnostic encounter must be an installed formation WORD.");
@@ -26,7 +32,11 @@ internal sealed record DiagnosticBattleRequest([property: JsonRequired] int Enco
     }
 }
 
-internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string InitializerVersion, string ExecutableSha256, DiagnosticBattleRequest Preparation, int Stage, string[] OrderedStages, string[] PresentOwners, double PreparationMilliseconds);
+internal sealed record DiagnosticBattleReceipt(Guid BattleInstanceId, string InitializerVersion, string ExecutableSha256, DiagnosticBattleRequest Preparation, int Stage, ImmutableArray<string> OrderedStages, ImmutableArray<string> PresentOwners, double PreparationMilliseconds)
+{
+    public ImmutableArray<DiagnosticPreparationChange> PreparationChanges { get; init; } = [];
+    public DiagnosticTargetReceipt? Target { get; init; }
+}
 
 internal sealed partial class GameWorld
 {
@@ -49,15 +59,22 @@ internal sealed partial class GameWorld
         long started = Stopwatch.GetTimestamp();
         NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Diagnostic initialization requires installed cold-process retained memory.");
         string executable = retained.ColdExecutableSha256 ?? throw new NotSupportedException("Diagnostic initialization requires an authenticated executable identity.");
-        NativeMusicProcessState music = Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
-        NativeGlobalSoundProcess sound = session.State.GlobalSoundProcess ?? throw new NotSupportedException("Diagnostic initialization requires its actual global sound owner.");
-        NativeBattleMusicEntryPreparation preparedMusic = NativeBattleMusicEntry.Prepare52CE30(checked((ushort)request.Encounter), request.Flags, music, request.BattleMusic, request.PrimaryMusicChannel, sound, BattleMusicEntryResources, retained.MusicProcess?.ReturnChannel, request.MusicFieldWord);
+        DiagnosticPreparationResult? characters = request.Fixture is null ? null : PrepareDiagnosticCharacters(session.State.CharacterVitals, request.Fixture);
+        Events.InitializeNewGameMusicOwners(assets.NativeRuntimeProfile ?? throw new NotSupportedException("Diagnostic music initialization requires the authenticated native runtime profile."));
+        PreparedNativeBattleMusicEntry preparedMusic = Events.PrepareNativeDiagnosticBattleMusicEntry(checked((ushort)request.Encounter), request.Flags, BattleMusicEntryResources, request.BattleMusic, request.PrimaryMusicChannel, request.MusicFieldWord, retained.MusicProcess?.ReturnChannel);
         diagnosticBattle = new(request, Guid.NewGuid());
         try
         {
+            if (characters is not null)
+            {
+                session.SetCharacterVitals(characters.Vitals);
+            }
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, BattleAtbMode.Normal, preparedMusic);
+            prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false);
             battle = CommitPreparedBattleEntry(prepared);
-            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v1", executable, request, battle.Capture().Definition.StageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
+            battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
+            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.Capture().Definition.StageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = characters?.Changes ?? [] };
             return battle;
         }
         catch
@@ -86,6 +103,11 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException("No diagnostic battle lifecycle is active.");
         }
         // Isolated teardown releases the live battle without applying exploration rewards or progress.
+        if (battle is not null)
+        {
+            battle.DiagnosticEffectDispatched -= ObserveDiagnosticOpening;
+            battle.DiagnosticEventPublished -= ObserveDiagnosticOpeningCompletion;
+        }
         battle = null;
         diagnosticBattle = null;
         session.SetLiveBattle(null);

@@ -21,7 +21,7 @@ public sealed record LaunchOptions
     public string? UpdateControlDirectory { get; init; }
     public bool ControlStep { get; init; }
     public bool MuteAudio { get; init; }
-    public bool AudioEnabled => !MuteAudio && ControlDirectory is null && !System.Diagnostics.Debugger.IsAttached;
+    public bool AudioEnabled => !MuteAudio && (ControlDirectory is null || BattleTestPath is not null) && !System.Diagnostics.Debugger.IsAttached;
     public int WorldRenderLimit { get; init; } = 2048;
     public bool SoftwareRenderer { get; init; }
     public string? DebugUiScreen { get; init; }

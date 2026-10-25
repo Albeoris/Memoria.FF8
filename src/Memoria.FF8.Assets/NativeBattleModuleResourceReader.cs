@@ -33,7 +33,7 @@ public static class NativeBattleModuleResourceReader
                     length = Math.Max(length, checked(offset + 4 + 20 * (int)quads));
                 }
             }
-            NativeBattleModuleResource resource = new(id, address, U32(0xC7EFB4 + 4u * kind), U32(0xC7EFA0 + 4u * kind), Bytes(address, length).ToArray().ToImmutableArray());
+            NativeBattleModuleResource resource = new(id, address, U32(0xC7EFB4 + 4u * kind), U32(0xC7EFA0 + 4u * kind), NativeBattleTelemetry.Immutable(1049, NativeBattleTelemetry.Materialize(1048, Bytes(address, length))));
             resource.Validate();
             resources.Add(resource);
         }

@@ -54,16 +54,16 @@ internal sealed class NativeBattleEffectArenaWriter
         }
         if (storage is null)
         {
-            writes.Add((offset, bytes.ToArray()));
+            writes.Add((offset, NativeBattleTelemetry.Materialize(1015, bytes)));
         }
         else
         {
             EnsureReadThroughCapacity(offset + bytes.Length);
             if (checkpointRegions is not null)
             {
-                undo.Add((offset, storage.AsSpan(offset, bytes.Length).ToArray()));
+                undo.Add((offset, NativeBattleTelemetry.Materialize(1016, storage.AsSpan(offset, bytes.Length))));
             }
-            bytes.CopyTo(storage.AsSpan(offset));
+            NativeBattleTelemetry.Copy(1005, bytes, storage.AsSpan(offset));
         }
         InvalidateResourcePointers(offset, bytes.Length);
         int end = offset + bytes.Length;
@@ -190,7 +190,7 @@ internal sealed class NativeBattleEffectArenaWriter
             byte[] bytes = new byte[region.Length];
             if (storage is not null)
             {
-                storage.AsSpan(region.Offset, region.Length).CopyTo(bytes);
+                NativeBattleTelemetry.Copy(1006, storage.AsSpan(region.Offset, region.Length), bytes);
                 result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
                 continue;
             }
@@ -200,7 +200,7 @@ internal sealed class NativeBattleEffectArenaWriter
                 int end = Math.Min(region.End, original.Offset + original.Data.Length);
                 if (end > first)
                 {
-                    original.Data.AsSpan().Slice(first - original.Offset, end - first).CopyTo(bytes.AsSpan(first - region.Offset));
+                    NativeBattleTelemetry.Copy(1007, original.Data.AsSpan().Slice(first - original.Offset, end - first), bytes.AsSpan(first - region.Offset));
                 }
             }
             foreach (var write in writes)
@@ -209,7 +209,7 @@ internal sealed class NativeBattleEffectArenaWriter
                 int end = Math.Min(region.End, write.Offset + write.Data.Length);
                 if (end > first)
                 {
-                    write.Data.AsSpan(first - write.Offset, end - first).CopyTo(bytes.AsSpan(first - region.Offset));
+                    NativeBattleTelemetry.Copy(1008, write.Data.AsSpan(first - write.Offset, end - first), bytes.AsSpan(first - region.Offset));
                 }
             }
             result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
@@ -242,10 +242,11 @@ internal sealed class NativeBattleEffectArenaWriter
         }
         int extent = source.Regions.IsEmpty ? 1 : source.Regions[^1].Offset + source.Regions[^1].Data.Length;
         storage = ArrayPool<byte>.Shared.Rent(extent);
-        Array.Clear(storage, 0, storage.Length);
+        NativeBattleTelemetry.ObservePoolRent(storage.Length);
+        NativeBattleTelemetry.Clear(1009, storage, 0, storage.Length);
         foreach (NativeBattleEffectMemoryRegion region in source.Regions)
         {
-            region.Data.AsSpan().CopyTo(storage.AsSpan(region.Offset));
+            NativeBattleTelemetry.Copy(1010, region.Data.AsSpan(), storage.AsSpan(region.Offset));
         }
     }
 
@@ -258,23 +259,24 @@ internal sealed class NativeBattleEffectArenaWriter
             throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }
         EnsureReadThroughCapacity(offset + count);
-        return storage!.AsSpan(offset, count).ToArray();
+        return NativeBattleTelemetry.Materialize(1017, storage!.AsSpan(offset, count));
     }
 
     internal (byte[] Data, bool[] Known) ReadSnapshotThrough(int offset, int count)
     {
         RequireRange(offset, count);
-        bool[] known = Enumerable.Repeat(true, count).ToArray();
+        bool[] known = new bool[count];
+        NativeBattleTelemetry.Fill(1051, known, true, 0, count);
         int first = FirstUnknownEndingAt(offset, false);
         for (int index = first; index < unknown.Count && unknown[index].Offset < offset + count; index++)
         {
             NativeBattleEffectUnknownRegion region = unknown[index];
             int start = Math.Max(offset, region.Offset);
             int end = Math.Min(offset + count, region.Offset + region.Length);
-            Array.Clear(known, start - offset, end - start);
+            NativeBattleTelemetry.Clear(1011, known, start - offset, end - start);
         }
         EnsureReadThroughCapacity(offset + count);
-        byte[] data = storage!.AsSpan(offset, count).ToArray();
+        byte[] data = NativeBattleTelemetry.Materialize(1018, storage!.AsSpan(offset, count));
         return (data, known);
     }
 
@@ -287,10 +289,12 @@ internal sealed class NativeBattleEffectArenaWriter
         }
         int capacity = Math.Max(extent, Math.Min(NativeBattleEffectArena.Length, previous.Length * 2));
         byte[] grown = ArrayPool<byte>.Shared.Rent(capacity);
-        previous.AsSpan().CopyTo(grown);
-        Array.Clear(grown, previous.Length, grown.Length - previous.Length);
+        NativeBattleTelemetry.ObservePoolRent(grown.Length);
+        NativeBattleTelemetry.Copy(1012, previous.AsSpan(), grown);
+        NativeBattleTelemetry.Clear(1013, grown, previous.Length, grown.Length - previous.Length);
         storage = grown;
         ArrayPool<byte>.Shared.Return(previous);
+        NativeBattleTelemetry.ObservePoolReturn(previous.Length);
     }
 
     internal byte[] ReadCurrent(int offset, int count) => transaction is not null ? transaction.Read(offset, count) : ReadThrough(offset, count);
@@ -344,7 +348,7 @@ internal sealed class NativeBattleEffectArenaWriter
         for (int index = undo.Count - 1; index >= 0; index--)
         {
             var write = undo[index];
-            write.Data.AsSpan().CopyTo(storage.AsSpan(write.Offset));
+            NativeBattleTelemetry.Copy(1014, write.Data.AsSpan(), storage.AsSpan(write.Offset));
         }
         regions.Clear();
         regions.AddRange(checkpointRegions);
@@ -359,6 +363,7 @@ internal sealed class NativeBattleEffectArenaWriter
         {
             storage = null;
             ArrayPool<byte>.Shared.Return(rented);
+            NativeBattleTelemetry.ObservePoolReturn(rented.Length);
         }
     }
 

@@ -17,7 +17,7 @@ public sealed partial class BattleSession
     private readonly Dictionary<string, BattleCombatant> byId;
     private readonly Dictionary<BattleStatusKind, IBattleStatusEffectHandler> handlers;
     private readonly Queue<BattleAttackCommand> actions = new();
-    private readonly List<BattleEvent> events = [];
+    private readonly DiagnosticBattleEventLog events = [];
     private NativeBattleRandomState random;
 
     public BattleSession(BattleDefinition definition, BattleAtbMode mode) : this(definition, mode, [])
@@ -487,6 +487,10 @@ public sealed partial class BattleSession
         DispatchNativeCompelledActors();
         foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)).ToArray())
         {
+            if (diagnosticHoldEnemyCommands)
+            {
+                continue;
+            }
             if (HasNativeUiServiceClock)
             {
                 //Raw4842B0 owns full-gauge registration;4847B0 below publishes its deferred callback without resetting the gauge.
@@ -765,7 +769,9 @@ public sealed partial class BattleSession
         bool nativeDeath = (NativeSavedStatusBits(target) & 1) != 0 || (NativeBattleStatusBits(target) & 0x10000) != 0 || applied == target.CurrentHp;
         bool finalizeDeath = nativeDeath && NativeDeathContactAllowed(target);
         ushort? deathCount = target.IsPlayer && finalizeDeath ? NextNativePlayerDeathCount(target) : null;
+        int diagnosticBeforeHp = target.CurrentHp;
         target.CurrentHp = nativeDeath ? 0 : unchecked(target.CurrentHp - applied);
+        ObserveDiagnosticResolution("damage", actor, target, amount, diagnosticBeforeHp, target.CurrentHp);
         if (target.CurrentHp == 0 && finalizeDeath)
         {
             target.NativeStatus0 |= 1;
@@ -838,7 +844,9 @@ public sealed partial class BattleSession
             MarkGuardianFormContact(actor);
         }
         int applied = Math.Min(actor.MaximumHp - actor.CurrentHp, amount);
+        int diagnosticBeforeHp = actor.CurrentHp;
         actor.CurrentHp += applied;
+        ObserveDiagnosticResolution("healing", null, actor, amount, diagnosticBeforeHp, actor.CurrentHp);
         if (applied != 0)
         {
             Log("Healing", actor.Id, actor.Id, applied, $"{source}: {actor.Name} recovers {applied} HP.");
@@ -1117,6 +1125,7 @@ public sealed partial class BattleSession
 
     private void RestoreValidated(BattleSnapshot snapshot)
     {
+        DiagnosticRestoreCount++;
         if (snapshot.Version != 1 || snapshot.Frame < 0 || !Enum.IsDefined(snapshot.Difficulty) || !Enum.IsDefined(snapshot.Outcome) || snapshot.Combatants is null || snapshot.Combatants.Length != combatants.Count || snapshot.QueuedActions is null || snapshot.Events is null)
         {
             throw new InvalidDataException("Invalid battle snapshot envelope.");
@@ -1425,6 +1434,7 @@ public sealed partial class BattleSession
 
     private void PublishCandidate(BattleSession candidate)
     {
+        DiagnosticResetCount++;
         nativeActionMemory.State = candidate.nativeActionMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
         {

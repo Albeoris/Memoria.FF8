@@ -62,14 +62,14 @@ public sealed partial record NativeBattleModulePoolTask
     public byte[] ReadBytes(int offset, int length)
     {
         RequireKnownPayload(offset, length);
-        return Payload.AsSpan().Slice(offset - 12, length).ToArray();
+        return NativeBattleTelemetry.Materialize(1146, Payload.AsSpan().Slice(offset - 12, length));
     }
 
     public NativeBattleModulePoolTask WriteBytes(int offset, ReadOnlySpan<byte> data)
     {
         RequirePayloadRange(offset, data.Length);
-        byte[] payload = Payload.ToArray();
-        data.CopyTo(payload.AsSpan(offset - 12));
+        byte[] payload = NativeBattleTelemetry.Materialize(1147, Payload.AsSpan());
+        NativeBattleTelemetry.Copy(1148, data, payload.AsSpan(offset - 12));
         return (this with { Payload = ImmutableCollectionsMarshal.AsImmutableArray(payload) }).WithoutResourcePointers(offset, data.Length).WithoutUnknownPayload(offset, data.Length);
     }
 

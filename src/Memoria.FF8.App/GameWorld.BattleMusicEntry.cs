@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    internal sealed record PreparedBattleEntry(GameState Source, PreparedNativeBattleMusicEntry? Music, BattleSession Battle);
+    internal sealed record PreparedBattleEntry(GameState Source, PreparedNativeBattleMusicEntry? Music, NativeBattleMusicEntryPreparation? CommittedMusic, BattleSession Battle);
     private NativeBattleMusicEntryResources? battleMusicEntryResources;
     private long synchronizedNativeBattleCallbacks;
 
@@ -18,14 +18,38 @@ internal sealed partial class GameWorld
         return CommitPreparedBattleEntry(PrepareBattleEntry(encounter, flags, seed, mode));
     }
 
-    internal PreparedBattleEntry PrepareBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation? selectedMusic = null)
+    internal PreparedBattleEntry PrepareBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, PreparedNativeBattleMusicEntry? selectedMusic = null)
     {
         GameState source = session.State;
-        PreparedNativeBattleMusicEntry? prepared = selectedMusic is null ? Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel) : null;
-        NativeBattleMusicEntryPreparation music = selectedMusic ?? prepared!.Native;
+        PreparedNativeBattleMusicEntry prepared = selectedMusic ?? Events.PrepareNativeBattleMusicEntry(checked((ushort)encounter), flags, BattleMusicEntryResources, session.State.NativeBattleMemory?.MusicProcess?.ReturnChannel);
+        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, seed, mode, prepared.Native);
+        return new(source, prepared, null, candidate);
+    }
+
+    internal PreparedBattleEntry PrepareCommittedBattleEntry(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
+    {
+        GameState source = session.State;
+        ValidateCommittedBattleEntryMusic(music);
+        if (music.Receipt.Encounter != encounter || music.Receipt.Flags != flags)
+        {
+            throw new InvalidOperationException("Committed native music identifies a different battle entry.");
+        }
+        BattleSession candidate = PrepareBattleEntrySession(encounter, flags, seed, mode, music);
+        return new(source, null, music, candidate);
+    }
+
+    private BattleSession PrepareBattleEntrySession(int encounter, ushort flags, byte seed, BattleAtbMode mode, NativeBattleMusicEntryPreparation music)
+    {
         BattleDefinition definition = CreateEncounterBattle(encounter, seed, flags) with { NativeGlobalSoundProcess = music.SoundProcess, NativeMusicProcess = music.MusicProcess };
-        BattleSession candidate = AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
-        return new(source, prepared, candidate);
+        return AttachNativeEffectResources(CreateLiveBattleSession(definition, session.State.GameplayPreferences with { AtbMode = mode }));
+    }
+
+    private void ValidateCommittedBattleEntryMusic(NativeBattleMusicEntryPreparation music)
+    {
+        if (!ReferenceEquals(Events.Scene.NativeBattleMusicEntry, music.Receipt) || !ReferenceEquals(Events.Scene.MusicProcess, music.MusicProcess.Buffers) || !ReferenceEquals(session.State.NativeBattleMemory?.MusicProcess, music.MusicProcess) || !ReferenceEquals(session.GlobalSoundProcess, music.SoundProcess))
+        {
+            throw new InvalidOperationException("Asynchronous battle preparation requires the same already committed native music receipt and live owners.");
+        }
     }
 
     internal BattleSession CommitPreparedBattleEntry(PreparedBattleEntry entry)
@@ -43,13 +67,18 @@ internal sealed partial class GameWorld
             session.SetCharacterVitals(vitals);
             session.SetBattle(candidate.Capture());
         }
-        if (entry.Music is not null)
+        if (entry.Music is { } prepared && entry.CommittedMusic is null)
         {
-            Events.CommitNativeBattleMusicEntry(entry.Music, _ => Publish());
+            Events.CommitNativeBattleMusicEntry(prepared, _ => Publish());
+        }
+        else if (entry.Music is null && entry.CommittedMusic is { } committed)
+        {
+            ValidateCommittedBattleEntryMusic(committed);
+            Publish();
         }
         else
         {
-            Publish();
+            throw new InvalidOperationException("Battle entry requires exactly one prepared or already committed native music receipt.");
         }
         Events.SynchronizeNativeBattleMusicProcess(candidate.NativeMusicProcess);
         return candidate;

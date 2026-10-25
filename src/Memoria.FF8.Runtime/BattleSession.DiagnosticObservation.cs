@@ -1,11 +1,58 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, string? ActorId, BattleAbility? Ability, int? ActionId, ushort RequestedEffect, ushort ExecutedEffect);
+public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner);
+public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
+public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks);
 
 public sealed partial class BattleSession
 {
     private long diagnosticDispatchSerial;
+    public Guid DiagnosticLifecycleId { get; } = Guid.NewGuid();
+    public long DiagnosticRestoreCount { get; private set; }
+    public long DiagnosticResetCount { get; private set; }
     public event Action<BattleDiagnosticEffectDispatch>? DiagnosticEffectDispatched;
+    public event Action<BattleDiagnosticResolution>? DiagnosticResolution;
+    public event Action<BattleEvent>? DiagnosticEventPublished
+    {
+        add => events.Published += value;
+        remove => events.Published -= value;
+    }
+    private bool diagnosticHoldEnemyCommands;
+
+    public void ConfigureDiagnosticScheduling(bool holdEnemyCommands)
+    {
+        if (Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || ActiveAction is not null || actions.Count != 0)
+        {
+            throw new InvalidOperationException("Diagnostic scheduling must be declared before the first battle callback or command.");
+        }
+        diagnosticHoldEnemyCommands = holdEnemyCommands;
+    }
+
+    public BattleDiagnosticCombatant[] ObserveDiagnosticCombatants()
+    {
+        return combatants.Select(actor => new BattleDiagnosticCombatant(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray())).ToArray();
+    }
+
+    private void ObserveDiagnosticResolution(string kind, BattleCombatant? actor, BattleCombatant target, int amount, int before, int after)
+    {
+        if (DiagnosticResolution is { } observer)
+        {
+            BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actor?.Id ?? action?.ActorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy"));
+        }
+    }
+
+    private sealed class DiagnosticBattleEventLog : List<BattleEvent>
+    {
+        internal event Action<BattleEvent>? Published;
+
+        public new void Add(BattleEvent value)
+        {
+            base.Add(value);
+            Published?.Invoke(value);
+        }
+    }
 
     private void ObserveDiagnosticEffectDispatch(NativeBattleGraphicsState graphics, NativeBattleOriginalEffectState effect)
     {

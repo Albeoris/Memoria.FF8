@@ -11,9 +11,9 @@ public static partial class NativeBattlePoseMatrices
     {
         originalModelWorld.Validate();
         camera.Validate();
-        Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
+        Matrix world = new(NativeBattleTelemetry.Materialize(1122, originalModelWorld.Rotation.AsSpan()), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
         NativeBattleActionMatrix movedAction = CureMovedModelWorld8D7200(originalModelWorld, localOffset, translationMode);
-        Matrix main = Compose(new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z), world);
+        Matrix main = Compose(new(NativeBattleTelemetry.Materialize(1123, camera.Rotation.AsSpan()), camera.X, camera.Y, camera.Z), world);
         return new(movedAction, ToActionMatrix(main), CureOverlayMatrix8D72C0(originalModelWorld, movedAction, effectCenter, projectionDistance));
     }
 
@@ -22,8 +22,8 @@ public static partial class NativeBattlePoseMatrices
     {
         originalModelWorld.Validate();
         movedModelWorld.Validate();
-        Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
-        Matrix moved = new(movedModelWorld.Rotation.ToArray(), movedModelWorld.X, movedModelWorld.Y, movedModelWorld.Z);
+        Matrix world = new(NativeBattleTelemetry.Materialize(1124, originalModelWorld.Rotation.AsSpan()), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
+        Matrix moved = new(NativeBattleTelemetry.Materialize(1125, movedModelWorld.Rotation.AsSpan()), movedModelWorld.X, movedModelWorld.Y, movedModelWorld.Z);
         //8D72C0 copies only WORDs from the moved DWORD translation into its temporary origin.
         NativeBattleVector origin = new(unchecked((short)moved.X), unchecked((short)moved.Y), unchecked((short)moved.Z));
         NativeBattleVector direction = NormalizeLong56BD20(origin.X - effectCenter.X, origin.Y - effectCenter.Y, origin.Z - effectCenter.Z);
@@ -51,7 +51,7 @@ public static partial class NativeBattlePoseMatrices
     public static NativeBattleActionMatrix CureMovedModelWorld8D7200(NativeBattleActionMatrix originalModelWorld, NativeBattleVector localOffset, short translationMode)
     {
         originalModelWorld.Validate();
-        Matrix world = new(originalModelWorld.Rotation.ToArray(), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
+        Matrix world = new(NativeBattleTelemetry.Materialize(1126, originalModelWorld.Rotation.AsSpan()), originalModelWorld.X, originalModelWorld.Y, originalModelWorld.Z);
         Matrix moved = world;
         if (translationMode == 0)
         {
@@ -82,5 +82,5 @@ public static partial class NativeBattlePoseMatrices
         return new(unchecked((short)ConvertRounded(nx)), unchecked((short)ConvertRounded(fy)), unchecked((short)ConvertRounded(fz)));
     }
 
-    private static NativeBattleActionMatrix ToActionMatrix(Matrix matrix) => new(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096);
+    private static NativeBattleActionMatrix ToActionMatrix(Matrix matrix) => new(NativeBattleTelemetry.Immutable(1127, matrix.Rotation), matrix.X, matrix.Y, matrix.Z, 4096);
 }
