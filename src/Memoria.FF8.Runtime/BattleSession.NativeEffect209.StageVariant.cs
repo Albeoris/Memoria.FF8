@@ -62,7 +62,7 @@ public sealed partial class BattleSession
         }
         NativeModelCpuResources = cpu with { ScratchMaximum = maximum };
         short speed = selected.RotationSource is >= 0x1D99BE8 and <= 0x1D99BEE ? variants.ReadRotationWord(selected.RotationSource) : BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(selected.RotationSource, 2));
-        NativeStage = stage.Rebuild50E3C0(decoded, new(selected.Color40, selected.Color44), speed, () => NextNativeGlobalRandom(), DrawCrt);
+        NativeStage = stage.Rebuild50E3C0(decoded, new(selected.Color40, selected.Color44), speed, () => NextNativeGlobalRandom(), DrawCrt, NativeGraphics?.Callback);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Effect209 stage rebuild lost its process memory.");
         NativeEffectMemory = memory with { Textures = (memory.Textures ?? throw new NotSupportedException("Effect209 stage rebuild requires its texture queue.")).EnqueueTim505E30(decoded.Texture).State };
         return ImportNativeEffect209Frame(frame);

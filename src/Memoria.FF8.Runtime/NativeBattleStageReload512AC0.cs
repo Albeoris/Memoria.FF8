@@ -7,7 +7,7 @@ public sealed record NativeBattleStageReloadCopy(uint Source, uint Destination, 
 
 public sealed partial record NativeBattleStageState
 {
-    public NativeBattleStageState Reload512AC0(int index, NativeBattleStageSource source)
+    public NativeBattleStageState Reload512AC0(int index, NativeBattleStageSource source, long? textureAnimationStartCallback = null)
     {
         Validate();
         NativeBattleStageReload512AC0.RequireIndex(index);
@@ -29,6 +29,8 @@ public sealed partial record NativeBattleStageState
         }
         NativeBattleStageState result = this with
         {
+            ResourceStageId = source.ResourceStageId,
+            TextureAnimationStartCallback = textureAnimationStartCallback,
             Groups = groups.ToImmutable(),
             MutableGeometry = geometry,
             TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations,

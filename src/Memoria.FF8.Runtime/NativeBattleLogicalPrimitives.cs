@@ -15,6 +15,7 @@ public sealed record NativeBattleLogicalPacket(NativeBattlePrimitiveReference Re
     public bool RequiresPhysicalRead { get; init; }
     // Presentation coordinates belong to the current physical packet, including all of its proxy aliases.
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+    public string? TextureSourceOwner { get; init; }
 }
 public sealed record NativeBattleLogicalProxy(NativeBattlePrimitiveReference Packet, ushort Flags20, ImmutableArray<int> VertexPayload4, int? ModuleDraw)
 {
@@ -24,6 +25,7 @@ public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference P
 {
     public int? OrderingBucket { get; init; }
     public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+    public string? TextureSourceOwner { get; init; }
 }
 public sealed record NativeBattleLogicalResolvedCommand(NativeBattleLogicalCommand Command, NativeBattlePrimitiveDrawMode DrawMode, byte Pass);
 
@@ -103,10 +105,10 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
         return checked((link.Proxy ? 0x1C48828u : 0x1D8E058u + 17544u * buffer) + (link.Proxy ? 24u : 4u) * (uint)link.Index);
     }
 
-    public NativeBattleLogicalOrdering Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null)
+    public NativeBattleLogicalOrdering Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null)
     {
         Builder builder = new(this);
-        builder.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates);
+        builder.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner);
         return builder.ToImmutable();
     }
 
@@ -208,20 +210,20 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
                 int index = node.Key.Index;
                 NativeBattleLogicalPacket packet = packets[index];
                 NativeBattlePrimitiveReference physical = NativeBattlePrimitiveProcess.NormalizeCommonReference(packet.Reference);
-                if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
+                if ((!packet.RequiresPhysicalRead || packet.ProjectedCoordinates is not null || packet.TextureSourceOwner is not null) && physical.Bank == reference.Bank && physical.Buffer == reference.Buffer && physical.ByteOffset < reference.ByteOffset + length && reference.ByteOffset < physical.ByteOffset + packet.Words.Length * 4)
                 {
                     if (checkpointActive)
                     {
                         packetUndo.Add((index, packet));
                     }
-                    packets[index] = packet with { RequiresPhysicalRead = true, ProjectedCoordinates = null };
+                    packets[index] = packet with { RequiresPhysicalRead = true, ProjectedCoordinates = null, TextureSourceOwner = null };
                 }
             }
         }
 
         private void RegisterPacketRange(NativeBattleLogicalPacket packet, int index)
         {
-            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null)
+            if (packet.RequiresPhysicalRead && packet.ProjectedCoordinates is null && packet.TextureSourceOwner is null)
             {
                 return;
             }
@@ -239,12 +241,12 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
             maximumPacketBytes = Math.Max(maximumPacketBytes, checked(packet.Words.Length * 4));
         }
 
-        public void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null)
+        public void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null)
         {
             if (transaction is not null)
             {
                 transaction.RequireActive();
-                transaction.Writer.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates);
+                transaction.Writer.Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner);
                 return;
             }
             ValidateInsertion(table.Count, bucket, reference, words, vertexPayload4);
@@ -253,7 +255,7 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
                 return;
             }
             int index = proxyCursor;
-            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, table[bucket], tableBuffer, LinkAddress(table[bucket], tableBuffer), false, projectedCoordinates);
+            AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, table[bucket], tableBuffer, LinkAddress(table[bucket], tableBuffer), false, projectedCoordinates, textureSourceOwner);
             if (checkpointActive)
             {
                 tableUndo.Add((bucket, table[bucket]));
@@ -277,11 +279,11 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
             AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, true);
         }
 
-        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null)
+        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null)
         {
             InvalidatePacketRange(reference, words.Length * 4);
             lastHeaderLink = previousAddress;
-            NativeBattleLogicalPacket packet = new(reference, words, next) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, ProjectedCoordinates = projectedCoordinates };
+            NativeBattleLogicalPacket packet = new(reference, words, next) { NextTableBuffer = nextBuffer, RequiresPhysicalRead = physicalRead, ProjectedCoordinates = projectedCoordinates, TextureSourceOwner = textureSourceOwner };
             NativeBattlePrimitiveReference identity = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (packetIndices.TryGetValue(identity, out int existing))
             {
@@ -521,7 +523,7 @@ public sealed partial record NativeBattleLogicalOrdering(ImmutableArray<NativeBa
                 }
                 if (opcode != 0)
                 {
-                    commands.Add(new(packet.Reference, word, opcode, packet.Words.Slice(word, count), proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinates = MatchingProjectedCoordinates(packet, word, count) });
+                    commands.Add(new(packet.Reference, word, opcode, packet.Words.Slice(word, count), proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinates = MatchingProjectedCoordinates(packet, word, count), TextureSourceOwner = packet.TextureSourceOwner });
                 }
                 remaining -= count;
                 word += count;

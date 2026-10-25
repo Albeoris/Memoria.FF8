@@ -141,7 +141,8 @@ public sealed partial class BattleAssets : IDisposable
         if (!stages.TryGetValue(stageId, out BattleStage? stage))
         {
             stage = BattleResourceReader.ReadStage(stageId, Read($"a0stg{stageId:000}.x"));
-            stage = stage with { Textures = RegisterBattleTextures(new ResourceKey($"battle/a0stg{stageId:000}.x"), stage.Textures, stage.TextureSourceAddresses, stage.TextureRegions) };
+            ResourceKey owner = new($"battle/a0stg{stageId:000}.x");
+            stage = stage with { NativePages = RegisterStagePages(owner, stage), Textures = RegisterBattleTextures(owner, stage.Textures, stage.TextureSourceAddresses, stage.TextureRegions) };
             stages.Add(stageId, stage);
         }
         return modelOverrides?.Apply($"battle/a0stg{stageId:000}.x", stage) ?? stage;

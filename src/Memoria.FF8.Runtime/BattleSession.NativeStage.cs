@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         (NativeBattleFileStaging staging, NativeBattleModelCpuResources cpu) = physical.Publish500EA0(NativeFileStaging ?? throw new NotSupportedException("Native500EA0 requires its current shared resource memory."), NativeModelCpuResources ?? throw new NotSupportedException("Native500EA0 requires its current model heap cursor and vertex capacity."));
         NativeFileStaging = staging;
         NativeModelCpuResources = cpu;
-        NativeStage = (NativeStage ?? throw new NotSupportedException("Native500EA0 requires its retained process stage rows; migrate the standalone snapshot explicitly.")).Initialize500EA0(source);
+        NativeStage = (NativeStage ?? throw new NotSupportedException("Native500EA0 requires its retained process stage rows; migrate the standalone snapshot explicitly.")).Initialize500EA0(source, NativeGraphics?.Callback);
         if (source.Callback?.Address == NativeBattleFinalStage142.CallbackAddress)
         {
             NativeBattleFinalStage142State specialized = NativeStage.FinalStage142 ?? throw new NotSupportedException("Native512500 requires its retained final-stage process owner.");

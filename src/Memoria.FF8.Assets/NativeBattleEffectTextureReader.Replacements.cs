@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets;
 
 public static partial class NativeBattleEffectTextureReader
 {
-    public static PixelImage ApplyModelReplacements(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, NativeBattlePcTextureWindowPixels? retainedPixels, IReadOnlyList<NativeBattleTextureReplacement> replacements)
+    public static PixelImage ApplyModelReplacements(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, NativeBattlePcTextureWindowPixels? retainedPixels, IReadOnlyList<NativeBattleTextureReplacement> replacements, string? textureSourceOwner = null)
     {
         List<(NativeBattleTextureReplacement Replacement, int Left, int Top, int Right, int Bottom)> selected = [];
         byte[] bank = Banks.GetValue(state, key => key.ReadVram());
@@ -16,7 +16,8 @@ public static partial class NativeBattleEffectTextureReader
         int densityLogicalHeight = 1;
         foreach (NativeBattleTextureReplacement replacement in replacements)
         {
-            if ((page & 0x19F) != (replacement.Page & 0x19F) || (clut & 0x7FFF) != (replacement.Clut & 0x7FFF))
+            bool sourcePage = replacement.SourceOwner is not null;
+            if ((page & 0x19F) != (replacement.Page & 0x19F) || (sourcePage ? !string.Equals(textureSourceOwner, replacement.SourceOwner, StringComparison.Ordinal) : (clut & 0x7FFF) != (replacement.Clut & 0x7FFF)))
             {
                 continue;
             }
@@ -24,7 +25,7 @@ public static partial class NativeBattleEffectTextureReader
             int top = Math.Max(v, replacement.V);
             int right = Math.Min(u + original.Width, replacement.U + replacement.Width);
             int bottom = Math.Min(v + original.Height, replacement.V + replacement.Height);
-            if (left >= right || top >= bottom || !Matches(replacement, left, top, right, bottom))
+            if (left >= right || top >= bottom || !sourcePage && !Matches(replacement, left, top, right, bottom))
             {
                 continue;
             }

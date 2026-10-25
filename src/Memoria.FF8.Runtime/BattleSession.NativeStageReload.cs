@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         byte[] currentFile = Read(loadedFile, source.Data.Length);
         // Decoder code belongs to the host; the active source bytes remain in the current arena.
         NativeBattleStageSource decoded = (decode ?? throw new NotSupportedException("Native stage reload requires its host byte decoder."))(currentFile);
-        stage = stage.Reload512AC0(index, decoded);
+        stage = stage.Reload512AC0(index, decoded, NativeGraphics?.Callback);
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native stage reload requires its current scratch capacity.");
         ushort maximum = cpu.ScratchMaximum ?? throw new NotSupportedException("Native stage reload requires its retained scratch maximum.");
         for (int group = 0; group < 4; group++)

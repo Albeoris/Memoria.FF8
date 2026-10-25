@@ -264,7 +264,7 @@ public sealed class ResourceService : IResourceChangeFeed
     private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver)
     {
         TextureReplacement? replacement = replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
-        return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true };
+        return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
     }
 
     private void Notify(ResourceChangeSet notification)

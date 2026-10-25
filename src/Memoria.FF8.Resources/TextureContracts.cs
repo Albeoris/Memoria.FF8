@@ -49,11 +49,27 @@ public sealed class TextureBuildContext
 }
 
 /// <summary>Image and logical canvas are published as a single value. Pixels are already colored.</summary>
-public sealed record TextureReplacement(PixelImage Image, string Provenance, int LogicalWidth, int LogicalHeight, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null);
+public sealed record TextureAnimation(IReadOnlyList<PixelImage> Frames, int FrameDurationMilliseconds)
+{
+    public PixelImage At(TimeSpan elapsed)
+    {
+        if (Frames.Count == 0 || FrameDurationMilliseconds <= 0 || elapsed < TimeSpan.Zero)
+        {
+            throw new InvalidDataException("Texture animation requires frames, a positive duration and a nonnegative clock.");
+        }
+        return Frames[(int)(elapsed.Ticks / (TimeSpan.TicksPerMillisecond * FrameDurationMilliseconds) % Frames.Count)];
+    }
+}
+
+public sealed record TextureReplacement(PixelImage Image, string Provenance, int LogicalWidth, int LogicalHeight, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null)
+{
+    public TextureAnimation? Animation { get; init; }
+}
 
 public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null)
 {
     public bool IsReplacement { get; init; }
+    public TextureAnimation? Animation { get; init; }
 }
 
 public interface ITextureReplacementResolver

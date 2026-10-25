@@ -32,7 +32,7 @@ public sealed partial class BattleSession
         return graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
     }
 
-    private NativeBattleGraphicsState AppendNativePrimitivePackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, int? moduleDraw = null)
+    private NativeBattleGraphicsState AppendNativePrimitivePackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, int? moduleDraw = null, string? textureSourceOwner = null)
     {
         if (definition.NativeGraphics?.PrimitiveTables is null)
         {
@@ -59,7 +59,7 @@ public sealed partial class BattleSession
                 ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
             }
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(cursor, primitive, linked));
-            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates);
+            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw, primitive.ProjectedCoordinates, textureSourceOwner);
             if (linked)
             {
                 stores.Add(new(cursor, NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink).ToImmutableArray(), NativeBattleCommonPacketArena.KnownLinkMask));
@@ -93,7 +93,7 @@ public sealed partial class BattleSession
             }
             ImmutableArray<NativeBattleRawMesh> meshes = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
             ImmutableArray<NativeBattleGeometryPrimitive> primitives = NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors, viewport: SceneGeometryViewport);
-            graphics = AppendNativeModelRendererPackets(graphics, primitives, !meshes.IsEmpty);
+            graphics = AppendNativeModelRendererPackets(graphics, primitives, !meshes.IsEmpty, stage.ResourceStageId is int stageId ? $"battle/a0stg{stageId:000}.x" : null);
         }
         return graphics;
     }
@@ -183,9 +183,9 @@ public sealed partial class BattleSession
         return draw;
     }
 
-    private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, bool renderedObject)
+    private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, bool renderedObject, string? textureSourceOwner = null)
     {
-        graphics = AppendNativePrimitivePackets(graphics, primitives);
+        graphics = AppendNativePrimitivePackets(graphics, primitives, textureSourceOwner: textureSourceOwner);
         if (renderedObject)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native model packet publication requires its process owner.");

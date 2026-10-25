@@ -42,7 +42,9 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             {
                 supported |= source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-world-wmset0");
             }
-            supported |= source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
+            bool battleTarget = stem.StartsWith(BattlePagePrefix, StringComparison.OrdinalIgnoreCase);
+            supported |= battleTarget && HasLayout(source, BattlePageLayout) && IsBattlePageTarget(stem);
+            supported |= !battleTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");
             if (supported)
             {
                 usable.Add(file.PackageId);
@@ -57,6 +59,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
+        if (context.Layout == BattlePageLayout)
+        {
+            return ResolveBattlePage(context);
+        }
         if (context.Layout == "native-artwork" && HasLayout(context.Source, "demaster-card-artwork"))
         {
             return ResolveCardArtwork(context);
@@ -87,6 +93,10 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
 
     public static IReadOnlyList<string> CandidatePaths(TextureBuildContext context)
     {
+        if (context.Layout == BattlePageLayout)
+        {
+            return TryBattlePageStem(context, out string battleStem) ? WithExtensions($"{battleStem}_0").Concat(WithExtensions(battleStem)).ToArray() : Array.Empty<string>();
+        }
         string? stem = null;
         bool paletteFallback = true;
         string owner = context.Key.Owner.Path;

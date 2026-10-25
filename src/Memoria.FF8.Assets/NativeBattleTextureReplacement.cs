@@ -8,6 +8,8 @@ namespace Memoria.FF8.Assets;
 
 public sealed record NativeBattleTextureReplacement(ushort Page, ushort Clut, int U, int V, int Width, int Height, PixelImage Image, int WordWidth, ImmutableArray<byte> PixelWords, ImmutableArray<byte> PaletteWords)
 {
+    public string? SourceOwner { get; init; }
+    public Memoria.FF8.Resources.TextureAnimation? Animation { get; init; }
     public int ImageSourceX { get; init; }
     public int ImageSourceY { get; init; }
     public int ImageCanvasWidth { get; init; }
@@ -88,18 +90,19 @@ public static class NativeBattleTextureReplacements
         foreach (BattleFace face in stage.Meshes.SelectMany(mesh => mesh.Faces))
         {
             TextureValue value = textures.GetTexture(face.Texture);
-            if (!value.IsReplacement)
-            {
-                continue;
-            }
             NativeBattleFaceMaterial material = face.NativeMaterial ?? throw new NotSupportedException("Native stage replacement sampling requires original polygon material fields.");
             ushort page = (ushort)(material.TexturePage & 0x19F);
             ushort clut = (ushort)(material.Clut & 0x7FFF);
-            if (!materials.Add((face.Texture, page, clut)))
+            bool nativePage = stage.NativePages.TryGetValue((page, clut), out AssetHandle<TextureValue>? pageHandle) && pageHandle.Value.IsReplacement;
+            if (nativePage)
+            {
+                value = pageHandle!.Value;
+            }
+            if (!value.IsReplacement || !materials.Add((nativePage ? -1 : face.Texture, page, nativePage ? (ushort)0 : clut)))
             {
                 continue;
             }
-            if (value.LogicalWidth != tim.Width || value.LogicalHeight != tim.Height)
+            if (!nativePage && (value.LogicalWidth != tim.Width || value.LogicalHeight != tim.Height))
             {
                 throw new InvalidDataException("Native stage replacement changed its original logical canvas.");
             }
@@ -122,7 +125,15 @@ public static class NativeBattleTextureReplacements
             {
                 tim.Words.AsSpan().Slice(((sourceY + row) * tim.WordWidth + sourceX / pixelsPerWord) * 2, wordWidth * 2).CopyTo(words.AsSpan(row * wordWidth * 2));
             }
-            result.Add(new(page, clut, u, v, width, height, value.Image, wordWidth, words.ToImmutableArray(), Palette(tim, clut)) { ImageSourceX = sourceX, ImageSourceY = sourceY, ImageCanvasWidth = tim.Width, ImageCanvasHeight = tim.Height });
+            result.Add(new(page, clut, u, v, width, height, value.Image, wordWidth, words.ToImmutableArray(), Palette(tim, clut))
+            {
+                SourceOwner = nativePage ? $"battle/a0stg{stage.Id:000}.x" : null,
+                Animation = nativePage ? value.Animation : null,
+                ImageSourceX = nativePage ? u : sourceX,
+                ImageSourceY = nativePage ? v : sourceY,
+                ImageCanvasWidth = nativePage ? 256 : tim.Width,
+                ImageCanvasHeight = nativePage ? 256 : tim.Height
+            });
         }
         return result;
     }

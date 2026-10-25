@@ -44,7 +44,7 @@ public sealed record NativeBattleStageVariant137State([property: JsonRequired] i
 
 public sealed partial record NativeBattleStageState
 {
-    public NativeBattleStageState Rebuild50E3C0(NativeBattleStageSource source, NativeBattleStageColors colors, short rotationSpeed, Func<uint> random, Func<int> globalRandom)
+    public NativeBattleStageState Rebuild50E3C0(NativeBattleStageSource source, NativeBattleStageColors colors, short rotationSpeed, Func<uint> random, Func<int> globalRandom, long? textureAnimationStartCallback = null)
     {
         Validate();
         if (source.Groups.IsDefault || source.Groups.Length != 4 || source.Groups.Any(group => group is null) || source.Geometry is not { IsDefault: false } geometry || source.TextureAnimations.IsDefault)
@@ -58,7 +58,7 @@ public sealed partial record NativeBattleStageState
             groups[group] = Select509440(groups[group] with { Source = source.Groups[group] });
         }
         (NativeBattleStage137State state, short speed) = NativeBattleStage137.CompleteVariant50E3C0(extended.Stage137, rotationSpeed, random, globalRandom);
-        NativeBattleStageState result = this with { Groups = groups.ToImmutable(), MutableGeometry = geometry, TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors with { Color44 = (colors.Color44 & 0xFFFFFF) | 0x32000000 }, RotationSpeed = speed, Extended = extended with { Stage137 = state } };
+        NativeBattleStageState result = this with { ResourceStageId = source.ResourceStageId, TextureAnimationStartCallback = textureAnimationStartCallback, Groups = groups.ToImmutable(), MutableGeometry = geometry, TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors with { Color44 = (colors.Color44 & 0xFFFFFF) | 0x32000000 }, RotationSpeed = speed, Extended = extended with { Stage137 = state } };
         result.Validate();
         return result;
     }

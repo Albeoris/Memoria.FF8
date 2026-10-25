@@ -120,6 +120,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
 public sealed record BattleStageCamera(Vector3 NativeEye, Vector3 NativeTarget, int FocalLength);
 public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures)
 {
+    public IReadOnlyDictionary<(ushort Page, ushort Clut), AssetHandle<TextureValue>> NativePages { get; init; } = new Dictionary<(ushort Page, ushort Clut), AssetHandle<TextureValue>>();
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
     public IReadOnlyList<TextureSourceAddress> TextureSourceAddresses { get; init; } = [];
     public Memoria.FF8.Runtime.NativeBattleStageSource? NativeSource { get; init; }

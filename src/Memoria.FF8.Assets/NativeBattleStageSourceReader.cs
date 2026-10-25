@@ -58,7 +58,7 @@ public static class NativeBattleStageSourceReader
             source.Validate();
             groups.Add(source);
         }
-        return new(RotationSpeeds[stageId], groups.MoveToImmutable(), bytes.AsSpan(sections[4], sections[5] - sections[4]).ToArray().ToImmutableArray(), new($"a0stg{stageId:000}.x:TIM", bytes.AsSpan(sections[5], sections[6] - sections[5]).ToArray().ToImmutableArray())) { PhysicalSource = new(NativeBattleModelCpuResources.EnemyAddress, header, bytes.AsSpan(0, sections[5]).ToArray().ToImmutableArray()), Callback = NativeBattleStageCallbackReader.Read(stageId), ModelColors = NativeBattleStageColorsReader.Read(stageId).Colors, SpecializedColor = stageId is 44 or 45 or 46 ? 0x50u : null, TextureAnimation147 = stageId == 147 ? new("a0stg147.x:animation", bytes.AsSpan(4336, 192).ToArray().ToImmutableArray()) : null };
+        return new(RotationSpeeds[stageId], groups.MoveToImmutable(), bytes.AsSpan(sections[4], sections[5] - sections[4]).ToArray().ToImmutableArray(), new($"a0stg{stageId:000}.x:TIM", bytes.AsSpan(sections[5], sections[6] - sections[5]).ToArray().ToImmutableArray())) { ResourceStageId = stageId, PhysicalSource = new(NativeBattleModelCpuResources.EnemyAddress, header, bytes.AsSpan(0, sections[5]).ToArray().ToImmutableArray()), Callback = NativeBattleStageCallbackReader.Read(stageId), ModelColors = NativeBattleStageColorsReader.Read(stageId).Colors, SpecializedColor = stageId is 44 or 45 or 46 ? 0x50u : null, TextureAnimation147 = stageId == 147 ? new("a0stg147.x:animation", bytes.AsSpan(4336, 192).ToArray().ToImmutableArray()) : null };
 
         int Word32(int offset)
         {

@@ -86,13 +86,13 @@ public sealed partial class BattleRenderer
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
     }
 
-    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null)
+    public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null, TimeSpan? animationClock = null)
     {
         Begin(camera ?? BattleCamera.NativeInitial);
         TriangleRenderer?.Begin(Width, Height, new Vector4(17f / 255, 20f / 255, 29f / 255, 1), 0);
         foreach (BattleMesh mesh in stage.Meshes)
         {
-            Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1);
+            Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1, stagePages: stage.NativePages, animationClock: animationClock);
         }
         foreach (BattleActorDraw actor in actors.Where(actor => actor.Visible))
         {
@@ -151,13 +151,18 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Dictionary<(ushort Page, ushort Clut), PixelImage>? replacementPages = null)
+    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Dictionary<(ushort Page, ushort Clut), PixelImage>? replacementPages = null, IReadOnlyDictionary<(ushort Page, ushort Clut), Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>>? stagePages = null, TimeSpan? animationClock = null)
     {
         Vector3[] transformed = positions.Select(position => Vector3.Transform(position, view)).ToArray();
         foreach (BattleFace face in mesh.Faces)
         {
             NativeBattleFaceMaterial? material = nativeBinding is null ? null : NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new NotSupportedException("Native actor VRAM rendering requires the original polygon CLUT/page/UV fields."), nativeBinding);
             PixelImage texture = material is null ? textures[face.Texture] : NativeActorTexturePage(nativeTextures ?? throw new NotSupportedException("Native actor material requires its retained original VRAM owner."), material.TexturePage, material.Clut);
+            if (stagePages is not null && face.NativeMaterial is { } originalMaterial && stagePages.TryGetValue(((ushort)(originalMaterial.TexturePage & 0x19F), (ushort)(originalMaterial.Clut & 0x7FFF)), out var handle) && handle.Value.IsReplacement)
+            {
+                material = originalMaterial;
+                texture = handle.Value.Animation?.At(animationClock ?? TimeSpan.Zero) ?? handle.Value.Image;
+            }
             if (material is not null && replacements is { Count: > 0 })
             {
                 var key = (material.TexturePage, material.Clut);

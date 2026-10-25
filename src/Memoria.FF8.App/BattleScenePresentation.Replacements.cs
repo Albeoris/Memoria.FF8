@@ -12,13 +12,24 @@ internal sealed partial class BattleScenePresentation
     private IReadOnlyList<NativeBattleTextureReplacement> NativeModelReplacements(BattleSession session, NativeBattleGraphicsState graphics)
     {
         List<NativeBattleTextureReplacement> result = [];
-        object[] stageMaterials = Materials(stage.Textures);
+        BattleStage replacementStage = session.NativeStage?.ResourceStageId is int stageId ? assets.LoadStage(stageId) : stage;
+        object[] stageMaterials = [.. Materials(replacementStage.Textures), .. replacementStage.NativePages.Values.Select(handle => (object)handle.Value)];
         if (stageReplacementMaterials is null || !stageReplacementMaterials.SequenceEqual(stageMaterials))
         {
             stageReplacementMaterials = stageMaterials;
-            stageReplacements = NativeBattleTextureReplacements.Bind(stage);
+            stageReplacements = NativeBattleTextureReplacements.Bind(replacementStage);
         }
-        result.AddRange(stageReplacements);
+        long animationCallback = Math.Max(0, graphics.Callback - (session.NativeStage?.TextureAnimationStartCallback ?? graphics.Callback));
+        if (stageReplacements.Any(replacement => replacement.SourceOwner is not null) && session.NativeStage?.ResourceStageId is null)
+        {
+            throw new NotSupportedException("Stage page replacements require the retained current stage resource identity; explicitly migrate this snapshot or load the original stage resource.");
+        }
+        if (stageReplacements.Any(replacement => replacement.Animation is not null) && session.NativeStage?.TextureAnimationStartCallback is null)
+        {
+            throw new NotSupportedException("Animated stage pages require their retained presentation clock epoch; explicitly migrate this snapshot or load the original stage resource.");
+        }
+        TimeSpan animationClock = TimeSpan.FromTicks(checked(animationCallback * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond));
+        result.AddRange(stageReplacements.Select(replacement => replacement.Animation is { } animation ? replacement with { Image = animation.At(animationClock) } : replacement));
         for (int index = 0; index < graphics.ActorIds.Length; index++)
         {
             if (graphics.ActorIds[index] is not string actorId || graphics.Models[index].BodyTextureSlots is not { } bodyBinding)

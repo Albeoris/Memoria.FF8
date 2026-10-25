@@ -7,6 +7,7 @@ public sealed partial record NativeBattleStageSource(short RotationSpeed, Immuta
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStagePhysicalSource? PhysicalSource { get; init; }
+    public int? ResourceStageId { get; init; }
     public NativeBattleStageCallback? Callback { get; init; }
     public NativeBattleStageColors? ModelColors { get; init; }
     public uint? SpecializedColor { get; init; }
@@ -19,6 +20,8 @@ public sealed record NativeBattleStageGroup([property: JsonRequired] byte Flags,
 /// <summary>506C50/500EA0/500FD0's four physical44-byte stage rows and rotating group3 DWORD.</summary>
 public sealed partial record NativeBattleStageState([property: JsonRequired] uint Flags, [property: JsonRequired] int Rotation, [property: JsonRequired] short RotationSpeed, [property: JsonRequired] ImmutableArray<NativeBattleStageGroup> Groups)
 {
+    public int? ResourceStageId { get; init; }
+    public long? TextureAnimationStartCallback { get; init; }
     public NativeBattleStageTask? Task { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleFinalStage142State? FinalStage142 { get; init; }
@@ -38,6 +41,14 @@ public sealed partial record NativeBattleStageState([property: JsonRequired] uin
 
     public void Validate()
     {
+        if (ResourceStageId is < 0 or > 999)
+        {
+            throw new InvalidDataException("Native stage resource identity leaves its three-digit resource namespace.");
+        }
+        if (TextureAnimationStartCallback is < 0)
+        {
+            throw new InvalidDataException("Stage texture animation requires a nonnegative callback epoch.");
+        }
         if (SourceAddress1D9A820 is uint sourceAddress && (sourceAddress & 3) != 0)
         {
             throw new InvalidDataException("Native stage source pointer must preserve its actual DWORD alignment.");
@@ -82,7 +93,7 @@ public sealed partial record NativeBattleStageState([property: JsonRequired] uin
         return this with { Flags = 0, Task = null, Specialized = Specialized is { } specialized ? specialized with { PublishedColor = 0 } : null, Groups = Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xF8), ColorDepth = 0, PoseFlags = 0 }).ToImmutableArray() };
     }
 
-    public NativeBattleStageState Initialize500EA0(NativeBattleStageSource source)
+    public NativeBattleStageState Initialize500EA0(NativeBattleStageSource source, long? textureAnimationStartCallback = null)
     {
         Validate();
         if (source.Groups.IsDefault || source.Groups.Length != 4)
@@ -96,7 +107,7 @@ public sealed partial record NativeBattleStageState([property: JsonRequired] uin
             NativeBattleStageGroup group = groups[index];
             groups[index] = source.Groups[index] is { } pose ? Select509440(group with { Flags = (byte)(group.Flags | 7), Source = pose }) : group with { Flags = (byte)(group.Flags & 0xF8) };
         }
-        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors, MutableGeometry = source.Callback?.Address == 0x50DFF0 ? source.Geometry : null, SourceAddress1D9A820 = source.PhysicalSource is { } physical ? checked(physical.Address + (uint)physical.DirectoryOffset) : SourceAddress1D9A820 };
+        NativeBattleStageState result = this with { ResourceStageId = source.ResourceStageId, TextureAnimationStartCallback = textureAnimationStartCallback, Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations.IsEmpty ? null : source.TextureAnimations, ModelColors = colors, MutableGeometry = source.Callback?.Address == 0x50DFF0 ? source.Geometry : null, SourceAddress1D9A820 = source.PhysicalSource is { } physical ? checked(physical.Address + (uint)physical.DirectoryOffset) : SourceAddress1D9A820 };
         result.Validate();
         return result;
     }
