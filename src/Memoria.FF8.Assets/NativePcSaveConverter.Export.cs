@@ -304,6 +304,22 @@ public static partial class NativePcSaveConverter
     private static void ExportLocation(byte[] block, GameState state)
     {
         JsonElement? scene = state.EventState is { } snapshot && snapshot.TryGetProperty("Scene", out JsonElement savedScene) ? savedScene : null;
+        if (scene is { } tutorialScene && tutorialScene.TryGetProperty("UnlockedTutorials", out JsonElement tutorials))
+        {
+            if (tutorials.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidDataException("Original save tutorial availability requires its current 128-bit owner.");
+            }
+            block.AsSpan(Main + 3283, 16).Clear();
+            foreach (JsonElement tutorial in tutorials.EnumerateArray())
+            {
+                if (tutorial.ValueKind != JsonValueKind.Number || !tutorial.TryGetInt32(out int id) || id is < 0 or >= 128)
+                {
+                    throw new InvalidDataException("Original save tutorial availability exceeds its 128-bit owner.");
+                }
+                block[Main + 3283 + id / 8] |= (byte)(1 << (id & 7));
+            }
+        }
         byte[] party = scene is { } current && current.TryGetProperty("Party", out JsonElement values) && values.GetArrayLength() >= 3 ? values.EnumerateArray().Take(3).Select(value => unchecked((byte)value.GetInt32())).ToArray() : state.OriginalSave?.FieldParty ?? state.CharacterVitals?.CombatParty.Select(row => row == 255 ? (byte)255 : state.CharacterVitals.Records[row].CharacterId).ToArray() ?? [0, 255, 255];
         party.CopyTo(block, Main + 3304);
         block[Main + 3307] = 255;

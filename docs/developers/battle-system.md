@@ -36,6 +36,14 @@ Reinforcement templates defer live level selection and random consumption until 
 
 When extending an AI opcode or selector, implement its complete reached contract: operand widths, selector domain, comparison behavior, active participant ownership, random use, side effects and completion timing. Keep saved variable ownership explicit. Add capture/restore support for any new live state in the same change. Do not use content-specific default targets or replace an unsupported action with a primitive attack.
 
+## Omega Weapon
+
+Original formation 462 uses the shared encounter loader, native statistics and original AI. Its level-100 maximum HP of 1,161,000 is retained; native enemy templates are not constrained by the generic component HP limit. Installed-resource checks cover host construction, initialization, bounded AI action enqueue and independent JSON continuation. They deliberately stop before dispatching graphics effects; native logical action formulas already run during enqueue.
+
+The original death AI publishes tutorial availability 127, Proof of Omega, before its queued death action. Accepted live battle snapshots and the current scene tutorial owner feed the corresponding achievement. Original-save initialization imports the full tutorial bitmap, and export writes the current owner. The field script's victory flag and automatic/debug victory do not manufacture this proof.
+
+Remaining unsupported effects keep their existing explicit failures. `TODO(TD-019)` tracks complete Omega combat validation after those effects are implemented. Diagnostic AI callbacks and death-state fixtures do not establish a playable complete fight. Existing converted checkpoints whose tutorial owner omitted original availability require an explicit migration from their preserved original source before relying on that missing information; newly importing the original save establishes the correct owner.
+
 ## Results and rewards
 
 A completed encounter produces a result associated with its exact occurrence and suspended owner. The result carries observed party HP/status/magic/item effects, enemy defeat receipts and supported progression/loot facts. Defeat receipts account for actors activated as reserves, revived or removed by death AI; rewards must follow those actual outcomes rather than the initial formation list alone.

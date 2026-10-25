@@ -11,7 +11,7 @@ public sealed class OriginalAchievementCatalogTests
         Assert.Equal(45, OriginalAchievementCatalog.Entries.Select(entry => entry.NativeKey).Distinct().Count());
         AchievementRegistry registry = OriginalAchievementCatalog.CreateRegistry();
         AchievementBinding[] bindings = SteamAchievementMappings.ForProduct("39150");
-        Assert.Equal(42, registry.Definitions.Count);
+        Assert.Equal(43, registry.Definitions.Count);
         Assert.Equal(OriginalAchievementCatalog.Entries.Where(entry => entry.Supported).Select(entry => entry.Id).OrderBy(id => id.Value), registry.Definitions.Select(definition => definition.Id).OrderBy(id => id.Value));
         Assert.Equal(registry.Definitions.Select(definition => definition.Id).OrderBy(id => id.Value), bindings.Select(binding => binding.Id).OrderBy(id => id.Value));
         Assert.All(OriginalAchievementCatalog.Entries.Where(entry => !entry.Supported), entry => Assert.False(string.IsNullOrWhiteSpace(entry.Blocker)));
@@ -38,7 +38,8 @@ public sealed class OriginalAchievementCatalogTests
             CardWins = 100,
             Chocobo = true,
             ObelLake = true,
-            TimberManiacs = true
+            TimberManiacs = true,
+            OmegaProof = true
         };
         service.Record(OriginalAchievementObservedEvent.Create(progress, null));
         foreach (OriginalAchievementActionKind kind in new[] { OriginalAchievementActionKind.CardPlayed, OriginalAchievementActionKind.MaximumHitPoints, OriginalAchievementActionKind.FinishGame, OriginalAchievementActionKind.Ragnarok, OriginalAchievementActionKind.FirstSalary, OriginalAchievementActionKind.CardsClubMaster, OriginalAchievementActionKind.RareCardLost })

@@ -77,6 +77,38 @@ public sealed class OriginalAchievementBattleStateTests
         Assert.Empty(session.State.PendingOriginalAchievementObservations);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AcceptedNativeProofIsDurableAndDebugVictoryCannotPublishIt(bool debug)
+    {
+        GameSession session = Session(null);
+        GameState earlier = session.State;
+        BattleSnapshot snapshot = Battle().Capture();
+        BattleSession battle = BattleSession.Restore(snapshot with { NativeScriptState = snapshot.NativeScriptState with { UnlockedTutorials = [127] } });
+        if (debug)
+        {
+            battle.InstantVictory();
+        }
+        session.SetLiveBattle(battle);
+        if (debug)
+        {
+            Assert.Empty(session.State.PendingOriginalAchievementObservations);
+            return;
+        }
+        OriginalAchievementObservedEvent fact = Assert.Single(session.State.PendingOriginalAchievementObservations);
+        Assert.True(fact.Progress.OmegaProof);
+        session.SetLiveBattle(battle);
+        Assert.Single(session.State.PendingOriginalAchievementObservations);
+        session.Restore(earlier);
+        GameState saved = System.Text.Json.JsonSerializer.Deserialize<GameState>(System.Text.Json.JsonSerializer.Serialize(session.State))!;
+        GameSession restarted = new(saved);
+        Assert.Equal(fact, Assert.Single(restarted.State.PendingOriginalAchievementObservations));
+        using AchievementService service = new(OriginalAchievementCatalog.CreateRegistry(), new MemoryRepository());
+        service.Record(fact);
+        Assert.True(service.Get(OriginalAchievementCatalog.Id("omega")).Unlocked);
+    }
+
     private static GameSession Session(NativeCharacterVitals? vitals, NativeCardInventory? cards = null, NativeEconomy? economy = null) => new(new GameState
     {
         Scene = SceneKind.Field,

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Threshold observations from current saved owners. Null means the required owner or predicate input is unknown.</summary>
@@ -16,6 +18,7 @@ public readonly record struct OriginalAchievementProgress
     public bool? Chocobo { get; init; }
     public bool? ObelLake { get; init; }
     public bool? TimberManiacs { get; init; }
+    public bool? OmegaProof { get; init; }
 }
 
 public static class OriginalAchievementState
@@ -44,8 +47,31 @@ public static class OriginalAchievementState
             CardWins = state.CardInventory?.TripleTriadStatistics?.Wins,
             Chocobo = WorldFlag(state, 1UL << 3),
             ObelLake = WorldFlag(state, 3UL << 32),
-            TimberManiacs = TimberManiacs(state.EventMemory, nativeLanguage12)
+            TimberManiacs = TimberManiacs(state.EventMemory, nativeLanguage12),
+            OmegaProof = OmegaProof(state.EventState)
         };
+    }
+
+    private static bool? OmegaProof(JsonElement? eventState)
+    {
+        if (eventState is not { ValueKind: JsonValueKind.Object } vm || !vm.TryGetProperty("Scene", out JsonElement scene) || scene.ValueKind != JsonValueKind.Object || !scene.TryGetProperty("UnlockedTutorials", out JsonElement unlocked))
+        {
+            return null;
+        }
+        if (unlocked.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException("Original achievement tutorial availability requires its current native unlock owner.");
+        }
+        bool omega = false;
+        foreach (JsonElement value in unlocked.EnumerateArray())
+        {
+            if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int id) || id is < 0 or >= 128)
+            {
+                throw new InvalidDataException("Original achievement tutorial availability contains an invalid native identifier.");
+            }
+            omega |= id == 127;
+        }
+        return omega;
     }
 
     private static ushort GuardianForceMask(NativeCharacterVitals vitals)

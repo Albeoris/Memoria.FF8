@@ -2,9 +2,9 @@
 
 [Achievement architecture](achievements.md) · [Original Steam catalogue](https://steamcommunity.com/stats/39150/achievements)
 
-The original edition has 45 achievements. **42 condition handlers are implemented; three are deferred.** The authoritative machine-readable register is [OriginalAchievementCatalog](../../src/Memoria.FF8.Runtime/OriginalAchievementCatalog.cs). Each supported entry has a typed handler and a verified Steam key. A catalogue test requires an executable qualifying handler for every supported entry and excludes deferred entries from external delivery.
+The original edition has 45 achievements. **43 condition handlers are implemented; two are deferred.** The authoritative machine-readable register is [OriginalAchievementCatalog](../../src/Memoria.FF8.Runtime/OriginalAchievementCatalog.cs). Each supported entry has a typed handler and a verified Steam key. A catalogue test requires an executable qualifying handler for every supported entry and excludes deferred entries from external delivery.
 
-“Implemented” describes the achievement condition and its publication path. It does not assert that every encounter, effect or complete story route needed to reach that condition is playable. GF acquisition and learning achievements do not require their summon or limit-break animation to be implemented: they observe the accepted acquisition/learning owners. Missing or unknown owners never count as completed. Tests exercise the conditions and persistence contracts; they are not 42 complete gameplay playthroughs or real account unlock tests.
+“Implemented” describes the achievement condition and its publication path. It does not assert that every encounter, effect or complete story route needed to reach that condition is playable. GF acquisition and learning achievements do not require their summon or limit-break animation to be implemented: they observe the accepted acquisition/learning owners. Missing or unknown owners never count as completed. Tests exercise the conditions and persistence contracts; they are not 43 complete gameplay playthroughs or real account unlock tests.
 
 ## Register
 
@@ -40,7 +40,7 @@ The original edition has 45 achievements. **42 condition handlers are implemente
 | 27 | Ragnarok | Implemented | Accepted request for original disc 2 clip 25. |
 | 28 | First salary | Implemented | Actual accepted salary payment in field or world gameplay. |
 | 29 | Choco loot | Deferred | Chocobo World item import is not implemented. Publish item-group receipts from its future accepted import. |
-| 30 | Omega Destroyed | Deferred | The Omega-completion byte lacks a current canonical owner; required encounter content is not established. Implement its owner and accepted mutation before registering the rule. |
+| 30 | Omega Destroyed | Implemented | Current tutorial availability bit 127 (Proof of Omega), including the accepted live original death-AI publication. Field victory alone cannot qualify. |
 | 31 | Obel Lake Secret | Implemented | Both required known saved world quest bits are set. |
 | 32 | UFO | Implemented | Saved PuPu completion flag observed on accepted victory. |
 | 33 | Cards Club Master | Implemented | Accepted card transfer gains a card from the final CC opponent. |
@@ -66,6 +66,6 @@ Loading a checkpoint starts a fresh branch for future action receipts. Genuinely
 
 Stock Draw and draw-point progress are account-cumulative, with `mag_stck` and `mag_draw` respectively. Card wins use save high-water `won_card`. The 100-kill binding owns `nmy_kill`; the 1000/10000 bindings submit unlocks from the same local absolute sum without conflicting counter writers. Original completed outcomes retain the existing original-edition kill policy. Rejected candidates and automatic research victories cannot fabricate battle action receipts. Cast Draw and GF Draw do not count as Stock Draw.
 
-Deferred entries retain their IDs and native keys, but have no handler or platform binding. `TODO(TD-018)` marks the future import and Omega extension points. Once the corresponding gameplay owner is implemented, add a typed accepted fact, the rule and boundary/persistence tests, then update both this register and the executable catalogue. Do not substitute a loaded raw-save byte, an inventory delta or a presentation log for a current gameplay owner.
+Deferred entries retain their IDs and native keys, but have no handler or platform binding. `TODO(TD-018)` marks the future Chocobo World import extension points. `TODO(TD-019)` retains the separate remaining Omega combat/effect validation boundary; see [battle support](battle-system.md#omega-weapon). Once the corresponding gameplay owner is implemented, add a typed accepted fact, the rule and boundary/persistence tests, then update both this register and the executable catalogue. Do not substitute a loaded raw-save byte, an inventory delta or a presentation log for a current gameplay owner.
 
 This expansion applies to the original edition. Remastered retains its existing separately verified 100-kill rule; GOG remains an unimplemented provider extension point.

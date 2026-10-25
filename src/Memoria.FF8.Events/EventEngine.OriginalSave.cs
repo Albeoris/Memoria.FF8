@@ -22,6 +22,14 @@ public sealed partial class EventEngine
         {
             Scene.Names[subject] = name;
         }
+        Scene.UnlockedTutorials.Clear();
+        for (int id = 0; id < 128; id++)
+        {
+            if ((block[NativePcSaveData.MainOffset + 3283 + id / 8] & (1 << (id & 7))) != 0)
+            {
+                Scene.UnlockedTutorials.Add(id);
+            }
+        }
         Scene.PlaceId = BinaryPrimitives.ReadUInt16LittleEndian(block.AsSpan(388));
         Scene.NativeLayerZeroScrollCurrent = new NativeLayerZeroScrollCurrent(1, 0, 0);
         Scene.NativeBackgroundScrollCurrents = Enumerable.Range(1, 7).ToDictionary(layer => layer, _ => new NativeBackgroundScrollCurrent(1, 0, 0));

@@ -32,6 +32,11 @@ public sealed partial class GameSession
             economy = economy with { Items = items.ToArray() };
         }
         GameState observed = candidate with { CharacterVitals = vitals, CardInventory = owned.NativeCards ?? candidate.CardInventory, Economy = economy };
-        return StageOriginalAchievementStateObservation(candidate, OriginalAchievementState.Observe(observed));
+        OriginalAchievementProgress progress = OriginalAchievementState.Observe(observed);
+        if (owned.NativeScriptState?.UnlockedTutorials.Contains(127) == true)
+        {
+            progress = progress with { OmegaProof = true };
+        }
+        return StageOriginalAchievementStateObservation(candidate, progress);
     }
 }

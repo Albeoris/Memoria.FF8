@@ -11,9 +11,14 @@ public readonly record struct OriginalAchievementObservedEvent(AchievementEventI
     {
         owner?.Validate();
         string ownerKey = owner?.Key ?? "unbound";
-        string context = "original-state/v1/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)));
+        string version = progress.OmegaProof is null ? "v1" : "v2";
+        string context = "original-state/" + version + "/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)));
         // Version 1 hashes a fixed field sequence, so adding future projection properties cannot invalidate old receipts.
         object?[] values = [progress.GuardianForceMask, progress.MaximumSeeDRank, progress.MaximumCharacterLevel, progress.AllCards, progress.MaximumGil, progress.WeaponUpgraded, progress.AllBlueMagic, progress.AllAngeloTricks, progress.MagazineCollection, progress.CardWins, progress.Chocobo, progress.ObelLake, progress.TimberManiacs];
+        if (progress.OmegaProof is not null)
+        {
+            values = [.. values, progress.OmegaProof];
+        }
         string eventId = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(values)));
         return new(new(eventId), new(context), progress, owner);
     }
