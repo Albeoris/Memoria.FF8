@@ -486,15 +486,8 @@ public sealed partial class BattleSession
         }
         if (plan.SelectSequence)
         {
-            if (model.ReadLinkedModelIndex140() is not null)
-            {
-                graphics = SelectNativeRingContactSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, index, plan.Sequence);
-                model = graphics.Models[index];
-            }
-            else
-            {
-                model = SelectNativeContactSequence(model, plan.Sequence);
-            }
+            graphics = SelectNativeRingContactSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, index, plan.Sequence);
+            model = graphics.Models[index];
             if (model.ModelId4 < 16)
             {
                 graphics = RefreshNativeGuardianStandingSequence(graphics with { Models = graphics.Models.SetItem(index, model) }, checked((byte)index));
@@ -523,24 +516,6 @@ public sealed partial class BattleSession
     private static NativeBattleGraphicsModel QueueNativeModelSequence(NativeBattleGraphicsModel model, byte sequence)
     {
         return (model.ResourceFlags44!.Value & 0x40) != 0 ? NativeBattleGraphicsModels.SelectSequence(model, sequence) : model with { SequenceState = model.SequenceState! with { Pending3 = sequence } };
-    }
-
-    private static NativeBattleGraphicsModel SelectNativeContactSequence(NativeBattleGraphicsModel model, byte sequence)
-    {
-        ushort flags = model.ResourceFlags44!.Value;
-        if (model.ModelId4 >= 16)
-        {
-            return sequence != 0 && (flags & 0x140) != 0 ? NativeBattleGraphicsModels.SelectSequence(model, sequence) : QueueNativeModelSequence(model, sequence);
-        }
-        if ((model.Flags8!.Value & 0x300000) == 0 || sequence == 3)
-        {
-            if ((flags & 0x140) != 0)
-            {
-                return sequence == 0 ? model : NativeBattleGraphicsModels.SelectSequence(model with { SequenceState = model.SequenceState! with { Default2 = 1 } }, sequence);
-            }
-            return model with { SequenceState = model.SequenceState! with { Default2 = 1 } };
-        }
-        return model;
     }
 
     private NativeBattleGraphicsModel SetNativeGraphicsFlags(NativeBattleGraphicsModel model, uint flags, NativeBattleGraphicsState graphics)
