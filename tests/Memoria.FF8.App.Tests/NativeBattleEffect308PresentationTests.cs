@@ -23,6 +23,7 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.NativeGraphics!.OriginalEffect);
+        Assert.All(source.NativeGraphics.Models.Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModelIndex140()));
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
     }
 
@@ -37,7 +38,8 @@ public sealed class NativeBattleEffect308PresentationTests
         Assert.Equal(105, caster.ModelId);
         Assert.Equal((byte)121, graphics.Models[3].ModelId4);
         Assert.Equal(0, caster.SceneSlot);
-        NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource!;
+        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(caster);
+        NativeBattlePoseSource pose = NativeBattleEnemyResourceView.Resolve(original.NativeModelCpuResources!, original.NativeFileStaging!, graphics.Models[3].ActiveResourceRow100!.Value, resource).PoseSource!;
         Assert.Equal(44, NativeBattleBodyBoneMatrices.Require(graphics.Models[3], pose).Length);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 286 && item.MagicId == 308 && item.KernelSection == 3 && item.KernelIndex == 286);
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));

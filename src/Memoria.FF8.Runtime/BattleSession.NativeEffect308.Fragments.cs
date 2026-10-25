@@ -10,7 +10,7 @@ public sealed partial class BattleSession
     {
         int actor = NativeEffect308Actor(graphics, operation.ModelAddress);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.");
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect308 requires its current caster skeleton.");
+        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.ModelAddress);
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
         (frame, uint temporary) = Allocate(frame, 172);
         uint main = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleEffect308Profile.MainDescriptor).BankAddress;

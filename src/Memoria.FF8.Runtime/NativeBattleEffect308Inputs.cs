@@ -29,7 +29,10 @@ public sealed record NativeBattleEffect308Inputs(
     Func<NativeBattleEffect308Frame, NativeBattleActionPacketsState> ReadPackets,
     Func<NativeBattleEffect308Frame, int, NativeBattleEffect308PollStep> IoPoll5342C0,
     Func<NativeBattleEffect308Frame, NativeBattleEffect308RandomStep> ProcessRandom7059E0,
-    Func<NativeBattleEffect308Frame, NativeBattleEffect308Operation, NativeBattleEffect308Frame> Execute);
+    Func<NativeBattleEffect308Frame, NativeBattleEffect308Operation, NativeBattleEffect308Frame> Execute)
+{
+    public Func<uint, NativeBattlePoseSource> ReadPoseSource { get; init; } = _ => throw new NotSupportedException("Effect308 requires its current callback rig metadata.");
+}
 
 public abstract record NativeBattleEffect308Operation;
 public sealed record NativeBattleEffect308UploadTim505E30(uint SourceAddress) : NativeBattleEffect308Operation;

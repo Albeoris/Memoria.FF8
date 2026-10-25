@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleGraphicsState currentGraphics = graphics;
         int actor = NativeEffect308Actor(graphics, operation.ModelAddress);
         NativeFileStaging = frame.Staging ?? throw new NotSupportedException("Effect308 requires its current addressed memory.");
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect308 requires its current caster skeleton.");
+        NativeBattlePoseSource source = inputs.ReadPoseSource(operation.ModelAddress);
         NativeBattleEffectArena offsets = ReadBytes(frame, operation.OffsetRowsAddress, checked(source.BoneCount * 16));
         int scratchLength = checked((NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Effect308 requires its current projection capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);

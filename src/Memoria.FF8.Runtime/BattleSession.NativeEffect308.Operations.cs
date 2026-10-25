@@ -67,12 +67,12 @@ public sealed partial class BattleSession
                 return SelectNativeEffect308Fragments(ref graphics, frame, selection, resources, inputs);
             case NativeBattleEffect308ApplyOffsetPose662C00 pose:
                 int poseActor = NativeEffect308Actor(graphics, pose.ModelAddress);
-                NativeBattlePoseSource poseSource = NativeGraphicsPoseResource(graphics, poseActor).PoseSource ?? throw new NotSupportedException("Effect308 requires its current offset rig.");
+                NativeBattlePoseSource poseSource = inputs.ReadPoseSource(pose.ModelAddress);
                 NativeBattleEffectArena offsets = NativeBattleEffect308Controller.ReadBytes(frame, pose.OffsetRowsAddress, checked(poseSource.BoneCount * 16));
                 return PrepareNativeEffect308Pose(ref graphics, frame, poseActor, poseSource, offsets);
             case NativeBattleEffect308RestorePose508C90 restore:
                 int restoreActor = NativeEffect308Actor(graphics, restore.ModelAddress);
-                NativeBattlePoseSource restoreSource = NativeGraphicsPoseResource(graphics, restoreActor).PoseSource ?? throw new NotSupportedException("Effect308 requires its current restored rig.");
+                NativeBattlePoseSource restoreSource = inputs.ReadPoseSource(restore.ModelAddress);
                 return RestoreNativeEffect308Pose(ref graphics, frame, restoreActor, restoreSource);
             case NativeBattleEffect308Intensity5713E0 intensity:
                 NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Effect308 requires its current stage groups.");
