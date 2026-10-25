@@ -25,6 +25,26 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        if (!startup.IsConfigured)
+        {
+            // A watcher can invalidate preparation before the first catalog is committed.
+            if (!startup.TryConfigure(resourceHost!.StartupPolicy, resourceHost.Mods.Catalog.Generation))
+            {
+                if (!resourceHost.Mods.IsReloadPending && !startupFaulted)
+                {
+                    startupFaulted = true;
+                    error = "Initial mod publication failed before startup. " + string.Join(" ", resourceHost.Mods.Diagnostics.Select(diagnostic => diagnostic.Message));
+                    Console.Error.WriteLine(error);
+                }
+                return true;
+            }
+            startupFaulted = false;
+            error = null;
+            if (!startup.Active)
+            {
+                return false;
+            }
+        }
         if (startup.HandleInput(input.Confirm, input.Cancel))
         {
             ReleaseStartupStage();
@@ -68,7 +88,7 @@ internal sealed partial class RecreateGame
             {
                 return true;
             }
-            NativeStartupCreditsFrame frame = startup.Stage == StartupStage.SquareLogo ? NativeStartupCredits.SampleSquare(startup.Elapsed) : NativeStartupCredits.SampleCredits(startup.Elapsed);
+            NativeStartupCreditsFrame frame = startup.Stage == StartupStage.SquareLogo ? NativeStartupCredits.SampleSquare(startup.Elapsed) : NativeStartupCredits.SampleCredits(startup.Elapsed, startup.Policy.SkipCreditsPause);
             if (frame.Finished)
             {
                 if (startup.Stage == StartupStage.Credits)

@@ -47,6 +47,7 @@ public sealed partial class ModRuntime
                 ValidateJunctionVersion(root, metadataPath, metadataStamp);
                 name = imported.Name;
                 manifestMetadata = imported.Manifest;
+                identities.Add(System.Text.Json.JsonSerializer.Serialize(manifestMetadata));
                 identities.Add($"{metadataPath}\0{metadataStamp.Length}\0{metadataStamp.LastWriteTicks}\0{name}");
                 foreach (string diagnostic in imported.Diagnostics)
                 {
@@ -88,7 +89,7 @@ public sealed partial class ModRuntime
                         files.Add(previous.File);
                     }
                 }
-                if (status == ModEffectiveStatus.Active && imported.Files.Count == 0)
+                if (status == ModEffectiveStatus.Active && imported.Files.Count == 0 && imported.Manifest.Behaviors.Count == 0)
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }

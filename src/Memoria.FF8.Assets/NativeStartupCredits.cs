@@ -12,7 +12,9 @@ public static class NativeStartupCredits
     private static readonly NativeStartupCreditsFrame[] credits = BuildCredits();
 
     public static TimeSpan SquareDuration => TimeSpan.FromSeconds(square.Length / FrameRate);
-    public static TimeSpan CreditsCycleDuration => TimeSpan.FromSeconds(credits.Length / FrameRate);
+    public static TimeSpan CreditsCycleDuration => GetCreditsCycleDuration();
+
+    public static TimeSpan GetCreditsCycleDuration(bool skipInitialPause = false) => TimeSpan.FromSeconds((credits.Length - (skipInitialPause ? 180 : 0)) / FrameRate);
 
     public static NativeStartupCreditsFrame SampleSquare(TimeSpan elapsed)
     {
@@ -21,9 +23,13 @@ public static class NativeStartupCredits
     }
 
     /// <summary>Music79 starts on this stage's first callback. Finished requests the original state17 restart through the Square logo; only input enters completion state18.</summary>
-    public static NativeStartupCreditsFrame SampleCredits(TimeSpan elapsed)
+    public static NativeStartupCreditsFrame SampleCredits(TimeSpan elapsed, bool skipInitialPause = false)
     {
         long frame = FrameNumber(elapsed);
+        if (skipInitialPause && frame > 0)
+        {
+            frame = checked(frame + 180);
+        }
         return frame >= credits.Length ? credits[^1] with { Finished = true } : credits[(int)frame];
     }
 

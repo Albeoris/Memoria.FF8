@@ -15,6 +15,7 @@ public sealed record JunctionManifestMetadata
     public string? VideoExtension { get; init; }
     public bool? UseExternalMusic { get; init; }
     public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
+    public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
     public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();
     public IReadOnlyList<Guid> RequiredMods { get; init; } = Array.Empty<Guid>();
     public IReadOnlyList<Guid> Before { get; init; } = Array.Empty<Guid>();

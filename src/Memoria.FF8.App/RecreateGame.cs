@@ -1045,7 +1045,7 @@ internal sealed partial class RecreateGame : Game
         return new
         {
             session.State.Scene,
-            Startup = new { Stage = startup.Stage.ToString(), Seconds = startup.Elapsed.TotalSeconds, HasMovieFrame = startupMovie?.HasFrame == true },
+            Startup = new { Stage = startup.Stage.ToString(), Seconds = startup.Elapsed.TotalSeconds, HasMovieFrame = startupMovie?.HasFrame == true, Configured = startup.IsConfigured, Policy = startup.Policy },
             session.State.FieldId,
             FieldName = field?.Id == session.State.FieldId ? field.Name : session.State.FieldName,
             WindowTitle = Window.Title,

@@ -31,6 +31,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
     public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
+    public StartupPolicy StartupPolicy { get; private set; } = StartupPolicy.Default;
 
     public FieldModel Apply(string modelId, FieldModel original) => ModelMods.Apply(modelId, original);
     public BattleModel Apply(string modelId, BattleModel original) => ModelMods.Apply(modelId, original);
@@ -133,6 +134,12 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        ModPackage[] behaviorPackages = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.JunctionMetadata?.Behaviors.Count > 0).ToArray();
+        if (behaviorPackages.Length > 0 && (source.Descriptor.Edition != GameDataEdition.Classic || !source.Descriptor.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
+        }
+        StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
         if (!JunctionTextResources.TryPrepare(catalog, out IReadOnlyList<StaticTextResource> textResources, out IReadOnlyList<ModDiagnostic> textDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: textDiagnostics);
@@ -170,6 +177,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(behaviorPackages.Select(package => package.Id));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);
         if (catalog.Files.Any(file => file.Format == ModFormat.Demaster))
         {
@@ -212,6 +220,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             GuardianForceMods = guardianMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
+            StartupPolicy = startupPolicy;
         }, prepared.Notify);
     }
 

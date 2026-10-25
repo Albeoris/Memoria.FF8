@@ -49,6 +49,23 @@ public sealed class NativeStartupArtworkTests
     }
 
     [Fact]
+    public void Skipped_pause_retains_first_service_frame_and_every_later_picture_callback()
+    {
+        TimeSpan Time(int frame) => TimeSpan.FromSeconds((frame + 0.001) / NativeStartupCredits.FrameRate);
+        Assert.Equal(NativeStartupCredits.SampleCredits(Time(0)), NativeStartupCredits.SampleCredits(Time(0), true));
+        for (int frame = 1; frame <= 14837; frame++)
+        {
+            Assert.Equal(NativeStartupCredits.SampleCredits(Time(frame + 180)), NativeStartupCredits.SampleCredits(Time(frame), true));
+        }
+        Assert.Equal(5, NativeStartupCredits.SampleCredits(Time(1), true).ResourceIndex);
+        Assert.False(NativeStartupCredits.SampleCredits(Time(14836), true).Finished);
+        Assert.True(NativeStartupCredits.SampleCredits(Time(14837), true).Finished);
+        Assert.Equal(TimeSpan.FromSeconds(14837 / NativeStartupCredits.FrameRate), NativeStartupCredits.GetCreditsCycleDuration(true));
+        Assert.Equal(NativeStartupCredits.CreditsCycleDuration, NativeStartupCredits.GetCreditsCycleDuration(false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NativeStartupCredits.SampleCredits(TimeSpan.FromTicks(-1), true));
+    }
+
+    [Fact]
     public void CreditsUseOriginal374CallbackPanelsWhiteTransitionAndRepeatBoundary()
     {
         NativeStartupCreditsFrame Frame(int frame) => NativeStartupCredits.SampleCredits(TimeSpan.FromSeconds((frame + 0.001) / 60.5));

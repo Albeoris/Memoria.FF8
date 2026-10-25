@@ -212,6 +212,10 @@ public sealed partial class MenuController
             details.Add(view.Package.Format.ToString());
             details.Add("Enabled in settings: " + (view.Package.RequestedEnabled ? "On" : "Off"));
             details.Add("In use: " + view.StatusText);
+            if (view.Package.JunctionMetadata?.Behaviors.Contains(JunctionBehavior.InstantManualSkip) == true)
+            {
+                details.Add("Instant manual skip is built into the engine and is always enabled.");
+            }
             if (!string.IsNullOrEmpty(view.Problem))
             {
                 details.Add(view.Problem);

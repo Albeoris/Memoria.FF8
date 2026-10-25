@@ -40,7 +40,7 @@ public sealed class JunctionReplacement
     }
 }
 
-/// <summary>Imports static file replacements using manifest defaults and validated option selections. Executable and dynamic mod behavior fails explicitly.</summary>
+/// <summary>Imports static replacements and individually reviewed engine behaviors using validated manifest selections.</summary>
 public static partial class JunctionModImporter
 {
     private const int ManifestLimit = 4 * 1024 * 1024;
@@ -130,13 +130,7 @@ public static partial class JunctionModImporter
         {
             throw new NotSupportedException("Junction package does not support the current English game language.");
         }
-        foreach (JunctionReplacement file in sourceFiles)
-        {
-            if (file.SourcePath.Split('/').Any(part => part.Equals("hext", StringComparison.OrdinalIgnoreCase)) || CodeExtensions.Contains(Path.GetExtension(file.SourcePath)))
-            {
-                throw new NotSupportedException($"Junction executable or HEXT content is unsupported: {file.SourcePath}.");
-            }
-        }
+        Dictionary<string, JunctionBehavior> reviewed = ReadReviewedBehaviors(sourceFiles);
         List<string> folders = [];
         foreach (XElement folder in root.Elements("ModFolder"))
         {
@@ -152,6 +146,11 @@ public static partial class JunctionModImporter
             folders.Add("");
         }
         Dictionary<string, JunctionReplacement> replacements = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<JunctionBehavior> behaviors = [];
+        if (reviewed.ContainsValue(JunctionBehavior.InstantManualSkip))
+        {
+            behaviors.Add(JunctionBehavior.InstantManualSkip);
+        }
         foreach (string folder in folders)
         {
             foreach (JunctionReplacement file in sourceFiles)
@@ -159,6 +158,11 @@ public static partial class JunctionModImporter
                 string prefix = folder.Length == 0 ? "" : folder + "/";
                 if (!file.SourcePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
+                    continue;
+                }
+                if (reviewed.TryGetValue(file.SourcePath, out JunctionBehavior behavior))
+                {
+                    behaviors.Add(behavior);
                     continue;
                 }
                 string relativePath = ResourceFolderPrefix(folder) + file.SourcePath[prefix.Length..];
@@ -174,6 +178,11 @@ public static partial class JunctionModImporter
                 replacements.TryAdd(relativePath, new JunctionReplacement(relativePath, file.SourcePath, file.Length, file.OpenRead, file.FileSegment));
             }
         }
+        metadata = metadata with
+        {
+            Behaviors = Array.AsReadOnly(behaviors.Order().ToArray()),
+            Options = ExcludeIntrinsicOptions(root, sourceFiles, reviewed, options, metadata)
+        };
         return new JunctionModPackage(name, sourcePath, Array.AsReadOnly(replacements.Values.ToArray()), diagnostics.AsReadOnly()) { Manifest = metadata };
     }
 

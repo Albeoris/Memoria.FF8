@@ -1,10 +1,138 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Mods;
 using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8.Tests;
 
 public sealed class StartupSequenceTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(13)]
+    [InlineData(14)]
+    [InlineData(15)]
+    public void Policy_skips_only_selected_stages_and_keeps_manual_skip_intrinsic(int mask)
+    {
+        StartupPolicy policy = new((mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0, (mask & 8) != 0);
+        List<StartupStage> expected = [];
+        if (!policy.SkipPublisherMovie)
+        {
+            expected.Add(StartupStage.SquareEnixMovie);
+            expected.Add(StartupStage.PublisherMovie);
+        }
+        if (!policy.SkipSquareLogo)
+        {
+            expected.Add(StartupStage.SquareLogo);
+        }
+        if (!policy.SkipCreditsImages)
+        {
+            expected.Add(StartupStage.Credits);
+        }
+        StartupSequence sequence = new(true);
+        sequence.Configure(policy);
+        List<StartupStage> actual = [];
+        while (sequence.Active)
+        {
+            actual.Add(sequence.Stage);
+            sequence.Advance(TimeSpan.FromSeconds(1));
+            Assert.True(sequence.HandleInput(true, false));
+            Assert.Equal(TimeSpan.Zero, sequence.Elapsed);
+        }
+        Assert.Equal(expected, actual);
+        Assert.Same(policy, sequence.Policy);
+
+        StartupSequence cancelled = new(true);
+        cancelled.Configure(policy);
+        if (cancelled.Active)
+        {
+            cancelled.Advance(TimeSpan.FromSeconds(1));
+            Assert.True(cancelled.HandleInput(false, true));
+        }
+        Assert.False(cancelled.Active);
+        Assert.Equal(TimeSpan.Zero, cancelled.Elapsed);
+
+        StartupSequence disabled = new(false);
+        disabled.Configure(policy);
+        disabled.RepeatCredits();
+        Assert.False(disabled.Active);
+    }
+
+    [Theory]
+    [InlineData(false, false, 2)]
+    [InlineData(true, false, 3)]
+    [InlineData(false, true, 2)]
+    [InlineData(true, true, 4)]
+    public void Natural_repeat_respects_skips_and_resets_elapsed(bool skipSquare, bool skipCredits, int expected)
+    {
+        StartupSequence sequence = new(true);
+        sequence.Configure(new(SkipSquareLogo: skipSquare, SkipCreditsImages: skipCredits));
+        sequence.Advance(TimeSpan.FromSeconds(3));
+        sequence.RepeatCredits();
+        Assert.Equal((StartupStage)expected, sequence.Stage);
+        Assert.Equal(TimeSpan.Zero, sequence.Elapsed);
+    }
+
+    [Fact]
+    public void Initial_unpublished_catalog_does_not_freeze_default_policy_before_real_publication()
+    {
+        StartupSequence sequence = new(true);
+        Assert.False(sequence.TryConfigure(StartupPolicy.Default, 0));
+        Assert.False(sequence.IsConfigured);
+        Assert.Equal(StartupStage.SquareEnixMovie, sequence.Stage);
+        Assert.Equal(TimeSpan.Zero, sequence.Elapsed);
+        Assert.False(sequence.TryConfigure(StartupPolicy.Default, 0));
+        Assert.True(sequence.TryConfigure(new(true, true, true, true), 1));
+        Assert.True(sequence.IsConfigured);
+        Assert.False(sequence.Active);
+        Assert.Equal(TimeSpan.Zero, sequence.Elapsed);
+    }
+
+    [Fact]
+    public void First_published_policy_keeps_disabled_startup_complete()
+    {
+        StartupSequence sequence = new(false);
+        Assert.False(sequence.TryConfigure(StartupPolicy.Default, 0));
+        Assert.False(sequence.Active);
+        Assert.True(sequence.TryConfigure(new(true, true, true, true), 1));
+        Assert.False(sequence.Active);
+    }
+
+    [Fact]
+    public void Policy_is_frozen_for_the_current_presentation()
+    {
+        StartupSequence sequence = new(true);
+        sequence.Configure(new(SkipPublisherMovie: true));
+        Assert.Throws<InvalidOperationException>(() => sequence.Configure(StartupPolicy.Default));
+        Assert.Equal(StartupStage.SquareLogo, sequence.Stage);
+    }
+
+    [Fact]
+    public void Only_active_junction_packages_contribute_optional_policy()
+    {
+        JunctionManifestMetadata metadata = new() { Behaviors = [JunctionBehavior.SkipPublisherMovie, JunctionBehavior.SkipSquareLogo, JunctionBehavior.SkipCreditsPause, JunctionBehavior.SkipCreditsImages, JunctionBehavior.InstantManualSkip] };
+        ModPackage Package(ModEffectiveStatus status, ModFormat format = ModFormat.Junction) => new("policy", "Policy", format, true, true, status, "package") { JunctionMetadata = metadata };
+        foreach (ModEffectiveStatus status in Enum.GetValues<ModEffectiveStatus>())
+        {
+            StartupPolicy policy = StartupPolicy.FromCatalog(new(1, [Package(status)], []));
+            Assert.Equal(status == ModEffectiveStatus.Active ? new(true, true, true, true) : StartupPolicy.Default, policy);
+        }
+        Assert.Equal(StartupPolicy.Default, StartupPolicy.FromCatalog(new(2, [Package(ModEffectiveStatus.Active, ModFormat.Memoria)], [])));
+        ModPackage intrinsic = Package(ModEffectiveStatus.Active) with { JunctionMetadata = new() { Behaviors = [JunctionBehavior.InstantManualSkip] } };
+        Assert.Equal(StartupPolicy.Default, StartupPolicy.FromCatalog(new(3, [intrinsic], [])));
+    }
+
     [Fact]
     public void Held_confirmation_skips_one_stage_and_release_allows_the_next_skip()
     {
