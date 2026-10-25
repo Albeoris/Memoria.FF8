@@ -889,6 +889,12 @@ public sealed partial class BattleSession
                     graphics = breakup.Graphics;
                     return breakup.Frame;
                 }
+                if (selectedDrawHandler == 0xA16E80)
+                {
+                    var actorGlow = DrawNativeCinematicActorVertexColor20(frame, assets[1].Data.Length, resources, graphics);
+                    graphics = actorGlow.Graphics;
+                    return actorGlow.Frame;
+                }
                 if (selectedDrawHandler is 0xA49C20 or 0xA3F700)
                 {
                     var monster = DrawNativeCinematicMonsterActor(frame, selectedDrawHandler == 0xA3F700, assets[1].Data.Length, resources, ModelServices(0), graphics);
