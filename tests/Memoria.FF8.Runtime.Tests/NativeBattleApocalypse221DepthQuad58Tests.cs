@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -51,9 +52,22 @@ public sealed class NativeBattleApocalypse221DepthQuad58Tests
         Assert.Equal(rejected, attempt.Primitive is null);
         Assert.Equal(rejected ? 16 : 37, attempt.WriteMask.Count(value => value == NativeBattleGfPacketByteState.Known));
         Assert.Equal(rejected ? 0x8000u : 0x802Cu, result.Frame.ReadTemporaryDword(0x60));
+        NativeBattleGeometryRegisters geometry = result.Geometry!;
+        Assert.Equal(Geometry().Sz.ToArray(), geometry.Sz.ToArray());
+        Assert.Equal(Geometry().Translation.ToArray(), geometry.Translation.ToArray());
+        Assert.Equal(Geometry().Otz, geometry.Otz);
+        if (skipArea)
+        {
+            Assert.Equal(JsonSerializer.Serialize(Geometry()), JsonSerializer.Serialize(geometry));
+        }
+        else
+        {
+            Assert.Equal(unchecked((uint)(clockwise ? -100 : 100)), geometry.Mac0);
+            Assert.Equal(Enumerable.Range(0, 3).Select(index => (uint?)BinaryPrimitives.ReadUInt32LittleEndian(Records(clockwise, clip).AsSpan().Slice(index * 8, 4))), geometry.Sxy);
+        }
         if (rejected)
         {
-            Assert.Equal(unchecked((uint)(clockwise ? -100 : 100)), result.Registers.Flags);
+            Assert.Equal(0u, result.Registers.Flags);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[3]);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[4]);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[40]);
@@ -78,7 +92,21 @@ public sealed class NativeBattleApocalypse221DepthQuad58Tests
     [Fact]
     public void A_different_original_handler_is_never_admitted_as_the_depth_quad()
     {
-        Assert.Throws<NotSupportedException>(() => NativeBattleApocalypse221DepthQuad58.Emit(Fixture(), Group(), 0xB28DD0, Records(), [1, 2, 3, 4], 0x8000, NativeBattleScriptedColorRegisters.Unknown(), address => (int)address, 1));
+        Assert.Throws<NotSupportedException>(() => NativeBattleApocalypse221DepthQuad58.Emit(Fixture(), Group(), 0xB28DD0, Records(), [1, 2, 3, 4], 0x8000, NativeBattleScriptedColorRegisters.Unknown(), address => (int)address, Geometry(), 1));
+    }
+
+    [Fact]
+    public void Selected_depth_quad_keeps_rejected_geometry_feedback_through_the_dispatcher_and_JSON_restore()
+    {
+        NativeBattleScriptedMeshSubmission result = NativeBattleScriptedMeshPackets.EmitSelected(Fixture(), Group(), 0xAAAE60, 0, Records(true), [1, 2, 3, 4], 0x8000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), address => (int)address, Geometry());
+        Assert.Equal(unchecked((uint)-100), result.Geometry!.Mac0);
+        Assert.Equal(0u, result.Registers.Flags);
+        Assert.Equal(0, result.Packets.AllocationBytes);
+        string saved = JsonSerializer.Serialize(new NativeBattleGeometryRegisterStep(result.Geometry, result.Registers));
+        NativeBattleGeometryRegisterStep restored = JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(saved)!;
+        Assert.Equal(saved, JsonSerializer.Serialize(restored));
+        Assert.Null(restored.Geometry.Translation[1]);
+        Assert.Equal(17u, restored.Geometry.Otz);
     }
 
     private static NativeBattleWaterExecutionFrame Fixture()
@@ -113,5 +141,10 @@ public sealed class NativeBattleApocalypse221DepthQuad58Tests
     }
 
     private static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, ImmutableArray<byte> records, float scale)
-        => NativeBattleApocalypse221DepthQuad58.Emit(frame, group, 0xAAAE60, records, [0xABCD0001, 2, 3, 65535], 0x8000, NativeBattleScriptedColorRegisters.Unknown() with { Flags = 0x12345678 }, address => (int)address, scale);
+        => NativeBattleApocalypse221DepthQuad58.Emit(frame, group, 0xAAAE60, records, [0xABCD0001, 2, 3, 65535], 0x8000, NativeBattleScriptedColorRegisters.Unknown() with { Flags = 0x12345678 }, address => (int)address, Geometry(), scale);
+
+    private static NativeBattleGeometryRegisters Geometry()
+    {
+        return NativeBattleGeometryRegisters.Unknown() with { Sxy = [7, 8, 9], Sz = [10, 11, 12, 13], Mac0 = 0xAABBCCDD, Otz = 17, Translation = [18, null, -20] };
+    }
 }

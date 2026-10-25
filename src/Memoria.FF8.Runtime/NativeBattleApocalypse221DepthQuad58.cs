@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The native flat textured quad with scaled depth payloads and a trailing draw-mode command.</summary>
 public static class NativeBattleApocalypse221DepthQuad58
 {
-    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, float depthScale)
+    public static NativeBattleScriptedMeshSubmission Emit(NativeBattleWaterExecutionFrame frame, NativeBattleWaterMeshGroup group, uint actualHandler, ImmutableArray<byte> projectedRecords, ImmutableArray<uint> depths, uint outputPointer, NativeBattleScriptedColorRegisters registers, Func<uint, int> resolveActualOtBucket, NativeBattleGeometryRegisters geometry, float depthScale)
     {
         if (group.Type != 18 || actualHandler != 0xAAAE60)
         {
@@ -50,9 +50,10 @@ public static class NativeBattleApocalypse221DepthQuad58
             bool rejected = false;
             if (!skipArea)
             {
-                int area = NativeBattleModulePackets.Nclip(screens[0], screens[1], screens[2]);
-                registers = registers with { Flags = unchecked((uint)area) };
-                rejected = area < 0;
+                NativeBattleGeometryRegisterStep step = NativeBattleGeometry.Clip45EE10(new(geometry with { Sxy = [screens[0], screens[1], screens[2]] }, registers));
+                geometry = step.Geometry;
+                registers = step.Colors;
+                rejected = unchecked((int)geometry.Mac0!.Value) < 0;
             }
             uint sum = 0;
             if (!rejected)
@@ -107,6 +108,6 @@ public static class NativeBattleApocalypse221DepthQuad58
             }
         }
         frame = frame.WriteTemporaryDword(0x60, unchecked(outputPointer + (uint)allocated));
-        return new(frame, new(attempts.ToImmutable(), allocated), lighting, registers);
+        return new(frame, new(attempts.ToImmutable(), allocated), lighting, registers) { Geometry = geometry };
     }
 }

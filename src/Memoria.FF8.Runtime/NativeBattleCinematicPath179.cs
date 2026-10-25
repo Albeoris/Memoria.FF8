@@ -70,11 +70,19 @@ public static class NativeBattleCinematicPath179
         short Word(uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Arena.Read(ArenaOffset(address, 2), 2));
         int Direction(int fromFirst, int fromSecond, int toFirst, int toSecond)
         {
-            int first = unchecked(toFirst - fromFirst);
-            int second = unchecked(toSecond - fromSecond);
-            frame = frame.WriteTemporaryDword(0xFC, unchecked((uint)SquareRoot(unchecked(first * first + second * second))));
-            return NativePrecision53.RoundInteger(Math.Atan2(first, second) * (double)BitConverter.Int32BitsToSingle(0x4422F983)) & 0xFFF;
+            int angle;
+            (frame, angle) = DirectionB66B30(frame, fromFirst, fromSecond, toFirst, toSecond);
+            return angle;
         }
+    }
+
+    public static (NativeBattleWaterExecutionFrame Frame, int Angle) DirectionB66B30(NativeBattleWaterExecutionFrame frame, int fromFirst, int fromSecond, int toFirst, int toSecond)
+    {
+        int first = unchecked(toFirst - fromFirst);
+        int second = unchecked(toSecond - fromSecond);
+        frame = frame.WriteTemporaryDword(0xFC, unchecked((uint)SquareRoot(unchecked(first * first + second * second))));
+        int angle = NativePrecision53.RoundInteger(Math.Atan2(first, second) * (double)BitConverter.Int32BitsToSingle(0x4422F983)) & 0xFFF;
+        return (frame, angle);
     }
 
     public static int TurnB67B80(int current, int target, int step)

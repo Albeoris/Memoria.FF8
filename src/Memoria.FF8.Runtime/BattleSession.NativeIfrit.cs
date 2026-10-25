@@ -786,6 +786,10 @@ public sealed partial class BattleSession
             {
                 return NativeBattleApocalypse221Orbit11.Execute(current, ResolveCurrentNode);
             }
+            if (handler == 0xA5D100)
+            {
+                return NativeBattleCinematicBetween10.Update(current, ResolveCurrentNode);
+            }
             if (handler == 0xB265B0)
             {
                 return NativeBattleCinematicPosePosition9.Update(current, pointer =>
@@ -815,6 +819,12 @@ public sealed partial class BattleSession
             return NativeBattleCinematicDraw.Run(profile, current, PrepareLighting, (frame, kind) =>
             {
                 uint selectedDrawHandler = NativeBattleCinematicDispatch.RequireSlot(profile.Effect, "draw_table", kind, BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(checked(profile.DrawTable + 4u * kind), 4)));
+                if (selectedDrawHandler == 0xA5D730)
+                {
+                    var animation = DrawNativeCinematicActorAnimation2C(frame, assets[1].Data.Length, graphics);
+                    graphics = animation.Graphics;
+                    return animation.Frame;
+                }
                 if (selectedDrawHandler == 0xAD9160)
                 {
                     var dissolve = DrawNativeCinematicActorDissolve52(frame, assets[1].Data.Length, graphics);
