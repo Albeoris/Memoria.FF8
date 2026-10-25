@@ -19,6 +19,8 @@ public sealed partial class BattleSession
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(graphics.OriginalEffect!.Binding.Effect);
         NativeBattleWaterParticleServices services = new((_, address, length) => resources.ReadStatic(address, length).ToArray(), (current, selector) => NativeBattleWaterMatrixCommands.ResolveB65520(current, bank, index, selector), (current, texture) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, resources, texture), (current, texture) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, resources, texture), DrawRectangles)
         {
+            ReadRegisters = ReadRegisters,
+            PublishRegisters = PublishRegisters,
             ExecuteSelected = (current, selectedProgram) => profile.Effect == 262 && (byte)current.ReadTemporaryWord(0x14A) == 22 ? NativeBattleGuestParticle22.Execute(current, selectedProgram) : null,
             RequireHandler = (table, slot) =>
             {
@@ -34,7 +36,7 @@ public sealed partial class BattleSession
         frame = batch.Begin(frame);
         frame = kind switch
         {
-            5 => NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, services.ResolveMatrixRow, DrawRectangles),
+            5 => NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, services.ResolveMatrixRow, DrawRectangles, ReadRegisters, PublishRegisters),
             6 => NativeBattleWaterParticles.AdvanceType6(frame, program ?? throw new NotSupportedException("Native cinematic particles require their current programme."), bank, services),
             _ => throw new NotSupportedException("Native cinematic rectangles require their actual selected draw caller.")
         };
@@ -60,8 +62,8 @@ public sealed partial class BattleSession
             }
             NativeBattleScriptedGraphicsMemory registers = RequireWaterMemory().ScriptedGraphics ?? throw new NotSupportedException("Native cinematic particles require their retained depth-cue controls.");
             NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native cinematic particles require their current camera projection.");
-            NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, matrix, projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket);
-            current = drawn.Frame;
+            NativeBattleWaterParticleRectangleResult drawn = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), projection, registers.Zsf3 ?? throw new NotSupportedException("Native cinematic particles require their current ZSF3."), registers.Dqa, registers.Dqb, OtBucket);
+            current = PublishRegisters(drawn.Frame, drawn.Registers);
             if (drawn.Packets.Attempts.IsEmpty)
             {
                 return current;
@@ -89,6 +91,18 @@ public sealed partial class BattleSession
             }
             NativeEffectMemory = memory;
             return current with { Arena = memory.Arena!, Core = memory.ScriptedEffects! };
+        }
+
+        NativeBattleGeometryRegisterStep ReadRegisters(NativeBattleWaterExecutionFrame current)
+        {
+            NativeBattleEffectMemory memory = RequireWaterMemory();
+            return new(memory.GeometryRegisters ?? throw new NotSupportedException("Native cinematic particles require current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native cinematic particles require current arithmetic registers."));
+        }
+
+        NativeBattleWaterExecutionFrame PublishRegisters(NativeBattleWaterExecutionFrame current, NativeBattleGeometryRegisterStep step)
+        {
+            NativeEffectMemory = RequireWaterMemory() with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors };
+            return current;
         }
     }
 }

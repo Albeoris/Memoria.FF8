@@ -120,13 +120,19 @@ public sealed class NativeBattleEffect256PresentationTests
                         pixelsAtPeak = pixels;
                         plainAtPeak = plain;
                     }
-                    bool geometry = commands.Any(NativeBattleEffect256PresentationObserver.IsGeometry);
-                    if (geometry && changed > maximumGeometryRgb)
+                    ImmutableHashSet<NativeBattlePrimitiveReference> geometryReferences = commands.Where(NativeBattleEffect256PresentationObserver.IsGeometry).Select(command => command.Packet).ToImmutableHashSet();
+                    if (!geometryReferences.IsEmpty)
                     {
-                        maximumGeometryRgb = changed;
-                        geometryPeak = current;
-                        geometryPixels = pixels;
-                        geometryPlain = plain;
+                        BattleSnapshot withoutGeometry = current with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !geometryReferences.Contains(command.Command.Packet)).ToImmutableArray() } } };
+                        byte[] geometryBaseline = new BattleScenePresentation(assets, source.Definition, true).Render(BattleSession.Restore(withoutGeometry), 320, 224).ToArray();
+                        int geometryChanged = CountRgb(pixels, geometryBaseline);
+                        if (geometryChanged > maximumGeometryRgb)
+                        {
+                            maximumGeometryRgb = geometryChanged;
+                            geometryPeak = current;
+                            geometryPixels = pixels;
+                            geometryPlain = geometryBaseline;
+                        }
                     }
                 }
                 prior = current;
@@ -161,7 +167,7 @@ public sealed class NativeBattleEffect256PresentationTests
             Assert.True(battle.NativeEntryReady);
             BattleSnapshot ready = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, "caller-ready", ready, null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect, Scenario = "Original44 command8/action174/sequence15; one declared post-formula contact7; ordinary AI/formula excluded", Callbacks = callbacks + 1, Completions = completions, CleanupCallbacks = 4, ChangedRgb = maximumRgb, GeometryChangedRgb = maximumGeometryRgb, RestoredBoundaries = restored.Order(), ready.Frame }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect, Scenario = "Original44 command8/action174/sequence15; one declared post-formula contact7; ordinary AI/formula excluded", Callbacks = callbacks + 1, Completions = completions, CleanupCallbacks = 4, ChangedRgb = maximumRgb, GeometryChangedRgb = maximumGeometryRgb, GeometryScope = "Remove only current own textured polygon/sprite packets; retain flat framecopy strips and all other packets in both renders", RestoredBoundaries = restored.Order(), ready.Frame }));
             return ready;
         }
         catch (Exception error)
@@ -203,7 +209,12 @@ public sealed class NativeBattleEffect256PresentationTests
         NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
     }
 
-    internal static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: Effect, ReturnedDescriptor: 0 } effect && effect.Pools.IsEmpty && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
+    internal static bool TaskPoolDrained(NativeBattleOriginalEffectState effect)
+    {
+        return effect.Pools.Length == 1 && effect.Pools[0] is { DescriptorAddress: 0x2796548, BankAddress: 0x2796560, Stride: 0x10, Head: null, Tail: null } pool && pool.Slots.Length == 1 && pool.Slots.All(task => task.Flags == 0);
+    }
+
+    internal static bool Released(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: Effect, ReturnedDescriptor: 0 } effect && TaskPoolDrained(effect) && snapshot.NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
 
     private static int CountRgb(byte[] first, byte[] second)
     {

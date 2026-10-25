@@ -23,6 +23,8 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
     private bool vramChanged;
     private bool randomAdvanced;
     private bool geometry;
+    private bool frameCopyCapture;
+    private bool frameCopyOverlay;
     private int ioStarts;
     private int ioCompletions;
     private int hpTransitions;
@@ -137,6 +139,11 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
             Mark("module-sound", current, cold);
         }
         NativeBattleLogicalCommand[] commands = CurrentCommands(current);
+        if (commands.Count(IsFrameCopyStrip) >= 5)
+        {
+            frameCopyOverlay = true;
+            Mark("framecopy-flat-strips", current, cold);
+        }
         foreach (NativeBattleLogicalCommand command in commands)
         {
             packetBanks.Add(command.Packet.Bank);
@@ -163,6 +170,11 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
                 byte[] bytes = current.NativeEffectMemory.Arena!.Read(checked((int)(address - 0x20DFAB8)), 0x100);
                 uint pc = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
                 renderKinds.Add(bytes[0x1C]);
+                if (bytes[0x1C] == 26 && BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0xC4)) == uint.MaxValue)
+                {
+                    frameCopyCapture = true;
+                    Mark("framecopy-capture-state", current, cold);
+                }
                 uint? particleBank = null;
                 int? liveParticles = null;
                 if (bytes[0x1C] == 6)
@@ -195,7 +207,9 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
         }
         else
         {
-            Assert.Empty(effect.Pools);
+            NativeBattleEffectTaskPool pool = Assert.Single(effect.Pools);
+            pool.Validate();
+            Assert.True(NativeBattleEffect256PresentationTests.TaskPoolDrained(effect), "The retained native descriptor must have null head/tail and no live task flags.");
             drained = true;
             Mark("native-task-drained", current, cold);
         }
@@ -220,6 +234,8 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
         Assert.True(cameraPlaying);
         Assert.True(cameraViewChanged);
         Assert.True(geometry);
+        Assert.True(frameCopyCapture);
+        Assert.True(frameCopyOverlay);
         Assert.Equal(2, particleBanks.Count);
         Assert.Contains(6, renderKinds);
         Assert.Contains(26, renderKinds);
@@ -228,7 +244,7 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
 
     public void Write(string output)
     {
-        File.WriteAllText(Path.Combine(output, "effect256-native-observations.json"), JsonSerializer.Serialize(new { Initialized = initialized, Drained = drained, Callbacks = callbacks.Order(), Sounds = sounds.Order(), PacketBanks = packetBanks.Order(), RenderKinds = renderKinds.Order(), RawFiles = rawFiles.Order(), ParticleBanks = particleBanks.Order(), CameraRegistered = cameraRegistered, CameraPlaying = cameraPlaying, CameraViewChanged = cameraViewChanged, TextureQueued = textureQueued, VramChanged = vramChanged, RandomAdvanced = randomAdvanced, Geometry = geometry, IoStarts = ioStarts, IoCompletions = ioCompletions, HpTransitions = hpTransitions, Markers = markers.Order(), Observations = observations, TraceScope = "Frame-end slot observations and independently observed side effects; not an opcode execution trace" }));
+        File.WriteAllText(Path.Combine(output, "effect256-native-observations.json"), JsonSerializer.Serialize(new { Initialized = initialized, Drained = drained, Callbacks = callbacks.Order(), Sounds = sounds.Order(), PacketBanks = packetBanks.Order(), RenderKinds = renderKinds.Order(), RawFiles = rawFiles.Order(), ParticleBanks = particleBanks.Order(), CameraRegistered = cameraRegistered, CameraPlaying = cameraPlaying, CameraViewChanged = cameraViewChanged, TextureQueued = textureQueued, VramChanged = vramChanged, RandomAdvanced = randomAdvanced, Geometry = geometry, FrameCopyCapture = frameCopyCapture, FrameCopyOverlay = frameCopyOverlay, IoStarts = ioStarts, IoCompletions = ioCompletions, HpTransitions = hpTransitions, Markers = markers.Order(), Observations = observations, TraceScope = "Frame-end slot observations and independently observed side effects; not an opcode execution trace" }));
     }
 
     internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot)
@@ -245,6 +261,22 @@ internal sealed class NativeBattleEffect256PresentationObserver(BattleSnapshot s
     internal static bool IsGeometry(NativeBattleLogicalCommand command)
     {
         return (command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C or 0x64 or 0x74 or 0x7C;
+    }
+
+    private static bool IsFrameCopyStrip(NativeBattleLogicalCommand command)
+    {
+        if (command.Opcode != 0x2A || command.Words.Length != 5)
+        {
+            return false;
+        }
+        uint color = command.Words[0];
+        short left = unchecked((short)command.Words[1]);
+        short top = unchecked((short)(command.Words[1] >> 16));
+        short right = unchecked((short)(left + 64));
+        short bottom = unchecked((short)(top + 224));
+        return (byte)color == (byte)(color >> 8) && (byte)color == (byte)(color >> 16) && command.Words[2] == Screen(right, top) && command.Words[3] == Screen(left, bottom) && command.Words[4] == Screen(right, bottom);
+
+        static uint Screen(short x, short y) => unchecked((ushort)x | ((uint)(ushort)y << 16));
     }
 
     private static uint Dword(NativeBattleScriptedEffectMemory core, uint address)

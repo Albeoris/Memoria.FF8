@@ -82,7 +82,7 @@ public sealed class NativeBattleEffect256ResourcesTests
         int terminal = sequence + 16 * 8;
         Assert.Equal(uint.MaxValue, BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(terminal, 4)));
         Assert.Equal((byte)1, bytes[terminal + 6]);
-        Assert.Equal(bytes.Length, 0x94C + 16 * 24);
+        Assert.Equal(0x94C + 16 * 24, bytes.Length);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class NativeBattleEffect256ResourcesTests
         NativeBattleCinematicTextureSelection clut = NativeBattleCinematicTextureMetadata.ResolveClutB66560(frame, resources, 0);
         Assert.Equal(arenaAddress + fileOffset + 0x838, pixels.SourceAddress);
         Assert.Equal(arenaAddress + fileOffset + 0x10838, clut.SourceAddress);
-        Assert.Equal(original.Length, 0x10838 + 512);
+        Assert.Equal(0x10838 + 512, original.Length);
         NativeBattleWaterSlotBank slots = new(fileOffset, original.Length, 16, fileOffset + 0x38);
         frame = frame with { Arena = NativeBattleWaterSlots.InitializeB65160(frame.Arena, slots, 8, 1, 1, 0) };
         Assert.False(original.AsSpan().Slice(0x838, 0x100).SequenceEqual(frame.Arena.Read(fileOffset + 0x838, 0x100)));

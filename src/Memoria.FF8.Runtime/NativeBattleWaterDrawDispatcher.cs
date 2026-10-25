@@ -21,6 +21,8 @@ public sealed record NativeBattleWaterDrawServices(
     Func<uint, int> ResolveActualOtBucket)
 {
     public Func<NativeBattleWaterMeshProjected, int, NativeBattleWaterMeshSubmission>? SubmitMesh { get; init; }
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep>? ReadRegisters { get; init; }
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep, NativeBattleWaterExecutionFrame>? PublishRegisters { get; init; }
 }
 
 /// <summary>The selected draw callers over current resource, graphics and packet owners.</summary>
@@ -45,12 +47,13 @@ public static class NativeBattleWaterDrawDispatcher
                 NativeBattleWaterMeshSubmission mesh = services.SubmitMesh is { } submitMesh ? submitMesh(projected, extent) : NativeBattleWaterMeshPreparation.Submit(projected, extent, services.ResolveActualOtBucket);
                 return Submit(mesh.Frame, mesh.Packets);
             case 0x05:
-                return NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, ResolveMatrix, DrawRectangles);
+                return NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, ResolveMatrix, DrawRectangles, ReadRegisters, PublishRegisters);
             case 0x06:
                 uint programAddress = CoreDword(frame, 0x2798A68);
                 int programLength = input.Resources.Files[0].Data.Length;
                 NativeBattleWaterScriptProgram program = new(ArenaOffset(programAddress, programLength), programLength, programAddress);
                 NativeBattleWaterParticleServices particles = new(services.ReadMetadata, ResolveMatrix, (current, index) => NativeBattleWaterTextureMetadata.SelectTPageB665C0(current, input.Resources.Profile, index), (current, index) => NativeBattleWaterTextureMetadata.ReadClutB66640(current, input.Resources.Profile, index), DrawRectangles);
+                particles = particles with { ReadRegisters = ReadRegisters, PublishRegisters = PublishRegisters };
                 return NativeBattleWaterParticles.AdvanceType6(frame, program, bank, particles, particleInstructionBudget);
             case 0x15:
                 uint payloadAddress = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xB8, 4));
@@ -78,9 +81,12 @@ public static class NativeBattleWaterDrawDispatcher
 
         NativeBattleWaterExecutionFrame DrawRectangles(NativeBattleWaterExecutionFrame current, NativeBattleActionMatrix matrix)
         {
-            NativeBattleWaterParticleRectangleResult rectangles = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, matrix, services.ReadProjection(current), input.Zsf3, input.Dqa, input.Dqb, services.ResolveActualOtBucket);
-            return Submit(rectangles.Frame, rectangles.Packets);
+            NativeBattleWaterParticleRectangleResult rectangles = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, ReadRegisters(current), services.ReadProjection(current), input.Zsf3, input.Dqa, input.Dqb, services.ResolveActualOtBucket);
+            return Submit(PublishRegisters(rectangles.Frame, rectangles.Registers), rectangles.Packets);
         }
+
+        NativeBattleGeometryRegisterStep ReadRegisters(NativeBattleWaterExecutionFrame current) => (services.ReadRegisters ?? throw new NotSupportedException("Native rectangle drawing requires its current geometry register reader."))(current);
+        NativeBattleWaterExecutionFrame PublishRegisters(NativeBattleWaterExecutionFrame current, NativeBattleGeometryRegisterStep step) => (services.PublishRegisters ?? throw new NotSupportedException("Native rectangle drawing requires its current geometry register publisher."))(current, step);
 
         NativeBattleWaterExecutionFrame Submit(NativeBattleWaterExecutionFrame current, NativeBattleGfGeometryBatch packets)
         {

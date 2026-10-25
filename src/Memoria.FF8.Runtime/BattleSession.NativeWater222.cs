@@ -109,7 +109,16 @@ public sealed partial class BattleSession
         {
             graphics = graphics with { Models = models.Select((model, index) => model with { CurrentBodyBoneMatrices = graphics.Models[index].CurrentBodyBoneMatrices }).ToImmutableArray() };
             return current;
-        }, actors, ReadMetadata, OtBucket) { SubmitMesh = SubmitMesh };
+        }, actors, ReadMetadata, OtBucket)
+        {
+            SubmitMesh = SubmitMesh,
+            ReadRegisters = _ => new(RequireWaterMemory().GeometryRegisters ?? throw new NotSupportedException("Native Water rectangles require current geometry registers."), RequireWaterMemory().ScriptedColorRegisters ?? throw new NotSupportedException("Native Water rectangles require current arithmetic registers.")),
+            PublishRegisters = (current, step) =>
+            {
+                NativeEffectMemory = RequireWaterMemory() with { GeometryRegisters = step.Geometry, ScriptedColorRegisters = step.Colors };
+                return current;
+            }
+        };
         NativeBattleWaterCallbackServices callbacks = new((current, pc) => NativeBattleWaterInstructionDispatcher.ReadInstruction(current, pc, instructions), (current, opcode) => NativeBattleWaterInstructionDispatcher.Execute(current, opcode, resources, instructions), (current, _) => NativeBattleWaterInstructionDispatcher.UpdateCurrent(current, resources), (current, kind) =>
         {
             NativeBattleWaterSlotBank bank = NativeBattleWaterInstructionDispatcher.CurrentBank(current, resources);

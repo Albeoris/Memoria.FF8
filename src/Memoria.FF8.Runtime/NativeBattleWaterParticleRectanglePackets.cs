@@ -4,12 +4,12 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleWaterParticleRectangleResult(NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch Packets, uint NextCursor);
+public sealed record NativeBattleWaterParticleRectangleResult(NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch Packets, uint NextCursor, NativeBattleGeometryRegisterStep Registers);
 
 /// <summary>Rectangle packet stores using the caller's current GTE state and current particle records.</summary>
 public static class NativeBattleWaterParticleRectanglePackets
 {
-    public static NativeBattleWaterParticleRectangleResult DrawA9EE90(NativeBattleWaterExecutionFrame frame, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short zsf3, short dqa, int dqb, Func<uint, int> resolveActualOtBucket)
+    public static NativeBattleWaterParticleRectangleResult DrawA9EE90(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers, NativeBattleCameraProjection projection, short zsf3, short dqa, int dqb, Func<uint, int> resolveActualOtBucket)
     {
         uint manager = CoreDword(frame, 0x27973EC);
         uint cursor = CoreDword(frame, checked(manager + 0x7C));
@@ -59,12 +59,24 @@ public static class NativeBattleWaterParticleRectanglePackets
                 TemporaryWord(offset, unchecked((ushort)points[corner].X));
                 TemporaryWord(offset + 2, unchecked((ushort)points[corner].Y));
                 TemporaryWord(offset + 4, 0);
-                projected[corner] = corner == 3
-                    ? NativeBattleModuleProjection.Project45FAA0(matrix, points[corner], projection, dqa, dqb)
-                    : NativeBattleModuleProjection.Project45FE10(matrix, points[corner], projection);
             }
-            uint depthSum = unchecked((uint)projected[0].Depth + projected[1].Depth + projected[2].Depth);
-            uint average = unchecked(depthSum * (uint)zsf3) >> 12;
+            for (int corner = 0; corner < 3; corner++)
+            {
+                int at = 0xE0 + corner * 8;
+                short? w = temporaryKnown[at + 6] && temporaryKnown[at + 7] ? BinaryPrimitives.ReadInt16LittleEndian(temporary.AsSpan(at + 6)) : null;
+                registers = NativeBattleGeometry.LoadVector(registers, corner, points[corner], w);
+            }
+            registers = NativeBattleGeometry.ProjectTriple(registers, projection, dqa, dqb);
+            for (int corner = 0; corner < 3; corner++)
+            {
+                projected[corner] = new(registers.Geometry.Sxy[corner]!.Value, unchecked((ushort)registers.Geometry.Sz[corner + 1]!.Value), registers.Colors.Flags!.Value);
+            }
+            registers = NativeBattleGeometry.Average45E5C0(registers, zsf3);
+            uint average = registers.Geometry.Otz!.Value;
+            short? fourthW = temporaryKnown[0xFE] && temporaryKnown[0xFF] ? BinaryPrimitives.ReadInt16LittleEndian(temporary.AsSpan(0xFE)) : null;
+            registers = NativeBattleGeometry.LoadVector(registers, 0, points[3], fourthW);
+            registers = NativeBattleGeometry.ProjectSingle(registers, projection, dqa, dqb);
+            projected[3] = new(registers.Geometry.Sxy[2]!.Value, unchecked((ushort)registers.Geometry.Sz[3]!.Value), registers.Colors.Flags!.Value);
             uint fourth = (uint)(projected[3].Depth >> 2);
             TemporaryDword(0xE0, average);
             TemporaryDword(0xE4, fourth);
@@ -115,7 +127,7 @@ public static class NativeBattleWaterParticleRectanglePackets
         cursor = unchecked(cursor + (uint)allocated);
         frame = frame with { TemporaryFrame = frame.TemporaryFrame with { Bytes = temporary.ToImmutableArray(), Known = temporaryKnown.ToImmutableArray() } };
         frame = WriteCoreDword(frame, checked(manager + 0x7C), cursor);
-        return new(frame, new(attempts.ToImmutable(), allocated), cursor);
+        return new(frame, new(attempts.ToImmutable(), allocated), cursor, registers);
 
         void TemporaryWord(int offset, ushort value)
         {

@@ -429,7 +429,19 @@ public sealed partial class NativeBattleWaterParticlesTests
         return WaterSchedulerFixture.CoreDword(frame, Matrix + 28, 300);
     }
 
-    private static NativeBattleWaterParticleServices Services() => new((_, _, _) => throw new Xunit.Sdk.XunitException("Unexpected external metadata read."), (_, _) => Matrix, (_, _) => throw new Xunit.Sdk.XunitException("Unexpected texture page getter."), (_, _) => throw new Xunit.Sdk.XunitException("Unexpected CLUT getter."), (_, _) => throw new Xunit.Sdk.XunitException("Unexpected rectangle draw."));
+    private static NativeBattleWaterParticleServices Services()
+    {
+        NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
+        return new((_, _, _) => throw new Xunit.Sdk.XunitException("Unexpected external metadata read."), (_, _) => Matrix, (_, _) => throw new Xunit.Sdk.XunitException("Unexpected texture page getter."), (_, _) => throw new Xunit.Sdk.XunitException("Unexpected CLUT getter."), (_, _) => throw new Xunit.Sdk.XunitException("Unexpected rectangle draw."))
+        {
+            ReadRegisters = _ => registers,
+            PublishRegisters = (current, step) =>
+            {
+                registers = step;
+                return current;
+            }
+        };
+    }
     private static NativeBattleWaterExecutionFrame One(NativeBattleWaterExecutionFrame frame, NativeBattleWaterParticleServices? services = null) => NativeBattleWaterParticles.ExecuteOne(frame, new(0x1000, 0x100, 0x1000), Bank, services ?? Services());
     private static NativeBattleWaterExecutionFrame Advance(NativeBattleWaterExecutionFrame frame, NativeBattleWaterParticleServices? services = null) => NativeBattleWaterParticles.AdvanceType6(frame, new(0x1000, 0x100, 0x1000), Bank, services ?? Services());
     private static uint Address(int offset) => NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset;

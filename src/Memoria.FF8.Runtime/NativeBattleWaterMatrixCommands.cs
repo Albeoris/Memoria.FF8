@@ -255,7 +255,7 @@ public static class NativeBattleWaterMatrixCommands
         {
             frame = frame.WriteTemporaryWord(offset + lane * 2, unchecked((ushort)euler.Rotation[lane]));
         }
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(offset + 18, false).SetItem(offset + 19, false) } };
+        return frame;
     }
 
     private static NativeBattleWaterExecutionFrame WriteRotation(NativeBattleWaterExecutionFrame frame, uint address, NativeBattleActionMatrix matrix)

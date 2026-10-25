@@ -120,7 +120,7 @@ public sealed class NativeBattleWaterParticleRectangleTests
         NativeBattleWaterExecutionFrame frame = Fixture();
         NativeBattleActionMatrix matrix = Matrix with { Z = 65535, X = 100000 };
         uint? observed = null;
-        NativeBattleWaterParticleRectangleResult result = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, matrix, Projection, zsf3, short.MinValue, int.MinValue, address =>
+        NativeBattleWaterParticleRectangleResult result = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, Registers(matrix), Projection, zsf3, short.MinValue, int.MinValue, address =>
         {
             observed = address;
             return 17;
@@ -179,7 +179,7 @@ public sealed class NativeBattleWaterParticleRectangleTests
         NativeBattleWaterExecutionFrame source = Fixture(2);
         string original = JsonSerializer.Serialize(source);
         int resolved = 0;
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(source, Matrix, Projection, 1365, 0, 0, _ =>
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(source, Registers(Matrix), Projection, 1365, 0, 0, _ =>
         {
             resolved++;
             if (resolved == 2)
@@ -207,7 +207,8 @@ public sealed class NativeBattleWaterParticleRectangleTests
         Assert.NotEqual(JsonSerializer.Serialize(alias), JsonSerializer.Serialize(first.Frame.TemporaryFrame));
     }
 
-    private static NativeBattleWaterParticleRectangleResult Draw(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, Matrix, Projection, 1365, 0, 0, Resolve);
+    private static NativeBattleWaterParticleRectangleResult Draw(NativeBattleWaterExecutionFrame frame) => NativeBattleWaterParticleRectanglePackets.DrawA9EE90(frame, Registers(Matrix), Projection, 1365, 0, 0, Resolve);
+    private static NativeBattleGeometryRegisterStep Registers(NativeBattleActionMatrix matrix) => new(NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null), NativeBattleScriptedColorRegisters.Unknown());
 
     private static int Resolve(uint address) => 17;
 

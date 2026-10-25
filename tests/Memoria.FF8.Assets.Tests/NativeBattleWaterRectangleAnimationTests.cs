@@ -73,11 +73,17 @@ public sealed class NativeBattleWaterRectangleAnimationTests
     private static (NativeBattleWaterExecutionFrame Frame, NativeBattleGfGeometryBatch? Packets) Advance(NativeBattleWaterExecutionFrame frame)
     {
         NativeBattleGfGeometryBatch? packets = null;
+        NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
         frame = NativeBattleWaterRectangleCommands.AdvanceDraw5(frame, (_, _) => 0x27979E8, (current, matrix) =>
         {
-            NativeBattleWaterParticleRectangleResult result = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, matrix, new(null, 256, 160, 116), 341, 0, 0, _ => 17);
+            NativeBattleWaterParticleRectangleResult result = NativeBattleWaterParticleRectanglePackets.DrawA9EE90(current, registers, new(null, 256, 160, 116), 341, 0, 0, _ => 17);
+            registers = result.Registers;
             packets = result.Packets;
             return result.Frame;
+        }, _ => registers, (current, step) =>
+        {
+            registers = step;
+            return current;
         });
         return (frame, packets);
     }

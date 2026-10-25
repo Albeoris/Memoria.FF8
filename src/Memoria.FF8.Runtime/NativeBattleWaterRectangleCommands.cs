@@ -93,7 +93,7 @@ public static class NativeBattleWaterRectangleCommands
         return NativeBattleWaterParticleCommands.RegisterDrawB65320(frame, 5);
     }
 
-    public static NativeBattleWaterExecutionFrame AdvanceDraw5(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, ushort, uint> resolveMatrixRow, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> drawRectangles)
+    public static NativeBattleWaterExecutionFrame AdvanceDraw5(NativeBattleWaterExecutionFrame frame, Func<NativeBattleWaterExecutionFrame, ushort, uint> resolveMatrixRow, Func<NativeBattleWaterExecutionFrame, NativeBattleActionMatrix, NativeBattleWaterExecutionFrame> drawRectangles, Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep> readRegisters, Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep, NativeBattleWaterExecutionFrame> publishRegisters)
     {
         if (frame.ReadTemporaryByte(0x145) == 0)
         {
@@ -119,9 +119,18 @@ public static class NativeBattleWaterRectangleCommands
             }
         }
         uint matrixAddress = resolveMatrixRow(frame, SlotWord(frame, 0x9C));
-        NativeBattleActionMatrix matrix = ReadMatrix(frame, matrixAddress, true);
+        (byte[] sourceBytes, bool[] sourceKnown) = frame.Core.ReadSnapshot(matrixAddress, 32);
+        NativeBattlePackedMatrix32 packedSource = new(sourceBytes.ToImmutableArray(), sourceKnown.ToImmutableArray());
+        NativeBattleActionMatrix matrix = packedSource.ReadMatrix();
+        NativeBattleGeometryRegisterStep registers = readRegisters(frame);
+        short? sourcePadding = sourceKnown[18] && sourceKnown[19] ? BinaryPrimitives.ReadInt16LittleEndian(sourceBytes.AsSpan(18)) : null;
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, sourcePadding) };
         NativeBattleVector position = new(unchecked((short)SlotWord(frame, 0x94)), unchecked((short)SlotWord(frame, 0x96)), unchecked((short)SlotWord(frame, 0x98)));
-        NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(matrix, position);
+        (byte[] sourceWBytes, bool[] sourceWKnown) = frame.Arena.ReadSnapshot(SlotOffset(frame, 0x9A, 2), 2);
+        short? sourceW = sourceWKnown.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(sourceWBytes) : null;
+        registers = NativeBattleGeometry.LoadVector(registers, 0, position, sourceW);
+        registers = NativeBattleGeometry.Transform(registers);
+        registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };
         byte mode = ReadSlot(frame, 0x1E, 1)[0];
         if (mode is not (7 or 8 or 9))
         {
@@ -155,9 +164,11 @@ public static class NativeBattleWaterRectangleCommands
         frame = WriteEuler(frame, rotation);
         rotation = NativeBattlePoseMatrices.Scale56BEF0(rotation, scaleX, scaleY, 4096);
         frame = WriteEuler(frame, rotation);
-        matrix = rotation with { X = translated.X, Y = translated.Y, Z = translated.Z };
+        matrix = rotation with { X = registers.Geometry.Translation[0]!.Value, Y = registers.Geometry.Translation[1]!.Value, Z = registers.Geometry.Translation[2]!.Value };
+        short? rotationPadding = frame.TemporaryFrame.Known[0xF2] && frame.TemporaryFrame.Known[0xF3] ? unchecked((short)frame.ReadTemporaryWord(0xF2)) : null;
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, false, rotationPadding) };
         frame = frame.WriteTemporaryDword(0x90, BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xD8, 4))).WriteTemporaryDword(0x94, unchecked((uint)(short)SlotWord(frame, 0x92))).WriteTemporaryDword(0x98, BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xCC, 4))).WriteTemporaryDword(0x9C, unchecked((uint)(short)SlotWord(frame, 0x9A)));
-        return drawRectangles(frame, matrix);
+        return drawRectangles(publishRegisters(frame, registers), matrix);
     }
 
     private static NativeBattleActionMatrix ReadMatrix(NativeBattleWaterExecutionFrame frame, uint address, bool translation)
@@ -171,7 +182,7 @@ public static class NativeBattleWaterRectangleCommands
         {
             frame = frame.WriteTemporaryWord(0xE0 + 2 * i, unchecked((ushort)matrix.Rotation[i]));
         }
-        return frame with { TemporaryFrame = frame.TemporaryFrame with { Known = frame.TemporaryFrame.Known.SetItem(0xF2, false).SetItem(0xF3, false) } };
+        return frame;
     }
     private static uint ArenaDword(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(address, 4), 4));
     private static NativeBattleWaterExecutionFrame SlotByte(NativeBattleWaterExecutionFrame frame, int offset, byte value) => frame with { Arena = frame.Arena.Write(SlotOffset(frame, offset, 1), new byte[] { value }) };

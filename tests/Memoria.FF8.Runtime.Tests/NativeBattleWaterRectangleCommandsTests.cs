@@ -192,9 +192,9 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(Address(0x5320), value.ReadTemporaryDword(0x90));
             Assert.Equal(0xFFFF8001u, value.ReadTemporaryDword(0x94));
             Assert.Equal(0xFFFF8002u, value.ReadTemporaryDword(0x9C));
-            Assert.Throws<NotSupportedException>(() => value.ReadTemporaryWord(0xF2));
+            Assert.Equal(frame.ReadTemporaryWord(0xF2), value.ReadTemporaryWord(0xF2));
             return value;
-        });
+        }, ReadRegisters, PublishRegisters);
         Assert.Equal(1, draws);
         Assert.Equal(frame.ReadTemporaryDword(0xF4), result.ReadTemporaryDword(0xF4));
         Assert.Equal(frame.ReadTemporaryDword(0xF8), result.ReadTemporaryDword(0xF8));
@@ -229,7 +229,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(1024, current.ReadTemporaryWord(0xC0));
             Assert.Equal(0, current.ReadTemporaryWord(0xC2));
             return current;
-        });
+        }, ReadRegisters, PublishRegisters);
         Assert.Equal(2, lookups);
         Assert.Equal(0x1004u, Pc(result));
     }
@@ -261,7 +261,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
             Assert.Equal(8192u, current.ReadTemporaryDword(0x34));
             Assert.Equal(4096u, current.ReadTemporaryDword(0x38));
             return current;
-        });
+        }, ReadRegisters, PublishRegisters);
         Assert.Equal(2, lookups);
         Assert.Equal(0x1004u, Pc(result));
     }
@@ -322,7 +322,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         }
         observe(value, matrix);
         return value;
-    });
+    }, ReadRegisters, PublishRegisters);
     private static NativeBattleWaterExecutionFrame WriteMatrix(NativeBattleWaterExecutionFrame frame, uint address, NativeBattleActionMatrix matrix, bool translation)
     {
         for (int i = 0; i < 9; i++)
@@ -353,4 +353,7 @@ public sealed class NativeBattleWaterRectangleCommandsTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
         return frame with { Arena = frame.Arena.Write(offset, bytes) };
     }
+    private static NativeBattleGeometryRegisterStep ReadRegisters(NativeBattleWaterExecutionFrame frame) => new(NativeBattleGeometryRegisters.Unknown(), NativeBattleScriptedColorRegisters.Unknown());
+    private static NativeBattleWaterExecutionFrame PublishRegisters(NativeBattleWaterExecutionFrame frame, NativeBattleGeometryRegisterStep registers) => frame;
+
 }

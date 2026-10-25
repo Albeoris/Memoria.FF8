@@ -8,6 +8,8 @@ public sealed record NativeBattleWaterParticleServices(Func<NativeBattleWaterExe
 {
     public Action<string, int>? RequireHandler { get; init; }
     public Func<NativeBattleWaterExecutionFrame, NativeBattleWaterScriptProgram, NativeBattleWaterExecutionFrame?>? ExecuteSelected { get; init; }
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep>? ReadRegisters { get; init; }
+    public Func<NativeBattleWaterExecutionFrame, NativeBattleGeometryRegisterStep, NativeBattleWaterExecutionFrame>? PublishRegisters { get; init; }
 }
 
 /// <summary>The finite particle instruction family and its selected type-six caller over current arena records.</summary>
@@ -361,19 +363,28 @@ public static class NativeBattleWaterParticles
     private static NativeBattleWaterExecutionFrame Draw(NativeBattleWaterExecutionFrame frame, NativeBattleWaterParticleServices services)
     {
         uint address = frame.ReadTemporaryDword(0x30);
-        byte[] raw = frame.Core.Read(address, 18);
-        NativeBattleActionMatrix basis = new(Enumerable.Range(0, 9).Select(i => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(2 * i))).ToImmutableArray(), unchecked((int)CoreDword(frame, checked(address + 20))), unchecked((int)CoreDword(frame, checked(address + 24))), unchecked((int)CoreDword(frame, checked(address + 28))), 4096);
+        NativeBattleGeometryRegisterStep registers = services.ReadRegisters?.Invoke(frame) ?? throw new NotSupportedException("Native particle drawing requires its actual current geometry registers.");
+        (byte[] raw, bool[] known) = frame.Core.ReadSnapshot(address, 32);
+        NativeBattlePackedMatrix32 packed = new(raw.ToImmutableArray(), known.ToImmutableArray());
+        NativeBattleActionMatrix basis = packed.ReadMatrix();
+        short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(18)) : null;
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, basis, true, true, padding) };
         NativeBattleVector point = new(unchecked((short)frame.ReadTemporaryWord(0xA0)), unchecked((short)frame.ReadTemporaryWord(0xA2)), unchecked((short)frame.ReadTemporaryWord(0xA4)));
-        NativeBattleFullMacVertex translation = NativeBattleGfMatrices.TransformMac460840(basis, point);
+        short? pointW = frame.TemporaryFrame.Known[0xA6] && frame.TemporaryFrame.Known[0xA7] ? unchecked((short)frame.ReadTemporaryWord(0xA6)) : null;
+        registers = NativeBattleGeometry.LoadVector(registers, 0, point, pointW);
+        registers = NativeBattleGeometry.Transform(registers);
+        registers = registers with { Geometry = registers.Geometry with { Translation = registers.Colors.Mac } };
         uint angle = unchecked((uint)((int)ReadParticleDword(frame, 0x10) >> 4));
         frame = frame.WriteTemporaryDword(0xA0, angle).WriteTemporaryDword(0xA8, angle).WriteTemporaryDword(0xA4, 0).WriteTemporaryDword(0xAC, 0).WriteTemporaryDword(0xB0, 0);
-        byte[] rotation = frame.ReadTemporary(0xA0, 18);
-        NativeBattleActionMatrix planar = new(Enumerable.Range(0, 9).Select(i => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(2 * i))).ToImmutableArray(), translation.X, translation.Y, translation.Z, 4096);
+        byte[] rotation = frame.ReadTemporary(0xA0, 20);
+        NativeBattleActionMatrix planar = new(Enumerable.Range(0, 9).Select(i => BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(2 * i))).ToImmutableArray(), registers.Geometry.Translation[0]!.Value, registers.Geometry.Translation[1]!.Value, registers.Geometry.Translation[2]!.Value, 4096);
+        registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, planar, true, false, BinaryPrimitives.ReadInt16LittleEndian(rotation.AsSpan(18))) };
         if (frame.ReadTemporaryDword(0x40) != 0)
         {
             throw new NotSupportedException($"Native particle optional postrotation 0x{frame.ReadTemporaryDword(0x40):X8} is unsupported for particle 0x{frame.ReadTemporaryDword(0x44):X8}, PC 0x{CoreDword(frame, 0x2797450):X8}.");
         }
         frame = frame.WriteTemporaryDword(0x90, ReadParticleDword(frame, 0x30)).WriteTemporaryDword(0x94, ReadParticleWord(frame, 0x40)).WriteTemporaryDword(0x98, ReadParticleDword(frame, 0x38)).WriteTemporaryDword(0x9C, unchecked((uint)(short)ReadParticleWord(frame, 0x48)));
+        frame = (services.PublishRegisters ?? throw new NotSupportedException("Native particle drawing requires its actual geometry register publisher."))(frame, registers);
         return services.DrawRectangles(frame, planar);
     }
 

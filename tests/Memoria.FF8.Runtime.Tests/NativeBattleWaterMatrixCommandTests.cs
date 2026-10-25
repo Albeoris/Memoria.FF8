@@ -114,8 +114,10 @@ public sealed class NativeBattleWaterMatrixCommandTests
             Assert.Equal(unchecked((ushort)expected.Rotation[lane]), ReadWord(result, destination + (uint)(lane * 2)));
         }
         Assert.Equal((ushort)0, ReadWord(result, destination + 18));
-        Assert.False(result.TemporaryFrame.Known[0xF2]);
-        Assert.False(result.TemporaryFrame.Known[0xF3]);
+        // The preceding translation flag DWORD occupies F0..F3; the later R18 write replaces only F0..F1.
+        Assert.Equal((ushort)0x8140, result.ReadTemporaryWord(0xF2));
+        Assert.True(result.TemporaryFrame.Known[0xF2]);
+        Assert.True(result.TemporaryFrame.Known[0xF3]);
         Assert.Equal(unchecked((ushort)euler.Rotation[8]), result.ReadTemporaryWord(0xF0));
         Assert.Equal(0xA5A5A5A5u, result.ReadTemporaryDword(0xF4));
         Assert.Equal(0xA5A5A5A5u, result.ReadTemporaryDword(0xF8));
