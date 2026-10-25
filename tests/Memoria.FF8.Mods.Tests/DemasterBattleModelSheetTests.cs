@@ -41,6 +41,41 @@ public sealed class DemasterBattleModelSheetTests
     }
 
     [Theory]
+    [InlineData(0, 128, 96)]
+    [InlineData(1, 128, 96)]
+    [InlineData(0, 96, 96)]
+    [InlineData(1, 128, 128)]
+    public void PairedBodyRowsDeterminePlaneScaleAndKeepClosedPixelsSeparate(int wideRow, int nativeHeight, int uploadedHeight)
+    {
+        const string name = "d0c000";
+        TextureBuildContext context = Context(name, wideRow, nativeHeight);
+        DemasterTextureResolver resolver = Resolver(Image(Path(name, wideRow), 768, uploadedHeight * 3), Image(Path(name, 1 - wideRow)));
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(context));
+        PixelImage closed = Assert.IsAssignableFrom<IReadOnlyDictionary<string, PixelImage>>(replacement.Variants)["eyes-closed"];
+        Assert.Equal((384, nativeHeight * 3), (replacement.Image.Width, replacement.Image.Height));
+        Assert.Equal((replacement.Image.Width, replacement.Image.Height), (closed.Width, closed.Height));
+        for (int y = 0; y < replacement.Image.Height; y++)
+        {
+            Assert.Equal(y < uploadedHeight * 3 ? Pixel(17, y) : default, replacement.Image[17, y]);
+            Assert.Equal(y < uploadedHeight * 3 ? Pixel(401, y) : default, closed[17, y]);
+        }
+        Assert.Null(replacement.Animation);
+        TextureReplacement opposite = Assert.IsType<TextureReplacement>(resolver.Resolve(Context(name, 1 - wideRow)));
+        Assert.Null(opposite.Variants);
+        Assert.Equal((384, 384), (opposite.Image.Width, opposite.Image.Height));
+    }
+
+    [Theory]
+    [InlineData(700, 288)]
+    [InlineData(768, 385)]
+    [InlineData(1152, 288)]
+    public void BodyUploadsMustFitOneOrTwoPlanesAtTheirCompleteCompanionScale(int width, int height)
+    {
+        ModTextureLoadException error = Assert.Throws<ModTextureLoadException>(() => Resolver(Image(Path("d0c000", 0)), Image(Path("d0c000", 1), width, height)).Resolve(Context("d0c000", 1)));
+        Assert.Equal(Path("d0c000", 1), error.RelativePath);
+    }
+
+    [Theory]
     [InlineData("d0w000", 1, true)]
     [InlineData("d0c000", 2, true)]
     [InlineData("c0m001", 6, true)]

@@ -23,6 +23,10 @@ public sealed partial class DemasterTextureResolver
             return null;
         }
         DecodedModImage decoded = ModImageDecoder.Decode(file);
+        if (address.Owner.Path[9] == 'c')
+        {
+            return ResolveBodySheet(context, file, stem, address, decoded);
+        }
         if (decoded.Image.Width <= 0 || decoded.Image.Height <= 0 || decoded.Image.Width % address.CanvasWidth != 0 || decoded.Image.Height % address.CanvasHeight != 0 || decoded.Image.Width / address.CanvasWidth != decoded.Image.Height / address.CanvasHeight)
         {
             throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Demaster model sheets require equal positive integral scale over their source canvas."));
@@ -50,6 +54,70 @@ public sealed partial class DemasterTextureResolver
             levels.Add(crop);
         }
         return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly());
+    }
+
+    private TextureReplacement ResolveBodySheet(TextureBuildContext context, ModFile file, string stem, TextureSourceAddress address, DecodedModImage decoded)
+    {
+        string prefix = stem[..stem.LastIndexOf('_')];
+        int planeWidth = 0;
+        for (int row = 0; row < 2; row++)
+        {
+            ModFile? companion = WithExtensions($"{prefix}_{row}").SelectMany(path => catalog.FindAll(ModFormat.Demaster, path)).FirstOrDefault();
+            if (companion is null)
+            {
+                continue;
+            }
+            PixelImage image = ModImageDecoder.Decode(companion).Image;
+            if (image.Width <= 0 || image.Width != image.Height || image.Width % 128 != 0)
+            {
+                continue;
+            }
+            if (planeWidth != 0 && planeWidth != image.Width)
+            {
+                throw new ModTextureLoadException(companion.PackageId, companion.RelativePath, new InvalidDataException("Body sheet rows require the same physical width for each native plane."));
+            }
+            planeWidth = image.Width;
+        }
+        if (planeWidth == 0 || decoded.Image.Width != planeWidth && (long)decoded.Image.Width != 2L * planeWidth || decoded.Image.Height <= 0 || decoded.Image.Height > planeWidth)
+        {
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("Body sheets require a complete square plane in their source row pair, one or two horizontal planes at that scale, and an upload height within the native row."));
+        }
+        int planeCount = decoded.Image.Width / planeWidth;
+        List<PixelImage> levels = CropBodyPlane(decoded.MipLevels, address, planeCount, 0);
+        IReadOnlyDictionary<string, PixelImage>? variants = planeCount == 2 ? new Dictionary<string, PixelImage> { ["eyes-closed"] = CropBodyPlane([decoded.Image], address, planeCount, 1)[0] } : null;
+        return new(levels[0], $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, levels.AsReadOnly(), variants);
+    }
+
+    private static List<PixelImage> CropBodyPlane(IReadOnlyList<PixelImage> images, TextureSourceAddress address, int planeCount, int plane)
+    {
+        List<PixelImage> levels = [];
+        foreach (PixelImage image in images)
+        {
+            if (image.Width % planeCount != 0)
+            {
+                break;
+            }
+            int planeWidth = image.Width / planeCount;
+            if ((long)address.X * planeWidth % 128 != 0 || (long)address.Y * planeWidth % 128 != 0 || (long)address.Width * planeWidth % 128 != 0 || (long)address.Height * planeWidth % 128 != 0)
+            {
+                break;
+            }
+            int sourceX = plane * planeWidth + (int)((long)address.X * planeWidth / 128);
+            int sourceY = (int)((long)address.Y * planeWidth / 128);
+            int width = (int)((long)address.Width * planeWidth / 128);
+            int height = (int)((long)address.Height * planeWidth / 128);
+            if (width <= 0 || height <= 0)
+            {
+                break;
+            }
+            PixelImage crop = new(width, height);
+            for (int row = 0; row < Math.Min(height, image.Height - sourceY); row++)
+            {
+                image.Pixels.AsSpan((sourceY + row) * image.Width + sourceX, width).CopyTo(crop.Pixels.AsSpan(row * width, width));
+            }
+            levels.Add(crop);
+        }
+        return levels;
     }
 
     private static bool TryModelSheetAddress(TextureBuildContext context, out string stem, out TextureSourceAddress address)

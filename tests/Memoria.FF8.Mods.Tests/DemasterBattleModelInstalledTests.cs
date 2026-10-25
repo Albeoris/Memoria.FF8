@@ -23,6 +23,7 @@ public sealed class DemasterBattleModelInstalledTests
         List<string> failures = [];
         int decodedCount = 0;
         int consumedCount = 0;
+        int unusedCount = 0;
         for (int packageIndex = 0; packageIndex < packages.Length; packageIndex++)
         {
             string directory = packages[packageIndex];
@@ -30,7 +31,8 @@ public sealed class DemasterBattleModelInstalledTests
             string packageId = $"Demaster/Fixture{packageIndex}";
             List<object> files = [];
             int imageCount = 0;
-            foreach (string path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase))
+            string[] packagePaths = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+            foreach (string path in packagePaths)
             {
                 if (Path.GetExtension(path).ToLowerInvariant() is not (".png" or ".dds"))
                 {
@@ -45,7 +47,12 @@ public sealed class DemasterBattleModelInstalledTests
                     Assert.True(decoded.Image.Width > 0 && decoded.Image.Height > 0);
                     decodedCount++;
                     Match match = Target.Match(relative);
-                    Assert.True(match.Success, $"The configured model package image has no native sheet target: {relative}");
+                    if (!match.Success)
+                    {
+                        unusedCount++;
+                        files.Add(new { path = relative, role = "unused", reason = "not-native-model-sheet-target", width = decoded.Image.Width, height = decoded.Image.Height });
+                        continue;
+                    }
                     string owner = match.Groups["owner"].Value.ToLowerInvariant() + ".dat";
                     if (!owners.TryGetValue(owner, out TextureBuildContext[]? contexts))
                     {
@@ -72,7 +79,33 @@ public sealed class DemasterBattleModelInstalledTests
                         Assert.NotEmpty(contexts);
                         owners.Add(owner, contexts);
                     }
-                    DemasterTextureResolver resolver = new(new(1, [], [file]));
+                    List<ModFile> candidates = [file];
+                    bool body = owner[0] == 'd' && owner[2] == 'c';
+                    PixelImage? anchor = null;
+                    if (body)
+                    {
+                        foreach (string companionPath in packagePaths)
+                        {
+                            string companionRelative = Path.GetRelativePath(directory, companionPath).Replace('\\', '/');
+                            Match companionMatch = Target.Match(companionRelative);
+                            if (!companionMatch.Success || !companionMatch.Groups["owner"].Value.Equals(match.Groups["owner"].Value, StringComparison.OrdinalIgnoreCase) || companionMatch.Groups["sheet"].Value == match.Groups["sheet"].Value)
+                            {
+                                continue;
+                            }
+                            candidates.Add(new(packageId, ModFormat.Demaster, companionRelative, 1, () => File.ReadAllBytes(companionPath)));
+                        }
+                        foreach (ModFile candidate in candidates)
+                        {
+                            PixelImage image = ModImageDecoder.Decode(candidate).Image;
+                            if (image.Width == image.Height && image.Width > 0 && image.Width % 128 == 0)
+                            {
+                                anchor = image;
+                                break;
+                            }
+                        }
+                        Assert.NotNull(anchor);
+                    }
+                    DemasterTextureResolver resolver = new(new(1, [], candidates));
                     List<object> consumers = [];
                     string row = "row/" + match.Groups["sheet"].Value;
                     foreach (TextureBuildContext context in contexts)
@@ -80,7 +113,11 @@ public sealed class DemasterBattleModelInstalledTests
                         TextureReplacement? resolved = resolver.Resolve(context);
                         if (context.NativeSheet?.Subresource != row)
                         {
-                            Assert.Null(resolved);
+                            if (resolved is not null)
+                            {
+                                Assert.NotEqual($"{packageId}/{relative}@1", resolved.Provenance);
+                                Assert.Contains(candidates, candidate => resolved.Provenance == $"{candidate.PackageId}/{candidate.RelativePath}@{candidate.Revision}");
+                            }
                             continue;
                         }
                         TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolved);
@@ -98,21 +135,34 @@ public sealed class DemasterBattleModelInstalledTests
                         Assert.True(address.X >= 0 && address.Y >= 0);
                         Assert.True(address.X + address.Width <= address.CanvasWidth);
                         Assert.True(address.Y + address.Height <= address.CanvasHeight);
-                        Assert.Equal(0, decoded.Image.Width % address.CanvasWidth);
-                        Assert.Equal(0, decoded.Image.Height % address.CanvasHeight);
-                        int scale = decoded.Image.Width / address.CanvasWidth;
-                        Assert.True(scale > 0);
-                        Assert.Equal(scale, decoded.Image.Height / address.CanvasHeight);
-                        Assert.Equal(address.Width * scale, replacement.Image.Width);
-                        Assert.Equal(address.Height * scale, replacement.Image.Height);
-                        for (int y = 0; y < replacement.Image.Height; y++)
+                        int scale;
+                        if (body)
                         {
-                            for (int x = 0; x < replacement.Image.Width; x++)
-                            {
-                                Assert.Equal(decoded.Image[address.X * scale + x, address.Y * scale + y], replacement.Image[x, y]);
-                            }
+                            scale = anchor!.Width / 128;
+                            Assert.True(decoded.Image.Width == 128 * scale || decoded.Image.Width == 256 * scale);
+                            Assert.True(decoded.Image.Height <= 128 * scale);
                         }
-                        consumers.Add(new { sourceOwner = address.Owner.Path, context = context.Key.Subresource, sheetRow = address.Subresource, address.X, address.Y, address.Width, address.Height, address.CanvasWidth, address.CanvasHeight, context.LogicalWidth, context.LogicalHeight, scale, replacement.Provenance });
+                        else
+                        {
+                            Assert.Equal(0, decoded.Image.Width % address.CanvasWidth);
+                            Assert.Equal(0, decoded.Image.Height % address.CanvasHeight);
+                            scale = decoded.Image.Width / address.CanvasWidth;
+                            Assert.Equal(scale, decoded.Image.Height / address.CanvasHeight);
+                        }
+                        Assert.True(scale > 0);
+                        VerifyPixels(replacement.Image, decoded.Image, address, scale, 0);
+                        bool closed = body && decoded.Image.Width == 256 * scale;
+                        if (closed)
+                        {
+                            Assert.NotNull(replacement.Variants);
+                            Assert.True(replacement.Variants.TryGetValue("eyes-closed", out PixelImage? closedImage));
+                            VerifyPixels(Assert.IsType<PixelImage>(closedImage), decoded.Image, address, scale, 128 * scale);
+                        }
+                        else
+                        {
+                            Assert.False(replacement.Variants?.ContainsKey("eyes-closed") == true);
+                        }
+                        consumers.Add(new { sourceOwner = address.Owner.Path, context = context.Key.Subresource, sheetRow = address.Subresource, address.X, address.Y, address.Width, address.Height, address.CanvasWidth, address.CanvasHeight, context.LogicalWidth, context.LogicalHeight, scale, closed, replacement.Provenance });
                     }
                     Assert.NotEmpty(consumers);
                     consumedCount++;
@@ -129,12 +179,27 @@ public sealed class DemasterBattleModelInstalledTests
             Assert.True(imageCount > 0, "The configured package contains no PNG or DDS images.");
             evidence.Add(new { packageId, imageCount, files });
         }
-        WriteEvidence(new { sourceEdition = source.Descriptor.Edition.ToString(), sourceLanguage = source.Descriptor.Language, decodedCount, consumedCount, failures, packages = evidence });
+        WriteEvidence(new { sourceEdition = source.Descriptor.Edition.ToString(), sourceLanguage = source.Descriptor.Language, decodedCount, consumedCount, unusedCount, failures, packages = evidence });
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
         Assert.True(consumedCount > 0);
-        Assert.Equal(decodedCount, consumedCount);
+        Assert.Equal(decodedCount, consumedCount + unusedCount);
     }
 
+    private static void VerifyPixels(PixelImage actual, PixelImage encoded, TextureSourceAddress address, int scale, int planeX)
+    {
+        Assert.Equal(address.Width * scale, actual.Width);
+        Assert.Equal(address.Height * scale, actual.Height);
+        for (int y = 0; y < actual.Height; y++)
+        {
+            for (int x = 0; x < actual.Width; x++)
+            {
+                int sourceX = planeX + address.X * scale + x;
+                int sourceY = address.Y * scale + y;
+                Rgba32 expected = sourceY < encoded.Height ? encoded[sourceX, sourceY] : default;
+                Assert.Equal(expected, actual[x, y]);
+            }
+        }
+    }
     private static string[] OptionalPackages()
     {
         string? catalog = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_MODEL_TEXTURE_PACKAGES");
