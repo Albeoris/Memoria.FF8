@@ -1219,7 +1219,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.BATTLEOFF:
             case Jsm.Opcode.BATTLEON:
-                Scene.RandomBattlesEnabled = opcode == Jsm.Opcode.BATTLEON;
+                ExecuteNativeEncounterControl(fiber, opcode);
                 break;
             case Jsm.Opcode.SARALYOFF:
             case Jsm.Opcode.SARALYON:

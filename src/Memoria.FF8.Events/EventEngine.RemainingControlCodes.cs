@@ -13,7 +13,7 @@ public sealed partial class EventEngine
         {
             return services.CanStoreNativeFieldDebugRequested ? null : "DEBUG requires its writable native process flag owner";
         }
-        if (operation.Opcode is not (Jsm.Opcode.MOVIECUT or Jsm.Opcode.BATTLECUT))
+        if (operation.Opcode is not (Jsm.Opcode.MOVIECUT or Jsm.Opcode.BATTLECUT or Jsm.Opcode.BATTLEON or Jsm.Opcode.BATTLEOFF))
         {
             return null;
         }
@@ -22,7 +22,25 @@ public sealed partial class EventEngine
             return $"{operation.Opcode} requires the retained writable native control byte owners";
         }
         services.WorldControls.Validate();
+        if (operation.Opcode == Jsm.Opcode.BATTLEON && (services.WorldControls.EventFlags104 & 0x20) == 0 && Scene.MusicProcess?.Pending is null)
+        {
+            return "BATTLEON requires the executed native pending music-load flag";
+        }
         return UnsupportedWorldControlAliases();
+    }
+
+    private void ExecuteNativeEncounterControl(Fiber fiber, Jsm.Opcode opcode)
+    {
+        NativeWorldControlState controls = services.WorldControls!;
+        if (opcode == Jsm.Opcode.BATTLEOFF)
+        {
+            SetNativeWorldControls(fiber, controls with { MusicKeep207 = 1, EventFlags104 = controls.EventFlags104 & ~0x400u });
+        }
+        else if ((controls.EventFlags104 & 0x20) == 0)
+        {
+            NativeWorldControlState next = Scene.MusicProcess!.Pending == true ? controls with { EventFlags104 = controls.EventFlags104 | 0x400u } : controls with { MusicKeep207 = 0 };
+            SetNativeWorldControls(fiber, next);
+        }
     }
 
     private void ExecuteRemainingControlCode(Fiber fiber, Jsm.Opcode opcode)

@@ -224,6 +224,7 @@ internal static partial class Program
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
                     ["battle-music-byte"] = NativeBattleMusicByteContract,
+                    ["native-encounter-control"] = NativeEncounterControlContract,
                     ["native-music-playback"] = NativeMusicPlaybackContract,
                     ["choice-music"] = NativeChoiceMusicContract,
                     ["move-flush"] = () => NativeMoveFlushContract(selectedGameDirectory),
@@ -337,6 +338,7 @@ internal static partial class Program
             NativeMusicLoadContract();
             NativeMusicPlaybackContract();
             NativeBattleMusicByteContract();
+            NativeEncounterControlContract();
             NativeMusicFadeContract();
             NativeSoundInitializationContract(gameDirectory);
             NativeSoundStopContract();

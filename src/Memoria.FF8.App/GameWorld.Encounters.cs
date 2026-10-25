@@ -38,7 +38,8 @@ internal sealed partial class GameWorld
         }
         FieldAssets field = Field ?? throw new InvalidOperationException("Random encounters require the loaded field resources.");
         NativeFieldEncounterDefinition definition = field.RandomEncounters ?? throw new NotSupportedException("Random encounters require the original field RAT/MRT resources.");
-        NativeFieldEncounterInput input = new(accepted, unchecked((short)(Events.PlayerActor?.MovementSpeed ?? 0)), session.State.CharacterVitals!.GetEncounterAbilityFlags(), !Events.Scene.RandomBattlesEnabled, session.IsMoviePlaying, 0, unchecked((ushort)Events.FieldFade!.Physical.Mode));
+        NativeWorldControlState controls = session.State.WorldControls ?? throw new NotSupportedException("Random field encounters require the canonical native control bytes.");
+        NativeFieldEncounterInput input = new(accepted, unchecked((short)(Events.PlayerActor?.MovementSpeed ?? 0)), session.State.CharacterVitals!.GetEncounterAbilityFlags(), controls.MusicKeep207 != 0, session.IsMoviePlaying, 0, unchecked((ushort)Events.FieldFade!.Physical.Mode));
         NativeRandomEncounterResult result = NativeRandomEncounter.AdvanceField(encounter.Native, definition, assets.ReadNativeEncounterTables().FieldRandom.AsSpan(), input);
         RandomEncounterRequest? pending = result.Formation is ushort formation ? new(SceneKind.Field, Events.FieldId, Events.Frame, formation, Convert.ToHexString(SHA256.HashData(field.Jsm))) : null;
         session.SetRandomEncounters(encounter with { Native = result.State, Pending = pending });

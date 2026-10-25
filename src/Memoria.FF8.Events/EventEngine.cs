@@ -175,7 +175,7 @@ public sealed partial class EventEngine
             SetEventMemory(EventMemory.Clear(1024, 1280));
         }
         SceneEventState previousScene = Scene;
-        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };
+        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         //52B4F0 resets modes/settings, but retains current WORD8/10. Only
         //the executable's zero-filled process tail supplies the cold pair.

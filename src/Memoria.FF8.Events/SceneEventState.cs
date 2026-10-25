@@ -179,8 +179,6 @@ public sealed class SceneEventState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeAllSoundVolume? AllSoundVolume { get; internal set; }
     [JsonInclude]
-    public bool RandomBattlesEnabled { get; internal set; } = true;
-    [JsonInclude]
     public bool MapJumpDisabled { get; internal set; }
     [JsonInclude]
     public NativeWorldTransitionRequest? WorldTransitionRequest { get; internal set; }
