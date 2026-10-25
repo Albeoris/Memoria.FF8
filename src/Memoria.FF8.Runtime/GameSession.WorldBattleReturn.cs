@@ -2,6 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    private static bool ValidateWorldBattleFootReload(GameState state, WorldState world, NativeFootWorldRuntimeState foot)
+    {
+        NativeSavedWorldFootReturn receipt = state.SavedWorld?.FootReturn ?? throw new InvalidDataException("World battle foot reload lost its saved physical owner.");
+        receipt.RequireCompleteFootReload();
+        // A later combat departure replaces the saved slot while the current world allocation stays resident.
+        bool nextDeparture = receipt.SourceWorldFrame == world.Frame && receipt == NativeSavedWorldFootReturn.RecordBattleDeparture(world, receipt.LastFieldId, receipt.StoryWord, receipt.MapLocationId);
+        if (receipt.WorldMode != 3 || receipt.EntityType105 != foot.EntityType || receipt.AnimationVariant108 != foot.AnimationVariant || receipt.SourceWorldFrame != foot.ReloadSourceWorldFrame && !nextDeparture)
+        {
+            throw new InvalidDataException("World battle foot reload disagrees with its saved physical owner.");
+        }
+        return true;
+    }
+
     public void RecordNativeMenuWorldBattleDeparture(BattleEncounterOccurrence occurrence, NativeSavedWorldFootReturn receipt)
     {
         occurrence.Validate();
