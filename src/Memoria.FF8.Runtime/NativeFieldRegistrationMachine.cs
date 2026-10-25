@@ -23,6 +23,10 @@ public sealed record NativeFieldRegistrationState(int Version, int FieldId, stri
         {
             throw new InvalidDataException("Native field registration has invalid source identities, allocation layout or retained bindings.");
         }
+        if (retained.FieldTextureAnimations is { } animations && (animations.OneHash != OneHash || !animations.Textures.Select(animation => animation.Texture).SequenceEqual(Resources.SelectMany(resource => resource.Textures).DistinctBy(texture => (texture.X, texture.Y)))))
+        {
+            throw new InvalidDataException("Field texture copy history does not belong to the retained resource registration.");
+        }
         foreach (NativeFieldRegisteredResource resource in Resources)
         {
             uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(checked(0x1DCB0F0 + (uint)resource.Index * 4), 4));
@@ -75,10 +79,11 @@ public static partial class NativeFieldRegistrationMachine
         internal byte Scale = (entry.Flag >> 28) == 0xD ? (byte)(entry.Flag >> 16) : (byte)16;
     }
 
-    private sealed class Context(NativeFieldRegistrationMemory memory, NativeBattleEffectMemory effects)
+    private sealed class Context(NativeFieldRegistrationMemory memory, NativeBattleEffectMemory effects, NativeFieldTextureAnimations? animations = null)
     {
         internal readonly NativeFieldRegistrationMemory Memory = memory;
         internal NativeBattleEffectMemory Effects = effects;
+        internal NativeFieldTextureAnimations? Animations = animations;
         internal readonly List<NativeBattleEffectVramUpload> Uploads = [];
 
         internal void Upload(short x, short y, short width, short height, byte[] bytes)
@@ -273,7 +278,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new NotSupportedException("Native field constructed resources exceed their original kind3 arena.");
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
-        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) };
+        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures)) };
         state.Validate(result);
         return new(state, result, context.Uploads.ToImmutableArray());
     }

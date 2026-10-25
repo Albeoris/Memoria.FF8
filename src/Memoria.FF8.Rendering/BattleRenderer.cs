@@ -138,6 +138,8 @@ public sealed partial class BattleRenderer
             throw new NotSupportedException("Native actor VRAM sampling requires its original507400 allocation binding.");
         }
         IReadOnlyList<Vector3[]> pose = !edited && actor.NativePose is { } native ? actor.Model.PoseNative(native) : actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
+        IReadOnlyList<NativeBattleTextureReplacement>? replacements = !edited && actor.NativeTextureBinding is { } binding ? NativeBattleTextureReplacements.Bind(actor.Model, binding, actor.Model.NativeWeaponTexturePack is not null) : null;
+        Dictionary<(ushort Page, ushort Clut), PixelImage> replacementPages = [];
         Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.Facing) * Matrix4x4.CreateTranslation(actor.Position + actor.AttackOffset - Vector3.UnitY * actor.GroundOffset);
         for (int mesh = 0; mesh < actor.Model.Meshes.Count; mesh++)
         {
@@ -145,18 +147,28 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, edited ? null : actor.NativeTextureBinding, edited ? null : actor.NativeTextures);
+            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, edited ? null : actor.NativeTextureBinding, edited ? null : actor.NativeTextures, replacements, replacementPages);
         }
     }
 
-    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null)
+    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, Dictionary<(ushort Page, ushort Clut), PixelImage>? replacementPages = null)
     {
         Vector3[] transformed = positions.Select(position => Vector3.Transform(position, view)).ToArray();
         foreach (BattleFace face in mesh.Faces)
         {
             NativeBattleFaceMaterial? material = nativeBinding is null ? null : NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new NotSupportedException("Native actor VRAM rendering requires the original polygon CLUT/page/UV fields."), nativeBinding);
             PixelImage texture = material is null ? textures[face.Texture] : NativeActorTexturePage(nativeTextures ?? throw new NotSupportedException("Native actor material requires its retained original VRAM owner."), material.TexturePage, material.Clut);
-            Vector2 textureScale = material is null ? ResourceTextureList.PhysicalScale(textures, face.Texture) : Vector2.One;
+            if (material is not null && replacements is { Count: > 0 })
+            {
+                var key = (material.TexturePage, material.Clut);
+                if (!replacementPages!.TryGetValue(key, out PixelImage? selected))
+                {
+                    selected = NativeBattleEffectTextureReader.ApplyModelReplacements(texture, nativeTextures!, material.TexturePage, material.Clut, 0, 0, null, replacements);
+                    replacementPages.Add(key, selected);
+                }
+                texture = selected;
+            }
+            Vector2 textureScale = material is null ? ResourceTextureList.PhysicalScale(textures, face.Texture) : new Vector2(texture.Width / 256f, texture.Height / 256f);
             Vector2[] uv = material?.Uv ?? face.Uv;
             Vertex At(int index) => new(transformed[face.Vertices[index]], uv[index] * textureScale, face.VertexColors?[index] ?? Vector4.One);
             // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.

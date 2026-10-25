@@ -141,7 +141,7 @@ public sealed partial class BattleAssets : IDisposable
         if (!stages.TryGetValue(stageId, out BattleStage? stage))
         {
             stage = BattleResourceReader.ReadStage(stageId, Read($"a0stg{stageId:000}.x"));
-            stage = stage with { Textures = textureScope.RegisterList(new ResourceKey($"battle/a0stg{stageId:000}.x"), stage.Textures, "classic-battle") };
+            stage = stage with { Textures = RegisterBattleTextures(new ResourceKey($"battle/a0stg{stageId:000}.x"), stage.Textures, stage.TextureSourceAddresses, stage.TextureRegions) };
             stages.Add(stageId, stage);
         }
         return modelOverrides?.Apply($"battle/a0stg{stageId:000}.x", stage) ?? stage;
@@ -336,7 +336,7 @@ public sealed partial class BattleAssets : IDisposable
         {
             byte[] content = Read(name);
             model = resources.GetSource<IBattleModelSource>()?.ReadWeapon(new ResourceKey("battle/" + name), content, character) ?? BattleResourceReader.ReadWeapon(name, content, character);
-            model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
+            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions) };
             models.Add(key, model);
         }
         return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
@@ -358,16 +358,22 @@ public sealed partial class BattleAssets : IDisposable
                 //507F80 retains model142's skeleton, animations, sequences and camera;
                 //the companion owns its information/AI and the zero-object geometry sentinel.
                 BattleModel shared = LoadEnemy(126);
-                model = shared with { Name = name, Meshes = [], Textures = [], TextureRegions = [], NativeControlMeshes = [], NativeRenderGeometry = [], NativeGeometryBytes = null, EditableOverride = null, NativeTextureAnimations = [], NativeBodyTexturePack = null, NativeWeaponTexturePack = null };
+                model = shared with { Name = name, Meshes = [], Textures = [], TextureRegions = [], TextureSourceAddresses = [], NativeControlMeshes = [], NativeRenderGeometry = [], NativeGeometryBytes = null, EditableOverride = null, NativeTextureAnimations = [], NativeBodyTexturePack = null, NativeWeaponTexturePack = null };
             }
             else
             {
                 model = resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey("battle/" + name), content) ?? BattleResourceReader.ReadModel(name, content);
             }
-            model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
+            model = model with { Textures = RegisterBattleTextures(new ResourceKey("battle/" + name), model.Textures, model.TextureSourceAddresses, model.TextureRegions) };
             models.Add(name, model);
         }
         return modelOverrides?.Apply("battle/" + name.ToLowerInvariant(), model) ?? model;
+    }
+
+    private IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> RegisterBattleTextures(ResourceKey owner, IReadOnlyList<Albeoris.Games.FF8.Imaging.PixelImage> images, IReadOnlyList<TextureSourceAddress> addresses, IReadOnlyList<TextureSourceRegion>? regions = null)
+    {
+        AssetHandle<TextureValue>[] handles = images.Select((image, index) => textureScope.Register(new TextureKey(owner, $"texture/{index}"), image, "classic-battle", regions is not null && index < regions.Count ? regions[index] : null, nativeAlias: index < addresses.Count ? addresses[index] : null)!).ToArray();
+        return new ResourceTextureList(handles);
     }
 
     private byte[] Read(string name)
@@ -388,3 +394,4 @@ public sealed partial class BattleAssets : IDisposable
         ownedSource?.Dispose();
     }
 }
+

@@ -119,12 +119,13 @@ public sealed partial class WorldAssets : IDisposable
 
     public FieldModel GetFootModel(byte entityType)
     {
-        // Native546E10 selects stored shape4 for uniform Squall type1.
+        //546E10 maps foot entity identity to the stored character shape.
         int shape = entityType switch
         {
-            0 => 0,
+            0 or 3 or 4 or 5 or 7 or 8 or 9 => 0,
             1 => 4,
             2 => 5,
+            6 => 6,
             _ => throw new NotSupportedException($"Native foot entity type {entityType} has no implemented original model path.")
         };
         if (!footModels.TryGetValue(entityType, out FieldModel? model))

@@ -34,7 +34,7 @@ internal sealed partial class BattleScenePresentation
     private byte[]? renderedPixels;
     private GpuTriangleRenderer? renderedGpu;
     private long renderedGpuVersion;
-    private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (PixelImage[] Images, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
+    private readonly Dictionary<(BattleModel Model, NativeBattleModelTextureBinding Binding, bool Weapon), (object[] Materials, IReadOnlyList<NativeBattleTextureReplacement> Replacements)> replacementBindings = [];
     private IReadOnlyList<NativeBattleTextureReplacement>? renderedModelReplacements;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)

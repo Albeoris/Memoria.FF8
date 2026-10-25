@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -10,13 +11,23 @@ public sealed partial class GameAssets
     private ImmutableArray<uint> nativeFieldPlacementWords;
     private long nativeRegisteredTextureRevision;
 
-    public FieldAssets BindNativeRegisteredTextures(FieldAssets field, NativeFieldRegistrationState registration, NativeBattleEffectTextureState textures)
+    public FieldAssets BindNativeRegisteredTextures(FieldAssets field, NativeFieldRegistrationState registration, NativeBattleEffectTextureState textures, NativeFieldTextureAnimations? animations = null)
     {
         if (registration.FieldId != field.Id || field.NativeRegistration is not { } source || registration.ProgramHash != source.ProgramHash || registration.OneHash != source.One.Sha256)
         {
             throw new InvalidDataException("Native registered textures do not belong to this original field source.");
         }
+        if (animations is not null && animations.OneHash != registration.OneHash)
+        {
+            throw new InvalidDataException("Field texture copy history belongs to another registration source.");
+        }
         byte[] bank = textures.ReadVram();
+        TexturePageMember[] members = registration.Resources.SelectMany(resource => resource.Textures.Select((texture, ordinal) =>
+        {
+            FieldModel model = field.Models[resource.ModelId];
+            int frame = animations is null ? -2 : animations.Textures.SingleOrDefault(animation => animation.Texture.X == texture.X && animation.Texture.Y == texture.Y)?.CurrentFrame ?? throw new InvalidDataException("Registered field texture has no retained copy-history owner.");
+            return new TexturePageMember(model.MainCharacterTextures ? "main" : "second", model.TextureResourceName ?? throw new NotSupportedException("Native field pages require their original source model names."), ordinal, texture.X, texture.Y, texture.WidthWords, texture.Height, 4 << texture.Mode, frame);
+        })).DistinctBy(member => (member.X, member.Y)).OrderBy(member => member.X + member.Y * 1024).ToArray();
         long revision = -checked(++nativeRegisteredTextureRevision);
         FieldModel[] models = field.Models.ToArray();
         foreach (NativeFieldRegisteredResource resource in registration.Resources)
@@ -26,7 +37,17 @@ public sealed partial class GameAssets
                 throw new InvalidDataException("Native registered texture bindings disagree with their original model source.");
             }
             FieldModel model = models[resource.ModelId] with { Textures = resource.Textures.Select(Decode).ToArray() };
-            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision);
+            TextureSourcePageAddress[] pages = resource.Textures.Select(texture =>
+            {
+                int page = texture.TexturePage & 31;
+                int pageX = (page & 15) * 64;
+                int pageY = (page >> 4) * 256;
+                int shift = 2 - texture.Mode;
+                int pageWidthWords = 256 >> shift;
+                TexturePageMember[] visible = members.Where(member => member.BitsPerPixel == 4 << texture.Mode && member.X < pageX + pageWidthWords && member.X + member.WidthWords > pageX && member.Y < pageY + 256 && member.Y + member.Height > pageY).ToArray();
+                return new TextureSourcePageAddress(page, (texture.X - pageX) << shift, texture.Y - pageY, texture.WidthWords << shift, texture.Height, texture.PaletteX, texture.PaletteY, visible);
+            }).ToArray();
+            models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages);
         }
         return field with { Models = models };
 
@@ -65,12 +86,14 @@ public sealed partial class GameAssets
         }
     }
 
-    private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null)
+    private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null, IReadOnlyList<TextureSourcePageAddress>? pages = null)
     {
         string registration = revision.HasValue ? "/registered" : "";
         string prefix = model.TextureResourceName is { } name ? $"model/{index}/{(model.MainCharacterTextures ? "main" : "second")}/{name}{registration}/texture" : $"model/{index}{registration}/texture";
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
-        return model with { Textures = textureScope.RegisterList(new Memoria.FF8.Resources.ResourceKey($"field/{fieldName}/chara.one"), model.Textures, layout, prefix, revision) };
+        ResourceKey owner = new($"field/{fieldName}/chara.one");
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativePage: pages?[ordinal])!).ToArray();
+        return model with { Textures = new ResourceTextureList(handles) };
     }
 
     private NativeFieldRegistrationLoaderInputs ReadNativeFieldRegistrationInputs(int fieldId, byte[] information, byte[] program, byte[] colors)

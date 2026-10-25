@@ -6,9 +6,19 @@ namespace Memoria.FF8;
 
 internal sealed partial class BattleScenePresentation
 {
+    private object[]? stageReplacementMaterials;
+    private IReadOnlyList<NativeBattleTextureReplacement> stageReplacements = [];
+
     private IReadOnlyList<NativeBattleTextureReplacement> NativeModelReplacements(BattleSession session, NativeBattleGraphicsState graphics)
     {
         List<NativeBattleTextureReplacement> result = [];
+        object[] stageMaterials = Materials(stage.Textures);
+        if (stageReplacementMaterials is null || !stageReplacementMaterials.SequenceEqual(stageMaterials))
+        {
+            stageReplacementMaterials = stageMaterials;
+            stageReplacements = NativeBattleTextureReplacements.Bind(stage);
+        }
+        result.AddRange(stageReplacements);
         for (int index = 0; index < graphics.ActorIds.Length; index++)
         {
             if (graphics.ActorIds[index] is not string actorId || graphics.Models[index].BodyTextureSlots is not { } bodyBinding)
@@ -31,13 +41,15 @@ internal sealed partial class BattleScenePresentation
         void Add(BattleModel model, NativeBattleModelTextureBinding binding, bool weapon)
         {
             var key = (model, binding, weapon);
-            PixelImage[] images = model.Textures.ToArray();
-            if (!replacementBindings.TryGetValue(key, out var cached) || !cached.Images.SequenceEqual(images))
+            object[] materials = Materials(model.Textures);
+            if (!replacementBindings.TryGetValue(key, out var cached) || !cached.Materials.SequenceEqual(materials))
             {
-                cached = (images, NativeBattleTextureReplacements.Bind(model, binding, weapon));
+                cached = (materials, NativeBattleTextureReplacements.Bind(model, binding, weapon));
                 replacementBindings[key] = cached;
             }
             result.AddRange(cached.Replacements);
         }
     }
+
+    private static object[] Materials(IReadOnlyList<PixelImage> textures) => textures is ResourceTextureList resources ? Enumerable.Range(0, resources.Count).Select(index => (object)resources.GetTexture(index)).ToArray() : textures.Cast<object>().ToArray();
 }

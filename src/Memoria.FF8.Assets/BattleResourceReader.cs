@@ -67,7 +67,8 @@ internal static partial class BattleResourceReader
         int bodyTextureEnd = bodyTextureSection >= 0 && bodyTextureSection + 1 < offsets.Length ? offsets[bodyTextureSection + 1] : bytes.Length;
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
-            TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
+            TextureRegions = textures.Select(texture => TextureRegion(texture.Tim)).ToArray(),
+            TextureSourceAddresses = textures.Select((texture, index) => TextureAddress(name, index, 0, texture.Tim)).ToArray(),
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
             NativeTextureAnimations = offsets.Length is 7 or 8 or 11 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
@@ -91,7 +92,8 @@ internal static partial class BattleResourceReader
         IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[4]);
         return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures), textures.Select(texture => texture.Image).ToArray(), character.Animations, character.Scale)
         {
-            TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
+            TextureRegions = textures.Select(texture => TextureRegion(texture.Tim)).ToArray(),
+            TextureSourceAddresses = textures.Select((texture, index) => TextureAddress(name, index, 0, texture.Tim)).ToArray(),
             NativePoseSource = character.NativePoseSource,
             NativeWeaponTexturePack = new(name + ":weapon-textures", bytes.AsSpan(offsets[4], bytes.Length - offsets[4]).ToArray().ToImmutableArray()),
             NativeWeaponUsesBodySkeleton = true,
@@ -105,6 +107,10 @@ internal static partial class BattleResourceReader
         int end = offsets.Where(offset => offset > start).DefaultIfEmpty(bytes.Length).Min();
         return new BattleSequenceSet(bytes[start..end]);
     }
+
+    private static TextureSourceRegion TextureRegion(TimImage tim) => new(tim.X, tim.Y, tim.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, TimPixelMode.Direct24 => 24, _ => throw new NotSupportedException("Battle TIM pixel mode is unsupported.") }, tim.PixelWidth, tim.Height, tim.Clut?.X, tim.Clut?.Y);
+
+    private static TextureSourceAddress TextureAddress(string name, int member, int palette, TimImage tim) => new(new ResourceKey("battle/" + name.ToLowerInvariant()), $"texture/{member}", palette, 0, 0, tim.PixelWidth, tim.Height, tim.PixelWidth, tim.Height);
 
     private static IReadOnlyList<BattleMesh> Geometry(BinaryReader reader, int offset, int boneCount, IReadOnlyList<ModelTexture> textures)
     {
@@ -282,8 +288,13 @@ internal static partial class BattleResourceReader
         List<PixelImage> textures = [];
         Dictionary<int, int> palettes = [];
         List<BattleMesh> meshes = [];
+        NativeBattleStageSource nativeSource = NativeBattleStageSourceReader.Read(stageId, bytes, header);
         for (int group = 0; group < 4; group++)
         {
+            if (nativeSource.Groups[group] is not { } poseSource)
+            {
+                continue;
+            }
             reader.BaseStream.Position = sections[group];
             if (reader.ReadInt32() != 3)
             {
@@ -297,29 +308,36 @@ internal static partial class BattleResourceReader
             foreach (int position in objects)
             {
                 reader.BaseStream.Position = position;
-                uint objectHeader = reader.ReadUInt32();
-                if (objectHeader != 0x00010001)
+                int vertexGroups = Count(reader.ReadUInt16(), 1024, "stage vertex groups");
+                List<BattleVertex> vertices = [];
+                List<short> nativeBoneGroups = [];
+                List<NativeBattleRawVertexGroup> nativePackedVertexGroups = [];
+                for (int vertexGroup = 0; vertexGroup < vertexGroups; vertexGroup++)
                 {
-                    throw new NotSupportedException($"Stage {stageId} object header 0x{objectHeader:X8} is unsupported.");
+                    ushort nativeBone = reader.ReadUInt16();
+                    int verticesCount = Count(reader.ReadUInt16(), 8192, "stage vertices");
+                    if (nativeBone >= poseSource.BoneCount)
+                    {
+                        throw new InvalidDataException("Native stage vertex group references an absent skeleton bone.");
+                    }
+                    long vertexDataStart = reader.BaseStream.Position;
+                    byte[] nativePackedVertices = reader.ReadBytes(checked(verticesCount * 6 + 6));
+                    if (nativePackedVertices.Length != verticesCount * 6 + 6)
+                    {
+                        throw new InvalidDataException("Native stage vertex group requires its complete addressed payload and adjacent bytes.");
+                    }
+                    nativeBoneGroups.Add(unchecked((short)nativeBone));
+                    nativePackedVertexGroups.Add(new(nativeBone, checked((short)verticesCount), nativePackedVertices.ToImmutableArray()));
+                    reader.BaseStream.Position = vertexDataStart;
+                    for (int vertex = 0; vertex < verticesCount; vertex++)
+                    {
+                        short x = reader.ReadInt16();
+                        short y = reader.ReadInt16();
+                        short z = reader.ReadInt16();
+                        vertices.Add(new BattleVertex(new Vector3(x, y, z) / 100f, nativeBone) { NativePosition = new(x, y, z) });
+                    }
                 }
-                int verticesCount = Count(reader.ReadUInt16(), 8192, "stage vertices");
-                long vertexDataStart = reader.BaseStream.Position;
-                byte[] nativePackedVertices = reader.ReadBytes(checked(verticesCount * 6 + 6));
-                if (nativePackedVertices.Length != verticesCount * 6 + 6)
-                {
-                    throw new InvalidDataException("Native stage vertex group requires its complete addressed payload and adjacent bytes.");
-                }
-                reader.BaseStream.Position = vertexDataStart;
-                ushort nativeBone = (ushort)(objectHeader >> 16);
-                BattleVertex[] vertices = new BattleVertex[verticesCount];
-                for (int vertex = 0; vertex < verticesCount; vertex++)
-                {
-                    short x = reader.ReadInt16();
-                    short y = reader.ReadInt16();
-                    short z = reader.ReadInt16();
-                    vertices[vertex] = new BattleVertex(new Vector3(x, y, z) / 100f, (ushort)(objectHeader >> 16)) { NativePosition = new(x, y, z) };
-                }
-                reader.BaseStream.Position += reader.BaseStream.Position % 4 + 4;
+                reader.BaseStream.Position = ((reader.BaseStream.Position + 3) & ~3L) + 4;
                 int triangles = reader.ReadUInt16();
                 int quads = reader.ReadUInt16();
                 reader.ReadUInt32();
@@ -366,18 +384,20 @@ internal static partial class BattleResourceReader
                     {
                         uv[index].X += page * 128;
                     }
-                    if (indices.Any(index => index >= vertices.Length))
+                    if (indices.Any(index => index >= vertices.Count))
                     {
                         throw new InvalidDataException("Battle stage polygon references an absent vertex.");
                     }
                     faces.Add(new BattleFace(indices, uv, texture, color) { NativeMaterial = new(texturePage, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
                 }
-                meshes.Add(new BattleMesh(vertices, faces) { NativeStageGroup = group, NativeBoneGroups = [unchecked((short)nativeBone)], NativePackedVertexGroups = [new(nativeBone, checked((short)verticesCount), nativePackedVertices.ToImmutableArray())] });
+                meshes.Add(new BattleMesh(vertices, faces) { NativeStageGroup = group, NativeBoneGroups = nativeBoneGroups.ToImmutableArray(), NativePackedVertexGroups = nativePackedVertexGroups.ToImmutableArray() });
             }
         }
         return new BattleStage(stageId, meshes, textures)
         {
-            NativeSource = NativeBattleStageSourceReader.Read(stageId, bytes, header) with { Geometry = NativeBattleGeometryMetadata.FromMeshes(meshes) },
+            TextureRegions = textures.Select(_ => TextureRegion(tim)).ToArray(),
+            TextureSourceAddresses = palettes.OrderBy(pair => pair.Value).Select(pair => TextureAddress($"a0stg{stageId:000}.x", 0, pair.Key, tim)).ToArray(),
+            NativeSource = nativeSource with { Geometry = NativeBattleGeometryMetadata.FromMeshes(meshes) },
             IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header),
             NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header),
             NativeCameraControl = BattleStageCameraReader.ReadNativeControl(stageId, bytes, header)

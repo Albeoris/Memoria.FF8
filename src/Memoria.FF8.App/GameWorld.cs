@@ -377,7 +377,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             NativeBattleRetainedMemory memory = restoreDeparting && Events.Scene.NativeEyeProcess is { } dormantEyes ? dormantEyes.Memory : session.State.NativeBattleMemory ?? throw new InvalidDataException("Registered field restore lost its shared physical resource memory.");
             Events.ValidateNativeBattleFieldRegistrationMemory(memory);
-            next = assets.BindNativeRegisteredTextures(next, registration, memory.EffectMemory?.Textures ?? throw new InvalidDataException("Registered field restore lost its physical texture memory."));
+            next = assets.BindNativeRegisteredTextures(next, registration, memory.EffectMemory?.Textures ?? throw new InvalidDataException("Registered field restore lost its physical texture memory."), memory.FieldTextureAnimations);
         }
         Field = next;
         if (snapshot is null && session.State.RandomEncounters is { } encounter)

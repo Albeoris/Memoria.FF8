@@ -9,7 +9,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native52B840 must restore the same retained physical actor order.");
         }
         NativeFieldRegistrationMemory memory = new(retained.FileStaging ?? throw new InvalidDataException("Native field registration lost its shared memory."), FieldArena, 0x1DCD6E4);
-        Context context = new(memory, retained.EffectMemory ?? throw new InvalidDataException("Native field registration lost its shared VRAM."));
+        Context context = new(memory, retained.EffectMemory ?? throw new InvalidDataException("Native field registration lost its shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         for (int index = 0; index < actors.Count; index++)
         {
@@ -81,7 +81,7 @@ public static partial class NativeFieldRegistrationMachine
                 memory.Write32(0x1DC6010, uint.MaxValue);
             }
         }
-        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) }, crtRandom, random);
+        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations }, crtRandom, random);
     }
 
     private static void SelectAnimation532890(NativeFieldRegistrationMemory memory, uint instance, byte animation)

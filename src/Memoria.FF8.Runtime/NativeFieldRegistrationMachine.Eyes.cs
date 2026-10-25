@@ -11,10 +11,10 @@ public static partial class NativeFieldRegistrationMachine
             return new(retained, crtRandom, crtRandom);
         }
         NativeFieldRegistrationMemory memory = new(retained.FileStaging!, FieldArena, 0x1DCD6E4);
-        Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eyes require their current shared VRAM."));
+        Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eyes require their current shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         RestoreEyes(context, instance.Address, mode, blinkParameter, ref random);
-        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) }, crtRandom, random);
+        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations }, crtRandom, random);
     }
 
     public static NativeBattleFieldResourceReloadResult AdvanceEyes530810(NativeFieldRegistrationState state, NativeBattleRetainedMemory retained, NativeCrtRandomState? crtRandom)
@@ -25,7 +25,7 @@ public static partial class NativeFieldRegistrationMachine
             return new(retained, crtRandom, crtRandom);
         }
         NativeFieldRegistrationMemory memory = new(retained.FileStaging!, FieldArena, 0x1DCD6E4);
-        Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eye callbacks require their current shared VRAM."));
+        Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native eye callbacks require their current shared VRAM."), retained.FieldTextureAnimations);
         NativeCrtRandomState? random = crtRandom;
         foreach (NativeFieldRegisteredInstance instance in state.Instances)
         {
@@ -77,7 +77,7 @@ public static partial class NativeFieldRegistrationMachine
             }
             CopyEyeRectangle(context, eyes, checked(eyes + 8 + 4u * frame));
         }
-        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources) }, crtRandom, random);
+        return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations }, crtRandom, random);
     }
 
     private static void CopyEyeRectangle(Context context, uint eyes, uint source)
@@ -98,5 +98,6 @@ public static partial class NativeFieldRegistrationMachine
         NativeBattleEffectTextureDrain copied = (textures with { Count = 0 }).EnqueueCopy505EB0(sourceX, sourceY, width, height, destinationX, destinationY).Drain505D20();
         context.Effects = context.Effects with { Textures = textures with { VramRegions = copied.State.VramRegions }, PrimitiveProcess = process };
         context.Uploads.AddRange(copied.Uploads);
+        context.Animations = context.Animations?.Copy(sourceX, sourceY, width, height, destinationX, destinationY);
     }
 }

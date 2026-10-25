@@ -18,6 +18,14 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             return ResolveArtwork(context);
         }
+        if (context.Layout == "classic-battle")
+        {
+            return ResolveBattle(context);
+        }
+        if (context.Layout == "classic-field-model" && ResolveFieldPage(context) is { } fieldPage)
+        {
+            return fieldPage;
+        }
         string? name = NativeName(context);
         int palette = context.Layout == "classic-world-texl" ? 0 : context.Key.Palette;
         if (name is not null && context.Layout == "classic-world-section" && ReadVramPages(context, name) is { } pages)
@@ -44,6 +52,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         HashSet<string> usable = new(StringComparer.OrdinalIgnoreCase);
         List<ModDiagnostic> diagnostics = [];
         Dictionary<int, int?> nativeCounts = [];
+        Dictionary<ResourceKey, int?> battleCounts = [];
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
         {
             string extension = Path.GetExtension(file.RelativePath);
@@ -52,7 +61,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
                 continue;
             }
             string target = file.RelativePath[14..^extension.Length];
-            if (nativeSource is not null && IsAbsentNativeWorldMember(nativeSource, target, nativeCounts))
+            if (nativeSource is not null && (IsImpossibleFieldModelTarget(target) || IsAbsentNativeBattleMember(nativeSource, target, battleCounts) || IsAbsentNativeWorldMember(nativeSource, target, nativeCounts)))
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' has no corresponding member in the selected original source and remains unused.", file.PackageId, file.RelativePath));
             }
@@ -79,7 +88,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             stem = stem[4..];
         }
-        return IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
+        return IsSupportedFieldPageTarget(stem) || IsSupportedBattleTarget(stem) || IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/mc0[0-9]_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^field/model/(main|second)_chr/[a-z0-9]+-[0-9]+_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/esk/chara_one/model[0-9]+-[0-9]+_00$")
@@ -121,7 +130,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         return null;
     }
 
-    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight)
+    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth = 0, int verticalPageHeight = 0, bool normalizedMaterial = false)
     {
         string[] languageRoots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
         ModFile? file = new[] { ".dds", ".png" }.SelectMany(extension => languageRoots.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}{name}_{palette:00}{extension}"))).FirstOrDefault();
@@ -132,6 +141,24 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         }
         DecodedModImage decoded = ModImageDecoder.Decode(file);
         PixelImage sheet = decoded.Image;
+        if ((horizontalPageWidth > 0 || verticalPageHeight > 0) && canvasWidth > 0 && canvasHeight > 0 && (long)sheet.Width * canvasHeight != (long)sheet.Height * canvasWidth)
+        {
+            int paddedWidth = horizontalPageWidth > 0 ? checked((canvasWidth + horizontalPageWidth - 1) / horizontalPageWidth * horizontalPageWidth) : canvasWidth;
+            int paddedHeight = verticalPageHeight > 0 ? checked((canvasHeight + verticalPageHeight - 1) / verticalPageHeight * verticalPageHeight) : canvasHeight;
+            foreach ((int candidateWidth, int candidateHeight) in new[] { (paddedWidth, canvasHeight), (canvasWidth, paddedHeight), (paddedWidth, paddedHeight) })
+            {
+                if ((long)sheet.Width * candidateHeight == (long)sheet.Height * candidateWidth && (long)x * sheet.Width % candidateWidth == 0 && (long)y * sheet.Height % candidateHeight == 0 && (long)width * sheet.Width % candidateWidth == 0 && (long)height * sheet.Height % candidateHeight == 0)
+                {
+                    canvasWidth = candidateWidth;
+                    canvasHeight = candidateHeight;
+                    break;
+                }
+            }
+        }
+        if (normalizedMaterial && x == 0 && y == 0 && width == canvasWidth && height == canvasHeight && width > 0 && height > 0)
+        {
+            return new(sheet, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
+        }
         if (canvasWidth <= 0 || canvasHeight <= 0 || x < 0 || y < 0 || width <= 0 || height <= 0 || (long)x + width > canvasWidth || (long)y + height > canvasHeight || (long)sheet.Width * canvasHeight != (long)sheet.Height * canvasWidth || (long)x * sheet.Width % canvasWidth != 0 || (long)y * sheet.Height % canvasHeight != 0 || (long)width * sheet.Width % canvasWidth != 0 || (long)height * sheet.Height % canvasHeight != 0)
         {
             throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException($"FFNx texture dimensions do not preserve its {canvasWidth} by {canvasHeight} native canvas and crop boundaries."));

@@ -31,6 +31,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
     public System.Collections.Immutable.ImmutableArray<byte>? NativeGeometryBytes { get; init; }
     public System.Collections.Immutable.ImmutableArray<Memoria.FF8.Runtime.NativeBattleRawMesh>? NativeRenderGeometry { get; init; }
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
+    public IReadOnlyList<TextureSourceAddress> TextureSourceAddresses { get; init; } = [];
 
     public BattleSequenceSet? Sequences { get; init; }
     public Memoria.FF8.Runtime.NativeBattlePoseSource? NativePoseSource { get; init; }
@@ -119,6 +120,8 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
 public sealed record BattleStageCamera(Vector3 NativeEye, Vector3 NativeTarget, int FocalLength);
 public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures)
 {
+    public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
+    public IReadOnlyList<TextureSourceAddress> TextureSourceAddresses { get; init; } = [];
     public Memoria.FF8.Runtime.NativeBattleStageSource? NativeSource { get; init; }
     public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeCameraBank { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte> NativeCameraControl { get; init; } = [];

@@ -12,7 +12,40 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Native_hd_materials_preserve_normalized_window_UVs_and_source_checked_cache_reuse(bool windowed)
+    public void FractionalIndependentImageAxesKeepNativePageAndWindowGeometry(bool windowed)
+    {
+        const ushort page = 0x80;
+        uint window = windowed ? NativeBattleQuezacotlGeometryPackets.TextureWindowCommand(new(0, 0, 8, 8)) & 0xFFFFFF : 0;
+        const uint uv = 2 | 3 << 8;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), uv, Point(30, 10), (uint)page << 16 | uv, Point(10, 30), uv, Point(30, 30), uv], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, TexturedMode(page, window), 1)]);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        renderer.RenderNativePrimitiveFrame(frame, state);
+        System.Numerics.Vector2 originalUv = capture.Uv;
+        PixelImage image = new(7, 11, Enumerable.Repeat(new Rgba32(37, 81, 127, 127), 77).ToArray());
+        NativeBattleTextureReplacement replacement = new(page, 0, 0, 0, 8, 8, image, 4, new byte[64].ToImmutableArray(), new byte[512].ToImmutableArray());
+        renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
+        Assert.Equal(windowed ? 8 : 256, capture.Texture!.Width);
+        Assert.Equal(windowed ? 11 : 352, capture.Texture.Height);
+        Assert.Equal(image[0, 0], capture.Texture[0, 0]);
+        Assert.Equal(originalUv, capture.Uv);
+        renderer.RenderNativePrimitiveFrame(frame, state);
+        Assert.Equal(windowed ? 8 : 256, capture.Texture!.Height);
+        Assert.Equal(originalUv, capture.Uv);
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 6)]
+    public void Native_hd_materials_preserve_normalized_window_UVs_and_source_checked_cache_reuse(bool windowed, int scale)
     {
         const ushort page = 0x80;
         int origin = windowed ? 8 : 0;
@@ -25,11 +58,11 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
         renderer.RenderNativePrimitiveFrame(frame, state);
         System.Numerics.Vector2 originalUv = capture.Uv;
-        PixelImage hd = new(24, 24, Enumerable.Repeat(new Rgba32(10, 20, 30, 255), 24 * 24).ToArray());
+        PixelImage hd = new(8 * scale, 8 * scale, Enumerable.Repeat(new Rgba32(10, 20, 30, 255), 64 * scale * scale).ToArray());
         NativeBattleTextureReplacement replacement = new(page, 0, origin, 0, 8, 8, hd, 4, new byte[64].ToImmutableArray(), new byte[512].ToImmutableArray());
         renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
         PixelImage first = capture.Texture!;
-        Assert.Equal((windowed ? 8 : 256) * 3, first.Width);
+        Assert.Equal((windowed ? 8 : 256) * scale, first.Width);
         Assert.Equal(originalUv, capture.Uv);
         Assert.Equal(hd[0, 0], first[0, 0]);
         renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
@@ -41,6 +74,9 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         renderer.RenderNativePrimitiveFrame(frame, changedPalette, replacements: [replacement]);
         Assert.NotSame(first, capture.Texture);
         Assert.Equal(originalUv, capture.Uv);
+        renderer.RenderNativePrimitiveFrame(frame, state);
+        Assert.Equal(windowed ? 8 : 256, capture.Texture!.Width);
+        Assert.NotEqual(hd[0, 0], capture.Texture[0, 0]);
     }
 
     [Theory]

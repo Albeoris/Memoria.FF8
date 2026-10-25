@@ -1,9 +1,45 @@
 using Memoria.FF8.Runtime;
+using System.Text.Json;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleStageSourceTests
 {
+    [Theory]
+    [InlineData(20, 2, 1)]
+    [InlineData(26, 1, 2)]
+    [InlineData(85, 1, 4)]
+    public void InstalledStageObjectsKeepTheirOriginalMultipleVertexGroupsAndBoneSelection(int stageId, int groupCount, short firstBone)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleStage stage = assets.LoadStage(stageId);
+        NativeBattleStageSource source = stage.NativeSource!;
+        Assert.Contains(stage.Meshes, mesh => mesh.NativeBoneGroups is { } bones && bones.Length == groupCount && bones[0] == firstBone);
+        NativeBattleStagePhysicalSource physical = source.PhysicalSource!;
+        physical.Validate();
+        foreach (IGrouping<int?, BattleMesh> group in stage.Meshes.GroupBy(mesh => mesh.NativeStageGroup))
+        {
+            int index = group.Key!.Value;
+            uint address = physical.GroupGeometryAddress(index)!.Value;
+            int length = physical.GroupGeometryLength(index)!.Value;
+            byte[] bytes = physical.Prefix.AsSpan().Slice(checked((int)(address - physical.Address)), length).ToArray();
+            NativeBattleRawMesh[] nativeMeshes = NativeBattleRawGeometryReader.Read(bytes, source.Groups[index]!.BoneCount).ToArray();
+            BattleMesh[] decoded = group.ToArray();
+            Assert.Equal(nativeMeshes.Length, decoded.Length);
+            for (int mesh = 0; mesh < decoded.Length; mesh++)
+            {
+                Assert.Equal(nativeMeshes[mesh].BoneGroups!.Value.ToArray(), decoded[mesh].NativeBoneGroups!.Value.ToArray());
+                Assert.Equal(nativeMeshes[mesh].Vertices.Select(vertex => (vertex.Position, vertex.Bone)), decoded[mesh].Vertices.Select(vertex => (vertex.NativePosition!.Value, checked((ushort)vertex.Bone))));
+                Assert.Equal(nativeMeshes[mesh].Polygons.Select(polygon => Convert.ToHexString(polygon.Bytes.AsSpan())), decoded[mesh].Faces.Select(face => Convert.ToHexString(face.NativePolygon.AsSpan())));
+            }
+        }
+        NativeBattleStageState state = NativeBattleStageState.FromColdProcess().Reset506C50().Initialize500EA0(source);
+        state.Validate();
+        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(state))!;
+        NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        Assert.Equal(JsonSerializer.Serialize(state.Step500FD0(camera)), JsonSerializer.Serialize(restored.Step500FD0(camera)));
+    }
+
     [Fact]
     public void InstalledStage31RetainsItsOriginalFourSkeletonsAndAnimationSources()
     {

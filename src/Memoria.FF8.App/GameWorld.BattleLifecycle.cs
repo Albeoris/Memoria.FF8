@@ -131,7 +131,7 @@ internal sealed partial class GameWorld
             registration = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained, active.Capture().NativeCrtRandom);
             reloadedMemory = registration.Memory;
             Events.ValidateNativeBattleFieldRegistrationMemory(reloadedMemory);
-            reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."));
+            reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."), reloadedMemory.FieldTextureAnimations);
             _ = Events.RequireNativeBattleFieldReload(active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."));
         }
         if (Events.PendingMenuBattle is not null)

@@ -28,7 +28,7 @@ internal sealed partial class GameWorld
         FieldAssets source = Field ?? throw new InvalidDataException("Native eye drawing lost its original field assets.");
         if (eyeTextureState != textures || eyeTextureSource != source)
         {
-            eyeTextureModels = assets.BindNativeRegisteredTextures(source, registration, textures).Models;
+            eyeTextureModels = assets.BindNativeRegisteredTextures(source, registration, textures, process.Memory.FieldTextureAnimations).Models;
             eyeTextureState = textures;
             eyeTextureSource = source;
         }

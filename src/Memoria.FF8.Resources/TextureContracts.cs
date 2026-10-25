@@ -11,6 +11,9 @@ public sealed record TextureSourceRegion(int X = 0, int Y = 0, int BitsPerPixel 
 /// <summary>An equivalent region of another native source, before internal texture enlargement.</summary>
 public sealed record TextureSourceAddress(ResourceKey Owner, string Subresource, int Palette, int X, int Y, int Width, int Height, int CanvasWidth, int CanvasHeight);
 
+public sealed record TexturePageMember(string Kind, string Name, int Texture, int X, int Y, int WidthWords, int Height, int BitsPerPixel, int Frame);
+public sealed record TextureSourcePageAddress(int Page, int X, int Y, int Width, int Height, int PaletteX, int PaletteY, IReadOnlyList<TexturePageMember> Members);
+
 public sealed class TextureBuildContext
 {
     private readonly Lazy<PixelImage> original;
@@ -42,12 +45,16 @@ public sealed class TextureBuildContext
     public int PaletteCount { get; }
     public ResourceContent? EncodedSource { get; }
     public TextureSourceAddress? NativeAlias { get; init; }
+    public TextureSourcePageAddress? NativePage { get; init; }
 }
 
 /// <summary>Image and logical canvas are published as a single value. Pixels are already colored.</summary>
 public sealed record TextureReplacement(PixelImage Image, string Provenance, int LogicalWidth, int LogicalHeight, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null);
 
-public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null);
+public sealed record TextureValue(PixelImage Image, int LogicalWidth, int LogicalHeight, string Provenance, IReadOnlyList<PixelImage>? MipLevels = null, IReadOnlyDictionary<string, PixelImage>? Variants = null)
+{
+    public bool IsReplacement { get; init; }
+}
 
 public interface ITextureReplacementResolver
 {
