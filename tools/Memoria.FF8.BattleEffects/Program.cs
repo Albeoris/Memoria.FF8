@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -59,6 +59,34 @@ public static class Program
             if (args[0] == "discover")
             {
                 Print(ScenarioDiscovery.Generate(Get("game-dir"), Get("output"), Optional("fixture"), Optional("source-commit"), Optional("patch-hash")));
+                return 0;
+            }
+
+            if (args[0] == "slow-effects")
+            {
+                SchemaValidation.ValidateFile(Get("input"), "pilot");
+                PilotSlowEffectsReport report = PilotSlowEffects.Query(RecordJson.Read<PilotManifest>(Get("input")), Get("history"), double.Parse(Get("below-fps"), System.Globalization.CultureInfo.InvariantCulture));
+                if (Optional("output") is { } output)
+                {
+                    PrivateEvidencePath.Validate(Path.GetDirectoryName(Path.GetFullPath(output))!);
+                    OwnedChildSupervisor.PublishTransientImmutable(output, JsonSerializer.SerializeToUtf8Bytes(report, RecordJson.Options));
+                    Print(new { below_fps = report.BelowFps, effects = report.Effects.Length, cases = report.Effects.Sum(effect => effect.Cases.Length), output = Path.GetFullPath(output) });
+                }
+                else
+                {
+                    Print(report);
+                }
+                return 0;
+            }
+
+            if (args[0] == "prepare-replay")
+            {
+                PilotSlowEffectsReport query = RecordJson.Read<PilotSlowEffectsReport>(Get("input"));
+                PilotManifest replay = PilotSlowReplay.Prepare(query, Get("case"), Get("executable"), Get("output-root"));
+                string output = Path.GetFullPath(Get("output"));
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(output)!);
+                OwnedChildSupervisor.PublishTransientImmutable(output, JsonSerializer.SerializeToUtf8Bytes(replay, RecordJson.Options));
+                Print(new { manifest = output, scenario = replay.Cases[0].Id, expected_effect = replay.Cases[0].EffectId, recipe_sha256 = replay.Cases[0].RecipeSha256, build_fingerprint = replay.BuildFingerprint, output_root = replay.OutputRoot, launched = false });
                 return 0;
             }
 
