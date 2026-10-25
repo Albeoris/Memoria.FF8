@@ -51,10 +51,14 @@ internal sealed partial class RecreateGame
             {
                 driver.Fail("BATTLE_SESSION_REPLACED");
             }
-            else if (!IsActive || fieldFaulted || fieldRenderFaulted)
+            else if (!IsActive)
             {
                 diagnosticHostWasActive = false;
-                driver.Fail("GRAPHICAL_HOST_INACTIVE_OR_FAULTED");
+                driver.Fail("GRAPHICAL_HOST_INACTIVE");
+            }
+            else if (fieldFaulted || fieldRenderFaulted)
+            {
+                driver.Fail($"GRAPHICAL_HOST_FAULTED: {error ?? "No host error detail was retained."}");
             }
             else
             {
@@ -161,6 +165,7 @@ internal sealed partial class RecreateGame
                 environment = new { renderer = GraphicsDevice.Adapter.Description, width = GraphicsDevice.Viewport.Width, height = GraphicsDevice.Viewport.Height, gpu = diagnosticRenderer is not null, real_time = !options.ControlStep, active = diagnosticHostWasActive },
                 audio = new { entry_receipts = world?.Events.Scene.NativeBattleMusicEntry is null ? 0 : 1, dispatch_receipts = telemetry.Executions.Sum(execution => execution.Events.Count(entry => entry.NativeModuleSound is not null || entry.NativeMusicCommand is not null)), enabled = options.AudioEnabled, audibility_verified = false },
                 blocker = diagnosticDriver!.Blocker,
+                host_status = new { active = IsActive, update_faulted = fieldFaulted, render_faulted = fieldRenderFaulted, error },
                 coverage = telemetry.Coverage,
                 instrumentation_blind_spots = NativeBattleTelemetry.KnownBlindSpots,
                 executions = telemetry.Executions,
