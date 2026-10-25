@@ -53,11 +53,19 @@ public sealed class NoAchievementBackend(string? diagnostic = null) : IAchieveme
     public string? Diagnostic => diagnostic;
     public event Action<AchievementStoreCompletion>? StoreCompleted
     {
-        add { }
-        remove { }
+        add
+        {
+        }
+        remove
+        {
+        }
     }
-    public void Pump() { }
+    public void Pump()
+    {
+    }
     public AchievementRemoteState? Read(IReadOnlyList<AchievementBinding> bindings) => null;
     public void Submit(AchievementDeliveryBatch batch, IReadOnlyList<AchievementBinding> bindings) => throw new InvalidOperationException("No external achievement destination is active.");
-    public void Dispose() { }
+    public void Dispose()
+    {
+    }
 }

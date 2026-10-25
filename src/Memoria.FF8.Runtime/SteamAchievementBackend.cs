@@ -336,7 +336,12 @@ public sealed class SteamAchievementBackend : IAchievementBackend
     }
 }
 
-internal enum SteamAchievementCallbackKind { StatsReceived, StatsStored, AchievementProgress }
+internal enum SteamAchievementCallbackKind
+{
+    StatsReceived,
+    StatsStored,
+    AchievementProgress
+}
 internal readonly record struct SteamAchievementCallback(SteamAchievementCallbackKind Kind, ulong Product, int Result, ulong User = 0);
 internal interface ISteamAchievementApi : IDisposable
 {

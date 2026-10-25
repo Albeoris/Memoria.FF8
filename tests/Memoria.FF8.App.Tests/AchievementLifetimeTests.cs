@@ -78,7 +78,9 @@ public sealed class AchievementLifetimeTests
     {
         public AchievementProfile Load() => new();
         public void Save(AchievementProfile profile) => throw new IOException("Profile is temporarily unwritable.");
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class CountingBackend : IAchievementBackend
@@ -89,8 +91,12 @@ public sealed class AchievementLifetimeTests
         public string? Diagnostic => null;
         public event Action<AchievementStoreCompletion>? StoreCompleted
         {
-            add { }
-            remove { }
+            add
+            {
+            }
+            remove
+            {
+            }
         }
         public void Pump()
         {
@@ -98,6 +104,8 @@ public sealed class AchievementLifetimeTests
         }
         public AchievementRemoteState? Read(IReadOnlyList<AchievementBinding> bindings) => null;
         public void Submit(AchievementDeliveryBatch batch, IReadOnlyList<AchievementBinding> bindings) => throw new InvalidOperationException();
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 }

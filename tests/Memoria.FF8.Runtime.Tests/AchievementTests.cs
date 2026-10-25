@@ -619,7 +619,9 @@ public sealed class AchievementTests
             Profile = System.Text.Json.JsonSerializer.Deserialize<AchievementProfile>(System.Text.Json.JsonSerializer.Serialize(profile))!;
             SaveCount++;
         }
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class FakeBackend : IAchievementBackend
@@ -639,6 +641,8 @@ public sealed class AchievementTests
         public void Submit(AchievementDeliveryBatch batch, IReadOnlyList<AchievementBinding> bindings) => Submitted.Add(batch);
         public void Complete(long revision, bool success) => Signal(new(revision, Identity!, success));
         public void Signal(AchievementStoreCompletion completion) => StoreCompleted?.Invoke(completion);
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 }
