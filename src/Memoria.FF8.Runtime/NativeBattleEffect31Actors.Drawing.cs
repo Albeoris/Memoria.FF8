@@ -20,7 +20,7 @@ public static partial class NativeBattleEffect31Actors
         (byte[] padding, bool[] known) = point.ReadSnapshot(6, 2);
         short? w = known.All(value => value) ? BinaryPrimitives.ReadInt16LittleEndian(padding) : null;
         frame = frame with { Memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.ReadView(frame), Point(point), w, 4096, unchecked((short)task.ReadWord(0x54))) };
-        NativeBattleEffectArena temporary = ReadBytes(frame, allocation.Address, 180);
+        NativeBattleEffectArena temporary = Temporary(frame, allocation.Address, 180);
         temporary = Word(Dword(temporary, 0, task.ReadDword(0x4C)), 4, unchecked((short)task.ReadWord(0x50)));
         temporary = Word(temporary, 0x24, 0);
         frame = WriteBytes(frame, allocation.Address, temporary, 180);
@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect31Actors
         }
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(RequireStaging(frame), 88);
         frame = frame with { Staging = allocation.Staging };
-        NativeBattleEffectArena temporary = ReadBytes(frame, allocation.Address, 88);
+        NativeBattleEffectArena temporary = Temporary(frame, allocation.Address, 88);
         int geometry = SourceInt(source.Data, checked(8 + unchecked((short)node.GeometryIndex) * 4));
         uint meshAddress = checked(source.Address + (uint)geometry);
         NativeBattleStaticMeshResource mesh = resources.ReadMesh(meshAddress);
@@ -121,7 +121,7 @@ public static partial class NativeBattleEffect31Actors
         frame = Publish(frame, drawn.Registers);
         frame = frame with { Memory = frame.Memory with { PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } } };
         frame = WriteBytes(frame, allocation.Address, drawn.Context88, 88);
-        frame = inputs.Execute(frame, new NativeBattleEffect31DrawBatch(drawn.Batch, CursorGlobal, unchecked((ushort)flags)));
+        frame = inputs.Execute(frame, new NativeBattleEffect31DrawBatch(drawn.Batch, CursorGlobal));
         return frame with { Staging = NativeBattleTemporaryMemory.Release5082D0(RequireStaging(frame), 88) };
 
         (NativeBattleVector Vertex, short? W) ReadVertex(int offset)
@@ -137,6 +137,7 @@ public static partial class NativeBattleEffect31Actors
     }
 
     private static NativeBattleGeometryRegisterStep Registers(NativeBattleEffect31Frame frame) => new(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect31 requires its current geometry registers."), frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect31 requires its current arithmetic registers."));
+    private static NativeBattleEffectArena Temporary(NativeBattleEffect31Frame frame, uint address, int length) => CopyBytes(ReadBytes(frame, address, length), 0, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
     private static NativeBattleEffect31Frame Publish(NativeBattleEffect31Frame frame, NativeBattleGeometryRegisterStep registers) => frame with { Memory = frame.Memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors } };
     private static int SourceInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(SourceSlice(source, offset, 4));
     private static NativeBattleVector SourcePoint(ImmutableArray<byte> source, int offset) => new(BinaryPrimitives.ReadInt16LittleEndian(SourceSlice(source, offset, 2)), BinaryPrimitives.ReadInt16LittleEndian(SourceSlice(source, offset + 2, 2)), BinaryPrimitives.ReadInt16LittleEndian(SourceSlice(source, offset + 4, 2)));

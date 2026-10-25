@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect31Profile;
@@ -6,6 +7,54 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffect31ActorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Node_descriptor_is_exactly_88_bytes_and_retains_unwritten_far_color_knownness(bool knownFar)
+    {
+        Fixture fixture = new();
+        const uint sourceAddress = 0x5000;
+        const uint meshAddress = sourceAddress + 12;
+        byte[] mesh = new byte[52];
+        BinaryPrimitives.WriteInt32LittleEndian(mesh, 20);
+        BinaryPrimitives.WriteInt32LittleEndian(mesh.AsSpan(4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(mesh.AsSpan(8), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(mesh.AsSpan(16), 100);
+        byte[] source = new byte[12 + mesh.Length];
+        BinaryPrimitives.WriteInt32LittleEndian(source, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(8), 12);
+        mesh.CopyTo(source, 12);
+        byte[] node = new byte[44];
+        BinaryPrimitives.WriteUInt32LittleEndian(node.AsSpan(4), 0x200);
+        for (int axis = 0; axis < 3; axis++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(node.AsSpan(24 + axis * 2), 4096);
+        }
+        NativeBattleEffect31Frame frame = fixture.Frame;
+        NativeBattleFileStaging staging = frame.Staging!.Write(NativeBattleTemporaryMemory.Address + 88, [0xA5]);
+        if (knownFar)
+        {
+            staging = staging.Write(NativeBattleTemporaryMemory.Address + 8, [0x12, 0x34, 0x56, 0x78]);
+        }
+        frame = frame with { Staging = staging };
+        NativeBattleEffect31Resources resources = fixture.Resources with { Meshes = ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty.Add(meshAddress, new(0, meshAddress, mesh.ToImmutableArray())) };
+        frame = NativeBattleEffect31Actors.DrawNode(frame, new(sourceAddress, source.ToImmutableArray()), new(0, 0, node.ToImmutableArray()), fixture.Identity, resources, fixture.Inputs);
+        Assert.Empty(Assert.Single(fixture.Draws).Batch.Attempts);
+        Assert.Equal((ushort)0, Assert.Single(fixture.Draws).Flags);
+        Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
+        Assert.Equal((byte)0xA5, frame.Staging.Read(NativeBattleTemporaryMemory.Address + 88, 1)[0]);
+        Assert.Equal(Enumerable.Repeat(knownFar, 4), frame.Staging.ReadSnapshot(NativeBattleTemporaryMemory.Address + 8, 4).Known);
+        if (knownFar)
+        {
+            Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, frame.Staging.Read(NativeBattleTemporaryMemory.Address + 8, 4));
+            Assert.Equal((uint)0x120, frame.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
+        }
+        else
+        {
+            Assert.Null(frame.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
+        }
+    }
+
     [Theory]
     [InlineData(0x872920u, 16)]
     [InlineData(0x872B10u, 15)]
