@@ -17,7 +17,8 @@ public static partial class NativeBattleEffect315Controller
             }
             (frame, uint temporary) = Allocate(frame, 156);
             int factor = recipient ? age < 30 ? 4096 : 4096 + (30 - age) * 4096 / 80 : age < 70 ? age * 4096 / 70 : 4096;
-            NativeBattleEffectArena context = Context(frame, temporary, 156).Write(0x2C, BitConverter.GetBytes(factor)).Write(0x30, BitConverter.GetBytes((int)Signed(task, 0x20))).Write(0x34, BitConverter.GetBytes(recipient ? 900 : 700)).Write(0x38, BitConverter.GetBytes(recipient ? 11 : 10)).Write(0x3C, BitConverter.GetBytes((int)Signed(task, 0x22))).Write(0x74, BitConverter.GetBytes(task.ReadDword(0x10))).Write(0x78, BitConverter.GetBytes(task.ReadDword(0x14)));
+            NativeBattleEffectArena context = Context(frame, temporary, 156).Write(0x2C, BitConverter.GetBytes(factor)).Write(0x30, BitConverter.GetBytes((int)Signed(task, 0x20))).Write(0x34, BitConverter.GetBytes(recipient ? 900 : 700)).Write(0x38, BitConverter.GetBytes(recipient ? 11 : 10)).Write(0x3C, BitConverter.GetBytes((int)Signed(task, 0x22)));
+            context = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x10, 8), 0, context, 0x74, 8);
             frame = PublishContext(frame, temporary, context, 156);
             frame = inputs.Execute(frame, new NativeBattleEffect315ModelFlags(model, 0, 4));
             frame = inputs.Execute(frame, new NativeBattleEffect315DrawBody156(temporary, model));

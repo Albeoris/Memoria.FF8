@@ -129,6 +129,44 @@ public sealed class NativeBattleEffect315ControllerTests
         Assert.Equal(NativeBattleTemporaryMemory.Address, BitConverter.ToUInt32(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 
+    [Theory]
+    [InlineData(0x599CC0u, false)]
+    [InlineData(0x599CC0u, true)]
+    [InlineData(0x59A3E0u, false)]
+    [InlineData(0x59A3E0u, true)]
+    public void Body_callers_copy_anchor_bytes_and_preserve_padding_knowledge(uint callback, bool unknownPadding)
+    {
+        Harness harness = new() { Flags = 1 };
+        NativeBattleEffect315Frame frame = Task(callback, 1);
+        NativeBattleModulePoolTask task = Read(frame, ChildBank).WriteWord(0xE, 4).WriteWord(0x10, 100).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, 300).WriteWord(0x16, 0xBEEF).WriteWord(0x20, unchecked((ushort)-2000)).WriteWord(0x22, 25);
+        if (unknownPadding)
+        {
+            task = task.MarkPayloadUnknown(0x16, 2);
+        }
+        frame = Write(frame, ChildBank, task);
+
+        frame = AdvanceTask(frame, ChildBank, Resources(), harness.Inputs()).Frame;
+
+        NativeBattleEffectArena context = Assert.Single(harness.Contexts);
+        (byte[] data, bool[] known) = context.ReadSnapshot(0x74, 8);
+        Assert.Equal(new byte[] { 100, 0, 56, 255, 44, 1 }, data.Take(6));
+        Assert.Equal(new[] { true, true, true, true, true, true, !unknownPadding, !unknownPadding }, known);
+        Assert.Equal(new byte[] { 100, 0, 56, 255, 44, 1 }, context.Read(0x74, 6));
+        if (unknownPadding)
+        {
+            Assert.Throws<NotSupportedException>(() => context.Read(0x7A, 2));
+            Assert.Throws<NotSupportedException>(() => Read(frame, ChildBank).ReadWord(0x16));
+        }
+        else
+        {
+            Assert.Equal(new byte[] { 100, 0, 56, 255, 44, 1, 239, 190 }, data);
+            Assert.Equal(new byte[] { 239, 190 }, context.Read(0x7A, 2));
+            Assert.Equal((ushort)0xBEEF, Read(frame, ChildBank).ReadWord(0x16));
+        }
+        Assert.Equal((ushort)1, Read(frame, ChildBank).ReadWord(0xC));
+        Assert.Equal(unchecked((ushort)-200), Read(frame, ChildBank).ReadWord(0x12));
+    }
+
     [Fact]
     public void Common_restore_preserves_high_completion_byte_and_waits_actual_WORD_nonzero()
     {
