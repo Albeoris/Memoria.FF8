@@ -123,6 +123,7 @@ public static partial class JunctionModImporter
             }
         }
         ApplyOptionOverrides(root, options, optionOverrides);
+        metadata = metadata with { Options = new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(new Dictionary<string, int>(options, StringComparer.OrdinalIgnoreCase)) };
         metadata = ReadResourceSettings(root, options, metadata, diagnostics);
         string[] supportedLanguages = root.Elements("GameLanguage").SelectMany(element => ParseLanguages(element.Value)).ToArray();
         if (supportedLanguages.Length > 0 && !supportedLanguages.Any(language => language.Equals("EN", StringComparison.OrdinalIgnoreCase) || language.Equals("ANY", StringComparison.OrdinalIgnoreCase)))

@@ -173,6 +173,44 @@ public sealed partial class ModRuntime
                             break;
                         }
                     }
+                    if (rejected.Contains(package.Id))
+                    {
+                        continue;
+                    }
+                    foreach (JunctionSettingConstraint constraint in package.JunctionMetadata?.SettingConstraints ?? [])
+                    {
+                        if (constraint.MyId is string myId && (!package.JunctionMetadata!.Options.TryGetValue(myId, out int selected) || selected != constraint.MyValue))
+                        {
+                            continue;
+                        }
+                        if (!identities.TryGetValue(constraint.ModId, out ModPackage[]? candidates))
+                        {
+                            continue;
+                        }
+                        ModPackage[] active = candidates.Where(candidate => !rejected.Contains(candidate.Id) && candidate.RequestedEnabled && candidate.Status is ModEffectiveStatus.Active or ModEffectiveStatus.NoUsableEntries).ToArray();
+                        if (active.Length == 0)
+                        {
+                            continue;
+                        }
+                        if (active.Length > 1)
+                        {
+                            rejected.Add(package.Id);
+                            notices.Add(new("junction-setting-ambiguous", $"Junction setting target {constraint.ModId} is ambiguous.", package.Id));
+                            changed = true;
+                            break;
+                        }
+                        if (!active[0].JunctionMetadata!.Options.TryGetValue(constraint.TheirId, out int target))
+                        {
+                            continue;
+                        }
+                        if (constraint.Require is int required && target != required || constraint.Forbid.Contains(target))
+                        {
+                            rejected.Add(package.Id);
+                            notices.Add(new("junction-setting-conflict", $"Junction setting {constraint.ModId}/{constraint.TheirId}={target} conflicts with this package; select a compatible option or disable one of the packages.", package.Id));
+                            changed = true;
+                            break;
+                        }
+                    }
                 }
             }
             while (changed);

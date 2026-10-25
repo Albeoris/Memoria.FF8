@@ -4,6 +4,8 @@ using System.Xml.Linq;
 namespace Memoria.FF8.Mods;
 
 /// <summary>Declarative resource settings and package relationships selected from a Junction manifest.</summary>
+public sealed record JunctionSettingConstraint(string? MyId, int? MyValue, Guid ModId, string TheirId, int? Require, IReadOnlyList<int> Forbid);
+
 public sealed record JunctionManifestMetadata
 {
     public Guid? Id { get; init; }
@@ -12,6 +14,8 @@ public sealed record JunctionManifestMetadata
     public bool? EnableFfmpegVideos { get; init; }
     public string? VideoExtension { get; init; }
     public bool? UseExternalMusic { get; init; }
+    public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
+    public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();
     public IReadOnlyList<Guid> RequiredMods { get; init; } = Array.Empty<Guid>();
     public IReadOnlyList<Guid> Before { get; init; } = Array.Empty<Guid>();
     public IReadOnlyList<Guid> After { get; init; } = Array.Empty<Guid>();
@@ -26,6 +30,7 @@ public static partial class JunctionModImporter
         {
             id = ParseModId(identity.Value);
         }
+        List<JunctionSettingConstraint> settings = [];
         List<Guid> required = [];
         List<Guid> before = [];
         List<Guid> after = [];
@@ -34,6 +39,11 @@ public static partial class JunctionModImporter
             RequireAttributes(compatibility);
             foreach (XElement requirement in compatibility.Elements())
             {
+                if (requirement.Name == "Setting")
+                {
+                    settings.Add(ReadSettingConstraint(requirement));
+                    continue;
+                }
                 if (requirement.Name != "Require")
                 {
                     throw Unsupported(requirement);
@@ -69,10 +79,52 @@ public static partial class JunctionModImporter
             Id = id,
             ContainsMovies = ReadInformationFlag(root, "ContainsMovies"),
             ContainsMusic = ReadInformationFlag(root, "ContainsMusic"),
+            SettingConstraints = settings.AsReadOnly(),
             RequiredMods = Array.AsReadOnly(required.Distinct().ToArray()),
             Before = Array.AsReadOnly(before.Distinct().ToArray()),
             After = Array.AsReadOnly(after.Distinct().ToArray())
         };
+    }
+
+    private static JunctionSettingConstraint ReadSettingConstraint(XElement element)
+    {
+        RequireAttributes(element);
+        string[] allowed = ["MyID", "MyValue", "ModID", "TheirID", "Require", "Forbid"];
+        foreach (XElement child in element.Elements())
+        {
+            if (!allowed.Contains(child.Name.LocalName, StringComparer.Ordinal) || child.Name.Namespace != XNamespace.None)
+            {
+                throw Unsupported(child);
+            }
+            RequireAttributes(child);
+            RequireLeaf(child);
+        }
+        string? Read(string name, bool required = false)
+        {
+            XElement[] nodes = element.Elements(name).ToArray();
+            if (nodes.Length > 1 || required && nodes.Length == 0)
+            {
+                throw new InvalidDataException($"Junction setting constraint requires one {name} field.");
+            }
+            return nodes.FirstOrDefault()?.Value.Trim();
+        }
+        int Parse(string value)
+        {
+            return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) ? result : throw new InvalidDataException("Junction setting constraint values must be integers.");
+        }
+        string? myId = Read("MyID");
+        string? myValue = Read("MyValue");
+        if ((myId is null) != (myValue is null))
+        {
+            throw new InvalidDataException("Junction setting constraint MyID and MyValue must be supplied together.");
+        }
+        string theirId = Read("TheirID", true)!;
+        if (theirId.Length == 0)
+        {
+            throw new InvalidDataException("Junction setting constraint requires a target option ID.");
+        }
+        string? require = Read("Require");
+        return new(string.IsNullOrWhiteSpace(myId) ? null : myId, myValue is null ? null : Parse(myValue), ParseModId(Read("ModID", true)!), theirId, require is null ? null : Parse(require), element.Elements("Forbid").Select(child => Parse(child.Value.Trim())).ToArray());
     }
 
     private static JunctionManifestMetadata ReadResourceSettings(XElement root, IReadOnlyDictionary<string, int> options, JunctionManifestMetadata metadata, List<string> diagnostics)
