@@ -12,9 +12,21 @@ public sealed record NativeFieldTextureAnimations(string OneHash, ImmutableArray
 
     public void Validate()
     {
-        if (OneHash is not { Length: 64 } || Textures.IsDefault || Textures.Any(texture => texture is null || texture.Texture is null || texture.Frames.IsDefault || texture.CurrentFrame < -1 || texture.CurrentFrame >= texture.Frames.Length || texture.Frames.Distinct().Count() != texture.Frames.Length || (texture.Frames.Length == 0) != (texture.CurrentFrame == -1) || texture.Frames.Any(frame => frame.X < 0 || frame.Y < 0 || frame.Width <= 0 || frame.Height <= 0 || frame.X + frame.Width > 1024 || frame.Y + frame.Height > 512)))
+        if (OneHash is not { Length: 64 } || !OneHash.All(Uri.IsHexDigit) || Textures.IsDefault)
         {
-            throw new InvalidDataException("Registered field texture animation has an invalid copy history.");
+            throw new InvalidDataException("Registered field texture animation has an invalid source identity.");
+        }
+        HashSet<(short X, short Y)> coordinates = [];
+        foreach (NativeFieldTextureAnimation animation in Textures)
+        {
+            if (animation is null || animation.Texture is not { } texture || texture.Mode > 2 || texture.X < 0 || texture.Y < 0 || texture.WidthWords <= 0 || texture.Height <= 0 || texture.X + texture.WidthWords > 1024 || texture.Y + texture.Height > 512 || texture.PaletteX < 0 || texture.PaletteX >= 1024 || texture.PaletteY < 0 || texture.PaletteY >= 512 || texture.Mode < 2 && texture.PaletteX + (texture.Mode == 0 ? 16 : 256) > 1024 || !coordinates.Add((texture.X, texture.Y)))
+            {
+                throw new InvalidDataException("Registered field texture animation has an invalid or duplicate VRAM texture owner.");
+            }
+            if (animation.Frames.IsDefault || animation.CurrentFrame < -1 || animation.CurrentFrame >= animation.Frames.Length || animation.Frames.Distinct().Count() != animation.Frames.Length || (animation.Frames.Length == 0) != (animation.CurrentFrame == -1) || animation.Frames.Any(frame => frame is null || frame.X < 0 || frame.Y < 0 || frame.Width <= 0 || frame.Height <= 0 || frame.X + frame.Width > 1024 || frame.Y + frame.Height > 512))
+            {
+                throw new InvalidDataException("Registered field texture animation has an invalid copy history.");
+            }
         }
     }
 

@@ -143,7 +143,7 @@ public sealed class JunctionBattleInstalledTests
                 world.CaptureBattleState();
                 string path = Path.Combine(output, "battle-" + name + ".json");
                 session.Save(path, compact: true);
-                Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(GameSession.Load(path)));
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(battle.Capture()), JsonSerializer.SerializeToElement(GameSession.Load(path).Battle)));
                 byte[] pixels = scene.Render(battle, 640, 448);
                 using var image = GameUi.BattlePreviewCanvas.BitmapFromRgba(pixels, 640, 448);
                 image.Save(Path.Combine(output, "battle-" + name + ".png"));

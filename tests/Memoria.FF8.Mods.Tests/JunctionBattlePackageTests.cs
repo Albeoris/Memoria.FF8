@@ -5,6 +5,7 @@ using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using ImageMagick;
+using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -71,6 +72,27 @@ public sealed class JunctionBattlePackageTests
         Assert.Same(animations, observed.FieldTextureAnimations);
         GameSession session = new(new GameState { Scene = SceneKind.Field, Battle = snapshot, NativeBattleMemory = observed });
         Assert.Same(animations, session.State.NativeBattleMemory!.FieldTextureAnimations);
+    }
+
+    [Fact]
+    public void FieldCopyHistoryRejectsMalformedSourceAndVramOwners()
+    {
+        NativeFieldRegisteredTexture texture = new(1, 896, 0, 128, 128, 512, 242, 142, 15520);
+        NativeFieldTextureAnimations valid = NativeFieldTextureAnimations.Register(new string('0', 64), [texture]);
+        valid.Validate();
+        NativeFieldTextureAnimation owner = Assert.Single(valid.Textures);
+        NativeFieldTextureAnimations[] invalid =
+        [
+            valid with { OneHash = new string('g', 64) },
+            valid with { Textures = [owner, owner] },
+            valid with { Textures = [owner with { Texture = texture with { Mode = 3 } }] },
+            valid with { Textures = [owner with { Texture = texture with { X = 1024 } }] },
+            valid with { Textures = [owner with { Texture = texture with { Height = 513 } }] },
+            valid with { Textures = [owner with { Texture = texture with { PaletteX = 1020 } }] },
+            valid with { Textures = [owner with { Texture = texture with { PaletteY = 512 } }] },
+            valid with { Textures = [owner with { Frames = [new(1024, 0, 1, 1)], CurrentFrame = 0 }] }
+        ];
+        Assert.All(invalid, state => Assert.Throws<InvalidDataException>(state.Validate));
     }
 
     [Theory]
@@ -186,6 +208,188 @@ public sealed class JunctionBattlePackageTests
         Assert.True(consumed > 0);
         Console.WriteLine($"junction-battle-native-consumed={consumed} unused={unused} owners={contexts.Count} fixture={role}");
     }
+
+    [Theory]
+    [InlineData("junction-battle-characters")]
+    [InlineData("junction-battle-enemies")]
+    public void OptionalOriginalOrdinaryFieldAndWorldPayloadsResolveAgainstNativeConsumers(string role)
+    {
+        (string archive, string game) = Fixture(role);
+        Dictionary<string, JunctionReplacement> unique = new(StringComparer.OrdinalIgnoreCase);
+        foreach (Dictionary<string, int> options in Selections(archive))
+        {
+            foreach (JunctionReplacement file in JunctionModImporter.Open(archive, options).Files.Where(file => Regex.IsMatch(file.RelativePath, @"^mods/textures/(field/model/(main|second)_chr/[a-z0-9]+-[0-9]+_00|world/.*)\.(dds|png)$", RegexOptions.IgnoreCase)))
+            {
+                unique.TryAdd(file.SourcePath, file);
+            }
+        }
+        Assert.NotEmpty(unique);
+        string Target(JunctionReplacement file) => file.RelativePath[14..^Path.GetExtension(file.RelativePath).Length].ToLowerInvariant();
+        HashSet<string> wanted = unique.Values.Select(Target).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<TextureBuildContext>> contexts = new(StringComparer.OrdinalIgnoreCase);
+        using ClassicGameDataSource source = new(game);
+        ResourceService resources = new(source);
+        resources.Prepare(new OrdinaryRecorder(contexts, wanted)).Commit();
+        ModelCatalogEntry[] catalog;
+        List<(string Resource, string Content)> unreadableDirectories = [];
+        using (GameAssets assets = new(game, resources: resources))
+        {
+            catalog = assets.EnumerateModelCatalog().Where(entry => entry.Category == "Field").ToArray();
+            ModelCatalogEntry[] unavailable = catalog.Where(entry => entry.LoadError is not null).ToArray();
+            foreach (ModelCatalogEntry entry in unavailable)
+            {
+                if (source.Find(new ResourceKey(entry.ResourcePath)) is { } resource)
+                {
+                    using Stream input = resource.OpenRead();
+                    using MemoryStream content = new();
+                    input.CopyTo(content);
+                    unreadableDirectories.Add((entry.ResourcePath, Encoding.ASCII.GetString(content.ToArray())));
+                }
+            }
+            Console.WriteLine($"junction-original-field-catalog={catalog.Length} absent-one={unavailable.Length - unreadableDirectories.Count} unreadable-one={unreadableDirectories.Count} fixture={role}");
+            catalog = catalog.Where(entry => entry.LoadError is null).ToArray();
+        }
+        Dictionary<int, HashSet<string>> fields = catalog.GroupBy(entry => entry.FieldId!.Value).ToDictionary(group => group.Key, group => group.Select(entry => entry.Name[..4]).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        List<string> sourceFailures = [];
+        Dictionary<(int Field, int Model), FieldSourceObservation> observations = [];
+        while (true)
+        {
+            HashSet<string> names = wanted.Where(target => target.StartsWith("field/model/", StringComparison.Ordinal) && !contexts.ContainsKey(target)).Select(target => target.Split('/')[3].Split('-')[0]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            KeyValuePair<int, HashSet<string>> selected = fields.OrderByDescending(field => field.Value.Count(names.Contains)).FirstOrDefault();
+            if (selected.Value is null || !selected.Value.Any(names.Contains))
+            {
+                break;
+            }
+            fields.Remove(selected.Key);
+            try
+            {
+                using GameAssets assets = new(game, resources: resources);
+                FieldAssets loaded = assets.LoadField(selected.Key);
+                if (loaded.NativeRegistration is { } registration)
+                {
+                    for (int index = 0; index < registration.Directory.Length; index++)
+                    {
+                        NativeFieldOneModelEntry entry = registration.Directory[index];
+                        FieldModel model = loaded.Models[index];
+                        observations.Add((selected.Key, index), new(entry.Name[..4], entry.Flag, model.TextureResourceName, model.MainCharacterTextures ? "main" : "second", model.Textures.Count, entry.Textures.Length));
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                string failure = $"field/{selected.Key}: {exception.Message}";
+                sourceFailures.Add(failure);
+                Console.WriteLine($"junction-source-discovery-failure={failure}");
+            }
+        }
+        using (WorldAssets world = new(game, resources))
+        {
+            foreach (string target in wanted.Where(target => target.StartsWith("world/", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
+            {
+                Match model = Regex.Match(target, @"^world/esk/chara_one/model([0-9]+)-[0-9]+_00$");
+                Match section = Regex.Match(target, @"^world/dat/wmset/section([0-9]+)/texture([0-9]+)_00$");
+                if (model.Success)
+                {
+                    int shape = int.Parse(model.Groups[1].Value, CultureInfo.InvariantCulture);
+                    _ = shape switch
+                    {
+                        0 => world.GetFootModel(0),
+                        1 => world.GetRagnarokModel(),
+                        4 => world.GetFootModel(1),
+                        5 => world.GetFootModel(2),
+                        6 => world.GetFootModel(6),
+                        _ => throw new NotSupportedException($"World shape{shape} has no implemented native producer.")
+                    };
+                }
+                else if (section.Success)
+                {
+                    world.ReadNativeSectionTexture(int.Parse(section.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(section.Groups[2].Value, CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    Assert.Fail($"No actual world consumer was selected for '{target}'.");
+                }
+            }
+        }
+        List<string> failures = [];
+        int consumed = 0;
+        int unused = 0;
+        foreach (JunctionReplacement file in unique.Values)
+        {
+            string target = Target(file);
+            if (!contexts.TryGetValue(target, out List<TextureBuildContext>? native))
+            {
+                Match address = Regex.Match(target, @"^field/model/(main|second)_chr/([a-z0-9]+)-([0-9]+)_00$");
+                string name = address.Groups[2].Value;
+                int ordinal = int.Parse(address.Groups[3].Value, CultureInfo.InvariantCulture);
+                ModelCatalogEntry[] references = catalog.Where(entry => entry.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase)).ToArray();
+                FieldSourceObservation[] evidence = references.Select(entry => observations.GetValueOrDefault((entry.FieldId!.Value, entry.ModelIndex))).Where(entry => entry is not null).ToArray()!;
+                bool rawNameAbsent = unreadableDirectories.All(directory => !directory.Content.Contains(name, StringComparison.OrdinalIgnoreCase));
+                bool noProducer = references.Length == 0;
+                bool absentMember = evidence.Length == references.Length && evidence.Length > 0 && evidence.All(entry => entry.Kind == address.Groups[1].Value && entry.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && entry.Source!.Equals(name, StringComparison.OrdinalIgnoreCase) && entry.Flag >> 28 != 0xA && entry.Kind == "second" && entry.Count == entry.Pointers && ordinal >= entry.Count);
+                if (rawNameAbsent && (noProducer || absentMember))
+                {
+                    Console.WriteLine($"junction-ordinary-unused={file.SourcePath} proof={(noProducer ? "no-original-directory-producer" : "original-member-count")} references={references.Length} unreadable-name-absence={unreadableDirectories.Count}");
+                    unused++;
+                    continue;
+                }
+                failures.Add($"{file.SourcePath}: no actual native source context; original catalog candidates exhausted without absence proof; unreadable-name-hits={string.Join(',', unreadableDirectories.Where(directory => directory.Content.Contains(name, StringComparison.OrdinalIgnoreCase)).Select(directory => directory.Resource))}.");
+                continue;
+            }
+            try
+            {
+                FfnxTextureResolver resolver = new(new(1, [], [File(role, file)]));
+                Assert.All(native.DistinctBy(context => (context.LogicalWidth, context.LogicalHeight, context.Layout)), context =>
+                {
+                    TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(context));
+                    Assert.Contains(file.RelativePath, replacement.Provenance, StringComparison.OrdinalIgnoreCase);
+                });
+                consumed++;
+            }
+            catch (Exception exception)
+            {
+                failures.Add($"{file.SourcePath}: {exception.Message}");
+            }
+        }
+        foreach (string failure in failures)
+        {
+            Console.WriteLine($"junction-ordinary-failure={failure}");
+        }
+        Console.WriteLine($"junction-ordinary-native-consumed={consumed}/{unique.Count} unused={unused} contexts={contexts.Count} fixture={role}");
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures.Concat(sourceFailures)));
+    }
+
+    private sealed class OrdinaryRecorder(Dictionary<string, List<TextureBuildContext>> contexts, HashSet<string> wanted) : ITextureReplacementResolver
+    {
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            string[] parts = context.Key.Subresource.Split('/');
+            string? target = context.Layout == "classic-field-model" && parts.Length == 6 ? $"field/model/{parts[2]}_chr/{parts[3]}-{parts[5]}_00" : null;
+            if (context.Key.Owner.Path == "world/chara.one" && parts.Length is 3 or 4 && parts[0] == "model")
+            {
+                target = $"world/esk/chara_one/model{parts[1]}-{parts[^1]}_00";
+            }
+            if (context.Layout == "classic-world-section" && parts.Length == 4 && parts[0] == "section" && parts[2] == "texture")
+            {
+                target = $"world/dat/wmset/section{parts[1]}/texture{parts[3]}_00";
+            }
+            if (target is not null && wanted.Contains(target))
+            {
+                if (!contexts.TryGetValue(target, out List<TextureBuildContext>? found))
+                {
+                    found = [];
+                    contexts.Add(target, found);
+                }
+                if (!found.Any(existing => existing.LogicalWidth == context.LogicalWidth && existing.LogicalHeight == context.LogicalHeight && existing.Layout == context.Layout))
+                {
+                    found.Add(context);
+                }
+            }
+            return null;
+        }
+    }
+
+    private sealed record FieldSourceObservation(string Name, uint Flag, string? Source, string Kind, int Count, int Pointers);
 
     [Fact]
     public void OptionalOriginalFieldPagesFollowActualRegistrationAndCopyHistory()
