@@ -22,15 +22,15 @@ public sealed partial class BattleSession
         {
             return;
         }
-        long subticks = checked(graphics.PresentationSubticks + elapsed.Ticks * FramesPerSecond);
+        NativeBattleGraphicsPresentationStep step = NativeBattleGraphicsPresentationClock.Advance(graphics.PresentationSubticks, graphics.PresentationHalfSubtick, elapsed);
         nativeGraphicsPresentationDriven = true;
-        NativeGraphics = graphics with { PresentationSubticks = subticks % TimeSpan.TicksPerSecond };
+        NativeGraphics = graphics with { PresentationSubticks = step.Subticks, PresentationHalfSubtick = step.HalfSubtick };
         if (GuardianAnimationSkipPending)
         {
             AdvanceSkippedGuardianFormPresentation(idleWorkBudget ?? TimeSpan.FromMilliseconds(8));
             return;
         }
-        for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
+        for (long count = step.Callbacks; count > 0; count--)
         {
             DispatchTurnBasedFrame();
             if (GuardianAnimationSkipPending)

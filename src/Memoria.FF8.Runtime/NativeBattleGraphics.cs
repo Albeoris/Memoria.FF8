@@ -74,6 +74,8 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
     [JsonRequired]
     public long PresentationSubticks { get; init; }
 
+    public bool PresentationHalfSubtick { get; init; }
+
     public void Validate()
     {
         GuardianFormPresentation?.Validate();
