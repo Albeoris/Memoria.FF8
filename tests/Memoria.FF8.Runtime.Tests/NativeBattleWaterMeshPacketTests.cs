@@ -12,11 +12,11 @@ public sealed class NativeBattleWaterMeshPacketTests
     [InlineData(7)]
     [InlineData(9)]
     [InlineData(17)]
-    public void Retained_float_scale_applies_to_unsigned_depth_metadata_with_native_rounding(short type)
+    public void Retained_float_scale_applies_to_unsigned_depth_metadata_with_native_truncation(short type)
     {
         NativeBattleWaterMeshResult result = NativeBattleWaterMeshPackets.EmitSelected(Frame(), new(type, 1, Face(type)), Records([0, 10, 20, 30], [100, 200, 300, 400]), [0xFFFF8001, 0xABCD0002, 65535, 999], 0x5000, Resolve, depthScale: -0.5f);
         NativeBattleGeometryPrimitive primitive = Assert.Single(result.Packets.Attempts).Primitive!;
-        Assert.Equal(type == 17 ? new[] { -16384, -1, -32768, -500 } : new[] { -16384, -1, -32768, 0 }, primitive.VertexPayload4);
+        Assert.Equal(type == 17 ? new[] { -16384, -1, -32767, -499 } : new[] { -16384, -1, -32767, 0 }, primitive.VertexPayload4);
     }
 
     [Theory]

@@ -44,7 +44,7 @@ public static class NativeBattleWaterMeshPackets
                 }
                 screens[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset));
                 depthAndClip[corner] = BinaryPrimitives.ReadUInt32LittleEndian(projectedRecords.AsSpan().Slice(offset + 4));
-                rawDepth[corner] = NativePrecision53.RoundInteger(unchecked((ushort)separateDepths[offset / 8]) * (double)depthScale);
+                rawDepth[corner] = unchecked((int)(long)(unchecked((ushort)separateDepths[offset / 8]) * (double)depthScale));
                 Dword(group.Type == 9 ? sxyOffset + 12 * corner : sxyOffset + 8 * corner, screens[corner]);
             }
             uint clip = depthAndClip.Aggregate(0u, (current, value) => current | value);
