@@ -511,6 +511,10 @@ public sealed partial class BattleSession
         {
             return EnterNativeHaste125(graphics);
         }
+        if (effect.Binding.Entry == 0x68D650)
+        {
+            return EnterNativeMadRush273(graphics);
+        }
         if (effect.Binding.Entry == 0x6C9380)
         {
             return EnterNativeFloat115(graphics);

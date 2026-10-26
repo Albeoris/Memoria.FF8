@@ -101,7 +101,15 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 }
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
                 NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
-                NativeBattleLogicalCommand[] ownedCommands = currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect) ? NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value) : [];
+                NativeBattleLogicalCommand[] ownedCommands = [];
+                if (currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect))
+                {
+                    ownedCommands = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value);
+                }
+                else if (currentEffect is { ReturnedDescriptor: > 0, DrawArenaOffset: int cursor } && primitive is not null)
+                {
+                    ownedCommands = primitive.LastCommands.Select(command => command.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor).ToArray();
+                }
                 if (primitive is not null && ownedCommands.Length > 0 && (peak is null || ownedCommands.Length > renderedCommandCount))
                 {
                     renderedCommandCount = Math.Max(renderedCommandCount, ownedCommands.Length);

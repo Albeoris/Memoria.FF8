@@ -38,4 +38,30 @@ public sealed class NativeBattleModuleMeshTemporaryTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, BitConverter.GetBytes(0x1000000u)).Write(address + 28, BitConverter.GetBytes(0x2000u));
         Assert.Throws<NotSupportedException>(() => NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, 0x1000000, [], null!, null!, new(0x2000, null, null, null, null, null, 17, 2), null!));
     }
+
+    [Fact]
+    public void Retained572200PreservesItsExplicitSelectedVertexPointerAndUnwrittenColor()
+    {
+        uint address = NativeBattleTemporaryMemory.Address;
+        const uint mesh = 0x1000000;
+        const uint vertices = 0x20E09E8;
+        byte[] source = new byte[40];
+        BinaryPrimitives.WriteUInt32LittleEndian(source, 8);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, BitConverter.GetBytes(mesh)).Write(address + 4, BitConverter.GetBytes(vertices)).Write(address + 28, BitConverter.GetBytes(0x2000u));
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, mesh, source.ToImmutableArray(), identity, null!, new(0x2000, null, null, null, null, null, 17, 2), null!, [], vertices);
+        Assert.Empty(result.Batch.Attempts);
+        Assert.Equal(vertices, BitConverter.ToUInt32(result.Staging.Read(address + 4, 4)));
+        Assert.Equal(mesh + 40, BitConverter.ToUInt32(result.Staging.Read(address + 32, 4)));
+        Assert.Equal(0u, BitConverter.ToUInt32(result.Staging.Read(address + 24, 4)));
+        Assert.Throws<NotSupportedException>(() => result.Staging.Read(address + 8, 4));
+    }
+
+    [Fact]
+    public void Retained572200RejectsAnExplicitPointerThatDiffersFromThePhysicalCallFrame()
+    {
+        uint address = NativeBattleTemporaryMemory.Address;
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, BitConverter.GetBytes(0x1000000u)).Write(address + 4, BitConverter.GetBytes(0x20E09E8u)).Write(address + 28, BitConverter.GetBytes(0x2000u));
+        Assert.Throws<NotSupportedException>(() => NativeBattleModulePackets.EmitRetainedBatch572200(staging, address, 0x1000000, [], null!, null!, new(0x2000, null, null, null, null, null, 17, 2), null!, [], 0x20E09E0));
+    }
 }

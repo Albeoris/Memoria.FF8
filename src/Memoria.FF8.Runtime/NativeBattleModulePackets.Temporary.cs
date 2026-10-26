@@ -21,7 +21,7 @@ public static partial class NativeBattleModulePackets
         return new(staging, batch);
     }
 
-    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch572200(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors colors)
+    public static NativeBattleModuleMeshTemporaryResult EmitRetainedBatch572200(NativeBattleFileStaging staging, uint temporary, uint meshAddress, ImmutableArray<byte> source, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors colors, ImmutableArray<byte> selectedVertices = default, uint? selectedVertexAddress = null)
     {
         if (Read(0) != meshAddress || Read(28) != context.Flags)
         {
@@ -29,9 +29,15 @@ public static partial class NativeBattleModulePackets
         }
         if ((context.Flags & 0x2000) != 0)
         {
-            throw new NotSupportedException("Native572200 retained selected vertices require their explicit physical pointer owner.");
+            if (selectedVertices.IsDefault || selectedVertexAddress is null || Read(4) != selectedVertexAddress)
+            {
+                throw new NotSupportedException("Native572200 retained selected vertices require their explicit physical pointer owner.");
+            }
         }
-        staging = Write(4, checked(meshAddress + 8));
+        else
+        {
+            staging = Write(4, checked(meshAddress + 8));
+        }
         if ((context.Flags & 0x1000) == 0)
         {
             staging = Write(24, 0);
@@ -43,7 +49,7 @@ public static partial class NativeBattleModulePackets
             ObserveArea = area => staging = Write(36, unchecked((uint)area)),
             ObserveAverageDepth = depth => staging = Write(44, depth)
         };
-        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, default, matrix, projection, Normalize572200(context), colors, null, null, cursor => staging = Write(32, checked(meshAddress + (uint)cursor)), observations);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch(source, 0, selectedVertices, matrix, projection, Normalize572200(context), colors, null, null, cursor => staging = Write(32, checked(meshAddress + (uint)cursor)), observations);
         return new(staging, batch);
 
         uint Read(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(checked(temporary + (uint)offset), 4));

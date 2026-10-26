@@ -465,6 +465,10 @@ public sealed partial class GameAssets
             {
                 binding = binding with { Haste125Resources = ReadNativeHaste125Resources() };
             }
+            if (binding.Effect == 273)
+            {
+                binding = binding with { MadRush273Resources = ReadNativeMadRush273Resources() };
+            }
             if (binding.Effect == 115)
             {
                 binding = binding with { Float115Resources = ReadNativeFloat115Resources() };
