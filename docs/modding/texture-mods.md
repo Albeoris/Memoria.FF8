@@ -37,7 +37,8 @@ Package IDs are `Format/PackageName`, compared case-insensitively. For duplicate
 | Demaster battle models | `native-battle-model-sheet`: original character, weapon and monster DAT owners with source-published TIM row identities | Body and monster rows use 128 × 128 canvases; weapon rows use 128 × 32. Only original TIM layouts that publish this contract are eligible. |
 | Demaster field models | `native-field-model-sheet`: original ONE/MCH owners with source-published material ordinals | 128 × 128 planes, including horizontal closed-eye planes and source-selected alternate materials. |
 | Demaster provider extensions | Explicit `demaster-world-wmset`, `demaster-world-wmset0`, `demaster-direct` | Available address contracts; these names do not promise that the selected provider publishes them. |
-| Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. |
+| Junction Field backgrounds | `classic-field-tile` with a native MAP-record atlas address | Whole `field/mapdata/<field>/<field>.dds` or `.png` atlas; uniform positive integer scale over 16px native slots, with first native source identity/palette ownership. |
+| Junction menu artwork | Portrait atlases under `data/eng/menu/hires/` and split `iconfl00` through `iconfl03` pages | Portraits preserve the 256 × 256 canvas; icon pages preserve 128 × 128 and select the exact native palette. A complete `menu/icon` atlas uses 256 × 256 when no split pages match. |
 | Junction FFNx | Source-published `classic-ffnx` identities under selected `mods/textures/` resources | Card/menu atlases, native field/world model textures, terrain TEXL pages, roads, static world objects and implemented native world section consumers. |
 
 Unknown targets produce diagnostics or retain original pixels. World overlays use native consumers: map/globe geometry and markers, clouds, object shadows and supported particle producers retain their original coordinates, palette selection and blend modes. Texture files alone do not establish support for an unimplemented producer. Full UI native-page reconstruction, general palette-animation revisions and general Tonberry resize preferences remain outside the implemented contract.
@@ -50,7 +51,17 @@ Battle textures use `mods/textures/battle/<original filename>-<TIM ordinal>_<pal
 
 Battle material images can use any positive resolution, with independent horizontal and vertical pixel densities over the original logical texture rectangle. Geometry, UV coordinates, texture pages and CLUT selection stay native. As a Memoria extension beyond strict FFNx image scaling, this also supports replacement images with different aspect ratios. When an image exactly describes the original TIM canvas completed to its native VRAM allocation (64-word horizontal pages, with 256-row stage pages or 128-row actor slots), the adapter crops that padding at whole-pixel boundaries first. Artwork and world image aspect rules remain unchanged.
 
+### Junction Field background atlases
+
+The palette-free path is `mods/textures/field/mapdata/<field>/<field>.dds` or `.png`, with the existing optional English root. Original MAP record count determines atlas width: `ceil(count / 16) * 16`, with height 256. Each record occupies a 16 × 16 slot. Native source identity includes texture ID, quantized source coordinates, depth and indexed palette; duplicate identities use the earliest matching slot. Destination placement, animation and blending remain controlled by native MAP data. These addresses are separate from MIM-page aliases used by other adapters.
+
+External atlas alpha is coverage: values below 127 are transparent; values from 127 upward retain RGB and select the native primitive's blend behavior. The adapter converts this to the engine's canonical semitransparency marker. Authored opacity is not passed directly to the renderer.
+
+The current direct tile consumer requires source UV coordinates aligned to 16 pixels, supported depth and in-page source bounds. Unsupported source layouts are diagnosed during inspection and reject the selected replacement when acquired; original tiles remain active. It does not guess residual UV reconstruction or change the original MAP decoder. Incompatible dimensions reject that resource without retrying PNG or a lower package. Valid resources and sibling mod components remain available.
+
 ### Junction native artwork
+
+Inspection checks palette availability against the selected source. Extra palette filenames cannot create new original palette consumers. Existing native font/title atlases without a current renderer consumer remain unused with an owning diagnostic; no title or glyph rendering is implied by accepting those resources.
 
 Portraits use `mods/textures/data/eng/menu/hires/face_b00_00` and `face_b01_00`; guardian portraits use `gf_big00_00` and `gf_big01_00`. DDS and PNG files preserve the native canvas at an integer scale. Sprite cropping preserves that enlarged resolution.
 

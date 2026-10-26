@@ -100,7 +100,13 @@ public sealed partial class FfnxTextureResolver
         PixelImage image = new(16 * scale, 16 * scale);
         for (int row = 0; row < image.Height; row++)
         {
-            sheet.Pixels.AsSpan((atlas.Y * scale + row) * sheet.Width + atlas.X * scale, image.Width).CopyTo(image.Pixels.AsSpan(row * image.Width));
+            for (int column = 0; column < image.Width; column++)
+            {
+                Rgba32 pixel = sheet[atlas.X * scale + column, atlas.Y * scale + row];
+                // Packed external backgrounds use a coverage threshold, then the MAP primitive's blend mode.
+                // Publish the engine's canonical semitransparency marker instead of authored opacity.
+                image[column, row] = new Rgba32(pixel.R, pixel.G, pixel.B, pixel.A >= 127 ? (byte)128 : (byte)0);
+            }
         }
         return new(image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", 16, 16);
     }

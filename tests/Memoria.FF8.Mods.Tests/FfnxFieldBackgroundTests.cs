@@ -115,7 +115,7 @@ public sealed class FfnxFieldBackgroundTests
     }
 
     [Fact]
-    public void PackedAtlasCropsNativeSlotsAndKeepsTileLogicalSizeAndAlpha()
+    public void PackedAtlasCropsNativeSlotsAndKeepsTileLogicalSize()
     {
         MapTile[] tiles = Enumerable.Range(0, 17).Select(index => new MapTile { SourceX = (byte)(index % 16 * 16), SourceY = (byte)(index / 16 * 16) }).ToArray();
         IReadOnlyList<TextureSourceAddress> addresses = FieldBackgroundTileDecoder.AtlasAddresses(Owner, tiles);
@@ -128,6 +128,24 @@ public sealed class FfnxFieldBackgroundTests
         Assert.Equal(new Rgba32(16, 0, 7, 128), firstRow.Image[0, 0]);
         Assert.Equal(new Rgba32(0, 128, 7, 128), finalRow.Image[0, 0]);
         Assert.Equal(new Rgba32(15, 143, 7, 128), finalRow.Image[31, 31]);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(126, 0)]
+    [InlineData(127, 128)]
+    [InlineData(128, 128)]
+    [InlineData(251, 128)]
+    [InlineData(255, 128)]
+    public void ExternalAtlasCoverageBecomesCanonicalPrimitiveSemitransparency(byte authoredAlpha, byte expectedAlpha)
+    {
+        FfnxTextureResolver resolver = new(new(1, [], [Atlas(16, 256, 2, alpha: authoredAlpha)]));
+        TextureSourceAddress address = new(Owner, "background-atlas", 0, 0, 0, 16, 16, 16, 256);
+
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(Context(0, address)));
+
+        Assert.Equal(new Rgba32(15, 15, 7, expectedAlpha), replacement.Image[31, 31]);
+        Assert.All(replacement.Image.Pixels, pixel => Assert.Equal(expectedAlpha, pixel.A));
     }
 
     [Theory]
@@ -198,7 +216,7 @@ public sealed class FfnxFieldBackgroundTests
         }
     }
 
-    private static ModFile Atlas(int width, int height, int scale, string package = "atlas", string extension = ".png")
+    private static ModFile Atlas(int width, int height, int scale, string package = "atlas", string extension = ".png", byte alpha = 128)
     {
         byte[] pixels = new byte[width * height * scale * scale * 4];
         for (int y = 0; y < height * scale; y++)
@@ -209,7 +227,7 @@ public sealed class FfnxFieldBackgroundTests
                 pixels[position] = (byte)(x / scale);
                 pixels[position + 1] = (byte)(y / scale);
                 pixels[position + 2] = 7;
-                pixels[position + 3] = 128;
+                pixels[position + 3] = alpha;
             }
         }
         using MagickImage image = new();
