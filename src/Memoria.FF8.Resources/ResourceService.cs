@@ -117,17 +117,7 @@ public sealed class ResourceService : IResourceChangeFeed
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
         {
             value = Resolve(context, null);
-            foreach (Action<TextureKey, Exception> callback in ReplacementFailed?.GetInvocationList() ?? [])
-            {
-                try
-                {
-                    callback(context.Key, exception);
-                }
-                catch
-                {
-                    // Failure reporting cannot prevent the valid source texture from loading.
-                }
-            }
+            ReportReplacementFailure(context.Key, exception);
         }
         Publication current = published;
         ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
@@ -210,12 +200,23 @@ public sealed class ResourceService : IResourceChangeFeed
             ValidateEncodedChanges(encoded);
         }
         ImmutableDictionary<TextureKey, TextureValue>.Builder next = ImmutableDictionary.CreateBuilder<TextureKey, TextureValue>();
+        ImmutableArray<(TextureKey Key, Exception Exception)>.Builder failures = ImmutableArray.CreateBuilder<(TextureKey Key, Exception Exception)>();
         foreach ((TextureKey key, TextureBuildContext context) in contexts.ToArray())
         {
-            next.Add(key, Resolve(context, nextResolver));
+            TextureValue value;
+            try
+            {
+                value = Resolve(context, nextResolver);
+            }
+            catch (ResourceReplacementRejectedException exception)
+            {
+                value = Resolve(context, null);
+                failures.Add((key, exception));
+            }
+            next.Add(key, value);
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded);
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, failures.ToImmutable());
     }
 
     private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next)
@@ -312,6 +313,21 @@ public sealed class ResourceService : IResourceChangeFeed
         return context.RequestedVariant is { } variant && value.Variants is { } variants && variants.TryGetValue(variant, out var image) ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }
 
+    private void ReportReplacementFailure(TextureKey key, Exception exception)
+    {
+        foreach (Action<TextureKey, Exception> callback in ReplacementFailed?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                callback(key, exception);
+            }
+            catch
+            {
+                // Failure reporting cannot prevent the valid source texture from loading.
+            }
+        }
+    }
+
     private void Notify(ResourceChangeSet notification)
     {
         notifying = true;
@@ -343,10 +359,11 @@ public sealed class ResourceService : IResourceChangeFeed
         private readonly ImmutableDictionary<TextureKey, TextureValue> values;
         private readonly ImmutableDictionary<ResourceKey, StaticTextResource> texts;
         private readonly ImmutableDictionary<ResourceKey, EncodedResource> encoded;
+        private readonly ImmutableArray<(TextureKey Key, Exception Exception)> failures;
         private bool committed;
         private ResourceChangeSet? change;
 
-        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded)
+        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<(TextureKey Key, Exception Exception)> failures)
         {
             this.owner = owner;
             this.expectedVersion = expectedVersion;
@@ -354,6 +371,7 @@ public sealed class ResourceService : IResourceChangeFeed
             this.values = values;
             this.texts = texts;
             this.encoded = encoded;
+            this.failures = failures;
         }
 
         /// <summary>Publishes the prepared generation after validation and any coordinated external mutation.</summary>
@@ -399,6 +417,10 @@ public sealed class ResourceService : IResourceChangeFeed
             ResourceChangeSet notification = change;
             change = null;
             owner.Notify(notification);
+            foreach ((TextureKey key, Exception exception) in failures)
+            {
+                owner.ReportReplacementFailure(key, exception);
+            }
         }
     }
 

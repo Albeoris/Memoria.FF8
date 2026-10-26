@@ -127,22 +127,42 @@ public sealed class DemasterBattleModelSheetTests
     }
 
     [Fact]
-    public void CorruptPreferredDdsDoesNotExposePngOrPublishAnyPreparedMaterials()
+    public void CorruptPreferredDdsKeepsOriginalWithoutPngFallbackWhileValidMaterialsPublish()
     {
         TextureBuildContext context = Context("d0w000", 0, 32, 32);
         using InMemoryResourceSource source = new(Source);
         ResourceService resources = new(source);
         AssetHandle<TextureValue> texture = resources.GetTexture(context);
+        AssetHandle<TextureValue> valid = resources.GetTexture(Context("d1w000", 0, 32, 32));
         TextureValue original = texture.Value;
         ModFile broken = new("Demaster/Broken", ModFormat.Demaster, Path("d0w000", 0).Replace(".png", ".dds"), 1, () => [0]);
-        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => resources.Prepare(Resolver(broken, Image(Path("d0w000", 0), 768, 192))));
+        DemasterTextureResolver resolver = Resolver(broken, Image(Path("d0w000", 0), 768, 192), Image(Path("d1w000", 0), 768, 192));
+        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => resolver.Resolve(context));
         Assert.Equal("Demaster/Broken", failure.PackageId);
+        Assert.Equal(broken.RelativePath, failure.RelativePath);
+        List<(TextureKey Key, Exception Exception)> reports = [];
+        resources.ReplacementFailed += (key, exception) => reports.Add((key, exception));
+        ResourceService.PreparedResources prepared = resources.Prepare(resolver);
         Assert.Same(original, texture.Value);
+        Assert.Empty(reports);
+        prepared.Commit(notify: false);
+        Assert.False(texture.Value.IsReplacement);
+        Assert.Same(original.Image, texture.Value.Image);
+        Assert.True(valid.Value.IsReplacement);
+        Assert.Equal(1, resources.Generation);
+        Assert.Empty(reports);
+        prepared.Notify();
+        var report = Assert.Single(reports);
+        Assert.Equal(context.Key, report.Key);
+        ModTextureLoadException reported = Assert.IsType<ModTextureLoadException>(report.Exception);
+        Assert.Equal(failure.PackageId, reported.PackageId);
+        Assert.Equal(failure.RelativePath, reported.RelativePath);
         resources.Prepare(Resolver(Image(Path("d0w000", 0), 768, 192))).Commit();
         Assert.Equal((768, 192, 128, 32), (texture.Value.Image.Width, texture.Value.Image.Height, texture.Value.LogicalWidth, texture.Value.LogicalHeight));
         resources.Prepare(null).Commit();
         Assert.False(texture.Value.IsReplacement);
         Assert.Equal((128, 32), (texture.Value.Image.Width, texture.Value.Image.Height));
+        Assert.Single(reports);
     }
 
     [Fact]

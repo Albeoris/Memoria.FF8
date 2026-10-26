@@ -69,21 +69,39 @@ public sealed class DemasterFieldPageTests
     }
 
     [Fact]
-    public void CorruptPreferredFileReportsOwnershipAndPreservesPreparedResourceTransaction()
+    public void CorruptPreferredFileRetainsOriginalPageWhileValidPagesPublishAndReportsAfterNotification()
     {
         using InMemoryResourceSource source = new(Source);
         ResourceService resources = new(source);
         AssetHandle<TextureValue> first = resources.GetTexture(Context(tile: 0));
-        AssetHandle<TextureValue> second = resources.GetTexture(Context(tile: 1, palette: 4));
+        TextureBuildContext secondContext = Context(tile: 1, palette: 4);
+        AssetHandle<TextureValue> second = resources.GetTexture(secondContext);
         TextureValue oldFirst = first.Value;
         TextureValue oldSecond = second.Value;
         ModFile corrupt = new("Demaster/Broken", ModFormat.Demaster, Stem + "_4.dds", 1, () => [0]);
-        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => resources.Prepare(Resolver(PngFile(Stem + "_3.png"), corrupt, PngFile(Stem + "_4.png"))));
+        DemasterTextureResolver resolver = Resolver(PngFile(Stem + "_3.png"), corrupt, PngFile(Stem + "_4.png"));
+        ModTextureLoadException failure = Assert.Throws<ModTextureLoadException>(() => resolver.Resolve(secondContext));
         Assert.Equal("Demaster/Broken", failure.PackageId);
         Assert.Equal(Stem + "_4.dds", failure.RelativePath);
+        List<(TextureKey Key, Exception Exception)> reports = [];
+        resources.ReplacementFailed += (key, exception) => reports.Add((key, exception));
+        ResourceService.PreparedResources prepared = resources.Prepare(resolver);
         Assert.Same(oldFirst, first.Value);
         Assert.Same(oldSecond, second.Value);
         Assert.Equal(0, resources.Generation);
+        Assert.Empty(reports);
+        prepared.Commit(notify: false);
+        Assert.True(first.Value.IsReplacement);
+        Assert.False(second.Value.IsReplacement);
+        Assert.Same(oldSecond.Image, second.Value.Image);
+        Assert.Equal(1, resources.Generation);
+        Assert.Empty(reports);
+        prepared.Notify();
+        var report = Assert.Single(reports);
+        Assert.Equal(secondContext.Key, report.Key);
+        ModTextureLoadException reported = Assert.IsType<ModTextureLoadException>(report.Exception);
+        Assert.Equal(failure.PackageId, reported.PackageId);
+        Assert.Equal(failure.RelativePath, reported.RelativePath);
     }
 
     [Theory]

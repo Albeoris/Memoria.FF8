@@ -19,7 +19,19 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         source = GameDataSourceFactory.Open(gameDirectory);
         Resources = new ResourceService(source);
         Mods = new ModRuntime(applicationBaseDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
-        Resources.ReplacementFailed += (key, exception) => Mods.ReportFailure(new ModDiagnostic("replacement-failed", $"{key}: {exception.Message} Original pixels remain active.", (exception as ModTextureLoadException)?.PackageId, (exception as ModTextureLoadException)?.RelativePath));
+        Resources.ReplacementFailed += (key, exception) =>
+        {
+            ModTextureLoadException? rejected = exception as ModTextureLoadException;
+            ModDiagnostic diagnostic = new(exception is ResourceReplacementRejectedException ? "resource-rejected" : "replacement-failed", $"{key}: {exception.Message} Original pixels remain active.", rejected?.PackageId, rejected?.RelativePath);
+            if (exception is ResourceReplacementRejectedException)
+            {
+                Mods.ReportResourceRejection(diagnostic);
+            }
+            else
+            {
+                Mods.ReportFailure(diagnostic);
+            }
+        };
         Pump(true);
     }
 

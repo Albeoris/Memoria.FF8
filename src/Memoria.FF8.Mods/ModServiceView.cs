@@ -31,7 +31,7 @@ public sealed record ModServiceView(IReadOnlyList<ModPackageView> Packages, bool
                 current = ModUpdateOutcome.Blocked;
             }
         }
-        if (current == ModUpdateOutcome.Idle && notices.Any(diagnostic => diagnostic.Code == "subscriber-failed"))
+        if (current == ModUpdateOutcome.Idle && notices.Any(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected"))
         {
             current = ModUpdateOutcome.PublishedWithWarnings;
         }

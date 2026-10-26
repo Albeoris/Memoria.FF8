@@ -293,6 +293,21 @@ public sealed partial class ModRuntime : IModService, IDisposable
         }
     }
 
+    /// <summary>Records a rejected resource without rejecting its package or scheduling a catalog retry.</summary>
+    public void ReportResourceRejection(ModDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            if (diagnostics.Any(existing => existing.Code == diagnostic.Code && string.Equals(existing.PackageId, diagnostic.PackageId, StringComparison.OrdinalIgnoreCase) && string.Equals(existing.RelativePath, diagnostic.RelativePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+            diagnostics = Array.AsReadOnly(diagnostics.Append(diagnostic).ToArray());
+        }
+    }
+
     /// <summary>Reconciles every file revision, including unchanged timestamps, after a lost watcher event batch.</summary>
     public void NotifyWatcherOverflow()
     {
@@ -337,7 +352,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (identity == lastIdentity)
                 {
                     installedPackages = catalog.Packages;
-                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code == "subscriber-failed")).Distinct().ToArray());
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Distinct().ToArray());
                     updateOutcome = ModUpdateOutcome.Idle;
                     changedPackageIds.Clear();
                     return false;

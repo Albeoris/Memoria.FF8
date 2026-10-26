@@ -59,7 +59,7 @@ public sealed partial class MenuController
                 ModUpdateOutcome.ReviewRequired => "GF changes require review. Current resources remain in use.",
                 ModUpdateOutcome.Blocked => "Changes blocked. Current resources remain in use.",
                 ModUpdateOutcome.Failed => "Changes could not be applied. Current resources remain in use.",
-                ModUpdateOutcome.PublishedWithWarnings => "Mods applied. A follow-up action reported a problem.",
+                ModUpdateOutcome.PublishedWithWarnings => snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == "resource-rejected") ? "Mods applied. Some replacement resources were rejected." : "Mods applied. A follow-up action reported a problem.",
                 _ => snapshot.Diagnostics.Count > 0 ? "Mod diagnostics are available." : null
             };
             Button("mod-review", menus.HasModReview ? "Review changes" : "Review details", () => menus.Push(menus.HasModReview ? "gf-mod-review" : "mods-diagnostics"));

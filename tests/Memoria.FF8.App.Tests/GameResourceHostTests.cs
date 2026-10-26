@@ -93,23 +93,26 @@ public sealed class GameResourceHostTests : IDisposable
     }
 
     [Fact]
-    public void InvalidResidentImageEditRetainsCatalogAndTextureUntilAValidRefresh()
+    public void InvalidResidentImageEditPublishesNativeFallbackUntilAValidRefresh()
     {
         WriteImage("Demaster/high/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
         using GameResourceHost host = Host();
         AssetHandle<TextureValue> handle = host.Resources.GetTexture(Context(host));
         ModCatalogSnapshot originalCatalog = host.Mods.Catalog;
-        TextureValue originalValue = handle.Value;
         File.WriteAllText(Path.Combine(root, "Mods/Demaster/high/textures/world/dat/texl/texl_001_0.png"), "incomplete PNG");
         host.Mods.Refresh();
-        Assert.False(host.Pump(true));
-        Assert.Same(originalCatalog, host.Mods.Catalog);
-        Assert.Same(originalValue, handle.Value);
-        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "reload-failed" && diagnostic.PackageId == "Demaster/high" && diagnostic.RelativePath == "textures/world/dat/texl/texl_001_0.png");
+        Assert.True(host.Pump(true));
+        Assert.NotSame(originalCatalog, host.Mods.Catalog);
+        Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "resource-rejected" && diagnostic.PackageId == "Demaster/high" && diagnostic.RelativePath == "textures/world/dat/texl/texl_001_0.png");
+        Assert.Equal(ModUpdateOutcome.PublishedWithWarnings, host.Mods.View.Outcome);
+        Assert.False(host.Mods.IsReloadPending);
         WriteImage("Demaster/high/textures/world/dat/texl/texl_001_0.png", MagickColors.Blue);
         host.Mods.Refresh();
         Assert.True(host.Pump(true));
         Assert.Equal(new Rgba32(0, 0, 255), handle.Value.Image[0, 0]);
+        Assert.DoesNotContain(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "resource-rejected");
     }
 
     [Fact]
@@ -182,7 +185,7 @@ public sealed class GameResourceHostTests : IDisposable
     }
 
     [Fact]
-    public void InvalidFirstUseImageAutomaticallyRetriesAndRecoversWithUnchangedFileMetadata()
+    public void InvalidFirstUseImageWaitsForExplicitRefreshAndRecoversWithUnchangedFileMetadata()
     {
         WriteImage("Demaster/broken/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
         string path = Path.Combine(root, "Mods/Demaster/broken/textures/world/dat/texl/texl_001_0.png");
@@ -193,17 +196,17 @@ public sealed class GameResourceHostTests : IDisposable
         using GameResourceHost host = Host();
         AssetHandle<TextureValue> handle = host.Resources.GetTexture(Context(host));
         Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
-        Assert.True(host.Mods.IsReloadPending);
+        Assert.False(host.Mods.IsReloadPending);
+        Assert.Equal(ModUpdateOutcome.PublishedWithWarnings, host.Mods.View.Outcome);
         File.WriteAllBytes(path, validBytes);
         File.SetLastWriteTimeUtc(path, timestamp);
-        DateTime deadline = DateTime.UtcNow.AddSeconds(3);
-        while (handle.Value.Image[0, 0] != new Rgba32(255, 0, 0) && DateTime.UtcNow < deadline)
-        {
-            host.Pump();
-            Thread.Sleep(20);
-        }
+        Assert.False(host.Pump());
+        Assert.Equal(BaseColor, handle.Value.Image[0, 0]);
+        host.Mods.Refresh();
+        Assert.True(host.Pump(true));
         Assert.Equal(new Rgba32(255, 0, 0), handle.Value.Image[0, 0]);
         Assert.False(host.Mods.IsReloadPending);
+        Assert.DoesNotContain(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "resource-rejected");
     }
 
     public void Dispose()
