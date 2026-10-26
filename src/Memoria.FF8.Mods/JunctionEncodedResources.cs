@@ -147,7 +147,7 @@ public static partial class JunctionEncodedResources
         return IsFieldName(field) && parts[start + 2] == field[..2] && parts[start + 4] == field + ".sym";
     }
 
-    /// <summary>Optional player-save attachments are inspected or imported explicitly, not applied as runtime replacements.</summary>
+    /// <summary>Player-save and license attachments do not contribute runtime replacements.</summary>
     public static bool IsAncillaryFile(string relativePath)
     {
         string path = relativePath.Replace('\\', '/');
@@ -155,7 +155,8 @@ public static partial class JunctionEncodedResources
         {
             path = path[7..];
         }
-        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase);
+        string name = Path.GetFileName(path).ToLowerInvariant();
+        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
     }
 
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
