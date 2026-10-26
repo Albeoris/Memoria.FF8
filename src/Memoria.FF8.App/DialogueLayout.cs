@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed record DialoguePlacedRun(DialogueRun Run, float X);
 internal sealed record DialogueVisualLine(IReadOnlyList<DialoguePlacedRun> Runs, float Width, int SourceLineIndex, bool IsChoice);
-internal sealed record DialogueVisualPage(string? Speaker, IReadOnlyList<DialogueVisualLine> Lines, float Width, float Height, bool HasChoices, float SpeakerScale = 1);
+internal sealed record DialogueVisualPage(string? Speaker, IReadOnlyList<DialogueVisualLine> Lines, float Width, float Height, bool HasChoices, float SpeakerScale = 1, int SourcePageIndex = 0);
 
 /// <summary>Presentation pages never alter native line numbers, dialogue text or script completion.</summary>
 internal static class DialogueLayout
@@ -58,8 +58,9 @@ internal static class DialogueLayout
             }
             sourcePages[^1] = sourcePages[^1] with { Lines = sourcePages[^1].Lines.Concat(choices).ToArray() };
         }
-        foreach (var sourcePage in sourcePages)
+        for (int sourcePageIndex = 0; sourcePageIndex < sourcePages.Length; sourcePageIndex++)
         {
+            var sourcePage = sourcePages[sourcePageIndex];
             float naturalWidth = sourcePage.Lines.Select(line => MeasureRuns((IsChoice(line) ? line : RemoveQuoteAlignmentSpace(line)).Runs, measure, lineHeight) + (line.IsQuoteStart ? 0 : measure(line.HangingIndent))).DefaultIfEmpty(0).Max();
             float width = Math.Min(maximumWidth, Math.Max(requestedWidth, naturalWidth));
             string? speaker = sourcePage.Speaker;
@@ -91,7 +92,7 @@ internal static class DialogueLayout
                 }
                 var chunk = lines.GetRange(position, count);
                 float actualWidth = Math.Max(speakerWidth * speakerScale, chunk.Max(line => line.Width));
-                result.Add(new DialogueVisualPage(speaker, chunk, actualWidth, headingHeight + chunk.Count * lineHeight, chunk.Any(line => line.IsChoice), speakerScale));
+                result.Add(new DialogueVisualPage(speaker, chunk, actualWidth, headingHeight + chunk.Count * lineHeight, chunk.Any(line => line.IsChoice), speakerScale, sourcePageIndex));
                 position += count;
             }
         }

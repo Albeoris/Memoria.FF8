@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Ui;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -210,6 +210,7 @@ public static class MenuSettings
         new("Battle control", "Original battle control prompts.", ["On", "Off"]),
         new("Vibration", "Enable or disable controller vibration globally.", ["On", "Off"]),
         new("Music volume", "Music output volume, 0–100%. Shared across saves for this user.", ["100%", "75%", "50%", "25%", "0%"]),
+        new("Voice volume", "Dialogue voice output volume, 0–100%. Shared across saves for this user.", ["100%", "75%", "50%", "25%", "0%"]),
         new("Effect volume", "Sound effects output volume, 0–100%. Shared across saves for this user.", ["100%", "75%", "50%", "25%", "0%"]),
         new("UI presentation", "Vector or classic interface presentation. F7 switches immediately; shared by every save on this installation.", ["Vector", "Classic"]),
         new("Text scale", "Menu text scale, multiplied by the menu font size. Shared across saves for this user.", ["100%", "125%", "150%"]),

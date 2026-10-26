@@ -14,6 +14,13 @@ public sealed class EncodedResource
         ExclusiveScope = exclusiveScope;
     }
 
+    internal EncodedResource(ResourceContent content, string fingerprint, ResourceKey? exclusiveScope)
+    {
+        Content = content;
+        Fingerprint = fingerprint;
+        ExclusiveScope = exclusiveScope;
+    }
+
     public ResourceKey Key => Content.Key;
     public ResourceContent Content { get; }
     public string Fingerprint { get; }

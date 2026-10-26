@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -8,7 +8,7 @@ public sealed partial class MenuController
     internal static readonly (string Id, string Label, string Help)[] ConfigCategories =
     [
         ("graphics", "Graphics", "Rendering quality, presentation limits and frame-rate counter."),
-        ("audio", "Audio", "Music and sound effects. Shared across saves for this user."),
+        ("audio", "Audio", "Music, sound effects and dialogue voices. Shared across saves for this user."),
         ("controls", "Controls", "Player bindings and controller settings."),
         ("interface", "Interface", "Interface style, text and battle cursor memory."),
         ("gameplay", "Gameplay", "Combat, magic, exploration and saving."),
@@ -116,7 +116,7 @@ public sealed partial class MenuController
 
     private void SetConfigValue(MenuSetting setting, float value)
     {
-        if (setting.Id is "Music volume" or "Effect volume")
+        if (setting.Id is "Music volume" or "Effect volume" or "Voice volume")
         {
             Execute(new MenuAction("config", setting.Id, Value: Math.Clamp((int)MathF.Round(value), 0, 100).ToString(CultureInfo.InvariantCulture) + "%"));
             return;
@@ -168,7 +168,7 @@ public sealed partial class MenuController
                 Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id),
                 Max = numbers[^1],
                 Min = numbers[0],
-                Step = setting.Id is "Music volume" or "Effect volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
+                Step = setting.Id is "Music volume" or "Effect volume" or "Voice volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
                 Value = float.TryParse(value.TrimEnd('%'), CultureInfo.InvariantCulture, out float number) ? number : numbers[0],
                 ValueFormat = setting.Values[0].EndsWith('%') ? "0'%'" : "0",
                 ValueWidth = 66 * TextScale,

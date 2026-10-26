@@ -173,6 +173,7 @@ internal sealed partial class RecreateGame : Game
             RefreshLocalizationPresentation();
             gameMenus?.RefreshModView();
             UpdateDisplayFrame(gameTime);
+            SynchronizeFieldVoices();
         }
         catch (Exception exception) when (autoPlay?.Running == true)
         {
@@ -533,6 +534,10 @@ internal sealed partial class RecreateGame : Game
             }
             if (dialogue is { CanConfirm: true, IsNamePrompt: false })
             {
+                if (dialogue.FirstChoice is null && !input.Confirm && !input.Cancel && CanVoiceAutoAdvance(dialogue))
+                {
+                    input = input with { Confirm = true };
+                }
                 if (DialoguePresentation.ResolveInput(dialogue, input, ref selectedChoice, enteredName) is PlayerAction action && !AdvanceDialoguePages())
                 {
                     if (world.Apply(action).Accepted)

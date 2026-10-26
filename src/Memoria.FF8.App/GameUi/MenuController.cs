@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Ui;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -668,7 +668,7 @@ public sealed partial class MenuController
         if (IsConfigSettingsScreen && TryConfigNumbers(setting, out float[] numbers))
         {
             float number = float.TryParse(current?.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : numbers[0];
-            if (setting.Id is "Music volume" or "Effect volume")
+            if (setting.Id is "Music volume" or "Effect volume" or "Voice volume")
             {
                 SetConfigValue(setting, number + direction);
                 return;

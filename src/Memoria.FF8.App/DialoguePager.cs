@@ -23,6 +23,8 @@ internal sealed class DialoguePager
         reveal.Update(delta, CharacterCount(page), CharactersPerSecond(speed), instant);
     }
 
+    public bool IsPageRevealed(DialogueVisualPage page) => VisibleCharacters >= CharacterCount(page);
+
     public bool RevealCurrentPage(DialogueVisualPage page)
     {
         return reveal.RevealAll(CharacterCount(page));

@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.GameUi;
+namespace Memoria.FF8.GameUi;
 
 internal enum SettingsAudience
 {
@@ -26,7 +26,7 @@ internal static class SettingsPlacement
         ["config-frame-limits"] = new("Frame rate limits", "Presentation caps; simulation speed is unchanged. V-Sync can limit output further.",
             ["Field FPS", "World FPS", "Battle FPS", "Menu FPS"]),
         ["config-audio"] = new("Audio", "Output levels shared across saves.",
-            ["Music volume", "Effect volume"]),
+            ["Music volume", "Effect volume", "Voice volume"]),
         ["config-controls"] = new("Controls", "Player bindings and controller preferences.",
             ["config-keyboard", "config-controller", "config-controller-settings"]),
         ["config-interface"] = new("Interface", "Interface style, fonts and battle cursor memory.",
@@ -89,6 +89,7 @@ internal static class SettingsPlacement
             ["Vibration"] = "controller-vibration",
             ["Music volume"] = "music-volume",
             ["Effect volume"] = "effects-volume",
+            ["Voice volume"] = "voice-volume",
             ["UI presentation"] = "interface-style",
             ["Text scale"] = "menu-scale",
             ["UI font"] = "menu-font",
@@ -155,6 +156,7 @@ internal static class SettingsPlacement
                 "Vibration" => "ControlsProfile.Controller.VibrationEnabled",
                 "Music volume" => "UiPreferences.MusicVolume",
                 "Effect volume" => "UiPreferences.SoundVolume",
+                "Voice volume" => "UiPreferences.VoiceVolume",
                 "UI presentation" => "UiPreferences.MenuPresentation",
                 "Text scale" => "UiPreferences.TextScale",
                 "UI font" => "UiPreferences.CurrentPresentationFont",

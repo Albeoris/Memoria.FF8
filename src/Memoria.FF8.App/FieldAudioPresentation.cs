@@ -35,14 +35,20 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         return percentage == 0 ? -10000 : Math.Clamp(nativeGain + (int)Math.Round(2000 * Math.Log10(percentage / 100d)), -10000, 0);
     }
 
-    public void SetOutputPreferences(int musicVolume, int soundVolume)
+    public void SetOutputPreferences(int musicVolume, int soundVolume, int voiceVolume = 100)
     {
         OutputGain(0, musicVolume);
         OutputGain(0, soundVolume);
+        OutputGain(0, voiceVolume);
+        voicePreference = voiceVolume;
         musicPreference = musicVolume;
         soundPreference = soundVolume;
         TryOutput(() =>
         {
+            foreach (DirectSoundOutput.Buffer buffer in dialogueVoices.Values)
+            {
+                buffer.Volume(OutputGain(0, voicePreference));
+            }
             foreach (Voice voice in voices.Values)
             {
                 int gain = OutputGain(Catalog.SoundVolume(Math.Clamp((int)voice.Volume, 0, 127)), soundPreference);
@@ -627,6 +633,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     public void StopAll()
     {
         StopSounds();
+        TryOutput(StopDialogueVoices);
         TryOutput(() => StopMusicSlot(0));
         TryOutput(() => StopMusicSlot(1));
     }

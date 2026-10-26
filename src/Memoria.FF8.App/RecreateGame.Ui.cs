@@ -49,7 +49,7 @@ internal sealed partial class RecreateGame
         }
         ApplyDisplaySettings();
         text.FontFamily = uiPreferences.UiFontFamily;
-        fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
+        fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume, uiPreferences.VoiceVolume);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
         if (!File.Exists(ControlsPreferencesPath))
         {
@@ -131,6 +131,8 @@ internal sealed partial class RecreateGame
         data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
         data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
+        data.Settings["Voice volume"] = uiPreferences.VoiceVolume + "%";
+        data.SupportedActions.Add("config:Voice volume");
         data.Settings["UI presentation"] = uiPreferences.MenuPresentation.ToString();
         data.SupportedActions.Add("config:UI presentation");
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
@@ -415,7 +417,7 @@ internal sealed partial class RecreateGame
             gameMenus?.InvalidateLiveData();
             ApplyDisplaySettings();
             text.FontFamily = uiPreferences.UiFontFamily;
-            fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
+            fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume, uiPreferences.VoiceVolume);
             return;
         }
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a supported game-owned command.");
@@ -796,6 +798,7 @@ internal sealed partial class RecreateGame
     private void SynchronizeUiMoviePause()
     {
         bool pause = focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null;
+        fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();

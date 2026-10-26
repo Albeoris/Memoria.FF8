@@ -64,6 +64,37 @@ internal sealed partial class RecreateGame
                 presentation.Pager.UpdatePopup(elapsed, presentation.Pages, DialoguePager.CharactersPerSecond(uiPreferences.FieldMessageSpeed));
             }
         }
+        SynchronizeFieldVoices();
+    }
+
+    private void SynchronizeFieldVoices()
+    {
+        if (fieldAudio is null || resourceHost is null)
+        {
+            return;
+        }
+        bool active = session.State.Scene == SceneKind.Field && field is not null;
+        FieldVoiceDialogue[] voices = active ? VisibleDialogues.Select(dialogue =>
+        {
+            var presentation = GetDialoguePages(dialogue);
+            DialogueVisualPage page = presentation.Pages[presentation.Pager.PageIndex];
+            bool focused = dialogue.Channel == events?.CurrentDialogue?.Channel;
+            int? choice = page.HasChoices && focused && presentation.Pager.IsPageRevealed(page) ? selectedChoice : null;
+            return new FieldVoiceDialogue(dialogue, page.SourcePageIndex, choice);
+        }).ToArray() : [];
+        NativeScalarValue? story = active ? events?.EventMemory.Read(256, 2) : null;
+        int? gameMoment = story is { IsExact: true } ? story.RequireExact() : null;
+        fieldAudio.SynchronizeVoices(active ? field!.Name : null, active ? field : null, voices, resourceHost.Resources, resourceHost.VoiceResolver, gameMoment);
+    }
+
+    private bool CanVoiceAutoAdvance(DialogueState dialogue)
+    {
+        if (fieldAudio?.CanVoiceAutoAdvance(dialogue.Channel) != true)
+        {
+            return false;
+        }
+        var presentation = GetDialoguePages(dialogue);
+        return presentation.Pager.IsPageRevealed(presentation.Pages[presentation.Pager.PageIndex]);
     }
 
     private bool AdvanceDialoguePages()

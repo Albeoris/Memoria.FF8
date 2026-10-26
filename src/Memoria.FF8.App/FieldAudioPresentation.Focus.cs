@@ -12,6 +12,10 @@ internal sealed partial class FieldAudioPresentation
             return;
         }
         focusPaused = paused;
+        foreach (DirectSoundOutput.Buffer buffer in dialogueVoices.Values)
+        {
+            TryOutput(() => SetBufferPaused(buffer, paused || voiceUiPaused));
+        }
         TryOutput(() => PauseExternalMusic(paused || nativeMidiPaused));
         foreach (Voice voice in voices.Values)
         {

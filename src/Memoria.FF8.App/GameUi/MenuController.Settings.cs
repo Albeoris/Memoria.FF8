@@ -83,6 +83,7 @@ public sealed partial class MenuController
             "Dialogue font size" => preferences.DialogueFontSize.ToString(),
             "Music volume" => preferences.MusicVolume + "%",
             "Effect volume" => preferences.SoundVolume + "%",
+            "Voice volume" => preferences.VoiceVolume + "%",
             "Cursor" => preferences.CursorMemory ? "Memory" : "Initial",
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",

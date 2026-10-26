@@ -19,6 +19,7 @@ internal sealed record UiPreferences
     public int MenuFps { get; init; } = 60;
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
+    public int VoiceVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
     public int QuickSaveCount { get; init; } = 9;
     private static readonly IMenuPresentation ClassicFontDefaults = new ClassicMenuPresentation();
@@ -346,10 +347,11 @@ internal sealed record UiPreferences
         }
         return key switch
         {
+            "Voice volume" when number is >= 0 and <= 100 => this with { VoiceVolume = number },
             "Music volume" when number is >= 0 and <= 100 => this with { MusicVolume = number },
             "Effect volume" or "Sound volume" when number is >= 0 and <= 100 => this with { SoundVolume = number },
             "Text scale" when number is 100 or 125 or 150 => this with { TextScale = number },
-            "Music volume" or "Effect volume" or "Sound volume" or "Text scale" => throw new ArgumentException("Presentation preference is outside its supported range."),
+            "Music volume" or "Effect volume" or "Sound volume" or "Voice volume" or "Text scale" => throw new ArgumentException("Presentation preference is outside its supported range."),
             _ => throw new NotSupportedException($"The host does not implement setting '{key}'.")
         };
     }
@@ -385,7 +387,7 @@ internal sealed record UiPreferences
         {
             throw new InvalidDataException("Window dimensions must be positive.");
         }
-        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (!Enum.IsDefined(MenuPresentation) || QuickSaveCount < 1 || FieldFps is not (30 or 60) || WorldFps is not (30 or 60) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || VoiceVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(LegacyUiFontFamily) || ClassicUiFontFamily is not null && string.IsNullOrWhiteSpace(ClassicUiFontFamily) || VectorUiFontFamily is not null && string.IsNullOrWhiteSpace(VectorUiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(Difficulty) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

@@ -188,15 +188,17 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 return new ModPreparationResult(false, Diagnostics: [new("Junction.InvalidEncodedResource", exception.Message, owner.PackageId, owner.RelativePath)]);
             }
         }
-        IReadOnlyList<ModDiagnostic> fieldResourceDiagnostics = ValidateFieldReplacementResources(catalog, encodedResources);
-        if (fieldResourceDiagnostics.Any(diagnostic => diagnostic.Code == "Junction.InvalidFieldResource"))
-        {
-            return new ModPreparationResult(false, Diagnostics: encodedDiagnostics.Concat(fieldResourceDiagnostics).ToArray());
-        }
+        IReadOnlyList<ModDiagnostic> fieldResourceDiagnostics = ValidateFieldReplacementResources(catalog, encodedResources, out IReadOnlyList<EncodedResource> acceptedFieldResources);
+        encodedResources = acceptedFieldResources;
         if (!JunctionTextResources.TryPrepare(catalog, out IReadOnlyList<StaticTextResource> textResources, out IReadOnlyList<ModDiagnostic> textDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: textDiagnostics);
         }
+        if (!PrepareVoices(catalog, encodedResources, out ExternalVoiceResolver? voiceResolver, out IReadOnlyList<EncodedResource> voiceResources, out IReadOnlyList<ModDiagnostic> voiceDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(voiceDiagnostics).ToArray());
+        }
+        encodedResources = encodedResources.Concat(voiceResources).ToArray();
         IReadOnlyList<ModDiagnostic> musicDiagnostics = ExternalMusicResolver.Validate(catalog);
         if (musicDiagnostics.Count != 0)
         {
@@ -230,7 +232,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
-        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);
@@ -275,7 +277,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         catch (ResourceReloadRequiredException exception)
         {
-            return new ModPreparationResult(false, Diagnostics: [new("resource-reload-required", exception.Message)]);
+            return new ModPreparationResult(false, Diagnostics: encodedDiagnostics.Concat(fieldResourceDiagnostics).Append(new ModDiagnostic("resource-reload-required", exception.Message)).ToArray());
         }
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
@@ -290,6 +292,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             StartupPolicy = startupPolicy;
             LastLocalizationChangedKeys = localization.ChangedKeys;
             LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
+            VoiceResolver = voiceResolver;
         }, prepared.Notify);
     }
 
@@ -313,6 +316,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         Mods.Dispose();
         recognition?.Clear();
+        voiceStore.Dispose();
         source.Dispose();
         if (Directory.Exists(materializationDirectory))
         {

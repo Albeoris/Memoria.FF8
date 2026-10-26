@@ -75,6 +75,15 @@ internal sealed class DirectSoundOutput : IDisposable
             paused = false;
         }
 
+        public bool IsPlaying
+        {
+            get
+            {
+                WindowsAudioCom.Check(WindowsAudioCom.Method<GetStatus>(handle, 9)(handle, out uint status));
+                return (status & 1) != 0;
+            }
+        }
+
         public void Stop()
         {
             WindowsAudioCom.Check(WindowsAudioCom.Method<NoArguments>(handle, 18)(handle));
