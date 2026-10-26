@@ -75,10 +75,6 @@ public sealed partial class NativeWorldPathProjectionCertificate
 
     private NativeTerrainScreenBounds? ProjectFastTerrain(Range[] point)
     {
-        if (!precision53)
-        {
-            return null;
-        }
         foreach (Range value in point)
         {
             if (!value.Unique)
