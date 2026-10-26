@@ -42,7 +42,14 @@ public sealed partial record NativeBattleStageState
         return result;
     }
 
-    public uint? CurrentGroupGeometryAddress(int group, Func<uint, int, byte[]> read)
+    public uint? CurrentGroupGeometryAddress(int group, Func<uint, int, byte[]> read) => ReadCurrentGroupGeometry(group, read)?.Address;
+
+    public (uint Address, int Length)? CurrentGroupGeometryRange(int group, Func<uint, int, byte[]> read)
+    {
+        return ReadCurrentGroupGeometry(group, read) is { } geometry ? (geometry.Address, checked((int)geometry.Length)) : null;
+    }
+
+    private (uint Address, uint Length)? ReadCurrentGroupGeometry(int group, Func<uint, int, byte[]> read)
     {
         if ((uint)group >= 4)
         {
@@ -76,7 +83,7 @@ public sealed partial record NativeBattleStageState
         {
             throw new InvalidDataException("Native stage geometry leaves its current group.");
         }
-        return checked(section + geometry);
+        return (checked(section + geometry), animation - geometry);
     }
 }
 

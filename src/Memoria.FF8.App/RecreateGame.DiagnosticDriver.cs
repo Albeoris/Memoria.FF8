@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private DiagnosticBattleDriver? diagnosticDriver;
+    private Exception? diagnosticBattleFault;
     private DiagnosticBattleDriverRecipe? diagnosticDriverRecipe;
     private BattleSession? diagnosticDriverBattle;
     private DiagnosticLiveTelemetry? diagnosticTelemetry;
@@ -33,6 +34,7 @@ internal sealed partial class RecreateGame
             throw new NotSupportedException("Scored live diagnostics require captures in a separate evidence replay.");
         }
         diagnosticHostWasActive = IsActive;
+        diagnosticBattleFault = null;
         diagnosticDriverRecipe = recipe;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
@@ -72,7 +74,7 @@ internal sealed partial class RecreateGame
             }
             else if (fieldFaulted || fieldRenderFaulted)
             {
-                driver.Fail($"GRAPHICAL_HOST_FAULTED: {error ?? "No host error detail was retained."}");
+                driver.Fail($"GRAPHICAL_HOST_FAULTED: {diagnosticBattleFault?.ToString() ?? error ?? "No host error detail was retained."}");
             }
             else
             {

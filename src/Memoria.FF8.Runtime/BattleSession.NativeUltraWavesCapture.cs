@@ -23,8 +23,6 @@ public sealed partial class BattleSession
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Ultra Waves capture requires its shared model heap.");
         int scratchLength = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Ultra Waves capture requires its loaded vertex capacity.")) * 8);
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
-        NativeBattleStagePhysicalSource physical = definition.NativeStageSource?.PhysicalSource ?? throw new NotSupportedException("Ultra Waves capture requires its loaded physical stage source.");
-        physical.Validate();
         NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Ultra Waves capture requires its retained stage rows.");
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 84);
         staging = allocation.Staging;
@@ -48,10 +46,18 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            uint geometryAddress = physical.GroupGeometryAddress(index) ?? throw new NotSupportedException("Ultra Waves capture requires its selected physical stage geometry.");
-            int geometryLength = physical.GroupGeometryLength(index) ?? throw new NotSupportedException("Ultra Waves capture requires its stage geometry extent.");
+            (uint geometryAddress, int geometryLength) = stage.CurrentGroupGeometryRange(index, (address, length) => staging.Read(address, length)) ?? throw new NotSupportedException("Ultra Waves capture requires its selected current stage geometry.");
             ImmutableArray<NativeBattlePackedMatrix32> bones = group.Matrices.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix, null)).ToImmutableArray();
-            NativeBattleUltraWavesStageCapture84Step drawn = NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, group.ColorFlags, group.ColorDepth, bones, Read, geometryAddress, View(scratchAddress, scratchLength), scratchLength, captureProjection, definition.NativeGraphics!.Rules.SummonColors!, definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Ultra Waves capture requires its renderer capability."), directory[index * 2], checked((byte)directory[index * 2 + 1]));
+            NativeBattleUltraWavesStageCapture84Step drawn;
+            try
+            {
+                drawn = NativeBattleUltraWavesStageCapture84.DrawGroup(memory, temporary, group.ColorFlags, group.ColorDepth, bones, Read, geometryAddress, View(scratchAddress, scratchLength), scratchLength, captureProjection, definition.NativeGraphics!.Rules.SummonColors!, definition.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Ultra Waves capture requires its renderer capability."), directory[index * 2], checked((byte)directory[index * 2 + 1]));
+            }
+            catch (InvalidDataException exception)
+            {
+                int objectCount = BinaryPrimitives.ReadInt32LittleEndian(staging.Read(geometryAddress, 4));
+                throw new InvalidDataException($"Ultra Waves stage group {index} geometry 0x{geometryAddress:X8}, length {geometryLength}, object count {objectCount}, enemy heap cursor {cpu.EnemyCursor}: {exception.Message}", exception);
+            }
             memory = drawn.Memory;
             temporary = drawn.Temporary84;
             staging = NativeBattleTemporaryMemory.PublishView(staging, allocation.Address, temporary, 84);

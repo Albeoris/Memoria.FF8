@@ -65,6 +65,10 @@ internal sealed partial class RecreateGame
         catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or IOException or InvalidDataException or InvalidOperationException or ArgumentException)
         {
             fieldFaulted = true;
+            if (diagnosticDriver is not null)
+            {
+                diagnosticBattleFault = exception;
+            }
             error = exception.Message;
             Console.Error.WriteLine(exception);
             return true;
