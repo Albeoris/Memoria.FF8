@@ -17,6 +17,8 @@ Use [the creation and activation guide](../players/localization.md) to create a 
 
 Split layout groups payloads by **category/file**, without recreating archive nesting. A JSON or XLSX payload is produced for each logical file. All-in-one layout instead uses `Localization/localization.json` or `Localization/localization.xlsx`; an all-in-one workbook has category worksheets. Worksheet names may have explicit safe mappings in the manifest when a category is not an Excel-safe name.
 
+JSON/XLSX documents and technical sidecars have a 1.5 GiB file ceiling; individual PNG files retain a separate 128 MiB ceiling. Split layout also allows unchanged payloads to be reused during live reload.
+
 The manifest records schema/project identity, optional base-project relationship, source and Target roles, script base, references, mapping version, compatible resource variants and payload layout. Paths are relative to the package. Localization files belong under `Localization/`; they are separate from native scene patches under `fields/`.
 
 XLSX exports also contain `Localization/localization.extensions.json`. This sidecar retains structured technical context, typed metadata and missing-versus-empty states that cannot be represented by an ordinary blank cell. Keep it with the workbook. Known technical JSON such as call contexts, context bindings and place-ID arrays uses structured metadata; it is not squeezed into oversized Excel text cells.

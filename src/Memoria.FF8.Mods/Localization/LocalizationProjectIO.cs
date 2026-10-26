@@ -12,6 +12,7 @@ public static partial class LocalizationProjectIO
     public const string ManifestRelativePath = "Localization/localization.manifest.json";
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     internal const long MaximumFileBytes = 128 * 1024 * 1024;
+    internal const long MaximumDocumentBytes = 1536L * 1024 * 1024;
 
     public static LocalizationProject Read(string packageDirectory, bool allowMissingPayloads = false, LocalizationProjectReadCache? cache = null)
     {
@@ -421,6 +422,8 @@ public static partial class LocalizationProjectIO
 
     internal static byte[] Snapshot(string path)
     {
+        string extension = Path.GetExtension(path);
+        long maximumBytes = extension.Equals(".json", StringComparison.OrdinalIgnoreCase) || extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ? MaximumDocumentBytes : MaximumFileBytes;
         for (int attempt = 0; ; attempt++)
         {
             try
@@ -428,14 +431,14 @@ public static partial class LocalizationProjectIO
                 FileInfo before = new(path);
                 long length = before.Length;
                 DateTime timestamp = before.LastWriteTimeUtc;
-                if (length > MaximumFileBytes)
+                if (length > maximumBytes)
                 {
-                    throw new InvalidDataException($"Localization payload exceeds the {MaximumFileBytes} byte limit.");
+                    throw new InvalidDataException($"Localization payload exceeds the {maximumBytes} byte limit.");
                 }
                 byte[] bytes;
                 LocalizationSnapshotIdentity? identity;
                 using (FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan))
-                using (MemoryStream copy = new())
+                using (MemoryStream copy = new(checked((int)length)))
                 {
                     identity = LocalizationSnapshotIdentity.Capture(stream);
                     byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
@@ -444,9 +447,15 @@ public static partial class LocalizationProjectIO
                         int count;
                         while ((count = stream.Read(buffer)) != 0)
                         {
-                            if (copy.Length + count > MaximumFileBytes)
+                            if (count > maximumBytes - copy.Length)
                             {
-                                throw new InvalidDataException("Localization snapshot exceeds the size limit.");
+                                throw new InvalidDataException($"Localization snapshot exceeds the {maximumBytes} byte limit.");
+                            }
+                            long required = copy.Length + count;
+                            if (required > copy.Capacity)
+                            {
+                                long capacity = Math.Max(required, Math.Min(maximumBytes, Math.Max(64 * 1024L, (long)copy.Capacity * 2)));
+                                copy.Capacity = checked((int)capacity);
                             }
                             copy.Write(buffer, 0, count);
                         }
@@ -455,7 +464,7 @@ public static partial class LocalizationProjectIO
                     {
                         ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bytes = copy.ToArray();
+                    bytes = copy.Length == copy.Capacity ? copy.GetBuffer() : copy.ToArray();
                     if (identity != LocalizationSnapshotIdentity.Capture(stream))
                     {
                         throw new IOException("Localization file changed while copying its snapshot.");

@@ -114,6 +114,31 @@ public sealed class LocalizationProjectTests : IDisposable
         Assert.Equal(3, LocalizationProjectIO.Read(directory).Entries.Count);
     }
 
+    [Fact]
+    public void SingleJsonDocumentCanExceedTheArtworkByteLimitWithoutLosingRows()
+    {
+        LocalizationProject project = Project();
+        string directory = Path.Combine(_root, "large-document");
+        LocalizationProjectIO.WriteNew(project, directory, "json", "single", TestContext.Current.CancellationToken);
+        string payload = Path.Combine(directory, "Localization/localization.json");
+        byte[] whitespace = new byte[1024 * 1024];
+        Array.Fill(whitespace, (byte)' ');
+        using (FileStream stream = new(payload, FileMode.Append, FileAccess.Write, FileShare.None))
+        {
+            while (stream.Length < 129L * 1024 * 1024)
+            {
+                TestContext.Current.CancellationToken.ThrowIfCancellationRequested();
+                stream.Write(whitespace);
+            }
+        }
+        LocalizationProject actual = LocalizationProjectIO.Read(directory);
+        Assert.Equal(project.Manifest.ProjectId, actual.Manifest.ProjectId);
+        Assert.Equal(project.Entries.Count, actual.Entries.Count);
+        Assert.Equal(project.Entries.Select(row => row.Key), actual.Entries.Select(row => row.Key));
+        Assert.Equal(project.Entries.Select(row => row.Target), actual.Entries.Select(row => row.Target));
+        Assert.True(JsonElement.DeepEquals(project.Entries[0].ExtensionData["Object"], actual.Entries[0].ExtensionData["Object"]));
+    }
+
     private static LocalizationProject Project()
     {
         Dictionary<string, string> references = new() { ["Reference [en]"] = "en" };
