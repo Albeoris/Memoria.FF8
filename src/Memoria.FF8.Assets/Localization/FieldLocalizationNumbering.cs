@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Assets.Localization;
 
-public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly, IReadOnlyList<string>? EnglishKeys = null);
+public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly, IReadOnlyList<string>? EnglishKeys = null, string? InsertionGroup = null);
 
 public sealed record FieldLocalizationNumberingEntry(string OldKey, string NewKey, string Language, string Field, int SourceOrdinal, int AnchorOrdinal, int Insertion);
 
@@ -40,6 +40,10 @@ public static class FieldLocalizationNumbering
             if (input.IsLanguageOnly && input.EnglishKeys is { Count: > 0 })
             {
                 throw new ArgumentException("Language-only keys cannot have English references.", nameof(inputs));
+            }
+            if (input.InsertionGroup is not null && (string.IsNullOrWhiteSpace(input.InsertionGroup) || !input.IsLanguageOnly))
+            {
+                throw new ArgumentException("Insertion groups must be nonempty and may only classify language-only keys.", nameof(inputs));
             }
             languages[index] = language;
             if (language == "en")
@@ -98,6 +102,29 @@ public static class FieldLocalizationNumbering
                     preceding = index;
                 }
             }
+        }
+
+        Dictionary<string, List<int>> insertionGroups = new(StringComparer.Ordinal);
+        for (int index = 0; index < inputs.Count; index++)
+        {
+            if (inputs[index].InsertionGroup is not string identity)
+            {
+                continue;
+            }
+            if (!insertionGroups.TryGetValue(identity, out List<int>? members))
+            {
+                members = [];
+                insertionGroups.Add(identity, members);
+            }
+            if (members.Count > 0 && (inputs[members[0]].Field != inputs[index].Field || components.Find(members[0]) != components.Find(index)))
+            {
+                throw new ArgumentException("Insertion group members must share a field and preceding common component.", nameof(inputs));
+            }
+            if (members.Any(member => languages[member] == languages[index]))
+            {
+                throw new ArgumentException("Insertion groups may contain at most one key per canonical language.", nameof(inputs));
+            }
+            members.Add(index);
         }
 
         Dictionary<int, int> virtualOrdinals = [];
@@ -169,9 +196,25 @@ public static class FieldLocalizationNumbering
                 }
             }
             int nextInsertion = Math.Max(1, english.Length);
+            HashSet<string> assignedGroups = new(StringComparer.Ordinal);
             foreach (int index in extras.OrderBy(index => inputs[index].Ordinal).ThenBy(index => LanguageOrder(languages[index])).ThenBy(index => inputs[index].Key, StringComparer.Ordinal))
             {
-                Assign(index, nextInsertion++);
+                if (inputs[index].InsertionGroup is string identity)
+                {
+                    if (!assignedGroups.Add(identity))
+                    {
+                        continue;
+                    }
+                    foreach (int member in insertionGroups[identity])
+                    {
+                        Assign(member, nextInsertion);
+                    }
+                }
+                else
+                {
+                    Assign(index, nextInsertion);
+                }
+                nextInsertion++;
             }
         }
         return entries;

@@ -57,6 +57,104 @@ public sealed class FieldLocalizationNumberingTests
     }
 
     [Fact]
+    public void ExplicitInsertionIdentitySharesOneSlotAcrossFiveLanguages()
+    {
+        string[] languages = ["fr", "de", "es", "it", "ja"];
+        List<FieldLocalizationNumberingInput> inputs = [Input(6)];
+        inputs.AddRange(languages.Select(language => Input(6, language: language, englishOrdinals: [6])));
+        inputs.AddRange(languages.Select((language, index) => Input(7 + index, true, language) with { InsertionGroup = "shared-resource" }));
+        inputs.Add(Input(12, true, "fr"));
+
+        IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate(inputs);
+
+        Assert.All(entries.Skip(6).Take(5), entry =>
+        {
+            Assert.Equal(6, entry.AnchorOrdinal);
+            Assert.Equal(1, entry.Insertion);
+        });
+        Assert.Equal(["$fr_room_000601", "$de_room_000601", "$es_room_000601", "$it_room_000601", "$jp_room_000601"], entries.Skip(6).Take(5).Select(entry => entry.NewKey));
+        Assert.Equal(Enumerable.Range(7, 5), entries.Skip(6).Take(5).Select(entry => entry.SourceOrdinal));
+        Assert.Equal(2, entries[^1].Insertion);
+        Assert.Equal(entries.Count, entries.Select(entry => entry.NewKey).Distinct().Count());
+    }
+
+    [Fact]
+    public void DistinctGroupsAndUngroupedExtrasHaveDeterministicSeparateSlots()
+    {
+        FieldLocalizationNumberingInput[] inputs = [
+            Input(6),
+            Input(6, language: "fr", englishOrdinals: [6]),
+            Input(6, language: "de", englishOrdinals: [6]),
+            Input(8, true, "fr") with { InsertionGroup = "first" },
+            Input(7, true, "de") with { InsertionGroup = "first" },
+            Input(7, true, "fr") with { InsertionGroup = "second" },
+            Input(9, true, "de") with { InsertionGroup = "second" },
+            Input(10, true, "fr"),
+            Input(10, true, "de")
+        ];
+
+        IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate(inputs);
+        IReadOnlyList<FieldLocalizationNumberingEntry> reversed = FieldLocalizationNumbering.Allocate(inputs.Reverse().ToArray());
+
+        Assert.Equal([0, 0, 0, 2, 2, 1, 1, 3, 4], entries.Select(entry => entry.Insertion));
+        Assert.Equal(entries.OrderBy(entry => entry.OldKey), reversed.OrderBy(entry => entry.OldKey));
+    }
+
+    [Fact]
+    public void InsertionGroupsRespectMergedCommonComponents()
+    {
+        IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate([
+            Input(6),
+            Input(8),
+            Input(6, language: "fr", englishOrdinals: [6, 8]),
+            Input(8, language: "de", englishOrdinals: [8]),
+            Input(7, true, "fr") with { InsertionGroup = "shared-resource" },
+            Input(9, true, "de") with { InsertionGroup = "shared-resource" }
+        ]);
+
+        Assert.All(entries, entry => Assert.Equal(6, entry.AnchorOrdinal));
+        Assert.Equal([0, 1, 0, 1, 2, 2], entries.Select(entry => entry.Insertion));
+    }
+
+    [Fact]
+    public void InsertionGroupsCannotJoinDifferentAnchorsOrFields()
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6),
+            Input(8),
+            Input(6, language: "fr", englishOrdinals: [6]),
+            Input(8, language: "de", englishOrdinals: [8]),
+            Input(7, true, "fr") with { InsertionGroup = "shared-resource" },
+            Input(9, true, "de") with { InsertionGroup = "shared-resource" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(0, true, "fr") with { InsertionGroup = "shared-resource" },
+            Input(0, true, "de", "other") with { InsertionGroup = "shared-resource" }
+        ]));
+    }
+
+    [Fact]
+    public void InsertionGroupsRejectDuplicateCanonicalLanguagesAndOrdinaryKeys()
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(0, true, "ja") with { InsertionGroup = "shared-resource" },
+            Input(1, true, "jp") with { InsertionGroup = "shared-resource" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(0),
+            Input(0, language: "fr", englishOrdinals: [0]) with { InsertionGroup = "shared-resource" }
+        ]));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void EmptyInsertionGroupNamesAreRejected(string identity)
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([Input(0, true, "fr") with { InsertionGroup = identity }]));
+    }
+
+    [Fact]
     public void DifferentLocalizedWordingCannotSplitAnEstablishedCallsite()
     {
         IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate([
