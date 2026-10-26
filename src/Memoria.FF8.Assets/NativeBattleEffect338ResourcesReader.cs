@@ -27,7 +27,7 @@ public static class NativeBattleEffect338ResourcesReader
         ImmutableDictionary<uint, NativeBattleGfAnimationSource> programmes = new[] { (0x1372E60u, 5036), (0x137420Cu, 5036), (0x13755B8u, 4252) }.Select(row => new NativeBattleGfAnimationSource(row.Item1, Bytes(row.Item1, row.Item2))).ToImmutableDictionary(source => source.Address);
         ImmutableDictionary<uint, NativeBattleStaticMeshResource> meshes = new uint[] { 0x1371640, 0x1372CE8 }.Select(address => NativeBattleEffectStaticResourcesReader.ReadMesh(memory, address)).ToImmutableDictionary(mesh => mesh.Address);
         ImmutableDictionary<uint, NativeBattleModuleResource> sprites = new uint[] { 0x137130C, 0x1371464, 0x13711FC }.Select(address => new NativeBattleModuleResource(0, address, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, address))).ToImmutableDictionary(sprite => sprite.Address);
-        NativeBattleEffect338Resources result = new(model, textures, new("effect338-camera", Bytes(0x1370900, 604)), bank, BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13710C8, 4)), programmes, meshes, sprites, Bytes(0x1376658, 64), completionFile);
+        NativeBattleEffect338Resources result = new(model, textures, new("effect338-camera", Bytes(0x1370900, 1172)), bank, BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0x13710C8, 4)), programmes, meshes, sprites, Bytes(0x1376658, 64), completionFile);
         result.Validate();
         return result;
 

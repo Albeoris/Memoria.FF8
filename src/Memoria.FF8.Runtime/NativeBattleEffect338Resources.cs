@@ -7,7 +7,7 @@ public sealed record NativeBattleEffect338Resources(NativeBattleEffectOwnedModel
     public void Validate()
     {
         NativeBattleEffect338Skeleton.RequireResource(Model);
-        if (Textures.IsDefault || Textures.Length != 3 || Textures.Select(texture => texture.Data.Length).Where((length, index) => length != new[] { 16928, 135200, 16928 }[index]).Any() || Camera.Data.IsDefault || Camera.Data.Length != 604 || Points.IsDefault || Points.Length != 64 || Programmes.Count != 3 || Meshes.Count != 2 || Sprites.Count != 3 || CompletionFile.FileId != 362 || CompletionFile.Data.IsDefaultOrEmpty)
+        if (Textures.IsDefault || Textures.Length != 3 || Textures.Select(texture => texture.Data.Length).Where((length, index) => length != new[] { 16928, 135200, 16928 }[index]).Any() || Camera.Data.IsDefault || Camera.Data.Length != 1172 || Points.IsDefault || Points.Length != 64 || Programmes.Count != 3 || Meshes.Count != 2 || Sprites.Count != 3 || CompletionFile.FileId != 362 || CompletionFile.Data.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Effect338 requires its selected original embedded resource families and completion file.");
         }

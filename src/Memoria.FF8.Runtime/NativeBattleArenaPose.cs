@@ -50,6 +50,25 @@ public static class NativeBattleArenaPose
         for (int index = 0; index < matrices.Length; index++)
         {
             WriteMatrix(writer, skeleton + 32 + index * 48, matrices[index], bones[index].Parent >= 0 || pose.HasScale);
+            int paddingOffset = skeleton + 50 + index * 48;
+            if (pose.HasScale)
+            {
+                //508C30 copies nine rotation WORDs; scaled508C90 never writes the physical padding lane.
+                (byte[] data, bool[] known) = arena.ReadSnapshot(paddingOffset, 2);
+                writer.Write(paddingOffset, data);
+                for (int lane = 0; lane < 2; lane++)
+                {
+                    if (!known[lane])
+                    {
+                        writer.MarkUnknown(paddingOffset + lane, 1);
+                    }
+                }
+            }
+            else
+            {
+                short padding = bones[index].Parent < 0 ? NativeBattleBoneMatrixPadding.Euler56CE30(pose.Bones[index].Rotation) : NativeBattleBoneMatrixPadding.UnscaledChild508C90(pose.Bones[index].Rotation);
+                writer.Write(paddingOffset, BitConverter.GetBytes(padding));
+            }
         }
         return writer.Freeze();
     }

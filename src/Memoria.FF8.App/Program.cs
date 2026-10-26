@@ -65,7 +65,7 @@ internal static class Program
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine(exception);
+            DiagnosticHostFailure.Write(exception, Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY"), Console.Error);
             return 1;
         }
     }

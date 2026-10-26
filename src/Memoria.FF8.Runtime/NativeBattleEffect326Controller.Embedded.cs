@@ -96,7 +96,8 @@ public static partial class NativeBattleEffect326Controller
         {
             frame = FadeOwnedColor326(frame, inputs, model + 0x28, 4096 - NativeBattleCameraMath.Sine((age - 19) * 1024 / 8), 0x00808080);
         }
-        frame = DrawOwnedModel62C820(frame, resources, inputs, model, ReadPacked(frame, NativeBattleEffect326Profile.ViewMatrix).ReadMatrix());
+        int? drawingStack = task.Callback == 0x62CC00 ? NativeBattleEffect326Stack.ResolveLateModelDrawEntryModulo8(frame.Memory.ExecutionStack, inputs.EntryLifecycle) : null;
+        frame = DrawOwnedModel62C820(frame, resources, inputs, model, ReadPacked(frame, NativeBattleEffect326Profile.ViewMatrix).ReadMatrix(), drawingStack);
         return IncrementMeshClock(frame, address, inputs, 27);
     }
 

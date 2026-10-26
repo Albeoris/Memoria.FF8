@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect326Controller
 {
-    public static NativeBattleEffect326Frame DrawOwnedModel62C820(NativeBattleEffect326Frame frame, NativeBattleEffect326Resources resources, NativeBattleEffect326Inputs inputs, uint modelAddress, NativeBattleActionMatrix parent)
+    public static NativeBattleEffect326Frame DrawOwnedModel62C820(NativeBattleEffect326Frame frame, NativeBattleEffect326Resources resources, NativeBattleEffect326Inputs inputs, uint modelAddress, NativeBattleActionMatrix parent, int? drawingEntryModulo8 = null)
     {
         NativeBattleCactuarRawModelState model = RequireModel(frame, modelAddress);
         NativeBattleDecodedPose pose = model.DecodedPose ?? throw new NotSupportedException("Effect326 model drawing requires its current decoded pose.");
@@ -20,9 +20,12 @@ public static partial class NativeBattleEffect326Controller
         NativeBattleEffectArena context = Context(frame, temporary, 76);
         context = CopyBytes(PackedArena(NativeBattlePackedMatrix32.FromMatrix(modelView, null)), 0, context, 0, 32);
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeCurrentPose(resource.PoseSource, pose, modelView);
+        ImmutableArray<NativeBattleActionMatrix> localBones = NativeBattlePoseMatrices.StageBoneMatrices(resource.PoseSource, pose);
+        ImmutableArray<short?> padding = NativeBattleBoneMatrixPadding.Compose5095B0After62C83D(local, modelView, localBones, drawingEntryModulo8);
         for (int bone = 0; bone < bones.Length; bone++)
         {
-            frame = WriteBytes(frame, checked(skeleton + 32u + (uint)(bone * 48)), PackedArena(NativeBattlePackedMatrix32.FromMatrix(bones[bone], null)), 32);
+            ushort? paddingWord = padding[bone] is short known ? unchecked((ushort)known) : null;
+            frame = WriteBytes(frame, checked(skeleton + 32u + (uint)(bone * 48)), PackedArena(NativeBattlePackedMatrix32.FromMatrix(bones[bone], paddingWord)), 32);
         }
         uint scratchAddress = frame.State.ReadDword(0xE196B0);
         uint color = frame.State.ReadDword(modelAddress + 0x28);
