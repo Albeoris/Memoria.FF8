@@ -43,10 +43,14 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.Headers[headerIndex];
         Assert.NotNull(selectedHeader.FirstContactIndex);
         NativeBattleContactPacket selectedContact = Assert.IsType<NativeBattleContactPacket>(source.NativeActionPackets.Contacts[selectedHeader.FirstContactIndex.Value]);
-        Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)2);
+        Assert.InRange(selectedContact.Primary.ActorIndex, (byte)0, (byte)7);
         int contactTransitions = 0;
         int expectedContactTransitions = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS") is { } expectedContacts ? int.Parse(expectedContacts) : 1;
         Assert.InRange(expectedContactTransitions, 0, 1);
+        if (selectedContact.Primary.ActorIndex >= 3)
+        {
+            Assert.Equal(0, expectedContactTransitions);
+        }
         int maximum = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_MAX_CALLBACKS") is { } limit ? int.Parse(limit) : 2400;
         Assert.True(maximum > 0);
         BattleSession battle = Restore(source);
@@ -74,13 +78,16 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 observer?.Observe(prior, current, Cold);
                 observer314?.Observe(prior, current, Cold);
                 NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
-                int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
-                int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
-                if (beforeHp != afterHp)
+                if (selectedContact.Primary.ActorIndex < 3)
                 {
-                    Assert.Equal(Math.Max(0, beforeHp - selectedContact.Primary.Amount6), afterHp);
-                    contactTransitions++;
-                    Cold("contact", current);
+                    int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
+                    int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
+                    if (beforeHp != afterHp)
+                    {
+                        Assert.Equal(Math.Max(0, beforeHp - selectedContact.Primary.Amount6), afterHp);
+                        contactTransitions++;
+                        Cold("contact", current);
+                    }
                 }
                 if (currentEffect is { ReturnedDescriptor: > 0 } && currentEffect.Binding.Effect == effect)
                 {

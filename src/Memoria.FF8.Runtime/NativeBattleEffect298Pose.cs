@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Security.Cryptography;
 
 namespace Memoria.FF8.Runtime;
 
@@ -21,7 +20,7 @@ public static class NativeBattleEffect298Pose
         }
         NativeBattleDecodedPose pose = decoded with { Bones = changed.ToImmutable() };
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(source, pose);
-        NativeBattleBodyBoneMatrices publication = new(Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan())), matrices);
+        NativeBattleBodyBoneMatrices publication = new(NativeBattleBodyBoneMatrices.Identity(source), matrices);
         publication.Validate();
         short scale = BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan().Slice(2, 2));
         for (int bone = 0; bone < source.BoneCount; bone++)

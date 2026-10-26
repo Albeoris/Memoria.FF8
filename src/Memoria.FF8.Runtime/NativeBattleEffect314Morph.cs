@@ -21,7 +21,7 @@ public static partial class NativeBattleEffect314Morph
             NativeBattleActionMatrix transformed = NativeBattleGfMatrices.Compose56C2F0(world, source.CurrentBones[bone].ReadMatrix());
             transformed = transformed with { X = unchecked(transformed.X + Word(offsets, bone * 16)), Y = unchecked(transformed.Y + Word(offsets, bone * 16 + 2)), Z = unchecked(transformed.Z + Word(offsets, bone * 16 + 4)) };
             transformed = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), transformed);
-            NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(transformed, Padding(source.CurrentBones[bone]) is short padding ? unchecked((ushort)padding) : null);
+            NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(transformed, null);
             bones.Add(packed);
             frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(inputs.ResolveBoneRecord(frame, modelAddress, bone), NativeBattleEffect314Controller.PackedArena(packed), 32));
         }

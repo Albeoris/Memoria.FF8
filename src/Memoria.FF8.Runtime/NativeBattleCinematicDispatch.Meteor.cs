@@ -33,6 +33,7 @@ public static partial class NativeBattleCinematicDispatch
         [(223, 0xA93BF0)] = 0xB28B00,
         [(223, 0xA93EC0)] = 0xB28DD0,
         [(223, 0xA941A0)] = 0xB290B0,
+        [(223, 0xA96330)] = 0xB2B380,
         [(223, 0xA94720)] = 0xB29630,
         [(223, 0xA94740)] = 0xB29650,
         [(223, 0xA947D0)] = 0xB296E0,
@@ -209,7 +210,6 @@ public static partial class NativeBattleCinematicDispatch
 
     private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> MeteorVariants = new Dictionary<(int Effect, string Table, int Index), uint>
     {
-        [(223, "vm_table", 0x55)] = 0xA96330,
         [(223, "vm_table", 0x106)] = 0xA97280,
         [(223, "vm_table", 0x35)] = 0xA996A0,
         [(223, "vm_table", 0xBB)] = 0xA997A0,
@@ -221,6 +221,7 @@ public static partial class NativeBattleCinematicDispatch
     private static readonly FrozenDictionary<(int Effect, string Table, int Index), uint> MeteorAliasSlots = new Dictionary<(int Effect, string Table, int Index), uint>
     {
         [(223, "prim_table", 6)] = 0xA93160,
+        [(223, "vm_table", 0x55)] = 0xA96330,
         [(223, "vm_table", 0x96)] = 0xA99660,
         [(223, "draw_table", 26)] = 0xA91B90,
     }.ToFrozenDictionary();

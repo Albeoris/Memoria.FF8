@@ -85,12 +85,27 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
         NativeBattleBodyBoneMatrices current = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native body matrix access requires its actual retained publication; missing imported matrices are unknown.");
         current.Validate();
         source.Validate();
-        if (current.Matrices.Length != source.BoneCount || !StringComparer.OrdinalIgnoreCase.Equals(current.SkeletonSha256, Identity(source)))
+        bool identityMatches = StringComparer.OrdinalIgnoreCase.Equals(current.SkeletonSha256, Identity(source));
+        if (!identityMatches && (source.SkeletonKnownBytes.IsDefaultOrEmpty || source.SkeletonKnownBytes.All(value => value)))
+        {
+            identityMatches = StringComparer.OrdinalIgnoreCase.Equals(current.SkeletonSha256, Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan())));
+        }
+        if (current.Matrices.Length != source.BoneCount || !identityMatches)
         {
             throw new NotSupportedException("Native current body matrices belong to a different physical rig source.");
         }
         return current.Matrices;
     }
 
-    private static string Identity(NativeBattlePoseSource source) => Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan()));
+    public static string Identity(NativeBattlePoseSource source)
+    {
+        source.Validate();
+        byte[] rig = new byte[checked(16 + source.BoneCount * 16)];
+        source.Skeleton.AsSpan().Slice(0, 16).CopyTo(rig);
+        for (int bone = 0; bone < source.BoneCount; bone++)
+        {
+            source.Skeleton.AsSpan().Slice(16 + bone * 48, 16).CopyTo(rig.AsSpan(16 + bone * 16));
+        }
+        return Convert.ToHexString(SHA256.HashData(rig));
+    }
 }

@@ -37,7 +37,7 @@ public sealed record NativeBattleEffect338Skeleton([property: JsonRequired] Nati
 
     public static void RequireResource(NativeBattleEffectOwnedModelResource resource)
     {
-        if (resource.Address != 0x136BB30 || resource.Bytes.Length != 0x4DC4 || resource.Section(0) != 0x18 || resource.Section(1) != 0x568 || resource.Section(2) != 0x3730 || resource.Section(3) != 0x4DC4)
+        if (resource.Address != 0x136BB30 || resource.Bytes.Length != 0x4DD0 || resource.Section(0) != 0x18 || resource.Section(1) != 0x568 || resource.Section(2) != 0x3730 || resource.Section(3) != 0x4DC4 || resource.Section(4) != 0x4DD0)
         {
             throw new InvalidDataException("Effect338 requires its original embedded four-section model.");
         }
@@ -83,23 +83,6 @@ public static class NativeBattleEffect338Model
         return new(skeleton.Publish(next.Pose), task);
     }
 
-    public static NativeBattleQuezacotlPathModelBatch Draw6A79B0(NativeBattleEffect338Skeleton skeleton, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleActionMatrix view, NativeBattleCameraProjection projection)
-    {
-        Require(skeleton, task, resource);
-        ImmutableArray<short> rotation = Enumerable.Range(0, 9).Select(index => unchecked((short)task.ReadWord(0x64 + index * 2))).ToImmutableArray();
-        NativeBattleActionMatrix world = new(rotation, unchecked((int)task.ReadDword(0x78)), unchecked((int)task.ReadDword(0x7C)), unchecked((int)task.ReadDword(0x80)), 4096);
-        NativeBattleActionMatrix basis = NativeBattlePoseMatrices.ComposeStageCamera([world], view, 0)[0];
-        NativeBattleActionMatrix ReadBone(short bone)
-        {
-            if (bone < 0 || bone >= skeleton.Storage.Read(0, 1)[0])
-            {
-                throw new InvalidDataException("Effect338 model geometry selects a bone outside its original skeleton.");
-            }
-            return NativeBattlePoseMatrices.ComposeStageCamera([NativeBattleArenaPose.ReadMatrix(skeleton.Storage, 32 + bone * 48)], basis, 0)[0];
-        }
-        return NativeBattleQuezacotlPathModelPackets.Emit6A79B0(resource.Bytes.Slice(0x568, 0x3730 - 0x568), ReadBone, projection, task.ReadDword(0x4C), task.ReadDword(0xA0));
-    }
-
     private static void Require(NativeBattleEffect338Skeleton skeleton, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource)
     {
         skeleton.Validate();
@@ -117,4 +100,3 @@ public static class NativeBattleEffect338Model
         }
     }
 }
-

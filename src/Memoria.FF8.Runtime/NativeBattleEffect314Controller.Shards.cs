@@ -118,13 +118,18 @@ public static partial class NativeBattleEffect314Controller
                     {
                         (frame, capacity) = CreateFragment6646A0(frame, inputs, main, cursor, face, vertices.MoveToImmutable(), rotationBank, velocityMask, texturePageAddition, clutAddition);
                     }
+                    if (!capacity)
+                    {
+                        frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
+                        break;
+                    }
                     cursor += kind == 0 ? 16u : 20u;
                     context = context.Write(kind == 0 ? 8 : 10, BitConverter.GetBytes(unchecked((ushort)(faces - faceIndex - 2))));
                     frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
-                    if (!capacity)
-                    {
-                        break;
-                    }
+                }
+                if (!capacity)
+                {
+                    break;
                 }
             }
         }

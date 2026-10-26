@@ -52,10 +52,15 @@ internal sealed record DiagnosticBattlePreparation([property: JsonRequired] Immu
 {
     public ImmutableArray<DiagnosticItemPreparation> Items { get; init; } = [];
     public DiagnosticLimitPreparation? Limits { get; init; }
+    public ImmutableArray<byte> CombatParty { get; init; } = [];
 
     internal void Validate()
     {
         Limits?.Validate();
+        if (CombatParty.IsDefault || !CombatParty.IsEmpty && (CombatParty.Length != 3 || CombatParty.All(row => row == 255) || CombatParty.Any(row => row != 255 && row >= 8) || CombatParty.Where(row => row != 255).Distinct().Count() != CombatParty.Count(row => row != 255)))
+        {
+            throw new InvalidDataException("Diagnostic combat party requires three native saved-row selectors, at least one character and no duplicate selected rows.");
+        }
         if (GuardianForces.IsDefault || Characters.IsDefault || GuardianForces.Length > 16 || Characters.Length > 3 || GuardianForces.Any(entry => entry is null || entry.Id is < 0 or >= 16) || GuardianForces.Select(entry => entry.Id).Distinct().Count() != GuardianForces.Length || Characters.Any(entry => entry is null || entry.Row is < 0 or >= 8 || entry.CharacterId > 10) || Characters.Select(entry => entry.Row).Distinct().Count() != Characters.Length)
         {
             throw new InvalidDataException("Diagnostic preparation requires distinct owned GF and character rows.");
@@ -164,6 +169,10 @@ internal sealed partial class GameWorld
             throw new NotSupportedException("Diagnostic stock preparation requires ordinary personal finite magic rules.");
         }
         NativeCharacterVitals next = source.DeepCopy();
+        if (!recipe.CombatParty.IsEmpty)
+        {
+            next = next with { CombatParty = recipe.CombatParty.ToArray() };
+        }
         foreach (DiagnosticGuardianForcePreparation gf in recipe.GuardianForces)
         {
             if (gf.Acquire)
@@ -259,6 +268,7 @@ internal sealed partial class GameWorld
             Record("guardian-force", id, source.GuardianForces[id], next.GuardianForces[id]);
         }
         Record("magic-system", 0, source.MagicSystem, next.MagicSystem);
+        Record("combat-party", 0, source.CombatParty, next.CombatParty);
         return new(next, changes.ToImmutable());
     }
 }

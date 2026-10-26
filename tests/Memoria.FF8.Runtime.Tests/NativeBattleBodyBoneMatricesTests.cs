@@ -99,6 +99,51 @@ public sealed class NativeBattleBodyBoneMatricesTests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Publish508C90(current, source)), JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Publish508C90(restored, source)));
     }
 
+    [Fact]
+    public void Live_matrix_stores_and_unknown_stack_padding_do_not_change_the_rig_identity()
+    {
+        NativeBattlePoseSource source = Source(2);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(Model(2), source);
+        byte[] bytes = source.Skeleton.ToArray();
+        bool[] known = Enumerable.Repeat(true, bytes.Length).ToArray();
+        for (int bone = 0; bone < source.BoneCount; bone++)
+        {
+            bytes.AsSpan(32 + bone * 48, 32).Fill(0xA5);
+            known[50 + bone * 48] = false;
+            known[51 + bone * 48] = false;
+        }
+        NativeBattlePoseSource live = source with { Skeleton = bytes.ToImmutableArray(), SkeletonKnownBytes = known.ToImmutableArray() };
+        live.Validate();
+        EqualMatrices(model.CurrentBodyBoneMatrices!.Matrices, NativeBattleBodyBoneMatrices.Require(model, live));
+        NativeBattlePoseSource restored = JsonSerializer.Deserialize<NativeBattlePoseSource>(JsonSerializer.Serialize(live))!;
+        Assert.False(restored.SkeletonKnownBytes[50]);
+        Assert.Equal(NativeBattleBodyBoneMatrices.Identity(source), NativeBattleBodyBoneMatrices.Identity(restored));
+        EqualMatrices(NativeBattleBodyBoneMatrices.Require(model, live), NativeBattleBodyBoneMatrices.Require(model, restored));
+    }
+
+    [Fact]
+    public void Unknown_consumed_skeleton_fields_remain_unsupported()
+    {
+        NativeBattlePoseSource source = Source(1);
+        bool[] known = Enumerable.Repeat(true, source.Skeleton.Length).ToArray();
+        known[18] = false;
+        Assert.Throws<NotSupportedException>(() => (source with { SkeletonKnownBytes = known.ToImmutableArray() }).Validate());
+        known[18] = true;
+        known[52] = false;
+        Assert.Throws<NotSupportedException>(() => (source with { SkeletonKnownBytes = known.ToImmutableArray() }).Validate());
+    }
+
+    [Fact]
+    public void Existing_complete_skeleton_identity_remains_readable_without_rewriting_the_publication()
+    {
+        NativeBattlePoseSource source = Source(1);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.Publish508C90(Model(1), source);
+        string originalIdentity = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(source.Skeleton.AsSpan()));
+        model = model with { CurrentBodyBoneMatrices = model.CurrentBodyBoneMatrices! with { SkeletonSha256 = originalIdentity } };
+        Assert.Equal(originalIdentity, model.CurrentBodyBoneMatrices.SkeletonSha256);
+        Assert.Single(NativeBattleBodyBoneMatrices.Require(model, source));
+    }
+
     private static NativeBattlePoseSource Source(int count)
     {
         byte[] skeleton = new byte[0x10 + count * 0x30];

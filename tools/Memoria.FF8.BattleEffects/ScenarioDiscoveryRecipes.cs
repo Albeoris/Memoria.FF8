@@ -6,7 +6,7 @@ namespace Memoria.FF8.BattleEffects;
 
 public static partial class ScenarioDiscovery
 {
-    private static bool TryPrepareBlueMagicRecipe(BattleAssets assets, NativeCharacterVitals initial, BattleNativeAction native, string templatePath, out JsonObject? recipe, out string? blocker)
+    public static bool TryPrepareBlueMagicRecipe(BattleAssets assets, NativeCharacterVitals initial, BattleNativeAction native, string templatePath, out JsonObject? recipe, out string? blocker)
     {
         recipe = null;
         blocker = null;
@@ -21,8 +21,14 @@ public static partial class ScenarioDiscovery
             return false;
         }
         BattleNativeLimitDefinition limit = assets.ReadNativeLimitDefinition(owner);
-        ushort maximum = initial.GetMagicMaximumHitPoints(0);
-        int hp = ResolveLimitPreparationHitPoints(limit, maximum, initial.Records[0].Status, crisis);
+        int ownerRow = Array.FindIndex(initial.Records, record => record.CharacterId == owner);
+        if (ownerRow < 0 || initial.Records.Count(record => record.CharacterId == owner) != 1)
+        {
+            blocker = "BLUE_MAGIC_OWNER_PRECONDITION: the original command owner must have one actual initialized saved character record.";
+            return false;
+        }
+        ushort maximum = initial.GetMagicMaximumHitPoints(ownerRow);
+        int hp = ResolveLimitPreparationHitPoints(limit, maximum, initial.Records[ownerRow].Status, crisis);
         if (hp == 0)
         {
             blocker = "BLUE_MAGIC_CRISIS_PRECONDITION: no legal positive initial HP with actual native status/party state can reach this crisis row through ordinary selection RNG.";
@@ -30,12 +36,16 @@ public static partial class ScenarioDiscovery
         }
         JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
         JsonObject character = result["fixture"]!["characters"]![0]!.AsObject();
+        character["row"] = ownerRow;
+        character["character_id"] = owner;
         character["stocks"] = new JsonArray();
         character["hit_points"] = hp;
-        result["fixture"]!["limits"] = new JsonObject { ["borrow_blue_magic_for_squall"] = true, ["learn_blue_magic"] = 1 << native.KernelIndex };
+        result["fixture"]!["combat_party"] = new JsonArray(ownerRow, 255, 255);
+        result["fixture"]!["limits"] = new JsonObject { ["learn_blue_magic"] = 1 << native.KernelIndex };
+        string actorId = $"party-{ownerRow}";
         bool party = (flags & 0x40) == 0 || NativeBattleLimitRules.IsFixedAllyTarget(flags);
         _ = NativeBattleLimitRules.PlayerTargetMask(flags, party ? 0 : 3);
-        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = "party-0", ["target_id"] = party ? "party-0" : "enemy-6", ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
+        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actorId, ["target_id"] = party ? actorId : "enemy-6", ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
         result["driver"]!["expected_effect"] = native.MagicId;
         result["driver"]!["expected_native_action"] = native.ActionId;
         result["driver"]!["expected_native_command"] = native.Command;
@@ -58,7 +68,7 @@ public static partial class ScenarioDiscovery
                     battle |= native.Statuses1 & (1u << bit);
                 }
             }
-            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = "party-0", ["hit_points"] = hp, ["revive"] = false, ["remove_statuses0"] = saved, ["remove_statuses1"] = battle });
+            result["driver"]!["repairs"] = new JsonArray(new JsonObject { ["actor_id"] = actorId, ["hit_points"] = hp, ["revive"] = false, ["remove_statuses0"] = saved, ["remove_statuses1"] = battle });
         }
         recipe = result;
         return true;

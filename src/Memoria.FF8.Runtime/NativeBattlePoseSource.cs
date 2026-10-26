@@ -11,6 +11,8 @@ public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, us
 /// <summary>Original skeleton and compressed animation bytes consumed by508F90/508C90.</summary>
 public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, ImmutableArray<byte> Animations)
 {
+    public ImmutableArray<bool> SkeletonKnownBytes { get; init; } = [];
+
     public int BoneCount => Skeleton.IsDefaultOrEmpty ? throw new InvalidDataException("Native pose lacks its original skeleton.") : Skeleton[0];
 
     public void Validate()
@@ -18,6 +20,22 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
         if (Skeleton.IsDefaultOrEmpty || BoneCount is < 1 or > 128 || Skeleton.Length < 16 + 48 * BoneCount || Animations.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native pose requires its original skeleton records and animation directory.");
+        }
+        if (!SkeletonKnownBytes.IsDefaultOrEmpty)
+        {
+            if (SkeletonKnownBytes.Length != Skeleton.Length)
+            {
+                throw new InvalidDataException("Native skeleton knownness must cover its actual bytes.");
+            }
+            for (int offset = 0; offset < SkeletonKnownBytes.Length; offset++)
+            {
+                int recordOffset = offset - 16;
+                bool matrixPadding = recordOffset >= 0 && recordOffset / 48 < BoneCount && recordOffset % 48 is 34 or 35;
+                if (!SkeletonKnownBytes[offset] && !matrixPadding)
+                {
+                    throw new NotSupportedException("Native skeleton access reaches an unknown consumed field.");
+                }
+            }
         }
         for (int bone = 0; bone < BoneCount; bone++)
         {

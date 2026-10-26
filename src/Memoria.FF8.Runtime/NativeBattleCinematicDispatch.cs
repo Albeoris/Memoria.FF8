@@ -1342,6 +1342,10 @@ public static partial class NativeBattleCinematicDispatch
         {
             return RequireEffect246Slot(table, index, handler);
         }
+        if (effect == 269)
+        {
+            return RequireEffect269Slot(table, index, handler);
+        }
         if (effect == 331)
         {
             return RequireEffect331Slot(table, index, handler);
@@ -1475,6 +1479,10 @@ public static partial class NativeBattleCinematicDispatch
         if (effect == 246 && Effect246Aliases.TryGetValue(handler, out uint effect246Canonical))
         {
             return effect246Canonical;
+        }
+        if (effect == 269 && Effect269Aliases.TryGetValue(handler, out uint effect269Canonical))
+        {
+            return effect269Canonical;
         }
         if (effect == 331 && Effect331Aliases.TryGetValue(handler, out uint effect331Canonical))
         {

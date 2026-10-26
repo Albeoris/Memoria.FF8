@@ -17,7 +17,7 @@ public static class NativeBattleEffect338ResourcesReader
         {
             throw new InvalidDataException("Effect338 requires its original selected completion file.");
         }
-        ImmutableArray<byte> modelBytes = Bytes(0x136BB30, 0x4DC4);
+        ImmutableArray<byte> modelBytes = Bytes(0x136BB30, 0x4DD0);
         NativeBattlePoseSource pose = new(modelBytes.Slice(0x18, 0x550), modelBytes.Slice(0x3730, 0x4DC4 - 0x3730));
         pose.Validate();
         NativeBattleEffectOwnedModelResource model = new(0x136BB30, modelBytes, pose, NativeBattleRawGeometryReader.Read(modelBytes.Slice(0x568, 0x3730 - 0x568).ToArray(), pose.BoneCount));
