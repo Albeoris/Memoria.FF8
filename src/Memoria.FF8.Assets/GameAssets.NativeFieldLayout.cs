@@ -40,8 +40,13 @@ public sealed partial class GameAssets
         }
         string name = fieldNames[fieldId];
         using IFlArchive archive = OpenNested(name);
-        byte[] map = Read(archive, name + ".map");
-        byte[] information = Read(archive, name + ".inf");
+        return ReadNativeFieldAllocationPrefix(name, member => Read(archive, member));
+    }
+
+    private int ReadNativeFieldAllocationPrefix(string name, Func<string, byte[]> readMember)
+    {
+        byte[] map = readMember(name + ".map");
+        byte[] information = readMember(name + ".inf");
         if (information.Length != 676)
         {
             throw UnsupportedRuntime("Native field layout requires the original information record.");
@@ -61,10 +66,10 @@ public sealed partial class GameAssets
             polygons++;
         }
         //471010 reserves two display lists and 80 bytes for the camera record.
-        int cursor = checked(44 + AlignNativeFieldAllocation(Read(archive, name + ".id").Length) + AlignNativeFieldAllocation(map.Length) + 32 * polygons + 80 + AlignNativeFieldAllocation(information.Length));
+        int cursor = checked(44 + AlignNativeFieldAllocation(readMember(name + ".id").Length) + AlignNativeFieldAllocation(map.Length) + 32 * polygons + 80 + AlignNativeFieldAllocation(information.Length));
         if (information[14] == 1)
         {
-            byte[] mask = Read(archive, name + ".msk");
+            byte[] mask = readMember(name + ".msk");
             if (mask.Length < 2)
             {
                 throw new InvalidDataException("Native field mask allocation has no record count.");
@@ -72,10 +77,10 @@ public sealed partial class GameAssets
             int count = BinaryPrimitives.ReadUInt16LittleEndian(mask);
             cursor = checked(cursor + AlignNativeFieldAllocation(mask.Length) + 56 * count);
         }
-        cursor = checked(cursor + Read(archive, name + ".rat").Length + Read(archive, name + ".mrt").Length);
+        cursor = checked(cursor + readMember(name + ".rat").Length + readMember(name + ".mrt").Length);
         //471C56..471CB0 advances by the aligned MSD size twice; the GSM name does not issue another read.
-        cursor = checked(cursor + 2 * AlignNativeFieldAllocation(Read(archive, name + ".msd").Length));
-        byte[] presentation = Read(archive, name + ".pmd");
+        cursor = checked(cursor + 2 * AlignNativeFieldAllocation(readMember(name + ".msd").Length));
+        byte[] presentation = readMember(name + ".pmd");
         if (presentation.Length != 4)
         {
             cursor = checked(cursor + 24356);

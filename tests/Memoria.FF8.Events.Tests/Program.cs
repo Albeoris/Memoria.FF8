@@ -17,6 +17,7 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["jsm-resource-validation"] = JsmResourceValidationContract,
                     ["wait-corrupt-input"] = WaitAndCorruptInput,
                     ["omega-tutorial-save"] = OmegaTutorialSaveContract,
                     ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
