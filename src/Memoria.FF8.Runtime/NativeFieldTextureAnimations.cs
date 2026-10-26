@@ -5,36 +5,91 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeFieldTextureCopyKey(short X, short Y, short Width, short Height);
 public sealed record NativeFieldTextureAnimation(NativeFieldRegisteredTexture Texture, ImmutableArray<NativeFieldTextureCopyKey> Frames, int CurrentFrame);
 
+public sealed record NativeFieldTexturePlane(bool Closed, byte Pending, bool Retain);
+public sealed record NativeFieldTexturePageIdentity(uint First, uint Other);
+
 /// <summary>Whole-plane selection owned by the authenticated renderer's physical page halves.</summary>
-public sealed record NativeFieldTexturePlanes(string ExecutableHash, ImmutableArray<bool> Closed)
+public sealed record NativeFieldTexturePlanes(string ExecutableHash, ImmutableArray<NativeFieldTexturePlane> Slots, ImmutableArray<NativeFieldTexturePageIdentity?> Sources)
 {
+    public static uint SourceIdentity(ReadOnlySpan<byte> name, int upload)
+    {
+        if (name.Length < 4 || name[1] is < (byte)'0' or > (byte)'9' || name[2] is < (byte)'0' or > (byte)'9' || name[3] is < (byte)'0' or > (byte)'9' || upload is < 1 or > 255)
+        {
+            throw new InvalidDataException("Native field material identity requires its original label and upload ordinal.");
+        }
+        int basis = name[0] switch { (byte)'d' => 97, (byte)'n' => 1097, (byte)'o' => 2097, (byte)'p' => 3097, _ => 0 };
+        int identity = basis == 0 ? 0 : basis + (name[1] - '0') * 100 + (name[2] - '0') * 10 + name[3] - '0';
+        return (uint)(identity << 8 | upload);
+    }
+
     public static NativeFieldTexturePlanes FromReset(string executableHash)
     {
         if (executableHash != NativeFieldRuntimeProfile.RemasteredEnImageHash)
         {
             throw new NotSupportedException("Field texture planes require a verified Remastered native profile.");
         }
-        return new(executableHash, Enumerable.Repeat(false, 64).ToImmutableArray());
+        return new(executableHash, Enumerable.Repeat(new NativeFieldTexturePlane(false, 0, false), 64).ToImmutableArray(), Enumerable.Repeat<NativeFieldTexturePageIdentity?>(null, 32).ToImmutableArray());
     }
 
     public void Validate()
     {
-        if (ExecutableHash != NativeFieldRuntimeProfile.RemasteredEnImageHash || Closed.IsDefault || Closed.Length != 64)
+        if (ExecutableHash != NativeFieldRuntimeProfile.RemasteredEnImageHash || Slots.IsDefault || Slots.Length != 64 || Sources.IsDefault || Sources.Length != 32 || Slots.Any(slot => slot is null || slot.Pending > 2 || slot.Pending == 0 && slot.Retain))
         {
             throw new InvalidDataException("Native field texture plane state has an invalid profile or physical cache.");
         }
     }
 
-    public NativeFieldTexturePlanes Write(short x, short y, bool closed)
+    public NativeFieldTexturePlanes Write(short x, short y, bool closed, bool retain = false)
     {
         Validate();
-        return this with { Closed = Closed.SetItem(Slot(x, y), closed) };
+        int index = Slot(x, y);
+        return this with { Slots = Slots.SetItem(index, Slots[index] with { Pending = closed ? (byte)2 : (byte)1, Retain = retain }) };
     }
 
-    public bool IsClosed(short x, short y)
+    public NativeFieldTexturePlanes Bind(int page, NativeFieldTexturePageIdentity source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Validate();
+        int first = CacheSlot(page, true);
+        bool replaced = Sources[page] is { } previous && previous != source;
+        ImmutableArray<NativeFieldTexturePlane> slots = Slots;
+        for (int index = first; index <= first + 1; index++)
+        {
+            NativeFieldTexturePlane current = slots[index];
+            if (replaced)
+            {
+                current = current with { Closed = false, Pending = current.Retain ? current.Pending : (byte)0 };
+            }
+            if (current.Pending != 0)
+            {
+                current = current with { Closed = current.Pending != 1, Pending = 0, Retain = false };
+            }
+            slots = slots.SetItem(index, current);
+        }
+        return Sources[page] == source && slots.SequenceEqual(Slots) ? this : this with { Slots = slots, Sources = Sources.SetItem(page, source) };
+    }
+
+    public NativeFieldTexturePlane Get(short x, short y)
     {
         Validate();
-        return Closed[Slot(x, y)];
+        return Slots[Slot(x, y)];
+    }
+
+    public bool IsClosed(short x, short y) => Get(x, y).Closed;
+
+    public bool IsClosed(int page, bool firstHalf)
+    {
+        Validate();
+        return Slots[CacheSlot(page, firstHalf)].Closed;
+    }
+
+    private static int CacheSlot(int page, bool firstHalf)
+    {
+        if (page is < 0 or >= 32)
+        {
+            throw new InvalidDataException("Native field plane page leaves the physical renderer cache.");
+        }
+        return page * 2 + (firstHalf ? 0 : 1);
     }
 
     private static int Slot(short x, short y)
@@ -57,6 +112,7 @@ public sealed record NativeFieldTexturePlanes(string ExecutableHash, ImmutableAr
 /// <summary>First-seen copy rectangles retained for the lifetime of registered field textures.</summary>
 public sealed record NativeFieldTextureAnimations(string OneHash, ImmutableArray<NativeFieldTextureAnimation> Textures)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldTexturePlanes? Planes { get; init; }
 
     public static NativeFieldTextureAnimations Register(string oneHash, IEnumerable<NativeFieldRegisteredTexture> textures, string? executableHash = null) => new(oneHash, textures.DistinctBy(texture => (texture.X, texture.Y)).Select(texture => new NativeFieldTextureAnimation(texture, [], -1)).ToImmutableArray())
@@ -85,9 +141,9 @@ public sealed record NativeFieldTextureAnimations(string OneHash, ImmutableArray
         }
     }
 
-    public NativeFieldTextureAnimations WritePlane(short destinationX, short destinationY, bool closed)
+    public NativeFieldTextureAnimations WritePlane(short destinationX, short destinationY, bool closed, bool retain = false)
     {
-        return Planes is null ? this : this with { Planes = Planes.Write(destinationX, destinationY, closed) };
+        return Planes is null ? this : this with { Planes = Planes.Write(destinationX, destinationY, closed, retain) };
     }
 
     public NativeFieldTextureAnimations Copy(short sourceX, short sourceY, short width, short height, short destinationX, short destinationY)

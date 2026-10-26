@@ -55,9 +55,17 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
 /// <summary>A stable list whose images follow the resource generation without rebuilding the scene.</summary>
 public sealed class ResourceTextureList(AssetHandle<TextureValue>[] textures) : IReadOnlyList<PixelImage>
 {
-    public int Count => textures.Length;
-    public PixelImage this[int index] => textures[index].Value.Image;
-    public TextureValue GetTexture(int index) => textures[index].Value;
+    private readonly TextureValue[]? snapshot;
+
+    private ResourceTextureList(TextureValue[] snapshot) : this(Array.Empty<AssetHandle<TextureValue>>())
+    {
+        this.snapshot = snapshot;
+    }
+
+    public int Count => snapshot?.Length ?? textures.Length;
+    public PixelImage this[int index] => GetTexture(index).Image;
+    public TextureValue GetTexture(int index) => snapshot?[index] ?? textures[index].Value;
+    public ResourceTextureList Snapshot() => new(Enumerable.Range(0, Count).Select(GetTexture).ToArray());
     public static Vector2 LogicalSize(IReadOnlyList<PixelImage> textures, int index)
     {
         if (textures is ResourceTextureList resources)
@@ -73,6 +81,6 @@ public sealed class ResourceTextureList(AssetHandle<TextureValue>[] textures) : 
         PixelImage image = textures[index];
         return new Vector2(image.Width, image.Height) / LogicalSize(textures, index);
     }
-    public IEnumerator<PixelImage> GetEnumerator() => textures.Select(texture => texture.Value.Image).GetEnumerator();
+    public IEnumerator<PixelImage> GetEnumerator() => Enumerable.Range(0, Count).Select(index => this[index]).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

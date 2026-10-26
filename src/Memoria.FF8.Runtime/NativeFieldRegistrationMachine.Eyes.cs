@@ -80,7 +80,7 @@ public static partial class NativeFieldRegistrationMachine
         return new(retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = context.Animations }, crtRandom, random);
     }
 
-    private static void CopyEyeRectangle(Context context, uint eyes, uint source, bool closed)
+    private static void CopyEyeRectangle(Context context, uint eyes, uint source, bool closed, bool retain = false)
     {
         NativeFieldRegistrationMemory memory = context.Memory;
         short sourceX = unchecked((short)memory.Read16(source));
@@ -99,6 +99,6 @@ public static partial class NativeFieldRegistrationMachine
         context.Effects = context.Effects with { Textures = textures with { VramRegions = copied.State.VramRegions }, PrimitiveProcess = process };
         context.Uploads.AddRange(copied.Uploads);
         context.Animations = context.Animations?.Copy(sourceX, sourceY, width, height, destinationX, destinationY);
-        context.Animations = context.Animations?.WritePlane(destinationX, destinationY, closed);
+        context.Animations = context.Animations?.WritePlane(destinationX, destinationY, closed, retain);
     }
 }

@@ -156,30 +156,12 @@ public static class NativeBattleTextureReplacements
         {
             return [];
         }
-        int pixelsPerWord = tim.Width / tim.WordWidth;
-        int x = (closedCopy.DestinationX - destination.X) * pixelsPerWord;
-        int y = closedCopy.DestinationY - destination.Y;
-        int width = closedCopy.Width * pixelsPerWord;
-        int height = closedCopy.Height;
-        if ((long)x * open.Width % tim.Width != 0 || (long)width * open.Width % tim.Width != 0 || (long)y * open.Height % tim.Height != 0 || (long)height * open.Height % tim.Height != 0)
-        {
-            throw new NotSupportedException("Native eye-copy rectangle must map to whole replacement pixels.");
-        }
-        int imageX = x * open.Width / tim.Width;
-        int imageY = y * open.Height / tim.Height;
-        int imageWidth = width * open.Width / tim.Width;
-        int imageHeight = height * open.Height / tim.Height;
-        PixelImage composed = new(open.Width, open.Height, open.Pixels.ToArray());
-        for (int row = 0; row < imageHeight; row++)
-        {
-            closed.Pixels.AsSpan((imageY + row) * closed.Width + imageX, imageWidth).CopyTo(composed.Pixels.AsSpan((imageY + row) * composed.Width + imageX, imageWidth));
-        }
         List<TextureCopyVariant> result = [];
         if (!openWords.Value.AsSpan().SequenceEqual(tim.Words.AsSpan()))
         {
             result.Add(new(open, openWords.Value));
         }
-        result.Add(new(composed, closedWords.Value));
+        result.Add(new(closed, closedWords.Value));
         return result;
 
         ImmutableArray<byte>? CopyWords(NativeBattleTextureCopy copy)

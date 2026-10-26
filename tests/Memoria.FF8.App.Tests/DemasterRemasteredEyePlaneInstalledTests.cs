@@ -44,7 +44,7 @@ public sealed class DemasterRemasteredEyePlaneInstalledTests
             NativeFieldRetainedActor[] actors = [new(3, 3, group >> 7, (group >> 7) + (group & 127) + 1)];
             NativeFieldRegistrationStep registration = NativeFieldRegistrationMachine.ReloadKind3(field.NativeRegistration, actors, NativeBattleRetainedMemory.FromColdProcess());
             NativeBattleRetainedMemory original = registration.Memory;
-            Assert.All(original.FieldTextureAnimations!.Planes!.Closed, closed => Assert.False(closed));
+            Assert.All(original.FieldTextureAnimations!.Planes!.Slots, slot => Assert.False(slot.Closed));
             NativeFieldRegisteredResource resource = Assert.Single(registration.State.Resources);
             uint bank = BinaryPrimitives.ReadUInt32LittleEndian(original.FileStaging!.Read(resource.Address + 20, 4));
             short destinationX = BinaryPrimitives.ReadInt16LittleEndian(original.FileStaging.Read(bank + 6, 2));
@@ -52,26 +52,29 @@ public sealed class DemasterRemasteredEyePlaneInstalledTests
             using GpuTestDevice device = new();
             using GpuTriangleRenderer gpu = new(device.Device);
             List<object> captures = [];
-            var open = Capture(original, "open");
+            var open = Capture(ref original, "open");
             NativeBattleRetainedMemory closed = NativeFieldRegistrationMachine.SetEyes532340(registration.State, original, 3, 0x200000, null, null).Memory;
+            Assert.Equal((byte)2, closed.FieldTextureAnimations!.Planes!.Get(destinationX, destinationY).Pending);
+            Assert.False(closed.FieldTextureAnimations.Planes.IsClosed(destinationX, destinationY));
+            FieldModel closedModel = Bind(ref closed);
             Assert.True(closed.FieldTextureAnimations!.Planes!.IsClosed(destinationX, destinationY));
-            FieldModel closedModel = Bind(closed);
             ResourceTextureList closedMaterials = Assert.IsType<ResourceTextureList>(closedModel.Textures);
             Assert.Contains(Enumerable.Range(0, closedMaterials.Count), index => closedMaterials.GetTexture(index).Variants?.ContainsKey("eyes-closed") == true && packages.Any(package => closedMaterials.GetTexture(index).Provenance.StartsWith(package + "/", StringComparison.Ordinal)));
-            var shut = Capture(closed, "closed");
+            var shut = Capture(ref closed, "closed");
             Assert.NotEqual(open.Cpu, shut.Cpu);
             Assert.NotEqual(open.Gpu, shut.Gpu);
             NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(closed))!;
-            Assert.Equal(shut, Capture(restored, "closed-json-restored"));
+            Assert.Equal(shut, Capture(ref restored, "closed-json-restored"));
             Enable(false);
-            var disabled = Capture(restored, "closed-packages-disabled");
+            var disabled = Capture(ref restored, "closed-packages-disabled");
             Assert.NotEqual(shut.Cpu, disabled.Cpu);
             Assert.NotEqual(shut.Gpu, disabled.Gpu);
             Enable(true);
-            Assert.Equal(shut, Capture(restored, "closed-packages-restored"));
+            Assert.Equal(shut, Capture(ref restored, "closed-packages-restored"));
             NativeBattleRetainedMemory opened = NativeFieldRegistrationMachine.SetEyes532340(registration.State, restored, 3, 0x100000, null, null).Memory;
+            Assert.Equal((byte)1, opened.FieldTextureAnimations!.Planes!.Get(destinationX, destinationY).Pending);
+            Assert.Equal(open, Capture(ref opened, "reopened"));
             Assert.False(opened.FieldTextureAnimations!.Planes!.IsClosed(destinationX, destinationY));
-            Assert.Equal(open, Capture(opened, "reopened"));
             NativeBattleFieldResourceReloadResult started = NativeFieldRegistrationMachine.SetEyes532340(registration.State, opened, 3, 0x80000, 4, NativeCrtRandomState.FromColdProcess());
             NativeBattleRetainedMemory live = started.Memory;
             NativeCrtRandomState? random = started.CrtRandomAfter;
@@ -93,12 +96,14 @@ public sealed class DemasterRemasteredEyePlaneInstalledTests
                     continue;
                 }
                 byte nativeFrame = live.FileStaging!.Read(instance + 103, 1)[0];
+                Assert.Equal(nativeFrame == 1 ? (byte)2 : (byte)1, live.FieldTextureAnimations!.Planes!.Get(destinationX, destinationY).Pending);
+                Bind(ref live);
                 bool isClosed = live.FieldTextureAnimations!.Planes!.IsClosed(destinationX, destinationY);
                 Assert.Equal(nativeFrame == 1, isClosed);
                 callbacks.Add(new { callback, nativeFrame, isClosed });
                 if (isClosed && !sawClosed || !isClosed && !sawOpen)
                 {
-                    Assert.Equal(isClosed ? shut : open, Capture(live, isClosed ? "callback-closed" : "callback-open"));
+                    Assert.Equal(isClosed ? shut : open, Capture(ref live, isClosed ? "callback-closed" : "callback-open"));
                 }
                 sawClosed |= isClosed;
                 sawOpen |= !isClosed;
@@ -112,11 +117,16 @@ public sealed class DemasterRemasteredEyePlaneInstalledTests
                 File.WriteAllText(Path.Combine(directory, "remastered-eye-plane-component.json"), JsonSerializer.Serialize(new { registration.State, Memory = live, CrtRandom = random }));
             }
 
-            FieldModel Bind(NativeBattleRetainedMemory memory) => assets.BindNativeRegisteredTextures(field, registration.State, memory.EffectMemory!.Textures!, memory.FieldTextureAnimations).Models[3];
-
-            (string Cpu, string Gpu) Capture(NativeBattleRetainedMemory memory, string phase)
+            FieldModel Bind(ref NativeBattleRetainedMemory memory)
             {
-                FieldModel model = Bind(memory);
+                NativeFieldTextureBinding binding = assets.BindNativeRegisteredTextureState(field, registration.State, memory.EffectMemory!.Textures!, memory.FieldTextureAnimations, 3);
+                memory = memory with { FieldTextureAnimations = binding.Animations };
+                return binding.Field.Models[3];
+            }
+
+            (string Cpu, string Gpu) Capture(ref NativeBattleRetainedMemory memory, string phase)
+            {
+                FieldModel model = Bind(ref memory);
                 List<string> cpuHashes = [];
                 List<string> gpuHashes = [];
                 for (int direction = 0; direction < 256; direction += 64)

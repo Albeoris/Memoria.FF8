@@ -10,7 +10,11 @@ public sealed record NativeFieldRetainedPresentation(int ObjectId, byte Animatio
 }
 
 public sealed record NativeBattleFieldResourceReloadResult(NativeBattleRetainedMemory Memory, NativeCrtRandomState? CrtRandomBefore, NativeCrtRandomState? CrtRandomAfter);
-public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, short WidthWords, short Height, short PaletteX, short PaletteY, ushort TexturePage, ushort Clut);
+public sealed record NativeFieldRegisteredTexture(byte Mode, short X, short Y, short WidthWords, short Height, short PaletteX, short PaletteY, ushort TexturePage, ushort Clut)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public uint? PlaneIdentity { get; init; }
+}
 public sealed record NativeFieldRegisteredResource(int ModelId, int Index, uint Address, uint GeometryAddress, uint AnimationAddress, byte Scale, string SourceHash, int SourceOffset, ImmutableArray<NativeFieldRegisteredTexture> Textures);
 public sealed record NativeFieldRegisteredInstance(int ObjectId, int ModelId, uint Address, ushort? EmptyTerminal);
 public sealed record NativeFieldRegistrationState(int Version, int FieldId, string ProgramHash, string OneHash, uint PreModelAddress, uint RelocatedSourceAddress, int RelocatedSourceLength, uint EndAddress, ImmutableArray<NativeFieldRegisteredResource> Resources, ImmutableArray<NativeFieldRegisteredInstance> Instances)
@@ -72,6 +76,7 @@ public static partial class NativeFieldRegistrationMachine
         internal readonly NativeFieldOneModelEntry Entry = entry;
         internal readonly List<uint> Textures = [];
         internal readonly List<NativeFieldRegisteredTexture> RegisteredTextures = [];
+        internal int UploadedTextures;
         internal uint Geometry;
         internal uint Animation;
         internal string SourceHash = string.Empty;
@@ -103,6 +108,13 @@ public static partial class NativeFieldRegistrationMachine
     {
         source.Validate();
         retained.Validate();
+        if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
+        {
+            if (retained.FieldTextureAnimations is { Planes: null } || retained.FieldTextureAnimations is null && retained.FieldTexturePlaneCacheFresh != true)
+            {
+                throw new NotSupportedException("Remastered registration requires retained native plane state or an explicitly fresh cold renderer cache; older state requires migration before registration reload.");
+            }
+        }
         NativeFieldRegistrationLoaderInputs loader = source.Loader ?? throw new NotSupportedException("Native kind3 requires its raw PCB, original JSM, INF selector and initialized placement tables.");
         if (actors.Count > 32 || actors.Select(actor => actor.ObjectId).Distinct().Count() != actors.Count || actors.Any(actor => actor.ModelId < -1 || actor.ModelId >= 64 || actor.ModelId >= source.Directory.Length || actor.FirstScript < 0 || actor.LastScript < actor.FirstScript))
         {
@@ -242,6 +254,11 @@ public static partial class NativeFieldRegistrationMachine
                 else
                 {
                     registration = RegisterTexture(context, loader, item.Entry, texture, uploadIndex++);
+                    item.UploadedTextures++;
+                    if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
+                    {
+                        registration = registration with { PlaneIdentity = NativeFieldTexturePlanes.SourceIdentity(item.Entry.RawName.AsSpan(), item.UploadedTextures) };
+                    }
                     lastX[ordinal] = registration.X;
                     lastY[ordinal] = registration.Y;
                     ushort offset = unchecked((ushort)((registration.Y & 255) << 8 | (registration.X & 63) << (2 - registration.Mode)));
@@ -279,6 +296,10 @@ public static partial class NativeFieldRegistrationMachine
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
         NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
+        if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
+        {
+            result = result with { FieldTexturePlaneCacheFresh = false, FieldTextureAnimations = result.FieldTextureAnimations! with { Planes = retained.FieldTextureAnimations?.Planes ?? result.FieldTextureAnimations!.Planes } };
+        }
         state.Validate(result);
         return new(state, result, context.Uploads.ToImmutableArray());
     }

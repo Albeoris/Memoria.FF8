@@ -43,9 +43,7 @@ public sealed class NativeBattleEyePlaneReplacementTests
             {
                 PixelImage original = NativeBattleEffectTextureReader.DecodePcRegion(state, material.Page, material.Clut, material.U, material.V, material.Width, material.Height);
                 PixelImage selected = NativeBattleEffectTextureReader.ApplyModelReplacements(original, state, material.Page, material.Clut, material.U, material.V, null, replacements);
-                int pixelsPerWord = 4 >> ((material.Page >> 7) & 3);
-                int pageX = (material.Page & 15) * 64;
-                int pageY = (material.Page & 16) * 16;
+                int closedPixels = 0;
                 for (int y = 0; y < selected.Height; y++)
                 {
                     for (int x = 0; x < selected.Width; x++)
@@ -55,12 +53,10 @@ public sealed class NativeBattleEyePlaneReplacementTests
                             continue;
                         }
                         changed++;
-                        int wordX = pageX + (material.U + x * material.Width / selected.Width) / pixelsPerWord;
-                        int wordY = pageY + material.V + y * material.Height / selected.Height;
-                        Assert.InRange(wordX, (int)closed.DestinationX, closed.DestinationX + closed.Width - 1);
-                        Assert.InRange(wordY, (int)closed.DestinationY, closed.DestinationY + closed.Height - 1);
+                        closedPixels++;
                     }
                 }
+                Assert.True(closedPixels == 0 || closedPixels == selected.Width * selected.Height, $"Body {name} selected a partial HD plane.");
             }
             Assert.True(changed > 0, $"Body {name} never samples its proved closed-plane destination.");
             state = Copy(state, open);
@@ -78,7 +74,7 @@ public sealed class NativeBattleEyePlaneReplacementTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    public void ActualCopiedWordsSelectOnlyTheDestinationEyePatchOnEitherMaterial(int target)
+    public void ActualCopiedWordsSelectTheWholeClosedPlaneOnEitherMaterial(int target)
     {
         using InMemoryResourceSource source = new(new("synthetic", GameDataEdition.Classic, []));
         ResourceService resources = new(source);
@@ -89,12 +85,12 @@ public sealed class NativeBattleEyePlaneReplacementTests
         resources.Prepare(new Planes()).Commit();
         IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeBattleTextureReplacements.Bind(model, load.Binding);
         Assert.Equal(3, replacements.Count);
-        PixelImage composed = replacements.Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image;
-        Assert.Same(composed, NativeBattleTextureReplacements.Bind(model, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
+        PixelImage closedPlane = replacements.Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image;
+        Assert.Same(closedPlane, NativeBattleTextureReplacements.Bind(model, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
         NativeBattleModelTextureBinding independentBinding = new(load.Binding.PaletteRows);
-        Assert.NotSame(composed, NativeBattleTextureReplacements.Bind(model, independentBinding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
+        Assert.Same(closedPlane, NativeBattleTextureReplacements.Bind(model, independentBinding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
         BattleModel independentModel = model with { Name = "d1c001.dat" };
-        Assert.NotSame(composed, NativeBattleTextureReplacements.Bind(independentModel, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
+        Assert.Same(closedPlane, NativeBattleTextureReplacements.Bind(independentModel, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(ClosedColor)).Image);
         foreach (int descriptorDimension in new[] { 5, 6 })
         {
             byte[] motion = model.NativeTextureAnimations!.Value.ToArray();
@@ -112,7 +108,7 @@ public sealed class NativeBattleEyePlaneReplacementTests
         {
             for (int x = 0; x < 16; x++)
             {
-                Assert.Equal(x is >= 4 and < 8 && y is >= 2 and < 4 ? ClosedColor : OpenColor, selected[x, y]);
+                Assert.Equal(ClosedColor, selected[x, y]);
             }
         }
         int pageX = (baseline.Page & 15) * 64;
@@ -131,7 +127,7 @@ public sealed class NativeBattleEyePlaneReplacementTests
         Rgba32 changedClosedColor = new(113, 47, 81, 255);
         resources.Prepare(new Planes(closedColor: changedClosedColor)).Commit();
         PixelImage republished = NativeBattleTextureReplacements.Bind(model, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(changedClosedColor)).Image;
-        Assert.NotSame(composed, republished);
+        Assert.NotSame(closedPlane, republished);
         Assert.Equal(changedClosedColor, republished[4, 2]);
         Assert.Same(republished, NativeBattleTextureReplacements.Bind(model, load.Binding).Single(replacement => replacement.Image.Pixels.Contains(changedClosedColor)).Image);
         resources.Prepare(null).Commit();

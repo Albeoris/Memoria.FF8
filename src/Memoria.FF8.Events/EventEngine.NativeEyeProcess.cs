@@ -34,6 +34,19 @@ public sealed partial class EventEngine
         Scene.NativeEyeProcess = process;
     }
 
+    public void PublishNativeFieldTextureAnimations(NativeFieldTextureAnimations animations)
+    {
+        NativeFieldRegistrationState registration = Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native plane binding lost its actual field registration.");
+        NativeFieldEyeProcess process = ReadCurrentNativeEyeProcess(Scene.NativeEyeProcess ?? throw new InvalidDataException("Native plane binding requires its retained graphics process."));
+        animations.Validate();
+        NativeFieldTextureAnimations current = process.Memory.FieldTextureAnimations ?? throw new InvalidDataException("Native plane binding lost its actual texture animation owner.");
+        if (animations.OneHash != registration.OneHash || animations.OneHash != current.OneHash || animations.Planes?.ExecutableHash != current.Planes?.ExecutableHash || !animations.Textures.SequenceEqual(current.Textures))
+        {
+            throw new InvalidDataException("Native plane binding belongs to another registered source or graphics profile.");
+        }
+        PublishNativeFieldEyeProcess(process with { Memory = process.Memory with { FieldTextureAnimations = animations } });
+    }
+
     private NativeFieldEyeProcess PrepareNativeBlinkEyes(Fiber fiber)
     {
         if (fiber.Stack.Count < 1 || !fiber.Stack.PeekValue().IsExact || Scene.NativeEyeProcess is not { } process || Scene.NativeFieldRegistration is not { } registration)

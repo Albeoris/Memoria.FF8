@@ -2,6 +2,7 @@ using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -10,7 +11,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DemasterBattleModelAnimationTests
 {
     [Fact]
-    public void OriginalEyeCopyPlansSelectOnlyTheChangedHdPatchAndRestoreTheNextCopy()
+    public void OriginalEyeCopyPlansSelectTheWholeHdPlaneAndRestoreTheNextCopy()
     {
         string? statePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_MODEL_STATE");
         string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_MODEL_TEXTURE_PACKAGES");
@@ -68,7 +69,6 @@ public sealed class DemasterBattleModelAnimationTests
                 }
                 Assert.True(openImage.Width > material.Width && closedImage.Width > material.Width, "Both original eye states must retain HD sampling density.");
                 int changed = 0;
-                int pixelsPerWord = 4 >> ((material.Page >> 7) & 3);
                 for (int y = 0; y < openImage.Height; y++)
                 {
                     for (int x = 0; x < openImage.Width; x++)
@@ -78,13 +78,14 @@ public sealed class DemasterBattleModelAnimationTests
                             continue;
                         }
                         changed++;
-                        int nativeX = (material.Page & 15) * 64 + (material.U + x * material.Width / openImage.Width) / pixelsPerWord;
-                        int nativeY = (material.Page & 16) * 16 + material.V + y * material.Height / openImage.Height;
-                        Assert.InRange(nativeX, (int)closed.DestinationX, closed.DestinationX + closed.Width - 1);
-                        Assert.InRange(nativeY, (int)closed.DestinationY, closed.DestinationY + closed.Height - 1);
                     }
                 }
                 Assert.True(changed > 0);
+                Assert.Contains(Enumerable.Range(0, textures.Count), ordinal =>
+                {
+                    TextureValue value = textures.GetTexture(ordinal);
+                    return value.Variants is { } variants && variants.TryGetValue("eyes-closed", out PixelImage? plane) && plane.Width == closedImage.Width && plane.Height == closedImage.Height && plane.Pixels.AsSpan().SequenceEqual(closedImage.Pixels);
+                });
                 NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(shut))!;
                 Assert.Equal(closedImage.Pixels, Sample(restored, material).Pixels);
                 Assert.Equal(openImage.Pixels, Sample(Copy(restored, open), material).Pixels);
@@ -93,7 +94,7 @@ public sealed class DemasterBattleModelAnimationTests
                 observed = true;
                 break;
             }
-            Assert.True(observed, $"Original eye copies for {model.Name} did not select a changed HD patch.");
+            Assert.True(observed, $"Original eye copies for {model.Name} did not select its whole closed HD plane.");
             verified++;
 
             PixelImage Sample(NativeBattleEffectTextureState state, NativeBattleTextureReplacement material)
