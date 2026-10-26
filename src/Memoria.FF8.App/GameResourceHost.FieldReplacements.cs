@@ -43,7 +43,7 @@ internal sealed partial class GameResourceHost
                 {
                     foreach (ModFile owner in owners.DistinctBy(file => file.PackageId))
                     {
-                        diagnostics.Add(new("Junction.InvalidFieldResource", $"{field.Key}, script {issue.ScriptId}, operation {issue.Operation} ({issue.Code}): {issue.Message}", owner.PackageId, owner.RelativePath));
+                        diagnostics.Add(new("Junction.InvalidFieldResource", $"{field.Key}, script {issue.ScriptId}, operation {issue.Operation} ({issue.Code}): {issue.Message} Selected Field replacement group was skipped; installed field resources remain active.", owner.PackageId, owner.RelativePath));
                     }
                 }
                 if (validation.DynamicMessageReferences > 0)
@@ -67,7 +67,7 @@ internal sealed partial class GameResourceHost
                 rejectedFields.Add(field.Key);
                 foreach (ModFile owner in owners.DistinctBy(file => file.PackageId))
                 {
-                    diagnostics.Add(new("Junction.InvalidFieldResource", $"{field.Key}: {exception.Message}", owner.PackageId, owner.RelativePath));
+                    diagnostics.Add(new("Junction.InvalidFieldResource", $"{field.Key}: {exception.Message} Selected Field replacement group was skipped; installed field resources remain active.", owner.PackageId, owner.RelativePath));
                 }
             }
         }

@@ -28,7 +28,7 @@ Encoded resources remain fixed once acquired by a consumer. Changing or disablin
 
 ## Encoded Field components
 
-Ordinary Junction file replacements at `field/mapdata/<prefix>/<field>/<member>`, optionally preceded by `direct/`, address the installed `field/<field>/<member>` resources. The prefix is the first two characters of the field name. Recognized members are `chara.one` and field-named `.ca`, `.id`, `.inf`, `.jsm`, `.map`, `.mim`, `.mrt`, `.msd`, `.msk`, `.pcb`, `.pmd`, `.rat` and `.sfx` files. `.sym` files are authoring metadata and do not contribute runtime resources.
+Ordinary Junction file replacements at `field/mapdata/<prefix>/<field>/<member>`, optionally preceded by `direct/`, address the installed `field/<field>/<member>` resources. The prefix is the first two characters of the field name. Recognized members are `chara.one` and field-named `.ca`, `.id`, `.inf`, `.jsm`, `.map`, `.mim`, `.mrt`, `.msd`, `.msk`, `.pcb`, `.pmd`, `.rat` and `.sfx` files. `.sym` files are authoring metadata and do not contribute runtime resources. Runtime-looking loose filenames that do not match the native member name produce `Junction.UnusedFieldMember`; language suffixes are not automatically aliased to the field basename.
 
 For each field, all runtime members contributed by one package form an indivisible group. Groups are considered in effective package order. A group is accepted only when none of its member addresses intersects an already accepted group. An overlapping group is skipped completely, with an owning-package diagnostic; its nonoverlapping members do not survive separately. Rejected groups do not reserve addresses. Groups containing disjoint members may combine, and missing members use installed resources.
 

@@ -207,4 +207,3 @@ public sealed class FieldVoicePresentationTests
         public void Update(DialogueState dialogue, int page = 0, int? choice = null) => Presentation.Synchronize("scene", Owner, [new(dialogue, page, choice)]);
     }
 }
-

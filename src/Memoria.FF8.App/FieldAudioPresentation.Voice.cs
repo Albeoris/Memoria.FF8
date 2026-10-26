@@ -37,6 +37,9 @@ internal sealed partial class FieldAudioPresentation
         }
     }
 
+    internal int DialogueVoiceCount => dialogueVoices.Count;
+    internal bool IsDialogueVoicePlaying(int channel) => dialogueVoices.TryGetValue(channel, out DirectSoundOutput.Buffer? buffer) && buffer.IsPlaying;
+
     private ExternalVoiceResolver? currentVoiceResolver;
     private int? currentVoiceGameMoment;
 

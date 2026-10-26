@@ -102,7 +102,7 @@ public sealed class JunctionFieldResourceInstalledTests
     }
 
     [Fact]
-    public void MalformedSelectedTextReferencesRejectTheAtomicUpdateWithOwningDiagnostics()
+    public void MalformedSelectedTextInAcquiredFieldRequiresRestartWithOwningDiagnostics()
     {
         using PackageFixture fixture = new();
         using GameResourceHost host = fixture.Open();
@@ -141,6 +141,7 @@ public sealed class JunctionFieldResourceInstalledTests
         Assert.Same(sceneMods, host.SceneMods);
         Assert.Equal(previous, host.Resources.Read(key));
         Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Junction.InvalidFieldResource" && diagnostic.PackageId == fixture.PackageId && diagnostic.RelativePath is not null);
+        Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "resource-reload-required");
         Assert.All(host.Mods.Diagnostics.Where(diagnostic => diagnostic.Code == "Junction.InvalidFieldResource"), diagnostic => Assert.Equal(fixture.PackageId, diagnostic.PackageId));
         Evidence("field-resource-invalid-text.json", new { selected.Canonical, field = selectedLogic.Name, sourceTexts = selectedLogic.Messages.Count, candidateTexts = 1, atomicRollback = true, diagnostics = host.Mods.Diagnostics });
     }

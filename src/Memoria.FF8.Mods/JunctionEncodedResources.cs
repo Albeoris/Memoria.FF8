@@ -14,6 +14,10 @@ public static partial class JunctionEncodedResources
         HashSet<ResourceKey> encountered = [];
         List<ModDiagnostic> failures = [];
         List<ModDiagnostic> notices = [];
+        foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction && IsUnusedFieldMember(file.RelativePath)))
+        {
+            notices.Add(new("Junction.UnusedFieldMember", "The loose Field filename does not match a native runtime member and is not applied. Localized suffixes are not aliases for the field basename.", file.PackageId, file.RelativePath));
+        }
         HashSet<ResourceKey> acceptedFieldMembers = [];
         var fieldFiles = catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => (File: file, Key: Address(file.RelativePath))).Where(item => item.Key is ResourceKey key && FieldGroup(key) is not null);
         foreach (var group in fieldFiles.GroupBy(item => item.File.PackageId + "\0" + FieldGroup(item.Key!.Value), StringComparer.OrdinalIgnoreCase))
@@ -162,6 +166,20 @@ public static partial class JunctionEncodedResources
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
 
     private static bool IsFieldMember(string field, string member) => member == "chara.one" || member.StartsWith(field + ".", StringComparison.Ordinal) && FieldExtensions.Contains(member[field.Length..]);
+
+    public static bool IsUnusedFieldMember(string relativePath)
+    {
+        string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
+        int start = parts[0] == "direct" ? 1 : 0;
+        if (parts.Length - start != 5 || parts[start] != "field" || parts[start + 1] != "mapdata")
+        {
+            return false;
+        }
+        string field = parts[start + 3];
+        string member = parts[start + 4];
+        string extension = Path.GetExtension(member);
+        return IsFieldName(field) && parts[start + 2] == field[..2] && (FieldExtensions.Contains(extension) || extension == ".one") && !IsFieldMember(field, member);
+    }
 
     private static bool IsArchiveMemberName(string field, string member) => member == "chara.one" || member.StartsWith(field + ".", StringComparison.Ordinal) && member.Length > field.Length + 1 && member[(field.Length + 1)..].All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 }

@@ -112,7 +112,7 @@ public sealed class JunctionFieldArchiveInstalledTests
     }
 
     [Fact]
-    public void PresentMalformedColorMemberRejectsUpdateInsteadOfUsingAbsencePolicy()
+    public void PresentMalformedColorMemberInAcquiredFieldRequiresRestartInsteadOfUsingAbsencePolicy()
     {
         using PackageFixture fixture = new();
         using GameResourceHost host = fixture.Open();
@@ -141,6 +141,7 @@ public sealed class JunctionFieldArchiveInstalledTests
         Assert.Equal(catalogGeneration, host.Mods.Catalog.Generation);
         Assert.Equal(previous, host.Resources.Read(key));
         Assert.Contains(host.Mods.Diagnostics, item => item.Code == "Junction.InvalidFieldResource" && item.PackageId == fixture.PackageId && item.RelativePath is not null);
+        Assert.Contains(host.Mods.Diagnostics, item => item.Code == "resource-reload-required");
         Evidence("malformed-present-colors.json", new { group.Field, atomicRollback = true, diagnostics = host.Mods.Diagnostics });
     }
     [Fact]
