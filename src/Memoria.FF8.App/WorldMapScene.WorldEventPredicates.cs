@@ -73,6 +73,11 @@ internal sealed partial class WorldMapScene
                     int[] excluded = [FindRagnarokShape(0), FindRagnarokShape(2), FindRagnarokShape(3), ragnarok.Allocation.RagnarokIndex, -1, FindRagnarokShape(64), FindRagnarokShape(65)];
                     return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, ragnarok.PrimaryContact, ragnarok.BroadContact, ragnarok.Objects.Length, index => ragnarok.Objects[index].ShapeId, index => ragnarok.Objects[index].Position, excluded);
                 }
+                if (state.NativeCarRuntime is { Allocation: { } carAllocation } carRuntime)
+                {
+                    // The retained allocation excludes appended selected vehicles;548CD0 skips them.
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, carRuntime.PrimaryContact, carRuntime.BroadContact, carAllocation.Objects.Length, index => carAllocation.Objects[index].ShapeId, index => carAllocation.Objects[index].Position, [carAllocation.ControlledObjectIndex]);
+                }
                 if (state.NativeGardenRuntime is { } garden)
                 {
                     int FindShape(byte shape) => garden.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();

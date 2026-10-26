@@ -14,7 +14,7 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         if (state.NativeCarRuntime.EntityType is 32 or 35)
         {
-            EnsureDenseCarContacts(state, inputs, saved);
+            ValidateDenseCarAllocation(state, inputs, saved);
             return;
         }
         // Section9 clause1 creates only stored shape4 in [34,205).548CD0 skips
@@ -34,16 +34,16 @@ internal sealed partial class WorldMapScene
     private static NativeWorldPathProjectionCertificate CarProjection(WorldState world)
     {
         //557250/558C20 write the same ordinary camera words for the supported cars as for
-        //normal foot. Without an admitted collision,557A90 retains this pitch.
+        //normal foot. Object contacts do not change557A90 camera pitch.
         NativeWorldFootCameraState camera = world.NativeCarRuntime?.ProjectionCamera ?? throw new InvalidDataException("Native car projection requires its executed pre-terrain camera words.");
         if (camera.TargetX != world.CameraTargetX || camera.TargetRawZ != world.CameraTargetZ || camera.TargetNativeHeight != world.CameraTargetNativeHeight || camera.Yaw != world.CameraYaw || camera.Pitch != -112 || camera.OffsetY != -341 || camera.OffsetZ != -7168)
         {
-            throw new InvalidDataException("Native car projection differs from its actual selected camera and supported no-collision loader words.");
+            throw new InvalidDataException("Native car projection differs from its actual selected camera and supported loader words.");
         }
         return NativeWorldPathProjectionCertificate.CreateFoot(camera);
     }
 
-    private void EnsureDenseCarContacts(WorldState state, WorldEntryVariables inputs, NativeSavedWorldState saved)
+    private void ValidateDenseCarAllocation(WorldState state, WorldEntryVariables inputs, NativeSavedWorldState saved)
     {
         NativeCarWorldRuntimeState car = state.NativeCarRuntime!;
         NativeTrainWorldAllocation allocation = car.Allocation!;
@@ -56,17 +56,16 @@ internal sealed partial class WorldMapScene
         {
             throw new InvalidDataException("Native fuel-using car retained allocation differs from its actual original clause and coordinate records.");
         }
-        NativeWorldPathProjectionCertificate context = CarProjection(state);
-        NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(state.X, state.NativeHeight, -state.Z));
+    }
+
+    private int DenseCarContact(WorldState cameraState, IReadOnlyList<WorldNativeGardenProbe> probes, int padding)
+    {
+        NativeCarWorldRuntimeState car = cameraState.NativeCarRuntime!;
+        NativeWorldPathProjectionCertificate context = CarProjection(cameraState);
+        WorldNativeGardenProbe center = probes[0];
+        NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(center.X, center.Y, -center.Z));
         NativeWorldContactShape selected = assets.ReadNativeContactShape(car.ShapeId);
-        foreach (int padding in new[] { 0, 200 })
-        {
-            WorldStationContactResult contact = WorldStationContactCertificate.Evaluate(assets, allocation, [], player, state.NativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(car.EntityType), selected.Height);
-            if (contact.Hit)
-            {
-                throw new NotSupportedException("Native fuel-using car reached an original object collision/proximity response whose body/camera effects are unsupported.");
-            }
-        }
+        return WorldStationContactCertificate.Evaluate(assets, car.Allocation!, [], player, center.Y, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(car.EntityType), selected.Height).ContactIndex;
     }
 
     private IReadOnlyList<NativeWorldStaticModelDraw> ReadCarModels(WorldState world, Vector3 position, NativeCarWorldRuntimeState car)
@@ -151,14 +150,15 @@ internal sealed partial class WorldMapScene
         int proposedMoveX = NearWrapped(x, before.X, 262144) - before.X;
         int proposedGraphicsZ = before.Z - NearWrapped(z, before.Z, 196608);
         int? selectedGroup = horizontal > 0 ? 0 : horizontal < 0 ? 1 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements);
+        //53BB90 queries the selected terrain fan before publishing XYZ. A hard contact rejects
+        //that commit; padding200 alone retains proximity and accepts ordinary movement.
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements, car.EntityType, footprintContact: car.Allocation is not null ? (probes, padding) => DenseCarContact(candidate, probes, padding) : null);
         candidate = candidate with { X = ground.X, Z = ground.Z };
-        EnsureCarContactCertificate(candidate);
         WorldGround? accepted = ground.Center?.Ground;
         int height = accepted is WorldGround selected ? NativeWorldTerrain.ResolveHeight(car.EntityType, -(int)selected.Height, selected.Triangle.GroundType, before.NativeHeight).Height : before.NativeHeight;
         // Accepted53BB90 retains the unrotated raw velocity, even when a sliding candidate wins.
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsZ);
-        return candidate with { NativeHeight = height, GroundType = accepted?.Triangle.GroundType ?? before.GroundType, NativeCarRuntime = car with { Speed = speed, CameraFollowSpeed = follow, TerrainTiltBlend = tiltBlend, ModelTilt = tilt + tiltBlend, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, MovementMagnitude20409F4 = ground.Blocked ? 0 : graphicsSpeed } };
+        return candidate with { NativeHeight = height, GroundType = accepted?.Triangle.GroundType ?? before.GroundType, NativeCarRuntime = car with { Speed = speed, CameraFollowSpeed = follow, TerrainTiltBlend = tiltBlend, ModelTilt = tilt + tiltBlend, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, MovementMagnitude20409F4 = ground.Blocked ? 0 : graphicsSpeed, PrimaryContact = ground.PrimaryContact, BroadContact = ground.BroadContact } };
     }
 
     private (int Tilt, int Blend) CarModelTilt(WorldState before, int bodyYaw, NativeCarWorldRuntimeState car)

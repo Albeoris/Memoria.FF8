@@ -34,6 +34,12 @@ public sealed record NativeCarWorldRuntimeState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldFootCameraState? ProjectionCamera { get; init; }
 
+    // Older snapshots retain unknown contacts until the next physical callback.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PrimaryContact { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BroadContact { get; init; }
+
     public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeWorldGroundCacheState cache, NativeWorldProcess process, byte entityType = 33, NativeTrainWorldAllocation? allocation = null, NativeWorldFootCameraState? projectionCamera = null)
     {
         saved.Validate();
@@ -66,6 +72,10 @@ public sealed record NativeCarWorldRuntimeState
         if (EntityType is 32 or 35 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null))
         {
             throw new InvalidDataException("Native car object allocation differs from its executed loader contract.");
+        }
+        if ((PrimaryContact is null) != (BroadContact is null) || PrimaryContact < -1 || BroadContact < -1 || PrimaryContact >= (Allocation?.Objects.Length ?? 0) || BroadContact >= (Allocation?.Objects.Length ?? 0) || PrimaryContact >= 0 && BroadContact != PrimaryContact)
+        {
+            throw new InvalidDataException("Native car contacts differ from their executed allocation and hard/broad query order.");
         }
         Allocation?.Validate();
         ProjectionCamera?.Validate();
