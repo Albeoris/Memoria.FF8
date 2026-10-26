@@ -4,18 +4,38 @@ param(
     [switch] $AllScenarios,
     [switch] $PrepareOnly,
     [switch] $Recalculate,
-    [double] $BelowFps = 30
+    [double] $BelowFps = 30,
+    [switch] $Triage,
+    [switch] $Retry,
+    [int[]] $EffectId = @(),
+    [string[]] $CaseId = @(),
+    [string[]] $ErrorCode = @(),
+    [switch] $Errors,
+    [switch] $LowFps,
+    [string[]] $ProblemId = @(),
+    [int] $Top = 3,
+    [int] $RetryTop = 0,
+    [string] $HostExecutable
 )
 
 $ErrorActionPreference = 'Stop'
 $pinsPath = [IO.Path]::GetFullPath($PinsFile)
 $validationRoot = [IO.Path]::GetDirectoryName($pinsPath)
-if ($Recalculate -and $PrepareOnly) {
+if (@($Recalculate, $Triage, $Retry | Where-Object { $_ }).Count -gt 1) {
+    throw 'Choose only one of Recalculate, Triage or Retry.'
+}
+if (($Recalculate -or $Triage) -and $PrepareOnly) {
     throw 'Choose either Recalculate or PrepareOnly.'
 }
-if ($Recalculate -and (-not [double]::IsFinite($BelowFps) -or $BelowFps -le 0)) {
+if (($Recalculate -or $Triage -or $Retry) -and (-not [double]::IsFinite($BelowFps) -or $BelowFps -le 0)) {
     throw 'BelowFps must be finite and positive.'
 }
+if ($Top -lt 1 -or $RetryTop -lt 0) { throw 'Top must be positive; RetryTop must be nonnegative.' }
+if (-not $Retry -and ($EffectId.Count -or $CaseId.Count -or $ErrorCode.Count -or $ProblemId.Count -or $RetryTop -or $HostExecutable)) {
+    throw 'Retry selectors and HostExecutable require -Retry.'
+}
+if (-not ($Retry -or $Triage) -and ($Errors -or $LowFps)) { throw 'Errors and LowFps require Triage or Retry.' }
+if ($Retry -and -not ($EffectId.Count -or $CaseId.Count -or $ErrorCode.Count -or $Errors -or $LowFps -or $ProblemId.Count -or $RetryTop)) { throw 'Retry requires an explicit selector.' }
 
 function HashFile([string] $path) {
     $stream = [IO.File]::OpenRead($path)
@@ -60,6 +80,31 @@ function WriteLatestJson([string] $path, [object] $value) {
     }
 }
 
+function Invoke-PinnedRun([string] $InputManifest) {
+    $previousProfile = [Environment]::GetEnvironmentVariable('MEMORIA_FF8_EXECUTION_STACK_PROFILE', 'Process')
+    try {
+        if ($pins.execution_stack_profile) {
+            $profile = ResolvePinnedPath $pins.execution_stack_profile
+            if ((HashFile $profile) -ne $pins.execution_stack_profile_sha256) { throw 'Pinned execution-stack profile changed.' }
+            [Environment]::SetEnvironmentVariable('MEMORIA_FF8_EXECUTION_STACK_PROFILE', $profile, 'Process')
+        }
+        & $toolExe run --input $InputManifest
+        $script:validationRunExit = $LASTEXITCODE
+    } finally {
+        [Environment]::SetEnvironmentVariable('MEMORIA_FF8_EXECUTION_STACK_PROFILE', $previousProfile, 'Process')
+    }
+}
+
+function Publish-Triage($Report, [string] $Suffix) {
+    $path = Join-Path $validationRoot ("triage-$Suffix.json")
+    WriteNewJson $path $Report
+    WriteLatestJson (Join-Path $validationRoot 'latest-triage.json') ([ordered]@{
+        schema_version=1; generated_utc=[DateTimeOffset]::UtcNow; report=$path; report_sha256=(HashFile $path)
+        manifest=$templatePath; manifest_sha256=$templateSha; pins_sha256=(HashFile $pinsPath); below_fps=$BelowFps
+    })
+    return $path
+}
+
 $pins = Get-Content -LiteralPath $pinsPath -Raw | ConvertFrom-Json
 $toolRoot = ResolvePinnedPath $pins.tool_directory
 $hostRoot = ResolvePinnedPath $pins.host_directory
@@ -70,7 +115,7 @@ foreach ($name in @('Memoria.FF8.Runtime', 'Memoria.FF8.Resources', 'Memoria.FF8
     [Reflection.Assembly]::LoadFrom((Join-Path $toolRoot ($name + '.dll'))) | Out-Null
 }
 $directories = @(@{ Path = $toolRoot; Expected = $pins.tool_fingerprint })
-if (-not $Recalculate) {
+if (-not ($Recalculate -or $Triage)) {
     $directories += @{ Path = $hostRoot; Expected = $pins.host_fingerprint }
 }
 foreach ($directory in $directories) {
@@ -96,6 +141,95 @@ if ((HashFile $templatePath) -ne $templateSha) {
 }
 $manifest = Get-Content -LiteralPath $templatePath -Raw | ConvertFrom-Json
 $token = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [Guid]::NewGuid().ToString('N')
+$toolExe = Join-Path $toolRoot 'Memoria.FF8.BattleEffects.exe'
+if ($Triage -or $Retry) {
+    . (Join-Path $PSScriptRoot 'Validation-Triage.ps1')
+    . (Join-Path $PSScriptRoot 'Validation-Retry.ps1')
+    $previous = $null
+    $indexPath = Join-Path $validationRoot 'latest-triage.json'
+    if (Test-Path -LiteralPath $indexPath) {
+        $index = Get-Content -LiteralPath $indexPath -Raw | ConvertFrom-Json
+        if ((HashFile $index.report) -ne $index.report_sha256) { throw 'Latest triage report changed.' }
+        if ($index.manifest_sha256 -eq $templateSha) { $previous = Get-Content -LiteralPath $index.report -Raw | ConvertFrom-Json }
+    }
+    $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot([NullString]::Value)
+    try {
+        $before = New-ValidationTriageReport -ManifestPath $templatePath -HistoryRoot $validationRoot -PreviousReport $previous -BelowFps $BelowFps
+        $beforePath = Publish-Triage $before "$token-before"
+    } finally { $measurement.Dispose() }
+    if ($Triage) {
+        $problems = @($before.problems)
+        if ($Errors -or $LowFps) { $problems = @($problems | Where-Object { ($Errors -and $_.kinds -contains 'functional-error') -or ($LowFps -and (@($_.kinds | Where-Object { $_ -in @('sustained-low-fps','repeated-hitches') }).Count -gt 0)) }) }
+        [ordered]@{report=$beforePath;requested=$before.requested;tested=$before.tested;errors=$before.errors;blocked=$before.blocked;pending=$before.pending;top_problems=@($problems | Select-Object -First $Top rank,problem_id,effect_id,effect_ids,error_signature,priority,impact_ms,evidence,kinds,affected_cases,representative_case_id);launched=$false} | ConvertTo-Json -Depth 20
+        return
+    }
+    $selectedIds = @(Select-ValidationRetryCases -Report $before -EffectId $EffectId -CaseId $CaseId -ErrorCode $ErrorCode -Errors:$Errors -LowFps:$LowFps -ProblemId $ProblemId -Top $RetryTop)
+    $selection = [Collections.Generic.HashSet[string]]::new([string[]]$selectedIds, [StringComparer]::Ordinal)
+    $manifest.cases = @($manifest.cases | Where-Object { $selection.Contains($_.id) })
+    if ($manifest.cases.Count -ne $selectedIds.Count) { throw 'Retry selection does not match the frozen manifest.' }
+    $retryOutput = Join-Path $validationRoot ("retry-$token")
+    $retryManifest = $retryOutput + '.manifest.json'
+    $retryReceipt = $retryOutput + '.comparison.json'
+    if ($HostExecutable) {
+        $retryExe = [IO.Path]::GetFullPath($HostExecutable)
+        if (-not [IO.File]::Exists($retryExe)) { throw 'Retry host executable does not exist.' }
+        $retryHost = [IO.Path]::GetDirectoryName($retryExe)
+        $hostFiles = [Memoria.FF8.BattleEffects.EvidenceStore]::DescribeFiles($retryHost)
+        $retryFingerprint = [Memoria.FF8.BattleEffects.EvidenceStore]::HashRecord[Memoria.FF8.BattleEffects.BuildFile[]]($hostFiles)
+    } else {
+        $retryExe = Join-Path $hostRoot 'Memoria.FF8.exe'
+        $retryHost = $hostRoot
+        $retryFingerprint = $pins.host_fingerprint
+    }
+    $manifest.output_root = $retryOutput
+    $manifest.executable = $retryExe
+    $manifest.working_directory = $retryHost
+    $manifest.build_fingerprint = $retryFingerprint
+    WriteNewJson ($retryOutput + '.selection.json') ([ordered]@{schema_version=1;before_report=$beforePath;before_report_sha256=(HashFile $beforePath);case_ids=$selectedIds;host_executable=$retryExe;build_fingerprint=$retryFingerprint;prepared=[bool]$PrepareOnly;no_launch=($PrepareOnly -or $selectedIds.Count -eq 0);selection_policy='Explicit selectors are a union; this retry bypasses normal incremental skipping only for selected cases.'})
+    if ($selectedIds.Count -eq 0) {
+        [ordered]@{selected=0;launched=$false;report=$beforePath;message='No matching measured or errored cases.'} | ConvertTo-Json
+        return
+    }
+    WriteNewJson $retryManifest $manifest
+    & $toolExe validate-pilot --input $retryManifest | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Retry manifest validation failed.' }
+    if ($PrepareOnly) {
+        [ordered]@{selected=$selectedIds.Count;manifest=$retryManifest;selection=($retryOutput + '.selection.json');before_report=$beforePath;launched=$false} | ConvertTo-Json
+        return
+    }
+    $launchError = $null
+    $runExit = 4
+    try {
+        Invoke-PinnedRun $retryManifest
+        $runExit = $script:validationRunExit
+    } catch { $launchError = $_.Exception.Message }
+    $after = $null
+    $afterPath = $null
+    $reportError = $null
+    try {
+        $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot([NullString]::Value)
+        try {
+            $after = New-ValidationTriageReport -ManifestPath $templatePath -HistoryRoot $validationRoot -PreviousReport $before -BelowFps $BelowFps
+            $afterPath = Publish-Triage $after "$token-after"
+        } finally { $measurement.Dispose() }
+    } catch { $reportError = $_.Exception.Message }
+    # Only evidence written by this exact retry can confirm its outcome.
+    $fenced = [Collections.Generic.List[object]]::new()
+    $outputPrefix = [IO.Path]::GetFullPath($retryOutput).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    if ($after) {
+        foreach ($case in $after.cases) {
+            if ($selection.Contains($case.case_id) -and $case.result_path -and [IO.Path]::GetFullPath($case.result_path).StartsWith($outputPrefix, [StringComparison]::OrdinalIgnoreCase)) { $fenced.Add($case) }
+        }
+    }
+    $comparison = @(Compare-ValidationRetry -Before $before -After ([pscustomobject]@{cases=$fenced.ToArray()}) -CaseId $selectedIds)
+    $exitCode = 0
+    if (@($comparison | Where-Object status -in @('reproduced','changed-failure')).Count) { $exitCode = 2 }
+    if ($launchError -or $reportError -or @($comparison | Where-Object status -eq 'inconclusive').Count) { $exitCode = 4 }
+    WriteNewJson $retryReceipt ([ordered]@{schema_version=1;before_report=$beforePath;after_report=$afterPath;manifest=$retryManifest;output_root=$retryOutput;host_executable=$retryExe;build_fingerprint=$retryFingerprint;runtime_exit_code=$runExit;exit_code=$exitCode;launch_error=$launchError;report_error=$reportError;cases=$comparison;top_problems=@($after.problems | Select-Object -First $Top)})
+    WriteLatestJson (Join-Path $validationRoot 'latest-retry.json') ([ordered]@{comparison=$retryReceipt;comparison_sha256=(HashFile $retryReceipt);report=$afterPath;exit_code=$exitCode})
+    [ordered]@{comparison=$retryReceipt;report=$afterPath;exit_code=$exitCode;outcomes=@($comparison | Group-Object status | Select-Object Name,Count)} | ConvertTo-Json -Depth 10
+    exit $exitCode
+}
 if ($Recalculate) {
     $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot([NullString]::Value)
     try {
@@ -238,8 +372,8 @@ if ($PrepareOnly) {
     return
 }
 $started = [DateTimeOffset]::UtcNow
-& $toolExe run --input $selectedPath
-$runExit = $LASTEXITCODE
+Invoke-PinnedRun $selectedPath
+$runExit = $script:validationRunExit
 WriteNewJson $completionPath ([ordered]@{
     schema_version = 1
     requested_manifest = $requestedPath
