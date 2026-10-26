@@ -1,18 +1,20 @@
 namespace Memoria.FF8.Assets.Localization;
 
-public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly);
+public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly, IReadOnlyList<string>? EnglishKeys = null);
 
 public sealed record FieldLocalizationNumberingEntry(string OldKey, string NewKey, string Language, string Field, int SourceOrdinal, int AnchorOrdinal, int Insertion);
 
-/// <summary>Allocates two-digit insertion suffixes while retaining each key's source ordinal.</summary>
+/// <summary>Allocates shared English bases and globally reserved insertion suffixes while retaining each key's source ordinal.</summary>
 public static class FieldLocalizationNumbering
 {
     public static IReadOnlyList<FieldLocalizationNumberingEntry> Allocate(IReadOnlyList<FieldLocalizationNumberingInput> inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        Dictionary<(string Language, string Field), List<(FieldLocalizationNumberingInput Input, int Index)>> groups = [];
-        HashSet<string> oldKeys = new(StringComparer.Ordinal);
+        Dictionary<string, int> keys = new(StringComparer.Ordinal);
+        Dictionary<(string Field, int Ordinal), int> englishOrdinals = [];
         HashSet<(string Language, string Field, int Ordinal)> sourceOrdinals = [];
+        string[] languages = new string[inputs.Count];
+        Components components = new(inputs.Count);
         for (int index = 0; index < inputs.Count; index++)
         {
             FieldLocalizationNumberingInput input = inputs[index];
@@ -23,7 +25,7 @@ public static class FieldLocalizationNumbering
             string language = FieldLocalizationKey.CanonicalLanguage(input.Language);
             FieldLocalizationKey.ValidateField(input.Field);
             ArgumentOutOfRangeException.ThrowIfNegative(input.Ordinal);
-            if (!oldKeys.Add(input.Key))
+            if (!keys.TryAdd(input.Key, index))
             {
                 throw new ArgumentException("Numbering inputs must have unique keys.", nameof(inputs));
             }
@@ -31,43 +33,205 @@ public static class FieldLocalizationNumbering
             {
                 throw new ArgumentException("Source ordinals must be unique within each language and field.", nameof(inputs));
             }
-            if (!groups.TryGetValue((language, input.Field), out List<(FieldLocalizationNumberingInput Input, int Index)>? group))
+            if (language == "en" && input.IsLanguageOnly)
             {
-                group = [];
-                groups.Add((language, input.Field), group);
+                throw new ArgumentException("English keys cannot be language-only.", nameof(inputs));
             }
-            group.Add((input, index));
+            if (input.IsLanguageOnly && input.EnglishKeys is { Count: > 0 })
+            {
+                throw new ArgumentException("Language-only keys cannot have English references.", nameof(inputs));
+            }
+            languages[index] = language;
+            if (language == "en")
+            {
+                englishOrdinals.Add((input.Field, input.Ordinal), index);
+            }
         }
 
-        FieldLocalizationNumberingEntry[] entries = new FieldLocalizationNumberingEntry[inputs.Count];
-        HashSet<string> newKeys = new(StringComparer.Ordinal);
-        foreach (KeyValuePair<(string Language, string Field), List<(FieldLocalizationNumberingInput Input, int Index)>> group in groups)
+        Dictionary<(string Field, int Ordinal), int> virtualAnchors = [];
+        int GetVirtualAnchor(string field, int ordinal)
         {
-            int anchor = 0;
-            int insertion = 0;
-            foreach ((FieldLocalizationNumberingInput input, int index) in group.Value.OrderBy(item => item.Input.Ordinal))
+            if (!virtualAnchors.TryGetValue((field, ordinal), out int node))
             {
-                if (input.IsLanguageOnly)
+                node = components.Add();
+                virtualAnchors.Add((field, ordinal), node);
+                if (englishOrdinals.TryGetValue((field, ordinal), out int english))
                 {
-                    insertion++;
-                    if (insertion > 99)
+                    components.Join(node, english);
+                }
+            }
+            return node;
+        }
+
+        for (int index = 0; index < inputs.Count; index++)
+        {
+            FieldLocalizationNumberingInput input = inputs[index];
+            if (input.EnglishKeys is { Count: > 0 })
+            {
+                foreach (string englishKey in input.EnglishKeys)
+                {
+                    if (englishKey is null || !keys.TryGetValue(englishKey, out int english) || languages[english] != "en" || inputs[english].Field != input.Field)
                     {
-                        throw new ArgumentException("An anchor cannot have more than 99 language-only insertions.", nameof(inputs));
+                        throw new ArgumentException("English references must name existing English keys in the same field.", nameof(inputs));
                     }
+                    components.Join(index, english);
+                }
+            }
+            else if (!input.IsLanguageOnly && languages[index] != "en")
+            {
+                // An ordinal-only association is provisional; it does not establish semantic equivalence.
+                components.Join(index, GetVirtualAnchor(input.Field, input.Ordinal));
+            }
+        }
+
+        foreach (IGrouping<(string Language, string Field), int> group in Enumerable.Range(0, inputs.Count).GroupBy(index => (languages[index], inputs[index].Field)))
+        {
+            int preceding = -1;
+            foreach (int index in group.OrderBy(index => inputs[index].Ordinal))
+            {
+                if (inputs[index].IsLanguageOnly)
+                {
+                    components.Join(index, preceding >= 0 ? preceding : GetVirtualAnchor(inputs[index].Field, 0));
                 }
                 else
                 {
-                    anchor = input.Ordinal;
-                    insertion = 0;
+                    preceding = index;
                 }
-                string newKey = FieldLocalizationKey.Create(group.Key.Language, group.Key.Field, anchor, insertion);
-                if (!newKeys.Add(newKey))
+            }
+        }
+
+        Dictionary<int, int> virtualOrdinals = [];
+        foreach (KeyValuePair<(string Field, int Ordinal), int> pair in virtualAnchors)
+        {
+            int root = components.Find(pair.Value);
+            if (!virtualOrdinals.TryGetValue(root, out int ordinal) || pair.Key.Ordinal < ordinal)
+            {
+                virtualOrdinals[root] = pair.Key.Ordinal;
+            }
+        }
+
+        FieldLocalizationNumberingEntry[] entries = new FieldLocalizationNumberingEntry[inputs.Count];
+        foreach (IGrouping<int, int> group in Enumerable.Range(0, inputs.Count).GroupBy(components.Find))
+        {
+            int[] ordered = group.OrderBy(index => inputs[index].Ordinal).ThenBy(index => LanguageOrder(languages[index])).ThenBy(index => inputs[index].Key, StringComparer.Ordinal).ToArray();
+            int[] english = ordered.Where(index => languages[index] == "en").ToArray();
+            int anchor = english.Length > 0
+                ? inputs[english[0]].Ordinal
+                : virtualOrdinals[group.Key];
+            Dictionary<int, int> englishTokens = english.Select((index, token) => (index, token)).ToDictionary(item => item.index, item => item.token);
+            Dictionary<string, HashSet<int>> occupied = new(StringComparer.Ordinal);
+            List<int> extras = [];
+            void Assign(int index, int insertion)
+            {
+                if (insertion > 99)
                 {
-                    throw new ArgumentException("Numbering inputs produce duplicate destination keys.", nameof(inputs));
+                    throw new ArgumentException("An anchor cannot require more than 99 insertion suffixes.", nameof(inputs));
                 }
-                entries[index] = new FieldLocalizationNumberingEntry(input.Key, newKey, group.Key.Language, group.Key.Field, input.Ordinal, anchor, insertion);
+                if (!occupied.TryGetValue(languages[index], out HashSet<int>? tokens))
+                {
+                    tokens = [];
+                    occupied.Add(languages[index], tokens);
+                }
+                tokens.Add(insertion);
+                FieldLocalizationNumberingInput input = inputs[index];
+                entries[index] = new FieldLocalizationNumberingEntry(input.Key, FieldLocalizationKey.Create(languages[index], input.Field, anchor, insertion), languages[index], input.Field, input.Ordinal, anchor, insertion);
+            }
+
+            foreach (int index in english)
+            {
+                Assign(index, englishTokens[index]);
+            }
+            foreach (int index in ordered.Where(index => languages[index] != "en").OrderBy(index => inputs[index].EnglishKeys is { Count: > 0 } ? 0 : 1))
+            {
+                FieldLocalizationNumberingInput input = inputs[index];
+                if (input.IsLanguageOnly)
+                {
+                    extras.Add(index);
+                    continue;
+                }
+                int preferred = 0;
+                if (input.EnglishKeys is { Count: > 0 })
+                {
+                    int reference = input.EnglishKeys.Select(key => keys[key]).OrderBy(reference => inputs[reference].Ordinal).First();
+                    preferred = englishTokens[reference];
+                }
+                else if (englishOrdinals.TryGetValue((input.Field, input.Ordinal), out int sourceEnglish))
+                {
+                    preferred = englishTokens[sourceEnglish];
+                }
+                if (occupied.TryGetValue(languages[index], out HashSet<int>? tokens) && tokens.Contains(preferred))
+                {
+                    extras.Add(index);
+                }
+                else
+                {
+                    Assign(index, preferred);
+                }
+            }
+            int nextInsertion = Math.Max(1, english.Length);
+            foreach (int index in extras.OrderBy(index => inputs[index].Ordinal).ThenBy(index => LanguageOrder(languages[index])).ThenBy(index => inputs[index].Key, StringComparer.Ordinal))
+            {
+                Assign(index, nextInsertion++);
             }
         }
         return entries;
+    }
+
+    // Fixed language order makes globally reserved suffixes independent of input enumeration order.
+    private static int LanguageOrder(string language)
+    {
+        return language switch
+        {
+            "en" => 0,
+            "fr" => 1,
+            "de" => 2,
+            "es" => 3,
+            "it" => 4,
+            "jp" => 5,
+            _ => throw new ArgumentException("Unsupported language.", nameof(language))
+        };
+    }
+
+    private sealed class Components
+    {
+        private readonly List<int> parents;
+
+        public Components(int count)
+        {
+            parents = Enumerable.Range(0, count).ToList();
+        }
+
+        public int Add()
+        {
+            int index = parents.Count;
+            parents.Add(index);
+            return index;
+        }
+
+        public int Find(int index)
+        {
+            int root = index;
+            while (parents[root] != root)
+            {
+                root = parents[root];
+            }
+            while (parents[index] != index)
+            {
+                int next = parents[index];
+                parents[index] = root;
+                index = next;
+            }
+            return root;
+        }
+
+        public void Join(int first, int second)
+        {
+            int firstRoot = Find(first);
+            int secondRoot = Find(second);
+            if (firstRoot != secondRoot)
+            {
+                parents[Math.Max(firstRoot, secondRoot)] = Math.Min(firstRoot, secondRoot);
+            }
+        }
     }
 }

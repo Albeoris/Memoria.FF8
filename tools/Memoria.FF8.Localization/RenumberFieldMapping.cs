@@ -9,7 +9,7 @@ namespace Memoria.FF8.Localization;
 internal static class RenumberFieldMapping
 {
     private static readonly string[] Languages = ["en", "fr", "de", "es", "it", "jp"];
-    private const string Rule = "$<language>_<field>_<anchor:D4><insertion:D2>";
+    private const string Rule = "common-English-base-v2: $<language>_<field>_<English base:D4><slot:D2>";
 
     public static string Run(string inputFile, string outputDirectory, CancellationToken cancellation)
     {
@@ -35,6 +35,22 @@ internal static class RenumberFieldMapping
         if (header.Distinct(StringComparer.Ordinal).Count() != header.Length)
         {
             throw new InvalidDataException("The mapping has duplicate columns.");
+        }
+        string[] missingReferences = Languages.Skip(1).Where(language => !header.Contains(language + " English Keys", StringComparer.Ordinal)).ToArray();
+        if (missingReferences.Length != 0)
+        {
+            Dictionary<string, int> originalColumns = header.Select((name, index) => (name, index)).ToDictionary(item => item.name, item => item.index, StringComparer.Ordinal);
+            for (int rowIndex = 1; rowIndex < records.Count; rowIndex++)
+            {
+                string[] source = records[rowIndex];
+                if (source.Length != header.Length)
+                {
+                    throw new InvalidDataException("Every CSV record must have the same number of columns as the header.");
+                }
+                records[rowIndex] = [.. source, .. missingReferences.Select(language => source[originalColumns[language]].Length != 0 && (!originalColumns.TryGetValue(language + " Status", out int statusColumn) || source[statusColumn] is not ("ConfirmedLanguageOnly" or "MeaningReviewedLanguageOnly" or "MeaningReviewedEmptySpeakerStub" or "UnmatchedInventory")) ? source[0] : string.Empty)];
+            }
+            header = [.. header, .. missingReferences.Select(language => language + " English Keys")];
+            records[0] = header;
         }
         Dictionary<string, int> columns = header.Select((name, index) => (name, index)).ToDictionary(item => item.name, item => item.index, StringComparer.Ordinal);
         int sourceColumnCount = Languages.Count(language => columns.ContainsKey(language + " Source Ordinal"));
@@ -84,17 +100,57 @@ internal static class RenumberFieldMapping
                 bool languageOnly = false;
                 if (language != "en" && columns.TryGetValue(language + " Status", out int statusColumn))
                 {
-                    languageOnly = row[statusColumn] is "ConfirmedLanguageOnly" or "MeaningReviewedLanguageOnly" or "MeaningReviewedEmptySpeakerStub";
+                    languageOnly = row[statusColumn] is "ConfirmedLanguageOnly" or "MeaningReviewedLanguageOnly" or "MeaningReviewedEmptySpeakerStub" or "UnmatchedInventory";
                 }
                 if (languageOnly && (!columns.TryGetValue(language + " English Keys", out int referencesColumn) || row[referencesColumn].Length != 0))
                 {
                     throw new InvalidDataException("Language-only status requires an explicit empty English Keys column.");
                 }
-                inputs.Add(new(key, language, field, ordinal, languageOnly));
+                if (languageOnly)
+                {
+                    string basis = columns.TryGetValue(language + " Correspondence Basis", out int basisColumn) ? row[basisColumn] : string.Empty;
+                    if (basis is not ("NativeUnmatchedCall" or "UnmatchedBankSlot" or "UnmatchedBankBlock") && !basis.StartsWith("NoEnglishBankSlot", StringComparison.Ordinal))
+                    {
+                        throw new InvalidDataException("An unmatched inventory slot requires structural correspondence evidence; different wording or a missing semantic translation is insufficient.");
+                    }
+                }
+                string[] englishReferences;
+                if (language == "en")
+                {
+                    englishReferences = [];
+                }
+                else if (columns.TryGetValue(language + " English Keys", out int englishReferencesColumn))
+                {
+                    englishReferences = row[englishReferencesColumn].Length == 0 ? [] : row[englishReferencesColumn].Split(';');
+                }
+                else
+                {
+                    englishReferences = row[0].Length == 0 ? [] : [row[0]];
+                }
+                string kind = columns.TryGetValue(language + " Numbering Kind", out int kindColumn) ? row[kindColumn] : string.Empty;
+                if (kind is not ("" or "ContextVariant" or "ContextualTranslation"))
+                {
+                    throw new InvalidDataException("Unsupported key numbering kind.");
+                }
+                if (kind == "ContextVariant")
+                {
+                    row[kindColumn] = "ContextualTranslation";
+                }
+                inputs.Add(new(key, language, field, ordinal, languageOnly, englishReferences));
             }
         }
         IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate(inputs);
         Dictionary<string, FieldLocalizationNumberingEntry> migration = entries.ToDictionary(entry => entry.OldKey, StringComparer.Ordinal);
+        foreach (FieldLocalizationNumberingInput inputKey in inputs)
+        {
+            foreach (string reference in inputKey.EnglishKeys ?? [])
+            {
+                if (migration[inputKey.Key].AnchorOrdinal != migration[reference].AnchorOrdinal)
+                {
+                    throw new InvalidDataException("Every correspondence must retain the same common English base.");
+                }
+            }
+        }
         HashSet<string> englishKeys = entries.Where(entry => entry.Language == "en").Select(entry => entry.OldKey).ToHashSet(StringComparer.Ordinal);
         List<string[]> transformed = [];
         transformed.Add(sourceMetadata ? header : [.. header, .. Languages.Select(language => language + " Source Ordinal")]);
@@ -110,18 +166,22 @@ internal static class RenumberFieldMapping
                     row[index] = entry.NewKey;
                     row[sourceMetadata ? columns[Languages[index] + " Source Ordinal"] : header.Length + index] = entry.SourceOrdinal.ToString(CultureInfo.InvariantCulture);
                 }
-                if (columns.TryGetValue(Languages[index] + " English Keys", out int referencesColumn) && source[referencesColumn].Length != 0)
+                foreach (string referenceKind in new[] { " English Keys", " English Candidates" })
                 {
-                    string[] references = source[referencesColumn].Split(';');
-                    if (source[index].Length == 0 || references.Distinct(StringComparer.Ordinal).Count() != references.Length || references.Any(key => !englishKeys.Contains(key) || migration[key].Field != source[fieldColumn]))
+                    if (columns.TryGetValue(Languages[index] + referenceKind, out int referencesColumn) && source[referencesColumn].Length != 0)
                     {
-                        throw new InvalidDataException("English references must identify distinct existing English keys in the same field.");
+                        string[] references = source[referencesColumn].Split(';');
+                        if (source[index].Length == 0 || references.Distinct(StringComparer.Ordinal).Count() != references.Length || references.Any(key => !englishKeys.Contains(key) || migration[key].Field != source[fieldColumn]))
+                        {
+                            throw new InvalidDataException("English references must identify distinct existing English keys in the same field.");
+                        }
+                        row[referencesColumn] = string.Join(';', references.Select(key => migration[key].NewKey));
                     }
-                    row[referencesColumn] = string.Join(';', references.Select(key => migration[key].NewKey));
                 }
             }
             transformed.Add(row);
         }
+        transformed = NumberedMappingRows.Normalize(transformed, migration);
         cancellation.ThrowIfCancellationRequested();
         Directory.CreateDirectory(output);
         string incomplete = Path.Combine(output, "INCOMPLETE");
@@ -140,12 +200,15 @@ internal static class RenumberFieldMapping
             Keys = entries.Count,
             Fields = records.Skip(1).Select(row => row[fieldColumn]).Distinct(StringComparer.Ordinal).Count(),
             FieldsWithKeys = entries.Select(entry => entry.Field).Distinct(StringComparer.Ordinal).Count(),
-            OrdinaryKeys = entries.Count(entry => entry.Insertion == 0),
-            InsertionKeys = entries.Count(entry => entry.Insertion != 0),
+            KeysAtSlotZero = entries.Count(entry => entry.Insertion == 0),
+            KeysWithNonzeroSlot = entries.Count(entry => entry.Insertion != 0),
+            LanguageOnlyKeys = inputs.Count(inputKey => inputKey.IsLanguageOnly),
+            ContextualTranslationKeys = records.Skip(1).Sum(row => Languages.Skip(1).Count(language => columns.TryGetValue(language + " Numbering Kind", out int kindColumn) && row[kindColumn] == "ContextualTranslation")),
             MaximumInsertion = entries.Select(entry => entry.Insertion).DefaultIfEmpty(0).Max(),
-            InsertionAnchor = "Previous non-language-only source ordinal in the same language and field; leading insertions use anchor zero",
-            InsertionRange = "01..99; overflow is rejected",
-            Classification = "Explicit language-only review statuses only; technical uncertainty is not treated as an absent counterpart",
+            InsertionAnchor = "Previous common English component in the source language; leading insertions use base zero",
+            InsertionRange = "Slots 01..99 are reserved globally across languages for distinct content; overflow is rejected",
+            Classification = "Established script correspondence takes priority over localized meaning; contextual wording changes never allocate an insertion; unproved absence remains explicit",
+            CommonBasePerEnglishReference = true,
             SourceOrdinalsPreserved = true,
             CorrespondencesAndStatusesPreserved = true,
             StatusCounts = records.Skip(1).SelectMany(row => Languages.Skip(1).Where(language => row[columns[language]].Length != 0 && columns.ContainsKey(language + " Status")).Select(language => row[columns[language + " Status"]])).GroupBy(status => status, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Count()),
@@ -156,8 +219,8 @@ internal static class RenumberFieldMapping
         StringBuilder summary = new();
         summary.AppendLine("# Localization key numbering").AppendLine();
         summary.AppendLine($"[mapping.csv](mapping.csv) contains {transformed.Count - 1} records and {entries.Count} unique keys. [key-map.csv](key-map.csv) records every original key, new key, source ordinal, anchor and insertion number.").AppendLine();
-        summary.AppendLine($"Ordinary keys append 00 without changing their original ordinal. {entries.Count(entry => entry.Insertion != 0)} explicit language-only keys use 01..99 after the preceding ordinary source key in their own language and field. Source ordinals remain in separate CSV columns; correspondence references, statuses and Field Name are retained.").AppendLine();
-        summary.AppendLine("Supplemental rows with English references remain correspondences and use 00. Technical uncertainty alone does not create an insertion. More than 99 insertions per anchor is rejected; no digits are truncated.").AppendLine();
+        summary.AppendLine($"Corresponding script messages share the same English slot even when their localized wording has a different meaning. {inputs.Count(inputKey => inputKey.IsLanguageOnly)} explicitly unmatched inventory keys use additional slots. Wording alone cannot establish an extra message or defeat an established event correspondence. Source ordinals remain metadata.").AppendLine();
+        summary.AppendLine("Many-to-many correspondence components share their earliest English base. Duplicate identities retain distinct suffix slots; references and statuses are preserved. Technical uncertainty alone does not prove a semantic counterpart. More than 99 additional slots per base is rejected; no digits are truncated.").AppendLine();
         summary.AppendLine("| Original key | New key | Source ordinal | Anchor | Insertion |");
         summary.AppendLine("| --- | --- | ---: | ---: | ---: |");
         foreach (FieldLocalizationNumberingEntry entry in entries.Where(entry => entry.Insertion != 0).Take(12))
@@ -167,7 +230,7 @@ internal static class RenumberFieldMapping
         summary.AppendLine().AppendLine($"Mapping SHA256: `{mappingHash}`.");
         File.WriteAllText(Path.Combine(output, "summary.md"), summary.ToString(), new UTF8Encoding(false));
         File.Delete(incomplete);
-        return $"Renumbered {entries.Count} keys; {entries.Count(entry => entry.Insertion != 0)} language-only insertions. Report: {output}";
+        return $"Renumbered {entries.Count} keys with common English bases; {inputs.Count(inputKey => inputKey.IsLanguageOnly)} explicitly unmatched inventory keys. Report: {output}";
     }
 
     private static List<string[]> ReadCsv(string text)
