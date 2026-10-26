@@ -100,8 +100,89 @@ public sealed class DiagnosticCombatRepairTests
     {
         // Exercise the HP/status owners independently of native drain admission.
         // The public boundary test above proves this synthetic fixture cannot enter that API.
-        Method("ValidateDiagnosticRepairActor").Invoke(session, [session.Combatants[0], repair]);
-        Method("ApplyDiagnosticRepairActor").Invoke(session, [session.Combatants[0], repair]);
+        BattleCombatant actor = session.Combatants.Single(candidate => candidate.Id == repair.ActorId);
+        Method("ValidateDiagnosticRepairActor").Invoke(session, [actor, repair]);
+        Method("ApplyDiagnosticRepairActor").Invoke(session, [actor, repair]);
+    }
+
+    [Fact]
+    public void Original_enemy_status_only_repair_preserves_hp_party_presentation_and_callback_owners()
+    {
+        BattleSession session = CreateEnemy();
+        BattleCombatant enemy = session.Combatants[1];
+        object random = Field("random").GetValue(session)!;
+        long? callback = session.NativeHostCallbacks;
+        NativeBattlePartyPresentation presentation = Presentation(session);
+        ApplyOwnerStep(session, new("enemy", enemy.CurrentHp, RemoveStatuses1: 128));
+        BattleDiagnosticCombatant observed = session.ObserveDiagnosticCombatants()[1];
+        Assert.Equal(400, observed.CurrentHp);
+        Assert.Equal(8192u, observed.Statuses1);
+        Assert.Same(presentation, Presentation(session));
+        Assert.Equal(random, Field("random").GetValue(session));
+        Assert.Equal(callback, session.NativeHostCallbacks);
+        Assert.Equal(0, session.DiagnosticRestoreCount);
+        Assert.Equal(0, session.DiagnosticResetCount);
+        Assert.DoesNotContain(session.Events, item => item.Kind is "Damage" or "Heal");
+    }
+
+    [Theory]
+    [InlineData(399, false)]
+    [InlineData(401, false)]
+    [InlineData(400, true)]
+    public void Enemy_status_repair_rejects_hp_changes_and_revival_without_mutation(int hp, bool revive)
+    {
+        BattleSession session = CreateEnemy();
+        AssertEnemyRepairRejected(session, new("enemy", hp, Revive: revive, RemoveStatuses1: 128));
+    }
+
+    [Theory]
+    [InlineData("NativeIndex", 7)]
+    [InlineData("NativeCombatantFlags", 0u)]
+    [InlineData("NativeAllocationPendingStatistics", true)]
+    public void Enemy_status_repair_rejects_nonoriginal_physical_owner_states(string property, object value)
+    {
+        BattleSession session = CreateEnemy();
+        typeof(BattleCombatant).GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session.Combatants[1], value);
+        AssertEnemyRepairRejected(session, new("enemy", 400, RemoveStatuses1: 128));
+    }
+
+    [Fact]
+    public void Enemy_status_repair_rejects_permanent_status_and_allocated_identity()
+    {
+        BattleSession permanent = CreateEnemy();
+        short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(permanent.Combatants[1])!;
+        timers[7] = -1111;
+        AssertEnemyRepairRejected(permanent, new("enemy", 400, RemoveStatuses1: 128));
+        BattleSession allocated = CreateEnemy();
+        ((List<NativeBattleEnemyAllocation>)Field("nativeAllocations").GetValue(allocated)!).Add(new("enemy", 0, 1));
+        AssertEnemyRepairRejected(allocated, new("enemy", 400, RemoveStatuses1: 128));
+    }
+
+    private static void AssertEnemyRepairRejected(BattleSession session, BattleDiagnosticCombatRepair repair)
+    {
+        string before = JsonSerializer.Serialize(session.ObserveDiagnosticCombatants());
+        TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => ApplyOwnerStep(session, repair));
+        Assert.IsType<NotSupportedException>(exception.InnerException);
+        Assert.Equal(before, JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()));
+    }
+
+    private static BattleSession CreateEnemy()
+    {
+        NativeBattleEnemyLevel level = new(400, 10, 10, 10, 10, 10, new int[8], [], [], 0);
+        BattleSession session = new(new()
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1000, CurrentHp = 400 },
+                new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, MaximumHp = 400, CurrentHp = 400, NativeCombatantFlags = 1, NativeTemplate = new(1, Enumerable.Repeat(level, 101).ToArray()), NativeAi = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) }
+            ]
+        }, BattleAtbMode.TurnBased);
+        BattleCombatant enemy = session.Combatants[1];
+        typeof(BattleCombatant).GetProperty("NativeStatus1", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(enemy, 8320u);
+        short[] timers = (short[])typeof(BattleCombatant).GetProperty("NativeStatusTimers", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(enemy)!;
+        timers[7] = 100;
+        return session;
     }
 
     private static BattleSession Create(int hp, ushort savedStatuses = 0)

@@ -9,6 +9,33 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class ScenarioBlueMagicOwnerRecipeTests
 {
+    [Fact]
+    public void Mighty_guard_rearm_removes_regen_before_selecting_the_next_crisis_at_declared_hp()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for original Blue Magic recipe validation.");
+        using IResourceSource source = GameDataSourceFactory.Open(directory);
+        ResourceService resources = new(source);
+        NativeCharacterVitals initial = NativeCharacterInitialization.Read(resources.Read(new ResourceKey("main/init.out")), resources.Read(new ResourceKey("main/kernel.bin")));
+        using BattleAssets assets = new(directory, resources);
+        BattleNativeAction native = Assert.Single(assets.NativeActions, action => action.Command == 15 && action.ActionId == 13 && action.CrisisLevel == 2);
+        Assert.Equal((ushort)73, native.MagicId);
+        Assert.NotEqual(0u, native.Statuses1 & 16);
+        string path = Path.Combine(Path.GetTempPath(), "blue-magic-rearm-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(path, """{"fixture":{"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[]}]},"driver":{}}""");
+            Assert.True(ScenarioDiscovery.TryPrepareBlueMagicRecipe(assets, initial, native, path, out JsonObject? recipe, out string? blocker), blocker);
+            JsonNode repair = Assert.Single(recipe!["driver"]!["repairs"]!.AsArray())!;
+            Assert.NotEqual(0u, repair["remove_statuses1"]!.GetValue<uint>() & 16);
+            Assert.Equal(recipe["fixture"]!["characters"]![0]!["hit_points"]!.GetValue<int>(), repair["hit_points"]!.GetValue<int>());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Theory]
     [InlineData((byte)1)]
     [InlineData((byte)2)]

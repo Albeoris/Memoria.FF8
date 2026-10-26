@@ -3,6 +3,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DiagnosticHostFailureTests
 {
     [Fact]
+    public void Finalization_stages_retain_clocks_before_a_later_host_failure()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "diagnostic-finalization-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            DiagnosticHostFailure.WriteStage(directory, "report-write-begin", 580, 900);
+            using StringWriter errors = new();
+            DiagnosticHostFailure.Write(new InvalidDataException("Publication failed"), directory, errors);
+            string logged = File.ReadAllText(Path.Combine(directory, "host.log"));
+            Assert.Contains("diagnostic-finalization=report-write-begin callback=580 frame=900", logged);
+            Assert.Contains("Publication failed", logged);
+            Assert.True(logged.IndexOf("report-write-begin", StringComparison.Ordinal) < logged.IndexOf("Publication failed", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(Path.Combine(directory, "host.log"));
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
     public void Fatal_startup_error_reaches_the_existing_supervisor_log_channel()
     {
         string directory = Path.Combine(Path.GetTempPath(), "diagnostic-host-failure-" + Guid.NewGuid().ToString("N"));

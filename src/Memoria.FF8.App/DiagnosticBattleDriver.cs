@@ -20,6 +20,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
     public BattleDiagnosticCombatRepair[] Repairs { get; init; } = [];
+    public BattleDiagnosticTerminalHoldDeclaration? TerminalHold { get; init; }
 
     internal void Validate()
     {
@@ -37,6 +38,11 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         foreach (BattleDiagnosticCombatRepair repair in Repairs)
         {
             repair.Validate();
+        }
+        TerminalHold?.Validate();
+        if (TerminalHold is not null && (Repairs.Length == 0 || TerminalHold.PartyActorIds.Any(actorId => !Repairs.Any(repair => string.Equals(repair.ActorId, actorId, StringComparison.Ordinal)))))
+        {
+            throw new InvalidDataException("Diagnostic terminal hold requires explicit between-execution repairs for every declared party actor.");
         }
         if (ExpectedNativeAction is < 0 or > ushort.MaxValue || ExpectedNativeAction.HasValue != ExpectedNativeCommand.HasValue)
         {

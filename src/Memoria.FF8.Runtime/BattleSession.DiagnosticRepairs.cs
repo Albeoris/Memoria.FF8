@@ -25,7 +25,7 @@ public sealed partial class BattleSession
     {
         if (repairs is null || repairs.Count is < 1 or > 3 || repairs.Any(repair => repair is null) || repairs.Select(repair => repair.ActorId).Distinct(StringComparer.Ordinal).Count() != repairs.Count)
         {
-            throw new InvalidDataException("Diagnostic repairs require one through three distinct explicit party actors.");
+            throw new InvalidDataException("Diagnostic repairs require one through three distinct explicit actors.");
         }
         foreach (BattleDiagnosticCombatRepair repair in repairs)
         {
@@ -65,14 +65,25 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Diagnostic repair changed a callback or random-stream owner.");
         }
         BattleStock[] itemsAfter = nativeItems.Where(stock => stock.ItemId != 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
-        return new(DiagnosticLifecycleId, frame, callback, callback, beforeRandom, afterRandom, restores, resets, itemsBefore, itemsAfter, changes.ToArray(), "Declared party HP/status repair after full normal drain and outside focal presentation windows; no outcome rollback, stock reset, RNG change or snapshot restore.");
+        return new(DiagnosticLifecycleId, frame, callback, callback, beforeRandom, afterRandom, restores, resets, itemsBefore, itemsAfter, changes.ToArray(), "Declared party HP/status or original enemy status-only repair after full normal drain and outside focal presentation windows; no outcome rollback, stock reset, RNG change or snapshot restore.");
     }
 
     private void ValidateDiagnosticRepairActor(BattleCombatant actor, BattleDiagnosticCombatRepair repair)
     {
-        if (!actor.IsPlayer || !actor.IsActive || actor.NativeIndex is < 0 or > 2 || actor.GuardianFormVitals is not null || guardianForceCasts.ContainsKey(actor.Id) || (actor.NativeStatus1 & 0x80010000) != 0 || repair.HitPoints > actor.MaximumHp)
+        if (!actor.IsActive || actor.GuardianFormVitals is not null || guardianForceCasts.ContainsKey(actor.Id) || (actor.NativeStatus1 & 0x80010000) != 0 || repair.HitPoints > actor.MaximumHp)
         {
             throw new NotSupportedException("Diagnostic repair requires an active ordinary party HP owner within its actual maximum; allocations, GF forms and casts cannot be repaired.");
+        }
+        if (actor.IsPlayer)
+        {
+            if (actor.NativeIndex is < 0 or > 2)
+            {
+                throw new NotSupportedException("Diagnostic party repair requires its physical party HP owner.");
+            }
+        }
+        else if (actor.NativeIndex is < 3 or > 6 || actor.NativeTemplate is null || actor.NativeAi is null || actor.NativeAllocationPendingStatistics || nativeAllocations.Any(allocation => allocation.Id == actor.Id) || !definition.Combatants.Any(original => !original.IsPlayer && original.Id == actor.Id) || (actor.NativeCombatantFlags & 0xC3) != 1 || !actor.IsAlive || repair.Revive || repair.HitPoints != actor.CurrentHp || (repair.RemoveStatuses0 & 1) != 0)
+        {
+            throw new NotSupportedException("Diagnostic enemy repair requires a living active original physical owner and status removal with unchanged HP; allocations, revival and HP changes cannot be repaired.");
         }
         if ((!actor.IsAlive || actor.CurrentHp == 0) && !repair.Revive)
         {
@@ -89,10 +100,13 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Diagnostic repair cannot remove an original permanent timed status.");
             }
         }
-        NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.NativeIndex);
-        if (presented.HitPoints != actor.CurrentHp || presented.MaximumHitPoints != actor.MaximumHp)
+        if (actor.IsPlayer)
         {
-            throw new InvalidOperationException("Diagnostic repair requires the normally drained party presentation HP cache to match its current combat owner.");
+            NativeBattlePartyPresentedVital presented = RequireNativePartyPresentedRow(actor.NativeIndex);
+            if (presented.HitPoints != actor.CurrentHp || presented.MaximumHitPoints != actor.MaximumHp)
+            {
+                throw new InvalidOperationException("Diagnostic repair requires the normally drained party presentation HP cache to match its current combat owner.");
+            }
         }
     }
 
@@ -100,6 +114,12 @@ public sealed partial class BattleSession
     {
         ushort removeSaved = (ushort)(repair.RemoveStatuses0 | (repair.Revive ? 1 : 0));
         RemoveNativeStatuses(actor, removeSaved, repair.RemoveStatuses1);
+        if (!actor.IsPlayer)
+        {
+            RefreshNativePresentationStatus(actor);
+            Log("DiagnosticRepair", actor.Id, actor.Id, 0, "Explicit between-execution enemy status-only repair; original HP, clocks, random streams and scheduler owners retained.");
+            return;
+        }
         int before = actor.CurrentHp;
         if (repair.HitPoints >= before)
         {

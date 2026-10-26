@@ -123,6 +123,14 @@ internal sealed partial class RecreateGame
                     if (driver.Stage == DiagnosticDriverStage.Readiness && diagnosticDriverRecipe.Repairs.Length > 0)
                     {
                         diagnosticRepairs.Add(active.ApplyDiagnosticCombatRepairs(diagnosticDriverRecipe.Repairs, active.NativeHostCallbacks ?? active.Frame));
+                        if (active.DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held)
+                        {
+                            active.RearmDiagnosticTerminalHold(active.NativeHostCallbacks ?? active.Frame);
+                        }
+                    }
+                    if (driver.Stage == DiagnosticDriverStage.Completed)
+                    {
+                        ReleaseDiagnosticTerminalHold(active);
                     }
                 }
             }
@@ -143,9 +151,26 @@ internal sealed partial class RecreateGame
 
     private void FinalizeDiagnosticDriver(DiagnosticBattleDriver driver)
     {
+        WriteDiagnosticFinalizationStage("begin");
+        try
+        {
+            FinalizeDiagnosticDriverCore(driver);
+        }
+        catch (Exception exception)
+        {
+            DiagnosticHostFailure.Write(exception, Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY"), Console.Error);
+            throw;
+        }
+    }
+
+    private void FinalizeDiagnosticDriverCore(DiagnosticBattleDriver driver)
+    {
+        ReleaseDiagnosticTerminalHold(diagnosticDriverBattle!);
         PublishDiagnosticDriverProgress();
         diagnosticTelemetry!.Complete(diagnosticPresentedFrames, false, 0, driver.Blocker);
+        WriteDiagnosticFinalizationStage("telemetry-completed");
         PublishDiagnosticCandidate();
+        WriteDiagnosticFinalizationStage("candidate-published");
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= driver.ObserveDispatch;
         if (world?.IsDiagnosticBattle == true)
@@ -154,7 +179,13 @@ internal sealed partial class RecreateGame
             ClearBattlePresentation();
         }
         diagnosticDriver = null;
+        WriteDiagnosticFinalizationStage("exit-requested");
         Exit();
+    }
+
+    private void WriteDiagnosticFinalizationStage(string stage)
+    {
+        DiagnosticHostFailure.WriteStage(Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY"), stage, diagnosticDriverBattle?.NativeHostCallbacks, diagnosticDriverBattle?.Frame);
     }
 
     private void PublishDiagnosticDriverProgress()
@@ -179,7 +210,7 @@ internal sealed partial class RecreateGame
         diagnosticProgressSequence++;
         if (options.ControlDirectory is { } control)
         {
-            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution });
+            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame });
         }
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY");
         string? receipt = diagnosticDriverRecipe!.ProgressPath ?? (string.IsNullOrWhiteSpace(output) ? null : Path.Combine(output, "diagnostic-driver.json"));
@@ -187,7 +218,7 @@ internal sealed partial class RecreateGame
         {
             diagnosticLastReceiptStage = stage;
             diagnosticLastReceiptDriverStage = driver.Stage;
-            WriteDiagnosticJson(receipt, new { Status = driver.Stage == DiagnosticDriverStage.Completed ? "CANDIDATE_COMPLETED" : driver.Finished ? "BLOCKED" : "RUNNING", Coverage = "LIVE_DIAGNOSTIC", Stage = driver.Stage.ToString(), driver.Execution, driver.Blocker, driver.LastDrainBlockers, Dispatches = driver.Dispatches, Initialization = world?.DiagnosticReceipt });
+            WriteDiagnosticJson(receipt, new { Status = driver.Stage == DiagnosticDriverStage.Completed ? "CANDIDATE_COMPLETED" : driver.Finished ? "BLOCKED" : "RUNNING", Coverage = "LIVE_DIAGNOSTIC", Stage = driver.Stage.ToString(), driver.Execution, driver.Blocker, driver.LastDrainBlockers, Dispatches = driver.Dispatches, Initialization = world?.DiagnosticReceipt, Callback = callback, Frame = diagnosticDriverBattle?.Frame });
         }
     }
 
@@ -196,7 +227,19 @@ internal sealed partial class RecreateGame
 
     internal static bool DiagnosticCommandReady(BattleSession active, DiagnosticBattleDriverRecipe recipe)
     {
+        if (active.DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held)
+        {
+            return false;
+        }
         return recipe.EnemyAbility is { } enemy ? active.CanSubmitDiagnosticEnemyAbility(recipe.Input.ActorId!, enemy) : active.CanChoosePlayerCommand(recipe.Input.ActorId!);
+    }
+
+    private static void ReleaseDiagnosticTerminalHold(BattleSession active)
+    {
+        if (active.DiagnosticTerminalHold?.Phase is BattleDiagnosticTerminalHoldPhase.Armed or BattleDiagnosticTerminalHoldPhase.Held)
+        {
+            active.ReleaseDiagnosticTerminalHold(active.NativeHostCallbacks ?? active.Frame);
+        }
     }
 
     private void PublishDiagnosticCandidate()
@@ -207,7 +250,10 @@ internal sealed partial class RecreateGame
             DiagnosticLiveTelemetry telemetry = diagnosticTelemetry!;
             string telemetryPath = Path.Combine(output, "telemetry-report.json");
             bool fixtureVerified = diagnosticTargetVerified && world?.DiagnosticReceipt?.Preparation.Target is not null;
-            WriteDiagnosticJson(telemetryPath, new
+            WriteDiagnosticFinalizationStage("invocation-owners-begin");
+            object? invocationOwners = diagnosticDriverBattle?.ObserveDiagnosticInvocationOwners();
+            WriteDiagnosticFinalizationStage("invocation-owners-completed");
+            object report = new
             {
                 schema_version = 1,
                 battle_instance_id = world?.DiagnosticReceipt?.BattleInstanceId,
@@ -218,6 +264,7 @@ internal sealed partial class RecreateGame
                 expected_native_command = diagnosticDriverRecipe.ExpectedNativeCommand,
                 supporting_effects = diagnosticDriverRecipe.SupportingEffects,
                 declared_repairs = diagnosticDriverRecipe.Repairs,
+                declared_terminal_hold = diagnosticDriverRecipe.TerminalHold,
                 initialization_verified = world?.DiagnosticReceipt is not null,
                 fixture_verified = fixtureVerified,
                 fixture_blockers = fixtureVerified ? Array.Empty<string>() : new[] { "DECLARED_TARGET_NOT_VERIFIED" },
@@ -233,8 +280,12 @@ internal sealed partial class RecreateGame
                 limit_selections = diagnosticLimitSelections.ToArray(),
                 gunblade_triggers = diagnosticGunbladeTriggers.ToArray(),
                 repairs = diagnosticRepairs.ToArray(),
-                invocation_owners = diagnosticDriverBattle?.ObserveDiagnosticInvocationOwners()
-            }, false);
+                terminal_holds = diagnosticDriverBattle?.DiagnosticTerminalHoldReceipts.ToArray(),
+                invocation_owners = invocationOwners
+            };
+            WriteDiagnosticFinalizationStage("report-write-begin");
+            WriteDiagnosticJson(telemetryPath, report, false);
+            WriteDiagnosticFinalizationStage("report-write-completed");
             string hash = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(telemetryPath)));
             WriteDiagnosticJson(Path.Combine(output, "candidate.json"), new { status = diagnosticDriver.Blocker is null ? "CANDIDATE_COMPLETED" : "ERROR", reason = diagnosticDriver.Blocker, coverage = "LIVE_DIAGNOSTIC", telemetry_report = "telemetry-report.json", telemetry_sha256 = hash, execution_count = diagnosticDriver.Dispatches.Count, battle_instance_id = world?.DiagnosticReceipt?.BattleInstanceId }, false);
         }

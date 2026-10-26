@@ -877,6 +877,149 @@ public sealed class LiveEvidenceValidationTests
 
     private static JsonObject Execution(JsonObject report, int index) => report["executions"]![index]!.AsObject();
 
+    [Fact]
+    public void Explicit_terminal_hold_receipts_preserve_two_executions_and_declared_repair_lineage()
+    {
+        LiveEvidenceVerdict result = Validate(TerminalHoldReport());
+        Assert.True(result.Verdict == "PASS", string.Join(Environment.NewLine, result.Errors));
+        Assert.Contains("CONTROLLED_DEFEAT_HOLD_REQUIRES_SEPARATE_NATURAL_TERMINAL_CHECK", result.DiagnosticIssues);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Terminal_hold_requires_observed_incapacitation_after_each_execution(int index)
+    {
+        JsonObject report = TerminalHoldReport();
+        Execution(report, index)["after"]![0]!["statuses0"] = 0;
+        Assert.Contains("TERMINAL_HOLD_DEFEAT_NOT_OBSERVED", Validate(report).Errors);
+    }
+
+    [Theory]
+    [InlineData("undeclared")]
+    [InlineData("missing")]
+    [InlineData("kind")]
+    [InlineData("sequence")]
+    [InlineData("hold_id")]
+    [InlineData("lifecycle_id")]
+    [InlineData("native_result")]
+    [InlineData("callback")]
+    [InlineData("frame")]
+    [InlineData("drained")]
+    [InlineData("reset_count")]
+    [InlineData("party")]
+    [InlineData("rearm_state")]
+    [InlineData("random")]
+    public void Terminal_hold_rejects_undeclared_or_forged_owner_timing_and_rearm(string corruption)
+    {
+        JsonObject report = TerminalHoldReport();
+        JsonObject receipt = report["terminal_holds"]![1]!.AsObject();
+        switch (corruption)
+        {
+            case "undeclared":
+                report.Remove("declared_terminal_hold");
+                break;
+            case "missing":
+                report.Remove("terminal_holds");
+                break;
+            case "kind":
+                receipt["kind"] = "released";
+                break;
+            case "hold_id":
+            case "lifecycle_id":
+                receipt[corruption] = Guid.NewGuid().ToString();
+                break;
+            case "party":
+                receipt["party"]![0]!["native_index"] = 3;
+                break;
+            case "rearm_state":
+                receipt["party"]![0]!["current_hp"] = 99;
+                break;
+            case "drained":
+                receipt[corruption] = false;
+                break;
+            case "random":
+                receipt["random"]!["battle"]!["lane"] = 1;
+                break;
+            default:
+                receipt[corruption] = 2;
+                break;
+        }
+        Assert.NotEqual("PASS", Validate(report).Verdict);
+    }
+
+    [Theory]
+    [InlineData("hold_id")]
+    [InlineData("lifecycle_id")]
+    [InlineData("kind")]
+    [InlineData("sequence")]
+    [InlineData("frame")]
+    [InlineData("callback")]
+    [InlineData("candidate")]
+    [InlineData("native_result")]
+    [InlineData("drained")]
+    [InlineData("restore_count")]
+    [InlineData("reset_count")]
+    [InlineData("random")]
+    [InlineData("party")]
+    public void Every_terminal_hold_receipt_fact_is_required(string field)
+    {
+        JsonObject report = TerminalHoldReport();
+        report["terminal_holds"]![1]!.AsObject().Remove(field);
+        Assert.Contains(Validate(report).Errors, error => error.StartsWith("REPORT_INVALID:", StringComparison.Ordinal));
+    }
+
+    private static JsonObject TerminalHoldReport()
+    {
+        JsonObject report = ReportWithRepair();
+        string lifecycle = "78123682-5974-42bd-84b5-36abb7df6a18";
+        string hold = "77629692-d5c1-49c2-848d-8501e381b4fa";
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            execution["before"]![0]!["current_hp"] = 100;
+            execution["before"]![0]!["statuses0"] = 0;
+            execution["after"]![0]!["current_hp"] = 0;
+            execution["after"]![0]!["statuses0"] = 1;
+            foreach (string boundary in new[] { "before", "after" })
+            {
+                execution[boundary]![0]!["maximum_hp"] = 100;
+                execution[boundary]![0]!["native_index"] = 0;
+                execution[boundary]![0]!["model_id"] = null;
+                execution[boundary]![0]!["native_ai_script_sha256"] = null;
+            }
+            execution["start_owners"]!["retained_memory_owner_id"] = lifecycle;
+            execution["end_owners"]!["retained_memory_owner_id"] = lifecycle;
+            execution["resolutions"]![0]!["kind"] = "damage";
+            execution["resolutions"]![0]!["before_hp"] = 100;
+            execution["resolutions"]![0]!["after_hp"] = 0;
+        }
+        JsonObject repair = report["repairs"]![0]!.AsObject();
+        repair["lifecycle_id"] = lifecycle;
+        report["declared_repairs"]![0]!["revive"] = true;
+        repair["changes"]![0]!["request"]!["revive"] = true;
+        repair["changes"]![0]!["before"] = Execution(report, 0)["after"]![0]!.DeepClone();
+        repair["changes"]![0]!["after"] = Execution(report, 1)["before"]![0]!.DeepClone();
+        report["declared_terminal_hold"] = JsonSerializer.SerializeToNode(new BattleDiagnosticTerminalHoldDeclaration("Controlled defeat repetition", ["party0"], 100), RecordJson.Options);
+        JsonArray receipts = [];
+        string[] kinds = ["held", "rearmed", "held", "released"];
+        int[] sequences = [1, 1, 2, 2];
+        long[] callbacks = [11, 16, 21, 22];
+        long[] frames = [1, 5, 11, 12];
+        for (int index = 0; index < 4; index++)
+        {
+            JsonNode party = index == 1 ? Execution(report, 1)["before"]![0]! : Execution(report, index < 2 ? 0 : 1)["after"]![0]!;
+            receipts.Add(new JsonObject
+            {
+                ["hold_id"] = hold, ["lifecycle_id"] = lifecycle, ["kind"] = kinds[index], ["sequence"] = sequences[index], ["frame"] = frames[index],
+                ["callback"] = callbacks[index], ["candidate"] = "Defeat", ["native_result"] = null, ["drained"] = index is 1 or 3,
+                ["restore_count"] = 0, ["reset_count"] = 0, ["random"] = repair["random_after"]!.DeepClone(), ["party"] = new JsonArray(party.DeepClone())
+            });
+        }
+        report["terminal_holds"] = receipts;
+        return report;
+    }
+
     private static JsonObject ReportWithRepair()
     {
         JsonObject report = Report();

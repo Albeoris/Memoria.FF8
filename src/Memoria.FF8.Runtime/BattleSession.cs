@@ -332,6 +332,7 @@ public sealed partial class BattleSession
     {
         return new BattleSnapshot
         {
+            DiagnosticTerminalHold = DiagnosticTerminalHold,
             OriginalStockDrawOperations = originalStockDrawOperations.ToArray(),
             TurnAdvance = turnAdvance,
             Escape = nativeEscape,
@@ -944,6 +945,11 @@ public sealed partial class BattleSession
         {
             return;
         }
+        // A latched diagnostic decision must not repeat the natural Phoenix admission or its RNG.
+        if (outcome == BattleOutcome.Defeat && DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held && DeferDiagnosticDefeat())
+        {
+            return;
+        }
         StopTurnAdvance();
         if (DebugOutcome is null && outcome == BattleOutcome.Victory && NativeGraphics is { } graphics && graphics.NativeOutcome?.ResultByte6E7 != 4)
         {
@@ -956,7 +962,12 @@ public sealed partial class BattleSession
             {
                 return;
             }
-            if (nativeSupport is { EntryInitialized: true } && TryQueueNativePhoenixRecovery())
+            bool recoveryAlreadyConsidered = DiagnosticTerminalHold is { } recoveryHold && recoveryHold.Sequence > recoveryHold.Rearms && (recoveryHold.Phase is BattleDiagnosticTerminalHoldPhase.Held or BattleDiagnosticTerminalHoldPhase.Released or BattleDiagnosticTerminalHoldPhase.Expired);
+            if (!recoveryAlreadyConsidered && nativeSupport is { EntryInitialized: true } && TryQueueNativePhoenixRecovery())
+            {
+                return;
+            }
+            if (DeferDiagnosticDefeat())
             {
                 return;
             }
@@ -1288,10 +1299,12 @@ public sealed partial class BattleSession
         nativeEscape.Validate();
         RestoreDebugOutcome(snapshot);
         Outcome = snapshot.Outcome;
+        RestoreDiagnosticTerminalHold(snapshot);
         BattleOutcome expectedOutcome = DetermineOutcome();
         // Native graphics can release the last action after this host frame's outcome admission pass.
         bool awaitingNativeOutcomeAdmission = DebugOutcome is null && snapshot.Outcome == BattleOutcome.Active && NativeGraphics is { NativeOutcome: null } && expectedOutcome is BattleOutcome.Victory or BattleOutcome.Defeat;
-        if ((!awaitingNativeOutcomeAdmission && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
+        bool awaitingDiagnosticRearm = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held } && snapshot.Outcome == BattleOutcome.Active && expectedOutcome == BattleOutcome.Defeat;
+        if ((!awaitingNativeOutcomeAdmission && !awaitingDiagnosticRearm && snapshot.Outcome != expectedOutcome) || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
             throw new InvalidDataException("Battle outcome contradicts living actors or outstanding actions.");
         }

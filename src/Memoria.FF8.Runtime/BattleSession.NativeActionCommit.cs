@@ -120,6 +120,7 @@ public sealed partial class BattleSession
                 {
                     QueueNativeCallback(actor, stage);
                 }
+                actor.NativePendingReaction = new(0, 0);
             }
         }
         finally

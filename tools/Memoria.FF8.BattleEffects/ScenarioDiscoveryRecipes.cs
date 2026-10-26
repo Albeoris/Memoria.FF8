@@ -53,7 +53,9 @@ public static partial class ScenarioDiscovery
         if (party)
         {
             ushort saved = 0;
-            uint battle = native.Statuses1 & 0x200;
+            // Aura changes Limit admission; Regen changes the declared HP while
+            // ordinary selection callbacks run between the two invocations.
+            uint battle = native.Statuses1 & 0x210;
             for (int bit = 0; bit < 8; bit++)
             {
                 if (limit.StatusWeights[bit] != 0)
@@ -97,6 +99,11 @@ public static partial class ScenarioDiscovery
         return chosen;
     }
 
+    public static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker)
+    {
+        return TryPrepareEnemyRecipe(assets, initial, experienceDefinition, owner, scripted, [], [], templatePath, out recipe, out chosen, out selectorProof, out blocker);
+    }
+
     private static bool TryPrepareEnemyRecipe(BattleAssets assets, NativeCharacterVitals initial, NativeBattleExperienceDefinition experienceDefinition, EnemyScenarioActionOwner owner, EnemyScenarioScriptedAction[] scripted, Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleBands, Dictionary<int, NativeCharacterVitals> preparedLevels, string templatePath, out JsonObject? recipe, out EnemyScenarioFormation? chosen, out EnemyScenarioScriptedAction? selectorProof, out string? blocker, bool useTurnScript = false)
     {
         recipe = null;
@@ -128,6 +135,11 @@ public static partial class ScenarioDiscovery
             BattleEnemyPlacement[] active = formation.Slots.Where(slot => slot.Enabled).ToArray();
             if (active.Length is < 1 or > 4 || active.Any(slot => !slot.IsEnemyModel))
             {
+                continue;
+            }
+            if (native.MagicId == 258 && (owner.ModelId != 63 || owner.Command != 8 || owner.ActionId != 213 || owner.Sequence != 14 || formation.Id != 190 || formation.StageId != 50 || context.SceneSlot != 1 || active.Length != 2 || active[0].Slot != 0 || active[0].ModelId != 62 || active[1].Slot != 1 || active[1].ModelId != 63 || active.Any(slot => slot.Hidden || slot.InitiallySuspended || slot.Untargetable)))
+            {
+                //The original programme anchors physical3 and4 at bone38; its actual turn producer is the second actor.
                 continue;
             }
             bool bandMatches = false;

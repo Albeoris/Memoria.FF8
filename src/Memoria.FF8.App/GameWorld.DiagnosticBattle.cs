@@ -142,6 +142,10 @@ internal sealed partial class GameWorld
             }
             PreparedBattleEntry prepared = PrepareBattleEntry(request.Encounter, request.Flags, request.Seed, request.AtbMode, preparedMusic);
             prepared.Battle.ConfigureDiagnosticScheduling(request.Fixture?.HoldEnemyCommands ?? false, request.InstantGuardianForceCharge, request.Driver?.Input.ActorId);
+            if (request.Driver?.TerminalHold is { } terminalHold)
+            {
+                prepared.Battle.ConfigureDiagnosticTerminalHold(terminalHold);
+            }
             battle = CommitPreparedBattleEntry(prepared);
             battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
             battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
