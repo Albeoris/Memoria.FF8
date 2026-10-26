@@ -15,6 +15,10 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    public const int CurrentSnapshotSchemaVersion = 1;
+
+    public int SnapshotSchemaVersion { get; init; } = CurrentSnapshotSchemaVersion;
+
     public ImmutableArray<EnemyDefeatedEvent> PendingAchievementFacts { get; init; } = [];
     public ImmutableArray<BattleKillTotalObservedEvent> PendingAchievementObservations { get; init; } = [];
     public ImmutableArray<OriginalAchievementObservedEvent> PendingOriginalAchievementObservations { get; init; } = [];

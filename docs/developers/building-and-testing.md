@@ -111,6 +111,14 @@ Installed eye animation checks use the original body resources and native open/c
 
 Fixture catalogs and original game data stay local. Use neutral fixture identifiers in shared tests, and do not check in proprietary assets or personal saved games. See [Environment variables](../reference/environment-variables.md) for runtime and specialized integration configuration, and [Remastered resources](remastered-resources.md) for that optional test project.
 
+### Snapshot schema migrations
+
+`GameState.SnapshotSchemaVersion` versions the saved payload independently of the compact container and VM versions. Unversioned payloads are schema 0. `SnapshotMigrations` applies sequential forward JSON transformations before deserializing the single current object model, for both plain and compressed saves. New incompatible payload changes require a new schema version and a migration from the preceding version; do not add historical state classes or reverse migrations. Preserve supplied values and explicit nulls; missing initialization data may use established defaults, while missing executed state needs a proved conversion or an explicit migration error.
+
+Schema 0 → 1 converts copied model-part rows into sparse logical translations in both current and departing field checkpoints. Inactive rows need no translations; active and completed rows retain their saved counters, vectors, duration and mode. Empty retained draw samples gain an empty logical sample. Nonempty legacy draw samples lack the pre-callback logical state required by the current renderer and need a separately established conversion; they are refused rather than reset.
+
+Run `SnapshotMigrationTests`, `SnapshotDefaultsTests` and `SnapshotStorageTests` in Runtime.Tests for this boundary. The optional App `SnapshotMigrationLoadTests` additionally loads an installed-resource field snapshot, writes the current schema, restores it in a fresh world, compares rendering and advances one ordinary callback. Configure `MEMORIA_FF8_SAVE_MIGRATION_SOURCE` and `MEMORIA_FF8_GAME_DIR`; `MEMORIA_FF8_SAVE_MIGRATION_OUTPUT` optionally retains a separately named migrated standalone and must not already exist. The source remains unchanged.
+
 ## Report a reproducible failure
 
 Keep the command, error text, affected mode and a suitable standalone snapshot when available. Automated exploration writes a reproduction manifest; see [Automatic exploration](../players/automatic-exploration.md). The [control API](../reference/control-api.md) can inspect a running session and advance it in bounded steps. Preview modes are useful for layout checks but do not prove GPU rendering or complete gameplay support.

@@ -854,7 +854,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new NotSupportedException("Nonzero original field entry points are not implemented; use a full recreation checkpoint.");
         }
-        if (state.Version != 1 || !Enum.IsDefined(state.Scene) || state.FieldId < 0 || !float.IsFinite(state.X) || !float.IsFinite(state.Y) || !double.IsFinite(state.MovieSeconds) || state.MovieSeconds < 0)
+        if (state.SnapshotSchemaVersion != GameState.CurrentSnapshotSchemaVersion || state.Version != 1 || !Enum.IsDefined(state.Scene) || state.FieldId < 0 || !float.IsFinite(state.X) || !float.IsFinite(state.Y) || !double.IsFinite(state.MovieSeconds) || state.MovieSeconds < 0)
         {
             throw new InvalidDataException("Unsupported or invalid recreation checkpoint.");
         }

@@ -2,6 +2,8 @@
 
 Memoria saves its current state as a standalone snapshot. Player saves use a compact compressed format and retain their `.json` filenames; the loader detects the format and also reads older plain JSON snapshots. Loading restores that state and its supported engine owners. It does not replay inputs, revisit earlier locations or reconstruct the session from New Game. Installed game resources are still required; a save is not a resource package.
 
+Older snapshot schemas are migrated automatically in memory before loading; the source file stays unchanged. Saving afterward writes the current schema. Migration runs only forward. A save from a newer application requires an application update. If historical data is insufficient to recover a required running state, loading reports the migration boundary instead of resetting that state.
+
 Difficulty is stored in each Memoria save and standalone battle snapshot. Saves without a difficulty setting load as **Normal**. **Hard** and **Hardcore** require a Memoria destination because original FF8 save files cannot retain this choice.
 
 ## Player saves
