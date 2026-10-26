@@ -11,7 +11,6 @@ public sealed class DiagnosticTerminalHoldNativeTests
     [InlineData(109, false)]
     [InlineData(109, true)]
     [InlineData(120, false)]
-    [InlineData(120, true)]
     public void External_original_terminal_recipe_preserves_natural_defeat_or_repeats_with_explicit_hold(int expectedEffect, bool hold)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -215,6 +214,121 @@ public sealed class DiagnosticTerminalHoldNativeTests
         void Record(string boundary)
         {
             boundaries.Add(new { boundary, owners = battle.ObserveDiagnosticInvocationOwners(), party = battle.ObserveDiagnosticCombatants(), battle.Outcome, battle.NativeResult });
+        }
+    }
+
+    [Fact]
+    public void Original_all_party_Petrify_retains_unadmitted_pending_bytes_under_bounded_hold()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        string? recipePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_HOLD_RECIPE");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory) && recipePath is not null && File.Exists(recipePath), "Select installed resources and the original Petrify Stare recipe.");
+        JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true, WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
+        DiagnosticBattleRequest original = JsonSerializer.Deserialize<DiagnosticBattleRequest>(File.ReadAllText(recipePath!), json)!;
+        DiagnosticBattleDriverRecipe source = Assert.IsType<DiagnosticBattleDriverRecipe>(original.Driver);
+        Assert.SkipUnless(source.ExpectedEffect == 120, "The selected recipe must be the original Petrify Stare case.");
+        BattleDiagnosticEnemyAbility enemy = Assert.IsType<BattleDiagnosticEnemyAbility>(source.EnemyAbility);
+        Assert.Equal(6, enemy.Model);
+        BattleDiagnosticCombatRepair repair = new("party-0", 1213, RemoveStatuses0: 4);
+        DiagnosticBattleRequest request = original with { Driver = source with { TerminalHold = new("Observe original gated all-party Petrify", ["party-0"], 18000), Repairs = [repair] } };
+        request.Validate();
+        GameSession session = GameWorld.CreateColdProcess(directory!);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory!);
+        BattleSession battle = world.StartDiagnosticBattle(request);
+        BattleAudioPresentation audio = new(_ => { }, playModule: _ => { }, stopSounds: () => { });
+        List<BattleDiagnosticEffectDispatch> focal = [];
+        List<BattleEvent> completions = [];
+        List<object> observations = [];
+        battle.DiagnosticEffectDispatched += dispatch =>
+        {
+            if (dispatch.ActorId == source.Input.ActorId && dispatch.RequestedEffect == 120)
+            {
+                focal.Add(dispatch);
+            }
+        };
+        battle.DiagnosticEventPublished += entry =>
+        {
+            if (entry.Kind == "ActionComplete" && entry.ActorId == source.Input.ActorId)
+            {
+                completions.Add(entry);
+            }
+        };
+        long initialCallback = battle.NativeHostCallbacks!.Value;
+        int ticks = 0;
+        bool submitted = false;
+        bool observedHeld = false;
+        try
+        {
+            if (request.PrepareEntryBeforePresentation)
+            {
+                world.PrepareDiagnosticEntryBeforePresentation(request);
+            }
+            while (battle.NativeHostCallbacks - initialCallback < 512 && ticks < 512)
+            {
+                if (!submitted && battle.NativeEntryReady && battle.CanSubmitDiagnosticEnemyAbility(source.Input.ActorId!, enemy) && battle.ObserveDiagnosticDrainBlockers().Count == 0)
+                {
+                    battle.SubmitDiagnosticEnemyAbility(source.Input.ActorId!, enemy, 120);
+                    submitted = true;
+                }
+                battle.Tick();
+                audio.Update(battle);
+                ticks++;
+                if (!observedHeld && battle.DiagnosticTerminalHold?.Phase == BattleDiagnosticTerminalHoldPhase.Held)
+                {
+                    observations.Add(ObserveGated("first-held"));
+                    observedHeld = true;
+                }
+            }
+            Assert.True(submitted);
+            Assert.True(observedHeld);
+            Assert.Equal(512L, battle.NativeHostCallbacks - initialCallback);
+            observations.Add(ObserveGated("callback-512"));
+            Assert.Single(focal);
+            Assert.Equal((ushort)120, focal[0].ExecutedEffect);
+            Assert.Single(completions);
+            Assert.Null(battle.ActiveAction);
+            Assert.Empty(battle.QueuedActions);
+            Assert.Equal(new[] { "timed-input-or-mandatory-reaction" }, battle.ObserveDiagnosticDrainBlockers());
+            BattleDiagnosticTerminalHoldReceipt receipt = Assert.Single(battle.DiagnosticTerminalHoldReceipts);
+            Assert.Equal("held", receipt.Kind);
+            Assert.Equal(1, receipt.Sequence);
+            Assert.Equal(0, battle.DiagnosticTerminalHold!.Rearms);
+            Assert.False(RecreateGame.DiagnosticCommandReady(battle, request.Driver!));
+            Assert.Equal(0, battle.DiagnosticRestoreCount);
+            Assert.Equal(0, battle.DiagnosticResetCount);
+        }
+        finally
+        {
+            string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_HOLD_EVIDENCE");
+            if (!string.IsNullOrWhiteSpace(evidence))
+            {
+                Directory.CreateDirectory(evidence);
+                File.WriteAllText(Path.Combine(evidence, "terminal-120-gated-negative.json"), JsonSerializer.Serialize(new { request, ticks, focal, completions, observations, terminalHolds = battle.DiagnosticTerminalHoldReceipts }, json));
+            }
+        }
+
+        object ObserveGated(string boundary)
+        {
+            NativeBattleScriptState script = (NativeBattleScriptState)typeof(BattleSession).GetField("nativeScriptState", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
+            NativeBattleAllocationControl control = Assert.IsType<NativeBattleAllocationControl>(script.AllocationControl);
+            Assert.False(control.ActionGate);
+            Assert.False(control.PauseGate);
+            byte? order = (byte?)typeof(BattleSession).GetField("nativeReactionOrder", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle);
+            Assert.Equal((byte?)1, order);
+            BattleCombatant party = Assert.Single(battle.Combatants, actor => actor.IsPlayer);
+            Assert.Equal("party-0", party.Id);
+            NativeBattlePendingReaction pending = (NativeBattlePendingReaction)typeof(BattleCombatant).GetProperty("NativePendingReaction", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(party)!;
+            Assert.Equal(new NativeBattlePendingReaction(2, 0), pending);
+            BattleDiagnosticCombatant observed = Assert.Single(battle.ObserveDiagnosticCombatants(), actor => actor.Id == party.Id);
+            Assert.Equal((ushort)4, observed.Statuses0);
+            Assert.Equal(1213, observed.CurrentHp);
+            Assert.Equal(0, observed.NativeIndex);
+            Assert.Equal(BattleOutcome.Active, battle.Outcome);
+            Assert.Equal(BattleDiagnosticTerminalHoldPhase.Held, battle.DiagnosticTerminalHold!.Phase);
+            Assert.True(battle.NativeGraphics!.NativeOutcome?.ResultByte6E7 is null or 0);
+            Assert.Contains("timed-input-or-mandatory-reaction", battle.ObserveDiagnosticDrainBlockers());
+            return new { boundary, battle.Frame, battle.NativeHostCallbacks, control, order, pending, party = observed, blockers = battle.ObserveDiagnosticDrainBlockers().ToArray() };
         }
     }
 }

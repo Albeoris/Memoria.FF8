@@ -77,6 +77,7 @@ public static class LiveEvidenceValidation
             long nativeAction = OptionalNumber(report, "expected_native_action") ?? action;
             long? nativeCommand = OptionalNumber(report, "expected_native_command");
             HashSet<long> supportingEffects = report.TryGetProperty("supporting_effects", out JsonElement supporting) ? supporting.EnumerateArray().Select(value => value.GetInt64()).ToHashSet() : [];
+            BattleDiagnosticSupportingInvocation[] supportingInvocations = ReadSupportingInvocations(report, actor, effect);
             if (nativeAction is < 0 or > ushort.MaxValue || nativeCommand is < 0 or > byte.MaxValue || OptionalNumber(report, "expected_native_action").HasValue != nativeCommand.HasValue || supportingEffects.Any(value => value is < 1 or > ushort.MaxValue || value == effect))
             {
                 errors.Add("NATIVE_INVOCATION_IDENTITY_INVALID");
@@ -142,8 +143,9 @@ public static class LiveEvidenceValidation
                     long serial = Number(dispatch, "serial");
                     long callback = Number(dispatch, "callback");
                     bool focal = Number(dispatch, "requested_effect") == effect;
-                    bool invocationMatches = focal ? Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && (nativeCommand is null || OptionalNumber(dispatch, "native_command") == nativeCommand) : supportingEffects.Contains(Number(dispatch, "requested_effect"));
-                    if (serial <= previousSerial || callback < startCallback || callback > endCallback || Text(dispatch, "actor_id") != actor || !invocationMatches || Number(dispatch, "executed_effect") != Number(dispatch, "requested_effect"))
+                    bool sameActor = Text(dispatch, "actor_id") == actor;
+                    bool invocationMatches = focal ? sameActor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && (nativeCommand is null || OptionalNumber(dispatch, "native_command") == nativeCommand) : sameActor ? supportingEffects.Contains(Number(dispatch, "requested_effect")) : HasSupportingInvocation(execution, dispatch, supportingInvocations);
+                    if (serial <= previousSerial || callback < startCallback || callback > endCallback || !invocationMatches || Number(dispatch, "executed_effect") != Number(dispatch, "requested_effect"))
                     {
                         errors.Add("DISPATCH_IDENTITY_MISMATCH");
                     }
@@ -215,6 +217,58 @@ public static class LiveEvidenceValidation
         return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.") { EffectExecutions = effectFrames.ToArray() };
     }
 
+    private static BattleDiagnosticSupportingInvocation[] ReadSupportingInvocations(JsonElement report, string actor, long effect)
+    {
+        if (!report.TryGetProperty("supporting_invocations", out JsonElement declared))
+        {
+            return [];
+        }
+        BattleDiagnosticSupportingInvocation[] invocations = declared.Deserialize<BattleDiagnosticSupportingInvocation[]>(Json) ?? throw new InvalidDataException("Supporting invocations must be an explicit array.");
+        if (invocations.Length > 32 || invocations.Any(invocation => invocation is null) || invocations.Distinct().Count() != invocations.Length)
+        {
+            throw new InvalidDataException("Supporting invocations must be distinct bounded declarations.");
+        }
+        foreach (BattleDiagnosticSupportingInvocation invocation in invocations)
+        {
+            invocation.Validate();
+            if (invocation.ActorId == actor || invocation.EffectId == effect)
+            {
+                throw new InvalidDataException("Supporting invocations cannot replace the focal actor or effect.");
+            }
+        }
+        if (report.TryGetProperty("initialization", out JsonElement initialization) && initialization.ValueKind == JsonValueKind.Object && initialization.TryGetProperty("preparation", out JsonElement preparation) && preparation.TryGetProperty("driver", out JsonElement driver))
+        {
+            bool selected = driver.TryGetProperty("supporting_invocations", out JsonElement original);
+            if (selected ? !JsonElement.DeepEquals(original, declared) : invocations.Length != 0)
+            {
+                throw new InvalidDataException("Supporting invocations differ from the initialized recipe.");
+            }
+        }
+        return invocations;
+    }
+
+    private static bool HasSupportingInvocation(JsonElement execution, JsonElement dispatch, BattleDiagnosticSupportingInvocation[] declared)
+    {
+        string actor = Text(dispatch, "actor_id");
+        BattleDiagnosticSupportingInvocation[] matched = declared.Where(invocation => invocation.ActorId == actor && invocation.NativeCommand == OptionalNumber(dispatch, "native_command") && invocation.ActionId == Number(dispatch, "action_id") && invocation.EffectId == Number(dispatch, "requested_effect") && invocation.CallbackStage == OptionalNumber(dispatch, "native_ai_callback_stage")).ToArray();
+        if (matched.Length != 1 || Text(dispatch, "ability") != "EnemyAbility" || !dispatch.TryGetProperty("native_ai_script_sha256", out JsonElement observed) || observed.ValueKind != JsonValueKind.String || !string.Equals(observed.GetString(), matched[0].ScriptSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        JsonElement[] before = execution.GetProperty("before").EnumerateArray().Where(state => Text(state, "id") == actor).ToArray();
+        JsonElement[] after = execution.GetProperty("after").EnumerateArray().Where(state => Text(state, "id") == actor).ToArray();
+        if (before.Length != 1 || after.Length != 1 || OptionalNumber(before[0], "native_index") is not (>= 3 and <= 6) || OptionalNumber(before[0], "native_index") != OptionalNumber(after[0], "native_index") || OptionalNumber(before[0], "model_id") is not (>= 0) || OptionalNumber(before[0], "model_id") != OptionalNumber(after[0], "model_id"))
+        {
+            return false;
+        }
+        long? physical = OptionalNumber(before[0], "native_index");
+        if (execution.GetProperty("before").EnumerateArray().Count(state => OptionalNumber(state, "native_index") == physical) != 1 || execution.GetProperty("after").EnumerateArray().Count(state => OptionalNumber(state, "native_index") == physical) != 1)
+        {
+            return false;
+        }
+        return before.Concat(after).All(state => state.TryGetProperty("native_ai_script_sha256", out JsonElement scripts) && scripts.ValueKind == JsonValueKind.Array && scripts.GetArrayLength() > matched[0].CallbackStage && scripts[matched[0].CallbackStage].ValueKind == JsonValueKind.String && string.Equals(scripts[matched[0].CallbackStage].GetString(), matched[0].ScriptSha256, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static void ValidateTerminalHolds(JsonElement report, JsonElement executions, List<string> errors, List<string> diagnostics)
     {
         bool declared = report.TryGetProperty("declared_terminal_hold", out JsonElement declaration) && declaration.ValueKind != JsonValueKind.Null;
@@ -237,51 +291,98 @@ public static class LiveEvidenceValidation
         }
         BattleDiagnosticTerminalHoldDeclaration config = declaration.Deserialize<BattleDiagnosticTerminalHoldDeclaration>(Json) ?? throw new InvalidDataException("Missing terminal hold declaration.");
         config.Validate();
-        if (!hasReceipts || receipts.GetArrayLength() != 4 || executions.GetArrayLength() != 2 || !report.TryGetProperty("repairs", out JsonElement repairs) || repairs.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) || config.PartyActorIds.Any(id => !declaredRepairs.EnumerateArray().Any(repair => Text(repair, "actor_id") == id)))
+        if (!hasReceipts || receipts.GetArrayLength() is < 1 or > 4 || executions.GetArrayLength() != 2 || !report.TryGetProperty("repairs", out JsonElement repairs) || repairs.GetArrayLength() != 1 || !report.TryGetProperty("declared_repairs", out JsonElement declaredRepairs) || declaredRepairs.ValueKind != JsonValueKind.Array || declaredRepairs.GetArrayLength() != config.PartyActorIds.Length || !declaredRepairs.EnumerateArray().Select(repair => Text(repair, "actor_id")).ToHashSet(StringComparer.Ordinal).SetEquals(config.PartyActorIds))
         {
             errors.Add("TERMINAL_HOLD_EVIDENCE_INVALID");
             return;
         }
         BattleDiagnosticTerminalHoldReceipt[] proof = receipts.Deserialize<BattleDiagnosticTerminalHoldReceipt[]>(Json)!;
-        string[] kinds = ["held", "rearmed", "held", "released"];
-        int[] sequences = [1, 1, 2, 2];
+        string path = string.Join(",", proof.Select(item => item.Kind));
+        int[] sequences;
+        int[] executionIndices;
+        switch (path)
+        {
+            case "released":
+                sequences = [0];
+                executionIndices = [1];
+                break;
+            case "held,released":
+                sequences = [1, 1];
+                executionIndices = [1, 1];
+                break;
+            case "held,rearmed,released":
+                sequences = [1, 1, 1];
+                executionIndices = [0, 1, 1];
+                break;
+            case "held,rearmed,held,released":
+                sequences = [1, 1, 2, 2];
+                executionIndices = [0, 1, 1, 1];
+                break;
+            default:
+                errors.Add("TERMINAL_HOLD_EVIDENCE_INVALID");
+                return;
+        }
         Guid id = proof[0].HoldId;
         string lifecycle = Text(executions[0].GetProperty("start_owners"), "retained_memory_owner_id");
         long previous = -1;
         long previousFrame = -1;
+        long? heldCallback = null;
         for (int index = 0; index < proof.Length; index++)
         {
             BattleDiagnosticTerminalHoldReceipt item = proof[index];
-            if (id == Guid.Empty || item.HoldId != id || item.LifecycleId.ToString() != lifecycle || item.Kind != kinds[index] || item.Sequence != sequences[index] || item.Candidate != BattleOutcome.Defeat || item.NativeResult is > 0 || item.Callback < previous || item.Frame < previousFrame || item.Frame < 0 || item.RestoreCount != 0 || item.ResetCount != 0 || item.Party is null || item.Random is null || !item.Party.Select(actor => actor.Id).SequenceEqual(config.PartyActorIds))
+            if (id == Guid.Empty || item.HoldId != id || item.LifecycleId.ToString() != lifecycle || item.Sequence != sequences[index] || item.Candidate != BattleOutcome.Defeat || item.NativeResult is > 0 || item.Callback < previous || item.Frame < previousFrame || item.Frame < 0 || item.RestoreCount != 0 || item.ResetCount != 0 || item.Party is null || item.Random is null || item.Party.Any(actor => actor is null) || !item.Party.Select(actor => actor.Id).SequenceEqual(config.PartyActorIds))
             {
                 errors.Add("TERMINAL_HOLD_OWNER_CONTINUITY_BROKEN");
                 return;
             }
-            JsonElement execution = executions[index < 2 ? 0 : 1];
+            JsonElement execution = executions[executionIndices[index]];
             Dictionary<string, JsonElement> before = execution.GetProperty("before").EnumerateArray().ToDictionary(actor => Text(actor, "id"), StringComparer.Ordinal);
             Dictionary<string, JsonElement> after = execution.GetProperty("after").EnumerateArray().ToDictionary(actor => Text(actor, "id"), StringComparer.Ordinal);
-            if (item.Party.Any(actor => actor.NativeIndex is not int native || native is < 0 or >= 3 || !HasPhysicalIdentity(before, actor.Id, checked((byte)native)) || !HasPhysicalIdentity(after, actor.Id, checked((byte)native)) || (actor.Statuses1 & 0x80010000) != 0 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp) || (index is 0 or 2) && item.Party.Any(actor => (actor.Statuses0 & 5) == 0) || (index is 1 or 3) && !item.Drained)
+            if (item.Party.Any(actor => actor.NativeIndex is not int native || native is < 0 or >= 3 || !HasPhysicalIdentity(before, actor.Id, checked((byte)native)) || !HasPhysicalIdentity(after, actor.Id, checked((byte)native)) || (actor.Statuses1 & 0x80010000) != 0 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp) || item.Kind == "held" && item.Party.Any(actor => (actor.Statuses0 & 5) == 0) || item.Kind is "rearmed" or "released" && !item.Drained)
             {
                 errors.Add("TERMINAL_HOLD_PARTY_PROVENANCE_INVALID");
             }
-            if ((index is 0 or 2) && item.Party.Any(actor => !after.TryGetValue(actor.Id, out JsonElement state) || (Number(state, "statuses0") & 5) == 0))
+            if (item.Kind == "held")
             {
-                errors.Add("TERMINAL_HOLD_DEFEAT_NOT_OBSERVED");
+                if (item.Party.Any(actor => !after.TryGetValue(actor.Id, out JsonElement state) || (Number(state, "statuses0") & 5) == 0))
+                {
+                    errors.Add("TERMINAL_HOLD_DEFEAT_NOT_OBSERVED");
+                }
+                if (item.Callback < Number(execution, "start_callback") || item.Callback > Number(execution, "end_callback"))
+                {
+                    errors.Add("TERMINAL_HOLD_TIMING_OR_REPAIR_INVALID");
+                }
+                heldCallback = item.Callback;
+            }
+            else
+            {
+                if (heldCallback is long admission && item.Callback - admission > config.MaximumCallbacks)
+                {
+                    errors.Add("TERMINAL_HOLD_TIMING_OR_REPAIR_INVALID");
+                }
+                heldCallback = null;
+                if (item.Kind == "rearmed")
+                {
+                    if (item.Callback != Number(repairs[0], "callback_after") || item.Frame != Number(repairs[0], "frame") || item.Callback < Number(executions[0], "end_callback") || item.Callback > Number(executions[1], "start_callback") || !JsonElement.DeepEquals(receipts[index].GetProperty("random"), repairs[0].GetProperty("random_after")))
+                    {
+                        errors.Add("TERMINAL_HOLD_TIMING_OR_REPAIR_INVALID");
+                    }
+                    if (item.Party.Any(actor => !before.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), state) || (actor.Statuses0 & 5) != 0))
+                    {
+                        errors.Add("TERMINAL_HOLD_REARM_LINEAGE_INVALID");
+                    }
+                }
+                else if (item.Callback < Number(executions[1], "end_callback") || item.Party.Any(actor => !after.TryGetValue(actor.Id, out JsonElement state) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), state)))
+                {
+                    errors.Add("TERMINAL_HOLD_RELEASE_LINEAGE_INVALID");
+                }
             }
             previous = item.Callback;
             previousFrame = item.Frame;
         }
-        if (proof[0].Callback < Number(executions[0], "start_callback") || proof[0].Callback > Number(executions[0], "end_callback") || proof[1].Callback != Number(repairs[0], "callback_after") || proof[1].Frame != Number(repairs[0], "frame") || proof[1].Callback < Number(executions[0], "end_callback") || proof[1].Callback > Number(executions[1], "start_callback") || proof[2].Callback < Number(executions[1], "start_callback") || proof[2].Callback > Number(executions[1], "end_callback") || proof[3].Callback < Number(executions[1], "end_callback") || proof[1].Callback - proof[0].Callback > config.MaximumCallbacks || proof[3].Callback - proof[2].Callback > config.MaximumCallbacks || !JsonElement.DeepEquals(receipts[1].GetProperty("random"), repairs[0].GetProperty("random_after")))
+        if (path == "released")
         {
-            errors.Add("TERMINAL_HOLD_TIMING_OR_REPAIR_INVALID");
-        }
-        foreach (BattleDiagnosticCombatant actor in proof[1].Party)
-        {
-            JsonElement state = executions[1].GetProperty("before").EnumerateArray().Single(value => Text(value, "id") == actor.Id);
-            if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), state) || (actor.Statuses0 & 5) != 0)
-            {
-                errors.Add("TERMINAL_HOLD_REARM_LINEAGE_INVALID");
-            }
+            diagnostics.Add("DEFEAT_HOLD_NOT_TRIGGERED");
         }
         diagnostics.Add("CONTROLLED_DEFEAT_HOLD_REQUIRES_SEPARATE_NATURAL_TERMINAL_CHECK");
     }
@@ -422,7 +523,7 @@ public static class LiveEvidenceValidation
         }
     }
 
-    private static void ValidateSemantics(JsonElement execution, string actor, string requestedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors)
+    private static void ValidateSemantics(JsonElement execution, string actor, string submittedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors)
     {
         Dictionary<string, JsonElement> beforeStates = execution.GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
@@ -432,10 +533,6 @@ public static class LiveEvidenceValidation
         if (!completed)
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
-        }
-        if (resolutions.Where(resolution => resolution.GetProperty("actor_id").ValueKind == JsonValueKind.String && Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget && !HasGuardianContactProvenance(execution, resolution, beforeStates, afterStates, actor, requestedTarget, ability, action, nativeAction, effect)))
-        {
-            errors.Add("FOCAL_RESOLUTION_TARGET_MISMATCH");
         }
         Dictionary<string, long> deltas = [];
         foreach (JsonElement resolution in resolutions)
@@ -450,6 +547,15 @@ public static class LiveEvidenceValidation
             bool periodic = resolution.TryGetProperty("periodic_status", out JsonElement receipt) && receipt.ValueKind != JsonValueKind.Null;
             bool nativeWord = resolution.TryGetProperty("native_hp_word", out JsonElement hpReceipt) && hpReceipt.ValueKind != JsonValueKind.Null;
             bool nativeContact = resolution.TryGetProperty("native_contact", out JsonElement contactReceipt) && contactReceipt.ValueKind != JsonValueKind.Null;
+            string originalTarget = Text(resolution, "original_target_id");
+            if (!beforeStates.ContainsKey(originalTarget) && !afterStates.ContainsKey(originalTarget))
+            {
+                errors.Add("RESOLUTION_TARGET_UNKNOWN");
+            }
+            if (nativeContact && !HasGuardianContactProvenance(execution, resolution, beforeStates, afterStates, actor, submittedTarget, ability, action, nativeAction, effect))
+            {
+                errors.Add("NATIVE_CONTACT_PROVENANCE_INVALID");
+            }
             if (nativeWord && (!HasNativeHpWordProvenance(resolution, beforeStates, afterStates) || periodic || nativeContact))
             {
                 errors.Add("NATIVE_HP_WORD_PROVENANCE_INVALID");

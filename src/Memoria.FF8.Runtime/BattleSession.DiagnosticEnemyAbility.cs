@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticEnemyAbility(int Model, int SceneSlot, int LevelBand, int AbilitySlot, byte Command, ushort ActionId, byte Sequence, byte TargetSelector)
@@ -13,8 +15,12 @@ public sealed record BattleDiagnosticEnemyAbility(int Model, int SceneSlot, int 
     }
 }
 
+public sealed record BattleDiagnosticEnemySubmission([property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long Frame, [property: JsonRequired] long? Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] int ActorIndex, [property: JsonRequired] BattleDiagnosticEnemyAbility Selection, [property: JsonRequired] ushort ExpectedEffect, [property: JsonRequired] ushort? TargetMask);
+
 public sealed partial class BattleSession
 {
+    public BattleDiagnosticEnemySubmission? LastDiagnosticEnemySubmission { get; private set; }
+
     private BattleCombatant RequireDiagnosticEnemy(string actorId, BattleDiagnosticEnemyAbility selection)
     {
         selection.Validate();
@@ -54,6 +60,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Diagnostic enemy row does not resolve to the requested native effect.");
         }
+        long frame = Frame;
+        long? callback = NativeHostCallbacks;
         if (selection.UseTurnScript)
         {
             if (HasNativeUiServiceClock)
@@ -66,6 +74,7 @@ public sealed partial class BattleSession
                 actor.Atb = 0;
                 QueueNativeCallback(actor, 1);
             }
+            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeIndex, selection, expectedEffect, null);
             return;
         }
         byte command = 0;
@@ -79,5 +88,6 @@ public sealed partial class BattleSession
         }
         ushort targets = ResolveNativeAiTargetMask(actor, selection.TargetSelector);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
+        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeIndex, selection, expectedEffect, targets);
     }
 }

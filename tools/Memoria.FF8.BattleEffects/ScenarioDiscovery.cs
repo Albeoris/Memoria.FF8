@@ -32,7 +32,7 @@ public sealed record ScenarioDiscoverySummary(int BindingRows, int NativeActions
 /// <summary>Installed-data planning only. A runnable diagnostic is distinct from accepted campaign coverage.</summary>
 public static partial class ScenarioDiscovery
 {
-    private const string PhaseBlocker = "FINAL_PHASE_PROVENANCE: direct initialized formation participants and opening completion do not certify final-Ultimecia progression/phase initialization, subsidiary allocation and required AI state.";
+    private const string PhaseBlocker = "CAMPAIGN_PROVENANCE: direct initialized formation participants and opening completion do not certify campaign progression, phase initialization, subsidiary allocation and required AI state.";
 
     public static ScenarioDiscoverySummary Generate(string gameDirectory, string outputDirectory, string? canonicalTemplatePath = null, string? sourceCommit = null, string? sourcePatchHash = null)
     {
@@ -81,6 +81,9 @@ public static partial class ScenarioDiscovery
             }
         }
         string? templatePath = candidates.Values.FirstOrDefault();
+        JsonObject? template = templatePath is null ? null : JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
+        int? templateEncounter = template?["encounter"]?.GetValue<int>();
+        int? templateStage = template?["target"]?["stage"]?.GetValue<int>();
         Directory.CreateDirectory(output);
         Dictionary<(int ModelId, int SceneLevel, int PartyLevel), int[]> possibleEnemyBands = [];
         Dictionary<int, NativeCharacterVitals> preparedLevels = [];
@@ -101,9 +104,10 @@ public static partial class ScenarioDiscovery
                 string sourceRecipe = candidates.GetValueOrDefault($"{native.ActionId}:{native.MagicId}") ?? templatePath;
                 JsonObject recipe = JsonNode.Parse(File.ReadAllText(sourceRecipe))!.AsObject();
                 bool partyTarget = definition!.Allies;
-                ushort targetMask = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, partyTarget ? 0 : 3);
+                (string recipient, int recipientIndex) = ResolveRecipeRecipient(recipe, partyTarget, "party-0");
+                ushort targetMask = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, recipientIndex);
                 recipe["driver"]!["input"]!["action_id"] = native.ActionId;
-                recipe["driver"]!["input"]!["target_id"] = partyTarget ? "party-0" : "enemy-6";
+                recipe["driver"]!["input"]!["target_id"] = recipient;
                 recipe["driver"]!["expected_effect"] = native.MagicId;
                 recipe["driver"]!["expected_native_action"] = native.ActionId;
                 recipe["driver"]!["expected_native_command"] = native.Command;
@@ -160,7 +164,7 @@ public static partial class ScenarioDiscovery
             {
                 blockers.Add("OWNER_UNRESOLVED: no installed DAT ability-bank owner was found for this exact command/action variant; do not substitute a generic monster.");
             }
-            scenarios.Add(new(caseId, mappedEffect, action.Id, action.Family, recipePath is null ? "PLANNED_BLOCKED" : "RUNNABLE", recipePath is null ? "unresolved" : "scheduled", false, recipePath, enemy ? null : 982, enemy ? null : 142, enemy ? "Actual installed owner; see owner_context_ids" : native is { CharacterId: 3, Command: 15 } ? "Quistis" : "Squall", native.CharacterId?.ToString(System.Globalization.CultureInfo.InvariantCulture), native.Command, native.ActionId, native.CrisisLevel, native.TargetFlags, targetPolicy, Preparation(native), [$"native command={native.Command}; action={native.ActionId}; kernel={native.KernelSection}/{native.KernelIndex}; crisis={native.CrisisLevel?.ToString() ?? "not applicable"}", recipePath is null ? "Invocation adapter/prerequisites must be resolved before execution." : "Submit the copied recipe's declared semantic input and typed adapters twice."], 2, ["One uninterrupted BattleSession and owner lineage; no snapshot restore/reseed/allocator reset.", "No generic between-cast repair; terminal/KO/stock/trigger prerequisites require a proved typed repair if needed."], [action.MappingEvidence, "BattleActionKernelReader.Native.cs:ReadNativeActions; BattleSession.NativeActionAdmission.cs:BuildNativeActionHeaderPreparation"], blockers.Distinct().ToArray(), enemy ? ["ENEMY_REACHABILITY: table membership is not proof of a legal selectable AI/trigger path."] : [PhaseBlocker], ownerIds));
+            scenarios.Add(new(caseId, mappedEffect, action.Id, action.Family, recipePath is null ? "PLANNED_BLOCKED" : "RUNNABLE", recipePath is null ? "unresolved" : "scheduled", false, recipePath, enemy ? null : templateEncounter, enemy ? null : templateStage, enemy ? "Actual installed owner; see owner_context_ids" : native is { CharacterId: 3, Command: 15 } ? "Quistis" : "Squall", native.CharacterId?.ToString(System.Globalization.CultureInfo.InvariantCulture), native.Command, native.ActionId, native.CrisisLevel, native.TargetFlags, targetPolicy, Preparation(native), [$"native command={native.Command}; action={native.ActionId}; kernel={native.KernelSection}/{native.KernelIndex}; crisis={native.CrisisLevel?.ToString() ?? "not applicable"}", recipePath is null ? "Invocation adapter/prerequisites must be resolved before execution." : "Submit the copied recipe's declared semantic input and typed adapters twice."], 2, ["One uninterrupted BattleSession and owner lineage; no snapshot restore/reseed/allocator reset.", "No generic between-cast repair; terminal/KO/stock/trigger prerequisites require a proved typed repair if needed."], [action.MappingEvidence, "BattleActionKernelReader.Native.cs:ReadNativeActions; BattleSession.NativeActionAdmission.cs:BuildNativeActionHeaderPreparation"], blockers.Distinct().ToArray(), enemy ? ["ENEMY_REACHABILITY: table membership is not proof of a legal selectable AI/trigger path."] : [PhaseBlocker], ownerIds));
             if (native.TargetFlags is byte targetFlags && (targetFlags & 0x30) is 0 or 0x20 && (targetFlags & 2) == 0)
             {
                 scenarios.Add(scenarios[^1] with { CaseId = caseId + "-multiple-targets", Status = "PLANNED_BLOCKED", Disposition = "unresolved", DiagnosticRecipe = null, TargetPolicy = $"Multiple legal actual recipients required by installed group selector 0x{targetFlags:X2}; NativeBattleLimitRules.PlayerTargetMask and BattleHudController.SelectingTargetGroup preserve native group mode.", ExecutionBlockers = ["MULTI_TARGET_PRECONDITION: prove at least two legitimate actual recipients and their active targetable/life-state conditions in the required canonical phase or original enemy context. The current one-party/direct-participant recipe does not certify this branch; no synthetic enemy or arbitrary target-count override is substituted."] });
@@ -255,7 +259,7 @@ public static partial class ScenarioDiscovery
             string[] ids = actions.Where(action => action.Native.Command == index || action.Native.DispatchCommand == index).Select(action => action.Id).ToArray();
             if (ids.Length == 0)
             {
-                scenarios.Add(new($"command-{index}-unresolved", null, $"command-{index}", "command_or_scripted_dispatch", "PLANNED_BLOCKED", "unresolved", false, null, 982, 142, "Squall", null, checked((byte)index), command.AbilityId, null, null, "Unresolved native command targeting; no target invented.", ["Resolve command admission owner, dynamic/scripted dispatch and original resources."], [$"Installed command row {index}, ability reference {command.AbilityId}; not a proved effect identifier."], 2, ["Resolve original command-specific repetition contract."], [$"main/kernel.bin:section:0:row:{index}"], ["COMMAND_MAPPING_UNRESOLVED: no projected static action family; dynamic/physical/menu/scripted effect dispatch must be resolved independently."], [PhaseBlocker], []));
+                scenarios.Add(new($"command-{index}-unresolved", null, $"command-{index}", "command_or_scripted_dispatch", "PLANNED_BLOCKED", "unresolved", false, null, templateEncounter, templateStage, "Squall", null, checked((byte)index), command.AbilityId, null, null, "Unresolved native command targeting; no target invented.", ["Resolve command admission owner, dynamic/scripted dispatch and original resources."], [$"Installed command row {index}, ability reference {command.AbilityId}; not a proved effect identifier."], 2, ["Resolve original command-specific repetition contract."], [$"main/kernel.bin:section:0:row:{index}"], ["COMMAND_MAPPING_UNRESOLVED: no projected static action family; dynamic/physical/menu/scripted effect dispatch must be resolved independently."], [PhaseBlocker], []));
             }
             return new DiscoveredCommand(index, command.Name, command.AbilityId, ids, ids.Length == 0 ? "unresolved" : "covered_by_case", ids.Length == 0 ? "Dynamic command/action/effect mapping unresolved; explicit command scenario emitted." : "All projected native action variants retained as separate scenarios; this disposition claims planning coverage only.");
         }).ToArray();
@@ -425,9 +429,9 @@ public static partial class ScenarioDiscovery
         return blockers;
     }
 
-    private static string[] Preparation(BattleNativeAction action) => [$"Retain installed target flags {(action.TargetFlags is byte flags ? $"0x{flags:X2}" : "absent; selector belongs to owner/AI")}; original status masks {action.Statuses0:X4}/{action.Statuses1:X8}; attack type {action.AttackType}.", action.KernelSection == 3 ? "Select actual owner/context from enemy-owners.json; preserve AI bank, sequence and phase." : "Canonical opponent is final Ultimecia; same opposing encounter with legal party recipients for restricted actions. Preserve original immunities/absorption/reflection."];
+    private static string[] Preparation(BattleNativeAction action) => [$"Retain installed target flags {(action.TargetFlags is byte flags ? $"0x{flags:X2}" : "absent; selector belongs to owner/AI")}; original status masks {action.Statuses0:X4}/{action.Statuses1:X8}; attack type {action.AttackType}.", action.KernelSection == 3 ? "Select actual owner/context from enemy-owners.json; preserve AI bank, sequence and phase." : "Use the declared initialized opponent fixture and legal party recipients where required. Preserve original immunities/absorption/reflection."];
 
-    private static string TargetPolicy(BattleNativeAction action) => action.TargetFlags is byte flags ? $"Installed target flags 0x{flags:X2}; hostile target final Ultimecia only where native admission allows; self/party/revival recipients and prerequisites require proof." : "Target selector belongs to native command/AI owner; unresolved until that owner is proved.";
+    private static string TargetPolicy(BattleNativeAction action) => action.TargetFlags is byte flags ? $"Installed target flags 0x{flags:X2}; declared opponent where native admission allows; self/party/revival recipients and prerequisites require proof." : "Target selector belongs to native command/AI owner; unresolved until that owner is proved.";
 
     private static string OwnerId(EnemyScenarioActionOwner owner) => $"m{owner.ModelId:D3}-band{owner.LevelBand}-slot{owner.AbilitySlot:D2}";
 
@@ -445,7 +449,7 @@ public static partial class ScenarioDiscovery
             JsonElement input = root.GetProperty("driver").GetProperty("input");
             int action = input.GetProperty("action_id").GetInt32();
             int effect = root.GetProperty("driver").GetProperty("expected_effect").GetInt32();
-            if (root.GetProperty("encounter").GetInt32() != 982 || root.GetProperty("target").GetProperty("stage").GetInt32() != 142 || input.GetProperty("actor_id").GetString() != "party-0" || input.GetProperty("ability").GetString() != "magic" || action is not (>= 1 and <= 63))
+            if (input.GetProperty("actor_id").GetString() != "party-0" || input.GetProperty("ability").GetString() != "magic" || action is not (>= 1 and <= 63))
             {
                 throw new InvalidDataException("Candidate recipe is outside the proved ordinary magic diagnostic adapter.");
             }
@@ -463,17 +467,23 @@ public static partial class ScenarioDiscovery
         JsonElement guardians = fixture.GetProperty("guardian_forces");
         JsonElement driver = root.GetProperty("driver");
         JsonElement input = driver.GetProperty("input");
-        bool valid = target.GetProperty("actor_id").GetString() == "enemy-6" && target.GetProperty("model").GetInt32() == 126 && target.GetProperty("scene_slot").GetInt32() == 6 && target.GetProperty("physical_index").GetInt32() == 3 && target.GetProperty("flags_mask").GetUInt32() == 195 && target.GetProperty("flags_value").GetUInt32() == 1 && target.GetProperty("opening_action").GetInt32() == 355 && target.GetProperty("opening_effect").GetInt32() == 76 && fixture.GetProperty("hold_enemy_commands").GetBoolean() && characters.GetArrayLength() == 1 && guardians.GetArrayLength() == 1 && guardians[0].GetProperty("id").GetInt32() == 0 && guardians[0].GetProperty("acquire").GetBoolean();
+        int sceneSlot = target.GetProperty("scene_slot").GetInt32();
+        uint flagsMask = target.GetProperty("flags_mask").GetUInt32();
+        uint flagsValue = target.GetProperty("flags_value").GetUInt32();
+        JsonElement openingAction = target.GetProperty("opening_action");
+        JsonElement openingEffect = target.GetProperty("opening_effect");
+        bool openingPair = openingAction.ValueKind == JsonValueKind.Null && openingEffect.ValueKind == JsonValueKind.Null || openingAction.ValueKind == JsonValueKind.Number && openingEffect.ValueKind == JsonValueKind.Number && openingAction.GetInt32() is > 0 and <= ushort.MaxValue && openingEffect.GetInt32() is > 0 and <= ushort.MaxValue;
+        bool valid = sceneSlot is >= 0 and <= 7 && target.GetProperty("actor_id").GetString() == $"enemy-{sceneSlot}" && target.GetProperty("model").GetInt32() is >= 0 and <= 238 && target.GetProperty("physical_index").GetInt32() is >= 3 and <= 6 && (flagsMask & 0xC3) == 0xC3 && (flagsValue & 0xC3) == 1 && (flagsValue & ~flagsMask) == 0 && openingPair && fixture.GetProperty("hold_enemy_commands").GetBoolean() && characters.GetArrayLength() == 1 && guardians.GetArrayLength() == 1 && guardians[0].GetProperty("id").GetInt32() == 0 && guardians[0].GetProperty("acquire").GetBoolean();
         JsonElement character = characters[0];
         JsonElement stocks = character.GetProperty("stocks");
         JsonElement assignments = character.GetProperty("guardian_forces");
         JsonElement magicCommand = character.GetProperty("magic_command");
         valid &= character.GetProperty("row").GetInt32() == 0 && character.GetProperty("character_id").GetInt32() == 0 && character.GetProperty("hit_points").GetInt32() is > 0 and <= ushort.MaxValue && stocks.GetArrayLength() == 1 && stocks[0].GetProperty("action").GetInt32() == action && stocks[0].GetProperty("count").GetInt32() is >= 2 and <= 100 && assignments.GetArrayLength() == 1 && assignments[0].GetInt32() == 0 && magicCommand.GetProperty("ability").GetInt32() == 20 && magicCommand.GetProperty("slot").GetInt32() == 0;
-        valid &= root.GetProperty("encounter").GetInt32() == 982 && target.GetProperty("stage").GetInt32() == 142 && root.GetProperty("seed").GetInt32() == 0 && root.GetProperty("flags").GetInt32() == 128 && root.GetProperty("field_battle_mode").GetInt32() == 0 && root.GetProperty("elapsed_counter").GetInt32() == 0 && root.GetProperty("battle_music").GetInt32() == 5 && root.GetProperty("primary_music_channel").GetInt32() == -1 && root.GetProperty("prepare_entry_before_presentation").GetBoolean();
-        valid &= input.GetProperty("kind").GetString() == "action" && input.GetProperty("actor_id").GetString() == "party-0" && input.GetProperty("ability").GetString() == "magic" && input.GetProperty("action_id").GetInt32() == action && input.GetProperty("target_id").GetString() is "party-0" or "enemy-6" && driver.GetProperty("expected_effect").GetInt32() == effect && driver.GetProperty("tail_frames").GetInt32() >= 2;
+        valid &= root.GetProperty("encounter").GetInt32() is >= 0 and < 1024 && target.GetProperty("stage").GetInt32() is >= 0 and <= 255 && root.GetProperty("seed").GetInt32() == 0 && root.GetProperty("flags").GetInt32() == 128 && root.GetProperty("field_battle_mode").GetInt32() == 0 && root.GetProperty("elapsed_counter").GetInt32() == 0 && root.GetProperty("battle_music").GetInt32() == 5 && root.GetProperty("primary_music_channel").GetInt32() == -1 && root.GetProperty("prepare_entry_before_presentation").GetBoolean();
+        valid &= input.GetProperty("kind").GetString() == "action" && input.GetProperty("actor_id").GetString() == "party-0" && input.GetProperty("ability").GetString() == "magic" && input.GetProperty("action_id").GetInt32() == action && !string.IsNullOrWhiteSpace(input.GetProperty("target_id").GetString()) && input.GetProperty("target_id").GetString()!.Length <= 128 && driver.GetProperty("expected_effect").GetInt32() == effect && driver.GetProperty("tail_frames").GetInt32() >= 2;
         if (!valid)
         {
-            throw new InvalidDataException("Candidate template differs from the bounded canonical participant, stock, GF, command or ordinary magic diagnostic contract.");
+            throw new InvalidDataException("Candidate template differs from the declared participant, bounded stock, GF, command or ordinary magic diagnostic contract.");
         }
     }
 

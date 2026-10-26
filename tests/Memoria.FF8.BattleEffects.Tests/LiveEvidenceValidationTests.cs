@@ -456,14 +456,37 @@ public sealed class LiveEvidenceValidationTests
     }
 
     [Fact]
-    public void Focal_resolutions_require_the_submitted_actor_and_original_recipient()
+    public void Resolutions_require_known_actors_and_recipients()
     {
         JsonObject report = Report();
         Execution(report, 0)["resolutions"]![0]!["original_target_id"] = "unrequested";
-        Assert.Contains("FOCAL_RESOLUTION_TARGET_MISMATCH", Validate(report).Errors);
+        Assert.Contains("RESOLUTION_TARGET_UNKNOWN", Validate(report).Errors);
         report = Report();
         Execution(report, 0)["resolutions"]![0]!["actor_id"] = "other";
         Assert.Contains("RESOLUTION_ACTOR_UNKNOWN", Validate(report).Errors);
+    }
+
+    [Fact]
+    public void Native_resolution_may_select_a_known_recipient_different_from_the_input_hint()
+    {
+        JsonObject report = Report();
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            JsonNode recipient = execution["before"]![0]!.DeepClone();
+            recipient["id"] = "selected-recipient";
+            recipient["magic_stocks"] = new JsonArray();
+            execution["before"]!.AsArray().Add(recipient.DeepClone());
+            JsonNode recipientAfter = recipient.DeepClone();
+            recipientAfter["current_hp"] = execution["after"]![0]!["current_hp"]!.DeepClone();
+            execution["after"]!.AsArray().Add(recipientAfter);
+            execution["before"]![0]!["current_hp"] = 100;
+            execution["after"]![0]!["current_hp"] = 100;
+            execution["resolutions"]![0]!["original_target_id"] = "selected-recipient";
+            execution["resolutions"]![0]!["actual_target_id"] = "selected-recipient";
+        }
+        LiveEvidenceVerdict result = Validate(report);
+        Assert.True(result.Verdict == "PASS", string.Join(Environment.NewLine, result.Errors));
     }
 
     [Theory]
@@ -726,13 +749,15 @@ public sealed class LiveEvidenceValidationTests
     }
 
     [Fact]
-    public void Guardian_contact_recomputation_requires_retained_native_provenance_for_each_cast()
+    public void Guardian_contact_provenance_is_optional_but_validated_when_present()
     {
-        Assert.Equal("PASS", Validate(GuardianContactReport()).Verdict);
+        JsonObject report = GuardianContactReport();
+        Assert.Equal("PASS", Validate(report).Verdict);
+        Execution(report, 1)["resolutions"]![0]!.AsObject().Remove("native_contact");
+        Assert.Equal("PASS", Validate(report).Verdict);
     }
 
     [Theory]
-    [InlineData("missing")]
     [InlineData("producer")]
     [InlineData("serial")]
     [InlineData("submitted_target")]
@@ -761,9 +786,6 @@ public sealed class LiveEvidenceValidationTests
         JsonObject proof = resolution["native_contact"]!.AsObject();
         switch (corruption)
         {
-            case "missing":
-                resolution.Remove("native_contact");
-                break;
             case "producer":
                 proof["producer_address"] = 1;
                 break;
@@ -826,7 +848,7 @@ public sealed class LiveEvidenceValidationTests
                 execution["resolutions"]![0]!["callback"] = 20;
                 break;
         }
-        Assert.Contains("FOCAL_RESOLUTION_TARGET_MISMATCH", Validate(report).Errors);
+        Assert.Contains("NATIVE_CONTACT_PROVENANCE_INVALID", Validate(report).Errors);
     }
 
     private static JsonObject GuardianContactReport()

@@ -78,7 +78,7 @@ public sealed class ScenarioBlueMagicOwnerRecipeTests
         string path = Path.Combine(Path.GetTempPath(), "blue-magic-recipe-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            File.WriteAllText(path, """{"fixture":{"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[]}]},"driver":{}}""");
+            File.WriteAllText(path, """{"target":{"actor_id":"enemy-2","physical_index":5},"fixture":{"characters":[{"row":0,"character_id":0,"stocks":[],"guardian_forces":[]}]},"driver":{}}""");
             Assert.True(ScenarioDiscovery.TryPrepareBlueMagicRecipe(assets, initial, native, path, out JsonObject? recipe, out string? blocker), blocker);
             Assert.NotNull(recipe);
             JsonNode fixture = recipe["fixture"]!;
@@ -88,6 +88,7 @@ public sealed class ScenarioBlueMagicOwnerRecipeTests
             Assert.Null(fixture["limits"]!["borrow_blue_magic_for_squall"]);
             Assert.Equal(4096, fixture["limits"]!["learn_blue_magic"]!.GetValue<int>());
             Assert.Equal($"party-{ownerRow}", recipe["driver"]!["input"]!["actor_id"]!.GetValue<string>());
+            Assert.Equal("enemy-2", recipe["driver"]!["input"]!["target_id"]!.GetValue<string>());
             int expectedHp = ScenarioDiscovery.ResolveLimitPreparationHitPoints(assets.ReadNativeLimitDefinition(3), initial.GetMagicMaximumHitPoints(ownerRow), initial.Records[ownerRow].Status, crisis);
             Assert.Equal(expectedHp, fixture["characters"]![0]!["hit_points"]!.GetValue<int>());
             Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(initial)));

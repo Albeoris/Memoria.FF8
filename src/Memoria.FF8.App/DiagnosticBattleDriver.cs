@@ -19,6 +19,7 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
     public int? ExpectedNativeAction { get; init; }
     public byte? ExpectedNativeCommand { get; init; }
     public ushort[] SupportingEffects { get; init; } = [];
+    public BattleDiagnosticSupportingInvocation[] SupportingInvocations { get; init; } = [];
     public BattleDiagnosticCombatRepair[] Repairs { get; init; } = [];
     public BattleDiagnosticTerminalHoldDeclaration? TerminalHold { get; init; }
 
@@ -38,6 +39,18 @@ internal sealed record DiagnosticBattleDriverRecipe([property: JsonRequired] Bat
         foreach (BattleDiagnosticCombatRepair repair in Repairs)
         {
             repair.Validate();
+        }
+        if (SupportingInvocations is null || SupportingInvocations.Length > 32 || SupportingInvocations.Any(invocation => invocation is null) || SupportingInvocations.Distinct().Count() != SupportingInvocations.Length)
+        {
+            throw new InvalidDataException("Diagnostic supporting invocations require distinct bounded original reaction descriptors.");
+        }
+        foreach (BattleDiagnosticSupportingInvocation invocation in SupportingInvocations)
+        {
+            invocation.Validate();
+            if (invocation.EffectId == ExpectedEffect || string.Equals(invocation.ActorId, Input.ActorId, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Diagnostic supporting invocations must belong to another actor and preserve the focal effect identity.");
+            }
         }
         TerminalHold?.Validate();
         if (TerminalHold is not null && (Repairs.Length == 0 || TerminalHold.PartyActorIds.Any(actorId => !Repairs.Any(repair => string.Equals(repair.ActorId, actorId, StringComparison.Ordinal)))))

@@ -25,6 +25,7 @@ internal sealed partial class RecreateGame
     private readonly List<BattleDiagnosticLimitSelectionReceipt> diagnosticLimitSelections = [];
     private readonly List<long> diagnosticGunbladeTriggers = [];
     private readonly List<BattleDiagnosticRepairReceipt> diagnosticRepairs = [];
+    private readonly List<BattleDiagnosticEnemySubmission> diagnosticEnemySubmissions = [];
     private static readonly string[] DiagnosticCampaignStages = ["initialization", "action_one", "cleanup_rearm", "action_two", "teardown"];
 
     private void StartDiagnosticDriver(DiagnosticBattleDriverRecipe recipe)
@@ -37,6 +38,7 @@ internal sealed partial class RecreateGame
         diagnosticBattleFault = null;
         diagnosticDriverRecipe = recipe;
         diagnosticDriverBattle = world?.Battle ?? throw new InvalidOperationException("Diagnostic driver requires its published live battle.");
+        diagnosticEnemySubmissions.Clear();
         diagnosticDriver = new(recipe, Stopwatch.GetElapsedTime(presentationClockStarted).TotalSeconds);
         diagnosticTelemetry = new(diagnosticDriverBattle, world!.DiagnosticReceipt!.BattleInstanceId, recipe.ExpectedEffect);
         diagnosticDriverBattle.DiagnosticEffectDispatched += diagnosticDriver.ObserveDispatch;
@@ -97,7 +99,13 @@ internal sealed partial class RecreateGame
                     diagnosticTelemetry.Begin(presentedTimestamp, diagnosticPresentedFrames, diagnosticRenderer.PresentationVersion, diagnosticRenderer.TelemetryOwnerId.ToString());
                     if (diagnosticDriverRecipe!.EnemyAbility is { } enemySelection)
                     {
+                        if (diagnosticEnemySubmissions.Count >= 2)
+                        {
+                            throw new InvalidOperationException("Diagnostic enemy submission evidence is bounded to the two declared executions.");
+                        }
                         active.SubmitDiagnosticEnemyAbility(diagnosticDriverRecipe.Input.ActorId!, enemySelection, diagnosticDriverRecipe.ExpectedEffect);
+                        BattleDiagnosticEnemySubmission submission = active.LastDiagnosticEnemySubmission ?? throw new InvalidOperationException("Successful diagnostic enemy submission did not retain its actual native selection receipt.");
+                        diagnosticEnemySubmissions.Add(submission);
                     }
                     else
                     {
@@ -263,6 +271,7 @@ internal sealed partial class RecreateGame
                 expected_native_action = diagnosticDriverRecipe.ExpectedNativeAction,
                 expected_native_command = diagnosticDriverRecipe.ExpectedNativeCommand,
                 supporting_effects = diagnosticDriverRecipe.SupportingEffects,
+                supporting_invocations = diagnosticDriverRecipe.SupportingInvocations,
                 declared_repairs = diagnosticDriverRecipe.Repairs,
                 declared_terminal_hold = diagnosticDriverRecipe.TerminalHold,
                 initialization_verified = world?.DiagnosticReceipt is not null,
@@ -278,6 +287,7 @@ internal sealed partial class RecreateGame
                 initialization = world?.DiagnosticReceipt,
                 diagnostic_capabilities = world?.DiagnosticCapabilities,
                 limit_selections = diagnosticLimitSelections.ToArray(),
+                enemy_submissions = diagnosticEnemySubmissions.ToArray(),
                 gunblade_triggers = diagnosticGunbladeTriggers.ToArray(),
                 repairs = diagnosticRepairs.ToArray(),
                 terminal_holds = diagnosticDriverBattle?.DiagnosticTerminalHoldReceipts.ToArray(),

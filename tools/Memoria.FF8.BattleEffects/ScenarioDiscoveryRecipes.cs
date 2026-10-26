@@ -6,6 +6,22 @@ namespace Memoria.FF8.BattleEffects;
 
 public static partial class ScenarioDiscovery
 {
+    public static (string ActorId, int PhysicalIndex) ResolveRecipeRecipient(JsonObject template, bool party, string partyActorId)
+    {
+        if (party)
+        {
+            return (partyActorId, 0);
+        }
+        JsonNode target = template["target"] ?? throw new InvalidDataException("A hostile recipe requires a declared initialized opponent.");
+        string actorId = target["actor_id"]?.GetValue<string>() ?? throw new InvalidDataException("The declared opponent requires its actor identity.");
+        int physicalIndex = target["physical_index"]?.GetValue<int>() ?? throw new InvalidDataException("The declared opponent requires its physical index.");
+        if (string.IsNullOrWhiteSpace(actorId) || physicalIndex is < 3 or > 6)
+        {
+            throw new InvalidDataException("The declared opponent requires an enemy actor and physical index3..6.");
+        }
+        return (actorId, physicalIndex);
+    }
+
     public static bool TryPrepareBlueMagicRecipe(BattleAssets assets, NativeCharacterVitals initial, BattleNativeAction native, string templatePath, out JsonObject? recipe, out string? blocker)
     {
         recipe = null;
@@ -44,8 +60,9 @@ public static partial class ScenarioDiscovery
         result["fixture"]!["limits"] = new JsonObject { ["learn_blue_magic"] = 1 << native.KernelIndex };
         string actorId = $"party-{ownerRow}";
         bool party = (flags & 0x40) == 0 || NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        _ = NativeBattleLimitRules.PlayerTargetMask(flags, party ? 0 : 3);
-        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actorId, ["target_id"] = party ? actorId : "enemy-6", ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
+        (string recipient, int recipientIndex) = ResolveRecipeRecipient(result, party, actorId);
+        _ = NativeBattleLimitRules.PlayerTargetMask(flags, recipientIndex);
+        result["driver"]!["input"] = new JsonObject { ["kind"] = "action", ["actor_id"] = actorId, ["target_id"] = recipient, ["ability"] = nameof(BattleAbility.LimitBreak), ["action_id"] = native.Command << 16 | native.ActionId };
         result["driver"]!["expected_effect"] = native.MagicId;
         result["driver"]!["expected_native_action"] = native.ActionId;
         result["driver"]!["expected_native_command"] = native.Command;
@@ -53,7 +70,7 @@ public static partial class ScenarioDiscovery
         if (party)
         {
             ushort saved = 0;
-            // Aura changes Limit admission; Regen changes the declared HP while
+            // Curse blocks Limit admission; Regen changes the declared HP while
             // ordinary selection callbacks run between the two invocations.
             uint battle = native.Statuses1 & 0x210;
             for (int bit = 0; bit < 8; bit++)
@@ -275,12 +292,13 @@ public static partial class ScenarioDiscovery
         character.Remove("magic_command");
         character["commands"] = new JsonArray(new JsonObject { ["slot"] = 0, ["ability"] = commandAbility });
         bool party = definition.Allies || native.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, party ? 0 : 3);
+        (string recipient, int recipientIndex) = ResolveRecipeRecipient(result, party, "party-0");
+        _ = NativeBattleLimitRules.PlayerTargetMask(native.TargetFlags!.Value, recipientIndex);
         character["hit_points"] = party && native.AttackType is 3 or 4 or 32 ? 1 : initial.GetMagicMaximumHitPoints(0);
         JsonObject input = result["driver"]!["input"]!.AsObject();
         input["ability"] = ability.ToString();
         input["action_id"] = definition.Id;
-        input["target_id"] = party ? "party-0" : "enemy-6";
+        input["target_id"] = recipient;
         result["driver"]!["expected_effect"] = expectedEffect.Value;
         result["driver"]!["expected_native_action"] = focal.ActionId;
         result["driver"]!["expected_native_command"] = focal.Command;
