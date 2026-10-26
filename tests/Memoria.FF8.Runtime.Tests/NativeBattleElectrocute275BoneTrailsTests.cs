@@ -212,6 +212,47 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
         Assert.Single(fixture.Draws);
     }
 
+    [Fact]
+    public void Fresh_birth_overwrites_incoming_physical_direction_with_the_actual_allocation_argument()
+    {
+        Fixture fixture = new();
+        var created = NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
+        fixture.AfterDraw = current =>
+        {
+            Assert.Equal((uint?)3, current.BoneDirectionWord);
+            return current;
+        };
+        var actual = NativeBattleElectrocute275Controller.AdvanceBoneTrail(created.Frame with { BoneDirectionWord = 0xDEADBEEF }, created.Address, fixture.Resources, fixture.Inputs());
+        Assert.Equal((uint?)3, actual.Frame.BoneDirectionWord);
+    }
+
+    [Fact]
+    public void Fade_only_callbacks_share_the_current_scan_word_across_distinct_tasks_and_JSON()
+    {
+        Fixture fixture = new();
+        var first = NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
+        var second = NativeBattleElectrocute275Controller.CreateBoneTrail(first.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
+        var firstBirth = NativeBattleElectrocute275Controller.AdvanceBoneTrail(second.Frame, first.Address, fixture.Resources, fixture.Inputs());
+        var secondBirth = NativeBattleElectrocute275Controller.AdvanceBoneTrail(firstBirth.Frame, second.Address, fixture.Resources, fixture.Inputs());
+        NativeBattleElectrocute275Frame frame = secondBirth.Frame with { BoneDirectionWord = 27 };
+        frame = NativeBattleElectrocute275Controller.Write(frame, first.Address, NativeBattleElectrocute275Controller.Read(frame, first.Address).WriteDword(24, 0));
+        frame = NativeBattleElectrocute275Controller.Write(frame, second.Address, NativeBattleElectrocute275Controller.Read(frame, second.Address).WriteDword(24, 0));
+        NativeBattleSharedEffectRandomState? random = frame.Memory.SharedEffectRandom;
+        int calls = 0;
+        fixture.AfterDraw = current =>
+        {
+            Assert.Equal((uint?)(calls == 0 ? 27u : 0x10000000u), current.BoneDirectionWord);
+            calls++;
+            return current with { BoneDirectionWord = 0x10000000 };
+        };
+        var firstFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(frame, first.Address, fixture.Resources, fixture.Inputs());
+        NativeBattleElectrocute275Frame restored = JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(firstFade.Frame))!;
+        var secondFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(restored, second.Address, fixture.Resources, fixture.Inputs());
+        Assert.Equal(2, calls);
+        Assert.Equal(random, secondFade.Frame.Memory.SharedEffectRandom);
+        Assert.Equal((uint?)0x10000000, secondFade.Frame.BoneDirectionWord);
+    }
+
     private static short ReadWord(NativeBattleElectrocute275Frame frame, uint address) => BinaryPrimitives.ReadInt16LittleEndian(frame.Memory.Arena!.Read(checked((int)(address - ArenaAddress)), 2));
     private static uint ReadDword(NativeBattleElectrocute275Frame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena!.Read(checked((int)(address - ArenaAddress)), 4));
     private static NativeBattleSharedEffectRandomState Advance(NativeBattleSharedEffectRandomState state, int count)

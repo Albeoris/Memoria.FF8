@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
@@ -343,7 +344,7 @@ public static class LiveEvidenceValidation
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
         }
-        if (resolutions.Where(resolution => Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget && !HasGuardianContactProvenance(execution, resolution, beforeStates, afterStates, actor, requestedTarget, ability, action, nativeAction, effect)))
+        if (resolutions.Where(resolution => resolution.GetProperty("actor_id").ValueKind == JsonValueKind.String && Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget && !HasGuardianContactProvenance(execution, resolution, beforeStates, afterStates, actor, requestedTarget, ability, action, nativeAction, effect)))
         {
             errors.Add("FOCAL_RESOLUTION_TARGET_MISMATCH");
         }
@@ -357,14 +358,25 @@ public static class LiveEvidenceValidation
             long callback = Number(resolution, "callback");
             string target = Text(resolution, "actual_target_id");
             string kind = Text(resolution, "kind");
-            if (!beforeStates.ContainsKey(Text(resolution, "actor_id")))
+            bool periodic = resolution.TryGetProperty("periodic_status", out JsonElement receipt) && receipt.ValueKind != JsonValueKind.Null;
+            bool nativeWord = resolution.TryGetProperty("native_hp_word", out JsonElement hpReceipt) && hpReceipt.ValueKind != JsonValueKind.Null;
+            bool nativeContact = resolution.TryGetProperty("native_contact", out JsonElement contactReceipt) && contactReceipt.ValueKind != JsonValueKind.Null;
+            if (nativeWord && (!HasNativeHpWordProvenance(resolution, beforeStates, afterStates) || periodic || nativeContact))
+            {
+                errors.Add("NATIVE_HP_WORD_PROVENANCE_INVALID");
+            }
+            if (periodic && (!HasPeriodicStatusProvenance(resolution, beforeStates, afterStates) || nativeWord || nativeContact))
+            {
+                errors.Add("PERIODIC_STATUS_PROVENANCE_INVALID");
+            }
+            if (!periodic && !nativeWord && (resolution.GetProperty("actor_id").ValueKind != JsonValueKind.String || !beforeStates.ContainsKey(Text(resolution, "actor_id"))))
             {
                 errors.Add("RESOLUTION_ACTOR_UNKNOWN");
             }
             long delta = after - before;
             bool healing = kind.Contains("heal", StringComparison.OrdinalIgnoreCase);
             bool damage = kind.Contains("damage", StringComparison.OrdinalIgnoreCase);
-            if (actual < 0 || resolved < actual || before < 0 || after < 0 || callback < startCallback || callback > endCallback || string.IsNullOrWhiteSpace(Text(resolution, "hp_owner")) || string.IsNullOrWhiteSpace(Text(resolution, "original_target_id")) || !healing && !damage || delta != (healing ? actual : -actual))
+            if (callback < startCallback || callback > endCallback || string.IsNullOrWhiteSpace(Text(resolution, "hp_owner")) || string.IsNullOrWhiteSpace(Text(resolution, "original_target_id")) || !nativeWord && (actual < 0 || resolved < actual || before < 0 || after < 0 || !healing && !damage || delta != (healing ? actual : -actual)))
             {
                 errors.Add("SEMANTIC_RESOLUTION_INVALID");
             }
@@ -393,6 +405,51 @@ public static class LiveEvidenceValidation
                 errors.Add("SPELL_STOCK_CONSUMPTION_UNVERIFIED");
             }
         }
+    }
+
+    private static bool HasNativeHpWordProvenance(JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
+    {
+        BattleDiagnosticNativeHpWord? proof = resolution.GetProperty("native_hp_word").Deserialize<BattleDiagnosticNativeHpWord>(Json);
+        if (proof is null || proof.ProducerAddress != 0x487DF0 || proof.Opcode != 60 || proof.ScriptIndex is < 0 or > 4 || proof.ScriptBytes.IsDefault || proof.ProgramCounter < 0 || proof.ProgramCounter > proof.ScriptBytes.Length - 3 || proof.Callback != Number(resolution, "callback") || Text(resolution, "kind") != "native_ai_hp_word" || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy"))
+        {
+            return false;
+        }
+        string scriptHash = Convert.ToHexString(SHA256.HashData(proof.ScriptBytes.AsSpan()));
+        foreach (JsonElement state in new[] { before[proof.RecipientId], after[proof.RecipientId] })
+        {
+            if (OptionalNumber(state, "model_id") != proof.ModelId || !state.TryGetProperty("native_ai_script_sha256", out JsonElement hashes) || hashes.ValueKind != JsonValueKind.Array || hashes.GetArrayLength() != 5 || hashes[proof.ScriptIndex].GetString() != scriptHash)
+            {
+                return false;
+            }
+        }
+        byte[] script = proof.ScriptBytes.ToArray();
+        int beforeHp = checked((int)Number(resolution, "before_hp"));
+        int afterHp = checked((int)Number(resolution, "after_hp"));
+        return script[proof.ProgramCounter] == proof.Opcode && BinaryPrimitives.ReadUInt16LittleEndian(script.AsSpan(proof.ProgramCounter + 1, 2)) == proof.Operand && proof.Amount == unchecked((short)proof.Operand) && proof.BeforeHpWord == unchecked((ushort)beforeHp) && proof.AfterHpWord == unchecked((ushort)afterHp) && afterHp == unchecked(beforeHp + proof.Amount) && Number(resolution, "resolved_amount") == proof.Amount && Number(resolution, "actual_amount") == proof.Amount;
+    }
+
+    private static bool HasPeriodicStatusProvenance(JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
+    {
+        BattleDiagnosticPeriodicStatus? proof = resolution.GetProperty("periodic_status").Deserialize<BattleDiagnosticPeriodicStatus>(Json);
+        if (proof is null || proof.ProducerAddress != 0x483470 || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy") || proof.Callback != Number(resolution, "callback") || proof.MaximumHp != Number(before[proof.RecipientId], "maximum_hp") || proof.ResolvedAmount != Number(resolution, "resolved_amount") || (proof.SavedStatuses & 5) != 0 || proof.TimerBefore == -1111)
+        {
+            return false;
+        }
+        string kind = Text(resolution, "kind");
+        if (proof.StatusBit == 4)
+        {
+            int decrement = (proof.BattleStatuses & 2) != 0 ? 3 : 2;
+            if ((proof.BattleStatuses & 4) != 0)
+            {
+                decrement = 1;
+            }
+            if ((proof.BattleStatuses & 9) != 0)
+            {
+                decrement = 0;
+            }
+            return (proof.BattleStatuses & 0x10) != 0 && proof.TimerBefore > 0 && decrement != 0 && proof.Decrement == decrement && proof.TimerAfter == unchecked((short)(proof.TimerBefore - decrement)) && proof.TimerBefore / decrement % (60 / decrement) == 0 && proof.ResolvedAmount == proof.MaximumHp / 20 && kind == ((proof.SavedStatuses & 0x40) != 0 ? "damage" : "healing") && Number(resolution, "actual_amount") == Math.Min(proof.ResolvedAmount, kind == "damage" ? Number(resolution, "before_hp") : proof.MaximumHp - Number(resolution, "before_hp"));
+        }
+        return proof.StatusBit == 10 && (proof.BattleStatuses & 0x400) != 0 && proof.TimerBefore <= 0 && proof.Decrement == 0 && proof.TimerAfter == -1111 && kind == "damage" && proof.ResolvedAmount == Number(resolution, "before_hp") && Number(resolution, "after_hp") == 0 && Number(resolution, "actual_amount") == proof.ResolvedAmount;
     }
 
     private static bool HasGuardianContactProvenance(JsonElement execution, JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after, string actor, string requestedTarget, string ability, long action, long nativeAction, long effect)

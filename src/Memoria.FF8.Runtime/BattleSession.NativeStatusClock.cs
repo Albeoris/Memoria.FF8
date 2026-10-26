@@ -46,23 +46,24 @@ public sealed partial class BattleSession
                             {
                                 StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 0, 4, 0, 3);
                             }
-                            ApplyDamage(null, actor, amount, "Regen");
+                            ApplyDiagnosticPeriodicStatus(actor, bit, timer, decrement, unchecked((short)(timer - decrement)), amount, true, "Regen");
                         }
                         else
                         {
-                            ApplyHealing(actor, amount, "Regen");
+                            ApplyDiagnosticPeriodicStatus(actor, bit, timer, decrement, unchecked((short)(timer - decrement)), amount, false, "Regen");
                         }
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
                 }
+                uint expiringStatuses = NativeBattleStatusBits(actor);
                 actor.NativeStatusTimers[bit] = -1111;
                 actor.NativeStatus1 &= ~mask;
                 if (bit == 10)
                 {
                     //483470 queues4877F0 callback5 -> command246;48FE20 sets the death bit without a resistance roll.
                     StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 246, 43, 0, 3);
-                    ApplyDamage(null, actor, actor.CurrentHp, "Doom");
+                    ApplyDiagnosticPeriodicStatus(actor, bit, timer, 0, -1111, actor.CurrentHp, true, "Doom", expiringStatuses);
                 }
                 else if (bit == 12)
                 {
@@ -90,6 +91,30 @@ public sealed partial class BattleSession
                     }
                 }
             }
+        }
+    }
+
+    private void ApplyDiagnosticPeriodicStatus(BattleCombatant actor, int bit, short timer, int decrement, short timerAfter, int amount, bool damage, string source, uint? battleStatuses = null)
+    {
+        BattleDiagnosticPeriodicStatus? previous = diagnosticPeriodicStatus;
+        if (DiagnosticResolution is not null)
+        {
+            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)actor.NativeIndex), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
+        }
+        try
+        {
+            if (damage)
+            {
+                ApplyDamage(null, actor, amount, source);
+            }
+            else
+            {
+                ApplyHealing(actor, amount, source);
+            }
+        }
+        finally
+        {
+            diagnosticPeriodicStatus = previous;
         }
     }
 

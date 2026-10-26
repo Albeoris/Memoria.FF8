@@ -1,24 +1,32 @@
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, string? ActorId, BattleAbility? Ability, int? ActionId, ushort RequestedEffect, ushort ExecutedEffect, byte? NativeCommand = null);
 public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] ImmutableArray<byte> HeaderPayload, [property: JsonRequired] uint HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte> ContactPayload);
+public sealed record BattleDiagnosticPeriodicStatus([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int StatusBit, [property: JsonRequired] short TimerBefore, [property: JsonRequired] int Decrement, [property: JsonRequired] short TimerAfter, [property: JsonRequired] ushort SavedStatuses, [property: JsonRequired] uint BattleStatuses, [property: JsonRequired] int MaximumHp, [property: JsonRequired] int ResolvedAmount, [property: JsonRequired] long Callback);
+public sealed record BattleDiagnosticNativeHpWord([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int ScriptIndex, [property: JsonRequired] int ProgramCounter, [property: JsonRequired] ImmutableArray<byte> ScriptBytes, [property: JsonRequired] byte Opcode, [property: JsonRequired] ushort Operand, [property: JsonRequired] short Amount, [property: JsonRequired] ushort BeforeHpWord, [property: JsonRequired] ushort AfterHpWord, [property: JsonRequired] long Callback);
 public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner)
 {
     public BattleDiagnosticNativeContact? NativeContact { get; init; }
+    public BattleDiagnosticPeriodicStatus? PeriodicStatus { get; init; }
+    public BattleDiagnosticNativeHpWord? NativeHpWord { get; init; }
 }
 public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
 public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks)
 {
     public int? NativeIndex { get; init; }
+    public int? ModelId { get; init; }
+    public string[]? NativeAiScriptSha256 { get; init; }
 }
 
 public sealed partial class BattleSession
 {
     private long diagnosticDispatchSerial;
     private BattleDiagnosticNativeContact? diagnosticNativeContact;
+    private BattleDiagnosticPeriodicStatus? diagnosticPeriodicStatus;
     public Guid DiagnosticLifecycleId { get; } = Guid.NewGuid();
     public long DiagnosticRestoreCount { get; private set; }
     public long DiagnosticResetCount { get; private set; }
@@ -52,7 +60,23 @@ public sealed partial class BattleSession
 
     public BattleDiagnosticCombatant[] ObserveDiagnosticCombatants()
     {
-        return combatants.Select(actor => new BattleDiagnosticCombatant(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeIndex is >= 0 and < 7 ? actor.NativeIndex : null }).ToArray();
+        return combatants.Select(ObserveDiagnosticCombatant).ToArray();
+    }
+
+    private static BattleDiagnosticCombatant ObserveDiagnosticCombatant(BattleCombatant actor)
+    {
+        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeIndex is >= 0 and < 7 ? actor.NativeIndex : null, ModelId = actor.ModelId, NativeAiScriptSha256 = actor.NativeAi?.Scripts.Select(script => Convert.ToHexString(SHA256.HashData(script))).ToArray() };
+    }
+
+    private void ObserveDiagnosticNativeHpWord(BattleCombatant actor, int scriptIndex, int pc, byte[] script, ushort operand, int before)
+    {
+        if (DiagnosticResolution is { } observer)
+        {
+            long callback = NativeHostCallbacks ?? Frame;
+            short amount = unchecked((short)operand);
+            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)actor.NativeIndex), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
+            observer(new(Frame, callback, "native_ai_hp_word", null, actor.Id, actor.Id, amount, amount, before, actor.CurrentHp, actor.IsPlayer ? "character" : "enemy") { NativeHpWord = proof });
+        }
     }
 
     private void ObserveDiagnosticResolution(string kind, BattleCombatant? actor, BattleCombatant target, int amount, int before, int after)
@@ -60,9 +84,10 @@ public sealed partial class BattleSession
         if (DiagnosticResolution is { } observer)
         {
             BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
-            string? actorId = actor?.Id ?? action?.ActorId;
+            BattleDiagnosticPeriodicStatus? periodic = diagnosticPeriodicStatus is { } receipt && receipt.RecipientId == target.Id && receipt.ResolvedAmount == amount ? receipt : null;
+            string? actorId = periodic is null ? actor?.Id ?? action?.ActorId : null;
             BattleDiagnosticNativeContact? contact = diagnosticNativeContact is { } current && current.ActorId == actorId && current.RecipientId == action?.TargetId ? current : null;
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = contact });
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = periodic is null ? contact : null, PeriodicStatus = periodic });
         }
     }
 

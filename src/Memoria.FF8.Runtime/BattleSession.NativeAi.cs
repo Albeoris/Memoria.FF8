@@ -330,7 +330,10 @@ public sealed partial class BattleSession
                         nativeScriptState = nativeScriptState with { ScriptedExitRequested = true };
                         break;
                     case 60:
-                        actor.AddNativeHitPointWord(unchecked((short)ReadAiWord(code, ref pc)));
+                        ushort hpOperand = checked((ushort)ReadAiWord(code, ref pc));
+                        int hpBefore = actor.CurrentHp;
+                        actor.AddNativeHitPointWord(unchecked((short)hpOperand));
+                        ObserveDiagnosticNativeHpWord(actor, callback, operation, code, hpOperand, hpBefore);
                         break;
                     case 56:
                         int item = ReadAiByte(code, ref pc);

@@ -127,6 +127,6 @@ public sealed partial class BattleSession
 
     private static BattleDiagnosticCombatant ObserveDiagnosticRepairActor(BattleCombatant actor)
     {
-        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray());
+        return ObserveDiagnosticCombatant(actor);
     }
 }

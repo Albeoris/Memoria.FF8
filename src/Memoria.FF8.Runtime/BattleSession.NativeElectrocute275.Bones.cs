@@ -5,6 +5,12 @@ public sealed partial class BattleSession
     private (NativeBattleElectrocute275Frame Frame, NativeBattleGraphicsState Graphics) PrepareNativeElectrocute275Bones(NativeBattleElectrocute275Frame frame, NativeBattleGraphicsState graphics, byte actor, bool compose)
     {
         (NativeBattleFileStaging staging, NativeBattleGraphicsState updated) = PrepareNativeLightningBones(frame.Staging ?? throw new NotSupportedException("Electrocute requires its addressed bone temporary memory."), graphics, actor, compose);
+        if (compose)
+        {
+            int boneCount = NativeGraphicsPoseResource(updated, actor).PoseSource?.BoneCount ?? throw new NotSupportedException("Electrocute requires its actual composed skeleton count.");
+            //5095B0's final56C2F0 PUSH EDI aliases the first689450 direction DWORD.
+            frame = frame with { BoneDirectionWord = NativeBattleElectrocute275Ribbons.CaptureComposedBoneDirectionWord(boneCount) };
+        }
         return (frame with { Staging = staging }, updated);
     }
 

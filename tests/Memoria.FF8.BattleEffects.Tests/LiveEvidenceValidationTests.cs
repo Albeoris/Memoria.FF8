@@ -466,6 +466,247 @@ public sealed class LiveEvidenceValidationTests
         Assert.Contains("RESOLUTION_ACTOR_UNKNOWN", Validate(report).Errors);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Periodic_status_receipts_reconcile_regen_zombie_and_doom(bool zombie, bool doom)
+    {
+        Assert.Equal("PASS", Validate(PeriodicStatusReport(zombie, doom)).Verdict);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("producer_address")]
+    [InlineData("recipient_id")]
+    [InlineData("recipient_index")]
+    [InlineData("status_bit")]
+    [InlineData("timer_before")]
+    [InlineData("decrement")]
+    [InlineData("timer_after")]
+    [InlineData("saved_statuses")]
+    [InlineData("battle_statuses")]
+    [InlineData("maximum_hp")]
+    [InlineData("resolved_amount")]
+    [InlineData("callback")]
+    [InlineData("actor")]
+    [InlineData("original_target")]
+    [InlineData("duplicate_index")]
+    [InlineData("missing_timer")]
+    public void Periodic_status_provenance_rejects_missing_or_forged_facts(string corruption)
+    {
+        JsonObject report = PeriodicStatusReport(false, false);
+        JsonObject execution = Execution(report, 0);
+        JsonObject resolution = execution["resolutions"]![1]!.AsObject();
+        JsonObject proof = resolution["periodic_status"]!.AsObject();
+        switch (corruption)
+        {
+            case "missing":
+                resolution.Remove("periodic_status");
+                break;
+            case "actor":
+                resolution["actor_id"] = "foreign";
+                break;
+            case "original_target":
+                resolution["original_target_id"] = "party0";
+                break;
+            case "duplicate_index":
+                execution["before"]![0]!["native_index"] = 3;
+                break;
+            case "missing_timer":
+                proof.Remove("timer_before");
+                break;
+            case "recipient_id":
+                proof[corruption] = "party0";
+                break;
+            default:
+                proof[corruption] = corruption == "saved_statuses" ? 0x40 : 1;
+                break;
+        }
+        Assert.NotEqual("PASS", Validate(report).Verdict);
+    }
+
+    [Theory]
+    [InlineData("producer_address")]
+    [InlineData("recipient_id")]
+    [InlineData("recipient_index")]
+    [InlineData("status_bit")]
+    [InlineData("timer_before")]
+    [InlineData("decrement")]
+    [InlineData("timer_after")]
+    [InlineData("saved_statuses")]
+    [InlineData("battle_statuses")]
+    [InlineData("maximum_hp")]
+    [InlineData("resolved_amount")]
+    [InlineData("callback")]
+    public void Every_periodic_status_proof_field_is_required(string field)
+    {
+        JsonObject report = PeriodicStatusReport(false, false);
+        Execution(report, 0)["resolutions"]![1]!["periodic_status"]!.AsObject().Remove(field);
+        Assert.Contains(Validate(report).Errors, error => error.StartsWith("REPORT_INVALID:", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData((short)100)]
+    [InlineData((short)-100)]
+    [InlineData((short)0)]
+    public void Native_ai_hp_word_receipt_reconciles_the_exact_signed_source_operand(short amount)
+    {
+        Assert.Equal("PASS", Validate(NativeHpWordReport(amount)).Verdict);
+    }
+
+    [Theory]
+    [InlineData("producer_address")]
+    [InlineData("recipient_id")]
+    [InlineData("recipient_index")]
+    [InlineData("model_id")]
+    [InlineData("script_index")]
+    [InlineData("program_counter")]
+    [InlineData("script_bytes")]
+    [InlineData("opcode")]
+    [InlineData("operand")]
+    [InlineData("amount")]
+    [InlineData("before_hp_word")]
+    [InlineData("after_hp_word")]
+    [InlineData("callback")]
+    public void Every_native_hp_word_proof_field_is_required(string field)
+    {
+        JsonObject report = NativeHpWordReport();
+        Execution(report, 0)["resolutions"]![1]!["native_hp_word"]!.AsObject().Remove(field);
+        Assert.Contains(Validate(report).Errors, error => error.StartsWith("REPORT_INVALID:", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("producer_address")]
+    [InlineData("recipient_id")]
+    [InlineData("recipient_index")]
+    [InlineData("model_id")]
+    [InlineData("script_index")]
+    [InlineData("program_counter")]
+    [InlineData("opcode")]
+    [InlineData("operand")]
+    [InlineData("amount")]
+    [InlineData("before_hp_word")]
+    [InlineData("after_hp_word")]
+    [InlineData("callback")]
+    [InlineData("script_hash")]
+    [InlineData("missing_receipt")]
+    [InlineData("actor")]
+    [InlineData("delta")]
+    [InlineData("source_bytes")]
+    [InlineData("duplicate_index")]
+    public void Native_hp_word_provenance_rejects_forged_or_missing_facts(string corruption)
+    {
+        JsonObject report = NativeHpWordReport();
+        JsonObject execution = Execution(report, 0);
+        JsonObject resolution = execution["resolutions"]![1]!.AsObject();
+        JsonObject proof = resolution["native_hp_word"]!.AsObject();
+        switch (corruption)
+        {
+            case "recipient_id":
+                proof[corruption] = "party0";
+                break;
+            case "script_hash":
+                execution["before"]![1]!["native_ai_script_sha256"]![3] = new string('0', 64);
+                break;
+            case "missing_receipt":
+                resolution.Remove("native_hp_word");
+                break;
+            case "actor":
+                resolution["actor_id"] = "party0";
+                break;
+            case "delta":
+                resolution["after_hp"] = 301;
+                break;
+            case "source_bytes":
+                proof["script_bytes"] = JsonSerializer.SerializeToNode(System.Collections.Immutable.ImmutableArray.Create<byte>(60, 101, 0, 0), RecordJson.Options);
+                break;
+            case "duplicate_index":
+                execution["before"]![0]!["native_index"] = 3;
+                break;
+            default:
+                proof[corruption] = 2;
+                break;
+        }
+        Assert.NotEqual("PASS", Validate(report).Verdict);
+    }
+
+    [Theory]
+    [InlineData(false, "native_contact")]
+    [InlineData(false, "native_hp_word")]
+    [InlineData(true, "native_contact")]
+    [InlineData(true, "periodic_status")]
+    public void Passive_resolution_receipts_reject_mixed_producers(bool nativeWord, string conflictingReceipt)
+    {
+        JsonObject report = nativeWord ? NativeHpWordReport() : PeriodicStatusReport(false, false);
+        JsonObject resolution = Execution(report, 0)["resolutions"]![1]!.AsObject();
+        JsonObject otherReport = nativeWord ? PeriodicStatusReport(false, false) : NativeHpWordReport();
+        resolution[conflictingReceipt] = conflictingReceipt == "native_contact" ? new JsonObject() : Execution(otherReport, 0)["resolutions"]![1]![conflictingReceipt]!.DeepClone();
+        Assert.Contains(nativeWord ? "NATIVE_HP_WORD_PROVENANCE_INVALID" : "PERIODIC_STATUS_PROVENANCE_INVALID", Validate(report).Errors);
+    }
+
+    private static JsonObject NativeHpWordReport(short amount = 100)
+    {
+        JsonObject report = Report();
+        ushort operand = unchecked((ushort)amount);
+        byte[] script = [60, unchecked((byte)operand), unchecked((byte)(operand >> 8)), 0];
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(script));
+        string returnScriptHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 0 }));
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            JsonObject before = execution["before"]![0]!.DeepClone().AsObject();
+            before["id"] = "native-hp-recipient";
+            before["native_index"] = 3;
+            before["model_id"] = 126;
+            before["native_ai_script_sha256"] = new JsonArray(returnScriptHash, returnScriptHash, returnScriptHash, hash, returnScriptHash);
+            before["current_hp"] = 200;
+            JsonObject after = before.DeepClone().AsObject();
+            after["current_hp"] = 200 + amount;
+            execution["before"]!.AsArray().Add(before);
+            execution["after"]!.AsArray().Add(after);
+            long callback = execution["start_callback"]!.GetValue<long>() + 1;
+            BattleDiagnosticNativeHpWord proof = new(0x487DF0, "native-hp-recipient", 3, 126, 3, 0, System.Collections.Immutable.ImmutableArray.CreateRange(script), 60, operand, amount, 200, unchecked((ushort)(200 + amount)), callback);
+            execution["resolutions"]!.AsArray().Add(new JsonObject
+            {
+                ["frame"] = index * 10 + 1, ["callback"] = callback, ["kind"] = "native_ai_hp_word", ["actor_id"] = null,
+                ["original_target_id"] = "native-hp-recipient", ["actual_target_id"] = "native-hp-recipient", ["resolved_amount"] = amount, ["actual_amount"] = amount,
+                ["before_hp"] = 200, ["after_hp"] = 200 + amount, ["hp_owner"] = "enemy", ["native_hp_word"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options)
+            });
+        }
+        return report;
+    }
+
+    private static JsonObject PeriodicStatusReport(bool zombie, bool doom)
+    {
+        JsonObject report = Report();
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            JsonObject before = execution["before"]![0]!.DeepClone().AsObject();
+            before["id"] = "periodic-recipient";
+            before["native_index"] = 3;
+            before["current_hp"] = 200;
+            before["statuses0"] = zombie ? 0x40 : 0;
+            before["statuses1"] = doom ? 0x400 : 0x10;
+            JsonObject after = before.DeepClone().AsObject();
+            int amount = doom ? 200 : 25;
+            after["current_hp"] = doom ? 0 : zombie ? 175 : 225;
+            execution["before"]!.AsArray().Add(before);
+            execution["after"]!.AsArray().Add(after);
+            long callback = execution["start_callback"]!.GetValue<long>() + 1;
+            BattleDiagnosticPeriodicStatus proof = new(0x483470, "periodic-recipient", 3, doom ? 10 : 4, doom ? (short)0 : (short)60, doom ? 0 : 2, doom ? (short)-1111 : (short)58, zombie ? (ushort)0x40 : (ushort)0, doom ? 0x400u : 0x10u, 500, amount, callback);
+            JsonObject resolution = new()
+            {
+                ["frame"] = index * 10 + 1, ["callback"] = callback, ["kind"] = zombie || doom ? "damage" : "healing", ["actor_id"] = null,
+                ["original_target_id"] = "periodic-recipient", ["actual_target_id"] = "periodic-recipient", ["resolved_amount"] = amount, ["actual_amount"] = amount,
+                ["before_hp"] = 200, ["after_hp"] = after["current_hp"]!.DeepClone(), ["hp_owner"] = "enemy", ["periodic_status"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options)
+            };
+            execution["resolutions"]!.AsArray().Add(resolution);
+        }
+        return report;
+    }
+
     [Fact]
     public void Reflection_preserves_the_original_recipient_and_reconciles_the_separate_actual_recipient()
     {

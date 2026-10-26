@@ -30,7 +30,7 @@ public static partial class NativeBattleElectrocute275Controller
             uint stagingAddress = binding.StagingAddress ?? throw new NotSupportedException("Electrocute requires its actual staged binding address.");
             current = inputs.Execute(current, new NativeBattleElectrocute275DrawBoneTrail(stagingAddress, head, count));
             return CpuTrailFrame(current);
-        });
+        }, frame.BoneDirectionWord);
         return (WithCpuTrail(current, step.Frame), step.Result);
     }
 

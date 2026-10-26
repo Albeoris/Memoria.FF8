@@ -90,9 +90,9 @@ public static partial class NativeBattleCpuTrails
         return new(frame, point);
     }
 
-    public static NativeBattleCpuTrailTaskStep AdvanceBoneTrail(NativeBattleCpuTrailFrame frame, uint address, NativeBattleCpuTrailLayout layout, Func<uint, short> readPath, Func<NativeBattleCpuTrailFrame, NativeBattleResourceRowReference, uint, short, NativeBattleCpuTrailFrame> draw)
+    public static NativeBattleCpuTrailTaskStep AdvanceBoneTrail(NativeBattleCpuTrailFrame frame, uint address, NativeBattleCpuTrailLayout layout, Func<uint, short> readPath, Func<NativeBattleCpuTrailFrame, NativeBattleResourceRowReference, uint, short, NativeBattleCpuTrailFrame> draw, uint? incomingDirectionWord = null)
     {
-        frame = frame with { BoneDirectionWord = null };
+        frame = frame with { BoneDirectionWord = incomingDirectionWord };
         uint? edi = null;
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.Callback != layout.BoneCallback)
@@ -152,11 +152,11 @@ public static partial class NativeBattleCpuTrails
             frame = DrawRandom(frame, out ushort random);
             short pointWidth = unchecked((short)((unchecked(random * width) >> 15) + width));
             (frame, uint point) = AllocateBonePoint(frame, layout, bone, vertex, pointWidth, jitter, unchecked((short)task.ReadWord(18)), unchecked((short)task.ReadWord(20)));
+            frame = frame with { BoneDirectionWord = edi };
             if (point == 0)
             {
                 return new(ReleaseBoneChain(frame, layout, Read(frame, address).ReadDword(28)), 2);
             }
-            frame = frame with { BoneDirectionWord = edi };
             task = Read(frame, address);
             uint tail = task.ReadDword(32);
             _ = BonePointOffset(frame, layout, tail);

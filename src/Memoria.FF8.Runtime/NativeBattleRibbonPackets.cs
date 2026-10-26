@@ -11,10 +11,17 @@ public enum NativeBattleRibbonWidthPolicy
 
 public sealed record NativeBattleRibbonBank(uint Address, int ArenaOffset, int PointCount);
 public sealed record NativeBattleRibbonPacketPolicy(NativeBattleRibbonWidthPolicy Width, byte DepthShift, int TableBaseBucket, uint FirstUvClut, uint SecondUvPage, ushort ThirdUv, ushort FourthUv);
+public sealed record NativeBattleRibbonPacketStep(NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch, uint? DirectionWord);
 
 public static class NativeBattleRibbonPackets
 {
     public static (NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null)
+    {
+        NativeBattleRibbonPacketStep result = DrawWithDirection(arena, headAddress, count, bank, distances, policy, incomingDirectionWord);
+        return (result.Arena, result.Batch);
+    }
+
+    public static NativeBattleRibbonPacketStep DrawWithDirection(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null)
     {
         if (count < 2 || count > bank.PointCount || bank.PointCount > short.MaxValue || bank.PointCount <= 0 || bank.Address == 0 || bank.ArenaOffset < 0 || bank.ArenaOffset > NativeBattleEffectArena.Length - checked(bank.PointCount * 40) || (ulong)bank.Address + (uint)bank.PointCount * 40 > (ulong)uint.MaxValue + 1 || policy.DepthShift > 31 || policy.Width is not (NativeBattleRibbonWidthPolicy.Projected or NativeBattleRibbonWidthPolicy.Anchored))
         {
@@ -67,7 +74,8 @@ public static class NativeBattleRibbonPackets
             }
             current = next;
         }
-        return (arena, new(attempts.ToImmutable(), allocated));
+        uint? directionWord = previousX is short x && previousY is short y ? (uint)(ushort)x | (uint)(ushort)y << 16 : null;
+        return new(arena, new(attempts.ToImmutable(), allocated), directionWord);
     }
 
     private static NativeBattleEffectArena Edge(NativeBattleEffectArena arena, uint current, uint next, bool hasPrevious, ref short? previousX, ref short? previousY, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonWidthPolicy widthPolicy)

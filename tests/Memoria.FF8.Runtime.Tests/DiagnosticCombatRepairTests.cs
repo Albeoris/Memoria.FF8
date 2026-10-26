@@ -1,9 +1,25 @@
 using System.Reflection;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class DiagnosticCombatRepairTests
 {
+    [Fact]
+    public void Repair_receipt_states_preserve_the_same_physical_identity_as_execution_observations()
+    {
+        BattleSession session = Create(400);
+        BattleCombatant actor = session.Combatants[0];
+        BattleDiagnosticCombatant before = (BattleDiagnosticCombatant)Method("ObserveDiagnosticRepairActor").Invoke(null, [actor])!;
+        Assert.Equal(0, before.NativeIndex);
+        Assert.Equal(JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()[0]), JsonSerializer.Serialize(before));
+        ApplyOwnerStep(session, new("party", 250));
+        BattleDiagnosticCombatant after = (BattleDiagnosticCombatant)Method("ObserveDiagnosticRepairActor").Invoke(null, [actor])!;
+        Assert.Equal(JsonSerializer.Serialize(session.ObserveDiagnosticCombatants()[0]), JsonSerializer.Serialize(after));
+        BattleDiagnosticCombatant restored = JsonSerializer.Deserialize<BattleDiagnosticCombatant>(JsonSerializer.Serialize(after))!;
+        Assert.Equal(0, restored.NativeIndex);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -106,6 +122,6 @@ public sealed class DiagnosticCombatRepairTests
 
     private static NativeBattlePartyPresentation Presentation(BattleSession session) => (NativeBattlePartyPresentation)Field("nativePartyPresentation").GetValue(session)!;
     private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
-    private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic)!;
     private static PropertyInfo Property(string name) => typeof(BattleSession).GetProperty(name)!;
 }
