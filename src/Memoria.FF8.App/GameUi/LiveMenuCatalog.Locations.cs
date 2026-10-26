@@ -16,7 +16,7 @@ public sealed partial class LiveMenuCatalog
         worldLocations = world;
     }
 
-    public string? PlaceName(int placeId) => (uint)placeId < locationNames.Length ? locationNames[placeId] : null;
+    public string? PlaceName(int placeId) => (uint)placeId < locationNames.Length ? FormatDescription(LocalizedTable("names_locations", placeId, locationNames[placeId])) : null;
 
     public int? LocationId(GameState state, int? fieldPlaceId = null)
     {

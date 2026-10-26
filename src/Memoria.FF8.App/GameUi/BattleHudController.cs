@@ -584,7 +584,7 @@ public sealed partial class BattleHudController
 
     private string ChoiceLabel(BattleActionDefinition action)
     {
-        string label = action.DisplayName ?? action.Name;
+        string label = localizedActionName?.Invoke(action) ?? action.DisplayName ?? action.Name;
         return label;
     }
 

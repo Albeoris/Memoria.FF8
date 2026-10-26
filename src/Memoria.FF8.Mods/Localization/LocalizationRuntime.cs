@@ -1,0 +1,114 @@
+using System.Diagnostics;
+using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
+
+namespace Memoria.FF8.Mods.Localization;
+
+public sealed record LocalizationLayer(string PackageId, string Name, LocalizationProject Project);
+public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadOnlyList<LocalizationLayer> Layers, IReadOnlyList<string> RequestedOrder, bool RequiresSelection, double PreparationMilliseconds)
+{
+    public LocalizationInputRevision? InputRevision { get; init; }
+    public IReadOnlyList<string> DormantFieldKeys { get; init; } = [];
+}
+
+public static class LocalizationRuntime
+{
+    /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
+    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false)
+    {
+        Stopwatch elapsed = Stopwatch.StartNew();
+        LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory));
+        List<LocalizationLayer> layers = [];
+        foreach (ModPackage package in candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization))
+        {
+            cancellation.ThrowIfCancellationRequested();
+            LocalizationProject project = LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads);
+            if (project.Manifest.MappingVersion != FieldCorrespondenceCatalog.Version)
+            {
+                throw new InvalidDataException($"{package.Name}: localization mapping version is not supported.");
+            }
+            string variant = source.Edition + ":" + source.Language;
+            if (project.Manifest.CompatibleVariants.Count != 0 && !project.Manifest.CompatibleVariants.Contains(variant, StringComparer.OrdinalIgnoreCase) && !project.Manifest.CompatibleVariants.Contains(source.Language == "ja" ? "jp" : source.Language, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"{package.Name}: resource variant {variant} is not declared compatible.");
+            }
+            layers.Add(new(package.Id, package.Name, project));
+        }
+        if (layers.Select(layer => layer.Project.Manifest.ProjectId).Distinct(StringComparer.Ordinal).Count() != layers.Count)
+        {
+            throw new InvalidDataException("Two active localization packages have the same project identity.");
+        }
+        string[] requested = layers.Select(layer => layer.PackageId).ToArray();
+        bool selection = acceptedOrder is null ? layers.Count > 1 : requested.Any(id => !acceptedOrder.Contains(id, StringComparer.OrdinalIgnoreCase));
+        string[] order = acceptedOrder is null ? requested : acceptedOrder.Where(id => requested.Contains(id, StringComparer.OrdinalIgnoreCase)).ToArray();
+        if (layers.Count == 1 && order.Length == 0 && acceptedOrder is null)
+        {
+            order = requested;
+        }
+        List<string> dormant = [];
+        Dictionary<string, LocalizationValue> values = new(StringComparer.Ordinal);
+        List<IReadOnlyDictionary<string, LocalizationValue>> priorityLayers = [];
+        foreach (string packageId in order)
+        {
+            LocalizationLayer layer = layers.Single(layer => layer.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+            Dictionary<string, LocalizationValue> contribution = new(StringComparer.Ordinal);
+            foreach (LocalizationRecord row in layer.Project.Entries)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (string.IsNullOrEmpty(row.Target))
+                {
+                    continue;
+                }
+                ValidateTarget(row);
+                LocalizationValue value = new(row.Target, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = row.Category == "Fields" ? LocalizationFieldPreparation.Prepare(row) : null };
+                if (row.Category == "Fields" && value.Field is null)
+                {
+                    dormant.Add(row.Key);
+                }
+                values[row.Key] = value;
+                contribution.Add(row.Key, value);
+            }
+            Dictionary<string, LocalizationRecord> records = layer.Project.Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
+            string activeLanguage = source.Language == "ja" ? "jp" : source.Language;
+            foreach (LocalizationRecord row in layer.Project.Entries.Where(row => row.Category == "Fields" && !string.IsNullOrEmpty(row.Target) && !row.Key.Contains("_ctx_", StringComparison.Ordinal) && !row.Key.StartsWith("$" + activeLanguage + "_", StringComparison.Ordinal)))
+            {
+                string ownLanguage = row.Key[1..row.Key.IndexOf('_')];
+                IReadOnlyList<string> nativeKeys = FieldCorrespondenceCatalog.GetEquivalents(row.Key, activeLanguage);
+                if (nativeKeys.Count != 1 || FieldCorrespondenceCatalog.GetEquivalents(row.Key, ownLanguage).Count != 1 || !records.TryGetValue(nativeKeys[0], out LocalizationRecord? nativeRow) || !string.IsNullOrEmpty(nativeRow.Target))
+                {
+                    continue;
+                }
+                LocalizationValue rebound = new(row.Target!, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = LocalizationFieldPreparation.Prepare(nativeRow with { Target = row.Target }) };
+                if (contribution.TryGetValue(nativeRow.Key, out LocalizationValue? previous) && previous.Text != rebound.Text)
+                {
+                    throw new InvalidDataException($"{nativeRow.Key}: conflicting translations in a shared correspondence group require an explicit native-key translation.");
+                }
+                contribution[nativeRow.Key] = rebound;
+                values[nativeRow.Key] = rebound;
+            }
+            priorityLayers.Add(contribution);
+        }
+        inputs.Validate();
+        return new(new LocalizationCatalog(values, priorityLayers), layers.AsReadOnly(), order, selection, elapsed.Elapsed.TotalMilliseconds) { InputRevision = inputs, DormantFieldKeys = dormant.AsReadOnly() };
+    }
+
+    private static void ValidateTarget(LocalizationRecord row)
+    {
+        // Runtime controls and placeholders retain their own syntax; source/reference cells never override presentation.
+        if (row.Target!.Contains('\0'))
+        {
+            throw new InvalidDataException($"{row.Key}: translated text contains NUL.");
+        }
+        if (row.Category == "Fields")
+        {
+            int suffixStart = row.Key.IndexOf('_') + row.File.Length + 2;
+            int contextStart = row.Key.IndexOf("_ctx_", suffixStart, StringComparison.Ordinal);
+            string baseKey = contextStart < 0 ? row.Key : row.Key[..contextStart];
+            if (!FieldCorrespondenceCatalog.Contains(baseKey))
+            {
+                throw new InvalidDataException($"{row.Key}: unknown field source identity.");
+            }
+        }
+    }
+}

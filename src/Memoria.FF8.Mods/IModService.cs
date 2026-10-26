@@ -23,5 +23,6 @@ public sealed record ModOperationResult(bool Success, string? Error = null)
 /// <summary>Commit publishes only prevalidated values and must not perform fallible preparation or partially mutate published state.</summary>
 public sealed record ModPreparationResult(bool Success, IReadOnlyCollection<string>? UsablePackageIds = null, IReadOnlyList<ModDiagnostic>? Diagnostics = null, Action? Commit = null, Action? AfterCommit = null)
 {
+    public bool Deferred { get; init; }
     public static ModPreparationResult Accepted { get; } = new(true);
 }

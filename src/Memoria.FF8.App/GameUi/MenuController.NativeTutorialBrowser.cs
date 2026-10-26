@@ -49,7 +49,7 @@ public sealed partial class MenuController
             Id = "tutorial-native-online-help",
             Title = browser.Categories.Single(category => category.CallbackMode == 255).Title,
             Help = browser.Categories.Single(category => category.CallbackMode == 255).Help,
-            Entries = controller => tutorials.Tutorials.Where(tutorial => unlocked().Contains(checked((int)tutorial.Descriptor.UnlockId))).Select(tutorial => new MenuEntry($"tutorial-{tutorial.Id}", NativeBrowserText(tutorial.Title), NativeBrowserText(tutorial.Help), Action: new MenuAction("native-tutorial-start", tutorial.Id.ToString(CultureInfo.InvariantCulture)))).ToArray(),
+            Entries = controller => tutorials.Tutorials.Where(tutorial => unlocked().Contains(checked((int)tutorial.Descriptor.UnlockId))).Select(tutorial => new MenuEntry($"tutorial-{tutorial.Id}", NativeBrowserText(NativeMenuText(2, 13, tutorial.Descriptor.TitleIndex * 2, tutorial.Title)), NativeBrowserText(NativeMenuText(2, 13, tutorial.Descriptor.TitleIndex * 2 + 1, tutorial.Help)), Action: new MenuAction("native-tutorial-start", tutorial.Id.ToString(CultureInfo.InvariantCulture)))).ToArray(),
             BuildContent = (controller, panel) => panel.Children.Add(controller.BuildNativeTutorialList())
         });
         foreach (NativeTutorialBrowserCategory category in browser.Categories.Where(category => category.Pages.Length > 0))
@@ -59,7 +59,7 @@ public sealed partial class MenuController
                 Id = NativePageScreen(category.Id),
                 Title = category.Title,
                 Help = category.Help,
-                Details = controller => category.Pages[controller._nativeTutorialPageIndices.GetValueOrDefault(category.Id)].Placements.Select(placement => placement.Value).ToArray(),
+                Details = controller => category.Pages[controller._nativeTutorialPageIndices.GetValueOrDefault(category.Id)].Placements.Select(placement => controller.NativeMenuText(category.Pages[controller._nativeTutorialPageIndices.GetValueOrDefault(category.Id)].TextResource, null, placement.TextIndex, placement.Value)).ToArray(),
                 BuildContent = (controller, panel) => panel.Children.Add(controller.BuildNativeTutorialPage(category))
             });
         }
@@ -72,7 +72,7 @@ public sealed partial class MenuController
         string? destination = category.CallbackMode == 255 ? "tutorial-native-online-help" : category.Pages.Length > 0 ? NativePageScreen(category.Id) : subject is not null && _nativeTutorialExamConnected ? $"tutorial-native-{subject}" : null;
         MenuAction? action = category.Pages.Length > 0 ? new("native-tutorial-open-pages", category.Id.ToString(CultureInfo.InvariantCulture)) : subject is not null && _nativeTutorialExamConnected ? new("native-exam-open", subject) : null;
         bool enabled = destination is not null && (subject is null || CanOpenNativeTutorialExam(subject));
-        return new MenuEntry($"category-{category.Id}", category.Title, category.Help, destination, action, enabled);
+        return new MenuEntry($"category-{category.Id}", NativeMenuText(category.TextFamily == 0 ? 0 : 2, category.TextFamily == 0 ? 0 : 13, category.TitleIndex * 2, category.Title), NativeMenuText(category.TextFamily == 0 ? 0 : 2, category.TextFamily == 0 ? 0 : 13, category.TitleIndex * 2 + 1, category.Help), destination, action, enabled);
     }
 
     private bool TryExecuteNativeTutorialBrowser(MenuAction action)
@@ -162,7 +162,7 @@ public sealed partial class MenuController
         int originY = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(page.Metadata.AsSpan().Slice(2, 2));
         foreach (NativeTutorialPageText placement in page.Placements)
         {
-            canvas.Children.Add(new NativeTutorialTextElement(NativeBrowserText(placement.Value), 384 - originX - placement.X, _readPreferences?.Invoke().UiFontFamily)
+            canvas.Children.Add(new NativeTutorialTextElement(NativeBrowserText(NativeMenuText(page.TextResource, null, placement.TextIndex, placement.Value)), 384 - originX - placement.X, _readPreferences?.Invoke().UiFontFamily)
             {
                 Id = $"native-tutorial-text-{placement.TextIndex}",
                 FontSize = 27 * TextScale,

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -170,6 +170,7 @@ internal sealed partial class RecreateGame : Game
         {
             SynchronizeGuardianModProfile();
             resourceHost?.Pump();
+            RefreshLocalizationPresentation();
             gameMenus?.RefreshModView();
             UpdateDisplayFrame(gameTime);
         }
@@ -615,7 +616,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (IsActive && keyboard.AllowsNameText(args.Key))
         {
-            if (gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
+            if (gameMenus?.EnterLocalizationCharacter(args.Character) != true && gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
             {
                 gameMenus?.EnterNameCharacter(args.Character);
             }

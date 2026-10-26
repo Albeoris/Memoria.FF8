@@ -12,11 +12,11 @@ internal sealed class DialoguePageCache
     {
         if (!entries.TryGetValue(dialogue.Channel, out Entry? entry) || entry.ValueIdentity != valueIdentity || !(valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) || entry.Window != window || entry.Family != family || entry.Size != size || entry.ExpandedKey != expandedKey)
         {
-            int previousPage = retainPosition && entry is not null && (valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) ? entry.Pager.PageIndex : 0;
+            DialoguePager? previous = retainPosition && entry is not null && (valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) ? entry.Pager : null;
             entry = new Entry(dialogue, window, family, size, expandedKey, valueIdentity, create(), new DialoguePager());
-            for (int page = 0; page < previousPage; page++)
+            if (previous is not null)
             {
-                entry.Pager.Advance(entry.Pages.Count);
+                entry.Pager.ReflowFrom(previous, entry.Pages);
             }
             entries[dialogue.Channel] = entry;
         }

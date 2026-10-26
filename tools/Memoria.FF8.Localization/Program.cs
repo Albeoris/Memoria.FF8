@@ -1,6 +1,11 @@
 using Memoria.FF8.Localization;
 using System.Text.Json;
 
+if (args.FirstOrDefault() is "export" or "convert" or "validate" or "languages")
+{
+    return LocalizationCommands.Run(args);
+}
+
 bool audit = args.Length == 5 && args[0] == "audit" && args[1] == "--game-dir" && args[3] == "--output";
 bool refine = (args.Length == 5 || (args.Length == 7 && args[5] == "--compare")) && args[0] == "refine" && args[1] == "--input" && args[3] == "--output";
 bool renumber = args.Length == 5 && args[0] == "renumber" && args[1] == "--input" && args[3] == "--output";
@@ -9,6 +14,10 @@ if (!audit && !refine && !renumber)
     Console.Error.WriteLine("Usage: Memoria.FF8.Localization audit --game-dir <Remastered installation> --output <new private report directory>");
     Console.Error.WriteLine("       Memoria.FF8.Localization refine --input <original audit directory> --output <new private report directory> [--compare <prior refined report directory>]");
     Console.Error.WriteLine("       Memoria.FF8.Localization renumber --input <reviewed mapping CSV> --output <new private report directory>");
+    Console.Error.WriteLine("       Memoria.FF8.Localization export --game-dir <installation> --source <language> --script-base <language> --target <identifier> --output <new package> [--format json|xlsx --layout single|split --references en,fr]");
+    Console.Error.WriteLine("       Memoria.FF8.Localization convert --input <package> --output <new package> --format json|xlsx --layout single|split");
+    Console.Error.WriteLine("       Memoria.FF8.Localization validate --input <package>");
+    Console.Error.WriteLine("       Memoria.FF8.Localization languages --game-dir <installation>");
     return 2;
 }
 

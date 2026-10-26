@@ -1,6 +1,6 @@
 # Localization compatibility audit
 
-The field audit is a read-only preparation tool. It does not create or load localization mods, approve semantic mappings, or establish playable support for a language. Resource-language availability and gameplay support are separate capabilities.
+The `audit` command is a read-only field comparison tool. That command does not create or load localization mods, approve semantic mappings, or establish playable support for a language. The same executable separately provides `languages`, `export`, `validate` and `convert`; see [localization projects](../players/localization.md) and [the translator guide](../modding/localization.md). Resource-language availability and gameplay support are separate capabilities.
 
 Run from the product root with a locally selected Remastered installation and a new report directory **outside the source checkout**:
 

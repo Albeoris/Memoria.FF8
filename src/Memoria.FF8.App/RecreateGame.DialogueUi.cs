@@ -14,21 +14,23 @@ internal sealed partial class RecreateGame
 
     private (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) GetDialoguePages(DialogueState dialogue)
     {
-        DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(dialogue.Text, events!.MessageVariables), keyboard.NativeButtonBindingPrompt);
+        DialogueState display = LocalizedDialogue(dialogue);
+        DialogueWindow? window = display.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
+        window = LocalizedWindow(dialogue, window);
+        string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(display.Text, events!.MessageVariables), keyboard.NativeButtonBindingPrompt);
         foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
         {
             expanded += "\u0001" + name.Key + "=" + name.Value;
         }
         // Names, message variables and input bindings can change while a window retains its native identity.
-        string key = expanded;
+        string key = expanded + "\u0002" + display.X + "," + display.Y + "," + display.FirstChoice + "," + display.LastChoice;
         var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
-            var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt);
+            var document = DialogueTextFormatter.Parse(display.Text, events.Scene.Names, events.MessageVariables, keyboard.NativeButtonBindingPrompt);
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
-            return DialogueLayout.Create(document, dialogue, window, measurer.LineHeight, measurer.Measure);
+            return DialogueLayout.Create(document, display, window, measurer.LineHeight, measurer.Measure);
         }, retainPosition: true);
         if (dialogue.IsNamePrompt)
         {
@@ -81,11 +83,13 @@ internal sealed partial class RecreateGame
 
     private void DrawDialogueUi(Rectangle bounds, PixelBounds viewport, DialogueState dialogue, double seconds)
     {
+        DialogueState display = LocalizedDialogue(dialogue);
         float scale = viewport.Width / 320f;
         var presentation = GetDialoguePages(dialogue);
         var page = presentation.Pages[presentation.Pager.PageIndex];
         DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-        PixelBounds panelBounds = DialoguePresentation.Bounds(dialogue, window, viewport, page.Width * scale, page.Height * scale);
+        window = LocalizedWindow(dialogue, window);
+        PixelBounds panelBounds = DialoguePresentation.Bounds(display, window, viewport, page.Width * scale, page.Height * scale);
         DialogueChannelStyle style = events?.Scene.MessageChannelStyles.GetValueOrDefault(dialogue.Channel) ?? DialogueChannelStyle.Default;
         if (style.HasPanel)
         {
@@ -116,7 +120,7 @@ internal sealed partial class RecreateGame
         int remaining = presentation.Pager.VisibleCharacters;
         foreach (var line in page.Lines)
         {
-            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == selectedChoice)
+            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == LocalizedChoiceLine(dialogue, selectedChoice))
             {
                 uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }

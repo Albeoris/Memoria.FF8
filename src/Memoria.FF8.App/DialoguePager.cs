@@ -11,6 +11,13 @@ internal sealed class DialoguePager
 
     public int VisibleCharacters => reveal.VisibleCharacters;
 
+    public void ReflowFrom(DialoguePager previous, IReadOnlyList<DialogueVisualPage> pages)
+    {
+        PageIndex = Math.Clamp(previous.PageIndex, 0, Math.Max(0, pages.Count - 1));
+        elapsed = previous.elapsed;
+        reveal.RevealAll(Math.Min(previous.VisibleCharacters, CharacterCount(pages[PageIndex])));
+    }
+
     public void UpdateReveal(TimeSpan delta, DialogueVisualPage page, int speed, bool instant = false)
     {
         reveal.Update(delta, CharacterCount(page), CharactersPerSecond(speed), instant);

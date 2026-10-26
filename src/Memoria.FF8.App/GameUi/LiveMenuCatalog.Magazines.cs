@@ -9,8 +9,19 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class LiveMenuCatalog
 {
     private readonly Dictionary<int, NativeMagazinePage[]> magazines = [];
+    private readonly Dictionary<byte, (Func<string>[] Lines, Func<string>[] Layout)> magazinePresentation = [];
 
-    public NativeMagazinePage[] MagazinePages(int itemId) => magazines.TryGetValue(itemId, out NativeMagazinePage[]? pages) ? pages.Select(page => page with { Text = page.Text.ToArray(), Layout = page.Layout is { } layout ? layout with { Texts = layout.Texts.ToArray(), Images = layout.Images.ToArray(), Icons = layout.Icons.ToArray(), Buttons = layout.Buttons.ToArray() } : null }).ToArray() : [];
+    public NativeMagazinePage[] MagazinePages(int itemId) => magazines.TryGetValue(itemId, out NativeMagazinePage[]? pages) ? pages.Select(ProjectMagazinePage).ToArray() : [];
+
+    private NativeMagazinePage ProjectMagazinePage(NativeMagazinePage page)
+    {
+        var presentation = magazinePresentation[page.PageId];
+        return page with
+        {
+            Text = presentation.Lines.Select(read => read()).ToArray(),
+            Layout = page.Layout is { } layout ? layout with { Texts = layout.Texts.Select((text, index) => text with { Text = presentation.Layout[index]() }).ToArray(), Images = layout.Images.ToArray(), Icons = layout.Icons.ToArray(), Buttons = layout.Buttons.ToArray() } : null
+        };
+    }
 
     public NativeMagazinePage MagazinePage(int itemId, int pageId) => MagazinePages(itemId).SingleOrDefault(page => page.PageId == pageId) ?? throw new ArgumentOutOfRangeException(nameof(pageId), "Magazine page lies outside its original item's inclusive range.");
 
@@ -59,6 +70,8 @@ public sealed partial class LiveMenuCatalog
             {
                 ReadOnlySpan<byte> row = bytes.AsSpan(id * 68, 68);
                 List<string> lines = [];
+                List<Func<string>> linePresentation = [];
+                List<Func<string>> layoutPresentation = [];
                 List<NativeMagazineText> texts = [];
                 List<NativeMagazineImage> images = [];
                 List<NativeMagazineIcon> icons = [];
@@ -71,6 +84,9 @@ public sealed partial class LiveMenuCatalog
                         string value = DialogueTextFormatter.Format(text[textId] ?? throw new InvalidDataException("Magazine page refers to an absent English text entry."));
                         lines.Add(value);
                         texts.Add(new NativeMagazineText(BinaryPrimitives.ReadUInt16LittleEndian(row[(52 + slot * 4)..]), row[54 + slot * 4], value));
+                        Func<string> readText = () => FormatDescription(LocalizedTable("mngrp_slot087_table", textId, value))!;
+                        linePresentation.Add(readText);
+                        layoutPresentation.Add(readText);
                     }
                     int imageId = row[39 + slot * 4];
                     if (imageId != 255)
@@ -84,6 +100,9 @@ public sealed partial class LiveMenuCatalog
                     NativeWeaponRecipe recipe = weapons.Recipes[row[24]];
                     lines.Add(recipe.Name);
                     lines.Add(string.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => $"{ItemName(material.ItemId)} ×{material.Count}")));
+                    int recipeId = row[24];
+                    linePresentation.Add(() => WeaponName(recipeId) ?? recipe.Name);
+                    linePresentation.Add(() => string.Join(", ", recipe.Materials.Where(material => material.ItemId != 0).Select(material => $"{ItemName(material.ItemId)} ×{material.Count}")));
                     int y = row[30];
                     int x = BinaryPrimitives.ReadUInt16LittleEndian(row[28..]);
                     foreach (NativeItemStock material in recipe.Materials)
@@ -98,6 +117,8 @@ public sealed partial class LiveMenuCatalog
                             icons.Add(new NativeMagazineIcon(x, y - 2, 223 + itemIconKinds[type]));
                             texts.Add(new NativeMagazineText(x + 14, y, ItemName(material.ItemId) ?? throw new InvalidDataException("Magazine material lacks its original name.")));
                             texts.Add(new NativeMagazineText(x + row[31], y, material.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), RightAligned: true));
+                            layoutPresentation.Add(() => ItemName(material.ItemId) ?? throw new InvalidDataException("Magazine material lacks its original name."));
+                            layoutPresentation.Add(() => material.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
                             y += row[25];
                         }
                     }
@@ -136,6 +157,7 @@ public sealed partial class LiveMenuCatalog
                     Buttons = buttons.ToArray()
                 };
                 pages.Add(new NativeMagazinePage(itemId, (byte)id, row[24], row[26], row[27], lines.ToArray()) { Layout = layout });
+                magazinePresentation[(byte)id] = (linePresentation.ToArray(), layoutPresentation.ToArray());
             }
             magazines.Add(itemId, pages.ToArray());
         }

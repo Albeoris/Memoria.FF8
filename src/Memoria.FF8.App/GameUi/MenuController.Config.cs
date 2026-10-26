@@ -17,7 +17,7 @@ public sealed partial class MenuController
     private bool IsConfigSettingsScreen => ScreenId == "config" || SettingsPlacement.Pages.ContainsKey(ScreenId) || ScreenId == "new-game-options";
     private int ConfigRowsPerPage => Math.Max(1, (int)((ScreenId == "new-game-options" ? 315 : ScreenId == "config-text" ? 300 : 495) / (44 * TextScale)));
 
-    private static string ConfigLabel(string id) => id switch
+    private string ConfigLabel(string id) => LocalizeSettingLabel(id, id switch
     {
         "Show FPS" => "Frame-rate counter",
         "Field FPS" => "Field and movies",
@@ -35,7 +35,7 @@ public sealed partial class MenuController
         "Field message" => "Dialogue text speed",
         "Battle ATB mode" => "ATB mode",
         _ => MagicUiText.SettingLabel(id)
-    };
+    });
 
     internal IReadOnlyList<MenuEntry> ConfigEntries()
     {

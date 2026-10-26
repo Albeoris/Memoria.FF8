@@ -43,6 +43,6 @@ public sealed partial class BattleSession
         }
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native entry message requires the saved message speed BYTE.")) + 8;
         string message = definition.NativeGlobalMessages[text] ?? throw new NotSupportedException("Native entry advantage text is absent from its original kernel bank.");
-        return QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3 }, 86);
+        return QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(text) }, 86);
     }
 }

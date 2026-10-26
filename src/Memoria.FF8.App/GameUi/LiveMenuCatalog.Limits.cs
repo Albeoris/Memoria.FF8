@@ -19,7 +19,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < kernel.ZellLimits.Count; index++)
             {
                 var move = kernel.ZellLimits[index];
-                character.LimitMoves.Add(LimitMove(index, move.Name, move.Description, progress is null ? null : (progress.DuelFlags & (1 << index)) != 0));
+                character.LimitMoves.Add(LimitMove(index, LocalizedKernel(nameof(kernel.ZellLimits), "Name", index, move.Name), LocalizedKernel(nameof(kernel.ZellLimits), "Description", index, move.Description), progress is null ? null : (progress.DuelFlags & (1 << index)) != 0));
             }
         }
         else if (command == 15)
@@ -27,7 +27,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < kernel.BlueMagics.Count; index++)
             {
                 var move = kernel.BlueMagics[index];
-                character.LimitMoves.Add(LimitMove(index, move.Name, move.Description, progress is null ? null : (progress.BlueMagicFlags & (1 << index)) != 0));
+                character.LimitMoves.Add(LimitMove(index, LocalizedKernel(nameof(kernel.BlueMagics), "Name", index, move.Name), LocalizedKernel(nameof(kernel.BlueMagics), "Description", index, move.Description), progress is null ? null : (progress.BlueMagicFlags & (1 << index)) != 0));
             }
         }
         else if (command == 19)
@@ -36,7 +36,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < 8; index++)
             {
                 var definition = AngeloMove(index);
-                MenuLimitMove move = LimitMove(index, FormatText(definition.Name, names), FormatText(definition.Description, names), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
+                MenuLimitMove move = LimitMove(index, FormatText(LocalizedTable("names_angelo_abilities", index, definition.Name), names), FormatText(LocalizedTable("descriptions_angelo_abilities", index, definition.Description), names), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
                 if (progress is not null)
                 {
                     move.TrainingProgress = AngeloTrainingProgress(definition.TrainingTotal, progress.TrainingCounters[index], move.Learned == true);
@@ -55,7 +55,7 @@ public sealed partial class LiveMenuCatalog
             for (int index = 0; index < 6; index++)
             {
                 var move = kernel.MagicSpells[51 + index];
-                character.LimitMoves.Add(LimitMove(index, move.Name, move.Description, progress?.SpecialMagicFlags is not byte flags ? null : (flags & (1 << index)) != 0));
+                character.LimitMoves.Add(LimitMove(index, MagicName(51 + index), MagicDescription(51 + index), progress?.SpecialMagicFlags is not byte flags ? null : (flags & (1 << index)) != 0));
             }
         }
         else if (command == 14)
@@ -64,7 +64,7 @@ public sealed partial class LiveMenuCatalog
             {
                 var move = kernel.IrvinLimits[index];
                 int? stock = state.Economy is null ? null : state.Economy.Items.Where(item => item.ItemId == index + 101).Sum(item => item.Count);
-                MenuLimitMove choice = LimitMove(index, move.Name, move.Description, state.ShotAvailability is null ? null : (state.ShotAvailability.Flags770 & (1 << index)) != 0 || stock > 0);
+                MenuLimitMove choice = LimitMove(index, LocalizedKernel(nameof(kernel.IrvinLimits), "Name", index, move.Name), LocalizedKernel(nameof(kernel.IrvinLimits), "Description", index, move.Description), state.ShotAvailability is null ? null : (state.ShotAvailability.Flags770 & (1 << index)) != 0 || stock > 0);
                 choice.Stock = stock;
                 character.LimitMoves.Add(choice);
             }
@@ -89,8 +89,8 @@ public sealed partial class LiveMenuCatalog
             character.LimitMoves.Add(new MenuLimitMove
             {
                 Id = $"finisher-{index}",
-                Name = move.Name ?? throw new InvalidDataException("Renzokuken finisher has no original name."),
-                Description = FormatDescription(move.Description) ?? "",
+                Name = LocalizedKernel(nameof(kernel.SquallLimits), "Name", index, move.Name) ?? throw new InvalidDataException("Renzokuken finisher has no original name."),
+                Description = FormatDescription(LocalizedKernel(nameof(kernel.SquallLimits), "Description", index, move.Description)) ?? "",
                 Learned = (finishers & (1 << index)) != 0
             });
         }

@@ -32,7 +32,8 @@ public sealed partial class BattleHudController
             {
                 return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
-            string bindings = DialogueTextFormatter.ExpandButtonBindings(message.Message, NativeButtonBindingHint);
+            string displayed = localizedBattleMessage?.Invoke(message) ?? message.Message;
+            string bindings = DialogueTextFormatter.ExpandButtonBindings(displayed, NativeButtonBindingHint);
             if (!ReferenceEquals(message, formattedBattleMessageEvent) || bindings != formattedBattleMessageBindings)
             {
                 Dictionary<int, string> names = battleNames?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? [];
@@ -52,7 +53,7 @@ public sealed partial class BattleHudController
                         names[subject] = GameNames.DefaultName(subject);
                     }
                 }
-                formattedBattleMessage = DialogueTextFormatter.Parse(message.Message, names, buttonBindingHint: NativeButtonBindingHint);
+                formattedBattleMessage = DialogueTextFormatter.Parse(displayed, names, buttonBindingHint: NativeButtonBindingHint);
                 formattedBattleMessageEvent = message;
                 formattedBattleMessageBindings = bindings;
             }

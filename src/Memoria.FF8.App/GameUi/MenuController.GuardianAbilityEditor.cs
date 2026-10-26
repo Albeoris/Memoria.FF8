@@ -128,7 +128,10 @@ public sealed partial class MenuController
             new("mods-installed-tab", "Installed Mods", "Installed packages and enablement.", Destination: "mods"),
             new("mods-create-new", "Create new mod", "Open an independent GF mod draft. No file is written until Save mod.", Action: new("gf-editor-target", "new"), Enabled: GuardianEditorEditionSupported),
             new("mods-edit-existing", "Edit existing GF mod", "Choose a compatible GF payload, including disabled packages.", Destination: "mods-gf-packages", Enabled: GuardianEditorEditionSupported),
-            new("mods-edit-playthrough", "Edit this playthrough", playthroughLoaded ? "Edit this playthrough's local GF contribution." : "Load a game to edit this playthrough.", Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded)
+            new("mods-edit-playthrough", "Edit this playthrough", playthroughLoaded ? "Edit this playthrough's local GF contribution." : "Load a game to edit this playthrough.", Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded),
+            new("mods-localization-new", "New localization", "Create a translation project from available source datasets.", Action: new("localization-new"), Enabled: localizationAuthoring is not null),
+            new("mods-localization-convert", "Convert localization", "Convert JSON/XLSX or payload layout without an installed game.", Action: new("localization-convert"), Enabled: localizationAuthoring is not null),
+            new("mods-localization-stack", "Localization stack", "Choose and order active translations explicitly.", Action: new("localization-stack-open"), Enabled: readLocalizationStack is not null)
         ];
     }
 

@@ -421,7 +421,6 @@ public sealed partial class LiveMenuCatalog
     private readonly string[] guardianForceNames;
     private readonly string?[] abilityNames;
     private readonly string?[] abilityDescriptions;
-    private readonly string[] cardNames;
     private ResourceService? resources;
     private readonly string[] cardDescriptions;
     private readonly byte[] fieldItems;
@@ -429,12 +428,11 @@ public sealed partial class LiveMenuCatalog
     private readonly TripleTriadCatalog tripleTriad;
     private ImmutableArray<NativeAngeloTrainingDefinition> angeloMoves = [];
 
-    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad)
+    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad)
     {
         this.kernel = kernel;
         statistics = new BattlePlayerStatReader(kernelBytes);
         this.guardianForceNames = guardianForceNames;
-        this.cardNames = cardNames;
         this.cardDescriptions = cardDescriptions;
         this.fieldItems = fieldItems;
         this.itemIconKinds = itemIconKinds;
@@ -487,23 +485,14 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Original card text catalogue does not preserve its 110 card identities.");
         }
         string[] cardDescriptions = cardText.Records.Select(record => FormatDescription(record.Text.Value)!).ToArray();
-        string[] cardNames = cardDescriptions.Select(description =>
-        {
-            int end = description.IndexOf(':');
-            if (end < 0)
-            {
-                throw new InvalidDataException("Original card description has no card name heading.");
-            }
-            string name = description[..end];
-            return name.EndsWith(" Card", StringComparison.Ordinal) ? name[..^5] : name;
-        }).ToArray();
+        TripleTriadCatalog tripleTriad = TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
         byte[] fieldItems = ReadMenu("mitem.bin");
         if (fieldItems.Length % 4 != 0)
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
         byte[] itemIconKinds = assets.ReadItemIconKinds();
-        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, itemIconKinds, TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources));
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, fieldItems, itemIconKinds, tripleTriad);
         catalog.resources = assets.Resources;
         catalog.angeloMoves = NativeAngeloTrainingDefinitionReader.Read(ReadMenu("pet_exp.bin"), ReadMenu("pet_exp.msg"), encoding);
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
@@ -516,30 +505,30 @@ public sealed partial class LiveMenuCatalog
 
     public NativeAngeloTrainingDefinition AngeloMove(int index) => (uint)index < angeloMoves.Length ? angeloMoves[index] : throw new ArgumentOutOfRangeException(nameof(index));
 
-    public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? kernel.Characters[id].Name : null;
-    public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? guardianForceNames[id] : null;
-    public string? CardName(int id) => (uint)id < cardNames.Length ? resources?.ReadText(StaticTextResource.CardNames, id, cardNames[id]) ?? cardNames[id] : null;
-    public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? cardDescriptions[id] : null;
+    public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? LocalizedKernel(nameof(kernel.Characters), "Name", id, kernel.Characters[id].Name) : null;
+    public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? LocalizedTable("defaults_guardians", id, guardianForceNames[id]) : null;
+    public string? CardName(int id) => (uint)id < tripleTriad.Cards.Length ? LocalizedTable("names_cards", id, tripleTriad.Name(id)) : null;
+    public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? FormatDescription(LocalizedTable("mngrp_slot192_records", id, cardDescriptions[id])) : null;
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
     public TripleTriadRefinement? CardRefinement(int id) => (uint)id < tripleTriad.Refinements.Length ? tripleTriad.Refinements[id] : null;
-    public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Name : null;
+    public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? LocalizedKernel(nameof(kernel.MagicSpells), "Name", id, kernel.MagicSpells[id].Name) : null;
     public bool IsFieldMagic(int id) => (uint)id < kernel.MagicSpells.Count && kernel.MagicSpells[id].AttackType is 3 or 5 or 6;
-    public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(kernel.MagicSpells[id].Description) : null;
-    public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].Name : null;
-    public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? kernel.BattleCommands[id].Name : null;
-    public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Name : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Name : null;
-    public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Description : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Description : null);
+    public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(LocalizedKernel(nameof(kernel.MagicSpells), "Description", id, kernel.MagicSpells[id].Description)) : null;
+    public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? LocalizedKernel(nameof(kernel.Weapons), "Name", id, kernel.Weapons[id].Name) : null;
+    public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? LocalizedKernel(nameof(kernel.BattleCommands), "Name", id, kernel.BattleCommands[id].Name) : null;
+    public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Name", id, kernel.BattleItems[id].Name) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Name", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Name) : null;
+    public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Description", id, kernel.BattleItems[id].Description) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Description", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Description) : null);
 
     internal static string? FormatText(string? encoded, IReadOnlyDictionary<int, string>? names = null) => encoded is null ? null : DialogueTextFormatter.Format(encoded, names).Replace('\n', ' ');
 
     private static string? FormatDescription(string? encoded) => FormatText(encoded);
     public string? AbilityName(int id)
     {
-        return (uint)id < abilityNames.Length ? abilityNames[id] : null;
+        return (uint)id < abilityNames.Length && AbilityIdentity(id) is { } identity ? LocalizedKernel(identity.Collection, "Name", identity.Ordinal, abilityNames[id]) : null;
     }
 
     public string? AbilityDescription(int id)
     {
-        return (uint)id < abilityDescriptions.Length ? abilityDescriptions[id] : null;
+        return (uint)id < abilityDescriptions.Length && AbilityIdentity(id) is { } identity ? FormatDescription(LocalizedKernel(identity.Collection, "Description", identity.Ordinal, abilityDescriptions[id])) : null;
     }
 }

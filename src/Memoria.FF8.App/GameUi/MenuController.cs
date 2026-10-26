@@ -72,7 +72,7 @@ public sealed partial class MenuController
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
     public MenuScreenDefinition CurrentScreen => _screens[ScreenId];
     public int SelectedIndex => _selections.GetValueOrDefault(ScreenId);
-    public IReadOnlyList<MenuEntry> Entries => CurrentScreen.Entries(this);
+    public IReadOnlyList<MenuEntry> Entries => LocalizeSystemEntries(CurrentScreen.Entries(this));
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
     public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
     public string ExchangeId => _exchangeId;
@@ -410,6 +410,12 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId == "localization-review" && (localizationPreparation is not null || localizationWriting is not null))
+        {
+            localizationCancellation?.Cancel();
+            localizationProgress = "Cancelling…";
+            return;
+        }
         if (ScreenId is "gf-ability-dirty" or "gf-ability-review")
         {
             guardianAfterDiscard = null;
@@ -682,6 +688,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (TryHandleLocalizationAction(action))
+        {
+            return;
+        }
         if (action.Kind == "angelo-confirm")
         {
             PendingAngeloMove = action.SubjectId;

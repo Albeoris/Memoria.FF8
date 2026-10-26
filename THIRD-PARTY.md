@@ -12,6 +12,8 @@ Runtime packages are restored from NuGet at the versions in `Directory.Packages.
 | SDL3-CS / SDL3-CS.Windows | 3.4.18 | [Package license](https://github.com/edwardgushchin/SDL3-CS/blob/main/LICENSE); native SDL uses the [zlib license](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt) |
 | Magick.NET-Q8-AnyCPU | 14.16.0 | [Apache 2.0 and included native notices](https://github.com/dlemstra/Magick.NET) |
 | ValveKeyValue | 0.11.0.378 | [MIT](https://github.com/ValveResourceFormat/ValveKeyValue) |
+| DocumentFormat.OpenXml / DocumentFormat.OpenXml.Framework | 3.5.1 | [MIT](https://github.com/dotnet/Open-XML-SDK) |
+| System.IO.Packaging | Transitive package-selected version | [MIT](https://github.com/dotnet/runtime) |
 | System.Drawing.Common | 10.0.0 | [MIT](https://github.com/dotnet/winforms) |
 | .NET runtime | SDK-selected .NET 10 servicing version | [MIT and third-party notices](https://github.com/dotnet/runtime) |
 

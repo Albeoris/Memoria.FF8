@@ -50,6 +50,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             roots = roots.Append(bundledModsRoot);
         }
         ModsDirectories = Array.AsReadOnly(roots.Select(directory => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        ReadLocalizationPreferences();
         this.isCompatible = isCompatible ?? (_ => true);
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
@@ -172,7 +173,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, $"Unknown mod package: {packageId}.");
             }
-            if (!isCompatible(package.Format))
+            if (enabled && package.HasLocalization && !installedPackages.Any(other => other.Id != package.Id && other.HasLocalization && other.RequestedEnabled))
+            {
+                return SetLocalizationSelection([package.Id], LocalizationPrimaryTarget);
+            }
+            if (!isCompatible(package.Format) && !package.LocalizationOnly)
             {
                 return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
@@ -359,6 +364,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 ModPreparationResult result = prepare(candidate);
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
+                if (result.Deferred)
+                {
+                    reloadRequested = true;
+                    requestedAt = now;
+                    retryDue = now + TimeSpan.FromMilliseconds(25);
+                    updateOutcome = ModUpdateOutcome.Updating;
+                    return false;
+                }
                 if (!result.Success)
                 {
                     diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
@@ -501,7 +514,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         {
             notices.Add(new("watcher-error", error));
         }
-        List<string> identities = [nextAutoEnable.ToString()];
+        List<string> identities = [nextAutoEnable.ToString(), string.Join(";", localizationOrder ?? [])];
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
@@ -557,7 +570,9 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     }
                 }
                 bool requested = explicitEnabled ?? nextAutoEnable;
-                bool compatible = isCompatible(format);
+                bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
+                bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase));
+                bool compatible = isCompatible(format) || localizationOnly;
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
                 identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
@@ -572,7 +587,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 List<(string Root, string Physical, string Relative)> selectedFiles = [];
                 foreach ((string packageRoot, string physical, string relative) in packageFiles)
                 {
-                    if (relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(relative).StartsWith('.') && relative.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                    if (relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(relative).StartsWith("~$", StringComparison.Ordinal) || relative.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) || relative.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
@@ -608,7 +623,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { Priority = priority });
+                packages.Add(new(id, name, format, explicitEnabled, requested, status, root) { Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())

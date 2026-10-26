@@ -145,6 +145,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        ModPreparationResult? waiting = PrepareLocalization(catalog, out var localization);
+        if (waiting is not null)
+        {
+            return waiting;
+        }
+        if (IsLocalizationOnlyChange(catalog))
+        {
+            return PrepareLocalizationPublication(localization!);
+        }
         ModPackage[] behaviorPackages = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.JunctionMetadata?.Behaviors.Count > 0).ToArray();
         if (behaviorPackages.Length > 0 && (source.Descriptor.Edition != GameDataEdition.Classic || !source.Descriptor.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
         {
@@ -217,6 +226,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        usable.AddRange(localization!.Layers.Select(layer => layer.PackageId));
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
@@ -261,7 +271,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         ResourceService.PreparedResources prepared;
         try
         {
-            prepared = Resources.Prepare(resolver, textResources, encodedResources);
+            prepared = Resources.Prepare(resolver, textResources, encodedResources, localization!.Catalog);
         }
         catch (ResourceReloadRequiredException exception)
         {
@@ -269,7 +279,9 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
+            localization!.InputRevision?.Validate();
             prepared.Commit(notify: false, beforePublish: guardianPublication.Commit);
+            CommittedLocalizations = localization;
             GuardianForceMods = guardianMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
@@ -279,6 +291,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public void Dispose()
     {
+        localizationCancellation.Cancel();
         Mods.Dispose();
         recognition?.Clear();
         source.Dispose();

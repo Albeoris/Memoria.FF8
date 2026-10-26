@@ -255,6 +255,10 @@ internal sealed partial class RecreateGame
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null && world?.IsDiagnosticBattle != true ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.ConfigureResults(PresentationBattleResources.ReadNativeGlobalBattleMessages(), id => liveMenuCatalog?.ItemDescription(id) ?? "", id => liveMenuCatalog?.AbilityName(id) ?? $"Ability {id}");
+            if (resourceHost is not null)
+            {
+                battleHud.ConfigureLocalization(new LocalizationBattlePresentation(resourceHost.Resources));
+            }
             battleHud.ConfigureGuardianForceLearning(CreateBattleGuardianForceLearningMenu);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.SlotsSoundRequested += cue => fieldAudio?.PlayTripleTriadSound(cue);
@@ -549,7 +553,12 @@ internal sealed partial class RecreateGame
         if (!SlotsModalBlocksGameplay && active.NativeEffectMemory?.Scan is { Text.Initialized: true } scan && active.NativeGraphics?.UiServices is { } services)
         {
             NativeBattleScanTextFrame text = scan.Text.ReadFrame(services.Flags942);
-            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224)), new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), active.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
+            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224));
+            if (resourceHost is not null)
+            {
+                windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(active, text, windows);
+            }
+            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), active.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
         }
         if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {

@@ -20,6 +20,7 @@ public sealed partial class MenuController
     }
     public UiView BuildView()
     {
+        RefreshLocalizationView();
         RefreshAutoPlayView();
         if (_viewControllerPresentation != CurrentControllerPresentation || _viewControlDevice != CurrentControlDevice)
         {

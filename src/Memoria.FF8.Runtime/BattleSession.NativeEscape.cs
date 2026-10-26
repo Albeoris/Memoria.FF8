@@ -139,7 +139,7 @@ public sealed partial class BattleSession
         graphics = graphics with { NativeOutcome = state with { ResultByte6E7 = 2, VictoryQueuedDFE = 1, FadeStyleE01 = 2 } };
         graphics = QueueNativeDescriptor(graphics, 112, 0);
         graphics = QueueNativeDescriptor(graphics, 10, 0x47DF60);
-        graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3 }, 86);
+        graphics = QueueNativeDescriptorMessage(graphics, new(Frame, "NativeText", null, null, duration, message) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(1) }, 86);
         graphics = QueueNativeDescriptor(graphics, 116, 0);
         NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x47DFC0);
     }

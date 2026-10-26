@@ -254,7 +254,7 @@ internal sealed partial class BattleHudElement : UiElement
     private void DrawTargets(IUiCanvas canvas, UiTheme theme)
     {
         IReadOnlyList<BattleCombatant> targets = controller.VisibleTargets;
-        float nameWidth = targets.Select(actor => canvas.MeasureText(actor.Name, 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
+        float nameWidth = targets.Select(actor => canvas.MeasureText(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, 4096 * Scale).Width / Scale).DefaultIfEmpty(0).Max();
         float x = 54;
         int columns = Math.Max(1, (targets.Count + 3) / 4);
         TargetColumnWidth = Math.Min(Math.Max(324, 6 * MathF.Floor((nameWidth + 54) / 6)), (496 - x) / columns);
@@ -280,7 +280,7 @@ internal sealed partial class BattleHudElement : UiElement
             canvas.PushClip(Rect(columnX + textInset, rowY, textWidth, TargetRowHeight));
             try
             {
-                canvas.Text(actor.Name, 24 * Scale * controller.TextScale, Rect(columnX + textInset, rowY, textWidth, TargetRowHeight), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
+                canvas.Text(controller.CombatantDisplayName(actor), 24 * Scale * controller.TextScale, Rect(columnX + textInset, rowY, textWidth, TargetRowHeight), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
             }
             finally
             {

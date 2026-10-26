@@ -12,6 +12,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [Magic rules and Smart Attack](players/magic-system.md) | Shared stock, limited uses, automatic attacks and save compatibility. |
 | [GF transformations](players/guardian-forms.md) | Optional Ifrit form, commands, HP, lifetime and finisher Skip. |
 | [GF ability editor](players/gf-ability-editor.md) | Create native GF mods or save-local changes from inside the game. |
+| [Localization projects](players/localization.md) | Create/convert translation projects, choose active stacks and review resource-coverage gaps. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
 | [Debug Room](players/debug-room.md) | Service tools, names, fixture previews and the battle laboratory. |
 | [Automatic exploration](players/automatic-exploration.md) | Start, pause, resume and reproduce an experimental automated run. |
@@ -25,6 +26,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
 | [GF ability payload](modding/gf-abilities.md) | Declarative gameplay patches, guards, ordering and producer dependencies. |
 | [Native field mods](modding/field-mods.md) | Scene configuration, the bundled Cid fix and Scene inspector. |
+| [Translator guide](modding/localization.md) | JSON/XLSX packages, stable keys, source/context metadata, choice contracts and CLI validation. |
 
 ## Develop
 

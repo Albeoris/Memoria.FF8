@@ -84,7 +84,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native sequence91 text exceeds the actor's original text bank.");
             }
             //504BB0/91 ->48AE60 ->506EE0(durationBYTE, mode3, delay0).
-            events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, message.Duration, program.Texts[message.Text]) { NativeMessageMode = 3 });
+            events.Add(new BattleEvent(Frame, "NativeText", actor.Id, null, message.Duration, program.Texts[message.Text]) { NativeMessageMode = 3, NativeTextIdentity = actor.IsPlayer ? null : BattleTextIdentity.Enemy(actor.ModelId, message.Text) });
         }
     }
 }

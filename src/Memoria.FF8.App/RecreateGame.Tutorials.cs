@@ -14,6 +14,10 @@ internal sealed partial class RecreateGame
 
     private void ConnectNativeTutorialUi()
     {
+        if (resourceHost is not null)
+        {
+            gameMenus!.ConfigureNativeTutorialLocalization(new LocalizationBattlePresentation(resourceHost.Resources).Table);
+        }
         using GameAssets assets = new(options.GameDirectory);
         NativeTutorialCatalog nativeTutorialCatalog = assets.ReadNativeTutorialCatalog();
         gameMenus!.ConnectNativeTutorials(nativeTutorialCatalog, assets.ReadNativeTutorialBrowserCatalog(), () => events?.Scene.UnlockedTutorials ?? new SortedSet<int>(), id =>
@@ -83,6 +87,7 @@ internal sealed partial class RecreateGame
     {
         if (ReferenceEquals(displayedTutorial, current))
         {
+            current.RefreshPresentation();
             return;
         }
         if (tutorialParentMenu is null && events?.Scene.NativeMenuTutorial is { } menuRequest)
@@ -98,6 +103,11 @@ internal sealed partial class RecreateGame
         tutorialParentMenu ??= gameMenus;
         displayedTutorial = current;
         gameMenus = current.Menu;
+        if (resourceHost is not null)
+        {
+            gameMenus.ConfigureNativeTutorialLocalization(new LocalizationBattlePresentation(resourceHost.Resources).Table);
+            gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
+        }
         gameMenus.ConnectReadOnlyTutorialControls(() => keyboard.Profile, () => keyboard.ControllerPresentation, () => keyboard.LastInputDevice);
         current.RefreshPresentation();
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);

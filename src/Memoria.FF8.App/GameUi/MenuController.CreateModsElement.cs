@@ -15,11 +15,11 @@ public sealed partial class MenuController
         public CreateModsElement(MenuController menus)
         {
             this.menus = menus;
-            installed = new UiButton { Id = "mods-installed-tab", Text = "Installed Mods", DrawBackground = false, TextInset = 10, Click = menus.SwitchModTab };
-            create = new UiButton { Id = "mods-create-tab", Text = "Create Mods", DrawBackground = false, TextInset = 10, Click = () => { } };
+            installed = new UiButton { Id = "mods-installed-tab", Text = menus.SystemText("mods.installed", "Installed Mods"), DrawBackground = false, TextInset = 10, Click = menus.SwitchModTab };
+            create = new UiButton { Id = "mods-create-tab", Text = menus.SystemText("mods.create", "Create Mods"), DrawBackground = false, TextInset = 10, Click = () => { } };
             Children.Add(installed);
             Children.Add(create);
-            IReadOnlyList<MenuEntry> entries = menus.CreateModEntries();
+            IReadOnlyList<MenuEntry> entries = menus.LocalizeSystemEntries(menus.CreateModEntries());
             for (int index = 1; index < entries.Count; index++)
             {
                 int command = index;
@@ -65,11 +65,11 @@ public sealed partial class MenuController
             float unit = menus.TextScale;
             float x = Bounds.X + 14;
             float width = Math.Max(0, Bounds.Width - 28);
-            canvas.Text("Mods", 25 * unit, new UiRect(x, Bounds.Y + 10, width, 36 * unit), theme.Foreground);
+            canvas.Text(menus.SystemText("main.mods", "Mods"), 25 * unit, new UiRect(x, Bounds.Y + 10, width, 36 * unit), theme.Foreground);
             canvas.Fill(new UiRect(create.Bounds.X, create.Bounds.Bottom - 3, create.Bounds.Width, 3), theme.Foreground);
             float top = create.Bounds.Bottom + 24 * unit;
-            canvas.Text("GF Abilities", 23 * unit, new UiRect(x, top, width, 32 * unit), theme.Foreground);
-            canvas.Text("Create or edit one GF ability contribution.", 17 * unit, new UiRect(x, top + 38 * unit, width, 40 * unit), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);
+            canvas.Text(menus.SystemText("mods.authoringtitle", "Gameplay and localization"), 23 * unit, new UiRect(x, top, width, 32 * unit), theme.Foreground);
+            canvas.Text(menus.SystemText("mods.authoringhelp", "Create GF ability contributions or translation projects."), 17 * unit, new UiRect(x, top + 38 * unit, width, 40 * unit), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);
             string availability = !menus.GuardianEditorEditionSupported ? "GF ability authoring requires the supported Classic edition." : menus.readGuardianEditor?.Invoke().Current is null ? "Edit this playthrough: load a game first." : "Package editing keeps activation unchanged. Local changes belong to this playthrough.";
             float bottom = actions[^1].Bounds.Bottom + 14 * unit;
             canvas.Text(availability, 17 * unit, new UiRect(x, bottom, width, Math.Max(0, Bounds.Bottom - bottom)), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);

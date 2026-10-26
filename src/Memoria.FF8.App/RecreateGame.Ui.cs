@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.GameUi;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -85,6 +85,7 @@ internal sealed partial class RecreateGame
         };
         gameMenus.ConnectMods(resourceHost!.Mods);
         ConnectGuardianAbilityEditor();
+        ConnectLocalizationTools();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectQuickSaveRetention(playerSaves.PreviewQuickSaveCount, CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));

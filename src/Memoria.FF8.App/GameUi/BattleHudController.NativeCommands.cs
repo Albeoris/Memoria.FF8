@@ -77,9 +77,11 @@ public sealed partial class BattleHudController
     {
         if (command == BattleAbility.LimitBreak && SelectedActor is { } actor)
         {
-            return session.GetNativeLimitCommandName(actor.Id);
+            string original = session.GetNativeLimitCommandName(actor.Id);
+            return localizedCommandName?.Invoke(command, actor, original) ?? original;
         }
-        return command == BattleAbility.GuardianForce ? "GF" : command.ToString();
+        string label = command == BattleAbility.GuardianForce ? "GF" : command.ToString();
+        return localizedCommandName?.Invoke(command, SelectedActor, label) ?? label;
     }
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);

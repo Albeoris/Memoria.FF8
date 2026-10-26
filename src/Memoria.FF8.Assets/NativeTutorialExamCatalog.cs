@@ -3,6 +3,8 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
+using Albeoris.Games.FF8.MngrpBin;
+using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
 
@@ -12,7 +14,10 @@ public sealed record NativeTutorialExamQuestion(int Index, byte CorrectAnswer, s
 public sealed record NativeTutorialExamLevel(int Level, ImmutableArray<NativeTutorialExamQuestion> Questions);
 public sealed record NativeTutorialExamProgress(int PassedTests, int SeeDRank, int CharacterLevel, NativeCharacterVitals? Party = null, IReadOnlyDictionary<int, long>? InformationNumbers = null);
 public sealed record NativeTutorialExamResult(int Score, bool Passed, int PromptIndex, NativeTutorialExamProgress Progress);
-public sealed record NativeTutorialInformationNode(int Id, ushort OriginId, ushort LeftId, ushort RightId, string Title, ImmutableArray<byte> Body);
+public sealed record NativeTutorialInformationNode(int Id, ushort OriginId, ushort LeftId, ushort RightId, string Title, ImmutableArray<byte> Body)
+{
+    public string? LocalizationFile { get; init; }
+}
 public sealed record NativeTutorialInformationLink(int TargetId, string Label, int LineIndex = 0);
 public sealed record NativeTutorialInformationPage(NativeTutorialInformationNode Node, string Text, ImmutableArray<NativeTutorialInformationLink> Links);
 
@@ -260,6 +265,9 @@ public sealed class NativeTutorialExamCatalog
             throw new InvalidDataException("Original Information map lacks its 425 native references.");
         }
         byte[][] blocks = Enumerable.Range(128, 6).Select(Resource).ToArray();
+        MngrpArchive parsedMenu = MngrpArchive.Read(content, header, encoding);
+        MngrpTextBlockMapSection parsedMap = parsedMenu.Sections.OfType<MngrpTextBlockMapSection>().Single(section => section.SlotIndex == 127);
+        MngrpTextBlockSection[] parsedBlocks = parsedMenu.Sections.OfType<MngrpTextBlockSection>().OrderBy(section => section.SlotIndex).ToArray();
         ImmutableArray<NativeTutorialInformationNode>.Builder information = ImmutableArray.CreateBuilder<NativeTutorialInformationNode>(references);
         for (int id = 0; id < references; id++)
         {
@@ -277,7 +285,9 @@ public sealed class NativeTutorialExamCatalog
             {
                 throw new InvalidDataException("Original Information node lacks its bounded title/body pair.");
             }
-            information.Add(new NativeTutorialInformationNode(id, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4)), encoding.GetString(bytes.AsSpan(offset + 8, titleEnd - offset - 8)), bytes[(titleEnd + 1)..bodyEnd].ToImmutableArray()));
+            MngrpTextBlockReference source = parsedMap.References[id];
+            string? localizationFile = source.BlockIndex is int blockIndex && (uint)source.SectionNumber < parsedBlocks.Length ? $"mngrp_slot{parsedBlocks[source.SectionNumber].SlotIndex:000}_block{blockIndex:0000}" : null;
+            information.Add(new NativeTutorialInformationNode(id, BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4)), encoding.GetString(bytes.AsSpan(offset + 8, titleEnd - offset - 8)), bytes[(titleEnd + 1)..bodyEnd].ToImmutableArray()) { LocalizationFile = localizationFile });
         }
         return new NativeTutorialExamCatalog(levels.MoveToImmutable(), prompts, information.MoveToImmutable());
     }

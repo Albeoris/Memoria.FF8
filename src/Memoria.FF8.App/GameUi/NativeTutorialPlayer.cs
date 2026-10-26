@@ -231,7 +231,7 @@ internal sealed partial class NativeTutorialPlayer
 
     private void UpdateMessage()
     {
-        Menu.ShowTutorialMessage(messageVisible ? Menu.FormatNativeTutorialText(definition.Texts[textId].Value, names) : null, centerX, centerY);
+        Menu.ShowTutorialMessage(messageVisible ? Menu.FormatNativeTutorialText(Menu.LocalizeNativeTutorial($"mngrp_slot{definition.Descriptor.TextResource:000}_table", textId, definition.Texts[textId].Value), names) : null, centerX, centerY);
     }
 
     private MenuData BuildData()

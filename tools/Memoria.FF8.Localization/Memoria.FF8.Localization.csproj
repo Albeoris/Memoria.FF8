@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <ProjectReference Include="../../src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.NamedicBin/Albeoris.Games.FF8.NamedicBin.csproj" />
   </ItemGroup>

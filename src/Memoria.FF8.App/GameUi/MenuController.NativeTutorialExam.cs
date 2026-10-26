@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Ui;
 
@@ -21,7 +22,18 @@ public sealed partial class MenuController
 
     public NativeTutorialExamProgress? NativeTutorialExamProgress => _nativeExamProgress;
     public NativeTutorialExamResult? NativeTutorialExamResult => _nativeExamResult;
-    public NativeTutorialInformationPage? CurrentNativeInformationPage => _nativeExamCatalog is null || _nativeExamProgress is null ? null : _nativeExamCatalog.InformationPage(_nativeInformationNode, _nativeTutorialUnlocks?.Invoke() ?? new HashSet<int>(), _nativeExamProgress);
+    public NativeTutorialInformationPage? CurrentNativeInformationPage
+    {
+        get
+        {
+            if (_nativeExamCatalog is null || _nativeExamProgress is null)
+            {
+                return null;
+            }
+            NativeTutorialInformationPage page = _nativeExamCatalog.InformationPage(_nativeInformationNode, _nativeTutorialUnlocks?.Invoke() ?? new HashSet<int>(), _nativeExamProgress);
+            return page.Node.LocalizationFile is { } file ? page with { Node = page.Node with { Title = LocalizeNativeTutorial(file, 0, page.Node.Title) } } : page;
+        }
+    }
 
     public void ConnectNativeTutorialExam(NativeTutorialExamCatalog catalog, Func<NativeTutorialExamProgress> context)
     {
@@ -215,12 +227,28 @@ public sealed partial class MenuController
             return "";
         }
         int prompt = _nativeExamProgress.PassedTests >= 30 ? 5 : _nativeExamProgress.PassedTests + 1 > _nativeExamProgress.CharacterLevel ? 10 : _nativeExamProgress.SeeDRank == 31 ? 6 : _nativeExamProgress.PassedTests == 0 ? 0 : 1;
-        return NativeExamText(_nativeExamCatalog.Prompts[prompt], prompt == 10 ? _nativeExamProgress.CharacterLevel : _nativeExamProgress.PassedTests, _nativeExamProgress.PassedTests + 1, _nativeExamProgress.SeeDRank);
+        return NativeExamText(NativeRecordText(95, prompt, _nativeExamCatalog.Prompts[prompt]), prompt == 10 ? _nativeExamProgress.CharacterLevel : _nativeExamProgress.PassedTests, _nativeExamProgress.PassedTests + 1, _nativeExamProgress.SeeDRank);
     }
 
     private NativeTutorialExamQuestion? CurrentNativeExamQuestion()
     {
-        return _nativeExamCatalog is null || _nativeExamLevel is < 1 or > 30 || _nativeExamAnswers.Count >= 10 ? null : _nativeExamCatalog.Levels[_nativeExamLevel - 1].Questions[_nativeExamAnswers.Count];
+        if (_nativeExamCatalog is null || _nativeExamLevel is < 1 or > 30 || _nativeExamAnswers.Count >= 10)
+        {
+            return null;
+        }
+        NativeTutorialExamQuestion original = _nativeExamCatalog.Levels[_nativeExamLevel - 1].Questions[_nativeExamAnswers.Count];
+        string source = Albeoris.Games.FF8.TextEncoding.FF8Encoding.CreateEuropean().GetString(original.Bytes.ToArray());
+        string translated = NativeRecordText(95 + _nativeExamLevel, original.Index, source);
+        if (translated == source)
+        {
+            return original;
+        }
+        System.Text.RegularExpressions.MatchCollection choices = System.Text.RegularExpressions.Regex.Matches(translated, @"\{Option (32|33)\}([^\{]*)");
+        if (choices.Count != 2 || choices[0].Groups[1].Value != "32" || choices[1].Groups[1].Value != "33")
+        {
+            throw new InvalidDataException("A localized SeeD question must retain its original YES/NO option identities and order.");
+        }
+        return original with { Text = translated[..choices[0].Index].Trim(), Options = choices.Select(choice => choice.Groups[2].Value.Trim()).ToImmutableArray() };
     }
 
     private IReadOnlyList<MenuEntry> NativeExamAnswerEntries()
@@ -235,7 +263,7 @@ public sealed partial class MenuController
             return "";
         }
         int number = _nativeExamResult.Passed ? _nativeExamLevel : _nativeExamResult.Score;
-        return NativeExamText(_nativeExamCatalog.Prompts[_nativeExamResult.PromptIndex], number, _nativeExamLevel, _nativeExamProgress!.SeeDRank);
+        return NativeExamText(NativeRecordText(95, _nativeExamResult.PromptIndex, _nativeExamCatalog.Prompts[_nativeExamResult.PromptIndex]), number, _nativeExamLevel, _nativeExamProgress!.SeeDRank);
     }
 
     private static string NativeExamText(string text, int cardLevel, int currentValue, int rank)

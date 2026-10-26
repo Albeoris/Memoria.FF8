@@ -10,6 +10,10 @@ public sealed partial class MenuController
 
     internal void ShowTutorialMessage(string? text, int centerX, int centerY)
     {
+        if (_tutorialMessage == text && _tutorialMessageX == centerX / 384f && _tutorialMessageY == centerY / 256f)
+        {
+            return;
+        }
         _tutorialMessage = text;
         _tutorialMessageX = centerX / 384f;
         _tutorialMessageY = centerY / 256f;

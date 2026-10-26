@@ -1,3 +1,4 @@
+using Memoria.FF8.Resources.Localization;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Resources;
@@ -5,7 +6,7 @@ namespace Memoria.FF8.Resources;
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
 public sealed class ResourceService : IResourceChangeFeed
 {
-    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes);
+    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes, LocalizationCatalog Localization);
     private readonly IResourceSource source;
     private readonly Dictionary<TextureKey, TextureBuildContext> contexts = [];
     private readonly Dictionary<TextureKey, TextureTransformContext> transforms = [];
@@ -14,7 +15,7 @@ public sealed class ResourceService : IResourceChangeFeed
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
     private readonly object encodedGate = new();
     private readonly HashSet<ResourceKey> consumedResources = [];
-    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, []);
+    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, [], LocalizationCatalog.Empty);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
     private long mutationVersion;
@@ -26,6 +27,16 @@ public sealed class ResourceService : IResourceChangeFeed
 
     public ResourceSourceDescriptor Source => source.Descriptor;
     public T? GetSource<T>() where T : class => source as T;
+    public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;
+    public string Localize(string key, string original) => Localization.Resolve(key, original);
+    public PreparedResources PrepareLocalization(LocalizationCatalog localization)
+    {
+        if (notifying)
+        {
+            throw new InvalidOperationException("Prepare localization outside resource notifications.");
+        }
+        return new(this, mutationVersion, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, published.Texts, published.Encoded, published.ExclusiveScopes, [], localization);
+    }
     public long Generation => Volatile.Read(ref published).Generation;
     public int ResidentTextureCount => handles.Count;
     public event Action<TextureKey, Exception>? ReplacementFailed;
@@ -196,7 +207,7 @@ public sealed class ResourceService : IResourceChangeFeed
     }
 
     /// <summary>Builds every resident binding before replacing the generation, including prior no-matches.</summary>
-    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null)
+    public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null)
     {
         long version = mutationVersion;
         ImmutableDictionary<ResourceKey, EncodedResource> encoded;
@@ -224,7 +235,7 @@ public sealed class ResourceService : IResourceChangeFeed
             next.Add(key, value);
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable());
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), localization ?? published.Localization);
     }
 
     private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next, ImmutableArray<string> exclusiveScopes)
@@ -369,10 +380,11 @@ public sealed class ResourceService : IResourceChangeFeed
         private readonly ImmutableDictionary<ResourceKey, EncodedResource> encoded;
         private readonly ImmutableArray<string> exclusiveScopes;
         private readonly ImmutableArray<(TextureKey Key, Exception Exception)> failures;
+        private readonly LocalizationCatalog localization;
         private bool committed;
         private ResourceChangeSet? change;
 
-        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes, ImmutableArray<(TextureKey Key, Exception Exception)> failures)
+        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes, ImmutableArray<(TextureKey Key, Exception Exception)> failures, LocalizationCatalog localization)
         {
             this.owner = owner;
             this.expectedVersion = expectedVersion;
@@ -382,6 +394,7 @@ public sealed class ResourceService : IResourceChangeFeed
             this.encoded = encoded;
             this.exclusiveScopes = exclusiveScopes;
             this.failures = failures;
+            this.localization = localization;
         }
 
         /// <summary>Publishes the prepared generation after validation and any coordinated external mutation.</summary>
@@ -397,8 +410,8 @@ public sealed class ResourceService : IResourceChangeFeed
                 owner.mutationVersion++;
                 Publication previous = owner.published;
                 owner.resolver = resolver;
-                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes));
-                change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).ToImmutableArray(), Resources = changedEncoded };
+                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes, localization));
+                change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).Concat(previous.Localization.Fingerprint == localization.Fingerprint ? [] : new[] { new ResourceKey("localization/catalog") }).ToImmutableArray(), Resources = changedEncoded };
             }
             if (notify)
             {
