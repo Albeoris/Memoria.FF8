@@ -41,4 +41,3 @@ internal static class SnapshotWorldMigration
         additions.Add((runtime, mode));
     }
 }
-
