@@ -29,9 +29,9 @@ The tool also builds a directed location graph from field-transition instruction
 
 **Reports contain proprietary game text and scripts. Keep every output private and outside the public source tree.** Do not distribute generated reports with the product.
 
-Each source language has its own unique keys: `$en_sample_1_0000`, `$de_sample_1_0000`, `$jp_sample_1_0000`. The numeric suffix is the zero-based original bank ordinal, padded to at least four digits without truncation. Internal canonical language `ja` uses `jp` in exported keys. Empty and unused slots retain their keys; language keys are never merged into an English key.
+Each source language has its own unique keys: `$en_sample_1_000000`, `$de_sample_1_000000`, `$jp_sample_1_000000`. Ordinary keys contain the zero-based original bank ordinal, padded to at least four digits without truncation, followed by `00`. The last two digits are reserved for reviewed language-only insertions, starting at `01`. Internal canonical language `ja` uses `jp` in exported keys. Empty and unused slots retain their keys; language keys are never merged into an English key.
 
-The complete CSV starts with `en,fr,de,es,it,jp`, followed by field, ordinal, Field Name, five correspondence-status columns and all-language unused status. Its initial rows align numeric positions programmatically. `Proven` indicates mechanical correspondence; `RequiresReview`, technical uncertainty, absent positions and unknown banks stay explicit. Positional placement alone does not assert semantic equivalence. Extra localized ordinals have a blank English key. Subsequent corrections can be made in the CSV; generated reports never overwrite existing output directories. Universally unused rows remain in this complete key inventory even when excluded from review. CSV contents are private audit output, not redistributable product data.
+The complete CSV starts with `en,fr,de,es,it,jp`, followed by field, ordinal, Field Name, five correspondence-status columns, all-language unused status and six original Source Ordinal columns. Its initial rows align numeric positions programmatically. `Proven` indicates mechanical correspondence; `RequiresReview`, technical uncertainty, absent positions and unknown banks stay explicit. Positional placement alone does not assert semantic equivalence. Extra localized ordinals have a blank English key. Subsequent corrections can be made in the CSV; generated reports never overwrite existing output directories. Universally unused rows remain in this complete key inventory even when excluded from review. CSV contents are private audit output, not redistributable product data.
 
 English Remastered bank ordinals are the comparison baseline. Text correspondence uses a message-identity projection: MES, MESW, AMES, AMESW, RAMESW, ASK and AASK retain their opcode kind and MessageId, ignoring their window, coordinate and choice presentation arguments. Complete contiguous pure argument expressions may collapse to one message token; unknown MessageId, incomplete expressions, potentially faulting calculations and interior control-flow entries cannot establish that shortcut. Branch targets and script pointers are compared at projected boundaries, preserving owners, categories, group order and pointer flags. The original executable inventory, raw divergence and runtime readiness classification remain separate diagnostics.
 
@@ -69,8 +69,24 @@ dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldCompatibilityOperandStateTests' --filter-class '*FieldCompatibilityReductionTests'
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldCompatibilityProjectionTests'
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldScriptCompatibilityTests' --filter-class '*FieldUniversallyUnusedTests'
-dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldLocalizationMappingTests'
+dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldLocalizationMappingTests' --filter-class '*FieldLocalizationNumberingTests'
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldPresentationProjectionTests' --filter-class '*FieldPresentationRequestTests'
 ```
 
 Fixtures are synthetic; these tests do not require an installed game and do not run battle-effect tests.
+
+## Renumber a reviewed mapping
+
+Regenerate the key numbering from a reviewed CSV, preserving its correspondence corrections and uncertainty statuses:
+
+```powershell
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- renumber --input $env:MEMORIA_FF8_REVIEWED_MAPPING --output $env:MEMORIA_FF8_NUMBERED_REPORT
+```
+
+Use a new output directory outside the source checkout and outside the input CSV directory. The command writes `mapping.csv`, `key-map.csv`, `report.json` and `summary.md`; it does not read game archives or repeat semantic review. The mapping must use the six English-first language columns. Legacy input uses canonical original-ordinal keys; current audit/refine output and numbered input include original bank positions in six Source Ordinal columns. Numbered input with the six Source Ordinal columns is accepted without adding another suffix; unchanged input regenerates identical keys.
+
+Ordinary keys append `00` to their own source ordinal. Explicit language-only entries receive `01` through `99` after the preceding ordinary source key in the same language and field, ordered by original bank ordinal rather than CSV row position. For example, ordinary `$jp_sample_0004` becomes `$jp_sample_000400`; following language-only ordinals 5 and 6 become `$jp_sample_000401` and `$jp_sample_000402`. The next ordinary source ordinal 7 becomes `$jp_sample_000700`. Leading insertions use anchor zero; a hundredth insertion is rejected without creating output.
+
+Only the reviewed statuses `ConfirmedLanguageOnly`, `MeaningReviewedLanguageOnly` and `MeaningReviewedEmptySpeakerStub`, each with an explicit empty language-specific `English Keys` column, identify absent counterparts. A supplemental row with a nonempty English reference still uses `00`. Technical uncertainty and missing raw bank coverage do not imply language-only content. The initial `audit`/`refine` mapping has no semantic absence decisions and uses `00` for every known source ordinal.
+
+Six appended `Source Ordinal` columns retain the original bank positions. `key-map.csv` records old/new keys and source/anchor/insertion numbers. All language keys and semicolon-separated English references are transformed together; metadata, statuses, placeholders and Field Name remain intact. No numeric multiplication or digit truncation is used, including for large ordinals.

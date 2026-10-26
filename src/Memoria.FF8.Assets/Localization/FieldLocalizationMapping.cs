@@ -4,11 +4,13 @@ namespace Memoria.FF8.Assets.Localization;
 
 public static class FieldLocalizationKey
 {
-    public static string Create(string language, string field, int ordinal)
+    public static string Create(string language, string field, int ordinal, int insertion = 0)
     {
         ValidateField(field);
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
-        return "$" + CanonicalLanguage(language) + "_" + field + "_" + ordinal.ToString("D4", CultureInfo.InvariantCulture);
+        ArgumentOutOfRangeException.ThrowIfNegative(insertion);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(insertion, 99);
+        return "$" + CanonicalLanguage(language) + "_" + field + "_" + ordinal.ToString("D4", CultureInfo.InvariantCulture) + insertion.ToString("D2", CultureInfo.InvariantCulture);
     }
 
     internal static string CanonicalLanguage(string language)
@@ -95,11 +97,11 @@ public static class FieldLocalizationMapping
         int count = banks.Values.Where(bank => bank.BankCountKnown && bank.DeclaredTextCount is not null).Select(bank => bank.DeclaredTextCount!.Value).DefaultIfEmpty(0).Max();
         if (includeHeader)
         {
-            WriteRow(writer, [.. Languages, "Field", "Ordinal", "Field Name", "fr Status", "de Status", "es Status", "it Status", "jp Status", "Unused Across Languages"]);
+            WriteRow(writer, [.. Languages, "Field", "Ordinal", "Field Name", "fr Status", "de Status", "es Status", "it Status", "jp Status", "Unused Across Languages", .. Languages.Select(language => language + " Source Ordinal")]);
         }
         if (count == 0)
         {
-            WriteRow(writer, [.. Languages.Select(_ => string.Empty), field, string.Empty, fieldName ?? string.Empty, .. Languages.Skip(1).Select(language => PlaceholderStatus(language)), unusedKnown ? "true" : "Unknown"]);
+            WriteRow(writer, [.. Languages.Select(_ => string.Empty), field, string.Empty, fieldName ?? string.Empty, .. Languages.Skip(1).Select(language => PlaceholderStatus(language)), unusedKnown ? "true" : "Unknown", .. Languages.Select(_ => string.Empty)]);
             return 1;
         }
         for (int ordinal = 0; ordinal < count; ordinal++)
@@ -110,6 +112,7 @@ public static class FieldLocalizationMapping
             values.Add(fieldName ?? string.Empty);
             values.AddRange(Languages.Skip(1).Select(language => Status(language, ordinal)));
             values.Add(unusedKnown ? unusedOrdinals.Contains(ordinal) ? "true" : "false" : "Unknown");
+            values.AddRange(Languages.Select(language => banks.TryGetValue(language, out FieldCompatibilityInventory? bank) && HasSlot(bank, ordinal) ? ordinal.ToString(CultureInfo.InvariantCulture) : string.Empty));
             WriteRow(writer, values);
         }
         return count;
