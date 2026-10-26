@@ -61,7 +61,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
                 continue;
             }
             string target = file.RelativePath[14..^extension.Length];
-            if (nativeSource is not null && (IsImpossibleFieldModelTarget(target) || IsAbsentNativeBattleMember(nativeSource, target, battleCounts) || IsAbsentNativeWorldMember(nativeSource, target, nativeCounts)))
+            if (IsNeverGeneratedBattlePaletteTarget(target) || nativeSource is not null && (IsImpossibleFieldModelTarget(target) || IsAbsentNativeBattleMember(nativeSource, target, battleCounts) || IsAbsentNativeWorldMember(nativeSource, target, nativeCounts)))
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' has no corresponding member in the selected original source and remains unused.", file.PackageId, file.RelativePath));
             }
@@ -114,6 +114,10 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         if (context.Layout == "classic-field-model" && (parts.Length == 6 || parts.Length == 7 && parts[4] == "registered") && parts[0] == "model" && parts[2] is "main" or "second" && parts[^2] == "texture" && Number(parts[^1], out int fieldTexture))
         {
             return $"field/model/{parts[2]}_chr/{parts[3]}-{fieldTexture}";
+        }
+        if (context.Layout == "classic-field-model" && owner.StartsWith("field/main_chr/", StringComparison.Ordinal) && owner.EndsWith(".mch", StringComparison.Ordinal) && parts.Length == 2 && parts[0] == "texture" && Number(parts[1], out int libraryTexture))
+        {
+            return $"field/model/main_chr/{Path.GetFileNameWithoutExtension(owner)}-{libraryTexture}";
         }
         if (owner.StartsWith("world/wmset", StringComparison.Ordinal) && context.Layout == "classic-world-section" && parts.Length == 4 && parts[0] == "section" && Number(parts[1], out int section) && parts[2] == "texture" && Number(parts[3], out int member))
         {
@@ -179,6 +183,8 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
 
     private static bool Number(string text, out int number) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out number);
 
+    private static bool PaletteNumber(string text, out int number) => Number(text, out number) && number <= byte.MaxValue && text == number.ToString("00", CultureInfo.InvariantCulture);
+
     private static int ExternalPalette(string path, string[] roots, string name)
     {
         string extension = Path.GetExtension(path);
@@ -189,7 +195,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         foreach (string root in roots)
         {
             string prefix = root + name + "_";
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && Number(path[prefix.Length..^extension.Length], out int palette) && palette <= byte.MaxValue)
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && PaletteNumber(path[prefix.Length..^extension.Length], out int palette))
             {
                 return palette;
             }

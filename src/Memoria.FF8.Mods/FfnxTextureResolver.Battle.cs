@@ -39,8 +39,8 @@ public sealed partial class FfnxTextureResolver
 
     private static bool IsAbsentNativeBattleMember(IResourceSource source, string target, Dictionary<ResourceKey, int?> counts)
     {
-        System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(target, @"^(?:eng/)?(battle/[^/]+)-([0-9]+)_[0-9]{2}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-        if (!match.Success || !Number(match.Groups[2].Value, out int member))
+        System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(target, @"^(?:eng/)?(battle/[^/]+)-([0-9]+)_([0-9]+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!match.Success || !Number(match.Groups[2].Value, out int member) || !PaletteNumber(match.Groups[3].Value, out _))
         {
             return false;
         }
@@ -105,8 +105,21 @@ public sealed partial class FfnxTextureResolver
     {
         int separator = name.LastIndexOf('_');
         int memberSeparator = name.LastIndexOf('-');
-        return separator > memberSeparator && memberSeparator > 0 && name.Length - separator == 3
-            && Number(name[(separator + 1)..], out _) && Number(name[(memberSeparator + 1)..separator], out _)
+        return separator > memberSeparator && memberSeparator > 0
+            && PaletteNumber(name[(separator + 1)..], out _) && Number(name[(memberSeparator + 1)..separator], out _)
             && IsBattleOwner(name[..memberSeparator]);
+    }
+
+    private static bool IsNeverGeneratedBattlePaletteTarget(string name)
+    {
+        if (name.StartsWith("eng/", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[4..];
+        }
+        int separator = name.LastIndexOf('_');
+        int memberSeparator = name.LastIndexOf('-');
+        return separator > memberSeparator && memberSeparator > 0
+            && IsBattleOwner(name[..memberSeparator]) && Number(name[(memberSeparator + 1)..separator], out _)
+            && !PaletteNumber(name[(separator + 1)..], out _);
     }
 }

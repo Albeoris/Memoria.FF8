@@ -55,9 +55,13 @@ public sealed class JunctionMainCharacterResourceInstalledTests
             Assert.NotEmpty(model.Animations);
             Assert.All(model.Animations.SelectMany(animation => animation.Frames), frame => Assert.Equal(model.Bones.Count, frame.Rotations.Count));
             Assert.Equal(model.Textures.Count, materials.Count);
+            List<object> materialConsumers = [];
             for (int index = 0; index < materials.Count; index++)
             {
-                Assert.Equal(model.Textures[index].Pixels, materials[index].Pixels);
+                TextureValue placedMaterial = Assert.IsType<ResourceTextureList>(model.Textures).GetTexture(index);
+                TextureValue libraryMaterial = Assert.IsType<ResourceTextureList>(materials).GetTexture(index);
+                Assert.True(model.Textures[index].Pixels.AsSpan().SequenceEqual(materials[index].Pixels), $"{name}/{index}: placed {placedMaterial.Provenance} ({placedMaterial.Image.Width}x{placedMaterial.Image.Height}) differs from library {libraryMaterial.Provenance} ({libraryMaterial.Image.Width}x{libraryMaterial.Image.Height}).");
+                materialConsumers.Add(new { index, placed = placedMaterial.Provenance, library = libraryMaterial.Provenance, placedMaterial.LogicalWidth, placedMaterial.LogicalHeight, width = placedMaterial.Image.Width, height = placedMaterial.Image.Height });
             }
             EditableModel catalog = assets.LoadCatalogModel(sources[name]);
             Assert.Equal(model.Textures.Count, catalog.Textures.Count);
@@ -73,7 +77,7 @@ public sealed class JunctionMainCharacterResourceInstalledTests
             Assert.Equal(Hash(expected), retained.Sha256);
             Assert.Equal(Hash(host.Resources.Read(new(sources[name].ResourcePath))), registration.One.Sha256);
             Assert.Equal(Hash(expected), model.NativeParts!.SourceHash);
-            models.Add(new { name, source = sources[name], bytes = expected.Length, sha256 = Hash(expected), actualOneReference = true, vertices = model.Vertices.Count, faces = model.Faces.Count, bones = model.Bones.Count, animations = model.Animations.Count, materials = materials.Count, one = registration.One.Sha256, geometry = Geometry(model) });
+            models.Add(new { name, source = sources[name], bytes = expected.Length, sha256 = Hash(expected), actualOneReference = true, vertices = model.Vertices.Count, faces = model.Faces.Count, bones = model.Bones.Count, animations = model.Animations.Count, materials = materials.Count, materialConsumers, one = registration.One.Sha256, geometry = Geometry(model) });
         }
         ModelCatalogEntry selected = sources.OrderBy(pair => pair.Key).First().Value;
         FieldAssets selectedScene = assets.LoadField(selected.FieldId!.Value);
@@ -112,7 +116,7 @@ public sealed class JunctionMainCharacterResourceInstalledTests
         using GameResourceHost restoredHost = fixture.Open();
         using GameAssets restoredAssets = new(TestResources.GameDirectory, resources: restoredHost.Resources);
         Assert.Equal(replacement, Capture(restoredAssets.LoadFieldModelSource(selected), "fresh-host-restored", gpu));
-        Evidence("main-character-installed.json", new { edition = host.Resources.Source.Edition.ToString(), count = models.Count, actualOneReferences = sources.Count, unreferenced, models, selected, nativeStaging = new { resource.SourceHash, resource.SourceOffset, validated = true }, frozenAfterRead = true, original = baseline, enabled = replacement, freshHostDisabled = true, freshHostRestored = true, scope = "Fresh actual ONE placement and native cold registration components; no saved-state migration or gameplay continuation." });
+        Evidence("main-character-installed.json", new { edition = host.Resources.Source.Edition.ToString(), count = models.Count, fixture.PhysicalModelCount, fixture.OptionOverrides, fixture.SelectedFiles, actualOneReferences = sources.Count, unreferenced, models, selected, nativeStaging = new { resource.SourceHash, resource.SourceOffset, validated = true }, frozenAfterRead = true, original = baseline, enabled = replacement, freshHostDisabled = true, freshHostRestored = true, scope = "Fresh actual ONE placement and native cold registration components; no saved-state migration or gameplay continuation." });
     }
 
     [Fact]
@@ -188,6 +192,9 @@ public sealed class JunctionMainCharacterResourceInstalledTests
         public string PackageId { get; }
         public Dictionary<string, byte[]> Resources { get; } = [];
         public Dictionary<string, string> ResourcePaths { get; } = [];
+        public Dictionary<string, int> OptionOverrides { get; } = [];
+        public int PhysicalModelCount { get; private set; }
+        public List<object> SelectedFiles { get; } = [];
 
         public PackageFixture()
         {
@@ -202,15 +209,37 @@ public sealed class JunctionMainCharacterResourceInstalledTests
                 string copy = Path.Combine(destination, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
                 File.Copy(path, copy);
-                if (JunctionEncodedResources.Address(relative) is ResourceKey key)
+                if (Path.GetExtension(copy).Equals(".mch", StringComparison.OrdinalIgnoreCase))
                 {
-                    string name = Path.GetFileNameWithoutExtension(key.Path);
-                    Resources.Add(name, File.ReadAllBytes(copy));
-                    ResourcePaths.Add(name, copy);
+                    PhysicalModelCount++;
                 }
             }
+            string? overrides = Environment.GetEnvironmentVariable("MEMORIA_FF8_MAIN_CHARACTER_RESOURCE_OPTIONS");
+            if (!string.IsNullOrWhiteSpace(overrides))
+            {
+                OptionOverrides = JsonSerializer.Deserialize<Dictionary<string, int>>(File.Exists(overrides) ? File.ReadAllText(overrides) : overrides) ?? throw new InvalidDataException("Expected a JSON object of declared option IDs and integer values.");
+            }
+            File.WriteAllLines(Path.Combine(destination, "mod.ini"), new[] { "enabled = 1" }.Concat(OptionOverrides.Select(option => $"option.{option.Key} = {option.Value}")));
+            JunctionModPackage imported = JunctionModImporter.Open(destination, OptionOverrides);
+            foreach (JunctionReplacement file in imported.Files)
+            {
+                if (JunctionEncodedResources.Address(file.RelativePath) is not ResourceKey key)
+                {
+                    continue;
+                }
+                string name = Path.GetFileNameWithoutExtension(key.Path);
+                if (Resources.ContainsKey(name))
+                {
+                    continue;
+                }
+                using Stream inputStream = file.OpenRead();
+                using MemoryStream bytes = new();
+                inputStream.CopyTo(bytes);
+                Resources.Add(name, bytes.ToArray());
+                ResourcePaths.Add(name, Path.Combine(destination, file.SourcePath.Replace('/', Path.DirectorySeparatorChar)));
+                SelectedFiles.Add(new { name, file.RelativePath, file.SourcePath, sha256 = Hash(bytes.ToArray()) });
+            }
             Assert.NotEmpty(Resources);
-            File.WriteAllText(Path.Combine(destination, "mod.ini"), "enabled = 1" + Environment.NewLine);
         }
 
         public GameResourceHost Open() => new(TestResources.GameDirectory, watch: false, modsDirectory: root);

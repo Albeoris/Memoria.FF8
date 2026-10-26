@@ -8,13 +8,15 @@ public sealed class JunctionEncodedResourceTests
     [InlineData("direct/field/model/main_chr/d000.mch", "field/main_chr/d000.mch")]
     [InlineData("DIRECT\\FIELD\\MODEL\\MAIN_CHR\\D065.MCH", "field/main_chr/d065.mch")]
     [InlineData("direct/field/model/main_chr/a000.mch", "field/main_chr/a000.mch")]
+    [InlineData("FIELD\\model\\main_chr\\D002.MCH", "field/main_chr/d002.mch")]
+    [InlineData("field/model/main_chr/d000.mch/extra", null)]
     [InlineData("direct/field/model/main_chr/d000.mch/extra", null)]
     [InlineData("direct/field/model/main_chr/d00.mch", null)]
     [InlineData("direct/field/model/main_chr/d0x0.mch", null)]
     [InlineData("direct/field/model/main_chr/../d000.mch", null)]
     [InlineData("direct/field/model/second_chr/d000.mch", null)]
     [InlineData("field/main_chr/d000.mch", null)]
-    public void AddressRecognizesOnlyCanonicalDirectMainCharacterNames(string path, string? expected)
+    public void AddressRecognizesNativeMainCharacterLayouts(string path, string? expected)
     {
         Assert.Equal(expected, JunctionEncodedResources.Address(path)?.Path);
     }
@@ -24,7 +26,7 @@ public sealed class JunctionEncodedResourceTests
     {
         byte[] bytes = Enumerable.Range(0, 16).Select(value => (byte)value).ToArray();
         ModFile first = new("first", ModFormat.Junction, "direct/field/model/main_chr/d000.mch", 42, () => bytes);
-        ModFile second = new("second", ModFormat.Junction, "DIRECT/field/model/main_chr/D000.MCH", 43, () => throw new IOException("Shadowed payload must not be read."));
+        ModFile second = new("second", ModFormat.Junction, "FIELD/model/main_chr/D000.MCH", 43, () => throw new IOException("Shadowed payload must not be read."));
         ModFile ignored = new("other", ModFormat.Memoria, "direct/field/model/main_chr/d001.mch", 44, () => throw new IOException("Other formats must not be read."));
         Assert.True(JunctionEncodedResources.TryPrepare(new(1, [], [first, second, ignored]), out var prepared, out var diagnostics));
         Assert.Empty(diagnostics);

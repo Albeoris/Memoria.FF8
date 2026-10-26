@@ -18,6 +18,7 @@ public sealed record JunctionManifestMetadata
     public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
     public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();
     public IReadOnlyList<Guid> RequiredMods { get; init; } = Array.Empty<Guid>();
+    public IReadOnlyList<Guid> ForbiddenMods { get; init; } = Array.Empty<Guid>();
     public IReadOnlyList<Guid> Before { get; init; } = Array.Empty<Guid>();
     public IReadOnlyList<Guid> After { get; init; } = Array.Empty<Guid>();
 }
@@ -33,6 +34,7 @@ public static partial class JunctionModImporter
         }
         List<JunctionSettingConstraint> settings = [];
         List<Guid> required = [];
+        List<Guid> forbidden = [];
         List<Guid> before = [];
         List<Guid> after = [];
         foreach (XElement compatibility in root.Elements("Compatibility"))
@@ -45,13 +47,14 @@ public static partial class JunctionModImporter
                     settings.Add(ReadSettingConstraint(requirement));
                     continue;
                 }
-                if (requirement.Name != "Require")
+                if (requirement.Name != "Require" && requirement.Name != "Forbid")
                 {
                     throw Unsupported(requirement);
                 }
                 RequireAttributes(requirement, "ModID");
                 RequireLeaf(requirement);
-                required.Add(ParseModId(RequiredAttribute(requirement, "ModID")));
+                Guid target = ParseModId(RequiredAttribute(requirement, "ModID"));
+                (requirement.Name == "Require" ? required : forbidden).Add(target);
             }
         }
         foreach (XElement constraints in root.Elements("OrderConstraints"))
@@ -82,6 +85,7 @@ public static partial class JunctionModImporter
             ContainsMusic = ReadInformationFlag(root, "ContainsMusic"),
             SettingConstraints = settings.AsReadOnly(),
             RequiredMods = Array.AsReadOnly(required.Distinct().ToArray()),
+            ForbiddenMods = Array.AsReadOnly(forbidden.Distinct().ToArray()),
             Before = Array.AsReadOnly(before.Distinct().ToArray()),
             After = Array.AsReadOnly(after.Distinct().ToArray())
         };

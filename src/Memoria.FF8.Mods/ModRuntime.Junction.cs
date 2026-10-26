@@ -155,6 +155,19 @@ public sealed partial class ModRuntime
         {
             return package.Status == ModEffectiveStatus.Active && !rejected.Contains(package.Id);
         }
+        List<string> conflicting = [];
+        foreach (ModPackage package in junction.Where(IsActive))
+        {
+            foreach (Guid forbidden in package.JunctionMetadata?.ForbiddenMods ?? [])
+            {
+                if (identities.TryGetValue(forbidden, out ModPackage[]? candidates) && candidates.Any(candidate => candidate.RequestedEnabled && candidate.Status is ModEffectiveStatus.Active or ModEffectiveStatus.NoUsableEntries))
+                {
+                    conflicting.Add(package.Id);
+                    notices.Add(new("junction-package-conflict", $"Forbidden Junction mod {forbidden} is active; disable one of the conflicting packages.", package.Id));
+                }
+            }
+        }
+        rejected.UnionWith(conflicting);
         void RejectRequirements()
         {
             bool changed;

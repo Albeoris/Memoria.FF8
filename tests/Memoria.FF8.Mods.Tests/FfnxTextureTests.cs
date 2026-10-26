@@ -51,6 +51,20 @@ public sealed class FfnxTextureTests
     }
 
     [Fact]
+    public void MainCharacterLibraryAndSceneConsumersSelectTheSameExternalMaterial()
+    {
+        FfnxTextureResolver resolver = new(new(1, [], [Sheet("field/model/main_chr/d000-0", 64, 64)]));
+        TextureReplacement library = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("field/main_chr/d000.mch", "texture/0", "classic-field-model", 64, 64)));
+        TextureReplacement scene = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("field/test/chara.one", "model/3/main/d000/texture/0", "classic-field-model", 64, 64)));
+        Assert.Equal(scene.Image.Pixels, library.Image.Pixels);
+        Assert.Equal(scene.Provenance, library.Provenance);
+        Assert.Equal(scene.LogicalWidth, library.LogicalWidth);
+        Assert.Equal(scene.LogicalHeight, library.LogicalHeight);
+        Assert.Null(resolver.Resolve(Context("field/main_chr/d000.mch", "texture/1", "classic-field-model", 64, 64)));
+        Assert.Null(resolver.Resolve(Context("field/main_chr/d000.mch", "texture/0", "other-layout", 64, 64)));
+    }
+
+    [Fact]
     public void NativeModelNamesAndSourceAliasesKeepLogicalUvSizeAndUseNativePaletteFallback()
     {
         FfnxTextureResolver resolver = new(new(1, [], [Sheet("field/model/second_chr/o000-0", 64, 64), Sheet("world/esk/chara_one/model1-0", 64, 64), Sheet("world/dat/wmset/section38/texture0", 256, 128)]));

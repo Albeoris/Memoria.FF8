@@ -41,11 +41,12 @@ public static class JunctionEncodedResources
     public static ResourceKey? Address(string relativePath)
     {
         string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
-        if (parts.Length != 5 || parts[0] != "direct" || parts[1] != "field" || parts[2] != "model" || parts[3] != "main_chr")
+        int start = parts.Length == 5 && parts[0] == "direct" ? 1 : 0;
+        if (parts.Length - start != 4 || parts[start] != "field" || parts[start + 1] != "model" || parts[start + 2] != "main_chr")
         {
             return null;
         }
-        string name = parts[4];
+        string name = parts[start + 3];
         if (name.Length != 8 || !char.IsAsciiLetterLower(name[0]) || name[4..] != ".mch" || name.AsSpan(1, 3).ContainsAnyExceptInRange('0', '9'))
         {
             return null;
