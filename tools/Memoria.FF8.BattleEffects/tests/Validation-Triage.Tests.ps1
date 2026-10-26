@@ -187,4 +187,19 @@ Assert-Equal $true ($stackGroup[0].error_signature -match 'EXAMPLE RESOURCE UNAV
 $differentMain = New-TestCase 'different-main-message' 132 @{ state = 'error'; functional_errors = @("System.InvalidOperationException: Different resource unavailable.`n   at Memoria.Example.Load() in /build/two/Example.cs:line 987"); error_phase = 'action'; exit_code = 1; casts = @() }
 Assert-Equal 2 @(Get-ValidationProblems @($stackCaseA, $differentMain)).Count 'Different primary exception messages remain distinct families.'
 
+$queueCases = @()
+for ($id = 1; $id -le 4; $id++) {
+    $cast = [pscustomobject]@{effect=[pscustomobject]@{Classification='repeated-hitches';SampleAvailability='available';EffectiveFps=10;SlowTimeShare=0.8;ExcessFrameTimeMs=(5000-$id*100);MaximumFrameMs=150}}
+    $queueCases += New-TestCase "queue-$id" $id @{classification='repeated-hitches';problem_casts=2;casts=@($cast,$cast)}
+}
+$beforeQueue = @(Get-ValidationProblems $queueCases | Select-Object -First 3)
+Assert-Equal 'effect:1,effect:2,effect:3' ($beforeQueue.problem_id -join ',') 'The initial top three are deterministic.'
+$fixedQueue = @((New-TestCase 'queue-1' 1), $queueCases[1], $queueCases[2], $queueCases[3])
+$afterQueue = @(Get-ValidationProblems $fixedQueue | Select-Object -First 3)
+Assert-Equal 'effect:2,effect:3,effect:4' ($afterQueue.problem_id -join ',') 'Fresh healthy evidence removes the resolved effect and promotes the next problem.'
+$partialQueue = @($fixedQueue) + @(New-TestCase 'queue-1-other-variant' 1 @{classification='repeated-hitches';casts=$queueCases[0].casts;problem_casts=2})
+Assert-Equal $true (@(Get-ValidationProblems $partialQueue).problem_id -contains 'effect:1') 'Fixing one variant does not silently close another affected variant.'
+$pendingPrior = New-TestCase 'queue-1' 1 @{state='pending';retained_unresolved=$true;classification='repeated-hitches';casts=$queueCases[0].casts;problem_casts=2}
+Assert-Equal 'incomplete-retry' @(Get-ValidationProblems @($pendingPrior))[0].evidence 'Interrupted retry evidence preserves the unresolved queue item.'
+
 Write-Output "Passed $script:assertionCount synthetic validation triage assertions."

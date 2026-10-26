@@ -108,6 +108,9 @@ function Publish-Triage($Report, [string] $Suffix) {
 $pins = Get-Content -LiteralPath $pinsPath -Raw | ConvertFrom-Json
 $toolRoot = ResolvePinnedPath $pins.tool_directory
 $hostRoot = ResolvePinnedPath $pins.host_directory
+if ($pins.execution_stack_profile -and -not ($Recalculate -or $Triage)) {
+    if ((HashFile (ResolvePinnedPath $pins.execution_stack_profile)) -ne $pins.execution_stack_profile_sha256) { throw 'Pinned execution-stack profile changed.' }
+}
 if ((HashFile (Join-Path $toolRoot 'Memoria.FF8.BattleEffects.dll')) -ne $pins.tool_assembly_sha256) {
     throw 'Pinned tool assembly changed.'
 }
@@ -115,7 +118,7 @@ foreach ($name in @('Memoria.FF8.Runtime', 'Memoria.FF8.Resources', 'Memoria.FF8
     [Reflection.Assembly]::LoadFrom((Join-Path $toolRoot ($name + '.dll'))) | Out-Null
 }
 $directories = @(@{ Path = $toolRoot; Expected = $pins.tool_fingerprint })
-if (-not ($Recalculate -or $Triage)) {
+if (-not ($Recalculate -or $Triage) -and -not ($Retry -and $HostExecutable)) {
     $directories += @{ Path = $hostRoot; Expected = $pins.host_fingerprint }
 }
 foreach ($directory in $directories) {
