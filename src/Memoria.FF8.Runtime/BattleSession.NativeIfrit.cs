@@ -307,6 +307,8 @@ public sealed partial class BattleSession
                     });
                 case 0x12E:
                     return NativeBattleCinematicNextContact12E.Execute(current, context);
+                case 0xB5:
+                    return NativeBattleCinematicActorIdentityB5.Execute(current, program);
                 case 0xB4:
                 case 0xAD:
                 case 0x6E when profile.Effect is 228 or 261 or 262 or 263:

@@ -52,6 +52,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) || effect == 9 ? new(source, effect) : null;
+        NativeBattleSelectedEffect314Observer? observer314 = effect == 314 ? new() : null;
         HashSet<string> boundaries = [];
         HashSet<string> restoredBoundaries = [];
         int completions = 0;
@@ -71,6 +72,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 battle.Tick();
                 BattleSnapshot current = battle.Capture();
                 observer?.Observe(prior, current, Cold);
+                observer314?.Observe(prior, current, Cold);
                 NativeBattleOriginalEffectState? currentEffect = current.NativeGraphics!.OriginalEffect;
                 int beforeHp = prior.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
                 int afterHp = current.NativePartyPresentation!.Rows[selectedContact.Primary.ActorIndex]!.HitPoints;
@@ -166,11 +168,13 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             }
             Cold("caller-ready", battle.Capture());
             observer?.Write(output!);
+            observer314?.Accept(completed, output!);
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
         }
         catch (Exception error)
         {
             observer?.Write(output!);
+            observer314?.Publish(output!);
             NativeBattleRestorationPresentationTests.Publish(output!, "unsupported", battle.Capture(), null);
             File.WriteAllText(Path.Combine(output!, "error.txt"), error.ToString());
             throw;
