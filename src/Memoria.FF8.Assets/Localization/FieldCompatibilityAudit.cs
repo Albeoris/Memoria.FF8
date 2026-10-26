@@ -44,8 +44,24 @@ public static class FieldCompatibilityAudit
         int trustedPrefix = Math.Min(common, structuralBoundary ?? common);
         bool complete = baseline.Problems.IsEmpty && local.Problems.IsEmpty;
         bool identityInputsValid = baseline.ScriptValidated && local.ScriptValidated && baseline.BankValidated && local.BankValidated;
-        bool ordinalIdentity = streamEqual && identityInputsValid && baseline.StaticReferencesValidated && local.StaticReferencesValidated;
-        bool prefixIdentity = identityInputsValid && PrefixReferencesValid(baseline, trustedPrefix) && PrefixReferencesValid(local, trustedPrefix);
+        FieldCompatibilityProjection englishProjection = englishSource.Projection;
+        FieldCompatibilityProjection localProjection = localizedSource.Projection;
+        bool projectionValidated = baseline.ScriptValidated && local.ScriptValidated && englishProjection.LayoutKey is not null && localProjection.LayoutKey is not null;
+        bool projectedLayoutEqual = projectionValidated && englishProjection.LayoutKey == localProjection.LayoutKey;
+        int matchedTokens = 0;
+        if (projectionValidated)
+        {
+            while (matchedTokens < englishProjection.Tokens.Length && matchedTokens < localProjection.Tokens.Length && englishProjection.Tokens[matchedTokens].ComparisonKey == localProjection.Tokens[matchedTokens].ComparisonKey)
+            {
+                matchedTokens++;
+            }
+            matchedTokens = Math.Min(matchedTokens, ProjectionStructuralBoundary(englishProjection, localProjection));
+        }
+        bool projectedStreamEqual = projectedLayoutEqual && matchedTokens == englishProjection.Tokens.Length && matchedTokens == localProjection.Tokens.Length;
+        int englishBoundary = projectionValidated ? ProjectionBoundary(englishProjection, matchedTokens, baseline.Instructions.Length) : trustedPrefix;
+        int localBoundary = projectionValidated ? ProjectionBoundary(localProjection, matchedTokens, local.Instructions.Length) : trustedPrefix;
+        bool ordinalIdentity = projectedStreamEqual && identityInputsValid && baseline.StaticReferencesValidated && local.StaticReferencesValidated;
+        bool prefixIdentity = identityInputsValid && PrefixReferencesValid(baseline, englishBoundary) && PrefixReferencesValid(local, localBoundary);
         bool bankEqual = baseline.BankCountKnown && local.BankCountKnown && baseline.DeclaredTextCount == local.DeclaredTextCount;
         bool compatible = streamEqual && complete && bankEqual;
         FieldCompatibilityKind kind = compatible ? rawEqual ? FieldCompatibilityKind.ByteIdentical : FieldCompatibilityKind.StorageOnly : complete ? FieldCompatibilityKind.Divergent : FieldCompatibilityKind.Incomplete;
@@ -58,6 +74,10 @@ public static class FieldCompatibilityAudit
         {
             reasons.Add("Text bank indexing or coverage differs.");
         }
+        if (projectionValidated && !streamEqual)
+        {
+            reasons.Add("Text correspondence compares message arguments by MessageId only; message opcode kind, other operations and control flow remain significant. Native executable differences remain recorded separately.");
+        }
         reasons.AddRange(baseline.Problems.Select(problem => "English: " + problem));
         reasons.AddRange(local.Problems.Select(problem => "Localized: " + problem));
         if (compatible && !rawEqual)
@@ -66,7 +86,6 @@ public static class FieldCompatibilityAudit
         }
         int? rawDifference = FirstByteDifference(english.Jsm, localized.Jsm);
         bool actualDivergence = !streamEqual;
-        int boundary = actualDivergence ? trustedPrefix : int.MaxValue;
         FieldCompatibilityDivergence? divergence = compatible ? null : new(
             reasons.FirstOrDefault() ?? "Unresolved context",
             rawDifference,
@@ -78,22 +97,25 @@ public static class FieldCompatibilityAudit
         ImmutableArray<int> localOrdinals = Ordinals(local);
         // A divergent suffix has no approved semantic correspondence. Keep unused rows
         // and suffix reuse in the bound; exclude only proven prefix-exclusive references.
-        ImmutableArray<int> candidates = ordinalIdentity ? localOrdinals.Except(baseOrdinals).ToImmutableArray() : CandidateSuffix(local, localOrdinals, trustedPrefix, prefixIdentity);
-        ImmutableArray<int> implicated = ordinalIdentity ? baseOrdinals.Except(localOrdinals).ToImmutableArray() : CandidateSuffix(baseline, baseOrdinals, trustedPrefix, prefixIdentity);
+        ImmutableArray<int> candidates = ordinalIdentity ? localOrdinals.Except(baseOrdinals).ToImmutableArray() : CandidateSuffix(local, localOrdinals, localBoundary, prefixIdentity);
+        ImmutableArray<int> implicated = ordinalIdentity ? baseOrdinals.Except(localOrdinals).ToImmutableArray() : CandidateSuffix(baseline, baseOrdinals, englishBoundary, prefixIdentity);
         ImmutableArray<FieldCompatibilityMatch> matches = ordinalIdentity
-            ? baseOrdinals.Intersect(localOrdinals).Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Complete executable stream identity")).ToImmutableArray()
-            : baseline.Contexts.Where(context => prefixIdentity && context.Position.OperationIndex < trustedPrefix && context.IsMessage && context.MessageId is not null)
+            ? baseOrdinals.Intersect(localOrdinals).Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Complete message-identity projection equality")).ToImmutableArray()
+            : baseline.Contexts.Where(context => prefixIdentity && context.Position.OperationIndex < englishBoundary && context.IsMessage && context.MessageId is not null)
                 .Select(context => context.MessageId!.Value).Intersect(baseOrdinals).Intersect(localOrdinals)
-                .Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Identical instruction prefix reference; suffix remains unapproved")).ToImmutableArray();
+                .Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Matching message-identity projection prefix reference; suffix remains unapproved")).ToImmutableArray();
         int contexts = baseline.Contexts.Count(context => context.Dynamic) + local.Contexts.Count(context => context.Dynamic) + ConflictingMessageIds(baseline.Contexts).Count() + ConflictingMessageIds(local.Contexts).Count();
         bool unmatchedRows = !candidates.IsEmpty || !implicated.IsEmpty;
         ImmutableArray<FieldCompatibilityReviewCase> reviewCases = ordinalIdentity
-            ? CreateReviewCases(baseline, local, 0, implicated, candidates, unmatchedRows, true)
-            : CreateReviewCases(baseline, local, boundary, implicated, candidates);
+            ? CreateReviewCases(baseline, local, 0, 0, implicated, candidates, unmatchedRows, true)
+            : CreateReviewCases(baseline, local, englishBoundary, localBoundary, implicated, candidates);
         return new(kind, baseline, local, divergence,
-            baseline.Contexts.Where(context => boundary == int.MaxValue ? !compatible : context.Position.OperationIndex >= boundary).ToImmutableArray(),
-            local.Contexts.Where(context => boundary == int.MaxValue ? !compatible : context.Position.OperationIndex >= boundary).ToImmutableArray(),
-            matches, candidates, implicated, reviewCases.Length, contexts, baseline.BankCountKnown && local.BankCountKnown, reasons.ToImmutableArray(), reviewCases);
+            baseline.Contexts.Where(context => context.Position.OperationIndex >= englishBoundary).ToImmutableArray(),
+            local.Contexts.Where(context => context.Position.OperationIndex >= localBoundary).ToImmutableArray(),
+            matches, candidates, implicated, reviewCases.Length, contexts, baseline.BankCountKnown && local.BankCountKnown, reasons.ToImmutableArray(), reviewCases)
+        {
+            MessageIdentityEvidence = new("message-arguments-message-id-v1", projectionValidated, projectedStreamEqual, ordinalIdentity, matchedTokens, englishBoundary, localBoundary, PositionAt(baseline, englishBoundary), PositionAt(local, localBoundary))
+        };
     }
 
     public static FieldCompatibilityInventory Inspect(FieldCompatibilityInput input)
@@ -149,7 +171,7 @@ public static class FieldCompatibilityAudit
         }
         return new(input.Field, input.Language, input.ResourceIdentity,
             input.Jsm is null ? null : Convert.ToHexString(SHA256.HashData(input.Jsm)), input.Jsm?.Length,
-            "field-compatibility-v2/" + typeof(JsmDocument).Assembly.GetName().Version,
+            "field-compatibility-v3/" + typeof(JsmDocument).Assembly.GetName().Version,
             count is not null, count, bank, instructions.ToImmutableArray(), contexts.ToImmutableArray(), referenced.ToImmutableArray(),
             count is int known ? Enumerable.Range(0, known).Except(referenced).ToImmutableArray() : [],
             bank.Where(row => row.Text.Length == 0 || row.Text == "{End}").Select(row => row.Ordinal).ToImmutableArray(), problems.ToImmutableArray(), layout)
@@ -311,15 +333,44 @@ public static class FieldCompatibilityAudit
 
     private static bool PrefixReferencesValid(FieldCompatibilityInventory inventory, int boundary) => inventory.DeclaredTextCount is int count && inventory.Contexts.Where(context => context.IsMessage && context.Position.OperationIndex < boundary).All(context => context.MessageId is int id && id >= 0 && id < count);
 
-    private static ImmutableArray<FieldCompatibilityReviewCase> CreateReviewCases(FieldCompatibilityInventory baseline, FieldCompatibilityInventory local, int boundary, ImmutableArray<int> englishOrdinals, ImmutableArray<int> localOrdinals, bool includeAlignment = true, bool includeDynamic = false)
+    private static int ProjectionBoundary(FieldCompatibilityProjection projection, int token, int end) => token < projection.Tokens.Length ? projection.Tokens[token].StartOperation : end;
+
+    private static int ProjectionStructuralBoundary(FieldCompatibilityProjection baseline, FieldCompatibilityProjection local)
+    {
+        string[] englishLayout = baseline.LayoutKey!.Split(':');
+        string[] localLayout = local.LayoutKey!.Split(':');
+        if (englishLayout[0] != localLayout[0] || englishLayout[1] != localLayout[1])
+        {
+            return 0;
+        }
+        string[] englishPointers = englishLayout[2].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        string[] localPointers = localLayout[2].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (englishPointers.Length != localPointers.Length)
+        {
+            return 0;
+        }
+        int boundary = int.MaxValue;
+        for (int index = 0; index < englishPointers.Length; index++)
+        {
+            if (englishPointers[index] != localPointers[index])
+            {
+                boundary = Math.Min(boundary, Math.Min(int.Parse(englishPointers[index].Split('/')[1]), int.Parse(localPointers[index].Split('/')[1])));
+            }
+        }
+        return boundary;
+    }
+
+    private static FieldCompatibilityPosition? PositionAt(FieldCompatibilityInventory inventory, int operation) => operation < inventory.Instructions.Length ? inventory.Instructions[operation].Position : null;
+
+    private static ImmutableArray<FieldCompatibilityReviewCase> CreateReviewCases(FieldCompatibilityInventory baseline, FieldCompatibilityInventory local, int englishBoundary, int localBoundary, ImmutableArray<int> englishOrdinals, ImmutableArray<int> localOrdinals, bool includeAlignment = true, bool includeDynamic = false)
     {
         List<FieldCompatibilityReviewCase> cases = [];
         string prefix = baseline.Field + "/" + local.Language + "/";
-        FieldCompatibilityContext[] englishContexts = baseline.Contexts.Where(context => boundary == int.MaxValue || context.Position.OperationIndex >= boundary).ToArray();
-        FieldCompatibilityContext[] localContexts = local.Contexts.Where(context => boundary == int.MaxValue || context.Position.OperationIndex >= boundary).ToArray();
+        FieldCompatibilityContext[] englishContexts = baseline.Contexts.Where(context => context.Position.OperationIndex >= englishBoundary).ToArray();
+        FieldCompatibilityContext[] localContexts = local.Contexts.Where(context => context.Position.OperationIndex >= localBoundary).ToArray();
         if (includeAlignment)
         {
-            cases.Add(new(prefix + "alignment", boundary == int.MaxValue ? "UnmatchedBankRun" : "UnmatchedExecutableSuffix", englishContexts.Select(context => context.Position).ToImmutableArray(), localContexts.Select(context => context.Position).ToImmutableArray(), englishOrdinals, localOrdinals));
+            cases.Add(new(prefix + "alignment", englishBoundary == baseline.Instructions.Length && localBoundary == local.Instructions.Length ? "UnmatchedBankRun" : "UnmatchedExecutableSuffix", englishContexts.Select(context => context.Position).ToImmutableArray(), localContexts.Select(context => context.Position).ToImmutableArray(), englishOrdinals, localOrdinals));
         }
         AddContextCases(englishContexts, true);
         AddContextCases(localContexts, false);
@@ -328,7 +379,7 @@ public static class FieldCompatibilityAudit
         void AddContextCases(FieldCompatibilityContext[] contexts, bool english)
         {
             string side = english ? "english" : "localized";
-            foreach (IGrouping<string, FieldCompatibilityContext> group in contexts.Where(context => (includeAlignment || includeDynamic && context.Dynamic) && (context.Dynamic || context.Opcode is "ASK" or "AASK")).GroupBy(ContextSignature))
+            foreach (IGrouping<string, FieldCompatibilityContext> group in contexts.Where(context => (includeAlignment || includeDynamic && context.Dynamic) && ((context.Dynamic && (!context.IsMessage || context.MessageId is null)) || context.Opcode is "ASK" or "AASK")).GroupBy(ContextSignature))
             {
                 FieldCompatibilityContext first = group.First();
                 string kind = first.Dynamic ? "DynamicContext" : "ChoiceGroup";
@@ -345,7 +396,7 @@ public static class FieldCompatibilityAudit
         }
     }
 
-    private static string ContextSignature(FieldCompatibilityContext context) => context.Position.ObjectIndex + "/" + context.Position.ObjectLabel + "/" + context.Position.ScriptId + ":" + context.Opcode + ":" + string.Join(',', context.Operands.Select(value => value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "dynamic")) + ":" + context.PresentationStateFingerprint;
+    private static string ContextSignature(FieldCompatibilityContext context) => context.Position.ObjectIndex + "/" + context.Position.ObjectLabel + "/" + context.Position.ScriptId + ":" + context.Opcode + ":" + (context.IsMessage ? context.MessageId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "dynamic" : string.Join(',', context.Operands.Select(value => value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "dynamic")) + ":" + context.PresentationStateFingerprint);
 
     private static IEnumerable<int> ConflictingMessageIds(IEnumerable<FieldCompatibilityContext> contexts) => contexts.Where(context => context.IsMessage && context.MessageId is not null).GroupBy(context => context.MessageId!.Value).Where(group => group.Select(ContextSignature).Distinct().Skip(1).Any()).Select(group => group.Key);
 

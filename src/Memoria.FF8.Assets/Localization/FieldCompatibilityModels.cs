@@ -36,4 +36,9 @@ public sealed record FieldCompatibilityMatch(int EnglishOrdinal, int LocalOrdina
 
 public sealed record FieldCompatibilityReviewCase(string Id, string Kind, ImmutableArray<FieldCompatibilityPosition> EnglishPositions, ImmutableArray<FieldCompatibilityPosition> LocalPositions, ImmutableArray<int> EnglishOrdinals, ImmutableArray<int> LocalOrdinals);
 
-public sealed record FieldCompatibilityResult(FieldCompatibilityKind Kind, FieldCompatibilityInventory English, FieldCompatibilityInventory Localized, FieldCompatibilityDivergence? FirstDivergence, ImmutableArray<FieldCompatibilityContext> EnglishSuffixContexts, ImmutableArray<FieldCompatibilityContext> LocalSuffixContexts, ImmutableArray<FieldCompatibilityMatch> ProvenOrdinalMatches, ImmutableArray<int> PotentialLocalOrdinals, ImmutableArray<int> ImplicatedEnglishOrdinals, int SemanticReviewCases, int ContextOnlyProblems, bool CandidateCountKnown, ImmutableArray<string> Reasons, ImmutableArray<FieldCompatibilityReviewCase> ReviewCases);
+public sealed record FieldMessageIdentityEvidence(string Rule, bool ProjectionValidated, bool StreamEqual, bool OrdinalIdentityProven, int MatchedTokens, int EnglishBoundaryOperationIndex, int LocalBoundaryOperationIndex, FieldCompatibilityPosition? EnglishPosition, FieldCompatibilityPosition? LocalPosition);
+
+public sealed record FieldCompatibilityResult(FieldCompatibilityKind Kind, FieldCompatibilityInventory English, FieldCompatibilityInventory Localized, FieldCompatibilityDivergence? FirstDivergence, ImmutableArray<FieldCompatibilityContext> EnglishSuffixContexts, ImmutableArray<FieldCompatibilityContext> LocalSuffixContexts, ImmutableArray<FieldCompatibilityMatch> ProvenOrdinalMatches, ImmutableArray<int> PotentialLocalOrdinals, ImmutableArray<int> ImplicatedEnglishOrdinals, int SemanticReviewCases, int ContextOnlyProblems, bool CandidateCountKnown, ImmutableArray<string> Reasons, ImmutableArray<FieldCompatibilityReviewCase> ReviewCases)
+{
+    public FieldMessageIdentityEvidence? MessageIdentityEvidence { get; init; }
+}

@@ -12,8 +12,10 @@ public sealed class PreparedFieldCompatibility
             Errors = input.Errors?.ToArray()
         };
         Inventory = FieldCompatibilityAudit.Inspect(Input);
+        Projection = FieldCompatibilityProjection.Create(Inventory);
     }
 
     internal FieldCompatibilityInput Input { get; }
+    internal FieldCompatibilityProjection Projection { get; }
     public FieldCompatibilityInventory Inventory { get; }
 }

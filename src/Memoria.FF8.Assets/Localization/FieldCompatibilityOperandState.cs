@@ -22,11 +22,16 @@ internal sealed class FieldCompatibilityOperandState
 
     public void Observe(JsmOperation operation)
     {
-        switch (operation.Opcode)
+        Observe(operation.Opcode, operation.Parameter);
+    }
+
+    public void Observe(Jsm.Opcode opcode, int parameter)
+    {
+        switch (opcode)
         {
             case Jsm.Opcode.PSHN_L:
             case Jsm.Opcode.PSHAC:
-                suffix.Add(operation.Parameter);
+                suffix.Add(parameter);
                 break;
             case Jsm.Opcode.PSHI_L:
             case Jsm.Opcode.PSHM_B:
@@ -38,7 +43,7 @@ internal sealed class FieldCompatibilityOperandState
                 suffix.Add(null);
                 break;
             case Jsm.Opcode.CAL:
-                ObserveCalculation(operation.Parameter);
+                ObserveCalculation(parameter);
                 break;
             default:
                 Reset();

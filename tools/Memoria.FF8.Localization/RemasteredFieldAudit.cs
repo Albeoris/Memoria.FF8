@@ -210,6 +210,7 @@ internal static class RemasteredFieldAudit
                     LocalInventory = $"banks/{field}/{language}/inventory.json",
                     EnglishSuffixContexts = CompactContexts(result.EnglishSuffixContexts),
                     LocalSuffixContexts = CompactContexts(result.LocalSuffixContexts),
+                    result.MessageIdentityEvidence,
                     result.ProvenOrdinalMatches,
                     result.PotentialLocalOrdinals,
                     result.ImplicatedEnglishOrdinals,

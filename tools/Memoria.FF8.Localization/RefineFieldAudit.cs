@@ -14,7 +14,7 @@ internal static class RefineFieldAudit
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, Converters = { new JsonStringEnumConverter() } };
     private static readonly string[] Languages = ["en", "fr", "de", "es", "it", "ja"];
 
-    internal static FieldAuditReport Run(string inputDirectory, string outputDirectory, Action<string> progress, CancellationToken cancellation)
+    internal static FieldAuditReport Run(string inputDirectory, string outputDirectory, Action<string> progress, CancellationToken cancellation, string? comparisonDirectory = null)
     {
         string input = Path.GetFullPath(inputDirectory);
         string output = Path.GetFullPath(outputDirectory);
@@ -61,6 +61,49 @@ internal static class RefineFieldAudit
         {
             throw new InvalidDataException("Duplicate cached comparison pairs.");
         }
+        string sourceReportSha256 = Hash(sourceBytes);
+        OldPair[] baselinePairs = oldPairs;
+        object? comparisonBaseline = null;
+        if (comparisonDirectory is not null)
+        {
+            string comparison = Path.GetFullPath(comparisonDirectory);
+            RemasteredFieldAudit.ValidateOutput(output, comparison);
+            if (File.Exists(Path.Combine(comparison, "INCOMPLETE")))
+            {
+                throw new InvalidDataException("The comparison report has not finished; partial output cannot be a reporting baseline.");
+            }
+            string comparisonReport = Path.Combine(comparison, "report.json");
+            byte[] comparisonBytes = ReadJsonBytes(comparisonReport);
+            using JsonDocument comparisonDocument = JsonDocument.Parse(comparisonBytes);
+            JsonElement previous = comparisonDocument.RootElement;
+            if (previous.GetProperty("SchemaVersion").GetInt32() != 2 || previous.GetProperty("Edition").GetString() != "Remastered" || previous.GetProperty("CanonicalLanguage").GetString() != "en"
+                || previous.GetProperty("CorpusFingerprint").GetString() != fingerprint || previous.GetProperty("SourceReportSha256").GetString() != sourceReportSha256)
+            {
+                throw new InvalidDataException("The comparison report must be a refined report from this exact original audit and corpus.");
+            }
+            baselinePairs = JsonSerializer.Deserialize<OldPair[]>(previous.GetProperty("Pairs").GetRawText(), Json) ?? throw new InvalidDataException("Missing comparison baseline pairs.");
+            HashSet<(string Field, string Language)> pairIdentities = oldPairs.Select(pair => (pair.Field, pair.Language)).ToHashSet();
+            HashSet<(string Field, string Language)> baselineIdentities = [];
+            foreach (OldPair pair in baselinePairs)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                ValidateIdentity(pair.Field, pair.Language);
+                if (!baselineIdentities.Add((pair.Field, pair.Language)) || !pairIdentities.Contains((pair.Field, pair.Language)))
+                {
+                    throw new InvalidDataException("The comparison baseline has duplicate or different field/language pairs.");
+                }
+                if (!Enum.TryParse(pair.Kind, out FieldCompatibilityKind kind) || !Enum.IsDefined(kind) || pair.PotentialRows < 0 || pair.ReviewCases < 0 || pair.ContextProblems < 0)
+                {
+                    throw new InvalidDataException("Invalid comparison baseline kind or counts.");
+                }
+            }
+            if (!pairIdentities.SetEquals(baselineIdentities))
+            {
+                throw new InvalidDataException("The comparison baseline must contain exactly the original field/language pair set.");
+            }
+            comparisonBaseline = new { Report = comparisonReport, Sha256 = Hash(comparisonBytes), CorpusFingerprint = fingerprint, SourceReportSha256 = sourceReportSha256 };
+        }
+        Dictionary<(string Field, string Language), OldPair> baselineByIdentity = baselinePairs.ToDictionary(pair => (pair.Field, pair.Language));
         Directory.CreateDirectory(output);
         string marker = Path.Combine(output, "INCOMPLETE");
         File.WriteAllText(marker, "Refinement has not finished. Partial output is not an audit result.");
@@ -83,6 +126,9 @@ internal static class RefineFieldAudit
             PreparedFieldCompatibility local = Prepare(prior.Field, prior.Language);
             FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english, local);
             string diagnostic = $"pairs/{prior.Field}.{prior.Language}.json";
+            bool technicalBlocked = !result.English.ScriptValidated || !result.Localized.ScriptValidated || !result.English.BankValidated || !result.Localized.BankValidated || !result.English.StaticReferencesValidated || !result.Localized.StaticReferencesValidated;
+            CandidateSources localCandidateSources = ClassifyCandidates(result.PotentialLocalOrdinals, result.Localized, result.MessageIdentityEvidence?.LocalBoundaryOperationIndex, technicalBlocked);
+            CandidateSources englishCandidateSources = ClassifyCandidates(result.ImplicatedEnglishOrdinals, result.English, result.MessageIdentityEvidence?.EnglishBoundaryOperationIndex, technicalBlocked);
             Write(Path.Combine(output, diagnostic), new
             {
                 result.Kind,
@@ -101,6 +147,9 @@ internal static class RefineFieldAudit
                 },
                 EnglishSuffixContexts = CompactContexts(result.EnglishSuffixContexts, SourceBank(prior.Field, "en")),
                 LocalSuffixContexts = CompactContexts(result.LocalSuffixContexts, SourceBank(prior.Field, prior.Language)),
+                result.MessageIdentityEvidence,
+                LocalCandidateSources = localCandidateSources,
+                EnglishCandidateSources = englishCandidateSources,
                 result.ProvenOrdinalMatches,
                 result.PotentialLocalOrdinals,
                 result.ImplicatedEnglishOrdinals,
@@ -114,7 +163,8 @@ internal static class RefineFieldAudit
                 EnglishProblems = result.English.Problems,
                 LocalProblems = result.Localized.Problems
             });
-            NewPair next = new(prior.Field, prior.Language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic, prior.Kind, prior.PotentialRows, prior.ReviewCases);
+            OldPair baseline = baselineByIdentity[(prior.Field, prior.Language)];
+            NewPair next = new(prior.Field, prior.Language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic, prior.Kind, prior.PotentialRows, prior.ReviewCases, baseline.Kind, baseline.PotentialRows, baseline.ReviewCases, localCandidateSources, englishCandidateSources);
             pairs.Add(next);
             foreach (int ordinal in result.ImplicatedEnglishOrdinals)
             {
@@ -168,19 +218,21 @@ internal static class RefineFieldAudit
             BlockedAlignmentGroups = reviewGroups.Where(group => group.TechnicalBlocked).ToArray(),
             AlignmentAndContextGroups = reviewGroups.Where(group => !group.TechnicalBlocked && group.ReviewCases > 0).ToArray()
         });
-        var oldSubset = oldPairs.Where(pair => pair.Kind == "Incomplete").ToArray();
+        HashSet<(string Field, string Language)> originallyIncomplete = oldPairs.Where(pair => pair.Kind == "Incomplete").Select(pair => (pair.Field, pair.Language)).ToHashSet();
+        var oldSubset = baselinePairs.Where(pair => originallyIncomplete.Contains((pair.Field, pair.Language))).ToArray();
         var newSubset = pairs.Where(pair => pair.OriginalKind == "Incomplete").ToArray();
         string[] errors = original.TryGetProperty("Errors", out JsonElement originalErrors) ? originalErrors.EnumerateArray().Select(value => value.GetString() ?? "").ToArray() : [];
         bool complete = errors.Length == 0 && pairs.All(pair => pair.CountKnown && pair.Kind != "Incomplete");
-        string summary = $"Cached refinement: {oldPairs.Sum(pair => pair.PotentialRows)} -> {pairs.Sum(pair => pair.PotentialRows)} candidate rows; {oldPairs.Sum(pair => pair.ReviewCases)} -> {pairs.Sum(pair => pair.ReviewCases)} review cases. Original {oldSubset.Length} incomplete pairs: {oldSubset.Sum(pair => pair.PotentialRows)} -> {newSubset.Sum(pair => pair.PotentialRows)} candidate rows; {oldSubset.Sum(pair => pair.ReviewCases)} -> {newSubset.Sum(pair => pair.ReviewCases)} review cases. Coverage {(complete ? "complete" : "INCOMPLETE")}. No semantic mappings approved.";
-        const string limitations = "Cached original bytes are length/SHA256 verified and decoded again, without game archive access. Exact executable identity, valid bank coverage and static references can prove ordinal correspondence while runtime presentation/choice contexts remain incomplete. Original incomplete pairs are not finalized translations. Malformed headers, missing resources, decoder errors and unknown counts remain explicit; divergent suffixes are never resynchronized. Candidate counts sum language-specific rows; semantic meanings are not deduplicated. Source location graphs and field names are references to the original audit, not recomputed evidence.";
+        string summary = $"Cached refinement: {baselinePairs.Sum(pair => pair.PotentialRows)} -> {pairs.Sum(pair => pair.PotentialRows)} candidate rows; {baselinePairs.Sum(pair => pair.ReviewCases)} -> {pairs.Sum(pair => pair.ReviewCases)} review cases. Original {oldSubset.Length} incomplete pairs: {oldSubset.Sum(pair => pair.PotentialRows)} -> {newSubset.Sum(pair => pair.PotentialRows)} candidate rows; {oldSubset.Sum(pair => pair.ReviewCases)} -> {newSubset.Sum(pair => pair.ReviewCases)} review cases. Coverage {(complete ? "complete" : "INCOMPLETE")}. No semantic mappings approved.";
+        const string limitations = "Cached original bytes are length/SHA256 verified and decoded again, without game archive access. Validated message-identity projections retain message identifiers while ignoring presentation-only message operands. Raw executable differences and runtime presentation/choice contexts remain separate diagnostics. Original incomplete pairs are not finalized translations. Malformed headers, missing resources, decoder errors and unknown counts remain explicit; projected divergent suffixes are never resynchronized. Candidate counts sum language-specific rows; semantic meanings are not deduplicated. Source location graphs and field names are references to the original audit, not recomputed evidence.";
         Write(Path.Combine(output, "report.json"), new
         {
             SchemaVersion = 2,
             Edition = original.GetProperty("Edition").GetString(),
             CanonicalLanguage = "en",
             SourceReport = sourceReport,
-            SourceReportSha256 = Hash(sourceBytes),
+            SourceReportSha256 = sourceReportSha256,
+            ComparisonBaseline = comparisonBaseline,
             CorpusFingerprint = original.GetProperty("CorpusFingerprint").GetString(),
             Parser = typeof(FieldCompatibilityAudit).Assembly.GetName().ToString(),
             ParserAssemblySha256 = Hash(File.ReadAllBytes(typeof(FieldCompatibilityAudit).Assembly.Location)),
@@ -188,9 +240,15 @@ internal static class RefineFieldAudit
             PotentialRows = pairs.Sum(pair => pair.PotentialRows),
             EnglishRowsImplicated = englishRows.Count,
             ReviewCases = pairs.Sum(pair => pair.ReviewCases),
+            CandidateSources = new
+            {
+                Explanation = "Exclusive local candidate row categories: failed script/bank/reference validation takes priority, followed by references at or after the localized projected boundary, then unreferenced bank rows, then other candidates. Pair diagnostics also classify English implicated rows using the English projected boundary.",
+                All = SumSources(pairs.Select(pair => pair.LocalCandidateSources)),
+                OriginallyIncomplete = SumSources(newSubset.Select(pair => pair.LocalCandidateSources))
+            },
             Comparison = new
             {
-                All = new { Before = Totals(oldPairs), After = Totals(pairs) },
+                All = new { Before = Totals(baselinePairs), After = Totals(pairs) },
                 OriginallyIncomplete = new { Before = Totals(oldSubset), After = Totals(newSubset) }
             },
             PerLanguage = pairs.GroupBy(pair => pair.Language).Select(group => new { Language = group.Key, Compared = group.Count(), PotentialRows = group.Sum(pair => pair.PotentialRows), ReviewCases = group.Sum(pair => pair.ReviewCases), ContextProblems = group.Sum(pair => pair.ContextProblems), Incomplete = group.Count(pair => pair.Kind == "Incomplete"), UnknownCandidatePairs = group.Count(pair => !pair.CountKnown) }).ToArray(),
@@ -210,10 +268,18 @@ internal static class RefineFieldAudit
         });
         StringBuilder human = new();
         human.AppendLine(summary).AppendLine().AppendLine(limitations).AppendLine();
+        if (comparisonBaseline is not null)
+        {
+            human.AppendLine("Before counts use the verified prior refined report; originally incomplete membership comes from the original audit.").AppendLine();
+        }
+        CandidateSources allSources = SumSources(pairs.Select(pair => pair.LocalCandidateSources));
+        CandidateSources incompleteSources = SumSources(newSubset.Select(pair => pair.LocalCandidateSources));
+        human.AppendLine($"Candidate sources, all pairs: technical/unresolved {allSources.TechnicalOrUnresolvedRows}; referenced suffix {allSources.ReferencedSuffixRows}; unused {allSources.UnreferencedRows}; other {allSources.OtherRows}.");
+        human.AppendLine($"Candidate sources, originally incomplete pairs: technical/unresolved {incompleteSources.TechnicalOrUnresolvedRows}; referenced suffix {incompleteSources.ReferencedSuffixRows}; unused {incompleteSources.UnreferencedRows}; other {incompleteSources.OtherRows}.").AppendLine();
         human.AppendLine($"Verified cached banks: {prepared.Count}. Script-pair groups: {bundles.Select(member => member.ScriptPair).Distinct().Count()}. Exact case/issue bundles: {reviewGroups.Length}. Technical repair groups: {technicalGroups.Length}.");
         human.AppendLine().AppendLine("| Scope | Pairs | Candidate rows before | Candidate rows after | Review cases before | Review cases after | Unknown counts after |");
         human.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
-        human.AppendLine($"| All | {pairs.Count} | {oldPairs.Sum(pair => pair.PotentialRows)} | {pairs.Sum(pair => pair.PotentialRows)} | {oldPairs.Sum(pair => pair.ReviewCases)} | {pairs.Sum(pair => pair.ReviewCases)} | {pairs.Count(pair => !pair.CountKnown)} |");
+        human.AppendLine($"| All | {pairs.Count} | {baselinePairs.Sum(pair => pair.PotentialRows)} | {pairs.Sum(pair => pair.PotentialRows)} | {baselinePairs.Sum(pair => pair.ReviewCases)} | {pairs.Sum(pair => pair.ReviewCases)} | {pairs.Count(pair => !pair.CountKnown)} |");
         human.AppendLine($"| Originally incomplete | {newSubset.Length} | {oldSubset.Sum(pair => pair.PotentialRows)} | {newSubset.Sum(pair => pair.PotentialRows)} | {oldSubset.Sum(pair => pair.ReviewCases)} | {newSubset.Sum(pair => pair.ReviewCases)} | {newSubset.Count(pair => !pair.CountKnown)} |");
         human.AppendLine().AppendLine($"Original audit: [{Path.GetFileName(input)}]({new Uri(sourceReport).AbsoluteUri}). Group members and prioritization: [grouped-review.json](grouped-review.json). Pair diagnostics reference original banks, graph-derived field names and resources without copying their contents.");
         File.WriteAllText(Path.Combine(output, "summary.md"), human.ToString(), new UTF8Encoding(false));
@@ -278,6 +344,28 @@ internal static class RefineFieldAudit
             }
             return value;
         }
+    }
+
+    private static CandidateSources ClassifyCandidates(IEnumerable<int> candidates, FieldCompatibilityInventory inventory, int? boundary, bool technicalBlocked)
+    {
+        int[] ordinals = candidates.Distinct().ToArray();
+        if (technicalBlocked)
+        {
+            return new(ordinals.Length, 0, 0, 0);
+        }
+        HashSet<int> suffix = boundary is int operation
+            ? inventory.Contexts.Where(context => context.IsMessage && context.Position.OperationIndex >= operation).SelectMany(context => context.MessageId is int id ? new[] { id } : context.CandidateOrdinals.AsEnumerable()).ToHashSet()
+            : [];
+        HashSet<int> unused = inventory.UnreferencedOrdinals.ToHashSet();
+        int referencedSuffix = ordinals.Count(suffix.Contains);
+        int unreferenced = ordinals.Count(ordinal => !suffix.Contains(ordinal) && unused.Contains(ordinal));
+        return new(0, referencedSuffix, unreferenced, ordinals.Length - referencedSuffix - unreferenced);
+    }
+
+    private static CandidateSources SumSources(IEnumerable<CandidateSources> sources)
+    {
+        CandidateSources[] values = sources.ToArray();
+        return new(values.Sum(value => value.TechnicalOrUnresolvedRows), values.Sum(value => value.ReferencedSuffixRows), values.Sum(value => value.UnreferencedRows), values.Sum(value => value.OtherRows));
     }
 
     private static object[] CompactContexts(IEnumerable<FieldCompatibilityContext> contexts, string bankReference) => contexts.Select(context => (object)new
@@ -365,7 +453,8 @@ internal static class RefineFieldAudit
 
     private sealed record PhysicalMember(string Identity, int Length, string Sha256);
     private sealed record OldPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic);
-    private sealed record NewPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic, string OriginalKind, int OriginalPotentialRows, int OriginalReviewCases);
+    private sealed record NewPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic, string OriginalKind, int OriginalPotentialRows, int OriginalReviewCases, string PreviousKind, int PreviousPotentialRows, int PreviousReviewCases, CandidateSources LocalCandidateSources, CandidateSources EnglishCandidateSources);
+    private sealed record CandidateSources(int TechnicalOrUnresolvedRows, int ReferencedSuffixRows, int UnreferencedRows, int OtherRows);
     private sealed record BundleMember(string Field, string Language, string ScriptPair, string IssueFingerprint, int PotentialRows, int ReviewCases, bool CountKnown, string Diagnostic, string[] CaseIds, string[] CaseKinds, bool OriginallyIncomplete, bool TechnicalBlocked);
     private sealed record TechnicalMember(string Field, string Language, string? ScriptSha256, string Issue, string IssueFingerprint, string BankReference);
 }

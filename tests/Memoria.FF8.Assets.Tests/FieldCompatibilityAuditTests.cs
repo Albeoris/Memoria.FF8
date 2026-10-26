@@ -133,7 +133,7 @@ public sealed class FieldCompatibilityAuditTests
     }
 
     [Fact]
-    public void ExactIdentityRetainsConflictingPresentationVariantsAsContextCases()
+    public void ExactIdentityKeepsPresentationEvidenceWithoutTextConflictCases()
     {
         int[] body = Message(0).Concat(new[] { Push(1), Push(0), (int)Jsm.Opcode.MES }).ToArray();
         byte[] script = Script(body);
@@ -141,9 +141,9 @@ public sealed class FieldCompatibilityAuditTests
         Assert.Equal(FieldCompatibilityKind.ByteIdentical, result.Kind);
         Assert.Single(result.ProvenOrdinalMatches);
         Assert.Empty(result.PotentialLocalOrdinals);
-        Assert.Equal(2, result.ContextOnlyProblems);
-        Assert.Equal(2, result.ReviewCases.Length);
-        Assert.All(result.ReviewCases, review => Assert.Equal("RepeatedUseContextConflict", review.Kind));
+        Assert.Equal(0, result.ContextOnlyProblems);
+        Assert.Empty(result.ReviewCases);
+        Assert.Equal(2, result.Localized.Contexts.Select(context => context.Operands[0]).Distinct().Count());
     }
 
     [Fact]
@@ -185,14 +185,14 @@ public sealed class FieldCompatibilityAuditTests
     }
 
     [Fact]
-    public void SameChoiceOperandsWithDifferentObservedWindowStateRemainSeparateCases()
+    public void SameMessageIdWithDifferentObservedWindowStateSharesChoiceCase()
     {
         int[] choice = new[] { 0, 0, 1, 2, 1, 1 }.Select(Push).Append((int)Jsm.Opcode.ASK).ToArray();
         int[] windowA = new[] { 0, 10, 20, 100, 40 }.Select(Push).Append((int)Jsm.Opcode.WINSIZE).ToArray();
         int[] windowB = new[] { 0, 30, 40, 100, 40 }.Select(Push).Append((int)Jsm.Opcode.WINSIZE).ToArray();
         int[] body = windowA.Concat(choice).Concat(windowB).Concat(choice).ToArray();
         FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(Input(Script(body), "en", "a"), Input(Script(new[] { (int)Jsm.Opcode.NOP }.Concat(body).ToArray()), "fr", "b"));
-        Assert.Equal(4, result.ReviewCases.Count(review => review.Kind == "ChoiceGroup"));
+        Assert.Equal(2, result.ReviewCases.Count(review => review.Kind == "ChoiceGroup"));
         Assert.Equal(2, result.Localized.Contexts.Where(context => context.IsMessage).Select(context => context.PresentationStateFingerprint).Distinct().Count());
         Assert.All(result.Localized.Contexts, context => Assert.StartsWith("EntryAndControlFlowStateUnresolved:", context.PresentationStateFingerprint));
     }
