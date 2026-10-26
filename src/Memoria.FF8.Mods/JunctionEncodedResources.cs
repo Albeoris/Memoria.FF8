@@ -3,7 +3,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Mods;
 
 /// <summary>Freezes supported encoded Junction replacements in effective catalog order.</summary>
-public static class JunctionEncodedResources
+public static partial class JunctionEncodedResources
 {
     public const string MainCharacterFormat = "mch";
     private static readonly HashSet<string> FieldExtensions = new(StringComparer.Ordinal) { ".ca", ".id", ".inf", ".jsm", ".map", ".mim", ".mrt", ".msd", ".msk", ".pcb", ".pmd", ".rat", ".sfx" };
@@ -14,21 +14,41 @@ public static class JunctionEncodedResources
         HashSet<ResourceKey> encountered = [];
         List<ModDiagnostic> failures = [];
         List<ModDiagnostic> notices = [];
-        HashSet<string> rejectedGroups = new(StringComparer.OrdinalIgnoreCase);
         HashSet<ResourceKey> acceptedFieldMembers = [];
         var fieldFiles = catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => (File: file, Key: Address(file.RelativePath))).Where(item => item.Key is ResourceKey key && FieldGroup(key) is not null);
         foreach (var group in fieldFiles.GroupBy(item => item.File.PackageId + "\0" + FieldGroup(item.Key!.Value), StringComparer.OrdinalIgnoreCase))
         {
             ResourceKey[] members = group.Select(item => item.Key!.Value).Distinct().ToArray();
             ResourceKey[] overlaps = members.Where(acceptedFieldMembers.Contains).ToArray();
+            ModFile owner = group.First().File;
+            string field = FieldGroup(members[0])!;
+            IReadOnlyList<EncodedResource> contribution = [];
+            if (overlaps.Length == 0)
+            {
+                ModFile[] files = group.Select(item => item.File).ToArray();
+                Dictionary<ModFile, byte[]> frozenDirectory = [];
+                if (!TryDescribeFieldContribution(field, files, frozenDirectory, out ResourceKey[] described, out ModDiagnostic? failure))
+                {
+                    failures.Add(failure!);
+                    break;
+                }
+                overlaps = described.Where(acceptedFieldMembers.Contains).ToArray();
+                if (overlaps.Length == 0 && !TryReadFieldContribution(field, files, frozenDirectory, out contribution, out failure))
+                {
+                    failures.Add(failure!);
+                    break;
+                }
+            }
             if (overlaps.Length > 0)
             {
-                rejectedGroups.Add(group.Key);
-                ModFile owner = group.First().File;
-                notices.Add(new("Junction.FieldGroupConflict", $"Field {FieldGroup(members[0])} contribution was skipped because a higher-priority package owns {string.Join(", ", overlaps.Select(key => key.Path))}.", owner.PackageId, owner.RelativePath));
+                notices.Add(new("Junction.FieldGroupConflict", $"Field {field} contribution was skipped because a higher-priority package owns {string.Join(", ", overlaps.Select(key => key.Path))}.", owner.PackageId, owner.RelativePath));
                 continue;
             }
-            acceptedFieldMembers.UnionWith(members);
+            foreach (EncodedResource resource in contribution)
+            {
+                selected.Add(resource.Key, resource);
+                acceptedFieldMembers.Add(resource.Key);
+            }
         }
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction))
         {
@@ -40,7 +60,7 @@ public static class JunctionEncodedResources
                     continue;
                 }
                 string? field = FieldGroup(key);
-                if (field is not null && rejectedGroups.Contains(file.PackageId + "\0" + field) || !encountered.Add(key))
+                if (field is not null || !encountered.Add(key))
                 {
                     continue;
                 }
@@ -65,6 +85,16 @@ public static class JunctionEncodedResources
     {
         string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
         int start = parts[0] == "direct" ? 1 : 0;
+        if (parts.Length - start == 4 && parts[start] == "field" && parts[start + 1] == "mapdata")
+        {
+            string archive = parts[start + 3];
+            string field = Path.GetFileNameWithoutExtension(archive);
+            if (IsFieldName(field) && parts[start + 2] == field[..2] && Path.GetExtension(archive) is ".fi" or ".fl" or ".fs")
+            {
+                return new ResourceKey($"field/{archive}");
+            }
+            return null;
+        }
         if (parts.Length - start == 5 && parts[start] == "field" && parts[start + 1] == "mapdata")
         {
             string field = parts[start + 3];
@@ -96,7 +126,12 @@ public static class JunctionEncodedResources
     public static string? FieldGroup(ResourceKey key)
     {
         string[] parts = key.Path.Split('/');
-        return parts.Length == 3 && parts[0] == "field" && IsFieldName(parts[1]) && IsFieldMember(parts[1], parts[2]) ? parts[1] : null;
+        if (parts.Length == 2 && parts[0] == "field" && Path.GetExtension(parts[1]) is ".fi" or ".fl" or ".fs")
+        {
+            string field = Path.GetFileNameWithoutExtension(parts[1]);
+            return IsFieldName(field) ? field : null;
+        }
+        return parts.Length == 3 && parts[0] == "field" && IsFieldName(parts[1]) && IsArchiveMemberName(parts[1], parts[2]) ? parts[1] : null;
     }
 
     /// <summary>Identifies field symbol metadata that is not a runtime encoded resource.</summary>
@@ -112,7 +147,20 @@ public static class JunctionEncodedResources
         return IsFieldName(field) && parts[start + 2] == field[..2] && parts[start + 4] == field + ".sym";
     }
 
+    /// <summary>Optional player-save attachments are inspected or imported explicitly, not applied as runtime replacements.</summary>
+    public static bool IsAncillaryFile(string relativePath)
+    {
+        string path = relativePath.Replace('\\', '/');
+        if (path.StartsWith("direct/", StringComparison.OrdinalIgnoreCase))
+        {
+            path = path[7..];
+        }
+        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
 
     private static bool IsFieldMember(string field, string member) => member == "chara.one" || member.StartsWith(field + ".", StringComparison.Ordinal) && FieldExtensions.Contains(member[field.Length..]);
+
+    private static bool IsArchiveMemberName(string field, string member) => member == "chara.one" || member.StartsWith(field + ".", StringComparison.Ordinal) && member.Length > field.Length + 1 && member[(field.Length + 1)..].All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 }

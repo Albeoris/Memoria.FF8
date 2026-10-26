@@ -188,7 +188,7 @@ public sealed partial class GameAssets
         return model with { Textures = new ResourceTextureList(handles) };
     }
 
-    private NativeFieldRegistrationLoaderInputs ReadNativeFieldRegistrationInputs(int fieldId, byte[] information, byte[] program, byte[] colors, int? allocationPrefixBytes = null)
+    private NativeFieldRegistrationLoaderInputs ReadNativeFieldRegistrationInputs(int fieldId, byte[] information, byte[] program, byte[]? colors, int? allocationPrefixBytes = null)
     {
         if (NativeRuntimeProfile is not { IsVerified: true } || information.Length != 676)
         {
@@ -201,6 +201,6 @@ public sealed partial class GameAssets
         }
         string name = fieldNames[fieldId];
         NativeFieldModelSource Source(string member, byte[] data) => new($"field/{name}/{member}", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)), data.ToImmutableArray());
-        return new(allocationPrefixBytes ?? ReadNativeFieldAllocationPrefix(fieldId), information[13], Source(name + ".jsm", program), Source(name + ".pcb", colors), nativeFieldPlacementWords.Take(16).ToImmutableArray(), nativeFieldPlacementWords.Skip(information[13] == 0 ? 16 : 32).Take(16).ToImmutableArray());
+        return new(allocationPrefixBytes ?? ReadNativeFieldAllocationPrefix(fieldId), information[13], Source(name + ".jsm", program), colors is null ? null : Source(name + ".pcb", colors), nativeFieldPlacementWords.Take(16).ToImmutableArray(), nativeFieldPlacementWords.Skip(information[13] == 0 ? 16 : 32).Take(16).ToImmutableArray());
     }
 }

@@ -82,6 +82,7 @@ The mode selector must be first and the source file must follow it immediately. 
 | --- | --- |
 | `--output FILE` | Required new destination file. Existing destinations and the source path are refused. |
 | `--game-dir DIRECTORY` | Import only: installed game resources used to initialize and validate the imported state. Defaults to `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. |
+| `--mods-dir DIRECTORY` | Import only: select the mod root used for resource initialization and continuation validation, with the same behavior as ordinary application startup. |
 
 Import accepts one original PC save, validates its standalone engine continuation, and writes a compact snapshot. Export transfers persistent progress and the saved field or world location. Imported games preserve original bytes without a supported engine owner; games started in Memoria use defaults for original-only properties. Missing process state and properties that cannot transfer receive defaults. Exact movie, battle and event processing is not transferred; the original game initializes the saved location normally. Malformed data or unsupported gameplay continuation fails with exit code 1 and leaves the source and existing output untouched. See [save transfer](../players/saves.md#original-pc-save-transfer) for preservation and compatibility limits.
 

@@ -38,6 +38,18 @@ The selected snapshot is validated before publication, including script structur
 
 These remain Junction file replacement packages. The separate native Fields-format scene patches, including Depixelation, are prepared against the selected resources and applied afterward as incremental presentation changes; they do not enter file-group conflict resolution. Already acquired encoded components require a restart before their selection can change.
 
+### Complete Field archives
+
+A same-package triple at `field/mapdata/<prefix>/<field>.fi`, `.fl` and `.fs`, optionally preceded by `direct/`, replaces a complete field archive. All three files are required from the selected package. The shared archive decoder validates directory ownership, duplicate canonical names, FI bounds and zero-filled preallocation, compression frames and complete decoded lengths before publication. Listing paths are native archive labels; they are never extraction destinations.
+
+Both the archive triple and every decoded member are frozen and published through the resource service. Archive members participate in the same field contribution group as loose files from that package, and conflict with loose members or archives from other packages by their canonical addresses. Within one package, the first canonical contribution in effective catalog order wins. A newly supplied archive may provide storage for an existing maplist field that has no installed archive; adding new maplist IDs is outside this mechanism.
+
+An accepted archive owns its complete resource namespace. An absent member is unavailable and cannot be borrowed from installed data. Explicit members from an accepted disjoint contribution can still fill an omitted address. This keeps archive directory readers, decoded asset consumers and native allocation inputs on the same selected snapshot. Changes to acquired resource availability also require restart.
+
+If PCB color corrections are absent, the engine preserves the models' own palette words and reports `Junction.MissingFieldColors` for the owning package. Absence is explicit in native registration state and contributes no fabricated PCB bytes or allocation length. This deterministic engine policy replaces the original executable's undefined reads of untouched memory after a missing PCB. A present malformed PCB remains an error.
+
+Packages may include ancillary original saves, which are not automatically installed or loaded. The original-save importer can initialize a separately named engine snapshot against the selected mods with `--import-save <source> --output <new-snapshot> --game-dir <game> --mods-dir <mods>`. The same resource selection is needed when resuming that snapshot.
+
 An incompatible or unreadable texture replacement is rejected individually. That consumer retains its source texture, other valid replacements publish normally, and the owning package remains active with a resource diagnostic identifying the file and reason. The same rule applies during live reload; rejected candidates do not fall through to a lower-priority package. Refresh revalidates the resources, so fixing the file clears its rejection when the new publication succeeds. Native model, manifest and reviewed-behavior validation retain their existing transaction boundaries.
 
 ## Reviewed startup behavior

@@ -160,11 +160,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             ModFile owner = catalog.Files.First(file => file.Format == ModFormat.Junction && $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance);
             try
             {
-                ResourceContent original = source.Find(resource.Key) ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                 if (JunctionEncodedResources.FieldGroup(resource.Key) is not null)
                 {
                     continue;
                 }
+                ResourceContent original = source.Find(resource.Key) ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                 if (resource.Content.Format == JunctionEncodedResources.MainCharacterFormat)
                 {
                     GameAssets.ValidateMainCharacterResource(resource.Content);
@@ -220,7 +220,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(modelMods.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(sceneMods.Patches.Select(patch => patch.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
-        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         DemasterInspection demaster = DemasterTextureResolver.Inspect(source.Descriptor, catalog);

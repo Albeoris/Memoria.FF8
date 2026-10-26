@@ -29,15 +29,18 @@ public sealed class SaveTransferCommandTests : IDisposable
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "one.json", "--output", "two.json"], true));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--game-dir", "one", "--game-dir", "two"], true));
         Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--game-dir", "game"], false));
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.json", "--output", "out.ff8", "--mods-dir", "mods"], false));
+        Assert.Throws<ArgumentException>(() => SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--mods-dir", "one", "--mods-dir", "two"], true));
     }
 
     [Fact]
     public void Import_resolves_explicit_paths_before_loading_installed_resources()
     {
-        SaveTransferCommand.Options options = SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--game-dir", "game"], true);
+        SaveTransferCommand.Options options = SaveTransferCommand.Parse(["source.ff8", "--output", "out.json", "--game-dir", "game", "--mods-dir", "mods"], true);
         Assert.Equal(Path.GetFullPath("source.ff8"), options.SourcePath);
         Assert.Equal(Path.GetFullPath("out.json"), options.OutputPath);
         Assert.Equal(Path.GetFullPath("game"), options.GameDirectory);
+        Assert.Equal(Path.GetFullPath("mods"), options.ModsDirectory);
         SaveTransferCommand.Options export = SaveTransferCommand.Parse(["source.json", "--output", "out.ff8"], false);
         Assert.Null(export.GameDirectory);
     }

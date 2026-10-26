@@ -24,6 +24,14 @@ internal sealed partial class GameResourceHost
             try
             {
                 FieldLogicResources inputs = assets.ReadFieldLogicResources(field.Key);
+                if (!inputs.HasColorCorrections)
+                {
+                    ModFile[] scopeOwners = field.Where(resource => resource.ExclusiveScope == new ResourceKey($"field/{field.Key}")).Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance)).ToArray();
+                    foreach (ModFile owner in (scopeOwners.Length > 0 ? scopeOwners : owners).GroupBy(file => file.PackageId).Select(group => group.FirstOrDefault(file => Path.GetExtension(file.RelativePath).Equals(".fs", StringComparison.OrdinalIgnoreCase)) ?? group.First()))
+                    {
+                        diagnostics.Add(new("Junction.MissingFieldColors", $"{field.Key}: PCB color corrections are absent; models retain their own palettes.", owner.PackageId, owner.RelativePath));
+                    }
+                }
                 JsmResourceValidationResult validation = JsmResourceValidation.Validate(inputs.Program, inputs.Messages.Count);
                 foreach (JsmResourceValidationIssue issue in validation.Errors)
                 {

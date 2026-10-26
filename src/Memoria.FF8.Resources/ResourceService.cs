@@ -5,7 +5,7 @@ namespace Memoria.FF8.Resources;
 /// <summary>The sole encoded-resource and decoded-texture entry point. The host owns publication timing.</summary>
 public sealed class ResourceService : IResourceChangeFeed
 {
-    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded);
+    private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values, ImmutableDictionary<ResourceKey, StaticTextResource> Texts, ImmutableDictionary<ResourceKey, EncodedResource> Encoded, ImmutableArray<string> ExclusiveScopes);
     private readonly IResourceSource source;
     private readonly Dictionary<TextureKey, TextureBuildContext> contexts = [];
     private readonly Dictionary<TextureKey, TextureTransformContext> transforms = [];
@@ -14,7 +14,7 @@ public sealed class ResourceService : IResourceChangeFeed
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
     private readonly object encodedGate = new();
     private readonly HashSet<ResourceKey> consumedResources = [];
-    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty);
+    private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, []);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
     private long mutationVersion;
@@ -38,8 +38,13 @@ public sealed class ResourceService : IResourceChangeFeed
     {
         lock (encodedGate)
         {
-            ResourceContent content = Volatile.Read(ref published).Encoded.GetValueOrDefault(key)?.Content ?? source.Find(key) ?? throw new FileNotFoundException($"Resource {key} is unavailable from {Source.Id}.");
             consumedResources.Add(key);
+            Publication current = Volatile.Read(ref published);
+            if (HiddenByScope(key, current.Encoded, current.ExclusiveScopes))
+            {
+                throw new FileNotFoundException($"Resource {key} is absent from its exclusive resource scope.");
+            }
+            ResourceContent content = current.Encoded.GetValueOrDefault(key)?.Content ?? source.Find(key) ?? throw new FileNotFoundException($"Resource {key} is unavailable from {Source.Id}.");
             return content;
         }
     }
@@ -55,7 +60,8 @@ public sealed class ResourceService : IResourceChangeFeed
     private ResourcePrefix ReadPrefixCore(ResourceKey key, int maximumBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
-        if (!Volatile.Read(ref published).Encoded.ContainsKey(key) && source is IResourcePrefixSource prefixSource && prefixSource.ReadPrefix(key, maximumBytes) is ResourcePrefix prefix)
+        Publication current = Volatile.Read(ref published);
+        if (!current.Encoded.ContainsKey(key) && !EncodedResource.IsInScope(key, current.ExclusiveScopes) && source is IResourcePrefixSource prefixSource && prefixSource.ReadPrefix(key, maximumBytes) is ResourcePrefix prefix)
         {
             if (prefix.Bytes is null || prefix.Bytes.Length > maximumBytes || prefix.Length is long length && (length < 0 || prefix.Bytes.Length > length))
             {
@@ -194,10 +200,12 @@ public sealed class ResourceService : IResourceChangeFeed
     {
         long version = mutationVersion;
         ImmutableDictionary<ResourceKey, EncodedResource> encoded;
+        ImmutableArray<string> exclusiveScopes;
         lock (encodedGate)
         {
             encoded = encodedResources?.ToImmutableDictionary(resource => resource.Key) ?? published.Encoded;
-            ValidateEncodedChanges(encoded);
+            exclusiveScopes = EncodedResource.ScopePrefixes(encoded.Values);
+            ValidateEncodedChanges(encoded, exclusiveScopes);
         }
         ImmutableDictionary<TextureKey, TextureValue>.Builder next = ImmutableDictionary.CreateBuilder<TextureKey, TextureValue>();
         ImmutableArray<(TextureKey Key, Exception Exception)>.Builder failures = ImmutableArray.CreateBuilder<(TextureKey Key, Exception Exception)>();
@@ -216,27 +224,27 @@ public sealed class ResourceService : IResourceChangeFeed
             next.Add(key, value);
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, failures.ToImmutable());
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable());
     }
 
-    private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next)
+    private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next, ImmutableArray<string> exclusiveScopes)
     {
-        return published.Encoded.Keys.Union(next.Keys).Where(key =>
-        {
-            EncodedResource? before = published.Encoded.GetValueOrDefault(key);
-            EncodedResource? after = next.GetValueOrDefault(key);
-            return before?.Fingerprint != after?.Fingerprint || before?.Content.Format != after?.Content.Format;
-        }).ToImmutableArray();
+        return published.Encoded.Keys.Union(next.Keys).Where(key => ContentChanged(published.Encoded, next, key) || published.Encoded.GetValueOrDefault(key)?.ExclusiveScope != next.GetValueOrDefault(key)?.ExclusiveScope)
+            .Union(consumedResources.Where(key => HiddenByScope(key, published.Encoded, published.ExclusiveScopes) != HiddenByScope(key, next, exclusiveScopes))).ToImmutableArray();
     }
 
-    private void ValidateEncodedChanges(ImmutableDictionary<ResourceKey, EncodedResource> next)
+    private void ValidateEncodedChanges(ImmutableDictionary<ResourceKey, EncodedResource> next, ImmutableArray<string> exclusiveScopes)
     {
-        ImmutableArray<ResourceKey> loaded = ChangedEncodedResources(next).Where(consumedResources.Contains).ToImmutableArray();
+        ImmutableArray<ResourceKey> loaded = consumedResources.Where(key => ContentChanged(published.Encoded, next, key) || HiddenByScope(key, published.Encoded, published.ExclusiveScopes) != HiddenByScope(key, next, exclusiveScopes)).ToImmutableArray();
         if (!loaded.IsEmpty)
         {
             throw new ResourceReloadRequiredException(loaded);
         }
     }
+
+    private static bool ContentChanged(ImmutableDictionary<ResourceKey, EncodedResource> before, ImmutableDictionary<ResourceKey, EncodedResource> after, ResourceKey key) => before.GetValueOrDefault(key)?.Fingerprint != after.GetValueOrDefault(key)?.Fingerprint || before.GetValueOrDefault(key)?.Content.Format != after.GetValueOrDefault(key)?.Content.Format;
+
+    private static bool HiddenByScope(ResourceKey key, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes) => !encoded.ContainsKey(key) && EncodedResource.IsInScope(key, exclusiveScopes);
 
     private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
     {
@@ -359,11 +367,12 @@ public sealed class ResourceService : IResourceChangeFeed
         private readonly ImmutableDictionary<TextureKey, TextureValue> values;
         private readonly ImmutableDictionary<ResourceKey, StaticTextResource> texts;
         private readonly ImmutableDictionary<ResourceKey, EncodedResource> encoded;
+        private readonly ImmutableArray<string> exclusiveScopes;
         private readonly ImmutableArray<(TextureKey Key, Exception Exception)> failures;
         private bool committed;
         private ResourceChangeSet? change;
 
-        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<(TextureKey Key, Exception Exception)> failures)
+        internal PreparedResources(ResourceService owner, long expectedVersion, ITextureReplacementResolver? resolver, ImmutableDictionary<TextureKey, TextureValue> values, ImmutableDictionary<ResourceKey, StaticTextResource> texts, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes, ImmutableArray<(TextureKey Key, Exception Exception)> failures)
         {
             this.owner = owner;
             this.expectedVersion = expectedVersion;
@@ -371,6 +380,7 @@ public sealed class ResourceService : IResourceChangeFeed
             this.values = values;
             this.texts = texts;
             this.encoded = encoded;
+            this.exclusiveScopes = exclusiveScopes;
             this.failures = failures;
         }
 
@@ -382,12 +392,12 @@ public sealed class ResourceService : IResourceChangeFeed
             {
                 Validate();
                 beforePublish?.Invoke();
-                ImmutableArray<ResourceKey> changedEncoded = owner.ChangedEncodedResources(encoded);
+                ImmutableArray<ResourceKey> changedEncoded = owner.ChangedEncodedResources(encoded, exclusiveScopes);
                 committed = true;
                 owner.mutationVersion++;
                 Publication previous = owner.published;
                 owner.resolver = resolver;
-                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded));
+                Volatile.Write(ref owner.published, new Publication(previous.Generation + 1, previous.Values.SetItems(values), texts, encoded, exclusiveScopes));
                 change = new ResourceChangeSet(previous.Generation, previous.Generation + 1, values.Keys.ToImmutableArray(), reason) { Texts = previous.Texts.Keys.Union(texts.Keys).ToImmutableArray(), Resources = changedEncoded };
             }
             if (notify)
@@ -404,7 +414,7 @@ public sealed class ResourceService : IResourceChangeFeed
                 {
                     throw new InvalidOperationException("Discard stale resource preparation and prepare the current resident set again.");
                 }
-                owner.ValidateEncodedChanges(encoded);
+                owner.ValidateEncodedChanges(encoded, exclusiveScopes);
             }
         }
 

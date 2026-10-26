@@ -24,15 +24,15 @@ public sealed record NativeFieldOneModelEntry([property: JsonRequired] int Offse
     public ImmutableArray<uint> RawTextureWords { get; init; }
 }
 
-public sealed record NativeFieldRegistrationLoaderInputs([property: JsonRequired] int AllocationPrefixBytes, [property: JsonRequired] byte Information13, [property: JsonRequired] NativeFieldModelSource Program, [property: JsonRequired] NativeFieldModelSource Colors, [property: JsonRequired] ImmutableArray<uint> PaletteCoordinates, [property: JsonRequired] ImmutableArray<uint> ImageCoordinates)
+public sealed record NativeFieldRegistrationLoaderInputs([property: JsonRequired] int AllocationPrefixBytes, [property: JsonRequired] byte Information13, [property: JsonRequired] NativeFieldModelSource Program, [property: JsonRequired] NativeFieldModelSource? Colors, [property: JsonRequired] ImmutableArray<uint> PaletteCoordinates, [property: JsonRequired] ImmutableArray<uint> ImageCoordinates)
 {
     public void Validate(string programHash)
     {
         Program.Validate();
-        Colors.Validate();
-        if (AllocationPrefixBytes < 44 || Program.Sha256 != programHash || Colors.Data.Length < 8 || Colors.Data.Length % 8 != 0 || PaletteCoordinates.IsDefaultOrEmpty || ImageCoordinates.IsDefaultOrEmpty)
+        Colors?.Validate();
+        if (AllocationPrefixBytes < 44 || Program.Sha256 != programHash || Colors is { } colors && (colors.Data.Length < 8 || colors.Data.Length % 8 != 0) || PaletteCoordinates.IsDefaultOrEmpty || ImageCoordinates.IsDefaultOrEmpty)
         {
-            throw new InvalidDataException("Native field registration requires the actual pre-program allocation, INF selector, PCB and initialized placement tables.");
+            throw new InvalidDataException("Native field registration requires the actual pre-program allocation, INF selector, valid present PCB and initialized placement tables.");
         }
     }
 }

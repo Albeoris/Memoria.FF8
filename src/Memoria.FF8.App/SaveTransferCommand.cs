@@ -1,5 +1,6 @@
 ﻿using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Mods;
 
 namespace Memoria.FF8;
 
@@ -22,9 +23,14 @@ internal static class SaveTransferCommand
             {
                 throw new DirectoryNotFoundException("Import requires an installed game directory. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
             }
-            using GameAssets assets = new(options.GameDirectory!);
+            using GameResourceHost host = new(options.GameDirectory!, watch: false, modsDirectory: options.ModsDirectory);
+            if (host.Mods.View.Outcome is ModUpdateOutcome.Failed or ModUpdateOutcome.Blocked or ModUpdateOutcome.ReviewRequired)
+            {
+                throw new InvalidDataException("Save import requires a successfully prepared mod resource selection: " + string.Join(" ", host.Mods.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            }
+            using GameAssets assets = new(options.GameDirectory!, resources: host.Resources, modelOverrides: host);
             GameSession session = new(NativePcSaveConverter.Import(File.ReadAllBytes(options.SourcePath), assets));
-            using (GameWorld world = new(session, options.GameDirectory!, validateWorldPresentation: false, sharedAssets: assets))
+            using (GameWorld world = new(session, options.GameDirectory!, resources: host.Resources, validateWorldPresentation: false, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host))
             {
                 world.EnsureField();
                 if (session.State.Scene == SceneKind.Field)
@@ -35,7 +41,7 @@ internal static class SaveTransferCommand
             WriteNewOutput(options.OutputPath, temporary => session.Save(temporary, compact: true, candidate =>
             {
                 GameSession restored = new(candidate);
-                using GameWorld world = new(restored, options.GameDirectory!, validateWorldPresentation: false, sharedAssets: assets);
+                using GameWorld world = new(restored, options.GameDirectory!, resources: host.Resources, validateWorldPresentation: false, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host);
                 world.EnsureField();
             }));
             Console.WriteLine($"Imported original PC save to {options.OutputPath} | {session.State.Scene} | {session.State.FieldId}:{session.State.FieldName}");
@@ -63,10 +69,11 @@ internal static class SaveTransferCommand
         string source = Path.GetFullPath(args[0]);
         string? output = null;
         string? gameDirectory = null;
+        string? modsDirectory = null;
         for (int index = 1; index < args.Length; index++)
         {
             string argument = args[index];
-            if (argument != "--output" && (argument != "--game-dir" || !import))
+            if (argument != "--output" && (!import || argument is not ("--game-dir" or "--mods-dir")))
             {
                 throw new ArgumentException($"Unknown save transfer argument: {argument}");
             }
@@ -83,13 +90,21 @@ internal static class SaveTransferCommand
                 }
                 output = value;
             }
-            else
+            else if (argument == "--game-dir")
             {
                 if (gameDirectory is not null)
                 {
                     throw new ArgumentException("Specify --game-dir only once.");
                 }
                 gameDirectory = value;
+            }
+            else
+            {
+                if (modsDirectory is not null)
+                {
+                    throw new ArgumentException("Specify --mods-dir only once.");
+                }
+                modsDirectory = value;
             }
         }
         if (output is null)
@@ -104,7 +119,7 @@ internal static class SaveTransferCommand
         {
             gameDirectory = Path.GetFullPath(LaunchOptions.ConfiguredGameDirectory);
         }
-        return new(source, output, gameDirectory);
+        return new(source, output, gameDirectory, modsDirectory);
     }
 
     private static void WriteNewOutput(string output, Action<string> write)
@@ -126,5 +141,5 @@ internal static class SaveTransferCommand
         }
     }
 
-    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory);
+    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory);
 }

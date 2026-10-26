@@ -5,7 +5,10 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-public sealed record FieldLogicResources(int Id, string Name, byte[] Program, IReadOnlyList<string> Messages, FieldInformation Information);
+public sealed record FieldLogicResources(int Id, string Name, byte[] Program, IReadOnlyList<string> Messages, FieldInformation Information)
+{
+    public bool HasColorCorrections { get; init; } = true;
+}
 
 public sealed partial class GameAssets
 {
@@ -33,13 +36,26 @@ public sealed partial class GameAssets
         FieldInformation information = FieldInformation.Read(informationBytes);
         string[] messages = MsdFile.Read(ReadMember(name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray();
         NativeEncounterTables.ReadField(ReadMember(name + ".rat"), ReadMember(name + ".mrt"));
+        byte[]? colors = ReadOptionalFieldColors(() => ReadMember(name + ".pcb"));
         if (NativeRuntimeProfile is { IsVerified: true })
         {
             int allocationPrefix = ReadNativeFieldAllocationPrefix(name, ReadMember);
             ReadNativeProgramAllocationEnd(program, allocationPrefix);
-            NativeFieldRegistrationLoaderInputs loader = ReadNativeFieldRegistrationInputs(id, informationBytes, program, ReadMember(name + ".pcb"), allocationPrefix);
+            NativeFieldRegistrationLoaderInputs loader = ReadNativeFieldRegistrationInputs(id, informationBytes, program, colors, allocationPrefix);
             loader.Validate(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(program)));
         }
-        return new(id, name, program, messages, information);
+        return new(id, name, program, messages, information) { HasColorCorrections = colors is not null };
+    }
+
+    private static byte[]? ReadOptionalFieldColors(Func<byte[]> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
     }
 }

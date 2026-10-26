@@ -352,7 +352,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (identity == lastIdentity)
                 {
                     installedPackages = catalog.Packages;
-                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference")).Distinct().ToArray());
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(diagnostics.Where(diagnostic => diagnostic.Code is "subscriber-failed" or "resource-rejected")).Concat(catalog.Diagnostics.Where(diagnostic => diagnostic.Code is "Junction.FieldGroupConflict" or "Junction.DynamicFieldTextReference" or "Junction.MissingFieldColors")).Distinct().ToArray());
                     updateOutcome = ModUpdateOutcome.Idle;
                     changedPackageIds.Clear();
                     return false;

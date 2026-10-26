@@ -115,7 +115,7 @@ public static partial class NativeFieldRegistrationMachine
                 throw new NotSupportedException("Remastered registration requires retained native plane state or an explicitly fresh cold renderer cache; older state requires migration before registration reload.");
             }
         }
-        NativeFieldRegistrationLoaderInputs loader = source.Loader ?? throw new NotSupportedException("Native kind3 requires its raw PCB, original JSM, INF selector and initialized placement tables.");
+        NativeFieldRegistrationLoaderInputs loader = source.Loader ?? throw new NotSupportedException("Native kind3 requires its original JSM, explicit PCB presence, INF selector and initialized placement tables.");
         if (actors.Count > 32 || actors.Select(actor => actor.ObjectId).Distinct().Count() != actors.Count || actors.Any(actor => actor.ModelId < -1 || actor.ModelId >= 64 || actor.ModelId >= source.Directory.Length || actor.FirstScript < 0 || actor.LastScript < actor.FirstScript))
         {
             throw new InvalidDataException("Native field registration requires retained physical actor order and bounded original models/script ranges.");
@@ -130,8 +130,11 @@ public static partial class NativeFieldRegistrationMachine
         memory.Fill(0x1DC308C, 64, 0);
         memory.Fill(ModelMap, 64, 255);
         uint cursor = RebindProgram(memory, loader, actors);
-        memory.Write(cursor, loader.Colors.Data.AsSpan());
-        cursor = checked(cursor + (uint)loader.Colors.Data.Length);
+        if (loader.Colors is { } colors)
+        {
+            memory.Write(cursor, colors.Data.AsSpan());
+            cursor = checked(cursor + (uint)colors.Data.Length);
+        }
         uint preModel = cursor;
         uint temporary = checked(cursor + 0x20000);
         uint inputEnd = checked(temporary + 4);
@@ -373,28 +376,7 @@ public static partial class NativeFieldRegistrationMachine
         short paletteX = (short)palettePosition;
         short paletteY = (short)(palettePosition >> 16);
         context.Upload(x, y, width, height, memory.Read(imageBlock + 12, checked(2 * width * height)));
-        ReadOnlySpan<byte> colors = loader.Colors.Data.AsSpan();
-        int color = 0;
-        for (int current = 0; current < Math.Min(colors.Length / 8, 64); current++)
-        {
-            if (entry.RawName.AsSpan(0, 4).SequenceEqual(colors.Slice(current * 8, 4)) && colors[current * 8 + 4] == 0)
-            {
-                color = current * 8;
-                break;
-            }
-        }
-        byte[] palette = memory.Read(paletteBlock + 12, 512);
-        for (int word = 0; word < 256; word++)
-        {
-            ushort value = BinaryPrimitives.ReadUInt16LittleEndian(palette.AsSpan(word * 2, 2));
-            if (value != 0)
-            {
-                int red = Math.Clamp((value & 31) + (colors[color + 5] - 128) / 8, 1, 31);
-                int green = Math.Clamp((value >> 5 & 31) + (colors[color + 6] - 128) / 8, 1, 31);
-                int blue = Math.Clamp((value >> 10 & 31) + (colors[color + 7] - 128) / 8, 1, 31);
-                BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(word * 2, 2), (ushort)(0x8000 | red | green << 5 | blue << 10));
-            }
-        }
+        byte[] palette = ProjectPalette532A40(memory.Read(paletteBlock + 12, 512), entry.RawName.AsSpan(), loader.Colors);
         memory.Write(paletteBlock + 12, palette);
         context.Upload(paletteX, paletteY, 256, 1, palette);
         ushort tpage = unchecked((ushort)(((y & 0x100 | x >> 2 & 0xF0) >> 4) | 4 * (y & 0x200 | 8 * (1 | 4 * ((int)mode & 3)))));

@@ -86,12 +86,15 @@ public sealed partial class GameAssets
 
     private ResourcePrefix? ReadActorInfoHeader(string name)
     {
-        IFlArchiveEntry? listingEntry = outer.Entries.SingleOrDefault(entry => ActorInfoBasename(entry.RelativePath).Equals(name + ".fl", StringComparison.OrdinalIgnoreCase));
-        if (listingEntry is null)
+        byte[] listing;
+        try
+        {
+            listing = Read(outer, name + ".fl");
+        }
+        catch (FileNotFoundException)
         {
             return null;
         }
-        byte[] listing = Read(outer, name + ".fl");
         string? logicalPath = FlArchive.PathEncoding.GetString(listing).Replace("\r", string.Empty).Split('\n').Where(path => ActorInfoBasename(path).Equals(name + ".jsm", StringComparison.OrdinalIgnoreCase)).SingleOrDefault();
         if (logicalPath is null)
         {

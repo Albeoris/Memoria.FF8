@@ -27,7 +27,8 @@ public sealed partial class GameAssets
         int cursor = ReadNativeFieldAllocationPrefix(fieldId);
         using IFlArchive archive = OpenNested(fieldNames[fieldId]);
         cursor = ReadNativeProgramAllocationEnd(Read(archive, fieldNames[fieldId] + ".jsm"), cursor);
-        cursor = checked(cursor + Read(archive, fieldNames[fieldId] + ".pcb").Length);
+        byte[]? colors = ReadOptionalFieldColors(() => Read(archive, fieldNames[fieldId] + ".pcb"));
+        cursor = checked(cursor + (colors?.Length ?? 0));
         nativePreModelCursors[fieldId] = cursor;
         return cursor;
     }
