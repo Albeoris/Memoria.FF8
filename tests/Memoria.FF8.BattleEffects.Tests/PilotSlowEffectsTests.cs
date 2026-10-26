@@ -33,7 +33,7 @@ public sealed class PilotSlowEffectsTests : IDisposable
         if (expected)
         {
             PilotSlowCase slow = Assert.Single(Assert.Single(result.Effects).Cases);
-            Assert.Equal(new[] { 1000.0 / firstInterval, 1000.0 / secondInterval }, slow.MedianFps);
+            Assert.Equal(new double?[] { 1000.0 / firstInterval, 1000.0 / secondInterval }, slow.MedianFps);
             Assert.Equal(25, slow.MinimumCastMedianFps);
             Assert.Equal("old-build", slow.SourceBuildFingerprint);
             Assert.Equal("one", slow.Case.Id);
@@ -135,6 +135,127 @@ public sealed class PilotSlowEffectsTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => PilotSlowEffects.Query(requested, root, threshold));
     }
 
+    [Fact]
+    public void Effect_scope_excludes_slow_invocation_boundary_and_retains_original_verdict()
+    {
+        string attempt = Attempt("01", requested, [(200, 200)]);
+        RewriteTelemetry(attempt, report =>
+        {
+            foreach (JsonNode? execution in report["executions"]!.AsArray())
+            {
+                JsonObject cast = execution!.AsObject();
+                TelemetryFrameSummary original = cast["frames"]!.Deserialize<TelemetryFrameSummary>(RecordJson.Options)!;
+                TelemetryFrameInterval first = original.Intervals[0];
+                TelemetryFrameInterval last = original.Intervals[1];
+                TelemetryFrameSummary updated = TelemetryFrameCollector.Recompute([first, new(last.End with { TimestampTicks = first.End.TimestampTicks + 20 }, 20)], 0);
+                cast["frames"] = JsonSerializer.SerializeToNode(updated, RecordJson.Options);
+                cast["effect_started_ticks"] = first.End.TimestampTicks;
+                cast["effect_completed_ticks"] = first.End.TimestampTicks + 20;
+                cast["effect_duration_ms"] = 20;
+            }
+        });
+
+        PilotFpsRecalculationResult result = PilotFpsRecalculation.Recalculate(requested, root, 30);
+
+        Assert.Empty(result.SlowEffects.Effects);
+        PilotFpsCase item = Assert.Single(result.Report.Cases);
+        Assert.Equal("FAIL", item.OriginalVerdict);
+        Assert.Contains("PRESENTATION_BELOW_30_FPS", item.OriginalErrors);
+        Assert.Equal("PASS", item.EffectFpsVerdict);
+        Assert.All(item.Casts, cast =>
+        {
+            Assert.Equal(50, cast.Effect.MedianFps);
+            Assert.Equal(27.5, cast.Invocation.MedianFps);
+            Assert.Equal(1, cast.Effect.FrameCount);
+        });
+        Assert.Equal("effect", result.SlowEffects.FpsScope);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unavailable_effect_casts_remain_completed_and_only_available_casts_select(bool oneAvailable)
+    {
+        string attempt = Attempt("01", requested, [(40, 40)]);
+        RewriteTelemetry(attempt, report =>
+        {
+            JsonArray executions = report["executions"]!.AsArray();
+            for (int index = 0; index < (oneAvailable ? 1 : 2); index++)
+            {
+                long preceding = executions[index]!["preceding_presentation_ticks"]!.GetValue<long>();
+                executions[index]!["effect_started_ticks"] = preceding + 2;
+                executions[index]!["effect_completed_ticks"] = preceding + 8;
+                executions[index]!["effect_duration_ms"] = 6;
+            }
+        });
+        Dictionary<string, byte[]> original = Directory.GetFiles(root, "*", SearchOption.AllDirectories).ToDictionary(path => path, File.ReadAllBytes);
+
+        PilotFpsRecalculationResult result = PilotFpsRecalculation.Recalculate(requested, root, 30);
+
+        Assert.Equal(1, result.Report.CompletedCases);
+        Assert.Equal(0, result.Report.PendingCases);
+        Assert.Equal(oneAvailable ? 1 : 2, result.Report.UnavailableEffectCasts);
+        Assert.Equal(oneAvailable ? 0 : 1, result.Report.UnavailableEffectCases);
+        PilotFpsCase item = Assert.Single(result.Report.Cases);
+        Assert.Null(item.Casts[0].Effect.MedianFps);
+        Assert.Equal(0, item.Casts[0].Effect.FrameCount);
+        Assert.Equal(oneAvailable ? "FAIL" : "UNAVAILABLE", item.EffectFpsVerdict);
+        Assert.Equal(oneAvailable ? 1 : 0, result.SlowEffects.Effects.Length);
+        Assert.Equal(original.Keys.Order(), Directory.GetFiles(root, "*", SearchOption.AllDirectories).Order());
+        foreach ((string path, byte[] bytes) in original)
+        {
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+        }
+        string json = JsonSerializer.Serialize(result.Report, RecordJson.Options);
+        Assert.DoesNotContain("\"intervals\"", json);
+    }
+
+    [Fact]
+    public void Legacy_slow_report_defaults_to_invocation_scope()
+    {
+        PilotSlowEffectsReport report = JsonSerializer.Deserialize<PilotSlowEffectsReport>("{\"below_fps\":30,\"requested\":0,\"completed_cases\":0,\"ignored_errors\":0,\"ignored_blocked\":0,\"pending_cases\":0,\"effects\":[],\"diagnostics\":[]}", RecordJson.Options)!;
+
+        Assert.Equal("invocation-legacy", report.FpsScope);
+    }
+
+    [Fact]
+    public void Recalculation_includes_fast_cases_from_only_the_latest_authoritative_attempt()
+    {
+        string older = Attempt("01", requested, [(80, 80)]);
+        string latest = Attempt("02", requested, [(10, 10)]);
+        File.SetLastWriteTimeUtc(Path.Combine(older, "manifest.json"), DateTime.UtcNow.AddMinutes(-2));
+        File.SetLastWriteTimeUtc(Path.Combine(latest, "manifest.json"), DateTime.UtcNow.AddMinutes(-1));
+
+        PilotFpsRecalculationResult result = PilotFpsRecalculation.Recalculate(requested, root, 30);
+
+        PilotFpsCase item = Assert.Single(result.Report.Cases);
+        Assert.Equal(Path.Combine(latest, "manifest.json"), item.SourceManifestPath);
+        Assert.Equal(100, item.Effect.MedianFps);
+        Assert.Equal("PASS", item.OriginalVerdict);
+        Assert.Empty(result.SlowEffects.Effects);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(item.CandidatePath))), item.CandidateSha256);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(item.TelemetryPath))), item.TelemetrySha256);
+    }
+
+    private static void RewriteTelemetry(string attempt, Action<JsonObject> edit)
+    {
+        string output = Path.Combine(attempt, "01-one", "output");
+        string telemetry = Path.Combine(output, "telemetry-report.json");
+        JsonObject report = JsonNode.Parse(File.ReadAllBytes(telemetry))!.AsObject();
+        edit(report);
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(report, RecordJson.Options);
+        File.WriteAllBytes(telemetry, bytes);
+        string candidate = Path.Combine(output, "candidate.json");
+        JsonObject record = JsonNode.Parse(File.ReadAllBytes(candidate))!.AsObject();
+        record["telemetry_sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        Write(candidate, record);
+        string resultPath = Path.Combine(attempt, "01-one", "pilot-result.json");
+        PilotCaseSummary previous = Read<PilotCaseSummary>(resultPath);
+        LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(JsonSerializer.SerializeToElement(report));
+        PilotCaseSummary result = PilotRunner.Summarize(previous.Id, validation.Verdict, validation.Errors, 2, previous.TotalMs, validation.EffectDurationsMs.Sum(), previous.Directory, true, validation.Executions.Sum(execution => execution.DurationMs));
+        Write(resultPath, result with { EffectId = previous.EffectId });
+    }
+
     private PilotCase Case(string id, int effect)
     {
         string path = Path.Combine(root, id + "-recipe.json");
@@ -162,7 +283,7 @@ public sealed class PilotSlowEffectsTests : IDisposable
             File.WriteAllBytes(Path.Combine(output, "telemetry-report.json"), bytes);
             Write(Path.Combine(output, "candidate.json"), new { status = "CANDIDATE_COMPLETED", reason = (string?)null, telemetry_report = "telemetry-report.json", telemetry_sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)), battle_instance_id = report["battle_instance_id"]!.GetValue<string>() });
             LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(JsonSerializer.SerializeToElement(report));
-            PilotCaseSummary summary = PilotRunner.Summarize(item.Id, validation.Verdict, validation.Errors, 2, 200, 12, "unused", true, validation.Executions.Sum(execution => execution.DurationMs));
+            PilotCaseSummary summary = PilotRunner.Summarize(item.Id, validation.Verdict, validation.Errors, 2, 1000, validation.EffectDurationsMs.Sum(), "unused", true, validation.Executions.Sum(execution => execution.DurationMs));
             Write(Path.Combine(caseDirectory, "pilot-result.json"), summary with { EffectId = item.EffectId });
         }
         return attempt;
@@ -188,7 +309,7 @@ public sealed class PilotSlowEffectsTests : IDisposable
             {
                 index = index + 1, completed = true, cleanup_completed = true, tail_presented_frames = 2,
                 start_callback = callback, end_callback = callback + 2, start_frame = frame, end_frame = frame + 2, renderer_frames = 2,
-                preceding_presentation_ticks = ticks, effect_started_ticks = ticks + 2, effect_completed_ticks = ticks + 8, effect_duration_ms = 6,
+                preceding_presentation_ticks = ticks, effect_started_ticks = ticks, effect_completed_ticks = first + interval, effect_duration_ms = interval * 2,
                 start_owners = Owners(callback, frame), end_owners = Owners(callback + 2, frame + 2),
                 dispatches = new[] { new { serial = index + 1, callback = callback + 1, actor_id = "party0", ability = "Magic", action_id = 21, requested_effect = effect, executed_effect = effect } },
                 frames = frames.Complete(),

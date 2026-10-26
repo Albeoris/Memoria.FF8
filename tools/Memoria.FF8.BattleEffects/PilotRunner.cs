@@ -147,7 +147,20 @@ public static class PilotRunner
                     verdict = "ERROR";
                 }
                 validationEnded = total.ElapsedTicks;
-                OwnedChildSupervisor.PublishValidatedCandidate(outcome, _ => JsonSerializer.SerializeToUtf8Bytes(new { schema_version = 1, verdict, errors = errors.ToArray(), diagnostic_issues = diagnosticIssues, copy_traffic_scope = copyTrafficScope, executions, effect_duration_ms = effectMs, execution_window_ms = executionWindowMs, campaign_acceptance = false }, RecordJson.Options));
+                OwnedChildSupervisor.PublishValidatedCandidate(outcome, _ => JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    schema_version = 1,
+                    verdict,
+                    errors = errors.ToArray(),
+                    diagnostic_issues = diagnosticIssues,
+                    copy_traffic_scope = copyTrafficScope,
+                    executions,
+                    effect_duration_ms = effectMs,
+                    execution_window_ms = executionWindowMs,
+                    effect_fps = validation.EffectExecutions.Select((scope, index) => new { execution = index + 1, metrics = PilotFpsMetrics.From(scope.Frames), boundary_metrics = PilotFpsMetrics.From(TelemetryFrameCollector.Recompute(scope.BoundaryIntervals, 0)), scope.BoundaryIntervalCount, scope.Policy }).ToArray(),
+                    invocation_fps = validation.Executions.Select(PilotFpsMetrics.From).ToArray(),
+                    campaign_acceptance = false
+                }, RecordJson.Options));
             }
             else
             {

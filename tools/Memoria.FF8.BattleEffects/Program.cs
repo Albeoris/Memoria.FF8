@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -59,6 +59,24 @@ public static class Program
             if (args[0] == "discover")
             {
                 Print(ScenarioDiscovery.Generate(Get("game-dir"), Get("output"), Optional("fixture"), Optional("source-commit"), Optional("patch-hash")));
+                return 0;
+            }
+
+            if (args[0] == "recalculate-fps")
+            {
+                SchemaValidation.ValidateFile(Get("input"), "pilot");
+                string output = Path.GetFullPath(Get("output"));
+                string slowOutput = Path.GetFullPath(Get("slow-output"));
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(output)!);
+                PrivateEvidencePath.Validate(Path.GetDirectoryName(slowOutput)!);
+                if (File.Exists(output) || File.Exists(slowOutput) || output.Equals(slowOutput, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException("Recalculated reports require distinct fresh output files.");
+                }
+                PilotFpsRecalculationResult result = PilotFpsRecalculation.Recalculate(RecordJson.Read<PilotManifest>(Get("input")), Get("history"), double.Parse(Get("below-fps"), System.Globalization.CultureInfo.InvariantCulture));
+                OwnedChildSupervisor.PublishTransientImmutable(output, JsonSerializer.SerializeToUtf8Bytes(result.Report, RecordJson.Options));
+                OwnedChildSupervisor.PublishTransientImmutable(slowOutput, JsonSerializer.SerializeToUtf8Bytes(result.SlowEffects, RecordJson.Options));
+                Print(new { fps_scope = "effect", completed_cases = result.SlowEffects.CompletedCases, below_fps = result.SlowEffects.BelowFps, slow_effects = result.SlowEffects.Effects.Length, slow_cases = result.SlowEffects.Effects.Sum(effect => effect.Cases.Length), output, slow_output = slowOutput, launched = false });
                 return 0;
             }
 

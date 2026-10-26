@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.BattleEffects;
 
-public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope, string[] DiagnosticIssues, string CopyTrafficScope);
+public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, TelemetryFrameSummary[] Executions, double[] EffectDurationsMs, TelemetryFrameSummary? Combined, bool CampaignAcceptance, string AudioScope, string[] DiagnosticIssues, string CopyTrafficScope)
+{
+    public TelemetryEffectFrameSummary[] EffectExecutions { get; init; } = [];
+}
 
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
 public static class LiveEvidenceValidation
@@ -26,6 +29,7 @@ public static class LiveEvidenceValidation
         List<string> errors = [];
         List<string> diagnostics = [];
         List<TelemetryFrameSummary> frames = [];
+        List<TelemetryEffectFrameSummary> effectFrames = [];
         List<double> effectDurations = [];
         try
         {
@@ -148,12 +152,14 @@ public static class LiveEvidenceValidation
                 long previousTicks = Number(execution, "preceding_presentation_ticks");
                 long previousFrame = startFrame;
                 long previousCallback = startCallback;
+                bool frameLineageValid = previousTicks >= 0;
                 foreach (TelemetryFrameInterval interval in recomputed.Intervals)
                 {
                     double measuredDuration = checked(interval.End.TimestampTicks - previousTicks) * 1000.0 / frequency;
                     if (interval.End.TimestampTicks <= previousTicks || interval.End.FrameIndex != previousFrame + 1 || interval.End.FrameIndex > endFrame || interval.End.NativeCallbacks < previousCallback || interval.End.NativeCallbacks > endCallback || Math.Abs(interval.DurationMs - measuredDuration) > 0.0000001)
                     {
                         errors.Add("FRAME_LINEAGE_INVALID");
+                        frameLineageValid = false;
                     }
                     previousTicks = interval.End.TimestampTicks;
                     previousFrame = interval.End.FrameIndex;
@@ -174,6 +180,10 @@ public static class LiveEvidenceValidation
                 else
                 {
                     effectDurations.Add(effectDuration);
+                    if (frameLineageValid)
+                    {
+                        effectFrames.Add(TelemetryEffectFrames.Summarize(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, frequency));
+                    }
                 }
                 if (!recomputed.Valid || Number(execution, "dropped_events") != 0)
                 {
@@ -198,7 +208,7 @@ public static class LiveEvidenceValidation
         }
         string[] distinct = errors.Distinct(StringComparer.Ordinal).ToArray();
         string verdict = distinct.Length == 0 ? "PASS" : distinct.All(error => error == "PRESENTATION_BELOW_30_FPS") ? "FAIL" : "ERROR";
-        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.");
+        return new(verdict, distinct, frames.ToArray(), effectDurations.ToArray(), frames.Count == 0 ? null : TelemetryFrameCollector.Combine(frames.ToArray()), false, "Configured non-muted native receipt routing; auditory equivalence is not certified.", diagnostics.Distinct().ToArray(), "Optional shared-operation payload counters are partial lower bounds. Complete effect-local/process copy traffic is not measured; unavailable is not zero.") { EffectExecutions = effectFrames.ToArray() };
     }
 
     private static void ValidateRepairs(JsonElement report, JsonElement executions, List<string> errors)

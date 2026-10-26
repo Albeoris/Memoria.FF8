@@ -7,6 +7,72 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class LiveEvidenceValidationTests
 {
     [Fact]
+    public void Short_effect_metrics_are_unavailable_without_changing_the_original_window_verdict_or_report()
+    {
+        JsonObject report = Report();
+        string original = report.ToJsonString();
+
+        LiveEvidenceVerdict result = Validate(report);
+
+        Assert.Equal("PASS", result.Verdict);
+        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.Executions.Length);
+        Assert.Equal(4, result.Combined!.FrameCount);
+        Assert.Equal(40, result.Combined.DurationMs);
+        Assert.Equal(new double[] { 6, 6 }, result.EffectDurationsMs);
+        Assert.Equal(2, result.EffectExecutions.Length);
+        Assert.All(result.EffectExecutions, effect =>
+        {
+            Assert.False(effect.Available);
+            Assert.Null(effect.MedianFps);
+            Assert.Equal(1, effect.BoundaryIntervalCount);
+            Assert.Empty(effect.Frames.Intervals);
+        });
+        Assert.Equal(original, report.ToJsonString());
+    }
+
+    [Fact]
+    public void Effect_scope_does_not_replace_the_existing_full_window_performance_gate()
+    {
+        JsonObject report = Report();
+        JsonObject first = Execution(report, 0);
+        TelemetryFrameSummary original = Frames(100, 0, 10, true);
+        first["frames"] = JsonSerializer.SerializeToNode(original, RecordJson.Options);
+        first["effect_started_ticks"] = 140;
+        first["effect_completed_ticks"] = 150;
+        first["effect_duration_ms"] = 10;
+
+        LiveEvidenceVerdict result = Validate(report);
+
+        Assert.Equal("FAIL", result.Verdict);
+        Assert.Equal(new[] { "PRESENTATION_BELOW_30_FPS" }, result.Errors);
+        Assert.Equal(original.Intervals, result.Executions[0].Intervals);
+        Assert.Equal(original.DurationMs, result.Executions[0].DurationMs);
+        Assert.Equal(original.MedianFps, result.Executions[0].MedianFps);
+        Assert.Equal(100, result.EffectExecutions[0].MedianFps);
+        Assert.Equal(1, result.EffectExecutions[0].Frames.FrameCount);
+        Assert.Equal(10, result.EffectExecutions[0].Frames.DurationMs);
+    }
+
+    [Fact]
+    public void Invalid_markers_or_frame_lineage_do_not_publish_an_effect_scope_or_change_existing_errors()
+    {
+        JsonObject report = Report();
+        Execution(report, 0)["effect_duration_ms"] = 20;
+        LiveEvidenceVerdict markers = Validate(report);
+        Assert.Equal("ERROR", markers.Verdict);
+        Assert.Equal(new[] { "EFFECT_TIMING_MARKERS_INVALID" }, markers.Errors);
+        Assert.Single(markers.EffectExecutions);
+
+        report = Report();
+        Execution(report, 0)["frames"]!["intervals"]![0]!["duration_ms"] = 1;
+        LiveEvidenceVerdict lineage = Validate(report);
+        Assert.Equal("ERROR", lineage.Verdict);
+        Assert.Equal(new[] { "FRAME_LINEAGE_INVALID" }, lineage.Errors);
+        Assert.Single(lineage.EffectExecutions);
+    }
+
+    [Fact]
     public void Background_presentation_can_pass_with_truthful_inactive_metadata()
     {
         JsonObject report = Report();

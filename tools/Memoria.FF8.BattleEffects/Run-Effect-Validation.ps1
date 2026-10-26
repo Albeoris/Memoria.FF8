@@ -2,12 +2,20 @@
 param(
     [string] $PinsFile = (Join-Path $PSScriptRoot 'launch-pins.json'),
     [switch] $AllScenarios,
-    [switch] $PrepareOnly
+    [switch] $PrepareOnly,
+    [switch] $Recalculate,
+    [double] $BelowFps = 30
 )
 
 $ErrorActionPreference = 'Stop'
 $pinsPath = [IO.Path]::GetFullPath($PinsFile)
 $validationRoot = [IO.Path]::GetDirectoryName($pinsPath)
+if ($Recalculate -and $PrepareOnly) {
+    throw 'Choose either Recalculate or PrepareOnly.'
+}
+if ($Recalculate -and (-not [double]::IsFinite($BelowFps) -or $BelowFps -le 0)) {
+    throw 'BelowFps must be finite and positive.'
+}
 
 function HashFile([string] $path) {
     $stream = [IO.File]::OpenRead($path)
@@ -36,6 +44,22 @@ function ResolvePinnedPath([string] $path) {
     return [IO.Path]::GetFullPath($path, $validationRoot)
 }
 
+function WriteLatestJson([string] $path, [object] $value) {
+    $temporary = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        WriteNewJson $temporary $value
+        if ([IO.File]::Exists($path)) {
+            [IO.File]::Replace($temporary, $path, $path + '.' + [Guid]::NewGuid().ToString('N') + '.previous.json')
+        } else {
+            [IO.File]::Move($temporary, $path)
+        }
+    } finally {
+        if ([IO.File]::Exists($temporary)) {
+            [IO.File]::Delete($temporary)
+        }
+    }
+}
+
 $pins = Get-Content -LiteralPath $pinsPath -Raw | ConvertFrom-Json
 $toolRoot = ResolvePinnedPath $pins.tool_directory
 $hostRoot = ResolvePinnedPath $pins.host_directory
@@ -45,7 +69,11 @@ if ((HashFile (Join-Path $toolRoot 'Memoria.FF8.BattleEffects.dll')) -ne $pins.t
 foreach ($name in @('Memoria.FF8.Runtime', 'Memoria.FF8.Resources', 'Memoria.FF8.Assets', 'Memoria.FF8.BattleEffects')) {
     [Reflection.Assembly]::LoadFrom((Join-Path $toolRoot ($name + '.dll'))) | Out-Null
 }
-foreach ($directory in @(@{ Path = $toolRoot; Expected = $pins.tool_fingerprint }, @{ Path = $hostRoot; Expected = $pins.host_fingerprint })) {
+$directories = @(@{ Path = $toolRoot; Expected = $pins.tool_fingerprint })
+if (-not $Recalculate) {
+    $directories += @{ Path = $hostRoot; Expected = $pins.host_fingerprint }
+}
+foreach ($directory in $directories) {
     $files = [Memoria.FF8.BattleEffects.EvidenceStore]::DescribeFiles($directory.Path)
     $actual = [Memoria.FF8.BattleEffects.EvidenceStore]::HashRecord[Memoria.FF8.BattleEffects.BuildFile[]]($files)
     if ($actual -ne $directory.Expected) {
@@ -68,6 +96,41 @@ if ((HashFile $templatePath) -ne $templateSha) {
 }
 $manifest = Get-Content -LiteralPath $templatePath -Raw | ConvertFrom-Json
 $token = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [Guid]::NewGuid().ToString('N')
+if ($Recalculate) {
+    $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot($null)
+    try {
+        $reportPath = Join-Path $validationRoot ("fps-recalculation-$token.json")
+        $slowPath = Join-Path $validationRoot ("slow-effects-recalculated-$token.json")
+        $toolExe = Join-Path $toolRoot 'Memoria.FF8.BattleEffects.exe'
+        $threshold = $BelowFps.ToString('G', [Globalization.CultureInfo]::InvariantCulture)
+        & $toolExe recalculate-fps --input $templatePath --history $validationRoot --below-fps $threshold --output $reportPath --slow-output $slowPath
+        if ($LASTEXITCODE -ne 0) {
+            throw 'FPS recalculation failed; previous reports and latest pointer remain unchanged.'
+        }
+        WriteLatestJson (Join-Path $validationRoot 'latest-fps-recalculation.json') ([ordered]@{
+            schema_version = 1
+            generated_utc = [DateTimeOffset]::UtcNow
+            fps_scope = 'effect'
+            below_fps = $BelowFps
+            all_scenarios = [bool]$AllScenarios
+            report = $reportPath
+            report_sha256 = (HashFile $reportPath)
+            slow_effects = $slowPath
+            slow_effects_sha256 = (HashFile $slowPath)
+            pins_sha256 = (HashFile $pinsPath)
+            tool_fingerprint = $pins.tool_fingerprint
+            raw_reports_preserved = $true
+            historical_verdicts_preserved = $true
+            launched = $false
+        })
+        Write-Output "Recalculated FPS: $reportPath"
+        Write-Output "Slow effects: $slowPath"
+        Write-Output 'Latest report index: latest-fps-recalculation.json; no host launched.'
+        return
+    } finally {
+        $measurement.Dispose()
+    }
+}
 $attempt = Join-Path $validationRoot ($prefix + '-' + $token)
 $outputRoot = $attempt
 $requestedPath = $attempt + '.requested.manifest.json'
