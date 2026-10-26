@@ -6,7 +6,35 @@ namespace Memoria.FF8.Mods.Tests;
 
 public sealed class DemasterBattleModelSheetTests
 {
-    private static readonly ResourceSourceDescriptor Source = new("synthetic", GameDataEdition.Classic, ["native-battle-model-sheet"]);
+    private static readonly ResourceSourceDescriptor Source = new("synthetic", GameDataEdition.Classic, ["native-battle-model-sheet", "native-battle-body-sheet"]);
+
+    [Theory]
+    [InlineData(GameDataEdition.Classic, false)]
+    [InlineData(GameDataEdition.Remastered, true)]
+    public void BodySheetsRequireTheirAdditionalSourceCapabilityWhileWeaponsAndMonstersRemainCompatible(GameDataEdition edition, bool bodyCompatible)
+    {
+        ResourceSourceDescriptor source = new("profile", edition, bodyCompatible ? ["native-battle-model-sheet", "native-battle-body-sheet"] : ["native-battle-model-sheet"]);
+        foreach (string name in new[] { "d0c000", "d0w000", "c0m001" })
+        {
+            bool supported = name != "d0c000" || bodyCompatible;
+            int height = name == "d0w000" ? 32 : 128;
+            TextureBuildContext context = Context(name, 0, height, height, source: source);
+            ModFile file = supported ? Image(Path(name, 0), 384, height * 3) : new("Demaster/Synthetic", ModFormat.Demaster, Path(name, 0), 1, () => throw new InvalidOperationException("Unsupported body sheets stay lazy."));
+            DemasterTextureResolver resolver = Resolver(file);
+            Assert.Equal(supported, resolver.Resolve(context) is not null);
+            Assert.Equal(supported, DemasterTextureResolver.CandidatePaths(context).Count != 0);
+            DemasterInspection inspection = DemasterTextureResolver.Inspect(source, new(1, [], [file]));
+            Assert.Equal(supported, inspection.UsablePackageIds.Count != 0);
+            if (!supported)
+            {
+                Assert.Equal("demaster-unsupported-target", Assert.Single(inspection.Diagnostics).Code);
+            }
+            else
+            {
+                Assert.Empty(inspection.Diagnostics);
+            }
+        }
+    }
 
     [Theory]
     [InlineData("d0c000", 1, 64, 128)]
@@ -129,10 +157,10 @@ public sealed class DemasterBattleModelSheetTests
         Assert.Equal(valid.Length + invalid.Length, DemasterTextureResolver.Inspect(new("unpublished", GameDataEdition.Classic, []), catalog).Diagnostics.Count);
     }
 
-    private static TextureBuildContext Context(string name, int row, int height = 128, int canvasHeight = 128, bool published = true)
+    private static TextureBuildContext Context(string name, int row, int height = 128, int canvasHeight = 128, bool published = true, ResourceSourceDescriptor? source = null)
     {
         ResourceKey owner = new($"battle/{name}.dat");
-        return new(new(owner, "texture/7"), published ? Source : new("unpublished", GameDataEdition.Classic, []), 1, "classic-battle", 128, height, () => new(128, height))
+        return new(new(owner, "texture/7"), published ? source ?? Source : new("unpublished", GameDataEdition.Classic, []), 1, "classic-battle", 128, height, () => new(128, height))
         {
             NativeSheet = new(owner, $"row/{row}", 0, 0, 0, 128, height, 128, canvasHeight)
         };

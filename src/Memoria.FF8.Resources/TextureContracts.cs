@@ -47,6 +47,7 @@ public sealed class TextureBuildContext
     public TextureSourceAddress? NativeAlias { get; init; }
     public TextureSourceAddress? NativeSheet { get; init; }
     public TextureSourcePageAddress? NativePage { get; init; }
+    public string? RequestedVariant { get; init; }
 }
 
 /// <summary>Image and logical canvas are published as a single value. Pixels are already colored.</summary>
@@ -79,10 +80,7 @@ public interface ITextureReplacementResolver
 }
 
 /// <summary>A native preparation step applied to already resolved source textures.</summary>
-public sealed record TextureTransformContext(TextureKey Key, ImmutableArray<TextureKey> Dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> Build)
-{
-    public long Revision { get; init; }
-}
+public sealed record TextureTransformContext(TextureKey Key, ImmutableArray<TextureKey> Dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> Build);
 
 public sealed class AssetHandle<T> where T : class
 {

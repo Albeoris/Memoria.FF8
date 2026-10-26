@@ -101,8 +101,7 @@ internal static class FieldModelReader
         {
             TextureResourceName = name,
             MainCharacterTextures = true,
-            TextureRegions = textures.Select(NativeTextureRegion).ToArray(),
-            NativeTexturePalettes = textures.Select(NativePaletteWords).ToArray()
+            TextureRegions = textures.Select(NativeTextureRegion).ToArray()
         };
     }
 
@@ -149,7 +148,7 @@ internal static class FieldModelReader
                 {
                     throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
                 }
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray(), TextureResourceName = source.TextureResourceName, MainCharacterTextures = source.MainCharacterTextures, NativeTexturePalettes = source.NativeTexturePalettes.Take(1).ToArray(), TextureSourceVariant = source.TextureSourceVariant };
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture) with { TextureRegions = source.TextureRegions.Take(1).ToArray(), TextureResourceName = source.TextureResourceName, MainCharacterTextures = source.MainCharacterTextures, TextureSourceVariant = source.TextureSourceVariant };
             }
             else if (header.ModelOffset >= 0)
             {
@@ -268,24 +267,10 @@ internal static class FieldModelReader
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
-        return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeTexturePalettes = nativeTextures?.Select(NativePaletteWords).ToArray() ?? [], NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+        return new FieldModel(name, bones, vertices, faces, textures, animations) { TextureRegions = textureRegions, NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
     }
 
     private static TextureSourceRegion NativeTextureRegion(TimImage texture) => new(texture.X, texture.Y, texture.PixelMode switch { TimPixelMode.Indexed4 => 4, TimPixelMode.Indexed8 => 8, TimPixelMode.Direct16 => 16, _ => 24 }, texture.PixelWidth, texture.Height);
-
-    private static ImmutableArray<byte> NativePaletteWords(TimImage image)
-    {
-        if (image.Clut is null)
-        {
-            return [];
-        }
-        byte[] words = new byte[image.Clut.Colors.Length * 2];
-        for (int index = 0; index < image.Clut.Colors.Length; index++)
-        {
-            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(words.AsSpan(index * 2), image.Clut.Colors[index]);
-        }
-        return words.ToImmutableArray();
-    }
 
     private static NativeEyeTexture? ReadEyeTexture(byte[] content, int offset)
     {

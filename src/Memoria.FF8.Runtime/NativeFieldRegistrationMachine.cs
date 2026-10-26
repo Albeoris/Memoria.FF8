@@ -278,7 +278,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new NotSupportedException("Native field constructed resources exceed their original kind3 arena.");
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
-        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures)) };
+        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
         state.Validate(result);
         return new(state, result, context.Uploads.ToImmutableArray());
     }
@@ -352,7 +352,28 @@ public static partial class NativeFieldRegistrationMachine
         short paletteX = (short)palettePosition;
         short paletteY = (short)(palettePosition >> 16);
         context.Upload(x, y, width, height, memory.Read(imageBlock + 12, checked(2 * width * height)));
-        byte[] palette = ProjectPalette532A40(memory.Read(paletteBlock + 12, 512), loader.Colors.Data.AsSpan(), entry.RawName.AsSpan());
+        ReadOnlySpan<byte> colors = loader.Colors.Data.AsSpan();
+        int color = 0;
+        for (int current = 0; current < Math.Min(colors.Length / 8, 64); current++)
+        {
+            if (entry.RawName.AsSpan(0, 4).SequenceEqual(colors.Slice(current * 8, 4)) && colors[current * 8 + 4] == 0)
+            {
+                color = current * 8;
+                break;
+            }
+        }
+        byte[] palette = memory.Read(paletteBlock + 12, 512);
+        for (int word = 0; word < 256; word++)
+        {
+            ushort value = BinaryPrimitives.ReadUInt16LittleEndian(palette.AsSpan(word * 2, 2));
+            if (value != 0)
+            {
+                int red = Math.Clamp((value & 31) + (colors[color + 5] - 128) / 8, 1, 31);
+                int green = Math.Clamp((value >> 5 & 31) + (colors[color + 6] - 128) / 8, 1, 31);
+                int blue = Math.Clamp((value >> 10 & 31) + (colors[color + 7] - 128) / 8, 1, 31);
+                BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(word * 2, 2), (ushort)(0x8000 | red | green << 5 | blue << 10));
+            }
+        }
         memory.Write(paletteBlock + 12, palette);
         context.Upload(paletteX, paletteY, 256, 1, palette);
         ushort tpage = unchecked((ushort)(((y & 0x100 | x >> 2 & 0xF0) >> 4) | 4 * (y & 0x200 | 8 * (1 | 4 * ((int)mode & 3)))));

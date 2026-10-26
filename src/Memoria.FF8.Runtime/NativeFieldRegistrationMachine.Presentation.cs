@@ -141,7 +141,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native retained eye mode is outside its implemented physical mask.");
         }
         uint source = mode == 0x200000 ? eyes + 12 : checked(eyes + 8 + 4u * memory.Read8(eyes + 5));
-        CopyEyeRectangle(context, eyes, source);
+        CopyEyeRectangle(context, eyes, source, mode == 0x200000);
         memory.Write8(instance + 114, (byte)(memory.Read8(instance + 114) & 15 | (mode == 0x200000 ? 0x20 : 0x40)));
     }
 }

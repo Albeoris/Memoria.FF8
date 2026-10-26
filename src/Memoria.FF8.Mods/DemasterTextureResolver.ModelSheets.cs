@@ -7,6 +7,7 @@ namespace Memoria.FF8.Mods;
 public sealed partial class DemasterTextureResolver
 {
     private const string ModelSheetLayout = "native-battle-model-sheet";
+    private const string BodySheetLayout = "native-battle-body-sheet";
     private const string ModelSheetPrefix = "textures/battle.fs/hd_new/";
     private static readonly Regex modelSheetOwner = new(@"\Abattle/(?<name>c0m[0-9]{3}|d[0-9a-f][cw][0-9]{3})\.dat\z", RegexOptions.CultureInvariant);
     private static readonly Regex modelSheetTarget = new(@"\Atextures/battle\.fs/hd_new/(?<name>c0m[0-9]{3}|d[0-9a-f][cw][0-9]{3})_(?<row>0|[1-5])\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -135,7 +136,7 @@ public sealed partial class DemasterTextureResolver
             return false;
         }
         string name = owner.Groups["name"].Value;
-        if (!ValidModelSheetRow(name, row) || address.CanvasHeight != (name[2] == 'w' ? 32 : 128))
+        if (!SupportsModelSheetName(context.Source, name) || !ValidModelSheetRow(name, row) || address.CanvasHeight != (name[2] == 'w' ? 32 : 128))
         {
             return false;
         }
@@ -143,10 +144,15 @@ public sealed partial class DemasterTextureResolver
         return true;
     }
 
-    private static bool IsModelSheetTarget(string stem)
+    private static bool IsModelSheetTarget(ResourceSourceDescriptor source, string stem)
     {
         Match match = modelSheetTarget.Match(stem);
-        return match.Success && ValidModelSheetRow(match.Groups["name"].Value, match.Groups["row"].Value[0] - '0');
+        return match.Success && SupportsModelSheetName(source, match.Groups["name"].Value) && ValidModelSheetRow(match.Groups["name"].Value, match.Groups["row"].Value[0] - '0');
+    }
+
+    private static bool SupportsModelSheetName(ResourceSourceDescriptor source, string name)
+    {
+        return char.ToLowerInvariant(name[0]) != 'd' || char.ToLowerInvariant(name[2]) != 'c' || HasLayout(source, BodySheetLayout);
     }
 
     private static bool IsModelSheetFamily(string stem)

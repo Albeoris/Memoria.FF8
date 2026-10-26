@@ -47,7 +47,7 @@ public sealed partial class DemasterTextureResolver : ITextureReplacementResolve
             bool fieldTarget = stem.StartsWith(FieldPagePrefix, StringComparison.OrdinalIgnoreCase);
             supported |= fieldTarget && HasLayout(source, FieldPageLayout) && IsFieldPageTarget(stem);
             bool modelTarget = IsModelSheetFamily(stem);
-            supported |= modelTarget && HasLayout(source, ModelSheetLayout) && IsModelSheetTarget(stem);
+            supported |= modelTarget && HasLayout(source, ModelSheetLayout) && IsModelSheetTarget(source, stem);
             bool fieldModelTarget = IsFieldModelSheetFamily(stem);
             supported |= fieldModelTarget && HasLayout(source, FieldModelSheetLayout) && IsFieldModelSheetTarget(stem);
             supported |= !battleTarget && !fieldTarget && !modelTarget && !fieldModelTarget && source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-direct");

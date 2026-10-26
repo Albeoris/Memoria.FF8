@@ -82,7 +82,7 @@ public sealed class ResourceService : IResourceChangeFeed
             throw new InvalidOperationException("A prepared texture cannot also be registered as an original source texture.");
         }
         bool exists = contexts.TryGetValue(context.Key, out TextureBuildContext? previous);
-        if (exists && previous!.Revision == context.Revision && previous.Layout == context.Layout)
+        if (exists && previous!.Revision == context.Revision && previous.Layout == context.Layout && previous.RequestedVariant == context.RequestedVariant)
         {
             if (retain)
             {
@@ -154,21 +154,6 @@ public sealed class ResourceService : IResourceChangeFeed
             {
                 throw new InvalidOperationException("A prepared texture identity cannot change its source dependencies while resident.");
             }
-            if (previous.Revision != context.Revision)
-            {
-                long version = mutationVersion;
-                Publication current = published;
-                ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
-                BuildTransforms(candidate, context);
-                if (mutationVersion != version)
-                {
-                    throw new InvalidOperationException("The source or preparation graph changed while refreshing the derived texture.");
-                }
-                transforms[context.Key] = context;
-                mutationVersion++;
-                Volatile.Write(ref published, current with { Generation = current.Generation + 1, Values = candidate.ToImmutable() });
-                Notify(new ResourceChangeSet(current.Generation, current.Generation + 1, [.. transforms.Keys], "Texture preparation changed"));
-            }
             if (retain)
             {
                 owners[context.Key]++;
@@ -208,13 +193,9 @@ public sealed class ResourceService : IResourceChangeFeed
         return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts);
     }
 
-    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, TextureTransformContext? replacement = null)
+    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
     {
         Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
-        if (replacement is not null)
-        {
-            preparation[replacement.Key] = replacement;
-        }
         foreach (TextureKey key in preparation.Keys)
         {
             next.Remove(key);
@@ -283,7 +264,8 @@ public sealed class ResourceService : IResourceChangeFeed
     private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver)
     {
         TextureReplacement? replacement = replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
-        return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
+        TextureValue value = replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
+        return context.RequestedVariant is { } variant && value.Variants is { } variants && variants.TryGetValue(variant, out var image) ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }
 
     private void Notify(ResourceChangeSet notification)

@@ -23,7 +23,6 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
     public IReadOnlyList<TextureSourceRegion> TextureRegions { get; init; } = [];
     public string? TextureResourceName { get; init; }
     public bool MainCharacterTextures { get; init; }
-    public IReadOnlyList<System.Collections.Immutable.ImmutableArray<byte>> NativeTexturePalettes { get; init; } = [];
     public string? TextureSourceVariant { get; init; }
 
     public NativeModelPartsDefinition? NativeParts { get; init; }
