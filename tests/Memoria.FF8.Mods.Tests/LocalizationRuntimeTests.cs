@@ -125,6 +125,25 @@ public sealed class LocalizationRuntimeTests : IDisposable
         Assert.Equal("native", resources.Localize("$en_sample_0000", "native"));
     }
 
+    [Fact]
+    public void TextOnlyPublicationPreservesAnExistingExclusiveResourceScope()
+    {
+        using InMemoryResourceSource source = new(Source);
+        ResourceKey hidden = new("main/section/hidden.bin");
+        source.Set(hidden, [1, 2, 3], "bin");
+        ResourceService resources = new(source);
+        EncodedResource archive = new(new("archive/main.pack"), "pack", 1, "synthetic", [4, 5, 6], new("main/section"));
+        resources.Prepare(null, encodedResources: [archive]).Commit();
+        Assert.Throws<FileNotFoundException>(() => resources.Get(hidden));
+        LocalizationCatalog translated = new(new Dictionary<string, LocalizationValue> { ["$en_sample_0000"] = new("Translated", "package", "project") });
+        resources.PrepareLocalization(translated).Commit();
+        Assert.Equal("Translated", resources.Localize("$en_sample_0000", "native"));
+        Assert.Throws<FileNotFoundException>(() => resources.Get(hidden));
+        Assert.Equal(new byte[] { 4, 5, 6 }, resources.Read(new("archive/main.pack")));
+        resources.PrepareLocalization(LocalizationCatalog.Empty).Commit();
+        Assert.Throws<FileNotFoundException>(() => resources.Get(hidden));
+    }
+
     private ModPackage Package(string name, params LocalizationRecord[] rows)
     {
         string path = Path.Combine(root, name);

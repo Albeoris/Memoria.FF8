@@ -15,7 +15,7 @@ internal sealed partial class RecreateGame
     private (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) GetDialoguePages(DialogueState dialogue)
     {
         DialogueState display = LocalizedDialogue(dialogue);
-        DialogueWindow? window = display.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
+        DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events!.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
         window = LocalizedWindow(dialogue, window);
         string expanded = DialogueTextFormatter.ExpandButtonBindings(NativeMessageVariables.Expand(display.Text, events!.MessageVariables), keyboard.NativeButtonBindingPrompt);
         foreach (var name in events.Scene.Names.OrderBy(pair => pair.Key))
