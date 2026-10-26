@@ -40,6 +40,10 @@ Keep simulation mutations in their owning transaction. A menu projects live stat
 
 The current persistence model is described in [saves and snapshots](../players/saves.md). An older save that lacks required state needs an explicit, separately recorded migration. Do not invent defaults or replay earlier travel during load.
 
+Field model-part snapshots retain the registered model ID and sparse logical translation progress. Static part tables, model hashes, file offsets and initialized skin flags come from the selected resource. Executed draw samples retain their logical callback input; rendering derives current skin bindings without advancing live counters. Active translations still require their referenced part to exist in the selected model.
+
+When selected model resources change, inactive native presentation caches are reconstructed through the resource registration contract while retaining actor presentation, sampled animation phase, VM state and random state. Active eye commands, known texture-copy progress and pending VRAM work currently require a separate semantic transfer contract and fail explicitly. Unchanged resource selections retain their existing process state. Historical snapshots containing copied part tables require an explicit migration.
+
 ## Extending the engine
 
 - Add decoded resource contracts to the format/resource layer and pass typed data to the owning subsystem. Keep resource selection configurable through the installed-resource host and [mod providers](../modding/file-replacements.md).

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -278,10 +279,12 @@ public sealed class JunctionVisualInstalledTests
             using GameResourceHost host = enabled ? input.Open() : input.OpenOriginal();
             using GameAssets assets = new(input.GameDirectory, resources: host.Resources, modelOverrides: host);
             GameSession restored = new(GameSession.Load(output));
+            NativeCrtRandomState? randomBeforeRestore = restored.State.CrtRandom;
             using GameWorld world = new(restored, input.GameDirectory, resources: host.Resources, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host);
             Assert.True(world.EnsureField());
+            Assert.Equal(randomBeforeRestore, restored.State.CrtRandom);
             Assert.Equal(frame + 1, world.Events.Frame);
-            Assert.True(JsonElement.DeepEquals(snapshot, world.Events.Capture()));
+            Assert.True(JsonElement.DeepEquals(WithoutPhysicalModelCaches(snapshot), WithoutPhysicalModelCaches(world.Events.Capture())));
             Assert.NotEmpty(world.Render(TimeSpan.Zero));
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
             Assert.Equal(frame + 2, world.Events.Frame);
@@ -289,6 +292,15 @@ public sealed class JunctionVisualInstalledTests
         }
         Assert.Equal(sourceHash, FileHash(source!));
         Evidence("logical-model-continuation.json", new { source, sourceHash, output, outputHash = FileHash(output), startFrame = frame, savedFrame = frame + 1, restoredFrame = frame + 1, continuedFrame = frame + 2, options = input.Cases[0].Options, enabledAndDisabledRestored = true, sourceUnchanged = true });
+    }
+
+    private static JsonElement WithoutPhysicalModelCaches(JsonElement snapshot)
+    {
+        JsonNode copy = JsonNode.Parse(snapshot.GetRawText())!;
+        JsonObject scene = copy["Scene"]!.AsObject();
+        scene.Remove("NativeFieldRegistration");
+        scene.Remove("NativeEyeProcess");
+        return JsonSerializer.SerializeToElement(copy);
     }
 
     private static string? BackgroundField(string path)
