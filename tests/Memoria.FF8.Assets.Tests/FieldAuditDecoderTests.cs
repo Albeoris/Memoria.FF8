@@ -22,6 +22,22 @@ public sealed class FieldAuditDecoderTests
         });
     }
 
+    [Fact]
+    public void JapaneseFieldBlankGlyphRemainsAValidCharacter()
+    {
+        DefaultJapaneseFieldCharacters provider = new();
+        Assert.Equal("様腹 ", provider.Get("tgview1").Characters);
+        Assert.Equal(new byte[] { 0x1C, 0x22 }, FF8Encoding.CreateJapanese(provider, "tgview1").GetBytes(" "));
+        FieldAuditDecodedBank bank = FieldAuditDecoder.Decode(Bank([0x1C, 0x22, 0]), "ja", "tgview1");
+        Assert.True(bank.Complete);
+        Assert.Equal(" {End}", Assert.Single(bank.Rows).Text);
+        Assert.NotNull(bank.CharacterTableSha256);
+
+        FieldAuditDecodedBank invalid = FieldAuditDecoder.Decode(Bank([0x1C, 0x23, 0]), "ja", "tgview1");
+        Assert.False(invalid.Complete);
+        Assert.NotNull(Assert.Single(invalid.Rows).Error);
+    }
+
     [Theory]
     [InlineData("unknown-field", 0x20)]
     [InlineData("start", 0xFF)]

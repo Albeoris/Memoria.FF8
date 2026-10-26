@@ -79,6 +79,82 @@ public sealed class FieldLocalizationNumberingTests
     }
 
     [Fact]
+    public void ExplicitInsertionAnchorsShareSlotsAcrossDifferentSourcePositionsWithoutMovingOrdinaryKeys()
+    {
+        FieldLocalizationNumberingInput[] ordinary = [
+            Input(6),
+            Input(8),
+            Input(6, language: "fr", englishOrdinals: [6]),
+            Input(8, language: "fr", englishOrdinals: [8]),
+            Input(6, language: "de", englishOrdinals: [6]),
+            Input(8, language: "de", englishOrdinals: [8])
+        ];
+        FieldLocalizationNumberingInput[] inputs = [
+            .. ordinary,
+            Input(7, true, "fr") with { InsertionGroup = "shared-resource", InsertionAnchorEnglishKey = "en_room_6" },
+            Input(9, true, "de") with { InsertionGroup = "shared-resource", InsertionAnchorEnglishKey = "en_room_6" },
+            Input(10, true, "de")
+        ];
+
+        IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate(inputs);
+        IReadOnlyList<FieldLocalizationNumberingEntry> reversed = FieldLocalizationNumbering.Allocate(inputs.Reverse().ToArray());
+
+        Assert.Equal(FieldLocalizationNumbering.Allocate(ordinary), entries.Take(ordinary.Length));
+        Assert.Equal(["$fr_room_000601", "$de_room_000601", "$de_room_000801"], entries.Skip(ordinary.Length).Select(entry => entry.NewKey));
+        Assert.Equal([7, 9, 10], entries.Skip(ordinary.Length).Select(entry => entry.SourceOrdinal));
+        Assert.All(inputs.Skip(ordinary.Length), input => Assert.Empty(input.EnglishKeys ?? []));
+        Assert.Equal(entries.OrderBy(entry => entry.OldKey), reversed.OrderBy(entry => entry.OldKey));
+    }
+
+    [Fact]
+    public void ExplicitInsertionAnchorsCannotMakeGroupsJoinDifferentComponents()
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6),
+            Input(8),
+            Input(7, true, "fr") with { InsertionGroup = "shared-resource", InsertionAnchorEnglishKey = "en_room_6" },
+            Input(9, true, "de") with { InsertionGroup = "shared-resource", InsertionAnchorEnglishKey = "en_room_8" }
+        ]));
+    }
+
+    [Fact]
+    public void InvalidInsertionAnchorReferencesAndOrdinaryKeyAnchorsAreRejected()
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(7, true, "fr") with { InsertionAnchorEnglishKey = "en_room_6" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6, field: "other"),
+            Input(7, true, "fr") with { InsertionAnchorEnglishKey = "en_other_6" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6, language: "de"),
+            Input(7, true, "fr") with { InsertionAnchorEnglishKey = "de_room_6" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6) with { InsertionAnchorEnglishKey = "en_room_6" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6),
+            Input(7, language: "fr", englishOrdinals: [6]) with { InsertionAnchorEnglishKey = "en_room_6" }
+        ]));
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(6),
+            Input(7, true, "fr", englishOrdinals: [6]) with { InsertionAnchorEnglishKey = "en_room_6" }
+        ]));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void EmptyInsertionAnchorKeysAreRejected(string anchor)
+    {
+        Assert.Throws<ArgumentException>(() => FieldLocalizationNumbering.Allocate([
+            Input(0, true, "fr") with { InsertionAnchorEnglishKey = anchor }
+        ]));
+    }
+
+    [Fact]
     public void DistinctGroupsAndUngroupedExtrasHaveDeterministicSeparateSlots()
     {
         FieldLocalizationNumberingInput[] inputs = [

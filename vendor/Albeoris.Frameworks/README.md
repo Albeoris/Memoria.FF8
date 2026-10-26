@@ -10,6 +10,8 @@ This directory contains only the source and embedded resources needed by Memoria
 
 The imported source preserves these changes relative to that revision:
 
+- `Albeoris.Games.FF8.TextEncoding/Resources/japanese.field-characters.json`: retains the declared blank third glyph in `tgview1` as an explicit space, rather than dropping the trailing blank entry.
+
 - `Albeoris.Games.FF8.Imaging/PixelImage.cs`: accepts image dimensions up to 16384 for wide native texture sheets while retaining the previous maximum total allocation of 64 million pixels.
 
 - `Albeoris.Games.FF8.TextEncoding.Abstractions/Tags/TextTagKey.cs`: imports the semantic junction, ability and element icon keys from upstream commit `39f302eaea422236342d00c748af45ed1f85f4cc`.

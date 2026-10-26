@@ -137,7 +137,8 @@ internal static class RenumberFieldMapping
                     row[kindColumn] = "ContextualTranslation";
                 }
                 string? insertionGroup = columns.TryGetValue(language + " Insertion Group", out int insertionGroupColumn) && row[insertionGroupColumn].Length != 0 ? row[insertionGroupColumn] : null;
-                inputs.Add(new(key, language, field, ordinal, languageOnly, englishReferences, insertionGroup));
+                string? insertionAnchor = columns.TryGetValue(language + " Insertion Anchor English Key", out int insertionAnchorColumn) && row[insertionAnchorColumn].Length != 0 ? row[insertionAnchorColumn] : null;
+                inputs.Add(new(key, language, field, ordinal, languageOnly, englishReferences, insertionGroup, insertionAnchor));
             }
         }
         IReadOnlyList<FieldLocalizationNumberingEntry> entries = FieldLocalizationNumbering.Allocate(inputs);
@@ -167,7 +168,7 @@ internal static class RenumberFieldMapping
                     row[index] = entry.NewKey;
                     row[sourceMetadata ? columns[Languages[index] + " Source Ordinal"] : header.Length + index] = entry.SourceOrdinal.ToString(CultureInfo.InvariantCulture);
                 }
-                foreach (string referenceKind in new[] { " English Keys", " English Candidates" })
+                foreach (string referenceKind in new[] { " English Keys", " English Candidates", " Insertion Anchor English Key" })
                 {
                     if (columns.TryGetValue(Languages[index] + referenceKind, out int referencesColumn) && source[referencesColumn].Length != 0)
                     {
@@ -223,7 +224,7 @@ internal static class RenumberFieldMapping
         summary.AppendLine("# Localization key numbering").AppendLine();
         summary.AppendLine($"[mapping.csv](mapping.csv) contains {transformed.Count - 1} records and {entries.Count} unique keys. [key-map.csv](key-map.csv) records every original key, new key, source ordinal, anchor and insertion number.").AppendLine();
         summary.AppendLine($"Corresponding script messages share the same English slot even when their localized wording has a different meaning. {inputs.Count(inputKey => inputKey.IsLanguageOnly)} explicitly unmatched inventory keys use additional slots. Explicit Insertion Group metadata shares one suffix across corresponding non-English inventory entries. Wording alone cannot establish an extra message or defeat an established event correspondence. Source ordinals remain metadata.").AppendLine();
-        summary.AppendLine("Many-to-many correspondence components share their earliest English base. Duplicate identities retain distinct suffix slots; references and statuses are preserved. Technical uncertainty alone does not prove a semantic counterpart. More than 99 additional slots per base is rejected; no digits are truncated.").AppendLine();
+        summary.AppendLine("Explicit Insertion Anchor English Key metadata can retain a shared insertion base when corresponding resources occur at different source positions. Many-to-many correspondence components share their earliest English base. Duplicate identities retain distinct suffix slots; references and statuses are preserved. Technical uncertainty alone does not prove a semantic counterpart. More than 99 additional slots per base is rejected; no digits are truncated.").AppendLine();
         summary.AppendLine("| Original key | New key | Source ordinal | Anchor | Insertion |");
         summary.AppendLine("| --- | --- | ---: | ---: | ---: |");
         foreach (FieldLocalizationNumberingEntry entry in entries.Where(entry => entry.Insertion != 0).Take(12))

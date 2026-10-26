@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Assets.Localization;
 
-public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly, IReadOnlyList<string>? EnglishKeys = null, string? InsertionGroup = null);
+public sealed record FieldLocalizationNumberingInput(string Key, string Language, string Field, int Ordinal, bool IsLanguageOnly, IReadOnlyList<string>? EnglishKeys = null, string? InsertionGroup = null, string? InsertionAnchorEnglishKey = null);
 
 public sealed record FieldLocalizationNumberingEntry(string OldKey, string NewKey, string Language, string Field, int SourceOrdinal, int AnchorOrdinal, int Insertion);
 
@@ -44,6 +44,10 @@ public static class FieldLocalizationNumbering
             if (input.InsertionGroup is not null && (string.IsNullOrWhiteSpace(input.InsertionGroup) || !input.IsLanguageOnly))
             {
                 throw new ArgumentException("Insertion groups must be nonempty and may only classify language-only keys.", nameof(inputs));
+            }
+            if (input.InsertionAnchorEnglishKey is not null && (string.IsNullOrWhiteSpace(input.InsertionAnchorEnglishKey) || !input.IsLanguageOnly))
+            {
+                throw new ArgumentException("Insertion anchors must be nonempty and may only anchor language-only keys.", nameof(inputs));
             }
             languages[index] = language;
             if (language == "en")
@@ -95,7 +99,18 @@ public static class FieldLocalizationNumbering
             {
                 if (inputs[index].IsLanguageOnly)
                 {
-                    components.Join(index, preceding >= 0 ? preceding : GetVirtualAnchor(inputs[index].Field, 0));
+                    if (inputs[index].InsertionAnchorEnglishKey is string anchorKey)
+                    {
+                        if (!keys.TryGetValue(anchorKey, out int english) || languages[english] != "en" || inputs[english].Field != inputs[index].Field)
+                        {
+                            throw new ArgumentException("Insertion anchors must name existing English keys in the same field.", nameof(inputs));
+                        }
+                        components.Join(index, english);
+                    }
+                    else
+                    {
+                        components.Join(index, preceding >= 0 ? preceding : GetVirtualAnchor(inputs[index].Field, 0));
+                    }
                 }
                 else
                 {
@@ -118,7 +133,7 @@ public static class FieldLocalizationNumbering
             }
             if (members.Count > 0 && (inputs[members[0]].Field != inputs[index].Field || components.Find(members[0]) != components.Find(index)))
             {
-                throw new ArgumentException("Insertion group members must share a field and preceding common component.", nameof(inputs));
+                throw new ArgumentException("Insertion group members must share a field and common anchor component.", nameof(inputs));
             }
             if (members.Any(member => languages[member] == languages[index]))
             {
