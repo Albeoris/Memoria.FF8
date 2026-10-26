@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -23,7 +22,7 @@ public sealed partial class BattleSession
                 if (restore)
                 {
                     NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native linked anchor requires its current decoded pose owner.");
-                    publication = new(Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan())), NativeBattlePoseMatrices.StageBoneMatrices(source, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, source)));
+                    publication = new(NativeBattleBodyBoneMatrices.Identity(source), NativeBattlePoseMatrices.StageBoneMatrices(source, NativeBattlePoseMatrices.ReadLinkedDecodedPose(sequence, source)));
                     actor = actor with { CurrentLinkedBoneMatrices = publication };
                 }
                 else
@@ -39,11 +38,7 @@ public sealed partial class BattleSession
                 }
                 publication = actor.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native actor anchor requires its actual current matrix publication.");
             }
-            publication.Validate();
-            if (!StringComparer.OrdinalIgnoreCase.Equals(publication.SkeletonSha256, Convert.ToHexString(SHA256.HashData(source.Skeleton.AsSpan()))) || publication.Matrices.Length != source.BoneCount)
-            {
-                throw new InvalidDataException("Native actor anchor matrix publication belongs to a different rig.");
-            }
+            NativeBattleBodyBoneMatrices.RequirePublication(publication, source);
             graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
             return new NativeBattleCinematicBonePose(current, source.Skeleton, publication.Matrices, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor anchor requires the caller's actual world matrix."));
         }, update, (current, address) =>

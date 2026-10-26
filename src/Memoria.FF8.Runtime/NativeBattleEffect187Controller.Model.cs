@@ -80,17 +80,46 @@ public static partial class NativeBattleEffect187Controller
 
     public static NativeBattleEffect187PointStep ReadOwnedBone502170(NativeBattleEffect187Frame frame, NativeBattleEffect187Resources resources, int bone, int fraction, NativeBattleEffectArena retained)
     {
-        if ((uint)bone >= resources.OwnedModel.PoseSource.BoneCount || fraction < short.MinValue || fraction > short.MaxValue)
+        if ((uint)bone > byte.MaxValue || fraction < short.MinValue || fraction > short.MaxValue)
         {
             throw new InvalidDataException("Effect187 owned bone query leaves its actual skeleton.");
         }
         NativeBattleCactuarRawModelState model = RequireModel(frame);
         uint skeleton = checked((model.WorkingBase ?? throw new NotSupportedException("Effect187 bone query requires its actual working model.")) + (uint)resources.OwnedModel.Section(0));
+        if (bone >= 240)
+        {
+            if (BinaryPrimitives.ReadUInt16LittleEndian(model.Model.AsSpan(4, 2)) == 0x8F)
+            {
+                if (resources.OwnedModel.PoseSource.Model8FBoneAliases.IsDefaultOrEmpty)
+                {
+                    throw new NotSupportedException("Effect187 model8F bone selectors require their actual source aliases.");
+                }
+                bone = resources.OwnedModel.PoseSource.Model8FBoneAliases[bone - 240];
+            }
+            else
+            {
+                int offset = bone - 236;
+                if (offset >= 16)
+                {
+                    throw new NotSupportedException("Effect187 bone selector exceeds its current skeleton header.");
+                }
+                bone = ReadBytes(frame, checked(skeleton + (uint)offset), 1).Read(0, 1)[0];
+            }
+            if ((bone & 0x80) != 0)
+            {
+                fraction = 4096;
+                bone &= 0x7F;
+            }
+        }
+        if ((uint)bone >= resources.OwnedModel.PoseSource.BoneCount)
+        {
+            throw new InvalidDataException("Effect187 bone alias leaves its actual skeleton.");
+        }
         uint record = checked(skeleton + 16u + (uint)(bone * 48));
         short parent = BinaryPrimitives.ReadInt16LittleEndian(ReadBytes(frame, record, 2).Read(0, 2));
         short length = BinaryPrimitives.ReadInt16LittleEndian(ReadBytes(frame, record + 2, 2).Read(0, 2));
         short distance = unchecked((short)(parent < 0 ? 0 : fraction * length >> 12));
-        NativeBattlePackedMatrix32 matrix = ReadPacked(frame, record + 16);
+        NativeBattlePackedMatrix32 matrix = NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(ReadPacked(frame, NativeBattleEffect187Model.Address + 0x40).ReadMatrix(), ReadPacked(frame, record + 16).ReadMatrix()), null);
         (frame, uint temporary) = Allocate(frame, 52);
         NativeBattleEffectArena context = Context(frame, temporary, 52);
         context = CopyBytes(PackedArena(matrix), 0, context, 0, 32).MarkUnknown(18, 2);

@@ -5,6 +5,12 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect218Controller
 {
+    public static NativeBattleVector PreviousCameraEye6338B0(NativeBattleEffect218Frame frame)
+    {
+        NativeBattleCameraPoint point = frame.Memory.GuardianCameraProcess?.PreviousPose?.Eye ?? throw new NotSupportedException("Effect218 flare requires its actual retained previous camera eye.");
+        return new(point.X, point.Y, point.Z);
+    }
+
     public static (NativeBattleEffect218Frame Frame, int Result) AdvanceFlare6338B0(NativeBattleEffect218Frame frame, uint address, uint graphicsFlags, NativeBattleEffect218Resources resources, NativeBattlePackedMatrix32 currentView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<NativeBattleEffect218Frame, uint, byte, short, NativeBattleEffect218PointStep> readBone502170, Func<NativeBattleEffect218Frame, NativeBattleGfGeometryBatch, NativeBattleEffect218Frame> deliver)
     {
         uint target = ModelAddress(checked((int)frame.State.ReadDword(TargetGlobal)));
@@ -12,7 +18,7 @@ public static partial class NativeBattleEffect218Controller
         frame = sampled.Frame;
         NativeBattleModulePoolTask task = Read(frame, address).WriteWord(16, unchecked((ushort)sampled.Point.X)).WriteWord(18, unchecked((ushort)sampled.Point.Y)).WriteWord(20, unchecked((ushort)sampled.Point.Z));
         frame = Write(frame, address, task);
-        NativeBattleVector anchor = new(Word(frame, NativeBattleEffect218State.FlareAnchorAddress), Word(frame, NativeBattleEffect218State.FlareAnchorAddress + 2), Word(frame, NativeBattleEffect218State.FlareAnchorAddress + 4));
+        NativeBattleVector anchor = PreviousCameraEye6338B0(frame);
         var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(anchor.X - sampled.Point.X, anchor.Y - sampled.Point.Y, anchor.Z - sampled.Point.Z);
         ReadOnlySpan<byte> up = resources.UpVector.AsSpan();
         NativeBattleModuleAxisAngle angle = NativeBattleModuleAlignment.Between571480(BinaryPrimitives.ReadInt32LittleEndian(up), BinaryPrimitives.ReadInt32LittleEndian(up[4..]), BinaryPrimitives.ReadInt32LittleEndian(up[8..]), direction.X, direction.Y, direction.Z);

@@ -995,6 +995,24 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Effect303Resources = ReadNativeEffect303Resources() };
             }
+            if (binding.Effect == 218)
+            {
+                if (binding.Entry != NativeBattleEffect218Profile.Entry || binding.Initializer != NativeBattleEffect218Profile.Initializer || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect218 requires its original entry and empty initializer contract.");
+                }
+                binding = binding with { Effect218Resources = ReadNativeEffect218Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Effect == 187)
+            {
+                if (binding.Entry != NativeBattleEffect187Profile.Entry || binding.Initializer != NativeBattleEffect187Profile.Initializer || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect187 requires its original entry and empty initializer contract.");
+                }
+                binding = binding with { Effect187Resources = ReadNativeEffect187Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect is 271 or 272)
             {
                 uint entry = binding.Effect == 271 ? 0x68F550u : 0x68DC70u;

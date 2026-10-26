@@ -3,28 +3,31 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect218State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleEffectArena ParticleGlobals, [property: JsonRequired] NativeBattleEffectArena FlareAnchor)
+public sealed record NativeBattleEffect218State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] NativeBattleEffectArena ParticleGlobals)
 {
     public const uint GlobalsAddress = 0x24F2340;
     public const int GlobalsLength = 0x12D8;
     public const uint ParticleGlobalsAddress = 0xE257E0;
     public const uint EmbeddedSkeletonAddress = 0xF1DD6C;
     public const int EmbeddedSkeletonLength = 0x70;
-    public const uint FlareAnchorAddress = 0x24FD358;
+    public const uint CaptureQuadAddress = 0xE25AD8;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleEffectArena? CaptureQuad { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectArena? EmbeddedSkeleton { get; init; }
 
     public bool ColdSourcePending { get; init; }
 
-    public static NativeBattleEffect218State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear().MarkUnknown(0, 12), NativeBattleEffectArena.Clear()) { ColdSourcePending = true };
+    public static NativeBattleEffect218State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear().MarkUnknown(0, 12)) { ColdSourcePending = true };
 
-    public static NativeBattleEffect218State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, GlobalsLength), NativeBattleEffectArena.Clear().MarkUnknown(0, 12), NativeBattleEffectArena.Clear().MarkUnknown(0, 6));
+    public static NativeBattleEffect218State FromUnknown() => new(NativeBattleEffectArena.Clear().MarkUnknown(0, GlobalsLength), NativeBattleEffectArena.Clear().MarkUnknown(0, 12));
 
     public NativeBattleEffect218State InitializeSource(NativeBattleEffect218Resources resources)
     {
         Validate();
-        if (EmbeddedSkeleton is not null)
+        if (EmbeddedSkeleton is not null && CaptureQuad is not null)
         {
             return this;
         }
@@ -33,21 +36,24 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
             throw new NotSupportedException("Effect218 requires its current embedded skeleton or an explicit original cold process source.");
         }
         resources.Validate();
-        return this with { EmbeddedSkeleton = NativeBattleEffectArena.Clear().Write(0, resources.EmbeddedModel.PoseSource.Skeleton.AsSpan()), ColdSourcePending = false };
+        return this with { EmbeddedSkeleton = NativeBattleEffectArena.Clear().Write(0, resources.EmbeddedModel.PoseSource.Skeleton.AsSpan()), CaptureQuad = NativeBattleEffectArena.Clear().Write(0, resources.CaptureClearQuad.AsSpan()), ColdSourcePending = false };
     }
 
     public void Validate()
     {
-        if (ColdSourcePending && EmbeddedSkeleton is not null)
+        if (ColdSourcePending && (EmbeddedSkeleton is not null || CaptureQuad is not null))
         {
             throw new InvalidDataException("Effect218 cold source cannot replace a current embedded skeleton.");
         }
         Require(Globals, GlobalsLength);
         Require(ParticleGlobals, 12);
-        Require(FlareAnchor, 6);
         if (EmbeddedSkeleton is not null)
         {
             Require(EmbeddedSkeleton, EmbeddedSkeletonLength);
+        }
+        if (CaptureQuad is not null)
+        {
+            Require(CaptureQuad, 24);
         }
     }
 
@@ -73,7 +79,7 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
             0 => this with { Globals = storage },
             1 => this with { ParticleGlobals = storage },
             2 => this with { EmbeddedSkeleton = storage },
-            3 => this with { FlareAnchor = storage },
+            3 => this with { CaptureQuad = storage },
             _ => throw new InvalidDataException("Effect218 memory has an unsupported physical owner.")
         };
     }
@@ -96,9 +102,9 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
         {
             return (EmbeddedSkeleton ?? throw new NotSupportedException("Effect218 embedded skeleton has no current source."), checked((int)(address - EmbeddedSkeletonAddress)), 2);
         }
-        if (address >= FlareAnchorAddress && (ulong)address + (uint)length <= (ulong)FlareAnchorAddress + 6)
+        if (address >= CaptureQuadAddress && (ulong)address + (uint)length <= (ulong)CaptureQuadAddress + 24)
         {
-            return (FlareAnchor, checked((int)(address - FlareAnchorAddress)), 3);
+            return (CaptureQuad ?? throw new NotSupportedException("Effect218 capture quad has no current retained source."), checked((int)(address - CaptureQuadAddress)), 3);
         }
         throw new InvalidDataException("Effect218 memory access leaves its actual retained physical owners.");
     }

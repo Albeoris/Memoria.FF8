@@ -89,14 +89,14 @@ public static partial class NativeBattleEffect218Controller
                 break;
             case 152:
                 frame = inputs.Execute(frame, new NativeBattleEffect218QueueFile508480(709, 0x209FAB8));
-                frame = inputs.Execute(frame, new NativeBattleEffect218TargetSequence4876F0(target, 0, 45));
+                frame = inputs.Execute(frame, new NativeBattleEffect218Text4876F0(target, 0, 45));
                 break;
             case 162:
                 frame = inputs.Execute(frame, new NativeBattleEffect218LoadStream501860(0x209FAB8, 0x24F2344));
                 break;
             case 217:
             case 282:
-                frame = inputs.Execute(frame, new NativeBattleEffect218TargetSequence4876F0(target, age == 217 ? (ushort)1 : (ushort)2, 45));
+                frame = inputs.Execute(frame, new NativeBattleEffect218Text4876F0(target, age == 217 ? (ushort)1 : (ushort)2, 45));
                 frame = frame with { State = frame.State.WriteByte(StreamedModelAddress, (byte)(frame.State.ReadByte(StreamedModelAddress) | 8)) };
                 break;
             case 262:
@@ -105,7 +105,7 @@ public static partial class NativeBattleEffect218Controller
                 frame = Word(frame, StreamedModelAddress, frame.State.ReadWord(StreamedModelAddress) & 0xFFF7);
                 break;
             case 347:
-                frame = inputs.Execute(frame, new NativeBattleEffect218TargetSequence4876F0(target, 3, 15));
+                frame = inputs.Execute(frame, new NativeBattleEffect218Text4876F0(target, 3, 15));
                 break;
             case 366:
                 frame = inputs.Execute(frame, new NativeBattleEffect218Sound501330(0xE257D4));
@@ -117,10 +117,10 @@ public static partial class NativeBattleEffect218Controller
                 break;
             case 401:
                 (frame, _) = AppendMain632E30(frame, 0x6338B0);
-                frame = inputs.Execute(frame, new NativeBattleEffect218TargetSequence4876F0(target, 5, 20));
+                frame = inputs.Execute(frame, new NativeBattleEffect218Text4876F0(target, 5, 20));
                 break;
             case 504:
-                frame = inputs.Execute(frame, new NativeBattleEffect218TargetSequence4876F0(target, 6, 45));
+                frame = inputs.Execute(frame, new NativeBattleEffect218Text4876F0(target, 6, 45));
                 break;
             case 559:
                 frame = inputs.Execute(frame, new NativeBattleEffect218Sound501330(0xE257D8));

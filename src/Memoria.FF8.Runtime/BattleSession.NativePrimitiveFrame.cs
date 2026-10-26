@@ -462,6 +462,10 @@ public sealed partial class BattleSession
             }
             return (memory.FullscreenOverlay ?? throw new NotSupportedException("Native fullscreen packet alias requires its retained static bytes.")).Read(reference.ByteOffset, count);
         }
+        if (reference.Bank is NativeBattleEffect218StaticPackets.GlobalsBank or NativeBattleEffect218StaticPackets.QuadBank)
+        {
+            return NativeBattleEffect218StaticPackets.Read(memory.Effect218 ?? throw new NotSupportedException("Effect218 static packet alias requires its retained physical bytes."), reference, count);
+        }
         if (reference.Bank == NativeBattleGroundCaptureMemory.PacketBank)
         {
             if (reference.Buffer != 0)

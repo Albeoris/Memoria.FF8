@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -203,7 +203,7 @@ public static partial class NativeBattleWendigoController
             current = current with { Random = random };
             return value;
         }
-        private NativeBattleVector Bone(int actor, byte bone, short fraction = 0) => NativeBattlePoseMatrices.ReadBone(inputs.ReadModel(actor), inputs.ReadPoseSource(actor), bone, fraction);
+        private NativeBattleVector Bone(int actor, byte bone, short fraction = 0) => NativeBattlePoseMatrices.ReadBoneLazy(inputs.ReadModel(actor), () => inputs.ReadPoseSource(actor), bone, fraction);
         private NativeBattleVector Position(uint address) => new(Word(address), Word(address + 2), Word(address + 4));
         private void Position(uint address, NativeBattleVector position)
         {

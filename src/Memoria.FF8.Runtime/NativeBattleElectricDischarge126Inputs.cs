@@ -3,6 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleElectricDischarge126Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleElectricDischarge126State State)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    public uint? BoneDirectionWord { get; init; }
 }
 
 public sealed record NativeBattleElectricDischarge126PointStep(NativeBattleElectricDischarge126Frame Frame, NativeBattleVector Position);

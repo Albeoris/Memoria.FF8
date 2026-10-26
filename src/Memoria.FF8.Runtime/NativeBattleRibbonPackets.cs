@@ -14,14 +14,14 @@ public sealed record NativeBattleRibbonPacketPolicy(NativeBattleRibbonWidthPolic
 
 public static class NativeBattleRibbonPackets
 {
-    public static (NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy)
+    public static (NativeBattleEffectArena Arena, NativeBattleGfGeometryBatch Batch) Draw(NativeBattleEffectArena arena, uint headAddress, short count, NativeBattleRibbonBank bank, ImmutableArray<byte> distances, NativeBattleRibbonPacketPolicy policy, uint? incomingDirectionWord = null)
     {
         if (count < 2 || count > bank.PointCount || bank.PointCount > short.MaxValue || bank.PointCount <= 0 || bank.Address == 0 || bank.ArenaOffset < 0 || bank.ArenaOffset > NativeBattleEffectArena.Length - checked(bank.PointCount * 40) || (ulong)bank.Address + (uint)bank.PointCount * 40 > (ulong)uint.MaxValue + 1 || policy.DepthShift > 31 || policy.Width is not (NativeBattleRibbonWidthPolicy.Projected or NativeBattleRibbonWidthPolicy.Anchored))
         {
             throw new InvalidDataException("The ribbon drawing requires its actual linked point count.");
         }
-        short? previousX = null;
-        short? previousY = null;
+        short? previousX = incomingDirectionWord is uint incomingX ? unchecked((short)incomingX) : null;
+        short? previousY = incomingDirectionWord is uint incomingY ? unchecked((short)(incomingY >> 16)) : null;
         uint current = headAddress;
         uint next = Next(arena, current, bank);
         arena = Edge(arena, current, next, false, ref previousX, ref previousY, bank, distances, policy.Width);

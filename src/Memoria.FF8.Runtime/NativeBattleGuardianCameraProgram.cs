@@ -169,6 +169,13 @@ public static partial class NativeBattleGuardianCameraProgram
                     case 8:
                         roll = unchecked((short)(ReadWord() * process.Sign));
                         break;
+                    case 9:
+                    {
+                        short duration = ReadScalar();
+                        int target = unchecked((short)ReadWord()) * process.Sign;
+                        selected = selected with { Remaining = unchecked((ushort)duration), Accumulator = unchecked(target - roll), Step = duration, Curve = roll };
+                        break;
+                    }
                     case 10:
                     {
                         NativeBattleCameraPoint point = eye ? pose.Eye : pose.Target;
@@ -182,8 +189,8 @@ public static partial class NativeBattleGuardianCameraProgram
                 }
                 process = eye ? process with { Eye = selected } : process with { Target = selected };
             }
-            process = process with { Eye = Update(process.Eye, process.Target, ref temporary) };
-            process = process with { Target = Update(process.Target, process.Eye, ref temporary) };
+            process = process with { Eye = Update(process.Eye, process.Target, ref temporary, ref roll) };
+            process = process with { Target = Update(process.Target, process.Eye, ref temporary, ref roll) };
         }
         NativeBattleCameraPose published = new(World(process.Eye.Current, 0), World(process.Target.Current, 8), focal, roll);
         process = process with { PreviousPose = pose };
@@ -232,7 +239,7 @@ public static partial class NativeBattleGuardianCameraProgram
         }
     }
 
-    private static NativeBattleGuardianCameraBank Update(NativeBattleGuardianCameraBank bank, NativeBattleGuardianCameraBank other, ref NativeBattleEffectArena? temporary)
+    private static NativeBattleGuardianCameraBank Update(NativeBattleGuardianCameraBank bank, NativeBattleGuardianCameraBank other, ref NativeBattleEffectArena? temporary, ref short roll)
     {
         switch (bank.Opcode)
         {
@@ -283,8 +290,13 @@ public static partial class NativeBattleGuardianCameraProgram
                 bank = bank with { Origin = origin, Accumulator = distance, Current = Subtract(other.Current, ScaleQ12(direction, distance)) };
                 break;
             }
-            case 7:
             case 9:
+            {
+                int progress = unchecked(bank.Step - unchecked((short)bank.Remaining) + 1);
+                roll = unchecked((short)(bank.Curve + Divide(unchecked(progress * bank.Accumulator), bank.Step)));
+                break;
+            }
+            case 7:
                 throw new NotSupportedException($"Native63E9C0 retained opcode{bank.Opcode} requires its original animation contract.");
         }
         return bank with { Remaining = unchecked((ushort)(bank.Remaining - 1)) };

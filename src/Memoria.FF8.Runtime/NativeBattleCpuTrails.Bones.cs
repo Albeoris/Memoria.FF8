@@ -92,6 +92,8 @@ public static partial class NativeBattleCpuTrails
 
     public static NativeBattleCpuTrailTaskStep AdvanceBoneTrail(NativeBattleCpuTrailFrame frame, uint address, NativeBattleCpuTrailLayout layout, Func<uint, short> readPath, Func<NativeBattleCpuTrailFrame, NativeBattleResourceRowReference, uint, short, NativeBattleCpuTrailFrame> draw)
     {
+        frame = frame with { BoneDirectionWord = null };
+        uint? edi = null;
         NativeBattleModulePoolTask task = Read(frame, address);
         if (task.Callback != layout.BoneCallback)
         {
@@ -110,7 +112,9 @@ public static partial class NativeBattleCpuTrails
             {
                 continue;
             }
+            edi ??= ReadPreviousSurvivor508420(frame.Effect.Pools[layout.BonePoolIndex], address);
             short bone = readPath(path);
+            edi = (edi.Value & 0xFFFF0000u) | unchecked((ushort)bone);
             path = unchecked(path + 2);
             frame = Write(frame, address, task.WriteDword(24, path));
             while (bone < 0)
@@ -120,6 +124,7 @@ public static partial class NativeBattleCpuTrails
                 task = Read(frame, address);
                 path = unchecked(task.ReadDword(24) + (uint)((-1 - bone) * 2));
                 bone = readPath(path);
+                edi = (path & 0xFFFF0000u) | unchecked((ushort)bone);
                 path = unchecked(path + 2);
                 frame = Write(frame, address, task.WriteDword(24, path));
             }
@@ -151,6 +156,7 @@ public static partial class NativeBattleCpuTrails
             {
                 return new(ReleaseBoneChain(frame, layout, Read(frame, address).ReadDword(28)), 2);
             }
+            frame = frame with { BoneDirectionWord = edi };
             task = Read(frame, address);
             uint tail = task.ReadDword(32);
             _ = BonePointOffset(frame, layout, tail);
@@ -234,6 +240,26 @@ public static partial class NativeBattleCpuTrails
             throw new InvalidDataException("Native CPU bone point leaves its retained record bank.");
         }
         return Offset(address, 40);
+    }
+
+    private static uint ReadPreviousSurvivor508420(NativeBattleEffectTaskPool pool, uint address)
+    {
+        uint previous = 0;
+        int visited = 0;
+        for (int? next = pool.Head; next is int slot; next = pool.Slots[slot].Next)
+        {
+            if ((uint)slot >= pool.Slots.Length || visited++ >= pool.Slots.Length)
+            {
+                throw new InvalidDataException("Native bone callback requires its bounded current task chain.");
+            }
+            uint current = checked(pool.BankAddress + (uint)(slot * pool.Stride));
+            if (current == address)
+            {
+                return previous;
+            }
+            previous = current;
+        }
+        throw new InvalidDataException("Native bone callback is absent from its current task traversal.");
     }
 
     private static short BoneReadWord(NativeBattleCpuTrailFrame frame, uint address) => BinaryPrimitives.ReadInt16LittleEndian(Arena(frame).Read(Offset(address, 2), 2));

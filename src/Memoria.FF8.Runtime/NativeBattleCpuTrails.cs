@@ -3,6 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleCpuTrailFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    public uint? BoneDirectionWord { get; init; }
 }
 
 public sealed record NativeBattleCpuTrailLayout(uint WorldBankAddress, uint WorldFreePointerAddress, uint BoneBankAddress, uint BoneFreePointerAddress, int PointCount, int WorldPoolIndex, uint WorldCallback, int BonePoolIndex, uint BoneCallback);

@@ -24,6 +24,38 @@ public sealed class NativeExecutionStackSelectionTests : IDisposable
     }
 
     [Fact]
+    public void Explicit_verified_CRT_selection_reaches_the_same_cold_process_and_survives_roundtrip()
+    {
+        NativeBattleExecutionStack original = Profile();
+        NativeBattleExecutionStack profile = original with { HeroCrtStack = new(NativeBattleHeroCrtStackContract.Win32X86Profile, original.CaptureSha256, original.CapturedThreadId) };
+        string path = Path.Combine(directory, "verified-crt.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(profile));
+        NativeBattleRetainedMemory memory = NativeExecutionStackSelection.Apply(NativeBattleRetainedMemory.FromColdProcess(), NativeExecutionStackSelection.Read(path));
+        Assert.Equal(profile.HeroCrtStack, memory.EffectMemory!.HeroCrtStack);
+        Assert.Equal(profile, memory.EffectMemory.ExecutionStack);
+        NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(memory))!;
+        Assert.Equal(profile.HeroCrtStack, restored.EffectMemory!.HeroCrtStack);
+        restored.EffectMemory.HeroCrtStack!.Validate(restored.EffectMemory.ExecutionStack!);
+        GameSession session = new(new GameState { NativeBattleMemory = restored });
+        session.StartNewGame();
+        Assert.Equal(profile.HeroCrtStack, session.State.NativeBattleMemory!.EffectMemory!.HeroCrtStack);
+        Assert.Equal(profile, session.State.NativeBattleMemory.EffectMemory.ExecutionStack);
+    }
+
+    [Fact]
+    public void External_CRT_selection_rejects_another_capture_and_legacy_selection_keeps_it_unknown()
+    {
+        NativeBattleExecutionStack original = Profile();
+        NativeBattleExecutionStack invalid = original with { HeroCrtStack = new(NativeBattleHeroCrtStackContract.Win32X86Profile, new string('B', 64), original.CapturedThreadId) };
+        Assert.Throws<NotSupportedException>(() => NativeExecutionStackSelection.Apply(NativeBattleRetainedMemory.FromColdProcess(), invalid));
+        string path = Path.Combine(directory, "invalid-crt.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(invalid));
+        Assert.Throws<NotSupportedException>(() => NativeExecutionStackSelection.Read(path));
+        NativeBattleRetainedMemory legacy = NativeExecutionStackSelection.Apply(NativeBattleRetainedMemory.FromColdProcess(), original);
+        Assert.Null(legacy.EffectMemory!.HeroCrtStack);
+    }
+
+    [Fact]
     public void Selected_file_requires_valid_native_identity_and_all_capture_fields()
     {
         NativeBattleExecutionStack profile = Profile();

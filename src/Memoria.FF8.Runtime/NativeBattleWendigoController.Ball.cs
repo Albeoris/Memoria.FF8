@@ -44,7 +44,7 @@ public static partial class NativeBattleWendigoController
         private void Pivot(int actor)
         {
             NativeBattleGraphicsModel local = Model(actor) with { Transform = Transform(actor) with { Position28 = new(0, 0, 0) }, GeometryWorldMatrix = Identity() };
-            Position(Ball + 0x74, NativeBattlePoseMatrices.ReadBone(local, inputs.ReadPoseSource(actor), Word(Ball + (shoot ? 0xD4u : 0xB4u)) == 1 ? (byte)0xF0 : (byte)0xF1, 0));
+            Position(Ball + 0x74, NativeBattlePoseMatrices.ReadBoneLazy(local, () => inputs.ReadPoseSource(actor), Word(Ball + (shoot ? 0xD4u : 0xB4u)) == 1 ? (byte)0xF0 : (byte)0xF1, 0));
         }
         private void Radii(uint address)
         {

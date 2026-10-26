@@ -226,6 +226,7 @@ public static partial class NativeBattleEffect187Controller
 
     public static NativeBattleEffect187Frame ClearDwords6DA380(NativeBattleEffect187Frame frame, uint address, int count) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, new byte[checked(count * 4)]), checked(count * 4));
     public static NativeBattleEffect187Frame WriteCompletionByte(NativeBattleEffect187Frame frame, uint address, byte value) => WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, [value]), 1);
+
     public static NativeBattleFileStaging RequireStaging(NativeBattleEffect187Frame frame) => frame.Staging ?? throw new NotSupportedException("Effect187 requires its current temporary memory.");
     public static (NativeBattleEffect187Frame Frame, uint Address) Allocate(NativeBattleEffect187Frame frame, int length)
     {

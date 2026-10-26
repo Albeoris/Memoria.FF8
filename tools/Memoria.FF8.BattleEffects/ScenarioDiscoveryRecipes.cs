@@ -114,6 +114,11 @@ public static partial class ScenarioDiscovery
             blocker = "ENEMY_TRIGGER_OR_TARGET_PRECONDITION: no actual turn-callback dispatch for this exact row/band/sequence has a proved self/party/group target selector. Counter/death/initialization-only, dynamic target and last-attacker paths require their original trigger recipe.";
             return false;
         }
+        byte[]? shootParty = null;
+        if (native.MagicId == 42 && !TrySelectShootParty(initial.Records, initial.CombatParty, out shootParty, out blocker))
+        {
+            return false;
+        }
         int initialLevel = NativeStatDefinitions.Level(initial.Records[0].Experience, initial.Definitions.Characters[initial.Records[0].CharacterId]);
         int selectedLevel = initialLevel;
         int physical = -1;
@@ -129,11 +134,15 @@ public static partial class ScenarioDiscovery
             for (int partyLevel = initialLevel; partyLevel <= 100; partyLevel++)
             {
                 (int, int, int) key = (owner.ModelId, context.SceneLevel, partyLevel);
-                if (!possibleBands.TryGetValue(key, out int[]? bands))
+                int[]? bands = null;
+                if (shootParty is not null || !possibleBands.TryGetValue(key, out bands))
                 {
-                    byte[] partyLevels = initial.CombatParty.Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
+                    byte[] partyLevels = (shootParty ?? initial.CombatParty).Where(row => row != 255).Select(row => row == 0 ? checked((byte)partyLevel) : NativeStatDefinitions.Level(initial.Records[row].Experience, initial.Definitions.Characters[initial.Records[row].CharacterId])).ToArray();
                     bands = ResolvePossibleEnemyLevels(checked((byte)context.SceneLevel), partyLevels).Select(level => assets.ReadEnemyAi(owner.ModelId, level).LevelBand).Distinct().Order().ToArray();
-                    possibleBands.Add(key, bands);
+                    if (shootParty is null)
+                    {
+                        possibleBands.Add(key, bands);
+                    }
                 }
                 if (bands.Length == 1 && bands[0] == owner.LevelBand)
                 {
@@ -163,6 +172,10 @@ public static partial class ScenarioDiscovery
         string actor = $"enemy-{chosen.SceneSlot}";
         string target = selectorProof.TargetSelector is 200 or 205 ? actor : "party-0";
         JsonObject result = JsonNode.Parse(File.ReadAllText(templatePath))!.AsObject();
+        if (shootParty is not null)
+        {
+            result["fixture"]!["combat_party"] = new JsonArray(shootParty.Select(row => (JsonNode)JsonValue.Create(row)!).ToArray());
+        }
         result["encounter"] = chosen.FormationId;
         result["target"] = new JsonObject { ["actor_id"] = actor, ["stage"] = chosen.StageId, ["model"] = owner.ModelId, ["scene_slot"] = chosen.SceneSlot, ["physical_index"] = physical, ["flags_mask"] = 195, ["flags_value"] = 1, ["opening_action"] = null, ["opening_effect"] = null };
         JsonObject character = result["fixture"]!["characters"]![0]!.AsObject();

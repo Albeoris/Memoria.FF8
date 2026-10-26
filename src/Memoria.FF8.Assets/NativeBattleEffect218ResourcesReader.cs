@@ -46,8 +46,8 @@ public static class NativeBattleEffect218ResourcesReader
         }
         ImmutableArray<byte> vibration = Bytes(0xE25698, 312);
         NativeVibrationBank bank = new(memory.SourceHash, [0, 256], vibration);
-        NativeBattlePackedMatrix32 reflection = new(Bytes(0xE25AD8, 32), Enumerable.Repeat(true, 32).ToImmutableArray());
-        NativeBattleEffect218Resources result = new(new("effect218-initial-texture", Bytes(0xF1E920, 166432)), files, Model(0x20DFAB8, files[1].Data), Model(0xF1DD54, Bytes(0xF1DD54, 0xBCC)), meshes.ToImmutable(), sprites.ToImmutable(), Enumerable.Range(0, 24).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xE25850u + (uint)index * 4, 4))).ToImmutableArray(), Bytes(0xE257F0, 64), Bytes(0xE25830, 16), Bytes(0xE25840, 16), Bytes(0xE258B0, 192), reflection, new("effect218-camera", Bytes(0xE25970, 2)), bank, BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xF1DD50, 4)), Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xE257D0u + (uint)index * 4, 4))).ToImmutableArray());
+        ImmutableArray<byte> clearQuad = Bytes(0xE25AD8, 24);
+        NativeBattleEffect218Resources result = new(new("effect218-initial-texture", Bytes(0xF1E920, 166432)), files, Model(0x20DFAB8, files[1].Data), Model(0xF1DD54, Bytes(0xF1DD54, 0xBCC)), meshes.ToImmutable(), sprites.ToImmutable(), Enumerable.Range(0, 24).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xE25850u + (uint)index * 4, 4))).ToImmutableArray(), Bytes(0xE257F0, 64), Bytes(0xE25830, 16), Bytes(0xE25840, 16), Bytes(0xE258B0, 192), clearQuad, new("effect218-camera", Bytes(0xE25970, 354)), bank, BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xF1DD50, 4)), Enumerable.Range(0, 3).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(memory.Read(0xE257D0u + (uint)index * 4, 4))).ToImmutableArray());
         result.Validate();
         return result;
 

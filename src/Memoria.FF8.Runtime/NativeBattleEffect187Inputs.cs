@@ -10,6 +10,7 @@ public sealed record NativeBattleEffect187PointStep(NativeBattleEffect187Frame F
 public sealed record NativeBattleEffect187Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect187Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect187Frame, uint> ReadFlags, Func<NativeBattleEffect187Frame, NativeBattleEffect187Step> ReadStep508500, Func<NativeBattleEffect187Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect187Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect187Frame, short> ReadCameraRoll, Func<NativeBattleEffect187Frame, NativeBattleCameraPose> ReadCameraPose, Func<NativeBattleEffect187Frame, short?> ReadEyePadding, Func<NativeBattleEffect187Frame, short?> ReadTargetPadding, Func<NativeBattleEffect187Frame, int, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect187Frame, int, NativeBattlePackedMatrix32> ReadWorld, Func<NativeBattleEffect187Frame, ushort, NativeBattleEffectArena, NativeBattleEffectArena> ReadTargetCenter5020A0, Func<NativeBattleEffect187Frame, int, int, int, NativeBattleEffectArena, NativeBattleEffect187PointStep> ReadBone502170, Func<NativeBattleEffect187Frame, int, bool> ReadVibrationPlaying4A2900, Func<NativeBattleEffect187Frame, NativeBattleEffect187Operation, NativeBattleEffect187Frame> Execute)
 {
     public NativeBattlePrimitiveCapabilities? PrimitiveCapabilities { get; init; }
+    public Func<NativeBattleEffect187Frame, uint, uint>? ReadColor { get; init; }
 }
 
 public abstract record NativeBattleEffect187Operation;
@@ -32,3 +33,6 @@ public sealed record NativeBattleEffect187DeliverBatch(NativeBattleGfGeometryBat
 public sealed record NativeBattleEffect187Flash5712C0(int Rise, int Hold, int Fall, int Intensity) : NativeBattleEffect187Operation;
 
 public sealed record NativeBattleEffect187QueueTextureRelease508630(uint SourceAddress, uint CompletionAddress) : NativeBattleEffect187Operation;
+
+public sealed record NativeBattleEffect187WriteModelBytes(int Actor, int Offset, NativeBattleEffectArena Data, int Length) : NativeBattleEffect187Operation;
+public sealed record NativeBattleEffect187DrawBody464(uint TemporaryAddress, int Actor, NativeBattlePackedMatrix32 OffsetWorld) : NativeBattleEffect187Operation;

@@ -27,7 +27,8 @@ public static partial class NativeBattleEffect187Controller
         uint scratchAddress = frame.State.ReadDword(0xE41E98);
         uint color = frame.State.ReadDword(NativeBattleEffect187Model.Address + 0x28);
         uint mask = frame.State.ReadDword(NativeBattleEffect187Model.Address + 0x7C);
-        context = context.Write(0x24, BitConverter.GetBytes(scratchAddress)).Write(0x30, RequireStaging(frame).Read(0x1D969A8, 4)).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((ushort)320)).Write(0x3A, BitConverter.GetBytes((ushort)216)).Write(0x3C, BitConverter.GetBytes(color)).Write(0x40, BitConverter.GetBytes(mask)).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
+        context = context.Write(0x24, BitConverter.GetBytes(scratchAddress)).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((ushort)320)).Write(0x3A, BitConverter.GetBytes((ushort)216)).Write(0x3C, BitConverter.GetBytes(color)).Write(0x40, BitConverter.GetBytes(mask)).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
+        context = CopyBytes(NativeBattleTemporaryMemory.ReadView(RequireStaging(frame), 0x1D969A8, 4), 0, context, 0x30, 4);
         NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect187 model requires its actual renderer process.");
         var gate = process.Enter5099D0(inputs.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Effect187 model requires its actual hardware capability."));
         process = gate.Process;

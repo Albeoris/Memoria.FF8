@@ -5,8 +5,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleElectrocute275Controller
 {
-    private static NativeBattleCpuTrailFrame CpuTrailFrame(NativeBattleElectrocute275Frame frame) => new(frame.Memory, frame.Effect) { Staging = frame.Staging };
-    private static NativeBattleElectrocute275Frame WithCpuTrail(NativeBattleElectrocute275Frame frame, NativeBattleCpuTrailFrame current) => frame with { Memory = current.Memory, Effect = current.Effect, Staging = current.Staging };
+    private static NativeBattleCpuTrailFrame CpuTrailFrame(NativeBattleElectrocute275Frame frame) => new(frame.Memory, frame.Effect) { Staging = frame.Staging, BoneDirectionWord = frame.BoneDirectionWord };
+    private static NativeBattleElectrocute275Frame WithCpuTrail(NativeBattleElectrocute275Frame frame, NativeBattleCpuTrailFrame current) => frame with { Memory = current.Memory, Effect = current.Effect, Staging = current.Staging, BoneDirectionWord = current.BoneDirectionWord };
     private static NativeBattleCpuTrailLayout CpuTrailLayout(NativeBattleElectrocute275Frame frame) => new(Working(frame) + WorldPointsOffset, Working(frame) + WorldFreePointerOffset, Working(frame) + BonePointsOffset, Working(frame) + BoneFreePointerOffset, PointCount, 2, 0x6887B0, 3, 0x689280);
 
     public static (NativeBattleElectrocute275Frame Frame, uint Address) CreateBoneTrail(NativeBattleElectrocute275Frame frame, uint bindingAddress, uint pathDirectoryAddress, int pathIndex, short steps, short scale, NativeBattleElectrocute275Resources resources)

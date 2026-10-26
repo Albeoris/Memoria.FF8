@@ -139,7 +139,7 @@ public sealed partial class BattleSession
                     NativeBattleRibbonBank bank = new(checked(working + NativeBattleElectricDischarge126Profile.WorldPointsOffset), checked((int)(working - NativeBattleElectricDischarge126Profile.ArenaAddress) + NativeBattleElectricDischarge126Profile.WorldPointsOffset), NativeBattleElectricDischarge126Profile.PointCount);
                     return current with { Memory = NativeBattleRibbonProjection.ProjectCurrent(current.Memory, project.HeadAddress, bank, Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Electric Discharge requires its current projection controls.")) };
                 case NativeBattleElectricDischarge126DrawWorld world:
-                    var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources);
+                    var worldDraw = NativeBattleElectricDischarge126Ribbons.DrawProjected(current, world.HeadAddress, world.Count, world.TextureVOffset, resources, NativeBattleRibbonProjection.CaptureWorldDirectionWord(current.Memory, Camera().Projection ?? throw new NotSupportedException("World ribbon requires its current projection.")));
                     return Deliver(worldDraw.Frame, worldDraw.Batch);
                 case NativeBattleElectricDischarge126DrawBoneTrail boneTrail:
                     byte caster = current.Effect.Parameters!.Actor78;

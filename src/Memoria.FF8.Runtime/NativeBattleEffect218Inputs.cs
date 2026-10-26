@@ -12,7 +12,7 @@ public sealed record NativeBattleEffect218Sound501330(uint SourceAddress) : Nati
 public sealed record NativeBattleEffect218QueueFile508480(short FileId, uint DestinationAddress) : NativeBattleEffect218Operation;
 public sealed record NativeBattleEffect218UploadTim505E30(uint SourceAddress) : NativeBattleEffect218Operation;
 public sealed record NativeBattleEffect218StageFlags(byte AndMask, byte OrMask) : NativeBattleEffect218Operation;
-public sealed record NativeBattleEffect218TargetSequence4876F0(int Target, ushort Sequence, int Duration) : NativeBattleEffect218Operation;
+public sealed record NativeBattleEffect218Text4876F0(int Actor, ushort Text, int Duration) : NativeBattleEffect218Operation;
 public sealed record NativeBattleEffect218SelectSequence505C00(uint ModelAddress, ushort Sequence) : NativeBattleEffect218Operation;
 public sealed record NativeBattleEffect218ModelFlags(uint ModelAddress, byte AndMask, byte OrMask) : NativeBattleEffect218Operation;
 public sealed record NativeBattleEffect218CapturePoint571400(uint ModelAddress, uint DestinationAddress) : NativeBattleEffect218Operation;

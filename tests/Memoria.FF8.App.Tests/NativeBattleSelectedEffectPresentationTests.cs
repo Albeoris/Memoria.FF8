@@ -111,7 +111,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
                 NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
                 NativeBattleLogicalCommand[] ownedCommands = [];
-                if (currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect))
+                if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 187)
+                {
+                    ownedCommands = NativeBattleSelectedEffect187Packets.CurrentCommands(current);
+                }
+                else if (currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect))
                 {
                     ownedCommands = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value);
                 }
@@ -168,12 +172,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 File.WriteAllBytes(Path.Combine(output!, "without-effect.rgba"), peakPlain!);
             }
             Cold("completed", completed);
-            for (int cleanup = 0; cleanup < 4; cleanup++)
-            {
-                battle.Tick();
-                Assert.True(Released(battle.Capture()));
-            }
-            Cold("caller-ready", battle.Capture());
+            Assert.True(Released(completed), "The selected component must release its actual owners at the caller boundary.");
+            Cold("caller-ready", completed);
             observer?.Write(output!);
             observer314?.Accept(completed, output!);
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));

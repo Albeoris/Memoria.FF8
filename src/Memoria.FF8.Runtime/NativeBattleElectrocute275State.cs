@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleElectrocute275Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleElectrocute275State State)
 {
     public NativeBattleFileStaging? Staging { get; init; }
+    public uint? BoneDirectionWord { get; init; }
 }
 
 public sealed record NativeBattleElectrocute275State([property: JsonRequired] NativeBattleEffectArena Globals, [property: JsonRequired] uint? FlashThreshold, [property: JsonRequired] bool ColdSourcesPending)

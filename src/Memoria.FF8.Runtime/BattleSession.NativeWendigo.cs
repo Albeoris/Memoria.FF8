@@ -13,6 +13,10 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native Wendigo requires its selected original effect.");
         NativeBattleWendigoResources resources = (shoot ? effect.Binding.Shoot42Resources : effect.Binding.Dribble41Resources) ?? throw new NotSupportedException("Native Wendigo requires its original resources.");
+        if (shoot)
+        {
+            NativeBattleShootParty.RequireBallOwner(graphics.Models);
+        }
         NativeBattleWendigoFrame frame = NativeBattleWendigoController.Initialize(NativeEffectMemory ?? throw new NotSupportedException("Native Wendigo requires its process memory."), effect, nativeActionPackets, resources, nativeCrtRandom ?? throw new NotSupportedException("Native Wendigo requires its shared CRT stream."));
         NativeEffectMemory = frame.Memory;
         if ((effect.Parameters!.Flags79 & 1) == 0)

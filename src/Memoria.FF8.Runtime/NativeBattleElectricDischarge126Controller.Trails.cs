@@ -4,8 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleElectricDischarge126Controller
 {
-    private static NativeBattleCpuTrailFrame CpuFrame(NativeBattleElectricDischarge126Frame frame) => new(frame.Memory, frame.Effect) { Staging = frame.Staging };
-    private static NativeBattleElectricDischarge126Frame WithCpuFrame(NativeBattleElectricDischarge126Frame frame, NativeBattleCpuTrailFrame owners) => frame with { Memory = owners.Memory, Effect = owners.Effect, Staging = owners.Staging };
+    private static NativeBattleCpuTrailFrame CpuFrame(NativeBattleElectricDischarge126Frame frame) => new(frame.Memory, frame.Effect) { Staging = frame.Staging, BoneDirectionWord = frame.BoneDirectionWord };
+    private static NativeBattleElectricDischarge126Frame WithCpuFrame(NativeBattleElectricDischarge126Frame frame, NativeBattleCpuTrailFrame owners) => frame with { Memory = owners.Memory, Effect = owners.Effect, Staging = owners.Staging, BoneDirectionWord = owners.BoneDirectionWord };
     private static NativeBattleCpuTrailLayout Layout(NativeBattleElectricDischarge126Frame frame) => new(Working(frame) + WorldPointsOffset, Working(frame) + WorldFreePointerOffset, Working(frame) + BonePointsOffset, Working(frame) + BoneFreePointerOffset, PointCount, 2, WorldTrailCallback, 3, BoneTrailCallback);
 
     public static (NativeBattleElectricDischarge126Frame Frame, uint Address) CreateBoneTrail(NativeBattleElectricDischarge126Frame frame, NativeBattleResourceRowReference binding, uint directory, int pathIndex, short steps, short scale, NativeBattleElectricDischarge126Resources resources)

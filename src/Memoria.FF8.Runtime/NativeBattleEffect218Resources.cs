@@ -2,11 +2,11 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleEffect218Resources(NativeBattleEffectHeapAllocation InitialTexture, ImmutableArray<NativeBattleEffectFileAsset> Files, NativeBattleEffectOwnedModelResource StreamedModel, NativeBattleEffectOwnedModelResource EmbeddedModel, ImmutableDictionary<uint, NativeBattleStaticMeshResource> Meshes, ImmutableDictionary<uint, NativeBattleModuleResource> Sprites, ImmutableArray<uint> FragmentMeshes, ImmutableArray<byte> RayOrigins, ImmutableArray<byte> AlignmentVector, ImmutableArray<byte> UpVector, ImmutableArray<byte> FragmentOrigins, NativeBattlePackedMatrix32 ReflectionMatrix, NativeBattleEffectHeapAllocation Camera, NativeVibrationBank Vibration, uint InitialStream, ImmutableArray<uint> Sounds)
+public sealed record NativeBattleEffect218Resources(NativeBattleEffectHeapAllocation InitialTexture, ImmutableArray<NativeBattleEffectFileAsset> Files, NativeBattleEffectOwnedModelResource StreamedModel, NativeBattleEffectOwnedModelResource EmbeddedModel, ImmutableDictionary<uint, NativeBattleStaticMeshResource> Meshes, ImmutableDictionary<uint, NativeBattleModuleResource> Sprites, ImmutableArray<uint> FragmentMeshes, ImmutableArray<byte> RayOrigins, ImmutableArray<byte> AlignmentVector, ImmutableArray<byte> UpVector, ImmutableArray<byte> FragmentOrigins, ImmutableArray<byte> CaptureClearQuad, NativeBattleEffectHeapAllocation Camera, NativeVibrationBank Vibration, uint InitialStream, ImmutableArray<uint> Sounds)
 {
     public void Validate()
     {
-        if (InitialTexture.Data.IsDefault || InitialTexture.Data.Length != 166432 || Files.IsDefault || Files.Length != 5 || Meshes.Count != 35 || Sprites.Count != 3 || FragmentMeshes.IsDefault || FragmentMeshes.Length != 24 || RayOrigins.IsDefault || RayOrigins.Length != 64 || AlignmentVector.IsDefault || AlignmentVector.Length != 16 || UpVector.IsDefault || UpVector.Length != 16 || FragmentOrigins.IsDefault || FragmentOrigins.Length != 192 || Camera.Data.IsDefault || Camera.Data.Length != 2 || Sounds.IsDefault || Sounds.Length != 3)
+        if (InitialTexture.Data.IsDefault || InitialTexture.Data.Length != 166432 || Files.IsDefault || Files.Length != 5 || Meshes.Count != 35 || Sprites.Count != 3 || FragmentMeshes.IsDefault || FragmentMeshes.Length != 24 || RayOrigins.IsDefault || RayOrigins.Length != 64 || AlignmentVector.IsDefault || AlignmentVector.Length != 16 || UpVector.IsDefault || UpVector.Length != 16 || FragmentOrigins.IsDefault || FragmentOrigins.Length != 192 || Camera.Data.IsDefault || Camera.Data.Length != 354 || Sounds.IsDefault || Sounds.Length != 3)
         {
             throw new InvalidDataException("Effect218 requires its complete selected original resource families.");
         }
@@ -20,7 +20,10 @@ public sealed record NativeBattleEffect218Resources(NativeBattleEffectHeapAlloca
         }
         RequireModel(StreamedModel, 0x20DFAB8, 0x10B04, 0xD18, 0xAE9C, 69);
         RequireModel(EmbeddedModel, 0xF1DD54, 0xBCC, 0x88, 0x73C, 2);
-        ReflectionMatrix.Validate();
+        if (CaptureClearQuad.IsDefault || CaptureClearQuad.Length != 24)
+        {
+            throw new InvalidDataException("Effect218 capture requires its complete original clear quad.");
+        }
         Vibration.Validate();
         foreach (uint address in FragmentMeshes)
         {

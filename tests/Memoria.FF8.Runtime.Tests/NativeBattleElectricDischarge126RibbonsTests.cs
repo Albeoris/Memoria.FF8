@@ -8,6 +8,33 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleElectricDischarge126RibbonsTests
 {
     [Theory]
+    [InlineData(5000u, 8000, 5000u)]
+    [InlineData(1000u, 8000, 4000u)]
+    public void World_direction_stack_word_is_the_final_projection_divisor(uint depth, ushort focal, uint expected)
+    {
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Sz = [null, null, null, depth] } };
+        Assert.Equal(expected, NativeBattleRibbonProjection.CaptureWorldDirectionWord(memory, new(null, focal, null, null)));
+        Assert.Throws<NotSupportedException>(() => NativeBattleRibbonProjection.CaptureWorldDirectionWord(memory with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown() }, new(null, focal, null, null)));
+    }
+
+    [Fact]
+    public void Clipped_first_world_edge_retains_the_actual_projection_stack_word_for_the_next_edge()
+    {
+        NativeBattleElectricDischarge126Frame frame = Frame();
+        frame = Point(frame, WorldPointsOffset, 0, 90, 200, -1, 32, false, 2048, Address(frame, WorldPointsOffset, 1));
+        frame = Point(frame, WorldPointsOffset, 1, 100, 200, 512, 32, false, 2048, Address(frame, WorldPointsOffset, 2));
+        frame = Point(frame, WorldPointsOffset, 2, 116, 200, 512, 32, false, 2048, 0);
+        Assert.Throws<NotSupportedException>(() => NativeBattleElectricDischarge126Ribbons.DrawProjected(frame, Address(frame, WorldPointsOffset, 0), 3, 0, Resources()));
+        var actual = NativeBattleElectricDischarge126Ribbons.DrawProjected(frame, Address(frame, WorldPointsOffset, 0), 3, 0, Resources(), 5000);
+        NativeBattleGfGeometryAttempt packet = Assert.Single(actual.Batch.Attempts);
+        NativeBattleRibbonDirectionStep direction = NativeBattleRibbonDirection.Resolve(16, 0, 16, true, 5000, 0);
+        Assert.Equal(unchecked((short)(100 - (direction.X >> 12))), BinaryPrimitives.ReadInt16LittleEndian(packet.Data.AsSpan().Slice(8)));
+        Assert.Equal(unchecked((short)(200 - (direction.Y >> 12))), BinaryPrimitives.ReadInt16LittleEndian(packet.Data.AsSpan().Slice(10)));
+        Assert.Equal(frame.Random, actual.Frame.Random);
+        Assert.Equal(frame.State, actual.Frame.State);
+    }
+
+    [Theory]
     [InlineData(false, 49, 199, 201)]
     [InlineData(true, 49, 198, 202)]
     public void Native_policy_uses_only_its_selected_width_field_divisor_and_depth_shift(bool anchored, int bucket, short leftY, short rightY)

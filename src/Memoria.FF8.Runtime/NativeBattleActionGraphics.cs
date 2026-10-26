@@ -340,6 +340,8 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleEffect314Resources? Effect314Resources { get; init; }
     public NativeBattleEffect338Resources? Effect338Resources { get; init; }
     public NativeBattleLevelResources? LevelResources { get; init; }
+    public NativeBattleEffect187Resources? Effect187Resources { get; init; }
+    public NativeBattleEffect218Resources? Effect218Resources { get; init; }
     public NativeBattleMegaSpark279Resources? MegaSpark279Resources { get; init; }
     public NativeBattleResonance49Resources? Resonance49Resources { get; init; }
     public NativeBattleBladeShot12Resources? BladeShot12Resources { get; init; }

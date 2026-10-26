@@ -31,6 +31,7 @@ internal static class NativeExecutionStackSelection
         using FileStream stream = File.OpenRead(path);
         NativeBattleExecutionStack profile = JsonSerializer.Deserialize<NativeBattleExecutionStack>(stream) ?? throw new InvalidDataException("The selected native execution-stack file contains no profile.");
         profile.Validate();
+        profile.HeroCrtStack?.Validate(profile);
         return profile;
     }
 
@@ -41,7 +42,8 @@ internal static class NativeExecutionStackSelection
             return memory;
         }
         profile.Validate();
+        profile.HeroCrtStack?.Validate(profile);
         NativeBattleEffectMemory effects = memory.EffectMemory ?? throw new InvalidDataException("The cold process has no native effect-memory owner for the selected execution stack.");
-        return memory with { EffectMemory = effects with { ExecutionStack = profile } };
+        return memory with { EffectMemory = effects with { ExecutionStack = profile, HeroCrtStack = profile.HeroCrtStack } };
     }
 }

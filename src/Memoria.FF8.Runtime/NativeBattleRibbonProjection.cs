@@ -4,6 +4,18 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleRibbonProjection
 {
+    public static uint CaptureWorldDirectionWord(NativeBattleEffectMemory memory, NativeBattleCameraProjection projection)
+    {
+        uint depth = memory.GeometryRegisters?.Sz[3] ?? throw new NotSupportedException("World ribbon stack publication requires its final actual projection depth.");
+        ushort focal = projection.FocalLength ?? throw new NotSupportedException("World ribbon stack publication requires its actual projection H WORD.");
+        if (depth > ushort.MaxValue)
+        {
+            throw new InvalidDataException("World ribbon stack publication requires the native saturated SZ3.");
+        }
+        //45FAA0's division local aliases the following world caller's direction WORD pair.
+        return Math.Max(depth, (uint)(focal >> 1));
+    }
+
     public static NativeBattleEffectMemory ProjectCurrent(NativeBattleEffectMemory memory, uint head, NativeBattleRibbonBank bank, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory controls)
     {
         if (bank.PointCount <= 0 || bank.ArenaOffset < 0 || bank.ArenaOffset > NativeBattleEffectArena.Length - checked(bank.PointCount * 40))

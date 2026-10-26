@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect218Controller
         }
         NativeBattleEffectTextureState textures = frame.Memory.Textures ?? throw new NotSupportedException("Effect218 entry requires its actual texture process.");
         (textures, _) = textures.EnqueueTim505E30(resources.InitialTexture);
-        frame = frame with { Memory = frame.Memory with { Textures = textures.Register5099A0(resources.Camera) } };
+        frame = frame with { Memory = frame.Memory with { Textures = textures } };
         NativeBattleGraphicsModel recipient = inputs.ReadModel(target);
         short heading = recipient.Rotation14 ?? throw new NotSupportedException("Effect218 entry requires its actual recipient heading.");
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Euler56CD50(new(0, unchecked((short)(heading + 2048)), 0));

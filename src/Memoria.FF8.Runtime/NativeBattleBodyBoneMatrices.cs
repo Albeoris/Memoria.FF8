@@ -83,6 +83,11 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
     public static ImmutableArray<NativeBattleActionMatrix> Require(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
     {
         NativeBattleBodyBoneMatrices current = model.CurrentBodyBoneMatrices ?? throw new NotSupportedException("Native body matrix access requires its actual retained publication; missing imported matrices are unknown.");
+        return RequirePublication(current, source);
+    }
+
+    public static ImmutableArray<NativeBattleActionMatrix> RequirePublication(NativeBattleBodyBoneMatrices current, NativeBattlePoseSource source)
+    {
         current.Validate();
         source.Validate();
         bool identityMatches = StringComparer.OrdinalIgnoreCase.Equals(current.SkeletonSha256, Identity(source));

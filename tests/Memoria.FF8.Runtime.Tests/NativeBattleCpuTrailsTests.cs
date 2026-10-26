@@ -7,6 +7,54 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCpuTrailsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Bone_birth_retains_the_full_native_first_argument_for_the_anchored_direction_stack(bool previousSurvivor)
+    {
+        Fixture fixture = new();
+        NativeBattleCpuTrailFrame frame = fixture.Frame;
+        uint previous = 0;
+        if (previousSurvivor)
+        {
+            (frame, previous) = NativeBattleCpuTrails.Append(frame, fixture.Layout.BonePoolIndex, fixture.Layout.BoneCallback);
+        }
+        NativeBattleCpuTrailAddressStep created = NativeBattleCpuTrails.CreateBoneTrail(frame, fixture.Layout, fixture.Path, new(null, 0x1951000), BonePathsAddress, 0, 1, 4096);
+        uint expected = (previous & 0xFFFF0000u) | 2u;
+        int draws = 0;
+        NativeBattleCpuTrailTaskStep actual = NativeBattleCpuTrails.AdvanceBoneTrail(created.Frame, created.Address, fixture.Layout, fixture.Path, (current, _, _, _) =>
+        {
+            Assert.Equal(expected, current.BoneDirectionWord);
+            draws++;
+            return current;
+        });
+        Assert.Equal(1, draws);
+        NativeBattleModulePoolTask task = NativeBattleCpuTrails.Read(actual.Frame, created.Address);
+        NativeBattleCpuTrailFrame noBirth = NativeBattleCpuTrails.Write(actual.Frame, created.Address, task.WriteDword(24, 0));
+        NativeBattleSharedEffectRandomState? random = noBirth.Memory.SharedEffectRandom;
+        NativeBattleCpuTrails.AdvanceBoneTrail(noBirth, created.Address, fixture.Layout, fixture.Path, (current, _, _, _) =>
+        {
+            Assert.Null(current.BoneDirectionWord);
+            Assert.Equal(random, current.Memory.SharedEffectRandom);
+            return current;
+        });
+    }
+
+    [Fact]
+    public void Negative_bone_path_replaces_the_saved_register_upper_word_with_the_actual_path_pointer()
+    {
+        Fixture fixture = new();
+        NativeBattleCpuTrailAddressStep created = NativeBattleCpuTrails.CreateBoneTrail(fixture.Frame, fixture.Layout, fixture.Path, new(null, 0x1951000), BonePathsAddress, 0, 1, 4096);
+        int draws = 0;
+        NativeBattleCpuTrails.AdvanceBoneTrail(created.Frame, created.Address, fixture.Layout, address => address == BonePathsAddress + 20 ? (short)-1 : fixture.Path(address), (current, _, _, _) =>
+        {
+            Assert.Equal((BonePathsAddress & 0xFFFF0000u) | 10u, current.BoneDirectionWord);
+            draws++;
+            return current;
+        });
+        Assert.Equal(1, draws);
+    }
+
     [Fact]
     public void World_birth_uses_actual_layout_three_shared_draws_and_preserves_unwritten_point_lanes()
     {

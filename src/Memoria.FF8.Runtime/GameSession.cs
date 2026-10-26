@@ -153,7 +153,13 @@ public sealed partial class GameSession : IEventServices
 
     public void StartNewGame()
     {
-        StartNewGame(coldBattleMemory);
+        NativeBattleRetainedMemory? memory = coldBattleMemory;
+        if (memory is null && State.NativeBattleMemory?.EffectMemory is { ExecutionStack: not null } previous)
+        {
+            memory = NativeBattleRetainedMemory.FromColdProcess();
+            memory = memory with { EffectMemory = memory.EffectMemory! with { ExecutionStack = previous.ExecutionStack, HeroCrtStack = previous.HeroCrtStack } };
+        }
+        StartNewGame(memory);
     }
 
     public void StartNewGame(NativeBattleRetainedMemory? battleMemory)

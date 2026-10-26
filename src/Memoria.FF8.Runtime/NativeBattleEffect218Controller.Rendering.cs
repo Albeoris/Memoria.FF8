@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public static partial class NativeBattleEffect218Controller
 {
-    public static NativeBattleEffect218Frame DrawOwnedModel637430(NativeBattleEffect218Frame frame, uint modelAddress, NativeBattleEffectOwnedModelResource resource, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, uint nativeFarInput, uint packetCursor, Func<NativeBattleEffect218Frame, NativeBattleGfGeometryBatch, NativeBattleEffect218Frame> deliver)
+    public static NativeBattleEffect218Frame DrawOwnedModel637430(NativeBattleEffect218Frame frame, uint modelAddress, NativeBattleEffectOwnedModelResource resource, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, bool hardware, NativeBattleEffectArena primitiveFlags, uint packetCursor, Func<NativeBattleEffect218Frame, NativeBattleGfGeometryBatch, NativeBattleEffect218Frame> deliver)
     {
         if ((modelAddress != EmbeddedModelAddress || resource.Address != 0xF1DD54) && (modelAddress != StreamedModelAddress || resource.Address != frame.State.ReadDword(ArenaGlobal)))
         {
@@ -45,7 +45,8 @@ public static partial class NativeBattleEffect218Controller
         frame = WriteBytes(frame, skeletonAddress, skeleton, resource.PoseSource.Skeleton.Length);
         uint projectedAddress = frame.State.ReadDword(0xE257E8);
         int projectedLength = resource.Geometry.IsEmpty ? 0 : checked(resource.Geometry.Max(mesh => mesh.Vertices.Length) * 8);
-        context76 = context76.Write(0x24, BitConverter.GetBytes(projectedAddress)).Write(0x30, BitConverter.GetBytes(nativeFarInput)).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((short)320)).Write(0x3A, BitConverter.GetBytes((short)216)).Write(0x3C, model.Read(0x28, 4)).Write(0x40, model.Read(0x7C, 4)).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
+        context76 = context76.Write(0x24, BitConverter.GetBytes(projectedAddress)).Write(0x34, new byte[4]).Write(0x38, BitConverter.GetBytes((short)320)).Write(0x3A, BitConverter.GetBytes((short)216)).Write(0x3C, model.Read(0x28, 4)).Write(0x40, model.Read(0x7C, 4)).Write(0x44, new byte[2]).Write(0x48, new byte[4]);
+        context76 = NativeBattleEffectNodeContextMemory.Copy(primitiveFlags, 0, context76, 0x30, 4);
         NativeBattleEffectArena context44 = NativeBattleEffectNodeContextMemory.Copy(context76, 32, NativeBattleEffectArena.Clear().MarkUnknown(0, 44), 0, 44);
         NativeBattleModelContext44Step rendered = NativeBattleModelContext44.Draw(frame.Memory, context44, bones.ToImmutable(), ReadGeometry, geometryAddress, ReadBytes(frame, projectedAddress, projectedLength), projectedLength, projection, colors, hardware, 17, 4, packetCursor);
         frame = frame with { Memory = rendered.Memory };

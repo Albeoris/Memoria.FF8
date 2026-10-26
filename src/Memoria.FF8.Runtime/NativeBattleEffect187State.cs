@@ -13,7 +13,13 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
     [JsonRequired]
     public ImmutableDictionary<uint, NativeBattleGuardianCameraTask> CameraTasks { get; init; } = ImmutableDictionary<uint, NativeBattleGuardianCameraTask>.Empty;
 
-    public static NativeBattleEffect187State FromColdProcess() => new(NativeBattleEffectArena.Clear().MarkUnknown(Require(0xFA94A8, 0x4000), 0x4000), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear())) { Model = NativeBattleCactuarRawModelState.FromColdProcess() };
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CommonPacketStart { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CommonPacketEnd { get; init; }
+
+    public static NativeBattleEffect187State FromColdProcess() => new(NativeBattleEffectArena.Clear().MarkUnknown(Require(0xE41E50, 12), 12).MarkUnknown(Require(0xE41E98, 4), 4).MarkUnknown(Require(0xFA94A8, 0x4000), 0x4000), Pools.ToImmutableDictionary(pool => pool.Bank, _ => (NativeBattleEffectArena?)NativeBattleEffectArena.Clear())) { Model = NativeBattleCactuarRawModelState.FromColdProcess() };
 
     public static NativeBattleEffect187State FromUnknown()
     {
@@ -109,6 +115,10 @@ public sealed record NativeBattleEffect187State([property: JsonRequired] NativeB
         if (Model is { } model && (model.Model.IsDefault || model.Model.Length != 0x90 || model.Control.IsDefault || model.Control.Length != 0x34 || model.DecodedPose is { } pose && pose.Bones.IsDefault))
         {
             throw new InvalidDataException("Effect187 retained model/control or pose owner is incomplete.");
+        }
+        if ((CommonPacketStart is null) != (CommonPacketEnd is null) || CommonPacketStart is < 0 || CommonPacketEnd < CommonPacketStart)
+        {
+            throw new InvalidDataException("Effect187 COMMON output requires its actual ordered callback interval.");
         }
         Storage.Validate();
         int storageLength = OwnedRanges.Sum(range => range.Length);

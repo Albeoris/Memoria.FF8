@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>An explicitly selected native process observation, rather than PE loader storage or a default stack address.</summary>
 public sealed record NativeBattleExecutionStack([property: JsonRequired] uint FrameCallbackEsp, [property: JsonRequired] uint FrameReturnAddress, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] string CaptureSha256, [property: JsonRequired] int CapturedProcessId, [property: JsonRequired] int CapturedThreadId)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleHeroCrtStackContract? HeroCrtStack { get; init; }
+
     public void Validate()
     {
         if (FrameCallbackEsp < 0x100 || (FrameCallbackEsp & 3) != 0 || FrameReturnAddress != 0x569C3D || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || CaptureSha256 is null || CaptureSha256.Length != 64 || !CaptureSha256.All(Uri.IsHexDigit) || CapturedProcessId <= 0 || CapturedThreadId <= 0)
