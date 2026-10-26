@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>552EB0/544490/5470E0 sector-relative scripted node projection with explicit native rounding intervals.</summary>
+/// <summary>552EB0/544490/5470E0 sector-relative scripted node projection under the native PC precision53 arithmetic contract.</summary>
 public sealed partial class NativeWorldPathProjectionCertificate
 {
     private readonly record struct Range(int Low, int High)
@@ -24,11 +24,9 @@ public sealed partial class NativeWorldPathProjectionCertificate
     private readonly Range[] proximity;
     private readonly int originSector;
     private readonly NativeWorldPathPosition sectorBase;
-    private readonly bool precision53;
 
-    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin, bool precision53 = false, int curveThreshold = 5216)
+    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin, int curveThreshold = 5216)
     {
-        this.precision53 = precision53;
         this.curveThreshold = curveThreshold;
         focal = camera.FootState?.ProjectionDistance ?? 1024;
         Camera = camera;
@@ -133,7 +131,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
     {
         state.Validate();
         NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
-        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ), precision53: true, curveThreshold: curveThreshold);
+        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ), curveThreshold: curveThreshold);
     }
 
     public NativeWorldPathNodeProjection? ProjectNode(NativeWorldPathPosition node)
@@ -315,21 +313,12 @@ public sealed partial class NativeWorldPathProjectionCertificate
     private Range Round(double value) => Round(value, value);
     private Range Round(double low, double high)
     {
-        if (precision53 && low == high)
-        {
-            return Range.Exact(NativePrecision53.RoundInteger(low));
-        }
-        const double magicAddError = 1d / 4096;
-        return new Range(checked((int)Math.Round(Math.BitDecrement(low) - magicAddError, MidpointRounding.ToEven)), checked((int)Math.Round(Math.BitIncrement(high) + magicAddError, MidpointRounding.ToEven)));
+        // Each endpoint uses the original magic-double conversion. Matrix row dots
+        // are exact Q12 binary64 values; do not invent neighboring integer results.
+        return new Range(NativePrecision53.RoundInteger(low), NativePrecision53.RoundInteger(high));
     }
     private Range Project(Range coordinate, Range rawDepth, int center)
     {
-        if (precision53 && coordinate.Unique && rawDepth.Unique)
-        {
-            int depth = Math.Max(focal / 2, Math.Clamp(rawDepth.Low, 0, ushort.MaxValue));
-            int screen = unchecked(NativePrecision53.RoundInteger(8d * coordinate.Low * (focal / (double)depth)) + 8 * center);
-            return Range.Exact(Math.Clamp(screen, -8192, 8184));
-        }
         int low = int.MaxValue;
         int high = int.MinValue;
         foreach (int value in new[] { coordinate.Low, coordinate.High })
@@ -337,13 +326,10 @@ public sealed partial class NativeWorldPathProjectionCertificate
             foreach (int z in new[] { rawDepth.Low, rawDepth.High })
             {
                 int depth = Math.Max(focal / 2, Math.Clamp(z, 0, ushort.MaxValue));
-                double ratio = focal / (double)depth;
-                int multiplier = checked(8 * value);
-                double first = multiplier * (multiplier < 0 ? Math.BitIncrement(ratio) : Math.BitDecrement(ratio));
-                double last = multiplier * (multiplier < 0 ? Math.BitDecrement(ratio) : Math.BitIncrement(ratio));
-                Range rounded = Round(Math.BitDecrement(first), Math.BitIncrement(last));
-                low = Math.Min(low, Math.Clamp(rounded.Low + 8 * center, -8192, 8184));
-                high = Math.Max(high, Math.Clamp(rounded.High + 8 * center, -8192, 8184));
+                int screen = unchecked(NativePrecision53.RoundInteger(unchecked(8 * value) * (focal / (double)depth)) + 8 * center);
+                int clamped = Math.Clamp(screen, -8192, 8184);
+                low = Math.Min(low, clamped);
+                high = Math.Max(high, clamped);
             }
         }
         return new Range(low, high);

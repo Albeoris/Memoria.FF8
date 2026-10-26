@@ -6,6 +6,30 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeTrainStationChoiceTests
 {
+    [Fact]
+    public void FootMovementAcrossTrainProximityBoundaryRestoresTheNextCallback()
+    {
+        GameState source = GameSession.Load(TestResources.FixturePath("App.Tests.NativeTrainStationChoiceTests.ProximityBoundary"));
+        var session = new GameSession(source);
+        using var world = new GameWorld(session, GameDirectory());
+        Assert.True(world.EnsureField());
+        long before = session.State.World!.Frame;
+        PlayerAction move = new(PlayerActionKind.Move, Horizontal: 1, Vertical: -1, Frames: 8);
+        PlayerActionResult result = world.Apply(move);
+        Assert.True(result.Accepted);
+        Assert.Equal(before + 8, session.State.World!.Frame);
+
+        string path = TestResources.ArtifactFile("station-proximity.ff8");
+        session.Save(path, compact: true);
+        var restoredSession = new GameSession(GameSession.Load(path));
+        using var restored = new GameWorld(restoredSession, GameDirectory());
+        Assert.True(restored.EnsureField());
+        PlayerAction next = new(PlayerActionKind.Wait);
+        Assert.Equal(world.Apply(next), restored.Apply(next));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.PrepareSnapshot()), JsonSerializer.SerializeToElement(restoredSession.PrepareSnapshot())));
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(3)]
