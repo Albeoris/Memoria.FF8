@@ -129,10 +129,11 @@ public sealed class NativeFieldRegistrationResourcesTests
             Assert.Equal(field.Models[model].Name, source.Directory[model].Name);
             NativeModelPartResourceState registered = NativeModelPartResourceState.Create(parts);
             registered.Validate(parts);
+            Assert.Empty(registered.Translations);
             for (int skin = 0; skin < parts.SkinBindings.Count; skin++)
             {
                 bool selected = parts.Parts.Any(part => skin >= part.FirstSkinBinding && skin < part.FirstSkinBinding + part.SkinBindingCount);
-                Assert.Equal(selected ? (ushort)0 : parts.SkinBindings[skin].OriginalFlags, registered.ReadSkinFlags(skin));
+                Assert.Equal(selected ? (ushort)0 : parts.SkinBindings[skin].OriginalFlags, parts.ReadInitializedSkinFlags(skin));
             }
         }
         NativeFieldRegistrationResources restored = JsonSerializer.Deserialize<NativeFieldRegistrationResources>(JsonSerializer.Serialize(source))!;

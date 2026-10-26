@@ -54,7 +54,7 @@ public sealed class NativeTrainDoorModelPartsTests
     }
 
     [Fact]
-    public void FreshConstructorClearsOnlyFlagsAndDoesNotAliasOriginalWords()
+    public void FreshConstructorRetainsOnlyDynamicTranslationsAndDoesNotAliasOriginalWords()
     {
         using GameAssets assets = new(GameDirectory);
         NativeModelPartsDefinition original = assets.LoadField(919).Models[13].NativeParts!;
@@ -69,20 +69,19 @@ public sealed class NativeTrainDoorModelPartsTests
         words[14] = 789;
         words[15] = -30;
         NativeModelPartsDefinition definition = original with { Parts = [original.Parts[0], new(words), original.Parts[2]] };
+        short[] sourceWords = definition.Parts[1].Words.ToArray();
         NativeModelPartResourceState state = NativeModelPartResourceState.Create(definition);
 
         Assert.Equal((short)0x1234, words[7]);
-        Assert.NotSame(words, state.Parts[1]);
-        for (int word = 0; word < 16; word++)
-        {
-            Assert.Equal(word == 7 ? (short)0 : words[word], state.Parts[1][word]);
-        }
+        Assert.Empty(state.Translations);
+        Assert.Equal(words, definition.Parts[1].Words);
         state.Validate(definition);
         Assert.Empty(state.Step(definition).SkinTranslations);
-        NativeModelPartStep wrappedTarget = state.StartTranslation(1, 32, 0, 207, 30).Step(definition);
-        Assert.Equal((short)32760, wrappedTarget.State.Parts[1][4]);
-        Assert.Equal((short)-32744, wrappedTarget.State.Parts[1][12]);
+        NativeModelPartStep wrappedTarget = state.StartTranslation(definition, 1, 32, 0, 207, 30).Step(definition);
+        Assert.Equal((short)32760, wrappedTarget.State.Translations[1].StartX);
+        Assert.Equal((short)-32744, wrappedTarget.State.Translations[1].TargetX);
         Assert.Equal(new Vector3(30577, -234, 795), wrappedTarget.SkinTranslations[1]);
+        Assert.Equal(sourceWords, definition.Parts[1].Words);
     }
 
     [Theory]
@@ -96,7 +95,7 @@ public sealed class NativeTrainDoorModelPartsTests
         using GameAssets assets = new(GameDirectory);
         FieldModel model = assets.LoadField(919).Models[13];
         NativeModelPartsDefinition definition = model.NativeParts!;
-        NativeModelPartResourceState state = NativeModelPartResourceState.Create(definition).StartTranslation(1, 32, 0, 207, 30);
+        NativeModelPartResourceState state = NativeModelPartResourceState.Create(definition).StartTranslation(definition, 1, 32, 0, 207, 30);
         NativeModelPartStep sample = state.Step(definition);
         for (int index = 1; index < callback; index++)
         {
@@ -104,8 +103,8 @@ public sealed class NativeTrainDoorModelPartsTests
         }
         Assert.Equal(new Vector3(x, 0, z), Assert.Single(sample.SkinTranslations).Value);
         Assert.Equal(1, Assert.Single(sample.SkinTranslations).Key);
-        Assert.Equal((short)(callback + 1), sample.State.Parts[1][2]);
-        Assert.Equal(callback == 30 ? (short)4 : (short)1, sample.State.Parts[1][7]);
+        Assert.Equal((short)(callback + 1), sample.State.Translations[1].Counter);
+        Assert.Equal(callback == 30 ? (short)4 : (short)1, sample.State.Translations[1].Mode);
         string before = JsonSerializer.Serialize(sample.State);
         Vector3[] baseline = model.Pose(0, 0);
         Vector3[] translated = model.Pose(0, 0, skinTranslations: sample.SkinTranslations);
@@ -130,8 +129,8 @@ public sealed class NativeTrainDoorModelPartsTests
         {
             NativeModelPartStep retained = sample.State.Step(definition);
             Assert.Equal(new Vector3(32, 0, 207), retained.SkinTranslations[1]);
-            Assert.Equal((short)31, retained.State.Parts[1][2]);
-            NativeModelPartStep reversed = retained.State.StartTranslation(1, -32, 0, -207, 30).Step(definition);
+            Assert.Equal((short)31, retained.State.Translations[1].Counter);
+            NativeModelPartStep reversed = retained.State.StartTranslation(definition, 1, -32, 0, -207, 30).Step(definition);
             Assert.Equal(new Vector3(31, 0, 201), reversed.SkinTranslations[1]);
         }
     }
@@ -144,26 +143,26 @@ public sealed class NativeTrainDoorModelPartsTests
         short[] words = original.Parts[0].Words.ToArray();
         words[1] = 2;
         NativeModelPartsDefinition twoSkins = original with { Parts = [new(words)] };
-        NativeModelPartStep ordered = NativeModelPartResourceState.Create(twoSkins).StartTranslation(0, 32, 0, 207, 30).Step(twoSkins);
+        NativeModelPartStep ordered = NativeModelPartResourceState.Create(twoSkins).StartTranslation(twoSkins, 0, 32, 0, 207, 30).Step(twoSkins);
         Assert.Equal(new Vector3(1, 0, 6), ordered.SkinTranslations[0]);
         Assert.Equal(new Vector3(2, 0, 13), ordered.SkinTranslations[1]);
-        Assert.Equal((short)3, ordered.State.Parts[0][2]);
+        Assert.Equal((short)3, ordered.State.Translations[0].Counter);
 
-        NativeModelPartStep negative = NativeModelPartResourceState.Create(original).StartTranslation(1, -32, 0, -207, -1).Step(original);
+        NativeModelPartStep negative = NativeModelPartResourceState.Create(original).StartTranslation(original, 1, -32, 0, -207, -1).Step(original);
         Assert.Equal(new Vector3(32, 0, 207), negative.SkinTranslations[1]);
-        Assert.Equal((short)4, negative.State.Parts[1][7]);
+        Assert.Equal((short)4, negative.State.Translations[1].Mode);
         Assert.Equal(new Vector3(-32, 0, -207), negative.State.Step(original).SkinTranslations[1]);
 
-        NativeModelPartResourceState state = NativeModelPartResourceState.Create(original).StartTranslation(1, 32, 0, 207, short.MaxValue);
+        NativeModelPartResourceState state = NativeModelPartResourceState.Create(original).StartTranslation(original, 1, 32, 0, 207, short.MaxValue);
         for (int callback = 1; callback < short.MaxValue; callback++)
         {
             state = state.Step(original).State;
         }
         NativeModelPartStep wrapped = state.Step(original);
         Assert.Equal(new Vector3(32, 0, 207), wrapped.SkinTranslations[1]);
-        Assert.Equal(short.MinValue, wrapped.State.Parts[1][2]);
-        Assert.Equal((short)1, wrapped.State.Parts[1][7]);
+        Assert.Equal(short.MinValue, wrapped.State.Translations[1].Counter);
+        Assert.Equal((short)1, wrapped.State.Translations[1].Mode);
         Assert.Equal(new Vector3(-32, 0, -207), wrapped.State.Step(original).SkinTranslations[1]);
-        Assert.Throws<NotSupportedException>(() => state.StartTranslation(0, 1, 2, 3, 0));
+        Assert.Throws<NotSupportedException>(() => state.StartTranslation(original, 0, 1, 2, 3, 0));
     }
 }

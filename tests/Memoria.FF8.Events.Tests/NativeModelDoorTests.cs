@@ -39,10 +39,10 @@ internal static partial class Program
         (Jsm.Opcode, int)[] commands = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MODELDOOROPEN, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.MODELDOORCLOSE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_L, 6000), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MODELDOORCLOSE, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_L, 6001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         EventEngine live = Create(commands);
         live.Step();
-        Require(live.Scene.ModelParts?.Resources[13].Parts[1][7] == 0, "Normal model registration did not execute flags-only allocation.");
+        Require(live.Scene.ModelParts?.Resources[13].Translations.Count == 0, "Normal model registration did not execute flags-only allocation.");
         live.Step();
-        Require(CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 77 && live.Scene.ModelParts!.Resources[13].Parts[1][12] == 32 && live.Scene.ModelParts.Resources[13].Parts[1][14] == 207, "Model-door return2 or busy request drop changed the original command contract.");
-        Require(live.GetNativeModelPartTranslations(0)![1] == new Vector3(1, 0, 6) && live.Scene.ModelParts!.Resources[13].Parts[1][2] == 2, "Command callback did not produce the counter1 skin sample before advancing to2.");
+        Require(CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 77 && live.Scene.ModelParts!.Resources[13].Translations[1].TargetX == 32 && live.Scene.ModelParts.Resources[13].Translations[1].TargetZ == 207, "Model-door return2 or busy request drop changed the original command contract.");
+        Require(live.GetNativeModelPartTranslations(0)![1] == new Vector3(1, 0, 6) && live.Scene.ModelParts!.Resources[13].Translations[1].Counter == 2, "Command callback did not produce the counter1 skin sample before advancing to2.");
         for (int tick = 0; tick < 9; tick++)
         {
             live.Step();
@@ -60,13 +60,13 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Native model-part restore changed later callback samples or command completion.");
         }
-        Require(live.Scene.ModelParts!.Resources[13].Parts[1][7] == 4 && live.Scene.ModelParts.Resources[13].Parts[1][12] == 0 && live.Scene.ModelParts.Resources[13].Parts[1][14] == 0 && live.GetNativeModelPartTranslations(0)![1] == Vector3.Zero, "Model-door close failed retained target subtraction or persistent terminal placement.");
+        Require(live.Scene.ModelParts!.Resources[13].Translations[1].Mode == 4 && live.Scene.ModelParts.Resources[13].Translations[1].TargetX == 0 && live.Scene.ModelParts.Resources[13].Translations[1].TargetZ == 0 && live.GetNativeModelPartTranslations(0)![1] == Vector3.Zero, "Model-door close failed retained target subtraction or persistent terminal placement.");
 
         (Jsm.Opcode, int)[] open = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MODELDOOROPEN, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         EventEngine shared = Create(open, peer: true);
         shared.Step();
         shared.Step();
-        Require(shared.Scene.ModelParts!.Resources.Count == 1 && shared.Scene.ModelParts.Instances.Length == 2 && !shared.Actors[1].Active && shared.GetNativeModelPartTranslations(0)![1] == new Vector3(1, 0, 6) && shared.GetNativeModelPartTranslations(1)![1] == new Vector3(2, 0, 13) && shared.Scene.ModelParts.Resources[13].Parts[1][2] == 3, "Registered shared-resource instances did not tick in order independently of UNUSE.");
+        Require(shared.Scene.ModelParts!.Resources.Count == 1 && shared.Scene.ModelParts.Instances.Length == 2 && !shared.Actors[1].Active && shared.GetNativeModelPartTranslations(0)![1] == new Vector3(1, 0, 6) && shared.GetNativeModelPartTranslations(1)![1] == new Vector3(2, 0, 13) && shared.Scene.ModelParts.Resources[13].Translations[1].Counter == 3, "Registered shared-resource instances did not tick in order independently of UNUSE.");
 
         foreach (bool known in new[] { true, false })
         {
@@ -105,13 +105,13 @@ internal static partial class Program
             snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!.AsObject().Remove("0"),
             snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["Frame"] = saved.GetProperty("Frame").GetInt64() - 1,
             snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["ModelId"] = 0,
-            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SkinTranslations"]!["1"]!["X"] = 0.5,
-            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SkinTranslations"]!["1"]!["Z"] = 100000,
-            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SkinTranslations"]!.AsObject().Remove("1"),
+            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SampleState"]!["Translations"]!["1"]!["StartX"] = 0.5,
+            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SampleState"]!["Translations"]!["1"]!["TargetZ"] = 100000,
+            snapshot => snapshot["Scene"]!["ModelParts"]!["Draws"]!["0"]!["SampleState"]!["Translations"]!.AsObject().Remove("1"),
             snapshot => snapshot["Scene"]!["ModelParts"]!["Instances"]![0] = null,
             snapshot => snapshot["Scene"]!["ModelParts"]!["Resources"]!["13"] = null,
-            snapshot => snapshot["Scene"]!["ModelParts"]!["Resources"]!["13"]!["Parts"]![0]![2] = 999,
-            snapshot => snapshot["Scene"]!["ModelParts"]!["Resources"]!["13"]!["Parts"]![1]![14] = 100000
+            snapshot => snapshot["Scene"]!["ModelParts"]!["Resources"]!["13"]!["Translations"]!["1"]!["Mode"] = 3,
+            snapshot => snapshot["Scene"]!["ModelParts"]!["Resources"]!["13"]!["Translations"]!["1"]!["TargetZ"] = 100000
         ];
         foreach (Action<JsonNode> corrupt in corruptions)
         {

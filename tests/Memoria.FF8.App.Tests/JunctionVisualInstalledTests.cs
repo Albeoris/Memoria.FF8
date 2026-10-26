@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Resources;
@@ -242,6 +243,52 @@ public sealed class JunctionVisualInstalledTests
         {
             Assert.Equal(sourceHash, FileHash(source!));
         }
+    }
+
+    [Fact]
+    public void OptionalLogicalModelSnapshotContinuesAndRestoresWithReplacementEnabledAndDisabled()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_VISUAL_STANDALONE");
+        string? evidenceRoot = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOD_EVIDENCE_DIRECTORY");
+        Assert.SkipUnless(File.Exists(source) && !string.IsNullOrWhiteSpace(evidenceRoot), "Configure an optional standalone and output directory for model replacement continuation.");
+        using Inputs input = new();
+        input.Select(input.Cases[0].Options);
+        string output = Path.Combine(evidenceRoot!, "VisualPackage", "logical-model-continuation.ff8");
+        Assert.False(File.Exists(output), "Preserve an earlier standalone; select a fresh evidence output directory.");
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        string sourceHash = FileHash(source!);
+        long frame;
+        JsonElement snapshot;
+        using (GameResourceHost host = input.Open())
+        using (GameAssets assets = new(input.GameDirectory, resources: host.Resources, modelOverrides: host))
+        {
+            GameSession session = new(GameSession.Load(source!));
+            using GameWorld world = new(session, input.GameDirectory, resources: host.Resources, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host);
+            Assert.True(world.EnsureField());
+            frame = world.Events.Frame;
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+            session.SetEventState(world.Events.Capture());
+            session.Save(output, compact: true);
+            snapshot = world.Events.Capture();
+        }
+        foreach (bool enabled in new[] { true, false })
+        {
+            using GameResourceHost host = enabled ? input.Open() : input.OpenOriginal();
+            using GameAssets assets = new(input.GameDirectory, resources: host.Resources, modelOverrides: host);
+            GameSession restored = new(GameSession.Load(output));
+            using GameWorld world = new(restored, input.GameDirectory, resources: host.Resources, resolveGameFile: host.ResolveGameFile, sharedAssets: assets, readSceneMods: () => host.SceneMods, modelOverrides: host);
+            Assert.True(world.EnsureField());
+            Assert.Equal(frame + 1, world.Events.Frame);
+            Assert.True(JsonElement.DeepEquals(snapshot, world.Events.Capture()));
+            Assert.NotEmpty(world.Render(TimeSpan.Zero));
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+            Assert.Equal(frame + 2, world.Events.Frame);
+            Assert.Null(world.Events.LastFault);
+        }
+        Assert.Equal(sourceHash, FileHash(source!));
+        Evidence("logical-model-continuation.json", new { source, sourceHash, output, outputHash = FileHash(output), startFrame = frame, savedFrame = frame + 1, restoredFrame = frame + 1, continuedFrame = frame + 2, options = input.Cases[0].Options, enabledAndDisabledRestored = true, sourceUnchanged = true });
     }
 
     private static string? BackgroundField(string path)

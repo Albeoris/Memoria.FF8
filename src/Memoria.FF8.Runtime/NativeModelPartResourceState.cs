@@ -1,84 +1,38 @@
 using System.Numerics;
-using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>The sole mutable32-byte part rows for one selected ONE resource slot.</summary>
-public sealed record NativeModelPartResourceState([property: JsonRequired] string SourceHash, [property: JsonRequired] int SourceOffset, [property: JsonRequired] short[][] Parts)
+/// <summary>Logical translation progress keyed by native part index; selected model geometry remains resource data.</summary>
+public sealed record NativeModelPartResourceState([property: JsonRequired] Dictionary<int, NativeModelPartTranslation> Translations)
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<ushort>? SkinFlags { get; init; }
-
     public static NativeModelPartResourceState Create(NativeModelPartsDefinition definition)
     {
         definition.Validate();
-        short[][] rows = definition.Parts.Select(part => part.Words.ToArray()).ToArray();
-        foreach (short[] row in rows)
-        {
-            //5318D0 preserves copied MCH counter/start/target/duration and clears WORD14 only.
-            row[7] = 0;
-        }
-        return new NativeModelPartResourceState(definition.SourceHash, definition.SourceOffset, rows) { SkinFlags = InitialSkinFlags5318D0(definition) };
-    }
-
-    private static ImmutableArray<ushort> InitialSkinFlags5318D0(NativeModelPartsDefinition definition)
-    {
-        ushort[] flags = definition.SkinBindings.Select(skin => skin.OriginalFlags).ToArray();
-        foreach (NativeModelPartDefinition part in definition.Parts)
-        {
-            for (int skin = part.FirstSkinBinding; skin < part.FirstSkinBinding + part.SkinBindingCount; skin++)
-            {
-                //5318D0 clears WORD6 of each part-selected eight-byte skin record, not unrelated skin rows.
-                flags[skin] = 0;
-            }
-        }
-        return flags.ToImmutableArray();
-    }
-
-    public ushort ReadSkinFlags(int index)
-    {
-        ImmutableArray<ushort> flags = SkinFlags ?? throw new NotSupportedException("Native skin flags require their actual5318D0 registration; old missing state is not a zero array.");
-        return flags[index];
+        return new NativeModelPartResourceState([]);
     }
 
     public void Validate(NativeModelPartsDefinition definition)
     {
         definition.Validate();
-        if (SourceHash != definition.SourceHash || SourceOffset != definition.SourceOffset || Parts is null || Parts.Length != definition.Parts.Count)
+        if (Translations is null || Translations.Any(pair => (uint)pair.Key >= definition.Parts.Count || pair.Value is null || pair.Value.Mode is not (1 or 4) || pair.Value.Duration == 0))
         {
-            throw new InvalidDataException("Native model-part state does not match its original MCH resource.");
+            throw new InvalidDataException("Native model-part translations require existing part indices, supported modes and nonzero durations.");
         }
-        if (SkinFlags is { } flags && (flags.IsDefault || !flags.SequenceEqual(InitialSkinFlags5318D0(definition))))
-        {
-            throw new InvalidDataException("Native skin flags lost their actual selected5318D0 clears or unchanged source words.");
-        }
-        for (int part = 0; part < Parts.Length; part++)
-        {
-            short[] row = Parts[part];
-            if (row is null || row.Length != 16 || new[] { 0, 1, 3, 8, 9, 10, 11 }.Any(word => row[word] != definition.Parts[part].Words[word]) || row[7] is not (0 or 1 or 4) || row[7] == 1 && row[15] == 0)
-            {
-                throw new InvalidDataException("Native model-part physical WORDs are malformed or contain an unsupported writer.");
-            }
-            if (row[7] == 0 && Enumerable.Range(0, 16).Where(word => word != 7).Any(word => row[word] != definition.Parts[part].Words[word]))
-            {
-                throw new InvalidDataException("Inactive native model part has no writer for changed copied MCH WORDs.");
-            }
-        }
-        if (Parts.Any(row => (row[7] & 5) != 0))
+        if (Translations.Count > 0)
         {
             definition.RequireDisjointTranslationGeometry();
         }
     }
 
-    public NativeModelPartResourceState StartTranslation(int partIndex, short x, short y, short z, short duration)
+    public NativeModelPartResourceState StartTranslation(NativeModelPartsDefinition definition, int partIndex, short x, short y, short z, short duration)
     {
-        if ((uint)partIndex >= Parts.Length || Parts[partIndex].Length != 16)
+        Validate(definition);
+        if ((uint)partIndex >= definition.Parts.Count)
         {
-            throw new NotSupportedException("Native model-part command requires its registered original part.");
+            throw new NotSupportedException("Native model-part command requires its registered part index.");
         }
-        short[] current = Parts[partIndex];
-        if ((current[7] & 3) != 0)
+        if (Translations.TryGetValue(partIndex, out NativeModelPartTranslation? current) && current.Mode == 1)
         {
             //532180 returns-1;359/360 still consume their selector and return2.
             return this;
@@ -87,62 +41,61 @@ public sealed record NativeModelPartResourceState([property: JsonRequired] strin
         {
             throw new NotSupportedException("Native animated part translation cannot divide by zero.");
         }
-        short[][] rows = Parts.Select(row => row.ToArray()).ToArray();
-        short[] target = rows[partIndex];
-        target[7] = 1;
-        target[15] = duration;
-        target[2] = 1;
-        for (int axis = 0; axis < 3; axis++)
+        NativeModelPartDefinition part = definition.Parts[partIndex];
+        short startX = current?.TargetX ?? part.TargetX;
+        short startY = current?.TargetY ?? part.TargetY;
+        short startZ = current?.TargetZ ?? part.TargetZ;
+        NativeModelPartTranslation translation = new(1, startX, startY, startZ, unchecked((short)(startX + x)), unchecked((short)(startY + y)), unchecked((short)(startZ + z)), duration, 1);
+        Dictionary<int, NativeModelPartTranslation> translations = new(Translations)
         {
-            target[4 + axis] = target[12 + axis];
-        }
-        target[12] = unchecked((short)(target[12] + x));
-        target[13] = unchecked((short)(target[13] + y));
-        target[14] = unchecked((short)(target[14] + z));
-        return this with { Parts = rows };
+            [partIndex] = translation
+        };
+        NativeModelPartResourceState result = this with { Translations = translations };
+        result.Validate(definition);
+        return result;
     }
 
     /// <summary>One actual533CD0 enabled-instance visit, preserving per-skin signed WORD arithmetic and ordering.</summary>
     public NativeModelPartStep Step(NativeModelPartsDefinition definition)
     {
         Validate(definition);
-        if (!Parts.Any(row => (row[7] & 5) != 0))
+        if (Translations.Count == 0)
         {
             return new NativeModelPartStep(this, new Dictionary<int, Vector3>());
         }
-        short[][] rows = Parts.Select(row => row.ToArray()).ToArray();
+        Dictionary<int, NativeModelPartTranslation> states = new(Translations);
         Dictionary<int, Vector3> translations = [];
-        for (int part = 0; part < rows.Length; part++)
+        foreach ((int partIndex, NativeModelPartTranslation state) in Translations.OrderBy(pair => pair.Key))
         {
-            short[] row = rows[part];
-            int first = row[0];
-            int last = first + row[1];
-            for (int skin = first; skin < last; skin++)
+            NativeModelPartDefinition part = definition.Parts[partIndex];
+            short counter = state.Counter;
+            short mode = state.Mode;
+            for (int skin = part.FirstSkinBinding; skin < part.FirstSkinBinding + part.SkinBindingCount; skin++)
             {
-                if ((row[7] & 1) != 0)
+                if (mode == 1)
                 {
-                    short[] translated = new short[3];
-                    for (int axis = 0; axis < 3; axis++)
+                    //530C30 narrows each interpolated delta before separately adding the signed start vector.
+                    short x = unchecked((short)(counter * (state.TargetX - state.StartX) / state.Duration));
+                    short y = unchecked((short)(counter * (state.TargetY - state.StartY) / state.Duration));
+                    short z = unchecked((short)(counter * (state.TargetZ - state.StartZ) / state.Duration));
+                    translations[skin] = new Vector3(x, y, z) + new Vector3(state.StartX, state.StartY, state.StartZ);
+                    counter = unchecked((short)(counter + 1));
+                    if (state.Duration < counter)
                     {
-                        //530C30 narrows the interpolated delta before separately adding the start vector.
-                        short delta = unchecked((short)(row[2] * (row[12 + axis] - row[4 + axis]) / row[15]));
-                        translated[axis] = delta;
-                    }
-                    translations[skin] = new Vector3(translated[0], translated[1], translated[2]) + new Vector3(row[4], row[5], row[6]);
-                    row[2] = unchecked((short)(row[2] + 1));
-                    if (row[15] < row[2])
-                    {
-                        row[7] = unchecked((short)((row[7] ^ 1) | 4));
+                        mode = 4;
                     }
                 }
-                else if ((row[7] & 4) != 0)
+                else
                 {
-                    translations[skin] = new Vector3(row[12], row[13], row[14]);
+                    translations[skin] = new Vector3(state.TargetX, state.TargetY, state.TargetZ);
                 }
             }
+            states[partIndex] = state with { Counter = counter, Mode = mode };
         }
-        return new NativeModelPartStep(this with { Parts = rows }, translations);
+        return new NativeModelPartStep(this with { Translations = states }, translations);
     }
 }
+
+public sealed record NativeModelPartTranslation([property: JsonRequired] short Counter, [property: JsonRequired] short StartX, [property: JsonRequired] short StartY, [property: JsonRequired] short StartZ, [property: JsonRequired] short TargetX, [property: JsonRequired] short TargetY, [property: JsonRequired] short TargetZ, [property: JsonRequired] short Duration, [property: JsonRequired] short Mode);
 
 public sealed record NativeModelPartStep(NativeModelPartResourceState State, IReadOnlyDictionary<int, Vector3> SkinTranslations);

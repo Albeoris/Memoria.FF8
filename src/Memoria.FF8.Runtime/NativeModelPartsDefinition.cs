@@ -5,6 +5,23 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Immutable MCH records copied by531310;5318D0 clears only their runtime flags.</summary>
 public sealed record NativeModelPartsDefinition(string SourceHash, int SourceOffset, IReadOnlyList<NativeModelPartDefinition> Parts, IReadOnlyList<NativeModelSkinBinding> SkinBindings)
 {
+    public ushort ReadInitializedSkinFlags(int index)
+    {
+        Validate();
+        if ((uint)index >= SkinBindings.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+        foreach (NativeModelPartDefinition part in Parts)
+        {
+            if (index >= part.FirstSkinBinding && index < part.FirstSkinBinding + part.SkinBindingCount)
+            {
+                return 0;
+            }
+        }
+        return SkinBindings[index].OriginalFlags;
+    }
+
     public void Validate()
     {
         if (SourceHash is null || SourceHash.Length != 64 || !SourceHash.All(Uri.IsHexDigit) || SourceOffset < 0 || Parts is null || Parts.Count > 1000 || SkinBindings is null || SkinBindings.Count > 1000)

@@ -6,8 +6,8 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeFieldModelInstance([property: JsonRequired] int ObjectId, [property: JsonRequired] int ModelId);
-/// <summary>Executed530C30 local-vector samples for an instance; rendering never advances physical part rows.</summary>
-public sealed record NativeModelPartDraw([property: JsonRequired] long Frame, [property: JsonRequired] int ModelId, [property: JsonRequired] Dictionary<int, Vector3> SkinTranslations);
+/// <summary>Logical input to an executed model callback; resource-specific skin samples are rebuilt without advancing live state.</summary>
+public sealed record NativeModelPartDraw([property: JsonRequired] long Frame, [property: JsonRequired] int ModelId, [property: JsonRequired] NativeModelPartResourceState SampleState);
 public sealed record NativeFieldModelPartsState([property: JsonRequired] Dictionary<int, NativeModelPartResourceState> Resources, [property: JsonRequired] NativeFieldModelInstance[] Instances, [property: JsonRequired] Dictionary<int, NativeModelPartDraw> Draws)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -69,7 +69,7 @@ public sealed partial class EventEngine
         }
         NativeFieldModelPartsState? bank = Scene.ModelParts;
         NativeFieldModelInstance? instance = bank?.Instances.SingleOrDefault(item => item.ObjectId == fiber.ObjectId);
-        if (NativeRuntimeProfile is not { IsVerified: true } || instance is null || !bank!.Resources.TryGetValue(instance.ModelId, out NativeModelPartResourceState? state) || ReadNativeModelParts?.Invoke(instance.ModelId) is not NativeModelPartsDefinition definition || state.Parts.Length <= 1)
+        if (NativeRuntimeProfile is not { IsVerified: true } || instance is null || !bank!.Resources.TryGetValue(instance.ModelId, out NativeModelPartResourceState? state) || ReadNativeModelParts?.Invoke(instance.ModelId) is not NativeModelPartsDefinition definition || definition.Parts.Count <= 1)
         {
             return "Native model-door translation requires its executed instance registration and original part1 resource";
         }
@@ -97,7 +97,8 @@ public sealed partial class EventEngine
         }
         NativeFieldModelPartsState bank = Scene.ModelParts!;
         NativeFieldModelInstance instance = bank.Instances.Single(item => item.ObjectId == fiber.ObjectId);
-        NativeModelPartResourceState next = bank.Resources[instance.ModelId].StartTranslation(1, x, 0, z, 30);
+        NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(instance.ModelId) ?? throw new NotSupportedException("Native model command lost its registered model definition.");
+        NativeModelPartResourceState next = bank.Resources[instance.ModelId].StartTranslation(definition, 1, x, 0, z, 30);
         Dictionary<int, NativeModelPartResourceState> resources = new(bank.Resources) { [instance.ModelId] = next };
         int[] args = Pop(fiber, 1);
         Scene.ModelParts = bank with { Resources = resources };
@@ -124,9 +125,10 @@ public sealed partial class EventEngine
                 continue;
             }
             NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(instance.ModelId) ?? throw new NotSupportedException("Native model callback lost its original resource definition.");
-            NativeModelPartStep step = resources[instance.ModelId].Step(definition);
+            NativeModelPartResourceState sampleState = resources[instance.ModelId];
+            NativeModelPartStep step = sampleState.Step(definition);
             resources[instance.ModelId] = step.State;
-            draws[instance.ObjectId] = new NativeModelPartDraw(Frame, instance.ModelId, new Dictionary<int, Vector3>(step.SkinTranslations));
+            draws[instance.ObjectId] = new NativeModelPartDraw(Frame, instance.ModelId, sampleState);
             ActorState actor = actors[instance.ObjectId];
             if (CaptureFootstepModelOrigin is not null)
             {
@@ -158,7 +160,8 @@ public sealed partial class EventEngine
             //51D8F0 writes actor WORD536 only; it does not rebind531980's retained resource pointer.
             throw new NotSupportedException("Visible native model requires its current callback sample and retained resource identity; a later SETMODEL is not a new registration.");
         }
-        return draw.SkinTranslations;
+        NativeModelPartsDefinition definition = ReadNativeModelParts?.Invoke(instance.ModelId) ?? throw new NotSupportedException("Model presentation requires its registered model definition.");
+        return draw.SampleState.Step(definition).SkinTranslations;
     }
 
     private void ValidateNativeModelParts(SceneEventState scene, IReadOnlyList<ActorState> savedActors, long frame, bool initialized, bool transitionRequested, NativeMovieSource? movieSource)
@@ -203,7 +206,7 @@ public sealed partial class EventEngine
             state.Validate(definition);
         }
         bool registrationOnly = IsNativeModelRegistrationOnly(scene, frame);
-        if (registrationOnly && (bank.Draws.Count != 0 || bank.Resources.Values.Any(state => state.Parts.Any(row => row[7] != 0)) || savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null)))
+        if (registrationOnly && (bank.Draws.Count != 0 || bank.Resources.Values.Any(state => state.Translations.Count != 0) || savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null)))
         {
             throw new InvalidDataException("Saved initial model registration contains a skin callback or part mutation before its first native callback.");
         }
@@ -211,10 +214,11 @@ public sealed partial class EventEngine
         {
             NativeFieldModelInstance? instance = bank.Instances.SingleOrDefault(item => item.ObjectId == objectId);
             NativeModelPartsDefinition? definition = instance is null ? null : ReadNativeModelParts?.Invoke(instance.ModelId);
-            if (draw is null || definition is null || draw.ModelId != instance!.ModelId || draw.Frame < 0 || draw.Frame > frame || draw.SkinTranslations is null || draw.SkinTranslations.Any(pair => (uint)pair.Key >= definition.SkinBindings.Count || !ValidNativeModelTranslation(pair.Value)))
+            if (draw is null || definition is null || draw.ModelId != instance!.ModelId || draw.Frame < 0 || draw.Frame > frame || draw.SampleState is null)
             {
                 throw new InvalidDataException("Saved native model draw samples are malformed.");
             }
+            draw.SampleState.Validate(definition);
             NativeFootstepModelOrigin? origin = savedActors[objectId].NativeFootstepModelOrigin;
             if (CaptureFootstepModelOrigin is not null || origin is not null)
             {
@@ -241,17 +245,11 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved visible native model has no current executed skin sample.");
             }
-            int[] translatedSkins = bank.Resources[instance.ModelId].Parts.Where(row => (row[7] & 5) != 0).SelectMany(row => Enumerable.Range(row[0], row[1])).Distinct().Order().ToArray();
-            if (!draw.SkinTranslations.Keys.Order().SequenceEqual(translatedSkins))
+            if (!draw.SampleState.Translations.Keys.Order().SequenceEqual(bank.Resources[instance.ModelId].Translations.Keys.Order()))
             {
-                throw new InvalidDataException("Saved native model skin sample omits its translated physical parts.");
+                throw new InvalidDataException("Saved native model sample omits its translated logical parts.");
             }
         }
     }
 
-    private static bool ValidNativeModelTranslation(Vector3 value)
-    {
-        //530C30 separately transforms signedWORD start and narrowed signedWORD delta; their sum need not fit one WORD.
-        return new[] { value.X, value.Y, value.Z }.All(axis => float.IsFinite(axis) && axis == MathF.Truncate(axis) && axis >= 2 * short.MinValue && axis <= 2 * short.MaxValue);
-    }
 }

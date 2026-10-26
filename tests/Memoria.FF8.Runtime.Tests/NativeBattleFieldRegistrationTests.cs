@@ -85,29 +85,24 @@ public sealed class NativeBattleFieldRegistrationTests
         NativeModelPartsDefinition source = Definition();
         NativeModelPartResourceState state = NativeModelPartResourceState.Create(source);
         state.Validate(source);
-        var flags = state.SkinFlags ?? throw new InvalidOperationException("Fresh5318D0 registration omitted skin words.");
-        Assert.Equal(new ushort[] { 0x1111, 0, 0x3333 }, flags);
-        Assert.Equal((ushort)0, state.ReadSkinFlags(1));
-        for (int word = 0; word < 16; word++)
-        {
-            Assert.Equal(word == 7 ? (short)0 : source.Parts[0].Words[word], state.Parts[0][word]);
-        }
+        Assert.Empty(state.Translations);
+        Assert.Equal(new ushort[] { 0x1111, 0, 0x3333 }, Enumerable.Range(0, source.SkinBindings.Count).Select(source.ReadInitializedSkinFlags));
+        Assert.Equal((ushort)0, source.ReadInitializedSkinFlags(1));
+        Assert.Equal((short)0x1234, source.Parts[0].Words[7]);
         Assert.Equal((ushort)0x2222, source.SkinBindings[1].OriginalFlags);
-        Assert.Throws<InvalidDataException>(() => (state with { SkinFlags = flags.SetItem(0, 0) }).Validate(source));
     }
 
     [Fact]
-    public void Old_missing_skin_flags_stay_unknown_and_current_flags_round_trip()
+    public void Fresh_dynamic_state_round_trips_without_resource_skin_words()
     {
         NativeModelPartsDefinition source = Definition();
         NativeModelPartResourceState current = NativeModelPartResourceState.Create(source);
         NativeModelPartResourceState restored = JsonSerializer.Deserialize<NativeModelPartResourceState>(JsonSerializer.Serialize(current))!;
         restored.Validate(source);
         Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(restored));
-        NativeModelPartResourceState old = current with { SkinFlags = null };
-        old.Validate(source);
-        Assert.DoesNotContain("SkinFlags", JsonSerializer.Serialize(old));
-        Assert.Throws<NotSupportedException>(() => old.ReadSkinFlags(1));
+        Assert.Empty(restored.Translations);
+        Assert.DoesNotContain("SkinFlags", JsonSerializer.Serialize(restored));
+        Assert.Equal((ushort)0, source.ReadInitializedSkinFlags(1));
     }
 
     private static NativeModelPartsDefinition Definition()

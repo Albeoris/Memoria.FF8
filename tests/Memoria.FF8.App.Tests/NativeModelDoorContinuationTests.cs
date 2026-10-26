@@ -19,17 +19,17 @@ public sealed class NativeModelDoorContinuationTests
         Assert.Equal(919, world.Events.FieldId);
         Assert.Equal(244, world.Events.Frame);
         NativeModelPartResourceState resource = world.Events.Scene.ModelParts!.Resources[13];
-        for (int callback = 0; (resource.Parts[1][7] & 1) == 0; callback++)
+        for (int callback = 0; (!resource.Translations.TryGetValue(1, out var translation) || translation.Mode != 1); callback++)
         {
             Assert.True(callback < 30, "Actual door animation did not start within its bounded ordinary callback budget.");
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
             Assert.Null(world.Events.LastFault);
             resource = world.Events.Scene.ModelParts!.Resources[13];
         }
-        short counter = resource.Parts[1][2];
+        short counter = resource.Translations[1].Counter;
         NativeModelPartDraw sample = world.Events.Scene.ModelParts!.Draws[13];
         Assert.Equal(world.Events.Frame, sample.Frame);
-        Assert.NotEmpty(sample.SkinTranslations);
+        Assert.NotEmpty(sample.SampleState.Translations);
         JsonElement before = world.Events.Capture();
         byte[] pixels = world.Render(TimeSpan.Zero).ToArray();
         for (int render = 0; render < 5; render++)
@@ -41,7 +41,7 @@ public sealed class NativeModelDoorContinuationTests
         world.SetRenderSize(320, 240);
         Assert.Equal(pixels, world.Render(TimeSpan.Zero));
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
-        Assert.Equal(counter, world.Events.Scene.ModelParts.Resources[13].Parts[1][2]);
+        Assert.Equal(counter, world.Events.Scene.ModelParts.Resources[13].Translations[1].Counter);
 
         WithRestored(world, session, directory, restored =>
         {
@@ -49,7 +49,7 @@ public sealed class NativeModelDoorContinuationTests
             PlayerAction next = new(PlayerActionKind.Wait);
             Assert.Equal(world.Apply(next), restored.Apply(next));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-            Assert.NotEqual(counter, world.Events.Scene.ModelParts!.Resources[13].Parts[1][2]);
+            Assert.NotEqual(counter, world.Events.Scene.ModelParts!.Resources[13].Translations[1].Counter);
             Assert.Equal(world.Events.Frame, world.Events.Scene.ModelParts.Draws[13].Frame);
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
             Assert.Null(world.Events.LastFault);
@@ -68,7 +68,7 @@ public sealed class NativeModelDoorContinuationTests
         Assert.Equal(919, world.Events.FieldId);
         Assert.Equal(820, world.Events.Frame);
         Assert.True(world.Events.IsUserControlEnabled);
-        Assert.Equal(4, world.Events.Scene.ModelParts!.Resources[13].Parts[1][7]);
+        Assert.Equal(4, world.Events.Scene.ModelParts!.Resources[13].Translations[1].Mode);
         WithRestored(world, session, directory, restored =>
         {
             PlayerAction wait = new(PlayerActionKind.Wait);

@@ -34,7 +34,7 @@ internal static partial class Program
         }
         EventEngine live = Create();
         live.Step();
-        Require(live.Frame == 1 && live.Scene.FieldCallbackClock is { InitializationTransactions: 1, OrdinaryCallbacks: 0, MovieCallbacks: 0 } && live.Scene.ModelParts is { Draws.Count: 0 } && live.Scene.ModelParts.Resources.Values.All(resource => resource.Parts.All(row => row[7] == 0)), "Initial model checkpoint did not stop after registration and before the first actual skin callback.");
+        Require(live.Frame == 1 && live.Scene.FieldCallbackClock is { InitializationTransactions: 1, OrdinaryCallbacks: 0, MovieCallbacks: 0 } && live.Scene.ModelParts is { Draws.Count: 0 } && live.Scene.ModelParts.Resources.Values.All(resource => resource.Translations.Count == 0), "Initial model checkpoint did not stop after registration and before the first actual skin callback.");
         JsonElement initial = live.Capture();
         EventEngine restored = Create();
         restored.Restore(initial);
