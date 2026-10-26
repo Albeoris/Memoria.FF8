@@ -159,6 +159,39 @@ public sealed class NativeBattleTonberry90ControllerTests
         Assert.Throws<NotSupportedException>(() => NativeBattleTonberry90Controller.Advance7624D0(WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 255)), fixture.Inputs));
     }
 
+    [Fact]
+    public void Target_bounds_consume_retained_matrices_without_selecting_or_decoding_an_animation()
+    {
+        var fixture = Fixture();
+        NativeBattlePoseSource source = fixture.Inputs.ReadPoseSource(3);
+        NativeBattleGraphicsModel target = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(3, 0) { SequenceState = new() }, source);
+        NativeBattleBodyBoneMatrices publication = target.CurrentBodyBoneMatrices!;
+        target = target with { CurrentBodyBoneMatrices = publication with { Matrices = publication.Matrices.SetItem(0, publication.Matrices[0] with { X = 123, Y = -456, Z = 789 }) } };
+        string savedModel = JsonSerializer.Serialize(target);
+        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(savedModel)!;
+        NativeBattleTonberry90Inputs inputs = fixture.Inputs with
+        {
+            ReadModel = actor => actor == 3 ? target : fixture.Inputs.ReadModel(actor),
+            InitializeTarget = (current, _) => current,
+            AdvanceLeaf = (current, _) => new(current, false)
+        };
+        NativeBattleTonberry90Frame before = WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 3));
+        NativeBattleTonberry90Frame frame = NativeBattleTonberry90Controller.Advance7624D0(before, inputs);
+        NativeBattleTonberry90Frame independent = NativeBattleTonberry90Controller.Advance7624D0(JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(before))!, inputs with { ReadModel = actor => actor == 3 ? restored : fixture.Inputs.ReadModel(actor) });
+        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(independent));
+        NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[0];
+        Assert.Equal((ushort)123, task.ReadWord(0x48));
+        Assert.Equal(unchecked((ushort)-456), task.ReadWord(0x4A));
+        Assert.Equal((ushort)789, task.ReadWord(0x4C));
+        Assert.Equal((ushort)123, task.ReadWord(0x50));
+        Assert.Equal(unchecked((ushort)-456), task.ReadWord(0x52));
+        Assert.Equal((ushort)789, task.ReadWord(0x54));
+        Assert.Equal((byte)1, task.ReadByte(0x29));
+        Assert.Null(target.SequenceState!.Pose);
+        Assert.Null(target.SequenceState.DecodedPose);
+        Assert.Equal(savedModel, JsonSerializer.Serialize(target));
+    }
+
     private static NativeBattleModulePoolTask RootTask(NativeBattleTonberry90Frame frame) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(Root);
 
     private static NativeBattleTonberry90Frame WriteRoot(NativeBattleTonberry90Frame frame, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)
@@ -193,7 +226,7 @@ public sealed class NativeBattleTonberry90ControllerTests
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), new byte[] { 1, 0, 0, 0, 8, 0, 0, 0, 1, 0, 0, 0 }.ToImmutableArray());
         ImmutableArray<bool> known = Enumerable.Repeat(true, 32).ToImmutableArray().SetItem(18, false).SetItem(19, false);
         NativeBattlePackedMatrix32 camera = new(Enumerable.Range(0, 32).Select(index => (byte)index).ToImmutableArray(), known);
-        NativeBattleTonberry90Inputs inputs = new(packets, camera, index => new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, _ => source, (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."));
+        NativeBattleTonberry90Inputs inputs = new(packets, camera, index => NativeBattleBodyBoneMatrices.Publish508C90(new(index, 0) { SequenceState = new() { Pose = 0, PoseFrame114 = 1 } }, source), _ => source, (_, _) => throw new InvalidOperationException("Target boot was not reached."), (_, _) => throw new InvalidOperationException("No leaf was admitted."), (_, _) => throw new InvalidOperationException("Contact was not reached."), (_, _) => throw new InvalidOperationException("Resource request was not reached."));
         return (frame, inputs);
     }
 }

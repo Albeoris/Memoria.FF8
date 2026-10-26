@@ -118,6 +118,67 @@ public sealed class NativeBattleEffectModelHelperTests
         Assert.Throws<InvalidDataException>(() => NativeBattlePoseMatrices.LocalBounds8DC870(source, pose with { Bones = [] }));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Bounds_read_loaded_or_composed_current_matrices_without_selecting_a_pose(bool composed)
+    {
+        NativeBattlePoseSource source = LoadedBoundsSource(200);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(Model(0, new(9000, 8000, 7000), 0) with { SequenceState = new() }, source);
+        if (composed)
+        {
+            model = NativeBattleBodyBoneMatrices.Compose5095B0(model, new([-4096, 0, 0, 0, 4096, 0, 0, 0, -4096], 1000, -2000, 3000, 4096));
+        }
+        string originalModel = JsonSerializer.Serialize(model);
+        NativeBattleModulePoolTask task = Task().WriteWord(0x4E, 0xA55A).WriteWord(0x56, 0xB66B);
+        string originalTask = JsonSerializer.Serialize(task);
+
+        NativeBattleModulePoolTask updated = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
+
+        Assert.Equal(composed ? new short[] { 900, -1980, 2900 } : new short[] { 10, 20, 30 }, Words(updated, 0x48));
+        Assert.Equal(composed ? new short[] { 990, -1800, 2970 } : new short[] { 100, 200, 100 }, Words(updated, 0x50));
+        Assert.Equal((ushort)0xA55A, updated.ReadWord(0x4E));
+        Assert.Equal((ushort)0xB66B, updated.ReadWord(0x56));
+        Assert.Null(model.SequenceState!.Pose);
+        Assert.Null(model.SequenceState.DecodedPose);
+        Assert.Equal(originalModel, JsonSerializer.Serialize(model));
+        Assert.Equal(originalTask, JsonSerializer.Serialize(task));
+
+        NativeBattleGraphicsModel restoredModel = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(originalModel)!;
+        NativeBattlePoseSource restoredSource = JsonSerializer.Deserialize<NativeBattlePoseSource>(JsonSerializer.Serialize(source))!;
+        NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(originalTask)!;
+        Assert.Equal(JsonSerializer.Serialize(updated), JsonSerializer.Serialize(NativeBattleEffectModelHelpers.UpdateBounds8DC870(restoredTask, restoredModel, restoredSource)));
+    }
+
+    [Fact]
+    public void Current_bounds_wrap_the_negated_length_and_reject_missing_or_wrong_rig_publications()
+    {
+        NativeBattlePoseSource source = LoadedBoundsSource(short.MinValue);
+        NativeBattleGraphicsModel model = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(Model(0, default, 0) with { SequenceState = new() }, source);
+        NativeBattleModulePoolTask updated = NativeBattleEffectModelHelpers.UpdateBounds8DC870(Task(), model, source);
+        Assert.Equal(new short[] { 10, 20, -32468 }, Words(updated, 0x48));
+        Assert.Equal(new short[] { 100, 200, 30 }, Words(updated, 0x50));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectModelHelpers.UpdateBounds8DC870(Task(), model with { CurrentBodyBoneMatrices = null }, source));
+        NativeBattlePoseSource differentRig = source with { Skeleton = source.Skeleton.SetItem(18, 101) };
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectModelHelpers.UpdateBounds8DC870(Task(), model, differentRig));
+    }
+
+    private static NativeBattlePoseSource LoadedBoundsSource(short childLength)
+    {
+        NativeBattlePoseSource source = Source(childLength);
+        byte[] skeleton = source.Skeleton.ToArray();
+        for (int bone = 0; bone < 2; bone++)
+        {
+            int matrix = 32 + 48 * bone;
+            for (int lane = 0; lane < 3; lane++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(matrix + 8 * lane), 4096);
+                BinaryPrimitives.WriteInt32LittleEndian(skeleton.AsSpan(matrix + 20 + 4 * lane), (bone == 0 ? 10 : 100) * (lane + 1));
+            }
+        }
+        return source with { Skeleton = skeleton.ToImmutableArray() };
+    }
+
     private static NativeBattleGraphicsModel Model(int index, NativeBattleVector position, short angle)
     {
         return new(index, 3) { ScaleVectorAddress48 = 0, ModelId4 = (byte)index, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0, Transform = new(position, position, 0, angle, 16384), SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };

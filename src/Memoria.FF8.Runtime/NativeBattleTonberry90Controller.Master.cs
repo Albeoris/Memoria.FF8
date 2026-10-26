@@ -134,8 +134,7 @@ public static partial class NativeBattleTonberry90Controller
             task = NativeBattleEffectModelHelpers.UpdateTarget8DC610(task, new ActorView(inputs.ReadModel), inputs.ReadPoseSource);
             NativeBattlePoseSource source = inputs.ReadPoseSource(task.ReadByte(0x2D));
             NativeBattleGraphicsModel model = inputs.ReadModel(task.ReadByte(0x2D));
-            NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Tonberry target bounds require its actual current pose state.");
-            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, source, NativeBattlePoseMatrices.ReadDecodedPose(sequence, source));
+            task = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
             Store(address, task);
             switch (unchecked((sbyte)task.ReadByte(0x29)))
             {

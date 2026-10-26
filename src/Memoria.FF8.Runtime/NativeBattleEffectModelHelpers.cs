@@ -18,6 +18,17 @@ public static class NativeBattleEffectModelHelpers
     public static NativeBattleModulePoolTask UpdateBounds8DC870(NativeBattleModulePoolTask task, NativeBattlePoseSource source, NativeBattleDecodedPose pose)
     {
         NativeBattleEffectLocalBounds bounds = NativeBattlePoseMatrices.LocalBounds8DC870(source, pose);
+        return WriteBounds(task, bounds);
+    }
+
+    public static NativeBattleModulePoolTask UpdateBounds8DC870(NativeBattleModulePoolTask task, NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        NativeBattleEffectLocalBounds bounds = NativeBattlePoseMatrices.LocalBounds8DC870(model, source);
+        return WriteBounds(task, bounds);
+    }
+
+    private static NativeBattleModulePoolTask WriteBounds(NativeBattleModulePoolTask task, NativeBattleEffectLocalBounds bounds)
+    {
         //Only these six WORDs have semantic consumers. Adjacent copied scratch padding is not an invented coordinate.
         return task.WriteWord(0x48, unchecked((ushort)bounds.Minimum.X)).WriteWord(0x4A, unchecked((ushort)bounds.Minimum.Y)).WriteWord(0x4C, unchecked((ushort)bounds.Minimum.Z)).WriteWord(0x50, unchecked((ushort)bounds.Maximum.X)).WriteWord(0x52, unchecked((ushort)bounds.Maximum.Y)).WriteWord(0x54, unchecked((ushort)bounds.Maximum.Z));
     }
@@ -60,7 +71,17 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new InvalidDataException("Native8DC870 requires every posed original skeleton matrix.");
         }
-        Matrix[] matrices = BoneMatrices(source, pose);
+        return LocalBounds8DC870(source, BoneMatrices(source, pose));
+    }
+
+    public static NativeBattleEffectLocalBounds LocalBounds8DC870(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        Matrix[] matrices = NativeBattleBodyBoneMatrices.Require(model, source).Select(matrix => new Matrix(matrix.Rotation.ToArray(), matrix.X, matrix.Y, matrix.Z)).ToArray();
+        return LocalBounds8DC870(source, matrices);
+    }
+
+    private static NativeBattleEffectLocalBounds LocalBounds8DC870(NativeBattlePoseSource source, Matrix[] matrices)
+    {
         short minX = unchecked((short)matrices[0].X);
         short minY = unchecked((short)matrices[0].Y);
         short minZ = unchecked((short)matrices[0].Z);
