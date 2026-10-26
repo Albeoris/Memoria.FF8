@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects;
 
@@ -198,7 +200,7 @@ public static class LiveEvidenceValidation
                 {
                     errors.Add("INTEGRITY_CHECK_FAILED");
                 }
-                ValidateSemantics(execution, actor, target, ability, action, startCallback, endCallback, errors);
+                ValidateSemantics(execution, actor, target, ability, action, nativeAction, effect, startCallback, endCallback, errors);
             }
             ValidateRepairs(report, executions, errors);
         }
@@ -330,7 +332,7 @@ public static class LiveEvidenceValidation
         }
     }
 
-    private static void ValidateSemantics(JsonElement execution, string actor, string requestedTarget, string ability, long action, long startCallback, long endCallback, List<string> errors)
+    private static void ValidateSemantics(JsonElement execution, string actor, string requestedTarget, string ability, long action, long nativeAction, long effect, long startCallback, long endCallback, List<string> errors)
     {
         Dictionary<string, JsonElement> beforeStates = execution.GetProperty("before").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
         Dictionary<string, JsonElement> afterStates = execution.GetProperty("after").EnumerateArray().ToDictionary(state => Text(state, "id"), StringComparer.Ordinal);
@@ -341,7 +343,7 @@ public static class LiveEvidenceValidation
         {
             errors.Add("SEMANTIC_RESOLUTION_UNVERIFIED");
         }
-        if (resolutions.Where(resolution => Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget))
+        if (resolutions.Where(resolution => Text(resolution, "actor_id") == actor).Any(resolution => Text(resolution, "original_target_id") != requestedTarget && !HasGuardianContactProvenance(execution, resolution, beforeStates, afterStates, actor, requestedTarget, ability, action, nativeAction, effect)))
         {
             errors.Add("FOCAL_RESOLUTION_TARGET_MISMATCH");
         }
@@ -391,6 +393,36 @@ public static class LiveEvidenceValidation
                 errors.Add("SPELL_STOCK_CONSUMPTION_UNVERIFIED");
             }
         }
+    }
+
+    private static bool HasGuardianContactProvenance(JsonElement execution, JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after, string actor, string requestedTarget, string ability, long action, long nativeAction, long effect)
+    {
+        if (ability != "GuardianForce" || nativeAction is < 64 or > 79 || action != nativeAction - 64 || !execution.TryGetProperty("dispatches", out JsonElement dispatches) || !resolution.TryGetProperty("native_contact", out JsonElement contact) || contact.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+        BattleDiagnosticNativeContact? proof = contact.Deserialize<BattleDiagnosticNativeContact>(Json);
+        if (proof is null || proof.ProducerAddress != 0x4850A0 || proof.ActorId != actor || proof.SubmittedTargetId != requestedTarget || proof.RecipientId != Text(resolution, "original_target_id") || proof.HeaderIndex != 0 || proof.HeaderPayload.IsDefault || proof.HeaderPayload.Length != 20 || proof.ContactPayload.IsDefault || proof.ContactPayload.Length != 24 || proof.FirstContactIndex is not int first || first < 0)
+        {
+            return false;
+        }
+        byte[] header = proof.HeaderPayload.ToArray();
+        const uint requiredHeaderBytes = (1u << 0) | (1u << 1) | (1u << 4) | (1u << 5) | (0xFu << 8) | (1u << 16);
+        if ((proof.HeaderUnknownByteMask & ~0xFFFFFu) != 0 || (proof.HeaderUnknownByteMask & requiredHeaderBytes) != 0 || header[0] != proof.ActorIndex || header[1] != 254 || (header[4] | header[5] << 8) != nativeAction || (long)first + header[16] > NativeBattleActionPacketsState.ContactCapacity || proof.RetainedContactIndex < first || (long)proof.RetainedContactIndex >= (long)first + header[16] || BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)) != NativeBattleActionPacketsState.ContactBase + 24u * (uint)first)
+        {
+            return false;
+        }
+        NativeBattleContactPacket packet = NativeBattleContactPacket.Decode(proof.ContactPayload.ToArray());
+        if (packet.Primary.ActorIndex != proof.RecipientIndex || !HasPhysicalIdentity(before, actor, proof.ActorIndex) || !HasPhysicalIdentity(after, actor, proof.ActorIndex) || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex))
+        {
+            return false;
+        }
+        return dispatches.EnumerateArray().Count(dispatch => Number(dispatch, "serial") == proof.DispatchSerial && Number(dispatch, "requested_effect") == effect && Number(dispatch, "executed_effect") == effect && Text(dispatch, "actor_id") == actor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && OptionalNumber(dispatch, "native_command") == 254 && Number(dispatch, "callback") <= Number(resolution, "callback")) == 1;
+    }
+
+    private static bool HasPhysicalIdentity(Dictionary<string, JsonElement> states, string id, byte index)
+    {
+        return index < 7 && states.TryGetValue(id, out JsonElement state) && OptionalNumber(state, "native_index") == index && states.Values.Count(value => OptionalNumber(value, "native_index") == index) == 1;
     }
 
     private static long Stock(JsonElement state, long action) => state.GetProperty("magic_stocks").EnumerateArray().Where(stock => Number(stock, "magic_id") == action).Sum(stock => Number(stock, "quantity"));

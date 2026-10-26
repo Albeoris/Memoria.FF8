@@ -99,17 +99,21 @@ public sealed partial class BattleSession
         byte sequence = first.ReadByte(2);
         NativeBattleContactPacket[] retained = Enumerable.Range(0, first.ReadByte(16)).Select(nativeActionPackets.ReadContact).ToArray();
         BattleActionPresentation? previous = resolvingNativeAction;
+        BattleActionPresentation? submitted = nativeTimedAction?.Command ?? ActiveAction;
+        BattleDiagnosticNativeContact? previousDiagnosticContact = diagnosticNativeContact;
         nativeActionScratch = nativeActionScratch with { ActorIndex = first.ReadByte(0), Command = command, Action = id, GuardianFormulaE1E = true, DeferredEffectsE00 = false, GuardianBoostPercent = boostPercent };
         nativeActionPackets = nativeActionPackets with { ContactCount = 0 };
         nativeActionCommitDepth++;
         try
         {
-            foreach (NativeBattleContactPacket prior in retained)
+            for (int contactIndex = 0; contactIndex < retained.Length; contactIndex++)
             {
+                NativeBattleContactPacket prior = retained[contactIndex];
                 BattleCombatant recipient = FindNativeActor(prior.Primary.ActorIndex);
                 //4850A0 restores its invocation globals directly from header0 before48FE20; no queued presentation is consulted.
                 BattleActionPresentation contact = new(actor.Id, recipient.Id, BattleActionPhase.Recovery, 0, BattleAbility.GuardianForce, id - 64) { NativeHeaderIndex = 0, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)) };
                 resolvingNativeAction = contact;
+                diagnosticNativeContact = ObserveDiagnosticGuardianContact(submitted, actor, recipient, first, prior, contactIndex, id);
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, contact, action, native, 255);
                 (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
             }
@@ -117,6 +121,7 @@ public sealed partial class BattleSession
         finally
         {
             resolvingNativeAction = previous;
+            diagnosticNativeContact = previousDiagnosticContact;
             nativeActionCommitDepth--;
         }
     }

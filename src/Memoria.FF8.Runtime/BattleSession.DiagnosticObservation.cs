@@ -1,13 +1,24 @@
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, string? ActorId, BattleAbility? Ability, int? ActionId, ushort RequestedEffect, ushort ExecutedEffect, byte? NativeCommand = null);
-public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner);
+public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] ImmutableArray<byte> HeaderPayload, [property: JsonRequired] uint HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte> ContactPayload);
+public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner)
+{
+    public BattleDiagnosticNativeContact? NativeContact { get; init; }
+}
 public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
-public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks);
+public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks)
+{
+    public int? NativeIndex { get; init; }
+}
 
 public sealed partial class BattleSession
 {
     private long diagnosticDispatchSerial;
+    private BattleDiagnosticNativeContact? diagnosticNativeContact;
     public Guid DiagnosticLifecycleId { get; } = Guid.NewGuid();
     public long DiagnosticRestoreCount { get; private set; }
     public long DiagnosticResetCount { get; private set; }
@@ -41,7 +52,7 @@ public sealed partial class BattleSession
 
     public BattleDiagnosticCombatant[] ObserveDiagnosticCombatants()
     {
-        return combatants.Select(actor => new BattleDiagnosticCombatant(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray())).ToArray();
+        return combatants.Select(actor => new BattleDiagnosticCombatant(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeIndex is >= 0 and < 7 ? actor.NativeIndex : null }).ToArray();
     }
 
     private void ObserveDiagnosticResolution(string kind, BattleCombatant? actor, BattleCombatant target, int amount, int before, int after)
@@ -49,8 +60,19 @@ public sealed partial class BattleSession
         if (DiagnosticResolution is { } observer)
         {
             BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actor?.Id ?? action?.ActorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy"));
+            string? actorId = actor?.Id ?? action?.ActorId;
+            BattleDiagnosticNativeContact? contact = diagnosticNativeContact is { } current && current.ActorId == actorId && current.RecipientId == action?.TargetId ? current : null;
+            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeContact = contact });
         }
+    }
+
+    private BattleDiagnosticNativeContact? ObserveDiagnosticGuardianContact(BattleActionPresentation? submitted, BattleCombatant actor, BattleCombatant recipient, NativeBattleActionHeaderSlot header, NativeBattleContactPacket retained, int contactIndex, ushort actionId)
+    {
+        if (DiagnosticResolution is null || submitted is null || submitted.ActorId != actor.Id || submitted.Ability != BattleAbility.GuardianForce || submitted.ActionId != actionId - 64 || submitted.NativeHeaderIndex != 0 || submitted.NativeQueuedCommand is byte queued && queued != 254 || submitted.NativeAction is { } native && (native.Command != 254 || native.ActionId != actionId) || diagnosticDispatchSerial == 0)
+        {
+            return null;
+        }
+        return new(0x4850A0, diagnosticDispatchSerial, submitted.TargetId, actor.Id, checked((byte)actor.NativeIndex), recipient.Id, checked((byte)recipient.NativeIndex), 0, header.Payload, header.UnknownByteMask, header.FirstContactIndex, contactIndex, retained.Encode().ToImmutableArray());
     }
 
     private sealed class DiagnosticBattleEventLog : List<BattleEvent>

@@ -28,7 +28,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
 
     public const int HeaderCapacity = 32;
     public const int ContactCapacity = 49;
-    private const uint ContactBase = 0x1D28344;
+    public const uint ContactBase = 0x1D28344;
 
     public static NativeBattleActionPacketsState Fresh()
     {

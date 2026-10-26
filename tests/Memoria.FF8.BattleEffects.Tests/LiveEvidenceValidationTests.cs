@@ -1,6 +1,8 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memoria.FF8.BattleEffects;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
@@ -480,6 +482,150 @@ public sealed class LiveEvidenceValidationTests
         execution["after"]![0]!["current_hp"] = 100;
         execution["resolutions"]![0]!["actual_target_id"] = "reflected-recipient";
         Assert.Equal("PASS", Validate(report).Verdict);
+    }
+
+    [Fact]
+    public void Guardian_contact_recomputation_requires_retained_native_provenance_for_each_cast()
+    {
+        Assert.Equal("PASS", Validate(GuardianContactReport()).Verdict);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("producer")]
+    [InlineData("serial")]
+    [InlineData("submitted_target")]
+    [InlineData("actor")]
+    [InlineData("recipient")]
+    [InlineData("header_index")]
+    [InlineData("unknown_header")]
+    [InlineData("unknown_pointer")]
+    [InlineData("contact_pointer")]
+    [InlineData("contact_arena")]
+    [InlineData("missing_mask")]
+    [InlineData("command")]
+    [InlineData("action")]
+    [InlineData("header_actor")]
+    [InlineData("contact_index")]
+    [InlineData("contact_recipient")]
+    [InlineData("reallocated")]
+    [InlineData("duplicate_index")]
+    [InlineData("dispatch_command")]
+    [InlineData("dispatch_after_resolution")]
+    public void Guardian_contact_provenance_cannot_replace_missing_or_conflicting_identity(string corruption)
+    {
+        JsonObject report = GuardianContactReport();
+        JsonObject execution = Execution(report, 1);
+        JsonObject resolution = execution["resolutions"]![0]!.AsObject();
+        JsonObject proof = resolution["native_contact"]!.AsObject();
+        switch (corruption)
+        {
+            case "missing":
+                resolution.Remove("native_contact");
+                break;
+            case "producer":
+                proof["producer_address"] = 1;
+                break;
+            case "serial":
+                proof["dispatch_serial"] = 1;
+                break;
+            case "submitted_target":
+                proof["submitted_target_id"] = "recipient";
+                break;
+            case "actor":
+                proof["actor_id"] = "recipient";
+                break;
+            case "recipient":
+                proof["recipient_id"] = "party0";
+                break;
+            case "header_index":
+                proof["header_index"] = 1;
+                break;
+            case "unknown_header":
+                proof["header_unknown_byte_mask"] = 1 << 4;
+                break;
+            case "unknown_pointer":
+                proof["header_unknown_byte_mask"] = 1 << 8;
+                break;
+            case "contact_pointer":
+                proof["header_payload"]![8] = 0;
+                break;
+            case "contact_arena":
+                proof["header_payload"]![16] = 50;
+                break;
+            case "missing_mask":
+                proof.Remove("header_unknown_byte_mask");
+                Assert.Contains(Validate(report).Errors, error => error.StartsWith("REPORT_INVALID:", StringComparison.Ordinal));
+                return;
+            case "command":
+                proof["header_payload"]![1] = 253;
+                break;
+            case "action":
+                proof["header_payload"]![4] = 77;
+                break;
+            case "header_actor":
+                proof["header_payload"]![0] = 1;
+                break;
+            case "contact_index":
+                proof["retained_contact_index"] = 1;
+                break;
+            case "contact_recipient":
+                proof["contact_payload"]![0] = 5;
+                break;
+            case "reallocated":
+                execution["after"]![1]!["native_index"] = 5;
+                break;
+            case "duplicate_index":
+                execution["before"]![0]!["native_index"] = 4;
+                break;
+            case "dispatch_command":
+                execution["dispatches"]![0]!["native_command"] = 253;
+                break;
+            case "dispatch_after_resolution":
+                execution["resolutions"]![0]!["callback"] = 20;
+                break;
+        }
+        Assert.Contains("FOCAL_RESOLUTION_TARGET_MISMATCH", Validate(report).Errors);
+    }
+
+    private static JsonObject GuardianContactReport()
+    {
+        JsonObject report = Report();
+        report["input"]!["ability"] = "GuardianForce";
+        report["input"]!["action_id"] = 14;
+        report["expected_native_action"] = 78;
+        report["expected_native_command"] = 254;
+        for (int index = 0; index < 2; index++)
+        {
+            JsonObject execution = Execution(report, index);
+            JsonObject dispatch = execution["dispatches"]![0]!.AsObject();
+            dispatch["ability"] = "GuardianForce";
+            dispatch["action_id"] = 78;
+            dispatch["native_command"] = 254;
+            JsonNode recipientBefore = execution["before"]![0]!.DeepClone();
+            JsonNode recipientAfter = execution["after"]![0]!.DeepClone();
+            recipientBefore["id"] = "recipient";
+            recipientAfter["id"] = "recipient";
+            recipientBefore["native_index"] = 4;
+            recipientAfter["native_index"] = 4;
+            execution["before"]![0]!["native_index"] = 0;
+            execution["after"]![0]!["native_index"] = 0;
+            execution["after"]![0]!["current_hp"] = execution["before"]![0]!["current_hp"]!.DeepClone();
+            execution["before"]!.AsArray().Add(recipientBefore);
+            execution["after"]!.AsArray().Add(recipientAfter);
+            JsonObject resolution = execution["resolutions"]![0]!.AsObject();
+            resolution["original_target_id"] = "recipient";
+            resolution["actual_target_id"] = "recipient";
+            byte[] header = new byte[20];
+            header[1] = 254;
+            header[4] = 78;
+            header[16] = 1;
+            BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), NativeBattleActionPacketsState.ContactBase);
+            NativeBattleContactPacket packet = new(new(4, 0, 0, 0, 0, 100, 0), new(255, 0, 0, 0, 0, 0, 0));
+            BattleDiagnosticNativeContact proof = new(0x4850A0, index + 1, "party0", "party0", 0, "recipient", 4, 0, [.. header], 0, 0, 0, [.. packet.Encode()]);
+            resolution["native_contact"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);
+        }
+        return report;
     }
 
     private static LiveEvidenceVerdict Validate(JsonObject report)
