@@ -10,8 +10,16 @@ internal sealed record FieldCompatibilityProjectionToken(int StartOperation, int
 /// <summary>A text-alignment projection; the original executable inventory remains authoritative for validation and diagnostics.</summary>
 internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatibilityProjectionToken> Tokens, string? LayoutKey, ImmutableDictionary<int, int> Boundaries)
 {
+    public ImmutableHashSet<(int Label, int Script)> PresentationOnlyScripts { get; init; } = [];
+
     public static FieldCompatibilityProjection Create(FieldCompatibilityInventory inventory)
     {
+        return Create(inventory, true);
+    }
+
+    private static FieldCompatibilityProjection Create(FieldCompatibilityInventory inventory, bool resolveRequests)
+    {
+        FieldPresentationRequests? requests = resolveRequests ? new(inventory, Create(inventory, false)) : null;
         ImmutableArray<FieldCompatibilityInstruction> instructions = inventory.Instructions;
         HashSet<int> entries = [];
         foreach (FieldCompatibilityInstruction instruction in instructions)
@@ -28,7 +36,7 @@ internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatib
             entries.Add(pointer & 0x7FFF);
         }
 
-        Dictionary<int, (int End, string Key)> replacements = [];
+        Dictionary<int, (int End, string? Key)> replacements = [];
         List<Expression> expressions = [];
         FieldCompatibilityOperandState values = new();
         (int Object, int Label, int Script) priorOwner = (-1, -1, -1);
@@ -43,6 +51,17 @@ internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatib
             }
             priorOwner = owner;
             Jsm.Opcode opcode = Enum.Parse<Jsm.Opcode>(instruction.Opcode);
+            int presentationCount = FieldPresentationInstructions.OperandCount(opcode);
+            if (owner.Item1 >= 0 && presentationCount >= 0 && expressions.Count >= presentationCount)
+            {
+                Expression[] operands = expressions.TakeLast(presentationCount).ToArray();
+                int start = presentationCount == 0 ? index : operands[0].Start;
+                bool contiguous = presentationCount == 0 || operands[^1].End == index && operands.Zip(operands.Skip(1)).All(pair => pair.First.End == pair.Second.Start);
+                if (contiguous && operands.All(expression => expression.Safe) && FieldPresentationInstructions.CanIgnore(opcode, values.ReadOperands(presentationCount)) && !entries.Any(entry => entry > start && entry <= index))
+                {
+                    replacements.Add(start, (index + 1, null));
+                }
+            }
             int count = MessageOperandCount(opcode);
             if (count > 0 && expressions.Count >= count)
             {
@@ -52,6 +71,16 @@ internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatib
                 if (id is int known && contiguous && operands.All(expression => expression.Safe) && !entries.Any(entry => entry > operands[0].Start && entry <= index))
                 {
                     replacements.Add(operands[0].Start, (index + 1, "Message:" + instruction.Opcode + ":" + known.ToString(CultureInfo.InvariantCulture)));
+                }
+            }
+            if (opcode == Jsm.Opcode.REQ && requests is not null && expressions.Count >= 2)
+            {
+                Expression[] operands = expressions.TakeLast(2).ToArray();
+                int?[] arguments = values.ReadOperands(2);
+                bool contiguous = operands[0].End == operands[1].Start && operands[1].End == index;
+                if (contiguous && operands.All(expression => expression.Safe) && !entries.Any(entry => entry > operands[0].Start && entry <= index) && requests.TryGetKey(instruction.Parameter, arguments[0], arguments[1], owner.Item1, out string? requestKey))
+                {
+                    replacements.Add(operands[0].Start, (index + 1, requestKey));
                 }
             }
 
@@ -95,7 +124,12 @@ internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatib
             boundaries.Add(index, tokens.Count);
             bool replaced = replacements.TryGetValue(index, out var replacement);
             int end = replaced ? replacement.End : index + 1;
-            string key = replaced ? replacement.Key : "Raw:" + instruction.EncodedValue.ToString("X8", CultureInfo.InvariantCulture);
+            if (replaced && replacement.Key is null)
+            {
+                index = end;
+                continue;
+            }
+            string key = replaced ? replacement.Key! : "Raw:" + instruction.EncodedValue.ToString("X8", CultureInfo.InvariantCulture);
             tokens.Add(new(index, end, OwnerKey(instruction) + key, instruction.Position.ObjectIndex, instruction.Position.ObjectLabel, instruction.Position.ScriptId));
             index = end;
         }
@@ -118,7 +152,7 @@ internal sealed record FieldCompatibilityProjection(ImmutableArray<FieldCompatib
         {
             layoutKey = layout[0] + ":" + layout[1] + ":" + string.Join(',', pointers.Select(pointer => (pointer & 0x8000).ToString(CultureInfo.InvariantCulture) + "/" + boundaries[pointer & 0x7FFF].ToString(CultureInfo.InvariantCulture)));
         }
-        return new(tokens.ToImmutableArray(), layoutKey, boundaries.ToImmutable());
+        return new(tokens.ToImmutableArray(), layoutKey, boundaries.ToImmutable()) { PresentationOnlyScripts = requests?.ScriptIdentities ?? [] };
     }
 
     private static string OwnerKey(FieldCompatibilityInstruction instruction) => instruction.Position.ObjectIndex + "/" + instruction.Position.ObjectLabel + "/" + instruction.Position.ScriptId + ":";

@@ -8,6 +8,8 @@ namespace Memoria.FF8.Assets.Localization;
 /// <summary>Mechanical field correspondence only; no prose matching or semantic suffix resynchronization.</summary>
 public static class FieldCompatibilityAudit
 {
+    public const string TextProjectionRule = "message-id-and-presentation-scope-v2";
+
     public static PreparedFieldCompatibility Prepare(FieldCompatibilityInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -76,7 +78,7 @@ public static class FieldCompatibilityAudit
         }
         if (projectionValidated && !streamEqual)
         {
-            reasons.Add("Text correspondence compares message arguments by MessageId only; message opcode kind, other operations and control flow remain significant. Native executable differences remain recorded separately.");
+            reasons.Add("Text correspondence retains MessageId and excludes validated presentation packets and equivalent resolved asynchronous presentation requests. Other operations and control flow remain significant. Native executable differences remain recorded separately.");
         }
         reasons.AddRange(baseline.Problems.Select(problem => "English: " + problem));
         reasons.AddRange(local.Problems.Select(problem => "Localized: " + problem));
@@ -125,23 +127,26 @@ public static class FieldCompatibilityAudit
                 matches = proven.Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Every known use belongs to matching native script projection prefixes on both sides.")).OrderBy(match => match.EnglishOrdinal).ToImmutableArray();
             }
         }
-        ImmutableArray<FieldCompatibilityContext> englishSuffix = baseline.Contexts.Where(context => scriptProofValid ? !Trusted(context, true) : context.Position.OperationIndex >= englishBoundary).ToImmutableArray();
-        ImmutableArray<FieldCompatibilityContext> localSuffix = local.Contexts.Where(context => scriptProofValid ? !Trusted(context, false) : context.Position.OperationIndex >= localBoundary).ToImmutableArray();
+        bool PresentationOnly(FieldCompatibilityContext context, bool englishSide) => (englishSide ? englishProjection : localProjection).PresentationOnlyScripts.Contains((context.Position.ObjectLabel, context.Position.ScriptId));
+        ImmutableArray<FieldCompatibilityContext> englishSuffix = baseline.Contexts.Where(context => !PresentationOnly(context, true) && (scriptProofValid ? !Trusted(context, true) : context.Position.OperationIndex >= englishBoundary)).ToImmutableArray();
+        ImmutableArray<FieldCompatibilityContext> localSuffix = local.Contexts.Where(context => !PresentationOnly(context, false) && (scriptProofValid ? !Trusted(context, false) : context.Position.OperationIndex >= localBoundary)).ToImmutableArray();
+        ImmutableArray<FieldCompatibilityContext> englishDiagnostics = baseline.Contexts.Where(context => !PresentationOnly(context, true)).ToImmutableArray();
+        ImmutableArray<FieldCompatibilityContext> localDiagnostics = local.Contexts.Where(context => !PresentationOnly(context, false)).ToImmutableArray();
         int contexts = baseline.Contexts.Count(context => context.Dynamic) + local.Contexts.Count(context => context.Dynamic) + ConflictingMessageIds(baseline.Contexts).Count() + ConflictingMessageIds(local.Contexts).Count();
         bool unmatchedRows = !candidates.IsEmpty || !implicated.IsEmpty;
         ImmutableArray<FieldCompatibilityReviewCase> reviewCases = ordinalIdentity
-            ? CreateReviewCases(baseline, local, 0, 0, implicated, candidates, unmatchedRows, true)
+            ? CreateReviewCases(baseline, local, 0, 0, implicated, candidates, unmatchedRows, true, englishDiagnostics, localDiagnostics)
             : CreateReviewCases(baseline, local, englishBoundary, localBoundary, implicated, candidates, unmatchedRows, false, englishSuffix, localSuffix);
         if (scriptProofValid && !ordinalIdentity)
         {
-            reviewCases = reviewCases.Concat(CreateReviewCases(baseline, local, 0, 0, [], [], false, true).Where(review => review.Kind == "DynamicContext")).DistinctBy(review => review.Id).ToImmutableArray();
+            reviewCases = reviewCases.Concat(CreateReviewCases(baseline, local, 0, 0, [], [], false, true, englishDiagnostics, localDiagnostics).Where(review => review.Kind == "DynamicContext")).DistinctBy(review => review.Id).ToImmutableArray();
         }
         return new(kind, baseline, local, divergence,
             englishSuffix,
             localSuffix,
             matches, candidates, implicated, reviewCases.Length, contexts, baseline.BankCountKnown && local.BankCountKnown, reasons.ToImmutableArray(), reviewCases)
         {
-            MessageIdentityEvidence = new("message-arguments-message-id-v1", projectionValidated, projectedStreamEqual, ordinalIdentity, matchedTokens, englishBoundary, localBoundary, PositionAt(baseline, englishBoundary), PositionAt(local, localBoundary)),
+            MessageIdentityEvidence = new(TextProjectionRule, projectionValidated, projectedStreamEqual, ordinalIdentity, matchedTokens, englishBoundary, localBoundary, PositionAt(baseline, englishBoundary), PositionAt(local, localBoundary)),
             ScriptIdentityEvidence = scriptEvidence
         };
     }
@@ -199,7 +204,7 @@ public static class FieldCompatibilityAudit
         }
         return new(input.Field, input.Language, input.ResourceIdentity,
             input.Jsm is null ? null : Convert.ToHexString(SHA256.HashData(input.Jsm)), input.Jsm?.Length,
-            "field-compatibility-v4/" + typeof(JsmDocument).Assembly.GetName().Version,
+            "field-compatibility-v5/" + typeof(JsmDocument).Assembly.GetName().Version,
             count is not null, count, bank, instructions.ToImmutableArray(), contexts.ToImmutableArray(), referenced.ToImmutableArray(),
             count is int known ? Enumerable.Range(0, known).Except(referenced).ToImmutableArray() : [],
             bank.Where(row => row.Text.Length == 0 || row.Text == "{End}").Select(row => row.Ordinal).ToImmutableArray(), problems.ToImmutableArray(), layout)

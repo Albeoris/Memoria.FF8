@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace Memoria.FF8.Assets.Localization;
 
-internal sealed record FieldScriptProjection(int ObjectIndex, int ObjectLabel, int ScriptId, int Start, int End, string EntryKey, ImmutableArray<string> Keys, ImmutableArray<int> Starts, string? Uncertainty);
+internal sealed record FieldScriptProjection(int ObjectIndex, int ObjectLabel, int ScriptId, int Start, int End, string EntryKey, ImmutableArray<string> Keys, ImmutableArray<int> Starts, string? Uncertainty, bool PresentationOnly);
 
 /// <summary>Independent text correspondence within validated native script identities.</summary>
 internal sealed class FieldScriptCompatibility
@@ -41,8 +41,7 @@ internal sealed class FieldScriptCompatibility
             int start = group.First().Position.OperationIndex;
             int end = group.Last().Position.OperationIndex + 1;
             FieldCompatibilityProjectionToken[] tokens = projection.Tokens.Where(token => token.StartOperation >= start && token.EndOperation <= end).ToArray();
-            Dictionary<int, int> localBoundaries = tokens.Select((token, index) => (token.StartOperation, index)).ToDictionary(pair => pair.StartOperation, pair => pair.index);
-            localBoundaries.Add(end, tokens.Length);
+            Dictionary<int, int> localBoundaries = projection.Boundaries.Where(boundary => boundary.Key >= start && boundary.Key <= end).ToDictionary(boundary => boundary.Key, boundary => boundary.Value - projection.Boundaries[start]);
             string? uncertainty = foreignEntries.Contains((group.Key.ObjectLabel, group.Key.ScriptId)) ? "External branch enters the script interior." : null;
             List<string> keys = [];
             foreach (FieldCompatibilityProjectionToken token in tokens)
@@ -68,7 +67,8 @@ internal sealed class FieldScriptCompatibility
                 uncertainty = "Script has no matching physical pointer range.";
             }
             string entry = group.Key.ObjectIndex + ":" + groupKeys[group.Key.ObjectLabel] + ":" + pointerIndex + ":" + (pointers[pointerIndex] & 0x8000);
-            result.Add((group.Key.ObjectLabel, group.Key.ScriptId), new(group.Key.ObjectIndex, group.Key.ObjectLabel, group.Key.ScriptId, start, end, entry, keys.ToImmutableArray(), tokens.Select(token => token.StartOperation).ToImmutableArray(), uncertainty));
+            bool presentationOnly = projection.PresentationOnlyScripts.Contains((group.Key.ObjectLabel, group.Key.ScriptId));
+            result.Add((group.Key.ObjectLabel, group.Key.ScriptId), new(group.Key.ObjectIndex, group.Key.ObjectLabel, group.Key.ScriptId, start, end, entry, presentationOnly ? [] : keys.ToImmutableArray(), presentationOnly ? [] : tokens.Select(token => token.StartOperation).ToImmutableArray(), uncertainty, presentationOnly));
             pointerIndex++;
         }
         scripts = result.ToImmutable();
@@ -110,7 +110,7 @@ internal sealed class FieldScriptCompatibility
                 }
             }
             bool equal = validated && matched == baseline!.Keys.Length && matched == localized!.Keys.Length;
-            result.Add(new(key.Label, key.Script, baseline?.ObjectIndex, localized?.ObjectIndex, validated, equal, matched, Boundary(baseline, matched), Boundary(localized, matched), validated ? equal ? "Complete script message-identity projection equality." : "First script projection difference; no resynchronization within this script." : baseline?.Uncertainty ?? localized?.Uncertainty ?? "Native script identity, category, pointer index or pointer flag differs or is missing."));
+            result.Add(new(key.Label, key.Script, baseline?.ObjectIndex, localized?.ObjectIndex, validated, equal, matched, Boundary(baseline, matched), Boundary(localized, matched), validated ? equal ? "Complete script text projection equality." : "First script projection difference; no resynchronization within this script." : baseline?.Uncertainty ?? localized?.Uncertainty ?? "Native script identity, category, pointer index or pointer flag differs or is missing.") { PresentationOnly = validated && baseline!.PresentationOnly && localized!.PresentationOnly, EnglishPresentationOnly = baseline?.PresentationOnly == true, LocalPresentationOnly = localized?.PresentationOnly == true });
         }
         return result.ToImmutableArray();
     }

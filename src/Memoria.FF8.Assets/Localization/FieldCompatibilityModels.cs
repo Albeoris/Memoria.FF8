@@ -38,7 +38,12 @@ public sealed record FieldCompatibilityReviewCase(string Id, string Kind, Immuta
 
 public sealed record FieldMessageIdentityEvidence(string Rule, bool ProjectionValidated, bool StreamEqual, bool OrdinalIdentityProven, int MatchedTokens, int EnglishBoundaryOperationIndex, int LocalBoundaryOperationIndex, FieldCompatibilityPosition? EnglishPosition, FieldCompatibilityPosition? LocalPosition);
 
-public sealed record FieldScriptIdentityEvidence(int ObjectLabel, int ScriptId, int? EnglishObjectIndex, int? LocalObjectIndex, bool Validated, bool StreamEqual, int MatchedTokens, int? EnglishBoundaryOperationIndex, int? LocalBoundaryOperationIndex, string Reason);
+public sealed record FieldScriptIdentityEvidence(int ObjectLabel, int ScriptId, int? EnglishObjectIndex, int? LocalObjectIndex, bool Validated, bool StreamEqual, int MatchedTokens, int? EnglishBoundaryOperationIndex, int? LocalBoundaryOperationIndex, string Reason)
+{
+    public bool PresentationOnly { get; init; }
+    public bool EnglishPresentationOnly { get; init; }
+    public bool LocalPresentationOnly { get; init; }
+}
 
 public sealed record FieldCompatibilityResult(FieldCompatibilityKind Kind, FieldCompatibilityInventory English, FieldCompatibilityInventory Localized, FieldCompatibilityDivergence? FirstDivergence, ImmutableArray<FieldCompatibilityContext> EnglishSuffixContexts, ImmutableArray<FieldCompatibilityContext> LocalSuffixContexts, ImmutableArray<FieldCompatibilityMatch> ProvenOrdinalMatches, ImmutableArray<int> PotentialLocalOrdinals, ImmutableArray<int> ImplicatedEnglishOrdinals, int SemanticReviewCases, int ContextOnlyProblems, bool CandidateCountKnown, ImmutableArray<string> Reasons, ImmutableArray<FieldCompatibilityReviewCase> ReviewCases)
 {

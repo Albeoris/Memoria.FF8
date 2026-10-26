@@ -279,6 +279,7 @@ internal static class RemasteredFieldAudit
         Write(Path.Combine(output, "report.json"), new
         {
             SchemaVersion = 1,
+            TextProjectionRule = FieldCompatibilityAudit.TextProjectionRule,
             Edition = "Remastered",
             CanonicalLanguage = "en",
             Provider = typeof(RemasteredGameDataSource).Assembly.GetName().ToString(),
