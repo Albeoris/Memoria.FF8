@@ -51,7 +51,7 @@ public sealed partial class BattleSession
             }
             graphics = AppendNativeModelRendererPackets(graphics, primitives.ToImmutable(), Enumerable.Range(0, body.Length).Any(mesh => (mask & (1u << (mesh & 31))) != 0));
         }
-        actor = NativeBattlePandemona291ActorBones.Restore508C90(actor, source);
+        actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         graphics = graphics with { Models = graphics.Models.SetItem(index, actor) };
         if (!shared && !linked.IsEmpty)
         {

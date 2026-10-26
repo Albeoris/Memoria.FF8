@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattlePandemona291ActorBonesTests
+public sealed class NativeBattleCurrentSkeletonPublicationTests
 {
     [Fact]
     public void UnselectedAnimationRestoresActualSkeletonAnglesAndRootWords()
@@ -11,7 +11,7 @@ public sealed class NativeBattlePandemona291ActorBonesTests
         NativeBattlePoseSource source = Source(false);
         NativeBattleGraphicsModel model = Model();
 
-        NativeBattleGraphicsModel restored = NativeBattlePandemona291ActorBones.Restore508C90(model, source);
+        NativeBattleGraphicsModel restored = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
 
         NativeBattleActionMatrix root = NativeBattleGfMatrices.Euler56CE30(new(0, 1024, 0)) with { X = -208, Y = 272, Z = 304 };
         NativeBattleActionMatrix child = NativeBattleGfMatrices.Compose56C2F0(root, NativeBattleGfMatrices.Euler56CE30(new(0, 0, 0)) with { Z = 80 });
@@ -29,7 +29,7 @@ public sealed class NativeBattlePandemona291ActorBonesTests
     public void SkeletonScaleBranchConsumesOriginalPerBoneScaleWords()
     {
         NativeBattlePoseSource source = Source(true);
-        NativeBattleGraphicsModel restored = NativeBattlePandemona291ActorBones.Restore508C90(Model(), source);
+        NativeBattleGraphicsModel restored = NativeBattleBodyBoneMatrices.Publish508C90(Model(), source);
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(restored, source);
 
         Assert.Equal(new short[] { 2048, 0, 0, 0, 4096, 0, 0, 0, 8192 }, matrices[0].Rotation);
@@ -43,7 +43,7 @@ public sealed class NativeBattlePandemona291ActorBonesTests
         NativeBattlePoseSource source = Source(false);
         NativeBattleDecodedPose pose = new(new(3, 5, 7), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false);
         NativeBattleGraphicsModel model = Model() with { SequenceState = new() { DecodedPose = pose } };
-        NativeBattleGraphicsModel restored = NativeBattlePandemona291ActorBones.Restore508C90(model, source);
+        NativeBattleGraphicsModel restored = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
 
         NativeBattleActionMatrix root = restored.CurrentBodyBoneMatrices!.Matrices[0];
         Assert.Equal((48, 80, 112), (root.X, root.Y, root.Z));
@@ -59,7 +59,7 @@ public sealed class NativeBattlePandemona291ActorBonesTests
         known[20] = false;
         source = source with { SkeletonKnownBytes = known.ToImmutableArray() };
 
-        Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291ActorBones.Restore508C90(Model(), source));
+        Assert.Throws<NotSupportedException>(() => NativeBattleBodyBoneMatrices.Publish508C90(Model(), source));
     }
 
     [Fact]
@@ -71,9 +71,26 @@ public sealed class NativeBattlePandemona291ActorBonesTests
         known[51] = false;
         source = source with { SkeletonKnownBytes = known.ToImmutableArray() };
 
-        NativeBattleGraphicsModel restored = NativeBattlePandemona291ActorBones.Restore508C90(Model(), source);
+        NativeBattleGraphicsModel restored = NativeBattleBodyBoneMatrices.Publish508C90(Model(), source);
         Assert.Equal(2, NativeBattleBodyBoneMatrices.Require(restored, source).Length);
         Assert.Null(restored.SequenceState!.Pose);
+    }
+
+    [Fact]
+    public void PhysicalBoneTemporaryUsesTheSameCurrentSkeletonWithoutSelectingAnimation()
+    {
+        NativeBattlePoseSource source = Source(false);
+        NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 88).ToArray());
+
+        NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(Model(), source, temporary);
+
+        Assert.Null(prepared.Model.SequenceState!.Pose);
+        Assert.Equal(2, NativeBattleBodyBoneMatrices.Require(prepared.Model, source).Length);
+        Assert.Equal(80, BinaryPrimitives.ReadInt32LittleEndian(prepared.Temporary58.Read(0x1C, 4)));
+        Assert.Equal(4096, BinaryPrimitives.ReadInt32LittleEndian(prepared.Temporary58.Read(0x40, 4)));
+        Assert.Equal(4096, BinaryPrimitives.ReadInt32LittleEndian(prepared.Temporary58.Read(0x44, 4)));
+        Assert.Equal(4096, BinaryPrimitives.ReadInt32LittleEndian(prepared.Temporary58.Read(0x48, 4)));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 12), prepared.Temporary58.Read(0x4C, 12));
     }
 
     private static NativeBattleGraphicsModel Model() => new(6, 15) { ModelId4 = 143, SequenceState = new() };

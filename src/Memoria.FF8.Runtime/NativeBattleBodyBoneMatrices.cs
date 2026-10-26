@@ -63,13 +63,35 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
 
     public static NativeBattleGraphicsModel Publish508C90(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
     {
-        source.Validate();
-        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native508C90 requires its actual decoded body pose owner.");
-        NativeBattleDecodedPose pose = NativeBattlePoseMatrices.ReadDecodedPose(sequence, source);
+        NativeBattleDecodedPose pose = ReadCurrentPose508C90(model, source);
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(source, pose);
         NativeBattleBodyBoneMatrices publication = new(Identity(source), matrices);
         publication.Validate();
         return model with { CurrentBodyBoneMatrices = publication };
+    }
+
+    public static NativeBattleDecodedPose ReadCurrentPose508C90(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        source.Validate();
+        NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native508C90 requires its actual current body owner.");
+        if (sequence.DecodedPose is not null || sequence.Pose is not null)
+        {
+            return NativeBattlePoseMatrices.ReadDecodedPose(sequence, source);
+        }
+
+        //508C90 consumes current skeleton fields even before an animation has been selected.
+        NativeBattleEffectArena skeleton = NativeBattleEffectArena.Clear().Write(0, source.Skeleton.AsSpan());
+        if (!source.SkeletonKnownBytes.IsDefaultOrEmpty)
+        {
+            for (int offset = 0; offset < source.SkeletonKnownBytes.Length; offset++)
+            {
+                if (!source.SkeletonKnownBytes[offset])
+                {
+                    skeleton = skeleton.MarkUnknown(offset, 1);
+                }
+            }
+        }
+        return NativeBattleArenaPose.ReadCurrentPose(skeleton, 0, source.BoneCount);
     }
 
     public static NativeBattleGraphicsModel Compose5095B0(NativeBattleGraphicsModel model, NativeBattleActionMatrix basis)

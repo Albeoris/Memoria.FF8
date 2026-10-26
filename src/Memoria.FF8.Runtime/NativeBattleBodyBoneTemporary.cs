@@ -9,7 +9,7 @@ public static class NativeBattleBodyBoneTemporary
 {
     public static NativeBattleBodyBonePreparation Prepare508C90(NativeBattleGraphicsModel actor, NativeBattlePoseSource source, NativeBattleEffectArena temporary)
     {
-        NativeBattleDecodedPose decoded = NativeBattlePoseMatrices.ReadDecodedPose(actor.SequenceState ?? throw new NotSupportedException("Native bone preparation requires its actual decoded body pose."), source);
+        NativeBattleDecodedPose decoded = NativeBattleBodyBoneMatrices.ReadCurrentPose508C90(actor, source);
         actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(actor, source);
         return new(actor, Prepare508C90(source, decoded, matrices, temporary));
