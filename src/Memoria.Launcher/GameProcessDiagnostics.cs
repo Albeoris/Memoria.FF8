@@ -18,7 +18,7 @@ internal sealed class GameProcessDiagnostics : IDisposable
     public GameProcessDiagnostics(string? directory = null, string? fallbackDirectory = null, TextWriter? console = null)
     {
         this.console = console;
-        directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8", "logs");
+        directory ??= Memoria.FF8.Platform.ApplicationPaths.Current.Logs;
         fallbackDirectory ??= Path.Combine(Path.GetTempPath(), "Memoria.FF8", "logs");
         foreach (string candidate in new[] { directory, fallbackDirectory }.Distinct(StringComparer.OrdinalIgnoreCase))
         {

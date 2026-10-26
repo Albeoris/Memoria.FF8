@@ -8,7 +8,7 @@ internal sealed record GameInstallation(string Directory, string Release)
 {
     public GamePlatformContext ResolvePlatformContext(bool localOnly = false) => GamePlatformContextResolver.Resolve(Directory, localOnly);
 
-    public override string ToString() => $"{Release} — {Directory}";
+    public override string ToString() => $"{Release} � {Directory}";
 }
 
 internal static class GameInstallationSelection
@@ -16,7 +16,7 @@ internal static class GameInstallationSelection
     public static IReadOnlyList<GameInstallation> Order(string? lastGameDirectory, IEnumerable<GameInstallation> discovered)
     {
         List<GameInstallation> result = [];
-        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> seen = new(LauncherCapabilities.PathComparer);
         if (Normalize(lastGameDirectory) is string previous)
         {
             result.Add(new GameInstallation(previous, "Last used"));

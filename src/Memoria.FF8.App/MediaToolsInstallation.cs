@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using System.Formats.Tar;
+using System.Runtime.InteropServices;
+using System.Buffers.Binary;
+using SharpCompress.Compressors.Xz;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -6,9 +10,15 @@ using System.Text;
 
 namespace Memoria.FF8;
 
-internal sealed record FfmpegDownloadOptions(Uri ReleaseUrl, string ArchiveName)
+internal sealed record FfmpegDownloadOptions(Uri ReleaseUrl, string ArchiveName, string RuntimeIdentifier = "win-x64")
 {
-    public static FfmpegDownloadOptions FromEnvironment() => new(new Uri(Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_RELEASE_URL") ?? "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"), Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_ARCHIVE") ?? "ffmpeg-master-latest-win64-lgpl.zip");
+    public static FfmpegDownloadOptions FromEnvironment()
+    {
+        string rid = OperatingSystem.IsWindows() ? "win-x64" : OperatingSystem.IsLinux() ? "linux-x64" : OperatingSystem.IsMacOS() ? "osx-x64" : throw new PlatformNotSupportedException("FFmpeg setup requires Windows, Linux or macOS x64.");
+        string archive = rid == "win-x64" ? "ffmpeg-master-latest-win64-lgpl.zip" : rid == "linux-x64" ? "ffmpeg-master-latest-linux64-lgpl.tar.xz" : "";
+        return new(new Uri(Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_RELEASE_URL") ?? "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"), Environment.GetEnvironmentVariable("MEMORIA_FF8_FFMPEG_ARCHIVE") ?? archive, rid);
+    }
+
 }
 
 internal enum MediaToolsStage
@@ -27,6 +37,7 @@ internal sealed record MediaToolsProgress(MediaToolsStage Stage, long BytesRecei
 internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOptions options, TimeSpan? responseTimeout = null, Func<string, Task<bool>>? validate = null)
 {
     public const string LatestReleaseUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/latest";
+    private static readonly string[] ToolNames = ["ffmpeg", "ffprobe"];
     private static readonly string[] Executables = ["ffmpeg.exe", "ffprobe.exe"];
     private readonly TimeSpan timeout = responseTimeout ?? TimeSpan.FromSeconds(15);
     private readonly Func<string, Task<bool>> validator = validate ?? ValidateAsync;
@@ -51,7 +62,14 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         }
     }
 
-    private static string ManualInstructions(string directory, string archiveName = "ffmpeg-master-latest-win64-lgpl.zip") => $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {LatestReleaseUrl}\nDownload {archiveName} (Windows x64, LGPL, static). Extract bin/ffmpeg.exe and bin/ffprobe.exe into:\n{directory}\nKeep the archive's copyright, license and other notices alongside them. No ffplay.exe or FFmpeg DLLs are required. Movie-dependent scenes may require FFmpeg to continue.";
+    private static string ManualInstructions(string directory, string? archiveName = null)
+    {
+        string tools = OperatingSystem.IsWindows() ? "ffmpeg.exe and ffprobe.exe" : "ffmpeg and ffprobe";
+        string source = OperatingSystem.IsMacOS() ? "Obtain trusted Intel x64 FFmpeg tools built for macOS; automatic macOS download is not configured. See https://ffmpeg.org/download.html and retain the matching source/license information." : $"Download {archiveName ?? (OperatingSystem.IsWindows() ? "ffmpeg-master-latest-win64-lgpl.zip" : "ffmpeg-master-latest-linux64-lgpl.tar.xz")} (x64, LGPL, static) from {LatestReleaseUrl}.";
+        return $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {source}\nPlace {tools} in:\n{directory}\nKeep copyright, license and other notices alongside the tools. On Unix, grant executable permission to both tools. Movie-dependent scenes may require FFmpeg to continue.";
+    }
+
+    public static string ResolveExecutable(string directory, string toolName) => Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(directory, toolName);
 
     public static string ResolveDirectory(string? directory = null)
     {
@@ -60,7 +78,7 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         {
             return Path.GetFullPath(configured);
         }
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "media-tools");
+        return Path.Combine(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, "media-tools");
     }
 
     public async Task<bool> EnsureAsync(string directory, Func<string, bool> consent, Action<string> report, Action<MediaToolsProgress>? progress = null)
@@ -72,7 +90,12 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 return true;
             }
             Directory.CreateDirectory(directory);
-            string prompt = $"FFmpeg is required for video playback and replacement audio files. Download the Windows x64 LGPL static build ({options.ArchiveName}) directly from BtbN/FFmpeg-Builds?\n\nSource: {options.ReleaseUrl}\nInstall to: {directory}\n\nFFmpeg is a separate third-party dependency licensed under LGPL. Its license notices will be kept with the tools. You can continue without installing it.";
+            if (options.RuntimeIdentifier == "osx-x64")
+            {
+                report(ManualInstructions(directory));
+                return false;
+            }
+            string prompt = $"FFmpeg is required for video playback and replacement audio files. Download the {options.RuntimeIdentifier} LGPL static build ({options.ArchiveName}) directly from BtbN/FFmpeg-Builds?\n\nSource: {options.ReleaseUrl}\nInstall to: {directory}\n\nFFmpeg is a separate third-party dependency licensed under LGPL. Its license notices will be kept with the tools. You can continue without installing it.";
             if (consent(prompt))
             {
                 report("Downloading and verifying FFmpeg. The download may take several minutes.");
@@ -90,9 +113,10 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
 
     public async Task InstallAsync(string directory, Action<MediaToolsProgress>? progress = null)
     {
-        if (Path.GetFileName(options.ArchiveName) != options.ArchiveName || !options.ArchiveName.EndsWith("-win64-lgpl.zip", StringComparison.Ordinal))
+        string suffix = options.RuntimeIdentifier switch { "win-x64" => "-win64-lgpl.zip", "linux-x64" => "-linux64-lgpl.tar.xz", _ => throw new PlatformNotSupportedException("Automatic FFmpeg download is unavailable for this platform. Install trusted x64 tools manually.") };
+        if (Path.GetFileName(options.ArchiveName) != options.ArchiveName || !options.ArchiveName.EndsWith(suffix, StringComparison.Ordinal))
         {
-            throw new ArgumentException("The archive must be a Windows x64 LGPL static ZIP filename.");
+            throw new ArgumentException("The archive must be an x64 LGPL static filename matching the selected platform.");
         }
         Uri release = new(options.ReleaseUrl.AbsoluteUri.TrimEnd('/') + "/");
         if (release.Scheme != Uri.UriSchemeHttps)
@@ -123,7 +147,17 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             }
             string extracted = Path.Combine(staging, "files");
             progress?.Invoke(new(MediaToolsStage.Extracting));
-            await Task.Run(() => Extract(archivePath, extracted));
+            await Task.Run(() =>
+            {
+                if (options.RuntimeIdentifier == "linux-x64")
+                {
+                    ExtractLinux(archivePath, extracted);
+                }
+                else
+                {
+                    Extract(archivePath, extracted);
+                }
+            });
             progress?.Invoke(new(MediaToolsStage.Validating));
             if (!await validator(extracted))
             {
@@ -135,6 +169,10 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
                 string target = Path.Combine(directory, Path.GetRelativePath(extracted, file));
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Move(file, target, true);
+                if (!OperatingSystem.IsWindows() && ToolNames.Contains(Path.GetFileName(target), StringComparer.Ordinal))
+                {
+                    File.SetUnixFileMode(target, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+                }
             }
             if (!await validator(directory))
             {
@@ -228,12 +266,121 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         }
     }
 
+    private static void ExtractLinux(string archivePath, string directory)
+    {
+        using FileStream file = File.OpenRead(archivePath);
+        using XZStream decompressed = new(file);
+        ExtractLinuxTar(decompressed, directory);
+    }
+
+    internal static void ExtractLinuxTar(Stream stream, string directory)
+    {
+        Directory.CreateDirectory(directory);
+        using TarReader archive = new(stream, leaveOpen: true);
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        string? root = null;
+        long total = 0;
+        int count = 0;
+        TarEntry? entry;
+        while ((entry = archive.GetNextEntry()) is not null)
+        {
+            if (++count > 10000 || entry.Length > 1024L * 1024 * 1024 || (total += entry.Length) > 2L * 1024 * 1024 * 1024)
+            {
+                throw new InvalidDataException("FFmpeg archive exceeds extraction limits.");
+            }
+            string name = entry.Name.TrimEnd('/');
+            string[] parts = name.Split('/');
+            if (parts.Any(part => part is "" or "." or "..") || name.Contains('\\') || name.Contains(':') || Path.IsPathRooted(name))
+            {
+                throw new InvalidDataException("Unexpected FFmpeg archive path.");
+            }
+            root ??= parts[0];
+            if (parts[0] != root || entry.EntryType is not (TarEntryType.Directory or TarEntryType.RegularFile or TarEntryType.V7RegularFile))
+            {
+                throw new InvalidDataException("Unexpected FFmpeg archive entry or link.");
+            }
+            if (entry.EntryType == TarEntryType.Directory)
+            {
+                continue;
+            }
+            string relative = string.Join('/', parts.Skip(1));
+            if (relative.StartsWith("bin/", StringComparison.Ordinal))
+            {
+                if (relative is not ("bin/ffmpeg" or "bin/ffprobe"))
+                {
+                    continue;
+                }
+                relative = relative[4..];
+            }
+            if (relative.Length == 0 || !seen.Add(relative))
+            {
+                throw new InvalidDataException("Duplicate FFmpeg archive entry.");
+            }
+            string target = Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            using FileStream output = File.Create(target);
+            (entry.DataStream ?? throw new InvalidDataException("Missing FFmpeg archive data.")).CopyTo(output);
+        }
+        if (!ToolNames.All(seen.Contains) || !seen.Any(name => Path.GetFileName(name).StartsWith("LICENSE", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(name).StartsWith("COPYING", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidDataException("FFmpeg archive is missing tools or license notices.");
+        }
+        if (!OperatingSystem.IsWindows())
+        {
+            foreach (string tool in ToolNames)
+            {
+                File.SetUnixFileMode(Path.Combine(directory, tool), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+        }
+    }
+
+    internal static bool IsHostExecutable(string path)
+    {
+        if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
+        {
+            return false;
+        }
+        try
+        {
+            using FileStream stream = File.OpenRead(path);
+            Span<byte> header = stackalloc byte[64];
+            if (stream.Read(header) != header.Length)
+            {
+                return false;
+            }
+            if (OperatingSystem.IsLinux())
+            {
+                return header[..4].SequenceEqual(new byte[] { 0x7f, 0x45, 0x4c, 0x46 }) && header[4] == 2 && header[5] == 1 && BinaryPrimitives.ReadUInt16LittleEndian(header[18..]) == 62;
+            }
+            if (OperatingSystem.IsMacOS())
+            {
+                return BinaryPrimitives.ReadUInt32LittleEndian(header) == 0xfeedfacf && BinaryPrimitives.ReadUInt32LittleEndian(header[4..]) == 0x01000007;
+            }
+            if (OperatingSystem.IsWindows() && header[0] == 'M' && header[1] == 'Z')
+            {
+                int offset = BinaryPrimitives.ReadInt32LittleEndian(header[60..]);
+                if (offset < 64 || offset > stream.Length - 6)
+                {
+                    return false;
+                }
+                stream.Position = offset;
+                Span<byte> pe = stackalloc byte[6];
+                return stream.Read(pe) == pe.Length && pe[..4].SequenceEqual(new byte[] { 0x50, 0x45, 0, 0 }) && BinaryPrimitives.ReadUInt16LittleEndian(pe[4..]) == 0x8664;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        return false;
+    }
+
     public static async Task<bool> ValidateAsync(string directory)
     {
-        foreach (string executable in Executables)
+        foreach (string executable in ToolNames)
         {
-            string path = Path.Combine(directory, executable);
-            if (!File.Exists(path))
+            string path = ResolveExecutable(directory, executable);
+            if (!File.Exists(path) || !IsHostExecutable(path))
             {
                 return false;
             }

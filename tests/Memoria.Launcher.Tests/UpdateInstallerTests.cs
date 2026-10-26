@@ -281,6 +281,7 @@ public sealed class UpdateInstallerTests : IDisposable
     [Fact]
     public void LockedOwnedFileRollsBackEarlierOperations()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows updater file-sharing contract.");
         using FileStream locked = new(Path.Combine(root, "Data/Memoria.FF8.exe"), FileMode.Open, FileAccess.Read, FileShare.Read);
 
         Assert.Throws<IOException>(() => UpdateInstaller.Apply(root));

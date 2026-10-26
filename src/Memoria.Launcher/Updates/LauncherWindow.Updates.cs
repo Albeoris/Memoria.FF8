@@ -1,7 +1,7 @@
 using System.Net.Http;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace Memoria.Launcher;
 
@@ -10,8 +10,10 @@ internal sealed partial class LauncherWindow
     private readonly Button releaseUpdate = new() { Content = "Latest release", MinWidth = 180, MinHeight = 32, Margin = new Thickness(0, 0, 10, 0) };
     private readonly Button nightlyUpdate = new() { Content = "Nightly", MinWidth = 180, MinHeight = 32 };
     private readonly TextBlock updateStatus = new() { Text = "Checking for updates…", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
-    private readonly ProgressBar updateProgress = new() { Height = 8, Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly ProgressBar updateProgress = new() { Height = 8, Minimum = 0, Maximum = 100, IsVisible = false, Margin = new Thickness(0, 8, 0, 0) };
     private readonly CancellationTokenSource updateLifetime = new();
+    private readonly Button cancelUpdate = new() { Content = "Cancel download", IsVisible = false, Margin = new Thickness(10, 0, 0, 0) };
+    private CancellationTokenSource? updateDownload;
     private bool checkingUpdates;
 
     private StackPanel CreateUpdatePanel()
@@ -20,6 +22,8 @@ internal sealed partial class LauncherWindow
         WrapPanel buttons = new();
         buttons.Children.Add(releaseUpdate);
         buttons.Children.Add(nightlyUpdate);
+        buttons.Children.Add(cancelUpdate);
+        cancelUpdate.Click += (_, _) => updateDownload?.Cancel();
         panel.Children.Add(buttons);
         panel.Children.Add(updateStatus);
         panel.Children.Add(updateProgress);
@@ -32,6 +36,11 @@ internal sealed partial class LauncherWindow
 
     private async Task CheckUpdatesAsync()
     {
+        if (!LauncherCapabilities.CanUpdate)
+        {
+            updateStatus.Text = LauncherCapabilities.UpdateStatus;
+            return;
+        }
         checkingUpdates = true;
         releaseUpdate.IsEnabled = false;
         nightlyUpdate.IsEnabled = false;
@@ -50,7 +59,7 @@ internal sealed partial class LauncherWindow
         }
         catch (Exception exception) when (!updateLifetime.IsCancellationRequested)
         {
-            updateStatus.Text = "Could not check updates: " + exception.Message + " Click a channel to retry.";
+            updateStatus.Text = "Could not check updates: " + exception.Message + " Offline: installed games remain playable. Click a channel to retry.";
         }
         catch (OperationCanceledException)
         {
@@ -78,13 +87,13 @@ internal sealed partial class LauncherWindow
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return $"{channel}: {exception.Message} Click to retry.";
+            return $"{channel}: {exception.Message} Offline: installed games remain playable. Click to retry.";
         }
     }
 
     private async Task InstallUpdateAsync(UpdateChannel channel)
     {
-        if (updating)
+        if (updating || !LauncherCapabilities.CanUpdate)
         {
             return;
         }
@@ -113,19 +122,24 @@ internal sealed partial class LauncherWindow
                 return;
             }
             string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nYou can keep playing during the download. You will be asked before restarting to install. Switching channels may install an older build. Mods, saves and settings are preserved.";
-            if (MessageBox.Show(this, prompt, "Memoria — install update", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — install update", prompt))
             {
                 return;
             }
-            updateProgress.Visibility = Visibility.Visible;
+            updateProgress.IsVisible = true;
             updateProgress.Value = 0;
             updateStatus.Text = "Downloading and verifying the update…";
-            using CancellationTokenSource downloadTimeout = new(TimeSpan.FromMinutes(20));
+            using CancellationTokenSource downloadTimeout = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token);
+            downloadTimeout.CancelAfter(TimeSpan.FromMinutes(20));
+            updateDownload = downloadTimeout;
+            cancelUpdate.IsVisible = true;
             string archive = await UpdatePackageCache.GetArchiveAsync(root, client, release, new Progress<double>(value =>
             {
                 updateProgress.Value = value * 100;
                 updateStatus.Text = $"Downloading the update — {value:P0}";
             }), downloadTimeout.Token);
+            cancelUpdate.IsVisible = false;
+            updateDownload = null;
             updateProgress.IsIndeterminate = true;
             updateStatus.Text = "Validating the distribution and preparing installation…";
             string work = await Task.Run(() => UpdateInstaller.Prepare(root));
@@ -140,12 +154,12 @@ internal sealed partial class LauncherWindow
                 }
                 UpdateInstaller.CreateJournal(root, incoming);
             });
-            updateProgress.Visibility = Visibility.Collapsed;
+            updateProgress.IsVisible = false;
             bool gameRunning = runningGame is { HasExited: false };
             string restartPrompt = gameRunning
                 ? "The update is ready. Restart the game to update now?\n\nMemoria will create a separate automatic update save, install the update, then start the game and restore that save. Choose No to keep playing; the downloaded package will be kept."
                 : "The update is ready. Restart Memoria to install it now?\n\nChoose No to keep the downloaded package for later.";
-            if (MessageBox.Show(this, restartPrompt, "Memoria — restart for update", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — restart for update", restartPrompt))
             {
                 updateStatus.Text = "Update downloaded and kept. Select this channel again to install without downloading it again.";
                 return;
@@ -190,15 +204,21 @@ internal sealed partial class LauncherWindow
             closingForUpdate = true;
             Close();
         }
+        catch (OperationCanceledException)
+        {
+            updateStatus.Text = "Download cancelled. The installed game remains available for offline play.";
+        }
         catch (Exception exception)
         {
             updateStatus.Text = "Update failed: " + exception.Message;
-            ShowError("Could not install the update.", exception);
+            await ShowErrorAsync("Could not install the update.", exception);
         }
         finally
         {
-            updateProgress.Visibility = Visibility.Collapsed;
+            updateProgress.IsVisible = false;
             updateProgress.IsIndeterminate = false;
+            cancelUpdate.IsVisible = false;
+            updateDownload = null;
             updating = false;
             SetBusy(false);
         }

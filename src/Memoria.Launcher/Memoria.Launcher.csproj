@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <TargetFramework>net10.0</TargetFramework>
+
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Memoria.Launcher</AssemblyName>
     <RootNamespace>Memoria.Launcher</RootNamespace>
@@ -11,9 +11,15 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="SharpCompress" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
     <Using Include="System.IO" />
     <Compile Include="../Memoria.FF8.App/MediaToolsInstallation.cs" Link="MediaToolsInstallation.cs" />
     <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
   </ItemGroup>

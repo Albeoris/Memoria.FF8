@@ -7,6 +7,10 @@ internal static class GameConsole
 {
     public static TextWriter? Open()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
         // Reuse an attached console, or keep a new one alive with the launcher after the game exits.
         AllocConsole();
         SetConsoleOutputCP(65001);

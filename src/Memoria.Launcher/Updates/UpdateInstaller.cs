@@ -14,7 +14,11 @@ internal static class UpdateInstaller
 
     internal static string MutexName(string root)
     {
-        string identity = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)).ToUpperInvariant();
+        string identity = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        if (OperatingSystem.IsWindows())
+        {
+            identity = identity.ToUpperInvariant();
+        }
         return "Local\\Memoria.FF8.Launcher." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
     }
 

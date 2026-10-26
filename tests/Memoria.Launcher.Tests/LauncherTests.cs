@@ -15,6 +15,51 @@ public sealed class LauncherTests : IDisposable
     }
 
     [Fact]
+    public void LauncherInstanceIdentityPreservesUnixPackagePathCase()
+    {
+        string first = UpdateInstaller.MutexName(Path.Combine(directory, "Game"));
+        string second = UpdateInstaller.MutexName(Path.Combine(directory, "game"));
+        Assert.Equal(OperatingSystem.IsWindows(), first == second);
+    }
+
+    [Fact]
+    public void PortableSteamDiscoveryUsesLibraryDescriptorsWithoutRegistryAccess()
+    {
+        string game = CreateSteamInstallation("39150", false);
+        string root = Path.Combine(directory, "Steam library");
+        File.WriteAllText(Path.Combine(root, "steamapps", "appmanifest_39150.acf"), "\"AppState\" { \"appid\" \"39150\" \"Universe\" \"1\" \"name\" \"FINAL FANTASY VIII\" \"installdir\" \"Game files\" }");
+        string escapedRoot = root.Replace("\\", "\\\\");
+        File.WriteAllText(Path.Combine(root, "steamapps", "libraryfolders.vdf"), $"\"libraryfolders\" {{ \"0\" {{ \"path\" \"{escapedRoot}\" \"apps\" {{ \"39150\" \"0\" }} }} }}");
+        List<string> warnings = [];
+        GameInstallation installation = Assert.Single(GameInstallationDiscovery.FindSteamInstallations([root], warnings.Add, TestContext.Current.CancellationToken));
+        Assert.Equal(game, installation.Directory);
+        Assert.Empty(warnings);
+    }
+
+    [Fact]
+    public void DiscoveryHonorsCancellationBeforeInspectingTheHost()
+    {
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => GameInstallationDiscovery.Find(_ => throw new InvalidOperationException("Discovery must not start."), cancellation.Token));
+    }
+
+    [Fact]
+    public void PlatformCapabilitiesDoNotOfferWindowsPackagesOnUnix()
+    {
+        Assert.Equal(OperatingSystem.IsWindows(), LauncherCapabilities.CanUpdate);
+        Assert.Equal(OperatingSystem.IsWindows(), LauncherCapabilities.CanLaunchGame);
+        Assert.Contains("unavailable", LauncherCapabilities.GameStatus);
+        Assert.Contains("Windows update packages cannot be installed", LauncherCapabilities.UpdateStatus);
+    }
+
+    [Fact]
+    public void PathIdentityMatchesHostFileSystem()
+    {
+        Assert.Equal(OperatingSystem.IsWindows(), LauncherCapabilities.PathComparer.Equals("Game", "game"));
+    }
+
+    [Fact]
     public void LastUsedInstallationIsFirstAndNotDuplicated()
     {
         string other = Path.Combine(directory, "Other");

@@ -1,11 +1,11 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Platform.Storage;
+using Avalonia.Media;
 using Memoria.FF8;
-using Microsoft.Win32;
 
 namespace Memoria.Launcher;
 
@@ -19,9 +19,11 @@ internal sealed partial class LauncherWindow : Window
     private readonly TextBlock mediaStatus = new() { Text = "Checking FFmpeg…", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
     private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
     private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
-    private readonly StackPanel mediaProgressPanel = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+    private readonly StackPanel mediaProgressPanel = new() { IsVisible = false, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
     private readonly string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
+    private readonly Button cancel = new() { Content = "Cancel scan", IsVisible = false };
+    private readonly CancellationTokenSource discoveryLifetime = new();
     private bool busy;
     private Process? runningGame;
     private GameUpdateSession? gameUpdateSession;
@@ -40,7 +42,7 @@ internal sealed partial class LauncherWindow : Window
         MinWidth = 600;
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        FontFamily = new FontFamily("Segoe UI");
+        FontFamily = FontFamily.Default;
         FontSize = 14;
         Background = new SolidColorBrush(Color.FromRgb(245, 247, 250));
 
@@ -49,7 +51,7 @@ internal sealed partial class LauncherWindow : Window
         {
             layout.RowDefinitions.Add(new RowDefinition { Height = height });
         }
-        Add(layout, new TextBlock { Text = "Memoria", FontSize = 32, FontWeight = FontWeights.SemiBold }, 0);
+        Add(layout, new TextBlock { Text = "Memoria", FontSize = 32, FontWeight = FontWeight.SemiBold }, 0);
         Add(layout, new TextBlock { Text = "English Steam (2013) or Remastered · Remastered support is partial", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 24) }, 1);
         DockPanel selection = new() { LastChildFill = true, Margin = new Thickness(0, 0, 0, 20) };
         DockPanel.SetDock(browse, Dock.Right);
@@ -73,14 +75,18 @@ internal sealed partial class LauncherWindow : Window
         play.Margin = new Thickness(0, 16, 0, 0);
         Add(layout, play, 6);
         Content = layout;
-        browse.Click += Browse;
+        browse.Click += async (_, _) => await BrowseAsync();
+        cancel.Click += (_, _) => discoveryLifetime.Cancel();
+        mediaSection.Children.Add(cancel);
+        installations.SelectionChanged += async (_, _) => await ValidateSelectionAsync();
+        achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
         play.Click += async (_, _) => await PlayAsync();
-        Loaded += async (_, _) => await InitializeAsync();
+        Opened += async (_, _) => await InitializeAsync();
         Closing += OnClosing;
     }
 
-    private static void Add(Grid grid, UIElement control, int row)
+    private static void Add(Grid grid, Control control, int row)
     {
         Grid.SetRow(control, row);
         grid.Children.Add(control);
@@ -91,11 +97,12 @@ internal sealed partial class LauncherWindow : Window
         SetBusy(true);
         try
         {
+            cancel.IsVisible = true;
             List<string> warnings = [];
             LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
             string? previous = settings.LastGameDirectory;
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
-            IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add));
+            IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add, discoveryLifetime.Token), discoveryLifetime.Token);
             installations.ItemsSource = GameInstallationSelection.Order(previous, found);
             if (installations.Items.Count > 0)
             {
@@ -104,13 +111,22 @@ internal sealed partial class LauncherWindow : Window
             status.Text = warnings.Count > 0 ? string.Join(Environment.NewLine, warnings) : "Choose your installed game folder, then press Play. Browse to select a folder manually.";
             await RefreshMediaStatusAsync();
         }
+        catch (OperationCanceledException)
+        {
+            status.Text = "Discovery cancelled. Browse to select your game folder.";
+        }
         catch (Exception exception)
         {
-            ShowError("Game discovery failed. You can still select a folder with Browse.", exception);
+            await ShowErrorAsync("Game discovery failed. You can still select a folder with Browse.", exception);
         }
         finally
         {
+            cancel.IsVisible = false;
             SetBusy(false);
+        }
+        if (!OperatingSystem.IsWindows())
+        {
+            status.Text = LauncherCapabilities.GameStatus;
         }
         if (updateResume is not null)
         {
@@ -120,18 +136,19 @@ internal sealed partial class LauncherWindow : Window
         await CheckUpdatesAsync();
     }
 
-    private void Browse(object sender, RoutedEventArgs args)
+    private async Task BrowseAsync()
     {
-        OpenFolderDialog dialog = new() { Title = "Select the installed FINAL FANTASY VIII folder", Multiselect = false };
-        if (installations.SelectedItem is GameInstallation selected)
+        try
         {
-            dialog.InitialDirectory = selected.Directory;
-        }
-        if (dialog.ShowDialog(this) == true)
-        {
+            IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select the installed FINAL FANTASY VIII folder", AllowMultiple = false });
+            if (folders.Count == 0)
+            {
+                return;
+            }
+            using IStorageFolder chosen = folders[0];
+            string folder = chosen.TryGetLocalPath() ?? throw new IOException("Select a local game folder.");
             List<GameInstallation> items = installations.Items.Cast<GameInstallation>().ToList();
-            string folder = Path.GetFullPath(dialog.FolderName);
-            GameInstallation? existing = items.FirstOrDefault(item => item.Directory.Equals(folder, StringComparison.OrdinalIgnoreCase));
+            GameInstallation? existing = items.FirstOrDefault(item => LauncherCapabilities.PathComparer.Equals(item.Directory, folder));
             if (existing is null)
             {
                 existing = new GameInstallation(folder, "Selected folder");
@@ -139,7 +156,42 @@ internal sealed partial class LauncherWindow : Window
             }
             installations.ItemsSource = items;
             installations.SelectedItem = existing;
-            status.Text = GameInstallationSelection.ValidateForEngine(folder) ?? "Game files found. Ready to play.";
+            await ValidateSelectionAsync();
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Could not select the game folder.", exception);
+        }
+    }
+
+    private async Task ValidateSelectionAsync()
+    {
+        if (installations.SelectedItem is not GameInstallation selected)
+        {
+            return;
+        }
+        string? error = await Task.Run(() => GameInstallationSelection.ValidateForEngine(selected.Directory));
+        if (!Equals(installations.SelectedItem, selected))
+        {
+            return;
+        }
+        status.Text = error ?? (OperatingSystem.IsWindows() ? "Game files found. Ready to play. Offline play is available without checking for updates." : "Game files found. " + LauncherCapabilities.GameStatus);
+        SaveSelection();
+    }
+
+    private void SaveSelection()
+    {
+        if (installations.SelectedItem is not GameInstallation selected)
+        {
+            return;
+        }
+        try
+        {
+            new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true).Save(LauncherSettings.DefaultPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            status.Text = "Could not save launcher settings: " + exception.Message;
         }
     }
 
@@ -152,7 +204,7 @@ internal sealed partial class LauncherWindow : Window
         }
         catch (Exception exception)
         {
-            ShowError("FFmpeg setup failed.", exception);
+            await ShowErrorAsync("FFmpeg setup failed.", exception);
         }
         finally
         {
@@ -163,20 +215,25 @@ internal sealed partial class LauncherWindow : Window
     private async Task<bool> EnsureMediaAsync()
     {
         using HttpClient client = new() { Timeout = Timeout.InfiniteTimeSpan };
-        MediaToolsInstallation installation = new(client, FfmpegDownloadOptions.FromEnvironment());
+        FfmpegDownloadOptions options = FfmpegDownloadOptions.FromEnvironment();
+        MediaToolsInstallation installation = new(client, options);
         try
         {
-            bool ready = await installation.EnsureAsync(mediaDirectory, prompt => MessageBox.Show(this, prompt.Replace("You can continue without installing it.", "Cancel setup to stay in the launcher. FFmpeg must be ready before Play."), "Memoria — FFmpeg setup", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes, message => status.Text = message.Replace("Continuing without FFmpeg video playback (and replacement audio decoding).", "FFmpeg is not ready. Install the tools before pressing Play."), UpdateMediaProgress);
+            if (!OperatingSystem.IsMacOS() && !await MediaToolsInstallation.ValidateAsync(mediaDirectory) && !await LauncherDialogs.ConfirmAsync(this, "Memoria — FFmpeg setup", $"Download and verify {options.ArchiveName} for video and replacement audio playback?\n\nSource: {options.ReleaseUrl}\nInstall to: {mediaDirectory}\n\nFFmpeg is a separate third-party LGPL dependency. License notices are kept with the tools. Cancel to stay in the launcher."))
+            {
+                return false;
+            }
+            bool ready = await installation.EnsureAsync(mediaDirectory, _ => true, message => status.Text = message, UpdateMediaProgress);
             await RefreshMediaStatusAsync();
             if (ready)
             {
-                status.Text = "FFmpeg is ready. You can start the game.";
+                status.Text = "FFmpeg tools are installed and validated.";
             }
             return ready;
         }
         finally
         {
-            mediaProgressPanel.Visibility = Visibility.Collapsed;
+            mediaProgressPanel.IsVisible = false;
             mediaProgress.IsIndeterminate = false;
         }
     }
@@ -184,7 +241,7 @@ internal sealed partial class LauncherWindow : Window
     private void UpdateMediaProgress(MediaToolsProgress progress)
     {
         mediaStatus.Text = "Setting up FFmpeg…";
-        mediaProgressPanel.Visibility = Visibility.Visible;
+        mediaProgressPanel.IsVisible = true;
         mediaProgress.IsIndeterminate = progress.Stage != MediaToolsStage.Complete && (progress.Stage != MediaToolsStage.Downloading || progress.TotalBytes is not > 0);
         mediaProgress.Value = progress.Stage == MediaToolsStage.Complete ? 100 : progress.TotalBytes is > 0 ? Math.Clamp(100d * progress.BytesReceived / progress.TotalBytes.Value, 0, 100) : 0;
         mediaProgressText.Text = progress.Stage switch
@@ -209,13 +266,18 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task PlayAsync(UpdateResume? resume = null)
     {
+        if (!LauncherCapabilities.CanLaunchGame)
+        {
+            status.Text = LauncherCapabilities.GameStatus;
+            return;
+        }
         GameInstallation? selected = resume is null ? installations.SelectedItem as GameInstallation : new GameInstallation(resume.GameDirectory, "Update resume");
         if (selected is null)
         {
             status.Text = "Select an installation, or use Browse to choose your game folder.";
             return;
         }
-        if (GameInstallationSelection.ValidateForEngine(selected.Directory) is string validationError)
+        if (await Task.Run(() => GameInstallationSelection.ValidateForEngine(selected.Directory)) is string validationError)
         {
             status.Text = validationError;
             return;
@@ -290,13 +352,13 @@ internal sealed partial class LauncherWindow : Window
             else
             {
                 status.Text = completion + (resume is null ? string.Empty : Environment.NewLine + "Automatic update save retained at: " + resume.SavePath);
-                MessageBox.Show(this, status.Text, "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
+                await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
             }
         }
         catch (Exception exception)
         {
             WindowState = WindowState.Normal;
-            ShowError("Could not start the game.", exception);
+            await ShowErrorAsync("Could not start the game.", exception);
         }
         finally
         {
@@ -321,10 +383,10 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
-    private void ShowError(string message, Exception exception)
+    private async Task ShowErrorAsync(string message, Exception exception)
     {
         status.Text = $"{message}{Environment.NewLine}{exception.Message}";
-        MessageBox.Show(this, status.Text, "Memoria", MessageBoxButton.OK, MessageBoxImage.Error);
+        await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
     }
 
     private void SetBusy(bool value)
@@ -334,12 +396,12 @@ internal sealed partial class LauncherWindow : Window
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
-        play.IsEnabled = !busy;
-        releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates;
-        nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates;
+        play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
+        releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
     }
 
-    private void OnClosing(object? sender, CancelEventArgs args)
+    private void OnClosing(object? sender, WindowClosingEventArgs args)
     {
         if (busy && !closingForUpdate)
         {
@@ -349,6 +411,7 @@ internal sealed partial class LauncherWindow : Window
         else
         {
             updateLifetime.Cancel();
+            discoveryLifetime.Cancel();
         }
     }
 }

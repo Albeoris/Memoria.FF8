@@ -137,6 +137,7 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
 
     private static Process Start(string script)
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows PowerShell process diagnostic probe.");
         ProcessStartInfo start = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"))
         {
             UseShellExecute = false,

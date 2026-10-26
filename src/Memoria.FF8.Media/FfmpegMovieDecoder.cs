@@ -31,8 +31,8 @@ public sealed partial class FfmpegMovieDecoder : IDisposable
         Information.SourceVersion?.Validate();
         StartSeconds = startSeconds;
         string offset = startSeconds.ToString(CultureInfo.InvariantCulture);
-        video = Start(Path.Combine(toolsDirectory, "ffmpeg.exe"), "-v", "error", "-ss", offset, "-i", moviePath, "-an", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1");
-        audio = Start(Path.Combine(toolsDirectory, "ffmpeg.exe"), "-v", "error", "-ss", offset, "-i", moviePath, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "pipe:1");
+        video = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffmpeg"), "-v", "error", "-ss", offset, "-i", moviePath, "-an", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1");
+        audio = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffmpeg"), "-v", "error", "-ss", offset, "-i", moviePath, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", "pipe:1");
         videoTask = Task.Run(ReadVideo);
         audioTask = Task.Run(ReadAudio);
     }
@@ -66,7 +66,7 @@ public sealed partial class FfmpegMovieDecoder : IDisposable
 
     public static MovieInformation Probe(string toolsDirectory, string moviePath)
     {
-        using Process probe = Start(Path.Combine(toolsDirectory, "ffprobe.exe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,avg_frame_rate:format=duration", "-of", "json", moviePath);
+        using Process probe = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,avg_frame_rate:format=duration", "-of", "json", moviePath);
         Task<string> errors = probe.StandardError.ReadToEndAsync();
         string json = probe.StandardOutput.ReadToEnd();
         probe.WaitForExit();
@@ -91,7 +91,7 @@ public sealed partial class FfmpegMovieDecoder : IDisposable
     public static MovieInformation ProbePresentation(string toolsDirectory, string moviePath)
     {
         MovieFileVersion? version = MovieFileVersion.Capture(moviePath);
-        using Process probe = Start(Path.Combine(toolsDirectory, "ffprobe.exe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,duration:format=duration", "-of", "json", moviePath);
+        using Process probe = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,duration:format=duration", "-of", "json", moviePath);
         Task<string> errors = probe.StandardError.ReadToEndAsync();
         string json = probe.StandardOutput.ReadToEnd();
         probe.WaitForExit();

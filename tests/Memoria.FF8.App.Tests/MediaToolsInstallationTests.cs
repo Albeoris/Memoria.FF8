@@ -24,9 +24,9 @@ public sealed class MediaToolsInstallationTests
         {
             Environment.SetEnvironmentVariable(variable, null);
 
-            string expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "media-tools");
+            string expected = Path.Combine(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, "media-tools");
             Assert.Equal(expected, MediaToolsInstallation.ResolveDirectory());
-            Assert.Equal(Path.GetDirectoryName(PlayerSaveStore.DefaultDirectory), Path.GetDirectoryName(expected));
+            Assert.Equal(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, Path.GetDirectoryName(expected));
 
             Environment.SetEnvironmentVariable(variable, "custom-media-tools");
             Assert.Equal(Path.GetFullPath("custom-media-tools"), MediaToolsInstallation.ResolveDirectory());
@@ -54,7 +54,7 @@ public sealed class MediaToolsInstallationTests
             Assert.True(Directory.Exists(directory.Path));
             string report = string.Join(Environment.NewLine, reports);
             Assert.Contains(directory.Path, report);
-            Assert.Contains(MediaToolsInstallation.LatestReleaseUrl, report);
+            Assert.Contains(OperatingSystem.IsMacOS() ? "https://ffmpeg.org/download.html" : MediaToolsInstallation.LatestReleaseUrl, report);
             Assert.Contains("Continuing without FFmpeg", report);
             Assert.Empty(Directory.EnumerateFileSystemEntries(directory.Path));
         }
@@ -86,6 +86,7 @@ public sealed class MediaToolsInstallationTests
     [Fact]
     public async Task Validation_rejects_runnable_programs_without_the_ffmpeg_version_contract()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows executable validation probe.");
         using TestDirectory directory = new();
         Directory.CreateDirectory(directory.Path);
         string executable = System.IO.Path.Combine(Environment.SystemDirectory, "whoami.exe");
@@ -171,7 +172,7 @@ public sealed class MediaToolsInstallationTests
         Assert.False(available);
         string report = string.Join(Environment.NewLine, reports);
         Assert.Contains(directory.Path, report);
-        Assert.Contains(MediaToolsInstallation.LatestReleaseUrl, report);
+        Assert.Contains(OperatingSystem.IsMacOS() ? "https://ffmpeg.org/download.html" : MediaToolsInstallation.LatestReleaseUrl, report);
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffmpeg.exe")));
         Assert.False(File.Exists(System.IO.Path.Combine(directory.Path, "ffprobe.exe")));
     }

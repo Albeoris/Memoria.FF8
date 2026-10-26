@@ -12,7 +12,7 @@ public sealed partial class FfmpegMovieDecoder
         // Stream-copy preserves VP8 frame tags. Count show_frame (RFC6386 section9.1),
         // not packets or duration*FPS: invisible reference frames must not advance the movie clock.
         // IVF framing: https://ffmpeg.org/doxygen/trunk/ivfenc_8c_source.html
-        using Process packets = Start(Path.Combine(toolsDirectory, "ffmpeg.exe"), "-v", "error", "-i", moviePath, "-map", "0:v:0", "-c:v", "copy", "-f", "ivf", "pipe:1");
+        using Process packets = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffmpeg"), "-v", "error", "-i", moviePath, "-map", "0:v:0", "-c:v", "copy", "-f", "ivf", "pipe:1");
         Task<string> errors = packets.StandardError.ReadToEndAsync();
         try
         {
@@ -70,7 +70,7 @@ public sealed partial class FfmpegMovieDecoder
     private static int CountDecodedFrames(string toolsDirectory, string moviePath)
     {
         // Other codecs do not share VP8's one-frame tag; retain actual decoded counting for those formats.
-        using Process probe = Start(Path.Combine(toolsDirectory, "ffprobe.exe"), "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries", "stream=nb_read_frames", "-of", "json", moviePath);
+        using Process probe = Start(Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(toolsDirectory, "ffprobe"), "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries", "stream=nb_read_frames", "-of", "json", moviePath);
         Task<string> errors = probe.StandardError.ReadToEndAsync();
         string json = probe.StandardOutput.ReadToEnd();
         probe.WaitForExit();
