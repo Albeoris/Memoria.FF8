@@ -43,8 +43,13 @@ internal sealed partial class RecreateGame
 
     private void AdvanceDiagnosticDriver(TimeSpan now)
     {
-        if (diagnosticDriver is not { Finished: false } driver)
+        if (diagnosticDriver is not { } driver)
         {
+            return;
+        }
+        if (driver.Finished)
+        {
+            FinalizeDiagnosticDriver(driver);
             return;
         }
         diagnosticHostWasActive &= IsActive;
@@ -124,20 +129,30 @@ internal sealed partial class RecreateGame
         {
             driver.Fail($"DRIVER_PREREQUISITE: {exception.GetType().Name}: {exception.Message}");
         }
-        PublishDiagnosticDriverProgress();
         if (driver.Finished)
         {
-            diagnosticTelemetry!.Complete(diagnosticPresentedFrames, false, 0, driver.Blocker);
-            PublishDiagnosticCandidate();
-            diagnosticTelemetry.Dispose();
-            diagnosticDriverBattle!.DiagnosticEffectDispatched -= driver.ObserveDispatch;
-            if (world?.IsDiagnosticBattle == true)
-            {
-                world.EndDiagnosticBattle();
-                ClearBattlePresentation();
-            }
-            Exit();
+            FinalizeDiagnosticDriver(driver);
         }
+        else
+        {
+            PublishDiagnosticDriverProgress();
+        }
+    }
+
+    private void FinalizeDiagnosticDriver(DiagnosticBattleDriver driver)
+    {
+        PublishDiagnosticDriverProgress();
+        diagnosticTelemetry!.Complete(diagnosticPresentedFrames, false, 0, driver.Blocker);
+        PublishDiagnosticCandidate();
+        diagnosticTelemetry.Dispose();
+        diagnosticDriverBattle!.DiagnosticEffectDispatched -= driver.ObserveDispatch;
+        if (world?.IsDiagnosticBattle == true)
+        {
+            world.EndDiagnosticBattle();
+            ClearBattlePresentation();
+        }
+        diagnosticDriver = null;
+        Exit();
     }
 
     private void PublishDiagnosticDriverProgress()
