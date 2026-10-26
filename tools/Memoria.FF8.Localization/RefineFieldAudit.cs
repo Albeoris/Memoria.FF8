@@ -369,9 +369,3 @@ internal static class RefineFieldAudit
     private sealed record BundleMember(string Field, string Language, string ScriptPair, string IssueFingerprint, int PotentialRows, int ReviewCases, bool CountKnown, string Diagnostic, string[] CaseIds, string[] CaseKinds, bool OriginallyIncomplete, bool TechnicalBlocked);
     private sealed record TechnicalMember(string Field, string Language, string? ScriptSha256, string Issue, string IssueFingerprint, string BankReference);
 }
-
-
-
-
-
-
