@@ -13,9 +13,11 @@ public sealed class PreparedFieldCompatibility
         };
         Inventory = FieldCompatibilityAudit.Inspect(Input);
         Projection = FieldCompatibilityProjection.Create(Inventory);
+        Scripts = new(Inventory, Projection);
     }
 
     internal FieldCompatibilityInput Input { get; }
     internal FieldCompatibilityProjection Projection { get; }
+    internal FieldScriptCompatibility Scripts { get; }
     public FieldCompatibilityInventory Inventory { get; }
 }

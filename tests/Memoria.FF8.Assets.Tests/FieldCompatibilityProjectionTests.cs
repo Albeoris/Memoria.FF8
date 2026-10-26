@@ -61,7 +61,9 @@ public sealed class FieldCompatibilityProjectionTests
         Assert.Equal(8, evidence.LocalPosition!.OperationIndex);
         Assert.Equal(1, result.FirstDivergence!.EnglishPosition!.OperationIndex);
         Assert.Equal(1, result.FirstDivergence.LocalPosition!.OperationIndex);
-        Assert.Equal([0], result.ProvenOrdinalMatches.Select(match => match.EnglishOrdinal));
+        Assert.Empty(result.ProvenOrdinalMatches);
+        Assert.Contains(0, result.ImplicatedEnglishOrdinals);
+        Assert.Contains(0, result.PotentialLocalOrdinals);
         Assert.Equal([1], result.EnglishSuffixContexts.Where(context => context.IsMessage).Select(context => context.MessageId!.Value));
         Assert.Equal([0], result.LocalSuffixContexts.Where(context => context.IsMessage).Select(context => context.MessageId!.Value));
     }

@@ -109,78 +109,108 @@ internal static class RefineFieldAudit
         File.WriteAllText(marker, "Refinement has not finished. Partial output is not an audit result.");
         Stopwatch timer = Stopwatch.StartNew();
         Dictionary<(string Field, string Language), PreparedFieldCompatibility> prepared = [];
+        Dictionary<string, FieldUniversallyUnusedEvidence> unusedByField = new(StringComparer.Ordinal);
         List<NewPair> pairs = [];
         List<BundleMember> bundles = [];
         List<TechnicalMember> technical = [];
         HashSet<(string Field, string Language)> technicalSeen = [];
         HashSet<(string Field, int Ordinal)> englishRows = [];
-        foreach (OldPair prior in oldPairs)
+        int mappingRows = 0;
+        int mappingKnownOrdinalRows = 0;
+        bool mappingHeaderWritten = false;
+        using StreamWriter mappingWriter = new(Path.Combine(output, "mapping.csv"), false, new UTF8Encoding(false));
+        foreach (IGrouping<string, OldPair> fieldPairs in oldPairs.GroupBy(pair => pair.Field, StringComparer.Ordinal))
         {
-            cancellation.ThrowIfCancellationRequested();
-            ValidateIdentity(prior.Field, prior.Language);
-            if (prior.Language == "en")
+            List<FieldCompatibilityResult> fieldResults = [];
+            foreach (OldPair prior in fieldPairs)
             {
-                throw new InvalidDataException("Cached comparison pairs must use a localized language.");
-            }
-            PreparedFieldCompatibility english = Prepare(prior.Field, "en");
-            PreparedFieldCompatibility local = Prepare(prior.Field, prior.Language);
-            FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english, local);
-            string diagnostic = $"pairs/{prior.Field}.{prior.Language}.json";
-            bool technicalBlocked = !result.English.ScriptValidated || !result.Localized.ScriptValidated || !result.English.BankValidated || !result.Localized.BankValidated || !result.English.StaticReferencesValidated || !result.Localized.StaticReferencesValidated;
-            CandidateSources localCandidateSources = ClassifyCandidates(result.PotentialLocalOrdinals, result.Localized, result.MessageIdentityEvidence?.LocalBoundaryOperationIndex, technicalBlocked);
-            CandidateSources englishCandidateSources = ClassifyCandidates(result.ImplicatedEnglishOrdinals, result.English, result.MessageIdentityEvidence?.EnglishBoundaryOperationIndex, technicalBlocked);
-            Write(Path.Combine(output, diagnostic), new
-            {
-                result.Kind,
-                SourceReport = sourceReport,
-                EnglishBank = SourceBank(prior.Field, "en"),
-                LocalizedBank = SourceBank(prior.Field, prior.Language),
-                EnglishFieldName = Path.Combine(input, "banks", prior.Field, "en", "field-name.json"),
-                LocalFieldName = Path.Combine(input, "banks", prior.Field, prior.Language, "field-name.json"),
-                FirstDivergence = result.FirstDivergence is null ? null : new
+                cancellation.ThrowIfCancellationRequested();
+                ValidateIdentity(prior.Field, prior.Language);
+                if (prior.Language == "en")
                 {
-                    result.FirstDivergence.Reason,
-                    result.FirstDivergence.RawByteOffset,
-                    result.FirstDivergence.EnglishPosition,
-                    result.FirstDivergence.LocalPosition,
-                    result.FirstDivergence.StructuralBoundaryOperationIndex
-                },
-                EnglishSuffixContexts = CompactContexts(result.EnglishSuffixContexts, SourceBank(prior.Field, "en")),
-                LocalSuffixContexts = CompactContexts(result.LocalSuffixContexts, SourceBank(prior.Field, prior.Language)),
-                result.MessageIdentityEvidence,
-                LocalCandidateSources = localCandidateSources,
-                EnglishCandidateSources = englishCandidateSources,
-                result.ProvenOrdinalMatches,
-                result.PotentialLocalOrdinals,
-                result.ImplicatedEnglishOrdinals,
-                result.SemanticReviewCases,
-                result.ContextOnlyProblems,
-                result.CandidateCountKnown,
-                result.Reasons,
-                result.ReviewCases,
-                EnglishValidation = Validation(result.English),
-                LocalValidation = Validation(result.Localized),
-                EnglishProblems = result.English.Problems,
-                LocalProblems = result.Localized.Problems
-            });
-            OldPair baseline = baselineByIdentity[(prior.Field, prior.Language)];
-            NewPair next = new(prior.Field, prior.Language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic, prior.Kind, prior.PotentialRows, prior.ReviewCases, baseline.Kind, baseline.PotentialRows, baseline.ReviewCases, localCandidateSources, englishCandidateSources);
-            pairs.Add(next);
-            foreach (int ordinal in result.ImplicatedEnglishOrdinals)
-            {
-                englishRows.Add((prior.Field, ordinal));
+                    throw new InvalidDataException("Cached comparison pairs must use a localized language.");
+                }
+                PreparedFieldCompatibility english = Prepare(prior.Field, "en");
+                PreparedFieldCompatibility local = Prepare(prior.Field, prior.Language);
+                FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english, local);
+                int potentialRowsBeforeUnusedFilter = result.PotentialLocalOrdinals.Length;
+                int englishRowsBeforeUnusedFilter = result.ImplicatedEnglishOrdinals.Length;
+                if (!unusedByField.TryGetValue(prior.Field, out FieldUniversallyUnusedEvidence? unused))
+                {
+                    FieldCompatibilityInventory[] inventories = Languages.Where(language => File.Exists(SourceBank(prior.Field, language))).Select(language => Prepare(prior.Field, language).Inventory).ToArray();
+                    unused = FieldUniversallyUnused.Find(inventories, Languages);
+                    unusedByField.Add(prior.Field, unused);
+                }
+                result = FieldUniversallyUnused.Apply(result, unused);
+                fieldResults.Add(result);
+                string diagnostic = $"pairs/{prior.Field}.{prior.Language}.json";
+                bool technicalBlocked = !result.English.ScriptValidated || !result.Localized.ScriptValidated || !result.English.BankValidated || !result.Localized.BankValidated || !result.English.StaticReferencesValidated || !result.Localized.StaticReferencesValidated;
+                CandidateSources localCandidateSources = ClassifyCandidates(result.PotentialLocalOrdinals, result.Localized, result.LocalSuffixContexts, technicalBlocked);
+                CandidateSources englishCandidateSources = ClassifyCandidates(result.ImplicatedEnglishOrdinals, result.English, result.EnglishSuffixContexts, technicalBlocked);
+                Write(Path.Combine(output, diagnostic), new
+                {
+                    result.Kind,
+                    SourceReport = sourceReport,
+                    EnglishBank = SourceBank(prior.Field, "en"),
+                    LocalizedBank = SourceBank(prior.Field, prior.Language),
+                    EnglishFieldName = Path.Combine(input, "banks", prior.Field, "en", "field-name.json"),
+                    LocalFieldName = Path.Combine(input, "banks", prior.Field, prior.Language, "field-name.json"),
+                    FirstDivergence = result.FirstDivergence is null ? null : new
+                    {
+                        result.FirstDivergence.Reason,
+                        result.FirstDivergence.RawByteOffset,
+                        result.FirstDivergence.EnglishPosition,
+                        result.FirstDivergence.LocalPosition,
+                        result.FirstDivergence.StructuralBoundaryOperationIndex
+                    },
+                    EnglishSuffixContexts = CompactContexts(result.EnglishSuffixContexts, SourceBank(prior.Field, "en")),
+                    LocalSuffixContexts = CompactContexts(result.LocalSuffixContexts, SourceBank(prior.Field, prior.Language)),
+                    result.MessageIdentityEvidence,
+                    result.ScriptIdentityEvidence,
+                    result.UniversallyUnusedEvidence,
+                    PotentialRowsBeforeUnusedFilter = potentialRowsBeforeUnusedFilter,
+                    UniversallyUnusedRowsRemoved = potentialRowsBeforeUnusedFilter - result.PotentialLocalOrdinals.Length,
+                    EnglishRowsBeforeUnusedFilter = englishRowsBeforeUnusedFilter,
+                    UniversallyUnusedEnglishRowsRemoved = englishRowsBeforeUnusedFilter - result.ImplicatedEnglishOrdinals.Length,
+                    LocalCandidateSources = localCandidateSources,
+                    EnglishCandidateSources = englishCandidateSources,
+                    result.ProvenOrdinalMatches,
+                    result.PotentialLocalOrdinals,
+                    result.ImplicatedEnglishOrdinals,
+                    result.SemanticReviewCases,
+                    result.ContextOnlyProblems,
+                    result.CandidateCountKnown,
+                    result.Reasons,
+                    result.ReviewCases,
+                    EnglishValidation = Validation(result.English),
+                    LocalValidation = Validation(result.Localized),
+                    EnglishProblems = result.English.Problems,
+                    LocalProblems = result.Localized.Problems
+                });
+                OldPair baseline = baselineByIdentity[(prior.Field, prior.Language)];
+                NewPair next = new(prior.Field, prior.Language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic, prior.Kind, prior.PotentialRows, prior.ReviewCases, baseline.Kind, baseline.PotentialRows, baseline.ReviewCases, localCandidateSources, englishCandidateSources, potentialRowsBeforeUnusedFilter, potentialRowsBeforeUnusedFilter - result.PotentialLocalOrdinals.Length, englishRowsBeforeUnusedFilter, englishRowsBeforeUnusedFilter - result.ImplicatedEnglishOrdinals.Length);
+                pairs.Add(next);
+                foreach (int ordinal in result.ImplicatedEnglishOrdinals)
+                {
+                    englishRows.Add((prior.Field, ordinal));
+                }
+                string sharedCases = JsonSerializer.Serialize(result.ReviewCases.Select(review => new { review.Kind, review.EnglishPositions, review.LocalPositions, review.EnglishOrdinals, review.LocalOrdinals }), Json);
+                string[] problemSignature = result.English.Problems.Concat(result.Localized.Problems).Select(Normalize).Order(StringComparer.Ordinal).ToArray();
+                string scriptPair = prior.Field + "|" + result.English.JsmSha256 + "|" + result.Localized.JsmSha256;
+                string referenceScope = result.English.Problems.Concat(result.Localized.Problems).Any(IsReferenceSpecific) ? "|" + prior.Language : "";
+                string issueKey = scriptPair + "|" + string.Join('\n', problemSignature) + "|" + sharedCases + referenceScope;
+                bundles.Add(new(prior.Field, prior.Language, scriptPair, Hash(Encoding.UTF8.GetBytes(issueKey)), next.PotentialRows, next.ReviewCases, next.CountKnown, diagnostic, result.ReviewCases.Select(review => review.Id).ToArray(), result.ReviewCases.Select(review => review.Kind).Distinct().Order(StringComparer.Ordinal).ToArray(), prior.Kind == "Incomplete", !result.English.ScriptValidated || !result.Localized.ScriptValidated || !result.English.BankValidated || !result.Localized.BankValidated || !result.English.StaticReferencesValidated || !result.Localized.StaticReferencesValidated));
+                if (pairs.Count % 100 == 0 || pairs.Count == oldPairs.Length)
+                {
+                    progress($"Refined {pairs.Count}/{oldPairs.Length} pairs; {prepared.Count} verified cached banks");
+                }
             }
-            string sharedCases = JsonSerializer.Serialize(result.ReviewCases.Select(review => new { review.Kind, review.EnglishPositions, review.LocalPositions, review.EnglishOrdinals, review.LocalOrdinals }), Json);
-            string[] problemSignature = result.English.Problems.Concat(result.Localized.Problems).Select(Normalize).Order(StringComparer.Ordinal).ToArray();
-            string scriptPair = prior.Field + "|" + result.English.JsmSha256 + "|" + result.Localized.JsmSha256;
-            string referenceScope = result.English.Problems.Concat(result.Localized.Problems).Any(IsReferenceSpecific) ? "|" + prior.Language : "";
-            string issueKey = scriptPair + "|" + string.Join('\n', problemSignature) + "|" + sharedCases + referenceScope;
-            bundles.Add(new(prior.Field, prior.Language, scriptPair, Hash(Encoding.UTF8.GetBytes(issueKey)), next.PotentialRows, next.ReviewCases, next.CountKnown, diagnostic, result.ReviewCases.Select(review => review.Id).ToArray(), result.ReviewCases.Select(review => review.Kind).Distinct().Order(StringComparer.Ordinal).ToArray(), prior.Kind == "Incomplete", !result.English.ScriptValidated || !result.Localized.ScriptValidated || !result.English.BankValidated || !result.Localized.BankValidated || !result.English.StaticReferencesValidated || !result.Localized.StaticReferencesValidated));
-            if (pairs.Count % 100 == 0 || pairs.Count == oldPairs.Length)
-            {
-                progress($"Refined {pairs.Count}/{oldPairs.Length} pairs; {prepared.Count} verified cached banks");
-            }
+            FieldCompatibilityInventory[] fieldInventories = Languages.Where(language => prepared.ContainsKey((fieldPairs.Key, language))).Select(language => prepared[(fieldPairs.Key, language)].Inventory).ToArray();
+            mappingKnownOrdinalRows += fieldInventories.Where(inventory => inventory.BankCountKnown).Select(inventory => inventory.DeclaredTextCount ?? 0).DefaultIfEmpty(0).Max();
+            mappingRows += FieldLocalizationMapping.WriteCsv(mappingWriter, fieldPairs.Key, fieldInventories, fieldResults, unusedByField[fieldPairs.Key], includeHeader: !mappingHeaderWritten, fieldName: RemasteredFieldAudit.ReadFieldName(Path.Combine(input, "banks", fieldPairs.Key, "en", "field-name.json")));
+            mappingHeaderWritten = true;
         }
+        mappingWriter.Flush();
         cancellation.ThrowIfCancellationRequested();
         var reviewGroups = bundles.GroupBy(member => member.IssueFingerprint).Select(group => new
         {
@@ -224,7 +254,7 @@ internal static class RefineFieldAudit
         string[] errors = original.TryGetProperty("Errors", out JsonElement originalErrors) ? originalErrors.EnumerateArray().Select(value => value.GetString() ?? "").ToArray() : [];
         bool complete = errors.Length == 0 && pairs.All(pair => pair.CountKnown && pair.Kind != "Incomplete");
         string summary = $"Cached refinement: {baselinePairs.Sum(pair => pair.PotentialRows)} -> {pairs.Sum(pair => pair.PotentialRows)} candidate rows; {baselinePairs.Sum(pair => pair.ReviewCases)} -> {pairs.Sum(pair => pair.ReviewCases)} review cases. Original {oldSubset.Length} incomplete pairs: {oldSubset.Sum(pair => pair.PotentialRows)} -> {newSubset.Sum(pair => pair.PotentialRows)} candidate rows; {oldSubset.Sum(pair => pair.ReviewCases)} -> {newSubset.Sum(pair => pair.ReviewCases)} review cases. Coverage {(complete ? "complete" : "INCOMPLETE")}. No semantic mappings approved.";
-        const string limitations = "Cached original bytes are length/SHA256 verified and decoded again, without game archive access. Validated message-identity projections retain message identifiers while ignoring presentation-only message operands. Raw executable differences and runtime presentation/choice contexts remain separate diagnostics. Original incomplete pairs are not finalized translations. Malformed headers, missing resources, decoder errors and unknown counts remain explicit; projected divergent suffixes are never resynchronized. Candidate counts sum language-specific rows; semantic meanings are not deduplicated. Source location graphs and field names are references to the original audit, not recomputed evidence.";
+        const string limitations = "Cached original bytes are length/SHA256 verified and decoded again, without game archive access. Message identity is compared independently within each object-label/script-ID pair; a divergent script suffix is never resynchronized and does not discard matching sibling scripts. Per-script evidence records validation and uncertainty. Raw executable differences and runtime presentation/choice contexts remain separate diagnostics. Only ordinals proved unreferenced across all six validated language banks are excluded; missing language caches or uncertain references prevent that exclusion and remain explicit in unused evidence. Original incomplete pairs are not finalized translations. Malformed headers, missing resources, decoder errors and unknown counts remain explicit. Candidate counts sum language-specific rows; semantic meanings are not deduplicated. Source location graphs and field names are references to the original audit, not recomputed evidence.";
         Write(Path.Combine(output, "report.json"), new
         {
             SchemaVersion = 2,
@@ -238,20 +268,37 @@ internal static class RefineFieldAudit
             ParserAssemblySha256 = Hash(File.ReadAllBytes(typeof(FieldCompatibilityAudit).Assembly.Location)),
             BaselineRows = original.GetProperty("BaselineRows").GetInt32(),
             PotentialRows = pairs.Sum(pair => pair.PotentialRows),
+            UniversallyUnusedFilter = UnusedTotals(pairs),
+            UniversallyUnusedEvidence = unusedByField.Values.OrderBy(evidence => evidence.Field, StringComparer.Ordinal).ToArray(),
+            Mapping = new
+            {
+                File = "mapping.csv",
+                Rows = mappingRows,
+                KnownOrdinalRows = mappingKnownOrdinalRows,
+                UnknownOrEmptyFieldPlaceholders = mappingRows - mappingKnownOrdinalRows,
+                Fields = unusedByField.Count,
+                LanguageOrder = new[] { "en", "fr", "de", "es", "it", "jp" },
+                KeyRule = "$<language>_<field>_<ordinal:D4>; Japanese language prefix is jp",
+                Coverage = "All fields and known indexed bank slots, including empty and universally unused rows. Fields with no known slots receive one blank-key placeholder; unknown bank sizes cannot supply ordinal rows.",
+                KnownBankCounts = prepared.Values.Count(value => value.Inventory.BankCountKnown),
+                UnknownOrMissingBankCounts = unusedByField.Count * Languages.Length - prepared.Values.Count(value => value.Inventory.BankCountKnown),
+                Meaning = "Initial same-ordinal keys are positional placeholders for manual editing. Per-language status records proof or uncertainty; key placement alone does not approve semantic equivalence."
+            },
             EnglishRowsImplicated = englishRows.Count,
             ReviewCases = pairs.Sum(pair => pair.ReviewCases),
             CandidateSources = new
             {
-                Explanation = "Exclusive local candidate row categories: failed script/bank/reference validation takes priority, followed by references at or after the localized projected boundary, then unreferenced bank rows, then other candidates. Pair diagnostics also classify English implicated rows using the English projected boundary.",
+                Explanation = "Exclusive local candidate row categories after universally unused exclusion: failed script/bank/reference validation takes priority, followed by references in each script's divergent suffix contexts, then remaining unreferenced bank rows, then other candidates. Pair diagnostics also classify English implicated rows using English per-script suffix contexts.",
                 All = SumSources(pairs.Select(pair => pair.LocalCandidateSources)),
-                OriginallyIncomplete = SumSources(newSubset.Select(pair => pair.LocalCandidateSources))
+                OriginallyIncomplete = SumSources(newSubset.Select(pair => pair.LocalCandidateSources)),
+                UniversallyUnusedFilter = new { All = UnusedTotals(pairs), OriginallyIncomplete = UnusedTotals(newSubset) }
             },
             Comparison = new
             {
                 All = new { Before = Totals(baselinePairs), After = Totals(pairs) },
                 OriginallyIncomplete = new { Before = Totals(oldSubset), After = Totals(newSubset) }
             },
-            PerLanguage = pairs.GroupBy(pair => pair.Language).Select(group => new { Language = group.Key, Compared = group.Count(), PotentialRows = group.Sum(pair => pair.PotentialRows), ReviewCases = group.Sum(pair => pair.ReviewCases), ContextProblems = group.Sum(pair => pair.ContextProblems), Incomplete = group.Count(pair => pair.Kind == "Incomplete"), UnknownCandidatePairs = group.Count(pair => !pair.CountKnown) }).ToArray(),
+            PerLanguage = pairs.GroupBy(pair => pair.Language).Select(group => new { Language = group.Key, Compared = group.Count(), PotentialRows = group.Sum(pair => pair.PotentialRows), UniversallyUnusedFilter = UnusedTotals(group), ReviewCases = group.Sum(pair => pair.ReviewCases), ContextProblems = group.Sum(pair => pair.ContextProblems), Incomplete = group.Count(pair => pair.Kind == "Incomplete"), UnknownCandidatePairs = group.Count(pair => !pair.CountKnown) }).ToArray(),
             Pairs = pairs,
             Errors = errors,
             LocationGraphsSource = sourceReport,
@@ -268,6 +315,8 @@ internal static class RefineFieldAudit
         });
         StringBuilder human = new();
         human.AppendLine(summary).AppendLine().AppendLine(limitations).AppendLine();
+        human.AppendLine($"[mapping.csv](mapping.csv): {mappingRows} CSV records ({mappingKnownOrdinalRows} known bank slots and {mappingRows - mappingKnownOrdinalRows} field placeholders), with English keys first and the existing English graph-derived Field Name where available. Same-ordinal keys are positional placeholders for manual editing; language status records proof or uncertainty. Empty and unused rows remain included. Keys contain language, field and a minimum four-digit ordinal; Japanese uses jp.").AppendLine();
+        human.AppendLine($"Universally unused exclusion: {pairs.Sum(pair => pair.PotentialRowsBeforeUnusedFilter)} candidate rows before, {pairs.Sum(pair => pair.UniversallyUnusedRowsRemoved)} removed, {pairs.Sum(pair => pair.PotentialRows)} after. Complete all-language unused evidence: {unusedByField.Values.Count(evidence => evidence.Complete)}/{unusedByField.Count} fields.").AppendLine();
         if (comparisonBaseline is not null)
         {
             human.AppendLine("Before counts use the verified prior refined report; originally incomplete membership comes from the original audit.").AppendLine();
@@ -346,16 +395,14 @@ internal static class RefineFieldAudit
         }
     }
 
-    private static CandidateSources ClassifyCandidates(IEnumerable<int> candidates, FieldCompatibilityInventory inventory, int? boundary, bool technicalBlocked)
+    private static CandidateSources ClassifyCandidates(IEnumerable<int> candidates, FieldCompatibilityInventory inventory, IEnumerable<FieldCompatibilityContext> suffixContexts, bool technicalBlocked)
     {
         int[] ordinals = candidates.Distinct().ToArray();
         if (technicalBlocked)
         {
             return new(ordinals.Length, 0, 0, 0);
         }
-        HashSet<int> suffix = boundary is int operation
-            ? inventory.Contexts.Where(context => context.IsMessage && context.Position.OperationIndex >= operation).SelectMany(context => context.MessageId is int id ? new[] { id } : context.CandidateOrdinals.AsEnumerable()).ToHashSet()
-            : [];
+        HashSet<int> suffix = suffixContexts.Where(context => context.IsMessage).SelectMany(context => context.MessageId is int id ? new[] { id } : context.CandidateOrdinals.AsEnumerable()).ToHashSet();
         HashSet<int> unused = inventory.UnreferencedOrdinals.ToHashSet();
         int referencedSuffix = ordinals.Count(suffix.Contains);
         int unreferenced = ordinals.Count(ordinal => !suffix.Contains(ordinal) && unused.Contains(ordinal));
@@ -442,6 +489,7 @@ internal static class RefineFieldAudit
     private static object Validation(FieldCompatibilityInventory inventory) => new { inventory.ScriptValidated, inventory.BankValidated, inventory.StaticReferencesValidated, inventory.BankCountKnown, inventory.DeclaredTextCount };
     private static object Totals(IEnumerable<OldPair> source) => new { Pairs = source.Count(), PotentialRows = source.Sum(pair => pair.PotentialRows), ReviewCases = source.Sum(pair => pair.ReviewCases), UnknownCandidatePairs = source.Count(pair => !pair.CountKnown), Incomplete = source.Count(pair => pair.Kind == "Incomplete") };
     private static object Totals(IEnumerable<NewPair> source) => new { Pairs = source.Count(), PotentialRows = source.Sum(pair => pair.PotentialRows), ReviewCases = source.Sum(pair => pair.ReviewCases), UnknownCandidatePairs = source.Count(pair => !pair.CountKnown), Incomplete = source.Count(pair => pair.Kind == "Incomplete") };
+    private static object UnusedTotals(IEnumerable<NewPair> source) => new { PotentialRowsBeforeUnusedFilter = source.Sum(pair => pair.PotentialRowsBeforeUnusedFilter), UniversallyUnusedRowsRemoved = source.Sum(pair => pair.UniversallyUnusedRowsRemoved), PotentialRowsAfterUnusedFilter = source.Sum(pair => pair.PotentialRows), EnglishRowsBeforeUnusedFilter = source.Sum(pair => pair.EnglishRowsBeforeUnusedFilter), UniversallyUnusedEnglishRowsRemoved = source.Sum(pair => pair.UniversallyUnusedEnglishRowsRemoved), EnglishRowsAfterUnusedFilter = source.Sum(pair => pair.EnglishRowsBeforeUnusedFilter - pair.UniversallyUnusedEnglishRowsRemoved) };
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 
     private static void Write(string path, object value)
@@ -453,7 +501,7 @@ internal static class RefineFieldAudit
 
     private sealed record PhysicalMember(string Identity, int Length, string Sha256);
     private sealed record OldPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic);
-    private sealed record NewPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic, string OriginalKind, int OriginalPotentialRows, int OriginalReviewCases, string PreviousKind, int PreviousPotentialRows, int PreviousReviewCases, CandidateSources LocalCandidateSources, CandidateSources EnglishCandidateSources);
+    private sealed record NewPair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic, string OriginalKind, int OriginalPotentialRows, int OriginalReviewCases, string PreviousKind, int PreviousPotentialRows, int PreviousReviewCases, CandidateSources LocalCandidateSources, CandidateSources EnglishCandidateSources, int PotentialRowsBeforeUnusedFilter, int UniversallyUnusedRowsRemoved, int EnglishRowsBeforeUnusedFilter, int UniversallyUnusedEnglishRowsRemoved);
     private sealed record CandidateSources(int TechnicalOrUnresolvedRows, int ReferencedSuffixRows, int UnreferencedRows, int OtherRows);
     private sealed record BundleMember(string Field, string Language, string ScriptPair, string IssueFingerprint, int PotentialRows, int ReviewCases, bool CountKnown, string Diagnostic, string[] CaseIds, string[] CaseKinds, bool OriginallyIncomplete, bool TechnicalBlocked);
     private sealed record TechnicalMember(string Field, string Language, string? ScriptSha256, string Issue, string IssueFingerprint, string BankReference);

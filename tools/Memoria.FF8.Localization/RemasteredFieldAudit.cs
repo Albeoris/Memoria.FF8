@@ -191,14 +191,26 @@ internal static class RemasteredFieldAudit
             }
         }
         HashSet<(string Field, int Ordinal)> englishCandidates = [];
+        Dictionary<string, FieldUniversallyUnusedEvidence> unusedByField = new(StringComparer.Ordinal);
+        int mappingRows = 0;
+        int mappingKnownOrdinalRows = 0;
+        bool mappingHeaderWritten = false;
+        using StreamWriter mappingWriter = new(Path.Combine(output, "mapping.csv"), false, new UTF8Encoding(false));
         foreach (string field in fields)
         {
             cancellation.ThrowIfCancellationRequested();
             Dataset english = datasets[(field, "en")];
+            FieldUniversallyUnusedEvidence unused = FieldUniversallyUnused.Find(Languages.Select(language => datasets[(field, language)].Prepared.Inventory).ToArray(), Languages);
+            unusedByField.Add(field, unused);
+            List<FieldCompatibilityResult> fieldResults = [];
             foreach (string language in Languages.Where(language => language != "en"))
             {
                 Dataset localized = datasets[(field, language)];
                 FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english.Prepared, localized.Prepared);
+                int potentialRowsBeforeUnusedFilter = result.PotentialLocalOrdinals.Length;
+                int englishRowsBeforeUnusedFilter = result.ImplicatedEnglishOrdinals.Length;
+                result = FieldUniversallyUnused.Apply(result, unused);
+                fieldResults.Add(result);
                 string diagnostic = $"pairs/{field}.{language}.json";
                 Write(Path.Combine(output, diagnostic), new
                 {
@@ -211,6 +223,12 @@ internal static class RemasteredFieldAudit
                     EnglishSuffixContexts = CompactContexts(result.EnglishSuffixContexts),
                     LocalSuffixContexts = CompactContexts(result.LocalSuffixContexts),
                     result.MessageIdentityEvidence,
+                    result.ScriptIdentityEvidence,
+                    result.UniversallyUnusedEvidence,
+                    PotentialRowsBeforeUnusedFilter = potentialRowsBeforeUnusedFilter,
+                    UniversallyUnusedRowsRemoved = potentialRowsBeforeUnusedFilter - result.PotentialLocalOrdinals.Length,
+                    EnglishRowsBeforeUnusedFilter = englishRowsBeforeUnusedFilter,
+                    UniversallyUnusedEnglishRowsRemoved = englishRowsBeforeUnusedFilter - result.ImplicatedEnglishOrdinals.Length,
                     result.ProvenOrdinalMatches,
                     result.PotentialLocalOrdinals,
                     result.ImplicatedEnglishOrdinals,
@@ -226,10 +244,15 @@ internal static class RemasteredFieldAudit
                 {
                     englishCandidates.Add((field, ordinal));
                 }
-                pairs.Add(new(field, language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic));
+                pairs.Add(new(field, language, result.Kind.ToString(), result.PotentialLocalOrdinals.Length, result.SemanticReviewCases, result.ContextOnlyProblems, result.CandidateCountKnown, diagnostic, potentialRowsBeforeUnusedFilter, potentialRowsBeforeUnusedFilter - result.PotentialLocalOrdinals.Length, englishRowsBeforeUnusedFilter, englishRowsBeforeUnusedFilter - result.ImplicatedEnglishOrdinals.Length));
             }
+            FieldCompatibilityInventory[] fieldInventories = Languages.Select(language => datasets[(field, language)].Prepared.Inventory).ToArray();
+            mappingKnownOrdinalRows += fieldInventories.Where(inventory => inventory.BankCountKnown).Select(inventory => inventory.DeclaredTextCount ?? 0).DefaultIfEmpty(0).Max();
+            mappingRows += FieldLocalizationMapping.WriteCsv(mappingWriter, field, fieldInventories, fieldResults, unused, includeHeader: !mappingHeaderWritten, fieldName: ReadFieldName(Path.Combine(output, "banks", field, "en", "field-name.json")));
+            mappingHeaderWritten = true;
             progress($"Compared {pairs.Count}/{fields.Length * 5} pairs ({field})");
         }
+        mappingWriter.Flush();
         var perLanguage = Languages.Select(language => new
         {
             Language = language,
@@ -241,6 +264,7 @@ internal static class RemasteredFieldAudit
             Divergent = pairs.Count(pair => pair.Language == language && pair.Kind == "Divergent"),
             Incomplete = pairs.Count(pair => pair.Language == language && pair.Kind == "Incomplete"),
             PotentialRows = pairs.Where(pair => pair.Language == language).Sum(pair => pair.PotentialRows),
+            UniversallyUnusedFilter = UnusedTotals(pairs.Where(pair => pair.Language == language)),
             ReviewCases = pairs.Where(pair => pair.Language == language).Sum(pair => pair.ReviewCases),
             ContextProblems = pairs.Where(pair => pair.Language == language).Sum(pair => pair.ContextProblems),
             UnknownCandidatePairs = pairs.Count(pair => pair.Language == language && !pair.CountKnown)
@@ -251,7 +275,7 @@ internal static class RemasteredFieldAudit
         bool complete = errors.Count == 0 && perLanguage.All(row => row.Found == row.Expected && row.Decoded == row.Expected && row.UnknownCandidatePairs == 0 && row.Incomplete == 0);
         string fingerprint = Hash(Encoding.UTF8.GetBytes(string.Join('\n', members.OrderBy(member => member.Identity, StringComparer.Ordinal).Select(member => $"{member.Identity}|{Hash(member.Bytes)}"))));
         string summary = $"Automatic audit: {potentialRows} potentially differing localized rows, {englishCandidates.Count} distinct English rows implicated, {cases} review cases. Coverage {(complete ? "complete" : "INCOMPLETE; counts are partial/conservative")}; {fields.Length} fields, {pairs.Count} comparison pairs; elapsed {timer.Elapsed.TotalSeconds:F2}s. No semantic mappings approved.";
-        string limitations = "Field resources only. Sequential archive reads and decoding (parallelism=1); each nested archive opened once. No semantic comparison or exception mappings. JSM byte equality is insufficient when operands, references or decoding are unresolved. Presentation metadata is reported from original operations; effective WINSIZE/control-flow and cross-language option meaning require review. Parser/decoder errors retain conservative candidate sets; unknown counts are explicit. No gameplay/font/runtime compatibility is established by this audit.";
+        string limitations = "Field resources only. Sequential archive reads and decoding (parallelism=1); each nested archive opened once. Message identity is compared independently within each object-label/script-ID pair; a divergent script suffix is never resynchronized and does not discard matching sibling scripts. Per-script evidence records validation and uncertainty. Only ordinals proved unreferenced across all six validated language banks are excluded; missing resources or uncertain references prevent that exclusion and remain explicit in unused evidence. Raw executable differences and presentation contexts remain diagnostic evidence. No semantic comparison or exception mappings. JSM byte equality is insufficient when operands, references or decoding are unresolved. Presentation metadata is reported from original operations; effective WINSIZE/control-flow and cross-language option meaning require review. Parser/decoder errors retain conservative candidate sets; unknown counts are explicit. No gameplay/font/runtime compatibility is established by this audit.";
         Write(Path.Combine(output, "report.json"), new
         {
             SchemaVersion = 1,
@@ -266,6 +290,22 @@ internal static class RemasteredFieldAudit
             PhysicalMembers = members.Select(member => Metadata(member)).ToArray(),
             BaselineRows = baselineRows,
             PotentialRows = potentialRows,
+            UniversallyUnusedFilter = UnusedTotals(pairs),
+            UniversallyUnusedEvidence = unusedByField.Values.OrderBy(evidence => evidence.Field, StringComparer.Ordinal).ToArray(),
+            Mapping = new
+            {
+                File = "mapping.csv",
+                Rows = mappingRows,
+                KnownOrdinalRows = mappingKnownOrdinalRows,
+                UnknownOrEmptyFieldPlaceholders = mappingRows - mappingKnownOrdinalRows,
+                Fields = fields.Length,
+                LanguageOrder = new[] { "en", "fr", "de", "es", "it", "jp" },
+                KeyRule = "$<language>_<field>_<ordinal:D4>; Japanese language prefix is jp",
+                Coverage = "All fields and known indexed bank slots, including empty and universally unused rows. Fields with no known slots receive one blank-key placeholder; unknown bank sizes cannot supply ordinal rows.",
+                KnownBankCounts = datasets.Values.Count(value => value.Prepared.Inventory.BankCountKnown),
+                UnknownOrMissingBankCounts = datasets.Values.Count(value => !value.Prepared.Inventory.BankCountKnown),
+                Meaning = "Initial same-ordinal keys are positional placeholders for manual editing. Per-language status records proof or uncertainty; key placement alone does not approve semantic equivalence."
+            },
             EnglishRowsImplicated = englishCandidates.Count,
             ReviewCases = cases,
             PerLanguage = perLanguage,
@@ -280,6 +320,8 @@ internal static class RemasteredFieldAudit
         });
         StringBuilder human = new();
         human.AppendLine(summary).AppendLine().AppendLine(limitations).AppendLine();
+        human.AppendLine($"[mapping.csv](mapping.csv): {mappingRows} CSV records ({mappingKnownOrdinalRows} known bank slots and {mappingRows - mappingKnownOrdinalRows} field placeholders), with English keys first and the existing English graph-derived Field Name where available. Same-ordinal keys are positional placeholders for manual editing; language status records proof or uncertainty. Empty and unused rows remain included. Keys contain language, field and a minimum four-digit ordinal; Japanese uses jp.").AppendLine();
+        human.AppendLine($"Universally unused exclusion: {pairs.Sum(pair => pair.PotentialRowsBeforeUnusedFilter)} candidate rows before, {pairs.Sum(pair => pair.UniversallyUnusedRowsRemoved)} removed, {potentialRows} after. Complete all-language unused evidence: {unusedByField.Values.Count(evidence => evidence.Complete)}/{unusedByField.Count} fields.").AppendLine();
         human.AppendLine("| Language | Expected | Found | Decoded | Compatible | Divergent | Incomplete | Potential rows | Review cases | Unknown counts |");
         human.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (var row in perLanguage)
@@ -404,5 +446,17 @@ internal static class RemasteredFieldAudit
 
     private sealed record Member(string Field, string Language, string Stem, string Extension, string Identity, byte[] Bytes);
     private sealed record Dataset(FieldCompatibilityInput Input, FieldAuditDecodedBank? Decoded, bool Found, PreparedFieldCompatibility Prepared);
-    private sealed record Pair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic);
+    private static object UnusedTotals(IEnumerable<Pair> source) => new { PotentialRowsBeforeUnusedFilter = source.Sum(pair => pair.PotentialRowsBeforeUnusedFilter), UniversallyUnusedRowsRemoved = source.Sum(pair => pair.UniversallyUnusedRowsRemoved), PotentialRowsAfterUnusedFilter = source.Sum(pair => pair.PotentialRows), EnglishRowsBeforeUnusedFilter = source.Sum(pair => pair.EnglishRowsBeforeUnusedFilter), UniversallyUnusedEnglishRowsRemoved = source.Sum(pair => pair.UniversallyUnusedEnglishRowsRemoved), EnglishRowsAfterUnusedFilter = source.Sum(pair => pair.EnglishRowsBeforeUnusedFilter - pair.UniversallyUnusedEnglishRowsRemoved) };
+
+    internal static string? ReadFieldName(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
+        return document.RootElement.TryGetProperty("Field Name", out JsonElement name) && name.ValueKind == JsonValueKind.String ? name.GetString() : null;
+    }
+
+    private sealed record Pair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic, int PotentialRowsBeforeUnusedFilter, int UniversallyUnusedRowsRemoved, int EnglishRowsBeforeUnusedFilter, int UniversallyUnusedEnglishRowsRemoved);
 }
