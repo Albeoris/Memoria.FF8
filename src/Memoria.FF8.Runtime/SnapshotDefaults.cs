@@ -9,23 +9,13 @@ internal static class SnapshotDefaults
     internal static GameState Deserialize(Stream stream, JsonSerializerOptions options)
     {
         JsonObject saved = JsonSerializer.Deserialize<JsonObject>(stream, options) ?? throw new JsonException("Expected a saved game object.");
-        SnapshotMigrations.Apply(saved);
+        SnapshotMigrations.Apply(saved, options);
         if (saved["GameplayPreferences"] is JsonObject preferences && new[] { "SharedMagicStock", "InfiniteMagic", "SmartAttack" }.Any(flag => preferences[flag] is JsonValue value && value.TryGetValue(out bool enabled) && enabled) && saved["CharacterVitals"] is JsonObject vitals && !vitals.ContainsKey("MagicSystem"))
         {
             throw new InvalidDataException("Enabled magic rules require their saved magic-system owner.");
         }
         CompleteSelphieCardSlots(saved);
-        if (saved["WorldProcess"] is JsonObject worldProcess && worldProcess["MainLoopCallbacks"] is JsonValue callbacks && callbacks.TryGetValue(out long count) && count > 0)
-        {
-            // A historical process has no cold-start proof for newly retained presentation globals.
-            foreach (string owner in new[] { "PreviousContactC76784", "WaterStepEdges2045C7C" })
-            {
-                if (!worldProcess.ContainsKey(owner))
-                {
-                    worldProcess[owner] = null;
-                }
-            }
-        }
+        PreserveHistoricalWorldGlobals(saved);
         // Execution snapshots require their saved counters and matching retained-memory copies verbatim.
         if (saved["Battle"] is JsonObject existingBattle && !IsIdleBattle(existingBattle))
         {
@@ -49,7 +39,22 @@ internal static class SnapshotDefaults
         return saved.Deserialize<GameState>(options) ?? throw new JsonException("Empty checkpoint.");
     }
 
-    private static void CompleteSelphieCardSlots(JsonObject saved)
+    internal static void PreserveHistoricalWorldGlobals(JsonObject saved)
+    {
+        if (saved["WorldProcess"] is JsonObject worldProcess && worldProcess["MainLoopCallbacks"] is JsonValue callbacks && callbacks.TryGetValue(out long count) && count > 0)
+        {
+            // A historical process has no cold-start proof for newly retained presentation globals.
+            foreach (string owner in new[] { "PreviousContactC76784", "WaterStepEdges2045C7C" })
+            {
+                if (!worldProcess.ContainsKey(owner))
+                {
+                    worldProcess[owner] = null;
+                }
+            }
+        }
+    }
+
+    internal static void CompleteSelphieCardSlots(JsonObject saved)
     {
         foreach (string owner in new[] { "GameplayPreferences", "PendingGameplayPreferences" })
         {
@@ -80,7 +85,7 @@ internal static class SnapshotDefaults
 
     private static bool IsKnownNull(JsonObject value, string name) => value.TryGetPropertyValue(name, out JsonNode? property) && property is null;
 
-    private static void Complete(JsonObject saved, JsonObject defaults, bool effectMemory = false)
+    internal static void Complete(JsonObject saved, JsonObject defaults, bool effectMemory = false)
     {
         foreach ((string name, JsonNode? value) in defaults)
         {
@@ -93,7 +98,7 @@ internal static class SnapshotDefaults
         }
     }
 
-    private static void CompleteProperty(JsonObject saved, string name, JsonNode? value)
+    internal static void CompleteProperty(JsonObject saved, string name, JsonNode? value)
     {
         if (!saved.TryGetPropertyValue(name, out JsonNode? current))
         {

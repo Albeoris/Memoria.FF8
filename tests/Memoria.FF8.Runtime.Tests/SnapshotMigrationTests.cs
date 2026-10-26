@@ -93,7 +93,7 @@ public sealed class SnapshotMigrationTests
 
     [Theory]
     [InlineData(-1)]
-    [InlineData(2)]
+    [InlineData(int.MaxValue)]
     public void Invalid_or_future_schema_versions_fail_without_downgrading(int version)
     {
         JsonObject saved = LegacySnapshot();
@@ -118,7 +118,7 @@ public sealed class SnapshotMigrationTests
         JsonObject saved = LegacySnapshot();
         saved["SnapshotSchemaVersion"] = GameState.CurrentSnapshotSchemaVersion;
         JsonObject original = (JsonObject)saved.DeepClone();
-        SnapshotMigrations.Apply(saved);
+        SnapshotMigrations.Apply(saved, Options);
         Assert.True(JsonNode.DeepEquals(original, saved));
     }
 
@@ -171,7 +171,7 @@ public sealed class SnapshotMigrationTests
         saved["DepartingFieldState"] = saved["EventState"]!.DeepClone();
         saved["DepartingFieldState"]!["Scene"]!["ModelParts"]!["Resources"]!["2"]!.AsObject().Remove("Parts");
         string original = saved.ToJsonString();
-        Assert.Throws<InvalidDataException>(() => SnapshotMigrations.Apply(saved));
+        Assert.Throws<InvalidDataException>(() => SnapshotMigrations.Apply(saved, Options));
         Assert.Equal(original, saved.ToJsonString());
     }
 

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Memoria.FF8.Runtime;
@@ -5,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Upgrades saved JSON before constructing the single current state model.</summary>
 internal static class SnapshotMigrations
 {
-    internal static void Apply(JsonObject saved)
+    internal static void Apply(JsonObject saved, JsonSerializerOptions options)
     {
         int version = 0;
         if (saved.TryGetPropertyValue(nameof(GameState.SnapshotSchemaVersion), out JsonNode? schema))
@@ -25,6 +26,12 @@ internal static class SnapshotMigrations
             {
                 case 0:
                     SnapshotModelPartMigration.Apply(saved);
+                    break;
+                case 1:
+                    SnapshotFileStagingMigration.Apply(saved);
+                    SnapshotWorldMigration.Apply(saved);
+                    SnapshotBattleMetadataMigration.Apply(saved, options);
+                    SnapshotInitialStateMigration.Apply(saved, options);
                     break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
