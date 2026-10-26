@@ -223,7 +223,7 @@ public sealed class JunctionMainCharacterResourceInstalledTests
             JunctionModPackage imported = JunctionModImporter.Open(destination, OptionOverrides);
             foreach (JunctionReplacement file in imported.Files)
             {
-                if (JunctionEncodedResources.Address(file.RelativePath) is not ResourceKey key)
+                if (JunctionEncodedResources.Address(file.RelativePath) is not ResourceKey key || !key.Path.EndsWith(".mch", StringComparison.Ordinal))
                 {
                     continue;
                 }

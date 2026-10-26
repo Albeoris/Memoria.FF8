@@ -24,9 +24,9 @@ public static class JunctionEncodedResources
                 byte[] bytes = file.ReadBytes();
                 if (bytes.Length < 16)
                 {
-                    throw new InvalidDataException("A main-character MCH replacement is empty or truncated.");
+                    throw new InvalidDataException("An encoded resource replacement is empty or truncated.");
                 }
-                selected.Add(key, new EncodedResource(key, MainCharacterFormat, file.Revision, $"{file.PackageId}:{file.RelativePath}", bytes));
+                selected.Add(key, new EncodedResource(key, Path.GetExtension(key.Path)[1..], file.Revision, $"{file.PackageId}:{file.RelativePath}", bytes));
             }
             catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException or UnauthorizedAccessException)
             {
@@ -41,7 +41,16 @@ public static class JunctionEncodedResources
     public static ResourceKey? Address(string relativePath)
     {
         string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
-        int start = parts.Length == 5 && parts[0] == "direct" ? 1 : 0;
+        int start = parts[0] == "direct" ? 1 : 0;
+        if (parts.Length - start == 2 && parts[start] == "battle")
+        {
+            string body = parts[start + 1];
+            if (body.Length == 10 && body[0] == 'd' && "0123456789abcdef".Contains(body[1]) && body[2] == 'c' && !body.AsSpan(3, 3).ContainsAnyExceptInRange('0', '9') && body[6..] == ".dat")
+            {
+                return new ResourceKey("battle/" + body);
+            }
+            return null;
+        }
         if (parts.Length - start != 4 || parts[start] != "field" || parts[start + 1] != "model" || parts[start + 2] != "main_chr")
         {
             return null;

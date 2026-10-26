@@ -16,6 +16,16 @@ public sealed class JunctionEncodedResourceTests
     [InlineData("direct/field/model/main_chr/../d000.mch", null)]
     [InlineData("direct/field/model/second_chr/d000.mch", null)]
     [InlineData("field/main_chr/d000.mch", null)]
+    [InlineData("battle/d0c000.dat", "battle/d0c000.dat")]
+    [InlineData("DIRECT\\BATTLE\\DAC021.DAT", "battle/dac021.dat")]
+    [InlineData("battle/dfc999.dat", "battle/dfc999.dat")]
+    [InlineData("battle/dgc000.dat", null)]
+    [InlineData("battle/d0w000.dat", null)]
+    [InlineData("battle/c0m000.dat", null)]
+    [InlineData("battle/a0stg000.x", null)]
+    [InlineData("battle/d0c00.dat", null)]
+    [InlineData("battle/d0c000.dat/extra", null)]
+    [InlineData("direct/battle/../d0c000.dat", null)]
     public void AddressRecognizesNativeMainCharacterLayouts(string path, string? expected)
     {
         Assert.Equal(expected, JunctionEncodedResources.Address(path)?.Path);
@@ -42,6 +52,42 @@ public sealed class JunctionEncodedResourceTests
         stream.CopyTo(actual);
         Assert.Equal(Enumerable.Range(0, 16).Select(value => (byte)value), actual.ToArray());
         Assert.Equal(fingerprint, resource.Fingerprint);
+    }
+
+    [Fact]
+    public void BattleBodyAliasesUseFirstFrozenWinnerAndDatFormat()
+    {
+        byte[] bytes = new byte[16];
+        ModFile first = new("first", ModFormat.Junction, "battle/d0c000.dat", 42, () => bytes);
+        ModFile second = new("second", ModFormat.Junction, "DIRECT/BATTLE/D0C000.DAT", 43, () => throw new IOException("Shadowed body must not be read."));
+
+        Assert.True(JunctionEncodedResources.TryPrepare(new(1, [], [first, second]), out var prepared, out var diagnostics));
+
+        EncodedResource selected = Assert.Single(prepared);
+        Assert.Empty(diagnostics);
+        Assert.Equal(new ResourceKey("battle/d0c000.dat"), selected.Key);
+        Assert.Equal("dat", selected.Content.Format);
+        Assert.Equal(42, selected.Content.Revision);
+        bytes[0] = 99;
+        using Stream input = selected.Content.OpenRead();
+        Assert.Equal(0, input.ReadByte());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InvalidBattleBodyWinnerRejectsAliasesWithoutFallback(bool readFailure)
+    {
+        ModFile first = new("broken", ModFormat.Junction, "direct/battle/d0c000.dat", 1, () => readFailure ? throw new IOException("Unreadable replacement.") : [1, 2, 3]);
+        ModFile second = new("second", ModFormat.Junction, "battle/d0c000.dat", 2, () => throw new IOException("Shadowed body must not be read."));
+
+        Assert.False(JunctionEncodedResources.TryPrepare(new(1, [], [first, second]), out var prepared, out var diagnostics));
+
+        Assert.Empty(prepared);
+        ModDiagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("Junction.InvalidEncodedResource", diagnostic.Code);
+        Assert.Equal(first.PackageId, diagnostic.PackageId);
+        Assert.Equal(first.RelativePath, diagnostic.RelativePath);
     }
 
     [Theory]

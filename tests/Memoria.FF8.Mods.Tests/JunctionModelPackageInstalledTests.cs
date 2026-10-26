@@ -20,6 +20,7 @@ public sealed class JunctionModelPackageInstalledTests
         using ClassicGameDataSource source = new(game!);
         Dictionary<string, IReadOnlyList<TextureBuildContext>> fieldContexts = new(StringComparer.Ordinal);
         Dictionary<string, IReadOnlyList<TextureBuildContext>> otherContexts = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<int, string> bodyOwners = [];
         HashSet<string> decoded = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> validatedModels = new(StringComparer.Ordinal);
         HashSet<string> checkedBindings = new(StringComparer.Ordinal);
@@ -33,11 +34,24 @@ public sealed class JunctionModelPackageInstalledTests
             Assert.True(JunctionEncodedResources.TryPrepare(catalog, out var encoded, out var encodedDiagnostics), string.Join(Environment.NewLine, encodedDiagnostics));
             foreach (EncodedResource resource in encoded)
             {
-                if (validatedModels.Add(resource.Fingerprint))
+                if (validatedModels.Add(resource.Key.Path + "|" + resource.Fingerprint))
                 {
-                    GameAssets.ValidateMainCharacterResource(resource.Content);
+                    if (resource.Content.Format == "mch")
+                    {
+                        GameAssets.ValidateMainCharacterResource(resource.Content);
+                    }
+                    else if (resource.Content.Format == "dat")
+                    {
+                        ResourceContent original = Assert.IsType<ResourceContent>(source.Find(resource.Key));
+                        BattleAssets.ValidateBattleModelResource(resource.Content, original);
+                    }
+                    else
+                    {
+                        Assert.Fail($"No native validation contract is available for '{resource.Key}'.");
+                    }
                 }
             }
+            using ResourceSourceView candidateSource = new(source, encoded);
             foreach (JunctionReplacement replacement in package.Files.Where(IsTexture))
             {
                 try
@@ -49,14 +63,13 @@ public sealed class JunctionModelPackageInstalledTests
                         Assert.True(image.Image.Width > 0 && image.Image.Height > 0);
                     }
                     string target = replacement.RelativePath[14..^Path.GetExtension(replacement.RelativePath).Length].ToLowerInvariant();
-                    Match fieldTarget = Regex.Match(target, @"^field/model/main_chr/([a-z][0-9]{3})-", RegexOptions.CultureInvariant);
-                    string modelSignature = fieldTarget.Success ? encoded.SingleOrDefault(resource => resource.Key.Path == $"field/main_chr/{fieldTarget.Groups[1].Value}.mch")?.Fingerprint ?? "installed" : "native";
+                    string modelSignature = RelevantModelSignature(target, encoded, source, bodyOwners);
                     string binding = replacement.SourcePath + "|" + modelSignature;
                     if (!checkedBindings.Add(binding))
                     {
                         continue;
                     }
-                    DemasterInspection inspection = FfnxTextureResolver.Inspect(source.Descriptor, new(selection, [], [file]), source);
+                    DemasterInspection inspection = FfnxTextureResolver.Inspect(source.Descriptor, new(selection, [], [file]), candidateSource, source);
                     if (inspection.Diagnostics.Count > 0)
                     {
                         ModDiagnostic diagnostic = Assert.Single(inspection.Diagnostics);
@@ -78,7 +91,7 @@ public sealed class JunctionModelPackageInstalledTests
                         }
                     }
                     Assert.NotEmpty(consumers);
-                    observations.Add(new(selection, replacement.SourcePath, replacement.RelativePath, "consumed", "actual-native-context", consumers.Distinct().ToArray()));
+                    observations.Add(new(selection, replacement.SourcePath, replacement.RelativePath, "consumed", "actual-native-context;encoded=" + modelSignature, consumers.Distinct().ToArray()));
                 }
                 catch (Exception exception)
                 {
@@ -125,13 +138,14 @@ public sealed class JunctionModelPackageInstalledTests
         int separator = target.LastIndexOf('-');
         Assert.True(separator > 0, target);
         string owner = target[..separator];
-        if (otherContexts.TryGetValue(owner, out IReadOnlyList<TextureBuildContext>? existing))
+        string cacheKey = owner + "|" + signature;
+        if (otherContexts.TryGetValue(cacheKey, out IReadOnlyList<TextureBuildContext>? existing))
         {
             return existing;
         }
         List<TextureBuildContext> contexts = [];
         ResourceService nativeResources = new(source);
-        nativeResources.Prepare(new Recorder(contexts)).Commit();
+        nativeResources.Prepare(new Recorder(contexts), encodedResources: encoded).Commit();
         if (owner.StartsWith("battle/", StringComparison.Ordinal))
         {
             string model = owner[7..];
@@ -163,8 +177,30 @@ public sealed class JunctionModelPackageInstalledTests
             };
             contexts = contexts.Where(context => context.Key.Owner.Path == "world/chara.one").ToList();
         }
-        otherContexts.Add(owner, contexts);
+        otherContexts.Add(cacheKey, contexts);
         return contexts;
+    }
+
+    private static string RelevantModelSignature(string target, IReadOnlyList<EncodedResource> encoded, ClassicGameDataSource source, Dictionary<int, string> bodyOwners)
+    {
+        Match field = Regex.Match(target, @"^field/model/main_chr/([a-z][0-9]{3})-", RegexOptions.CultureInvariant);
+        string? owner = field.Success ? $"field/main_chr/{field.Groups[1].Value}.mch" : null;
+        Match battle = Regex.Match(target, @"^(battle/d([0-9a-f])([cw])[0-9]{3}\.dat)-", RegexOptions.CultureInvariant);
+        if (battle.Success)
+        {
+            owner = battle.Groups[1].Value;
+            if (battle.Groups[3].Value == "w")
+            {
+                int character = int.Parse(battle.Groups[2].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                if (!bodyOwners.TryGetValue(character, out owner))
+                {
+                    ResourceService resources = new(source);
+                    owner = ModelAssetDiscoveryBindings.ResolvePartyFile(GameDataResources.ReadNativeMemory(resources), character, false, 0).ToLowerInvariant();
+                    bodyOwners.Add(character, owner);
+                }
+            }
+        }
+        return owner is null ? "native" : owner + "=" + (encoded.SingleOrDefault(resource => resource.Key.Path == owner)?.Fingerprint ?? "installed");
     }
 
     private static bool IsTexture(JunctionReplacement file)

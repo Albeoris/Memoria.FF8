@@ -148,11 +148,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             ModFile owner = catalog.Files.First(file => file.Format == ModFormat.Junction && JunctionEncodedResources.Address(file.RelativePath) == resource.Key);
             try
             {
-                if (source.Find(resource.Key) is null)
+                ResourceContent original = source.Find(resource.Key) ?? throw new NotSupportedException($"The selected game source does not provide model resource {resource.Key}.");
+                if (resource.Content.Format == JunctionEncodedResources.MainCharacterFormat)
                 {
-                    throw new NotSupportedException($"The selected game source does not provide model resource {resource.Key}.");
+                    GameAssets.ValidateMainCharacterResource(resource.Content);
                 }
-                GameAssets.ValidateMainCharacterResource(resource.Content);
+                else
+                {
+                    BattleAssets.ValidateBattleModelResource(resource.Content, original);
+                }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or NotSupportedException or OverflowException or UnauthorizedAccessException)
             {
@@ -203,7 +207,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             resolvers.Add(new DemasterTextureResolver(catalog));
             usable.AddRange(demaster.UsablePackageIds);
         }
-        DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, source);
+        using ResourceSourceView candidateSource = new(source, encodedResources);
+        DemasterInspection ffnx = FfnxTextureResolver.Inspect(source.Descriptor, catalog, candidateSource, source as IGameNativeMemorySource);
         if (catalog.Files.Any(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
         {
             resolvers.Add(new FfnxTextureResolver(catalog));

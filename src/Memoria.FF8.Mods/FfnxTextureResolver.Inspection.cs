@@ -9,9 +9,10 @@ public sealed partial class FfnxTextureResolver
 {
     private readonly record struct NativeTimIdentity(ushort X, ushort Y, ushort WidthWords, ushort Height, ushort PaletteX, ushort PaletteY, ushort PaletteWidth, ushort PaletteHeight);
 
-    private static bool IsDormantNativeWorldMember(IResourceSource source, string target)
+    private static bool IsDormantNativeWorldMember(IResourceSource source, string target, IGameNativeMemorySource? nativeMemorySource)
     {
-        if (source is not IGameNativeMemorySource memory || !NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
+        IGameNativeMemorySource? memory = nativeMemorySource ?? source as IGameNativeMemorySource;
+        if (memory is null || !NativeFieldRuntimeProfile.IsSupportedImage(memory.SourceHash))
         {
             return false;
         }

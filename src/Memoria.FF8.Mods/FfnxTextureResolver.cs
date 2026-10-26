@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Collections.Frozen;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods;
@@ -47,7 +48,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         return null;
     }
 
-    public static DemasterInspection Inspect(ResourceSourceDescriptor source, ModCatalogSnapshot catalog, IResourceSource? nativeSource = null)
+    public static DemasterInspection Inspect(ResourceSourceDescriptor source, ModCatalogSnapshot catalog, IResourceSource? nativeSource = null, IGameNativeMemorySource? nativeMemorySource = null)
     {
         HashSet<string> usable = new(StringComparer.OrdinalIgnoreCase);
         List<ModDiagnostic> diagnostics = [];
@@ -65,7 +66,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' has no corresponding member in the selected original source and remains unused.", file.PackageId, file.RelativePath));
             }
-            else if (nativeSource is not null && IsDormantNativeWorldMember(nativeSource, target))
+            else if (nativeSource is not null && IsDormantNativeWorldMember(nativeSource, target, nativeMemorySource))
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' addresses a dormant original texture with no producer in the selected native world profile.", file.PackageId, file.RelativePath));
             }
