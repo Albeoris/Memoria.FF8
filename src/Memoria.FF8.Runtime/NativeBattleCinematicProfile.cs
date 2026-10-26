@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The physical directories and entry points of the cinematic effect families.</summary>
 public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint Initializer, uint InitializationAddress, uint OwnerDirectoryAddress, uint QueueAddress, uint BankAddress, uint Callback, uint LoadCallback, uint File0Publication, uint File1Publication, uint InstructionTable, int TextureCount, int SourceBase, int LastSource, string InitialFile, bool Lit)
 {
-    public static bool IsSupported(int effect) => effect is 6 or 18 or 75 or 77 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 208 or 211 or 219 or 220 or 221 or 223 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 236 or 238 or 239 or 240 or 241 or 242 or 249 or 250 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 261 or 262 or 263 or 264 or 265 or 266 or 267 or 268;
+    public static bool IsSupported(int effect) => effect is 6 or 18 or 75 or 77 or 248 or 201 or 202 or 203 or 204 or 205 or 206 or 208 or 211 or 219 or 220 or 221 or 223 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 236 or 238 or 239 or 240 or 241 or 242 or 249 or 250 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 261 or 262 or 263 or 264 or 265 or 266 or 267 or 268 or 270 or 243 or 244 or 245 or 246 or 247 or 237;
 
     public static NativeBattleCinematicProfile ForInitializationAddress(uint address)
     {
@@ -57,6 +57,13 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             0x18558C8 => 266,
             0x1854E84 => 267,
             0x1854440 => 268,
+            0x1852FD0 => 270,
+            0x1861FE0 => 243,
+            0x186161C => 244,
+            0x1860C58 => 245,
+            0x1860294 => 246,
+            0x185F89C => 247,
+            0x1865B68 => 237,
             _ => throw new NotSupportedException("The selected initialization directory has no cinematic profile.")
         });
     }
@@ -83,6 +90,7 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             234 => new(234, 0xA488F0, 0xA488C0, 0x1867954, 0x1867A08, 0x27969E8, 0x2796A00, 0xA48F60, 0xA4D9C0, 0x27969FC, 0x27969F8, 0x1867DC0, 3, 0x233, 0x232, "mag233_b.00", false),
             235 => new(235, 0xA3E370, 0xA3E340, 0x1866F60, 0x1867064, 0x27969B0, 0x27969C8, 0xA3E9E0, 0xA44370, 0x27969C4, 0x27969C0, 0x186741C, 6, 0x233, 0x232, "mag234_b.00", false),
             236 => new(236, 0xA34240, 0xA34210, 0x1866564, 0x1866670, 0x2796978, 0x2796990, 0xA348B0, 0xA39DF0, 0x279698C, 0x2796988, 0x1866A28, 6, 0x233, 0x232, "mag235_b.00", false),
+            237 => new(237, 0xA29C30, 0xA29C00, 0x1865B68, 0x1865C74, 0x2796940, 0x2796958, 0xA2A2A0, 0xA2FA80, 0x2796954, 0x2796950, 0x186602C, 6, 0x233, 0x232, "mag236_b.00", false),
             228 => new(228, 0xA855C0, 0xA85590, 0x186B438, 0x186B544, 0x2796B38, 0x2796B50, 0xA85C30, 0xA8B230, 0x2796B4C, 0x2796B48, 0x186B8FC, 6, 0x233, 0x232, "mag227_b.00", false),
             229 => new(229, 0xA7AA20, 0xA7A9F0, 0x186AA40, 0x186AB48, 0x2796B00, 0x2796B18, 0xA7B090, 0xA80F60, 0x2796B14, 0x2796B10, 0x186AF00, 6, 0x233, 0x232, "mag228_b.00", false),
             230 => new(230, 0xA70B70, 0xA70B40, 0x186A02C, 0x186A150, 0x2796AC8, 0x2796AE0, 0xA711E0, 0xA76420, 0x2796ADC, 0x2796AD8, 0x186A508, 7, 0x233, 0x232, "mag229_b.00", false),
@@ -113,11 +121,17 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
             266 => new(266, 0x91F5E0, 0x91F5B0, 0x18558C8, 0x1855A14, 0x2795CF8, 0x2795D10, 0x91FC50, 0x928650, 0x2795D0C, 0x2795D08, 0x1855DCC, 8, 0x233, 0x232, "mag265_b.00", false),
             267 => new(267, 0x911FF0, 0x911FC0, 0x1854E84, 0x1854FD8, 0x2795CC0, 0x2795CD8, 0x912660, 0x91B060, 0x2795CD4, 0x2795CD0, 0x1855390, 9, 0x233, 0x232, "mag266_b.00", false),
             268 => new(268, 0x904A00, 0x9049D0, 0x1854440, 0x1854594, 0x2795C88, 0x2795C98, 0x905070, 0x90DA70, 0x2795CAC, 0x2795CA8, 0x185494C, 9, 0x233, 0x232, "mag267_b.00", false),
+            270 => new(270, 0x8E9C30, 0x8E9C00, 0x1852FD0, 0x185311C, 0x2795C18, 0x2795C28, 0x8EA2A0, 0x8F2CA0, 0x2795C3C, 0x2795C38, 0x18534D4, 9, 0x233, 0x232, "mag269_b.00", false),
+            243 => new(243, 0x9EEA90, 0x9EEA60, 0x1861FE0, 0x18620B4, 0x27967F0, 0x2796808, 0x9EF100, 0, 0x2796804, 0x2796800, 0x186246C, 4, 0x233, 0x232, "mag242_b.00", false),
+            244 => new(244, 0x9E5810, 0x9E57E0, 0x186161C, 0x18616F0, 0x27967C0, 0x27967D0, 0x9E5E80, 0, 0x27967BC, 0x27967B8, 0x1861AA8, 4, 0x233, 0x232, "mag243_b.00", false),
+            245 => new(245, 0x9DC590, 0x9DC560, 0x1860C58, 0x1860D2C, 0x2796788, 0x2796798, 0x9DCC00, 0, 0x2796784, 0x2796780, 0x18610E4, 4, 0x233, 0x232, "mag244_b.00", false),
+            246 => new(246, 0x9D3310, 0x9D32E0, 0x1860294, 0x1860368, 0x2796750, 0x2796760, 0x9D3980, 0, 0x2796748, 0x2796744, 0x1860720, 4, 0x233, 0x232, "mag245_b.00", false),
+            247 => new(247, 0x9C9890, 0x9C9860, 0x185F89C, 0x185F9A4, 0x2796718, 0x2796728, 0x9C9F00, 0x9CED90, 0x2796710, 0x2796714, 0x185FD5C, 6, 0x233, 0x232, "mag246_b.00", false),
             _ => throw new NotSupportedException("The selected effect has no cinematic directory profile.")
         };
     }
 
-    public bool HasVibrationDirectory => Effect is not (75 or 219 or 220 or 248 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 236 or 238 or 239 or 240 or 241 or 242 or 249 or 250 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 261 or 262 or 263);
+    public bool HasVibrationDirectory => Effect is not (75 or 219 or 220 or 248 or 228 or 229 or 230 or 231 or 232 or 233 or 234 or 235 or 236 or 238 or 239 or 240 or 241 or 242 or 249 or 250 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 261 or 262 or 263 or 243 or 244 or 245 or 246 or 237);
 
     public int StaticLength => checked((int)(InstructionTable + 0x147 * 4 - InitializationAddress));
 
@@ -136,6 +150,7 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         234 => 0x1867A30,
         235 => 0x186708C,
         236 => 0x1866698,
+        237 => 0x1865C9C,
         228 => 0x186B56C,
         229 => 0x186AB70,
         230 => 0x186A178,
@@ -166,6 +181,12 @@ public sealed record NativeBattleCinematicProfile(int Effect, uint Entry, uint I
         266 => 0x1855A3C,
         267 => 0x1855000,
         268 => 0x18545BC,
+        270 => 0x1853144,
+        243 => 0x18620DC,
+        244 => 0x1861718,
+        245 => 0x1860D54,
+        246 => 0x1860390,
+        247 => 0x185F9CC,
         _ => throw new NotSupportedException("The selected effect has no cinematic bone table.")
     };
 

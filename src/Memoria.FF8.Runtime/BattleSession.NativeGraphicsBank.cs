@@ -39,7 +39,7 @@ public sealed partial class BattleSession
         InitializeNativePartyPresentation();
         NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeModelTextureCache);
         NativeModelCpuResources = (NativeModelCpuResources ?? NativeBattleModelCpuResources.Unknown()) with { ScratchMaximum = 0, EnemyCursor = 0, EnemyLinkedSlots = 0 };
-        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank(definition.NativeRetainedMemory?.ModelColors40, definition.NativeRetainedMemory?.ModelStatusTimers, definition.NativeRetainedMemory?.ModelWorldMatrices64, definition.NativeRetainedMemory?.ModelTransformRows).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank(definition.NativeRetainedMemory?.ModelColors40, definition.NativeRetainedMemory?.ModelStatusTimers, definition.NativeRetainedMemory?.ModelWorldMatrices64, definition.NativeRetainedMemory?.ModelTransformRows, definition.NativeRetainedMemory?.ModelSequenceLocals).ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
         graphics = InitializeNativePrimitiveFrame500400(graphics);
         NativeGraphics = QueueNativeEntryLoads(graphics);
     }

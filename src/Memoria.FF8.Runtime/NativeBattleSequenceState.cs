@@ -28,6 +28,13 @@ public sealed record NativeBattleSequenceState
     public byte? Geometry5 { get; init; }
     public uint MeshMask124 { get; init; } = uint.MaxValue;
 
+    public static ImmutableArray<short?> ColdProcessLocals() => Enumerable.Repeat<short?>(0, 8).ToImmutableArray();
+
+    public NativeBattleSequenceState InitializeControl5027D0(byte standing, byte pending)
+    {
+        return new() { Locals = Locals, Default2 = standing, Pending3 = pending };
+    }
+
     public void Validate()
     {
         if (Locals.IsDefault || Locals.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || AlternateScratch48.IsDefault || AlternateScratch48.Length != 8 || PoseFrame114 is byte frame && PoseLimit115 is byte limit && frame > limit || LinkedPose is { } linked && linked.Frame > linked.Limit || DecodedPose is { } decoded && (decoded.Bones.IsDefaultOrEmpty || decoded.Bones.Length > 128) || LinkedDecodedPose is { } linkedDecoded && (linkedDecoded.Bones.IsDefaultOrEmpty || linkedDecoded.Bones.Length > 128))

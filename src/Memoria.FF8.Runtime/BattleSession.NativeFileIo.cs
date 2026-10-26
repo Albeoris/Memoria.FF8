@@ -162,9 +162,12 @@ public sealed partial class BattleSession
                 case 0x941060:
                 case 0x933930:
                 case 0xA39DF0:
+                case 0xA2FA80:
                 case 0x928650:
                 case 0x91B060:
                 case 0x90DA70:
+                case 0x8F2CA0:
+                case 0x9CED90:
                 case 0x97E0A0:
                 case 0x974E80:
                 case 0xA25630:

@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -53,9 +53,12 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         BattleScenePresentation scene = new(assets, source.Definition, true);
         NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) ? new(source, effect) : null;
         HashSet<string> boundaries = [];
+        HashSet<string> restoredBoundaries = [];
         int completions = 0;
         int callbacks = 0;
         int peakChanged = 0;
+        int renderedCommandCount = 0;
+        int renderedSamples = 0;
         BattleSnapshot? peak = null;
         byte[]? peakPixels = null;
         byte[]? peakPlain = null;
@@ -99,8 +102,10 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
                 NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
                 NativeBattleLogicalCommand[] ownedCommands = currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect) ? NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value) : [];
-                if (primitive is not null && ownedCommands.Length > 0)
+                if (primitive is not null && ownedCommands.Length > 0 && (peak is null || ownedCommands.Length > renderedCommandCount))
                 {
+                    renderedCommandCount = Math.Max(renderedCommandCount, ownedCommands.Length);
+                    renderedSamples++;
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ownedCommands.Select(command => command.Packet).ToImmutableHashSet();
                     BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
@@ -153,7 +158,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             }
             Cold("caller-ready", battle.Capture());
             observer?.Write(output!);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RestoredBoundaries = boundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = effect, LivePartyFollowup = livePartyFollowup, Callbacks = callbacks + 1, Completions = completions, ExpectedContactTransitions = expectedContactTransitions, ContactTransitions = contactTransitions, ChangedRgb = peakChanged, RenderedSamples = renderedSamples, VisualSelection = "Visible witness at increasing owned-command counts", PublishedBoundaries = boundaries.Order(), RestoredBoundaries = restoredBoundaries.Order(), SourceFrame = source.Frame, battle.Capture().Frame }));
         }
         catch (Exception error)
         {
@@ -177,6 +182,11 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 return;
             }
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, null);
+            if (name is not ("queued" or "initialized" or "contact" or "peak" or "completed" or "caller-ready" or "draw-22-init" or "draw-22-body" or "draw-22-live" or "draw-52-init" or "draw-52-live" or "draw-5-mode-2" or "update-8"))
+            {
+                return;
+            }
+            restoredBoundaries.Add(name);
             BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);

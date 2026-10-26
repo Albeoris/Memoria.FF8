@@ -444,6 +444,9 @@ public sealed partial class BattleSession
                     return NativeBattleScriptedCommandReads.Advance(current, opcode == 0x4F ? 8u : 10u);
                 case 0x10C:
                     return NativeBattleCinematicFlagControl10C.Execute(current, program);
+                case 0x112 when selectedHandler == 0xA32E10:
+                case 0x113 when selectedHandler == 0xA32F50:
+                    return NativeBattleCinematicNodeMeasurements.Execute(current, program, new(ResolveCurrentNode, frame => frame with { Arena = NativeBattleWaterSlots.CachePositionAA17D0(frame.Arena, bank, index) }, frame => UpdateSlot(frame, ReadSlot(frame, 0x18, 1)[0])));
                 case 0x10D:
                     return NativeBattleCinematicControlCommands.Wait10D(current, program, ResolveCurrentNode);
                 case 0x120:
@@ -558,6 +561,14 @@ public sealed partial class BattleSession
                     NativeBattleScriptedProcessFlagsStep flags = NativeBattleScriptedProcessFlags.Execute(current, NativeStage ?? throw new NotSupportedException("Native cinematic flags require their current four stage groups."));
                     NativeStage = flags.State;
                     return flags.Frame;
+                case 0x8D:
+                    return NativeBattleCinematicActorMeshMask8D.Execute(current, program, address => graphics.Models[PhysicalActorIndex(address)].SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native actor mesh mask requires its current physical sequence owner."), (address, value) =>
+                    {
+                        int actorIndex = PhysicalActorIndex(address);
+                        NativeBattleGraphicsModel actor = graphics.Models[actorIndex];
+                        NativeBattleSequenceState sequence = actor.SequenceState ?? throw new NotSupportedException("Native actor mesh mask requires its current physical sequence owner.");
+                        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, actor with { SequenceState = sequence with { MeshMask124 = value } }) };
+                    });
                 case 0x2B:
                 case 0x4D:
                 case 0x43:
@@ -806,6 +817,10 @@ public sealed partial class BattleSession
             if (handler == 0xA671C0)
             {
                 return NativeBattleCinematicBetweenUpdate4.Update(current, ResolveCurrentNode);
+            }
+            if (handler == 0xA2D400)
+            {
+                return NativeBattleCinematicShapeAnchor8.Update(current, ResolveCurrentNode);
             }
             if (handler == 0xB265B0)
             {

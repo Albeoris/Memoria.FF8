@@ -177,8 +177,10 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
                 uint pool = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xB8));
                 if (pool != 0)
                 {
-                    int particleCount = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(checked((int)(pool - 0x20DFAB8)), 2));
-                    Assert.InRange(particleCount, 0, 128);
+                    int poolOffset = checked((int)(pool - 0x20DFAB8));
+                    Assert.InRange(poolOffset, 0, NativeBattleEffectArena.Length - 16);
+                    int particleCount = BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(poolOffset, 2));
+                    Assert.InRange(particleCount, 0, (NativeBattleEffectArena.Length - poolOffset - 16) / 80);
                     for (int particle = 0; particle < particleCount; particle++)
                     {
                         byte[] record = arena.Read(checked((int)(pool + 16 + 80u * (uint)particle - 0x20DFAB8)), 80);
@@ -189,6 +191,19 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
                         }
                     }
                 }
+            }
+        }
+        byte[] activeOrder = core.Read(0x2797454, 128);
+        int activeTerminal = Array.IndexOf(activeOrder, (byte)255);
+        Assert.InRange(activeTerminal, 0, 127);
+        for (int position = 0; position < activeTerminal; position++)
+        {
+            int index = activeOrder[position] & 127;
+            Assert.InRange(index, 0, capacity - 1);
+            byte[] raw = arena.Read(checked((int)(bank + index * 256u - 0x20DFAB8)), 256);
+            if (raw[0x18] == 8 && Enumerable.Range(0, 3).Any(component => BinaryPrimitives.ReadInt16LittleEndian(raw.AsSpan(0x94 + 2 * component)) != 0))
+            {
+                transitions.Add("update-8");
             }
         }
         NativeBattlePrimitiveProcess before = prior.NativeEffectMemory!.PrimitiveProcess!;
@@ -219,7 +234,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         {
             if (markers.Add(transition))
             {
-                if (transition is "draw-52-live" or "draw-22-body" or "draw-22-live")
+                if (transition is "draw-52-live" or "draw-22-body" or "draw-22-live" or "update-8")
                 {
                     publish($"{transition}-before", prior);
                 }

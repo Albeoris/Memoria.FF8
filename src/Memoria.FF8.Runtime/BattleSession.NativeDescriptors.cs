@@ -364,7 +364,7 @@ public sealed partial class BattleSession
         //5027D0 clears DWORD8 before50A070 invokes509D10, including its palette/texture side effects.
         model = SetNativeGraphicsFlags(model, flags, graphics with { Models = graphics.Models.SetItem(index, model), ActorIds = graphics.ActorIds.SetItem(index, actor.Id) });
         byte standing = actor.IsPlayer ? NativeStandingSequence(model.Flags8!.Value) : (byte)1;
-        model = model with { Flags0 = (packet.Value & 0x100) != 0 ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = new() { Default2 = standing, Pending3 = actor.IsPlayer && standing != 8 ? standing : (byte)0 } };
+        model = model with { Flags0 = (packet.Value & 0x100) != 0 ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = (model.SequenceState ?? new()).InitializeControl5027D0(standing, actor.IsPlayer && standing != 8 ? standing : (byte)0) };
         if (loadedModelId == 143)
         {
             model = model with { Flags2 = (ushort)(model.Flags2!.Value & ~4), Transform = model.Transform is { } transform ? transform with { Scale38 = 4096 } : throw new NotSupportedException("Native model143 requires its actual initialized transform.") };

@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         var objectRecords = new List<(ImmutableArray<ushort> Counts, int Offset)>();
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => ReadGeometry(checked(geometryAddress + (uint)offset), length), pose.BoneCount, (_, counts, offset, _) => objectRecords.Add((counts, offset)));
         ushort mode = Word(payload + 8);
-        if (mode is not (1 or 2 or 5 or 7))
+        if (mode is not (1 or 2 or 5 or 6 or 7))
         {
             throw new NotSupportedException($"Native breakup drawing requires its selected control program: mode {Word(payload + 8)}, hook {Word(payload + 0xE)}, auxiliary capacity {Word(payload + 0x2E)}, emissions {Word(payload + 0x30)}.");
         }
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
             }
             frame = frame.WriteTemporaryDword(0x50, mode).WriteTemporaryDword(0x54, unchecked((uint)controlX)).WriteTemporaryDword(0x58, unchecked((uint)controlZ)).WriteTemporaryDword(0x5C, 0).WriteTemporaryDword(0x40, unchecked((uint)limit)).WriteTemporaryDword(0x44, unchecked((uint)limit)).WriteTemporaryDword(0xF0, unchecked((uint)(short)SlotWord(frame, 0x96)));
             List<NativeBattleControl18Face> faces = BuildFaces();
-            NativeBattleControl18SpawnServices? spawnServices = mode is 1 or 5 or 7 || Word(payload + 0xE) != 0 || Word(payload + 0x2E) != 0 || Word(payload + 0x30) != 0 ? new(limit, (random, x, y, z, count) =>
+            NativeBattleControl18SpawnServices? spawnServices = mode is 1 or 5 or 6 or 7 || Word(payload + 0xE) != 0 || Word(payload + 0x2E) != 0 || Word(payload + 0x30) != 0 ? new(limit, (random, x, y, z, count) =>
             {
                 frame = frame with { Random = random };
                 for (int index = 0; index < count; index++)
@@ -397,7 +397,7 @@ public sealed partial class BattleSession
                     Put(address, after.Slice(offset, 16));
                     Put(address + 0x16, after.Slice(offset + 0x16, 2));
                     Put(address + 0x2E, after.Slice(offset + 0x2E, 1));
-                    if (mode is 5 or 7)
+                    if (mode is 5 or 6 or 7)
                     {
                         Put(address + 0x32, after.Slice(offset + 0x32, 2));
                     }

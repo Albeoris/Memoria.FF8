@@ -440,7 +440,7 @@ public static class NativeBattleSequenceMachine
             {
                 if (variable < 8)
                 {
-                    return state.Locals[variable] ?? throw new InvalidDataException("Native sequence reads an uninitialized local WORD.");
+                    return state.Locals[variable] ?? throw new InvalidDataException($"Native sequence reads an uninitialized local WORD (model {model.Index}, sequence {sequence}, executing sequence {executingSequence}, position {position:X}, variable {variable}).");
                 }
                 if (variable >= 120)
                 {
