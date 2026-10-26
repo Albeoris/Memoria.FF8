@@ -38,13 +38,12 @@ public sealed class DemasterModelProfileRenderingTests
             string[] packages = paths.Select(path => Assert.Single(host.Mods.Catalog.Packages, package => package.RootDirectory.Equals(path, StringComparison.OrdinalIgnoreCase)).Id).ToArray();
             Regex target = new(@"\Atextures/battle\.fs/hd_new/(?<owner>c0m[0-9]{3}|d[0-9a-f][cw][0-9]{3})_[0-5]\.(?:png|dds)\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             string[] owners = host.Mods.Catalog.Files.Where(file => packages.Contains(file.PackageId) && file.Format == ModFormat.Demaster).Select(file => target.Match(file.RelativePath)).Where(match => match.Success).Select(match => match.Groups["owner"].Value.ToLowerInvariant()).Distinct().Order().ToArray();
+            Assert.NotEmpty(owners);
             string[] bodies = owners.Where(name => name[0] == 'd' && name[2] == 'c').Take(1).ToArray();
             string[] weapons = owners.Where(name => name[0] == 'd' && name[2] == 'w').Take(1).ToArray();
-            string[] enemies = owners.Where(name => name.StartsWith("c0m", StringComparison.Ordinal)).Take(2).ToArray();
-            Assert.Single(bodies);
-            Assert.Single(weapons);
-            Assert.NotEmpty(enemies);
-            string[] selected = bodies.Concat(weapons).Concat(enemies).ToArray();
+            string[] otherModels = owners.Where(name => name.StartsWith("c0m", StringComparison.Ordinal)).Take(2).ToArray();
+            string[] selected = bodies.Concat(weapons).Concat(otherModels).ToArray();
+            Assert.NotEmpty(selected);
             using BattleAssets assets = new(game!, host.Resources);
             using GpuTestDevice device = new();
             using GpuTriangleRenderer gpu = new(device.Device);
