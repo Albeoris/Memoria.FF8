@@ -49,9 +49,9 @@ public sealed partial class TripleTriadController
             }
             if (move.Combo && presentationTime >= PlacementDuration + FlipDuration + FlipSettleDuration)
             {
-                return "COMBO";
+                return SystemText("card.ui.captureannouncement.combo", "COMBO");
             }
-            return move.Plus ? "PLUS" : move.Same ? "SAME" : null;
+            return move.Plus ? SystemText("card.ui.captureannouncement.plus", "PLUS") : move.Same ? SystemText("card.ui.captureannouncement.same", "SAME") : null;
         }
     }
 

@@ -26,7 +26,7 @@ public sealed partial class MenuController
         {
             return false;
         }
-        const string warning = SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
+        string warning = SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
         string[] rules = GameplayPreferences.NewGameOptions.Select(option => MagicUiText.SettingLabel(option.Label)).ToArray();
         Register(new MenuScreenDefinition
         {

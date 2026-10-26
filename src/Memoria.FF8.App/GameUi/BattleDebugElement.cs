@@ -18,15 +18,16 @@ internal sealed class BattleDebugElement : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
+        IReadOnlyList<BattleDebugRow> displayedRows = controller.Rows;
         canvas.Fill(Bounds, new UiColor(12, 12, 16));
         theme.Panel(canvas, new UiRect(18, 18, 924, 66));
-        canvas.Text("BATTLE LABORATORY · " + controller.PageTitle, 22, new UiRect(36, 28, 860, 40), theme.Foreground);
+        canvas.Text(controller.SystemText("inspector.ui.battledebugelement.drawself.battle.laboratory", "BATTLE LABORATORY · ") + controller.PageTitle, 22, new UiRect(36, 28, 860, 40), theme.Foreground);
         theme.Panel(canvas, new UiRect(18, 94, 626, 510));
         theme.Panel(canvas, new UiRect(656, 94, 286, 510));
         EnsureVisible();
-        for (int index = scroll; index < Math.Min(controller.Rows.Count, scroll + VisibleRows); index++)
+        for (int index = scroll; index < Math.Min(displayedRows.Count, scroll + VisibleRows); index++)
         {
-            BattleDebugRow row = controller.Rows[index];
+            BattleDebugRow row = displayedRows[index];
             float y = 110 + (index - scroll) * RowHeight;
             if (index == controller.SelectedIndex)
             {
@@ -36,13 +37,13 @@ internal sealed class BattleDebugElement : UiElement
             canvas.Text(row.Label, 16, new UiRect(50, y + 4, 355, RowHeight), theme.Foreground);
             canvas.Text(row.Value, 16, new UiRect(412, y + 4, 220, RowHeight), theme.Foreground);
         }
-        if (controller.Rows.Count > VisibleRows)
+        if (displayedRows.Count > VisibleRows)
         {
-            float height = 464 * VisibleRows / (float)controller.Rows.Count;
-            float y = 110 + (464 - height) * scroll / (controller.Rows.Count - VisibleRows);
+            float height = 464 * VisibleRows / (float)displayedRows.Count;
+            float y = 110 + (464 - height) * scroll / (displayedRows.Count - VisibleRows);
             canvas.Fill(new UiRect(638, y, 3, height), theme.Muted);
         }
-        BattleDebugRow selected = controller.Rows[controller.SelectedIndex];
+        BattleDebugRow selected = displayedRows[controller.SelectedIndex];
         canvas.Text(selected.Label, 21, new UiRect(674, 112, 248, 76), theme.Foreground);
         canvas.Text(selected.Help, 18, new UiRect(674, 208, 248, 238), theme.Foreground);
         theme.Panel(canvas, new UiRect(18, 614, 924, 40));

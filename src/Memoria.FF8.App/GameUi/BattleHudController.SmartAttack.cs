@@ -41,5 +41,5 @@ public sealed partial class BattleHudController
             return (SelectedAction?.Name ?? CommandLabel(SelectedCommand)) + (SelectedCommand == BattleAbility.Magic && magicCastCount > 1 ? $" ×{magicCastCount}" : "");
         }
     }
-    public string PhysicalOverrideCaption => HasGuardianFormCommands ? "" : SelectedCommand == BattleAbility.Attack ? MagicUiText.Format("PhysicalOverride", PhysicalOverrideBindingHint) : "";
+    public string PhysicalOverrideCaption => HasGuardianFormCommands ? "" : SelectedCommand == BattleAbility.Attack ? FormatSystemText("magic.PhysicalOverride", MagicUiText.Get("PhysicalOverride"), PhysicalOverrideBindingHint) : "";
 }

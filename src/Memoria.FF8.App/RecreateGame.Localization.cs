@@ -18,6 +18,10 @@ internal sealed partial class RecreateGame
     {
         gameMenus!.ConnectLocalizationAuthoring(LocalizationProjectController.CreateServices(options.GameDirectory, Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria"), resourceHost.Mods.Refresh, () => (resourceHost.LocalizationPreview?.Layers ?? []).Select(layer => layer.Project.Manifest.TargetLanguage).ToArray(), () => resourceHost.CommittedLocalizations?.Layers ?? [], () => resourceHost.CommittedLocalizations?.RequestedOrder ?? []));
         gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize);
+        if (saveMenu is not null)
+        {
+            saveMenu.LocalizeText = resourceHost.Resources.Localize;
+        }
         gameMenus.ConnectLocalizationStack(() =>
         {
             var preview = resourceHost.LocalizationPreview;
@@ -49,6 +53,7 @@ internal sealed partial class RecreateGame
         }
         visibleLocalizationFingerprint = resourceHost.Resources.Localization.Fingerprint;
         gameMenus?.InvalidateLiveData();
+        nativePartyWindowUi = null;
     }
 
     private DialogueState LocalizedDialogue(DialogueState native)
@@ -63,7 +68,11 @@ internal sealed partial class RecreateGame
             string text = resourceHost.Resources.Localize(key, native.Text);
             return text == native.Text ? native : native with { Text = text };
         }
-        LocalizationFieldText? presentation = ResolveLocalizedField(native);
+        return ProjectLocalizedDialogue(native, ResolveLocalizedField(native));
+    }
+
+    internal static DialogueState ProjectLocalizedDialogue(DialogueState native, LocalizationFieldText? presentation)
+    {
         return presentation is null ? native : native with
         {
             Text = presentation.Body,

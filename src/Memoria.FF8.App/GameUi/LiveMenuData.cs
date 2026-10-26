@@ -17,14 +17,16 @@ public static class LiveMenuData
     public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null, int? placeId = null)
     {
         ArgumentNullException.ThrowIfNull(state);
+        string Text(string id, string original) => catalog?.SystemText(id, original) ?? original;
+        string Format(string id, string original, params object?[] values) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(Text(id, original), original, values);
         MenuData result = new()
         {
             SharedMagicStock = state.CharacterVitals?.MagicSystem.SharedMagicStock == true,
             SmartAttack = state.GameplayPreferences.SmartAttack,
             PlayTime = state.Playtime is { } playtime ? TimeSpan.FromSeconds(playtime.Seconds) : null,
-            Location = catalog?.LocationName(state, placeId) ?? "Unavailable",
-            SourceDescription = "Live session: native inventory, party and junction records",
-            UnavailableReason = "The current engine does not support this native menu action."
+            Location = catalog?.LocationName(state, placeId) ?? Text("common.unavailable", "Unavailable"),
+            SourceDescription = Text("projection.session.source", "Live session: native inventory, party and junction records"),
+            UnavailableReason = Text("projection.action.unsupported", "The current engine does not support this native menu action.")
         };
         IReadOnlyDictionary<int, string> textNames = TextNames(state, names);
         if (state.LimitProgress?.PetPalsFlags is not null)
@@ -41,7 +43,7 @@ public static class LiveMenuData
             }
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
-                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Icon = catalog?.ItemIcon(item.ItemId), Name = catalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? "Item effect unavailable; using, discarding and refining are unsupported.", NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.SupportsBlueMagicUse && state.LimitProgress is not null && state.CharacterVitals?.DreamEnabled == false), NativeFieldBattleUse = catalog?.FieldItem(item.ItemId)?.SupportsBattleUse == true, NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
+                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Icon = catalog?.ItemIcon(item.ItemId), Name = catalog?.ItemName(item.ItemId) ?? Format("fallback.item.name", "Item {0}", item.ItemId), Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [], Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."), NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.SupportsBlueMagicUse && state.LimitProgress is not null && state.CharacterVitals?.DreamEnabled == false), NativeFieldBattleUse = catalog?.FieldItem(item.ItemId)?.SupportsBattleUse == true, NativeFieldNameConfirmation = catalog?.FieldItem(item.ItemId)?.Type is 12 or 13, NativeFieldNameSubject = catalog?.FieldItem(item.ItemId)?.Type switch { 12 => 2, 13 => GameNames.BokoSubject, _ => null }, NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId) is { } targetItem && (targetItem.SupportsGuardianForceUse || targetItem.Type == 11), NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18, NativeFieldInventoryTarget = catalog?.FieldItem(item.ItemId) is { } inventoryItem && (inventoryItem.SupportsInventoryUse || inventoryItem.SupportsRestUse) });
             }
         }
         if (state.Scene is SceneKind.Field or SceneKind.WorldMap && state.CharacterVitals is not null && result.Items.Any(item => item.NativeFieldUseSupported))
@@ -95,35 +97,35 @@ public static class LiveMenuData
                     HpDisplay = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture) : $"{native.HitPoints.Minimum}..{native.HitPoints.Maximum}",
                     MaximumHp = vitals.GetMagicMaximumHitPoints(row),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
-                    Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? $"Weapon {(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon)}"
+                    Weapon = catalog?.WeaponName(vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon) ?? Format("fallback.weapon.name", "Weapon {0}", (vitals.DreamEnabled && native.CharacterId >= 8 ? vitals.DreamWeapons[native.CharacterId - 8] : native.Weapon))
                 };
                 catalog?.ProjectLimit(character, native.Weapon, state, textNames);
                 if (native.Status != 0)
                 {
-                    character.Conditions.Add($"Native status 0x{native.Status:X4}");
+                    character.Conditions.Add(Format("projection.status.native", "Native status 0x{0:X4}", native.Status));
                 }
                 foreach (int id in native.Junction.GuardianForceAssignments)
                 {
                     character.GuardianForceIds.Add($"gf-{id}");
                 }
-                character.Commands.Add(catalog?.CommandName(1) ?? "Attack");
+                character.Commands.Add(catalog?.CommandName(1) ?? Text("fallback.command.attack", "Attack"));
                 for (int slot = 0; slot < 4; slot++)
                 {
                     byte command = unchecked((byte)(native.Junction.Commands >> (8 * slot)));
                     byte ability = unchecked((byte)(native.Junction.Abilities >> (8 * slot)));
                     if (slot < 3)
                     {
-                        character.Commands.Add(command == 0 ? "--" : catalog?.AbilityName(command) ?? $"Command ability {command}");
+                        character.Commands.Add(command == 0 ? "--" : catalog?.AbilityName(command) ?? Format("fallback.command-ability.name", "Command ability {0}", command));
                     }
                     if (slot < vitals.JunctionAbilitySlots(row))
                     {
-                        character.Abilities.Add(ability == 0 ? "--" : catalog?.AbilityName(ability) ?? $"Ability {ability}");
+                        character.Abilities.Add(ability == 0 ? "--" : catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability));
                     }
                 }
                 character.AbilitySlots = vitals.JunctionAbilitySlots(row);
                 foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                 {
-                    MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? $"Ability {ability}", true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? "Ability description unavailable." };
+                    MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? Format("fallback.ability.name", "Ability {0}", ability), true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable.") };
                     if (ability is >= 20 and < 39)
                     {
                         character.AvailableCommands.Add(choice);
@@ -175,7 +177,7 @@ public static class LiveMenuData
                     byte spell = native.Junction.MagicJunctions[slot];
                     if (spell != 0)
                     {
-                        character.Junctions[JunctionSlotName(slot)] = catalog?.MagicName(spell) ?? $"Magic {spell}";
+                        character.Junctions[JunctionSlotName(slot)] = catalog?.MagicName(spell) ?? Format("fallback.magic.name", "Magic {0}", spell);
                     }
                 }
                 foreach (NativeMagicStock stock in vitals.GetMagicInventory(row).Where(stock => stock.SpellId != 0 && stock.Count != 0))
@@ -185,21 +187,21 @@ public static class LiveMenuData
                     int? owner = vitals.MagicSystem.SharedMagicStock ? MagicJunctionPolicy.GetOwner(vitals, stock.SpellId) : NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? row : null;
                     int? caster = catalog is null ? null : vitals.ResolveFieldMagicCaster(row, stock.SpellId, actorRow => catalog.ReadStatRules(vitals, actorRow), state.WorldControls);
                     MagicCastQuote quote = MagicCastingService.Quote(vitals, caster ?? row, stock.SpellId, MagicCastContext.Field);
-                    string availability = catalog is null ? "" : caster is null ? owner is not null && owner != row ? MagicUiText.Get("UnavailableOwner") : MagicUiText.Get("StatusRestricted") : !quote.Allowed ? MagicUiText.Get("Exhausted") : "";
+                    string availability = catalog is null ? "" : caster is null ? owner is not null && owner != row ? Text("magic.UnavailableOwner", MagicUiText.Get("UnavailableOwner")) : Text("magic.StatusRestricted", MagicUiText.Get("StatusRestricted")) : !quote.Allowed ? Text("magic.Exhausted", MagicUiText.Get("Exhausted")) : "";
                     MenuMagic magic = new()
                     {
                         Id = magicId,
                         Icon = owner is not null ? new UiImageSource(UiImageKind.Icon, 192) : null,
                         CharacterId = character.Id,
-                        Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}",
+                        Name = catalog?.MagicName(stock.SpellId) ?? Format("fallback.magic.name", "Magic {0}", stock.SpellId),
                         Quantity = stock.Count,
-                        Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic description unavailable.",
+                        Description = catalog?.MagicDescription(stock.SpellId) ?? Text("projection.magic.description-unavailable", "Magic description unavailable."),
                         RemainingUses = vitals.MagicSystem.InfiniteMagic ? quote.Available : null,
                         Capacity = vitals.MagicSystem.InfiniteMagic ? quote.Capacity : null,
-                        Owner = owner is null && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Get("Unbound") : "",
+                        Owner = owner is null && vitals.MagicSystem.SharedMagicStock ? Text("magic.Unbound", MagicUiText.Get("Unbound")) : "",
                         OwnerIcon = owner is int ownerRow ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[ownerRow].CharacterId) : null,
                         Availability = availability,
-                        Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? MagicUiText.Format("Caster", CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
+                        Caster = caster is int casterRow && vitals.MagicSystem.SharedMagicStock ? Format("magic.Caster", MagicUiText.Get("Caster"), CharacterName(state, vitals.Records[casterRow].CharacterId, names, catalog)) : "",
                         JunctionAvailable = owner is null || owner == row
                     };
                     magic.Description = string.Join(" Ã‚Â· ", new[] { magic.Description, magic.AccessPresentation }.Where(value => value.Length > 0));
@@ -230,16 +232,16 @@ public static class LiveMenuData
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     NextLevelExperience = ExperienceToNextLevel(native.Experience, vitals.Definitions.GuardianForces[id]),
-                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}",
+                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? Format("fallback.ability.name", "Ability {0}", native.Learning),
                     LearningAbilityId = native.Learning == 0 ? null : native.Learning.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {
                     if (entry.Learned)
                     {
-                        guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? $"Learned ability {entry.Ability}");
+                        guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? Format("fallback.learned-ability.name", "Learned ability {0}", entry.Ability));
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? "Ability description unavailable.", IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? Format("fallback.ability.name", "Ability {0}", entry.Ability), entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? Text("projection.ability.description-unavailable", "Ability description unavailable."), IsPassive = NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability), PassiveEnabled = entry.Learned && NativeCharacterVitals.IsGuardianForcePassiveAbility(entry.Ability) && vitals.GuardianForcePassiveAbilityEnabled(id, entry.Ability), PassiveAvailable = entry.Learned && native.HitPoints > 0 });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;
@@ -278,12 +280,12 @@ public static class LiveMenuData
                     {
                         Id = $"card-{id}",
                         NativeId = id,
-                        Name = catalog?.CardName(id) ?? $"Card {id}",
+                        Name = catalog?.CardName(id) ?? Format("fallback.card.name", "Card {0}", id),
                         Quantity = count,
                         Level = id / 11 + 1,
-                        Ranks = definition is null ? "Unavailable" : $"{Rank(definition.Top)} / {Rank(definition.Right)} / {Rank(definition.Bottom)} / {Rank(definition.Left)}",
-                        Element = definition?.Element.ToString() ?? "Unavailable",
-                        Description = (count > 0 ? "Owned card. " : "Previously obtained; not currently owned. ") + (catalog?.CardDescription(id) ?? "Card description unavailable."),
+                        Ranks = definition is null ? Text("common.unavailable", "Unavailable") : $"{Rank(definition.Top)} / {Rank(definition.Right)} / {Rank(definition.Bottom)} / {Rank(definition.Left)}",
+                        Element = definition?.Element.ToString() ?? Text("common.unavailable", "Unavailable"),
+                        Description = (count > 0 ? Text("projection.card.owned", "Owned card. ") : Text("projection.card.previous", "Previously obtained; not currently owned. ")) + (catalog?.CardDescription(id) ?? Text("projection.card.description-unavailable", "Card description unavailable.")),
                         RefinementItemId = recipe is null ? null : $"item-{recipe.ItemId}",
                         RefinementQuantity = recipe?.ItemCount,
                         RefinementRequiredCards = recipe?.RequiredCards,
@@ -294,7 +296,7 @@ public static class LiveMenuData
         }
         if (state.CharacterVitals is null)
         {
-            result.SourceDescription = "Live session: character state unavailable";
+            result.SourceDescription = Text("projection.session.characters-unavailable", "Live session: character state unavailable");
         }
         return result;
     }

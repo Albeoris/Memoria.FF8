@@ -49,15 +49,15 @@ public sealed partial class MenuController
         List<string> details = [state.Status, SystemText("ui.autoplaydetails.details.automatic.play.advances.without.external.input", "Automatic play advances without external input."), SystemText("ui.autoplaydetails.details.dialogues.advance.quickly.movies.are.skipped", "Dialogues advance quickly; movies are skipped.")];
         if (state.Error is not null)
         {
-            details.Add(SystemText("ui.autoplaydetails.details.error", "Error: ") + state.Error);
+            details.Add(FormatSystemText("ui.autoplaydetails.details.error.template", "Error: {0}", state.Error));
         }
         if (state.ReproductionPath is not null)
         {
-            details.Add(SystemText("ui.autoplaydetails.details.reproduction", "Reproduction: ") + state.ReproductionPath);
+            details.Add(FormatSystemText("ui.autoplaydetails.details.reproduction.template", "Reproduction: {0}", state.ReproductionPath));
         }
         if (state.ResumeCommand is not null)
         {
-            details.Add(SystemText("ui.autoplaydetails.details.resume", "Resume: ") + state.ResumeCommand);
+            details.Add(FormatSystemText("ui.autoplaydetails.details.resume.template", "Resume: {0}", state.ResumeCommand));
         }
         return details;
     }
@@ -85,7 +85,7 @@ public sealed partial class MenuController
         MenuEntry? entry = AutoPlayEntries().FirstOrDefault(entry => entry.Action?.Value == action.Value);
         if (entry?.Enabled != true)
         {
-            Message = SystemText("ui.executeautoplayaction.message.this.automatic.play.action.is.unavailable.in.the", "This automatic play action is unavailable in the current state.");
+            SetSystemMessage(() => SystemText("ui.executeautoplayaction.message.this.automatic.play.action.is.unavailable.in.the", "This automatic play action is unavailable in the current state."));
             return true;
         }
         if (!confirmed && CurrentAutoPlay.HasLiveGame && action.Value is "start" or "load-reproduction")

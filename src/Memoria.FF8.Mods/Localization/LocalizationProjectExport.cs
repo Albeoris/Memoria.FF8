@@ -5,8 +5,28 @@ namespace Memoria.FF8.Mods.Localization;
 
 public sealed record LocalizationProjectReconciliation(LocalizationProject Project, IReadOnlyList<string> NewKeys, IReadOnlyList<string> ChangedSourceKeys, IReadOnlyList<string> ObsoleteKeys);
 
-public static class LocalizationProjectExport
+public static partial class LocalizationProjectExport
 {
+    /// <summary>Creates an independent, initially empty contribution with the base's exact source identities.</summary>
+    public static LocalizationProject CreatePatch(LocalizationProject source, string packageName)
+    {
+        LocalizationProjectIO.Validate(source);
+        if (string.IsNullOrWhiteSpace(packageName) || packageName.Any(char.IsControl))
+        {
+            throw new ArgumentException("A patch requires a package name without control characters.", nameof(packageName));
+        }
+        Dictionary<string, JsonElement> metadata = source.Manifest.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+        metadata["packageName"] = JsonSerializer.SerializeToElement(packageName);
+        LocalizationProject patch = new()
+        {
+            Manifest = source.Manifest with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = source.Manifest.ProjectId, Payloads = [], ExtensionsPath = null, ExtensionData = metadata },
+            Entries = source.Entries.Select(row => Snapshot(row, source.Manifest.ReferenceLanguages.Keys) with { Target = "" }).ToArray(),
+            Artwork = source.Artwork.Select(file => CopyArtwork(file, emptyTarget: true)).ToArray()
+        };
+        LocalizationProjectIO.Validate(patch);
+        return patch;
+    }
+
     /// <summary>Captures selected contributions in priority order, lowest first. Installed fallback is never translated Target data.</summary>
     public static LocalizationProject Resolve(IReadOnlyList<LocalizationProject> projects, string targetLanguage, long committedGeneration = 0, bool replacementOfSameTargetProfile = false)
     {
@@ -60,10 +80,12 @@ public static class LocalizationProjectExport
         Dictionary<string, JsonElement> provenance = first.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         provenance["contributors"] = JsonSerializer.SerializeToElement(projects.Select(project => new { projectId = project.Manifest.ProjectId, targetLanguage = project.Manifest.TargetLanguage }).ToArray());
         provenance["sourceGeneration"] = JsonSerializer.SerializeToElement(committedGeneration);
+        IReadOnlyList<LocalizationArtworkFile> artwork = ResolveArtwork(projects);
         LocalizationProject result = new()
         {
-            Manifest = first with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = null, TargetLanguage = targetLanguage, TargetColumn = "Target [" + targetLanguage + "]", Payloads = [], ExtensionsPath = null, ExtensionData = provenance },
-            Entries = rows.Values.OrderBy(row => row.Category, StringComparer.Ordinal).ThenBy(row => row.File, StringComparer.Ordinal).ThenBy(row => row.Key, StringComparer.Ordinal).ToArray()
+            Manifest = first with { ProjectId = Guid.NewGuid().ToString("D"), BaseProjectId = null, TargetLanguage = targetLanguage, TargetColumn = "Target [" + targetLanguage + "]", Payloads = [], ExtensionsPath = null, ExtensionData = provenance, Artwork = artwork.Select(file => file.Declaration).ToArray() },
+            Entries = rows.Values.OrderBy(row => row.Category, StringComparer.Ordinal).ThenBy(row => row.File, StringComparer.Ordinal).ThenBy(row => row.Key, StringComparer.Ordinal).ToArray(),
+            Artwork = artwork
         };
         LocalizationProjectIO.Validate(result);
         return result;
@@ -135,8 +157,10 @@ public static class LocalizationProjectExport
         LocalizationProject result = new()
         {
             Manifest = refreshedSource.Manifest with { ProjectId = existing.Manifest.ProjectId, BaseProjectId = existing.Manifest.BaseProjectId, TargetLanguage = existing.Manifest.TargetLanguage, TargetColumn = existing.Manifest.TargetColumn, ReferenceLanguages = referenceLanguages, Payloads = [], ExtensionsPath = null, ExtensionData = manifestMetadata },
-            Entries = rows
+            Entries = rows,
+            Artwork = ReconcileArtwork(existing, refreshedSource)
         };
+        result = result with { Manifest = result.Manifest with { Artwork = result.Artwork.Select(file => file.Declaration).ToArray() } };
         LocalizationProjectIO.Validate(result);
         return new(result, added, changed, old.Values.Select(row => row.Key).ToArray());
     }

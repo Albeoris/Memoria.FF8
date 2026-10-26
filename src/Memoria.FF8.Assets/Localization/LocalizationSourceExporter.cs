@@ -113,7 +113,7 @@ public static partial class LocalizationSourceExporter
     private sealed partial class Reader(IResourceSource source, IGameArchiveSource archives, string language, List<LocalizationSourceEntry> entries, List<LocalizationSourceGap> gaps, CancellationToken cancellation)
     {
         private readonly FF8Encoding encoding = language == "jp" ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean();
-        private readonly Encoding nonFieldEncoding = language == "jp" ? new LocalizationNonFieldEncoding() : FF8Encoding.CreateEuropean();
+        private readonly Encoding nonFieldEncoding = new LocalizationNonFieldEncoding(language == "jp" ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean());
         private readonly Dictionary<string, byte[]?> resourceBytes = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> resourceHashes = new(StringComparer.OrdinalIgnoreCase);
         private byte[]? Resource(string path)
@@ -161,12 +161,21 @@ public static partial class LocalizationSourceExporter
         private void Add(string category, string table, int ordinal, string text, string resource, IReadOnlyDictionary<string, string?>? metadata = null)
         {
             Dictionary<string, string?> values = metadata is null ? [] : new(metadata, StringComparer.Ordinal);
-            if (nonFieldEncoding is LocalizationNonFieldEncoding japanese && japanese.TryGetFailure(text, out string? failure))
+            if (nonFieldEncoding is LocalizationNonFieldEncoding selected && selected.TryGetFailure(text, out string? failure))
             {
                 values["Source Present"] = "false";
                 values["Decode Error"] = failure;
-                gaps.Add(new(category, resource + "/" + table + "/" + ordinal.ToString(CultureInfo.InvariantCulture), "Japanese source decoding failed: " + failure));
+                gaps.Add(new(category, resource + "/" + table + "/" + ordinal.ToString(CultureInfo.InvariantCulture), (language == "jp" ? "Japanese" : "European") + " source decoding failed: " + failure));
                 text = "";
+            }
+            var glyphs = System.Text.RegularExpressions.Regex.Matches(text, @"\{Glyph ([0-9]+)\}");
+            if (glyphs.Count > 0)
+            {
+                int[] ids = glyphs.Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)).ToArray();
+                values["Native Glyph Run"] = "true";
+                values["Native Glyph IDs"] = string.Join(",", ids.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+                values["Source Font"] = "menu/sysfnt.tex";
+                values["Native Glyph Rectangles"] = string.Join(";", ids.Select(id => $"{id}:{(id - 32) % 21 * 12},{(id - 32) / 21 * 12},12,12"));
             }
             values["Resource"] = resource;
             if (resourceBytes.TryGetValue(resource, out byte[]? bytes) && bytes is not null)

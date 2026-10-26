@@ -21,12 +21,12 @@ public static class NativeShopMenuProjection
         ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(catalog);
         shop.Validate();
-        MenuData data = new() { Location = "Shop", Currency = checked((int)shop.Gil), SourceDescription = "Shop", UnavailableReason = "This shop action is unavailable." };
+        MenuData data = new() { Location = catalog.SystemText("shop.title", "Shop"), Currency = checked((int)shop.Gil), SourceDescription = catalog.SystemText("shop.title", "Shop"), UnavailableReason = catalog.SystemText("shop.action-unavailable", "This shop action is unavailable.") };
         foreach (byte itemId in shop.AvailableItems.Concat(Enumerable.Range(1, shop.Definitions.Prices.Length - 1).Where(id => shop.Counts[id] > 0).Select(id => (byte)id)).Distinct())
         {
             string id = $"item-{itemId}";
             string name = shop.Definitions.ResolvePrice(itemId).Name!;
-            data.Items.Add(new MenuItem { Id = id, Icon = catalog.ItemIcon(itemId), Name = name, Quantity = shop.Counts[itemId], Price = shop.AvailableItems.Contains(itemId) ? checked((int)shop.Price(itemId)) : null, SalePrice = checked((int)shop.Definitions.SellPrice(itemId, shop.AbilityMask)), Description = catalog.ItemDescription(itemId) ?? "Item description unavailable." });
+            data.Items.Add(new MenuItem { Id = id, Icon = catalog.ItemIcon(itemId), Name = name, Quantity = shop.Counts[itemId], Price = shop.AvailableItems.Contains(itemId) ? checked((int)shop.Price(itemId)) : null, SalePrice = checked((int)shop.Definitions.SellPrice(itemId, shop.AbilityMask)), Description = catalog.ItemDescription(itemId) ?? catalog.SystemText("shop.item.description-unavailable", "Item description unavailable.") });
             if (shop.AvailableItems.Contains(itemId))
             {
                 data.SupportedActions.Add($"shop-buy:{id}");

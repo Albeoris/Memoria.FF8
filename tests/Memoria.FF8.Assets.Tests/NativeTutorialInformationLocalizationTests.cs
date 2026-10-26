@@ -77,6 +77,17 @@ public sealed class NativeTutorialInformationLocalizationTests
     }
 
     [Fact]
+    public void JapaneseInformationPresentationUsesNodeEncodingAndPreservesNativeBody()
+    {
+        byte[] body = [.. FF8Encoding.CreateJapanese().GetBytes("あいうⅧ闘"), 0x0A, 0x3F];
+        NativeTutorialInformationNode node = new(0, ushort.MaxValue, 0, 0, "日本語", body.ToImmutableArray()) { Japanese = true };
+        NativeTutorialExamCatalog catalog = (NativeTutorialExamCatalog)Activator.CreateInstance(typeof(NativeTutorialExamCatalog), BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [ImmutableArray<NativeTutorialExamLevel>.Empty, ImmutableArray<string>.Empty, ImmutableArray.Create(node)], null)!;
+        Assert.Equal("あいうⅧ闘", catalog.InformationPage(0, new HashSet<int>(), new(0, 1, 1)).Text);
+        Assert.Equal(body, node.Body);
+    }
+
+    [Fact]
     public void JapaneseEscapesAndNativeControlOperandsRemainSeparate()
     {
         byte[] japanese = FF8Encoding.CreateJapanese().GetBytes("あいうⅧ闘");

@@ -2,22 +2,31 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private IReadOnlyList<string> magicRulesReview = [];
+    private Func<IReadOnlyList<string>> readMagicRulesReview = () => [];
     private Action? applyMagicRules;
     private Action? cancelMagicRules;
 
     public void ShowMagicRulesReview(IReadOnlyList<string> lines, Action apply, Action? cancel = null)
     {
-        magicRulesReview = lines.ToArray();
+        IReadOnlyList<string> snapshot = lines.ToArray();
+        ShowMagicRulesReview(() => snapshot, apply, cancel);
+    }
+
+    public void ShowMagicRulesReview(Func<IReadOnlyList<string>> readLines, Action apply, Action? cancel = null)
+    {
+        ArgumentNullException.ThrowIfNull(readLines);
+        readMagicRulesReview = readLines;
         applyMagicRules = apply;
         cancelMagicRules = cancel;
         Register(new MenuScreenDefinition
         {
             Id = "mode-review",
             Title = MagicText("ReviewTitle"),
+            TitleText = c => c.MagicText("ReviewTitle"),
             Help = MagicText("ReviewHelp"),
+            HelpText = c => c.MagicText("ReviewHelp"),
             Entries = _ => [new MenuEntry("apply", MagicText("Apply"), MagicText("ReviewHelp"), Action: new MenuAction("magic-rules-apply")), new MenuEntry("cancel", MagicText("Cancel"), MagicText("ReviewHelp"), Action: new MenuAction("magic-rules-cancel"))],
-            Details = _ => magicRulesReview
+            Details = _ => readMagicRulesReview()
         });
         Push("mode-review");
     }
@@ -25,7 +34,7 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> CommandSlotEntries()
     {
         string mode = Character?.AttackMode == "SmartMagic" ? MagicText("SmartMagic") : MagicText("PhysicalOnly");
-        MenuEntry attack = new("attack", (Character?.Commands.FirstOrDefault() ?? SystemText("ui.commandslotentries.entry.label.attack", "Attack")) + " · " + mode, Data.SmartAttack ? MagicText("AttackChoiceHelp") : MagicText("SmartLocked"), Action: new MenuAction("attack-mode", Value: Character?.AttackMode == "SmartMagic" ? "PhysicalOnly" : "SmartMagic"), Enabled: Data.SmartAttack);
+        MenuEntry attack = new("attack", FormatSystemText("ui.commandslotentries.entry.label.attack.template", "{0} \u00B7 {1}", (Character?.Commands.FirstOrDefault() ?? SystemText("ui.commandslotentries.entry.label.attack", "Attack")), mode), Data.SmartAttack ? MagicText("AttackChoiceHelp") : MagicText("SmartLocked"), Action: new MenuAction("attack-mode", Value: Character?.AttackMode == "SmartMagic" ? "PhysicalOnly" : "SmartMagic"), Enabled: Data.SmartAttack);
         return (Data.SmartAttack ? new[] { attack } : Array.Empty<MenuEntry>()).Concat(Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), Character?.Commands.ElementAtOrDefault(slot) ?? "--", MagicText("CommandSlotHelp"), "junction-command-choice", new MenuAction("select-command-slot", slot.ToString())))).ToArray();
     }
 

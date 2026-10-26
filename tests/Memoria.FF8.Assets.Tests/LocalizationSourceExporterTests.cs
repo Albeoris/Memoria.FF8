@@ -171,7 +171,7 @@ public sealed class LocalizationSourceExporterTests
         Assert.Contains(result.Entries, row => row.File == "mngrp_slot087_table");
         Assert.Contains(result.Entries, row => row.Category == "Information and SeeD exam");
         Assert.DoesNotContain(result.Entries, row => row.Category == "Fields");
-        Assert.DoesNotContain(result.Entries, row => row.Metadata.TryGetValue("Menu Section", out string? section) && int.TryParse(section, out int slot) && slot is >= 128 and <= 133 && row.Metadata["Source Ordinal"] == "1");
+        Assert.All(result.Entries.Where(row => row.Metadata.TryGetValue("Menu Section", out string? section) && int.TryParse(section, out int slot) && slot is >= 128 and <= 133 && row.Metadata["Source Ordinal"] == "1"), row => Assert.Equal("information-body-v1", row.Metadata["Structure"]));
         Assert.Equal(result.Entries.Count, result.Entries.Select(row => row.Key).Distinct(StringComparer.Ordinal).Count());
     }
 

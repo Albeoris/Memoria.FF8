@@ -13,6 +13,12 @@ internal enum PlayerSaveMenuMode
 
 internal sealed class PlayerSaveMenu
 {
+    internal Func<string, string, string>? LocalizeText { get; set; }
+
+    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
     private readonly PlayerSaveStore store;
     private readonly Dictionary<(PlayerSaveMenuMode Mode, int Bank), int> rememberedSlots = [];
     private readonly Dictionary<PlayerSaveMenuMode, int> rememberedBanks = [];
@@ -46,15 +52,64 @@ internal sealed class PlayerSaveMenu
     public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
     public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave;
     public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanLoad;
-    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * PageCapacity).Take(PageCapacity).ToArray();
+    public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * PageCapacity).Take(PageCapacity).Select(LocalizeEntry).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public bool IsTransferring => transferSource is not null;
     public int? TransferSource => transferSource?.Slot;
     public Func<int, bool>? BeforeBankChange { get; set; }
     public Func<bool>? RequiresMemoriaFormat { get; set; }
-    public string? Message { get; private set; }
+    private string? message;
+    private Func<string?>? systemMessage;
+    public string? Message
+    {
+        get => systemMessage?.Invoke() ?? message;
+        private set
+        {
+            systemMessage = null;
+            message = value;
+        }
+    }
+
+    private void SetSystemMessage(Func<string?> text)
+    {
+        systemMessage = text;
+        message = null;
+    }
     public IReadOnlyList<PlayerSaveEntry> Entries { get; private set; } = [];
     public event Action<MenuSound>? SoundRequested;
+
+    internal string SlotLabel(int slot)
+    {
+        if (slot <= 0)
+        {
+            return SystemText("save.slot.quick", "Quick Save");
+        }
+        int bank = PlayerSaveStore.GetBank(slot);
+        return bank == 0 ? FormatSystemText("save.slot.memoria", "Memoria, Slot {0:00}", slot) : FormatSystemText("save.slot.original", "ORIGINAL FF8 {0}, Slot {1:00}", bank == 1 ? "I" : "II", slot - PlayerSaveStore.GetFirstSlot(bank) + 1);
+    }
+
+    internal string BankLabel(int bank) => bank switch
+    {
+        0 => SystemText("save.bank.memoria", "Memoria"),
+        1 => SystemText("save.bank.original-one", "Original I"),
+        2 => SystemText("save.bank.original-two", "Original II"),
+        _ => throw new ArgumentOutOfRangeException(nameof(bank))
+    };
+
+    private string EntryLabel(PlayerSaveEntry entry) => entry.DetailsSystemId == "save.slot.create-quick" ? SystemText("save.slot.new-quick", "New Quick Save") : SlotLabel(entry.Slot);
+
+    private PlayerSaveEntry LocalizeEntry(PlayerSaveEntry entry)
+    {
+        string details = entry.DetailsSystemId switch
+        {
+            "save.slot.choose-original-folder" => SystemText("save.slot.choose-original-folder", "Choose the original FF8 save folder."),
+            "save.slot.empty" => SystemText("save.slot.empty", "Empty"),
+            "save.slot.unavailable" => FormatSystemText("save.slot.unavailable", "Unavailable: {0}", entry.DetailsError),
+            "save.slot.create-quick" => SystemText("save.slot.create-quick", "Create a rotating quick save."),
+            _ => entry.ReadLocation is { } read ? read() ?? SystemText("save.location.unavailable", "Unavailable") : entry.Details
+        };
+        return entry with { Label = EntryLabel(entry), Details = details };
+    }
 
     public static string GetBankLabel(int bank)
     {
@@ -83,7 +138,7 @@ internal sealed class PlayerSaveMenu
         if (IsSaving && RequiresMemoriaFormat?.Invoke() == true)
         {
             Bank = 0;
-            Message = MagicUiText.Get("MemoriaDestination");
+            SetSystemMessage(() => MagicUiText.Get(SystemText("save.open.memoriadestination", "MemoriaDestination")));
         }
         Page = 0;
         RefreshEntries();
@@ -91,7 +146,7 @@ internal sealed class PlayerSaveMenu
         {
             Selection = 0;
             Page = 0;
-            Message = Mode == PlayerSaveMenuMode.QuickLoad && Entries.Count == 0 ? "No quick saves." : null;
+            SetSystemMessage(() => Mode == PlayerSaveMenuMode.QuickLoad && Entries.Count == 0 ? SystemText("save.open.no.quick.saves", "No quick saves.") : null);
         }
         else
         {
@@ -125,13 +180,13 @@ internal sealed class PlayerSaveMenu
         }
         if (IsSaving && !IsTransferring && bank != 0 && RequiresMemoriaFormat?.Invoke() == true)
         {
-            Message = MagicUiText.Get("MemoriaDestination");
+            SetSystemMessage(() => MagicUiText.Get(SystemText("save.selectbank.memoriadestination", "MemoriaDestination")));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return false;
         }
         if (IsTransferring && (bank == 0) == (PlayerSaveStore.GetBank(TransferSource!.Value) == 0))
         {
-            Message = "Choose a bank of the other save type.";
+            SetSystemMessage(() => SystemText("save.selectbank.choose.a.bank.of.the.other.save", "Choose a bank of the other save type."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return false;
         }
@@ -205,7 +260,7 @@ internal sealed class PlayerSaveMenu
         cancelRequested = false;
         if (IsTransferring && input.Save && !input.QuickLoad)
         {
-            Message = "Finish or cancel copying before quick saving.";
+            SetSystemMessage(() => SystemText("save.update.finish.or.cancel.copying.before.quick.saving", "Finish or cancel copying before quick saving."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -230,7 +285,7 @@ internal sealed class PlayerSaveMenu
             }
             catch (Exception exception)
             {
-                ReportFailure(input.QuickLoad ? "Quick load" : "Quick save", exception);
+                ReportFailure(input.QuickLoad ? SystemText("save.update.quick.load", "Quick load") : SystemText("save.update.quick.save", "Quick save"), exception);
             }
             return;
         }
@@ -268,7 +323,7 @@ internal sealed class PlayerSaveMenu
         }
         if (Entries.Count == 0)
         {
-            Message = "No quick saves.";
+            SetSystemMessage(() => SystemText("save.update.no.quick.saves", "No quick saves."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -276,7 +331,7 @@ internal sealed class PlayerSaveMenu
         {
             ChangeBank(0);
             ConfirmOverwrite = false;
-            Message = MagicUiText.Get("MemoriaDestination");
+            SetSystemMessage(() => MagicUiText.Get(SystemText("save.update.memoriadestination", "MemoriaDestination")));
             return;
         }
         PlayerSaveEntry entry = Entries[Selection];
@@ -290,7 +345,7 @@ internal sealed class PlayerSaveMenu
             if ((IsTransferring || IsSaving && !IsQuick) && File.Exists(store.GetPath(entry.Slot)) && !ConfirmOverwrite)
             {
                 ConfirmOverwrite = true;
-                Message = $"Overwrite {entry.Label}?";
+                SetSystemMessage(() => FormatSystemText("save.update.overwrite", "Overwrite {0}?", EntryLabel(entry)));
                 SoundRequested?.Invoke(MenuSound.Confirm);
                 return;
             }
@@ -330,7 +385,7 @@ internal sealed class PlayerSaveMenu
         }
         catch (Exception exception)
         {
-            ReportFailure(IsTransferring ? "Copy" : Mode.ToString(), exception);
+            ReportFailure(IsTransferring ? SystemText("save.update.copy", "Copy") : Mode.ToString(), exception);
             RefreshEntries();
         }
     }
@@ -409,14 +464,14 @@ internal sealed class PlayerSaveMenu
         }
         catch (Exception exception)
         {
-            ReportFailure("Bank selection", exception);
+            ReportFailure(SystemText("save.changebank.bank.selection", "Bank selection"), exception);
             return false;
         }
     }
 
     private string TransferPrompt()
     {
-        return $"Copy {PlayerSaveStore.GetLabel(TransferSource!.Value)}: choose a destination.";
+        return FormatSystemText("save.transferprompt.copy.choose.a.destination", "Copy {0}: choose a destination.", SlotLabel(TransferSource!.Value));
     }
 
     private void RestoreTransferSource()
@@ -432,14 +487,14 @@ internal sealed class PlayerSaveMenu
 
     private void RejectSource(PlayerSaveEntry entry)
     {
-        Message = entry.Details == "Empty" ? "This slot is empty." : entry.Details;
+        SetSystemMessage(() => entry.Details == "Empty" ? SystemText("save.rejectsource.this.slot.is.empty", "This slot is empty.") : entry.Details);
         SoundRequested?.Invoke(MenuSound.Cancel);
     }
 
     private void ReportFailure(string action, Exception exception)
     {
         ConfirmOverwrite = false;
-        Message = $"{action} failed: {exception.Message}";
+        SetSystemMessage(() => FormatSystemText("save.reportfailure.failed", "{0} failed: {1}", action, exception.Message));
         Console.Error.WriteLine(exception);
         SoundRequested?.Invoke(MenuSound.Cancel);
     }
@@ -449,7 +504,7 @@ internal sealed class PlayerSaveMenu
         Entries = Mode switch
         {
             PlayerSaveMenuMode.QuickLoad => store.ReadQuickEntries(),
-            PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false)],
+            PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false) { DetailsSystemId = "save.slot.create-quick" }],
             _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)
         };
         Selection = Math.Clamp(Selection, 0, Math.Max(0, Entries.Count - 1));

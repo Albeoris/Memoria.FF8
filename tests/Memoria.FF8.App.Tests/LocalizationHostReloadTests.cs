@@ -51,6 +51,7 @@ public sealed class LocalizationHostReloadTests(ITestOutputHelper output) : IDis
         Assert.Single(host.Resources.Localization.Values);
         Assert.Equal(SourceRows + 1, Assert.Single(host.CommittedLocalizations!.Layers, layer => layer.PackageId == "Memoria/HostAcceptance").Project.Entries.Count);
         Report(host, "initial activation");
+        long initiallyParsedPayloads = host.ParsedLocalizationPayloads;
 
         string targetPath = Path.Combine(package, "Localization", "System", "operative.json");
         string initialPayload = File.ReadAllText(targetPath);
@@ -63,6 +64,8 @@ public sealed class LocalizationHostReloadTests(ITestOutputHelper output) : IDis
         PumpUntil(host, () => host.Resources.Localize(TargetKey, "Original presentation") == "Reloaded translation", "target reload");
         Assert.Equal(originalGeneration + 1, host.Resources.Generation);
         Assert.Equal(1, host.LastLocalizationChangedKeys);
+        Assert.Equal(initiallyParsedPayloads + 1, host.ParsedLocalizationPayloads);
+        Assert.True(host.ReusedLocalizationPayloads >= SourceFiles);
         Report(host, "target reload");
 
         long goodGeneration = host.Resources.Generation;
@@ -130,7 +133,7 @@ public sealed class LocalizationHostReloadTests(ITestOutputHelper output) : IDis
 
     private void Report(GameResourceHost host, string operation)
     {
-        output.WriteLine("{0}: preparation={1:F3} ms, owner publication={2:F3} ms, changed keys={3}", operation, host.CommittedLocalizations!.PreparationMilliseconds, host.LastLocalizationPublicationMilliseconds, host.LastLocalizationChangedKeys);
+        output.WriteLine("{0}: preparation={1:F3} ms, owner publication={2:F3} ms, changed keys={3}, parsed payloads={4}, reused payloads={5}", operation, host.CommittedLocalizations!.PreparationMilliseconds, host.LastLocalizationPublicationMilliseconds, host.LastLocalizationChangedKeys, host.ParsedLocalizationPayloads, host.ReusedLocalizationPayloads);
     }
 
     public void Dispose()

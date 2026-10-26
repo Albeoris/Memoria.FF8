@@ -36,6 +36,16 @@ internal sealed class TextTag
 
     public Int32 Write(Byte[] bytes, ref Int32 offset)
     {
+        if (Code == TextTagCode.Glyph)
+        {
+            Byte glyph = Convert.ToByte(Parameter, CultureInfo.InvariantCulture);
+            if (glyph is < 0xCC or > 0xE2)
+            {
+                throw new FormatException("A native wordmark glyph must be in the range 204..226.");
+            }
+            bytes[offset++] = glyph;
+            return 1;
+        }
         bytes[offset++] = (Byte)Code;
         if (Parameter is null)
             return 1;
@@ -215,6 +225,13 @@ internal sealed class TextTag
             case TextTagCode.Line:
             case TextTagCode.Speaker:
                 return parameterText.Length == 0 ? new TextTag(code) : null;
+
+            case TextTagCode.Glyph:
+                if (!Byte.TryParse(parameterText, NumberStyles.Integer, CultureInfo.InvariantCulture, out Byte glyph) || glyph is < 0xCC or > 0xE2)
+                {
+                    throw new FormatException("A native wordmark glyph must be in the range 204..226.");
+                }
+                return new TextTag(code, glyph);
 
             case TextTagCode.Pause:
             case TextTagCode.Var:

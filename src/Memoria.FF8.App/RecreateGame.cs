@@ -1333,7 +1333,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawPartyMenu(bounds);
         }
-        MovieSkipHint.Draw(uiCanvas!, new Memoria.FF8.Ui.UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), session.State.Scene, movieSkipGesture, keyboard.BindingPrompt(ControlAction.Cancel), uiPreferences.UiFontFamily);
+        MovieSkipHint.Draw(uiCanvas!, new Memoria.FF8.Ui.UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), session.State.Scene, movieSkipGesture, keyboard.BindingPrompt(ControlAction.Cancel), uiPreferences.UiFontFamily, LocalizeUiText);
         if (error is not null)
         {
             DrawNoticeUi(bounds, error, true);

@@ -238,7 +238,7 @@ internal sealed partial class NativeTutorialPlayer
     {
         NativeCharacterVitals displayedParty = PreviewParty();
         MenuData result = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = displayedParty }, names, menuCatalog, visibleCharacterRows: visibleRows);
-        result.SourceDescription = "Original tutorial initialization";
+        result.SourceDescription = Menu.SystemText("tutorial.source.initialization", "Original tutorial initialization");
         foreach (MenuCharacter character in result.Characters)
         {
             BattlePlayerStats stats = catalog.ReadStatistics(displayedParty, int.Parse(character.Id.AsSpan("character-".Length), CultureInfo.InvariantCulture));

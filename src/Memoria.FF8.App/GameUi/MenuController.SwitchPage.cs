@@ -58,12 +58,12 @@ public sealed partial class MenuController
         {
             var commands = Commands(38, 25);
             commands.Orientation = UiOrientation.Horizontal;
-            commands.Items = Entries.Select(entry => entry.Id == "switch-party" ? "Switch Member" : entry.Label).ToList();
+            commands.Items = Entries.Select(entry => entry.Id == "switch-party" ? SystemText("party.switch.member", "Switch Member") : entry.Label).ToList();
             strip = commands;
         }
         else
         {
-            strip = Label(ScreenId.StartsWith("switch-party", StringComparison.Ordinal) ? SystemText("ui.buildnativeswitch.label.switch.member", "Switch Member") : SystemText("ui.buildnativeswitch.label.junction.exchange", "Junction Exchange"), 25);
+            strip = Label(ScreenId.StartsWith("switch-party", StringComparison.Ordinal) ? SystemText("party.switch.member", "Switch Member") : SystemText("ui.buildnativeswitch.label.junction.exchange", "Junction Exchange"), 25);
         }
         Place(page, NativeMenuHeader(SystemText("ui.buildnativeswitch.nativemenuheader.switch", "Switch"), strip), 0);
 
@@ -74,7 +74,7 @@ public sealed partial class MenuController
         MenuCharacter[] reserves = Data.Characters.Where(character => !character.InParty).ToArray();
         Place(right, Panel(null, NativeSwitchMembers(reserves, true, !root)), 0);
         MenuCharacter? selected = root ? Character : NativeSwitchCharacter(SelectedEntry);
-        Place(right, Panel(null, Lines([selected?.Name ?? "--", FormatSystemText("ui.buildnativeswitch.details.lv", "Lv  {0}", Number(selected?.Level)), SystemText("ui.buildnativeswitch.details.hp", "HP  ") + (selected is null ? "--" : Hp(selected))], 25)), 1);
+        Place(right, Panel(null, Lines([selected?.Name ?? "--", FormatSystemText("ui.buildnativeswitch.details.lv", "Lv  {0}", Number(selected?.Level)), FormatSystemText("ui.buildnativeswitch.details.hp.template", "HP  {0}", (selected is null ? "--" : Hp(selected)))], 25)), 1);
         Place(body, right, 0, 1);
         Place(page, body, 1);
         return page;

@@ -55,20 +55,20 @@ public sealed partial class MenuController
         }))
         {
             int index = localizationStackDraft.IndexOf(option.Id);
-            entries.Add(new("package-" + option.Id, (index < 0 ? "[ ] " : "[x] " + (index + 1) + ". ") + option.Name + " · " + option.TargetId, option.BaseProjectId is null ? "Independent translation. Confirm toggles selection." : "Patch of " + option.BaseProjectId + ". Select its base explicitly.", Action: new("localization-stack-toggle", option.Id)));
+            entries.Add(new("package-" + option.Id, (index < 0 ? "[ ] " : SystemText("ui.localizationstackentries.entry.label.x", "[x] ") + (index + 1) + ". ") + option.Name + " · " + option.TargetId, option.BaseProjectId is null ? SystemText("ui.localizationstackentries.entry.help.independent.translation.confirm.toggles.selection", "Independent translation. Confirm toggles selection.") : SystemText("ui.localizationstackentries.entry.help.patch.of", "Patch of ") + option.BaseProjectId + SystemText("ui.localizationstackentries.entry.help.select.its.base.explicitly", ". Select its base explicitly."), Action: new("localization-stack-toggle", option.Id)));
         }
-        entries.Add(new("lower", "Move selected package toward TOP (lower priority)", "Reorder the last selected package.", Action: new("localization-stack-move", Value: "-1"), Enabled: localizationStackSelected is not null && localizationStackDraft.IndexOf(localizationStackSelected) > 0));
-        entries.Add(new("higher", "Move selected package toward BOTTOM (higher priority)", "Reorder the last selected package.", Action: new("localization-stack-move", Value: "1"), Enabled: localizationStackSelected is not null && localizationStackDraft.IndexOf(localizationStackSelected) >= 0 && localizationStackDraft.IndexOf(localizationStackSelected) < localizationStackDraft.Count - 1));
-        entries.Add(new("primary", "Primary target: " + (localizationPrimaryTarget ?? "Original text"), "Cycle the primary Target ID among selected translations. This choice is saved with the stack.", Action: new("localization-stack-primary"), Enabled: LocalizationDraftTargets(view).Count > 1));
-        entries.Add(new("apply", "Apply selected stack", "Persist this explicit package order. Empty selection chooses original text.", Action: new("localization-stack-apply")));
-        entries.Add(new("cancel", "Cancel", "Keep the saved stack unchanged.", Action: new("menu-back")));
+        entries.Add(new("lower", SystemText("ui.localizationstackentries.entry.label.move.selected.package.toward.top.lower.priority", "Move selected package toward TOP (lower priority)"), SystemText("ui.localizationstackentries.entry.help.reorder.the.last.selected.package", "Reorder the last selected package."), Action: new("localization-stack-move", Value: "-1"), Enabled: localizationStackSelected is not null && localizationStackDraft.IndexOf(localizationStackSelected) > 0));
+        entries.Add(new("higher", SystemText("ui.localizationstackentries.entry.label.move.selected.package.toward.bottom.higher.priority", "Move selected package toward BOTTOM (higher priority)"), SystemText("ui.localizationstackentries.entry.help.reorder.the.last.selected.package", "Reorder the last selected package."), Action: new("localization-stack-move", Value: "1"), Enabled: localizationStackSelected is not null && localizationStackDraft.IndexOf(localizationStackSelected) >= 0 && localizationStackDraft.IndexOf(localizationStackSelected) < localizationStackDraft.Count - 1));
+        entries.Add(new("primary", SystemText("ui.localizationstackentries.entry.label.primary.target", "Primary target: ") + (localizationPrimaryTarget ?? SystemText("ui.localizationstackentries.entry.label.original.text", "Original text")), SystemText("ui.localizationstackentries.entry.help.cycle.the.primary.target.id.among.selected.translations", "Cycle the primary Target ID among selected translations. This choice is saved with the stack."), Action: new("localization-stack-primary"), Enabled: LocalizationDraftTargets(view).Count > 1));
+        entries.Add(new("apply", SystemText("ui.localizationstackentries.entry.label.apply.selected.stack", "Apply selected stack"), SystemText("ui.localizationstackentries.entry.help.persist.this.explicit.package.order.empty.selection.chooses", "Persist this explicit package order. Empty selection chooses original text."), Action: new("localization-stack-apply")));
+        entries.Add(new("cancel", SystemText("ui.localizationstackentries.entry.label.cancel", "Cancel"), SystemText("ui.localizationstackentries.entry.help.keep.the.saved.stack.unchanged", "Keep the saved stack unchanged."), Action: new("menu-back")));
         return entries;
     }
 
     private IReadOnlyList<string> LocalizationStackDetails()
     {
         LocalizationStackView view = readLocalizationStack!();
-        return [view.PendingChoice ? "Several independent translations are enabled. Choose the active stack explicitly." : "Choose any subset of the available translation packages.", "LOW priority at TOP → HIGH priority at BOTTOM", "Primary target: " + (localizationPrimaryTarget ?? "Original text"), .. localizationStackDraft.Select((id, index) => (index + 1) + ". " + (view.Options.FirstOrDefault(option => option.Id == id)?.Name ?? id)), "Original text fills missing or empty targets. No selection uses original text.", Message];
+        return [view.PendingChoice ? SystemText("ui.localizationstackdetails.details.several.independent.translations.are.enabled.choose.the.active", "Several independent translations are enabled. Choose the active stack explicitly.") : SystemText("ui.localizationstackdetails.details.choose.any.subset.of.the.available.translation.packages", "Choose any subset of the available translation packages."), SystemText("ui.localizationstackdetails.details.low.priority.at.top.high.priority.at.bottom", "LOW priority at TOP → HIGH priority at BOTTOM"), SystemText("ui.localizationstackdetails.details.primary.target", "Primary target: ") + (localizationPrimaryTarget ?? SystemText("ui.localizationstackdetails.details.original.text", "Original text")), .. localizationStackDraft.Select((id, index) => (index + 1) + ". " + (view.Options.FirstOrDefault(option => option.Id == id)?.Name ?? id)), SystemText("ui.localizationstackdetails.details.original.text.fills.missing.or.empty.targets.no", "Original text fills missing or empty targets. No selection uses original text."), Message];
     }
 
     private IReadOnlyList<string> LocalizationDraftTargets(LocalizationStackView view) => localizationStackDraft.Select(id => view.Options.FirstOrDefault(option => option.Id == id)?.TargetId).Where(target => target is not null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -115,7 +115,7 @@ public sealed partial class MenuController
                 return true;
             case "localization-stack-apply":
                 applyLocalizationStack!(localizationStackDraft.ToArray(), localizationPrimaryTarget);
-                Message = "Localization stack saved.";
+                Message = SystemText("ui.handlelocalizationstackaction.message.localization.stack.saved", "Localization stack saved.");
                 Back();
                 return true;
             default:

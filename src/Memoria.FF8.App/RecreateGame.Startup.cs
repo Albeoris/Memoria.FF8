@@ -83,7 +83,7 @@ internal sealed partial class RecreateGame
                 return true;
             }
 
-            startupArtwork ??= Task.Run(() => NativeStartupArtwork.Load(options.GameDirectory));
+            startupArtwork ??= Task.Run(() => NativeStartupArtwork.Load(options.GameDirectory, resourceHost?.Resources));
             if (!startupArtwork.IsCompleted)
             {
                 return true;

@@ -132,7 +132,7 @@ public static partial class LocalizationProjectIO
                 {
                     return false;
                 }
-                Validate(new LocalizationProject { Manifest = manifest, Entries = [new LocalizationRecord { Category = parts[0], File = parts[1], Key = parts[2], SourcePresent = false }] });
+                Validate(new LocalizationProject { Manifest = manifest with { Artwork = [] }, Entries = [new LocalizationRecord { Category = parts[0], File = parts[1], Key = parts[2], SourcePresent = false }] });
                 return true;
             }
             if (data.Keys.Any(key => !used.Contains(key) && !RemovedPayloadIdentity(key)))
@@ -140,8 +140,14 @@ public static partial class LocalizationProjectIO
                 throw new InvalidDataException("Extensions contain an unknown canonical record identity.");
             }
         }
-        LocalizationProject result = new() { Manifest = manifest, Entries = rows };
-        Validate(result);
+        List<string> missingArtworkTargets = [];
+        IReadOnlyList<LocalizationArtworkFile> artwork = ReadArtwork(root, manifest, ReadBytes, missingArtworkTargets);
+        foreach (string missing in missingArtworkTargets)
+        {
+            stamps.Remove(missing);
+        }
+        LocalizationProject result = new() { Manifest = manifest, Entries = rows, Artwork = artwork };
+        Validate(result, cache);
         foreach (var (path, stamp) in stamps)
         {
             if (Stamp(path) != stamp)
@@ -160,6 +166,10 @@ public static partial class LocalizationProjectIO
                 continue;
             }
             throw new IOException("A removed localization payload reappeared during project reading; retry after saving completes.");
+        }
+        if (missingArtworkTargets.Any(File.Exists))
+        {
+            throw new IOException("An artwork Target appeared during project reading; retry the complete snapshot.");
         }
         HashSet<string> currentPaths = DiscoverPayloads(root, manifest).Select(payload => payload.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (!currentPaths.SetEquals(paths))
@@ -247,6 +257,7 @@ public static partial class LocalizationProjectIO
                 });
                 System.IO.File.WriteAllBytes(Resolve(staging, extensionsPath), JsonBytes(extensions));
             }
+            WriteArtwork(project, staging, cancellation);
             manifest = manifest with { Payloads = payloads, ExtensionsPath = extensionsPath };
             System.IO.File.WriteAllBytes(Resolve(staging, ManifestRelativePath), JsonBytes(manifest));
             Read(staging);
@@ -268,9 +279,10 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    public static void Validate(LocalizationProject project)
+    public static void Validate(LocalizationProject project, LocalizationProjectReadCache? cache = null)
     {
         ValidateManifest(project.Manifest);
+        ValidateArtworkFiles(project, cache);
         HashSet<string> keys = new(StringComparer.Ordinal);
         Dictionary<string, string> files = new(StringComparer.OrdinalIgnoreCase);
         foreach (LocalizationRecord row in project.Entries)
@@ -315,6 +327,7 @@ public static partial class LocalizationProjectIO
 
     private static void ValidateManifest(LocalizationManifest manifest)
     {
+        ValidateArtworkManifest(manifest);
         if (manifest.ReferenceLanguages is null || manifest.CompatibleVariants is null || manifest.Payloads is null || manifest.ExtensionData is null || manifest.Payloads.Any(payload => payload is null || payload.Worksheets is null))
         {
             throw new InvalidDataException("Localization manifest collections and payload declarations cannot be null.");

@@ -27,6 +27,7 @@ internal sealed partial class RecreateGame
         }
         gameMenus?.Close();
         sceneInspector = new SceneInspectorController(ReadSceneInspectorSnapshot, command => world!.ApplySceneInspection(command), CloseSceneInspector);
+        sceneInspector.LocalizeText = LocalizeUiText;
         sceneInspector.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         MouseState mouse = Mouse.GetState();
         previousSceneInspectorMouse = mouse.LeftButton == ButtonState.Pressed;

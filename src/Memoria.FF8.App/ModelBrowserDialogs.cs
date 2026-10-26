@@ -5,13 +5,14 @@ namespace Memoria.FF8;
 
 internal static class ModelBrowserDialogs
 {
-    public static string? Export(nint owner, string name)
+    public static string? Export(nint owner, string name, Func<string, string, string>? localizeText = null)
     {
+        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
         using DpiScope dpi = new();
         SaveFileDialog dialog = new()
         {
-            Title = "Export to Blender",
-            Filter = "glTF binary model (*.glb)|*.glb",
+            Title = SystemText("model.dialog.export.title", "Export to Blender"),
+            Filter = SystemText("model.dialog.filter.glb", "glTF binary model (*.glb)") + "|*.glb",
             DefaultExt = ".glb",
             AddExtension = true,
             OverwritePrompt = true,
@@ -20,36 +21,39 @@ internal static class ModelBrowserDialogs
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
 
-    public static string? Import(nint owner)
+    public static string? Import(nint owner, Func<string, string, string>? localizeText = null)
     {
+        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
         using DpiScope dpi = new();
         OpenFileDialog dialog = new()
         {
-            Title = "Import from Blender (as mod)",
-            Filter = "glTF binary model (*.glb)|*.glb",
+            Title = SystemText("model.dialog.import.title", "Import from Blender (as mod)"),
+            Filter = SystemText("model.dialog.filter.glb", "glTF binary model (*.glb)") + "|*.glb",
             CheckFileExists = true,
             Multiselect = false
         };
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
 
-    public static string? Destination(nint owner, string root)
+    public static string? Destination(nint owner, string root, Func<string, string, string>? localizeText = null)
     {
         Directory.CreateDirectory(root);
+        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
         using DpiScope dpi = new();
         OpenFolderDialog dialog = new()
         {
-            Title = "Choose a mod package folder (or create one)",
+            Title = SystemText("model.dialog.destination.title", "Choose a mod package folder (or create one)"),
             InitialDirectory = root,
             Multiselect = false
         };
         return dialog.ShowDialog() == true ? Path.GetFullPath(dialog.FolderName) : null;
     }
 
-    public static bool Confirm(nint owner, string warning, string title = "Model import warning", string question = "Import this model anyway?")
+    public static bool Confirm(nint owner, string warning, string? title = null, string? question = null, Func<string, string, string>? localizeText = null)
     {
+        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
         using DpiScope dpi = new();
-        return MessageBoxW(owner, warning + "\n\n" + question, title, 0x134) == 6;
+        return MessageBoxW(owner, warning + "\n\n" + (question ?? SystemText("model.dialog.import.question", "Import this model anyway?")), title ?? SystemText("model.dialog.import.warning-title", "Model import warning"), 0x134) == 6;
     }
 
     private sealed class DpiScope : IDisposable

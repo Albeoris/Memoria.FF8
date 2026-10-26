@@ -30,6 +30,7 @@ internal static class LocalizationCommands
             {
                 "export" => ["game-dir", "source", "script-base", "target", "references", "name", "format", "layout", "output"],
                 "convert" => ["input", "output", "format", "layout"],
+                "patch" => ["input", "output", "name", "format", "layout"],
                 "validate" => ["input"],
                 "languages" => ["game-dir"],
                 _ => throw new ArgumentException("Unknown localization command.")
@@ -56,6 +57,14 @@ internal static class LocalizationCommands
             {
                 LocalizationProjectIO.Convert(Required("input"), Required("output"), Required("format"), Required("layout"), cancellation.Token);
                 Console.WriteLine("Converted localization project: " + Required("output"));
+                return 0;
+            }
+            if (command == "patch")
+            {
+                LocalizationProject source = LocalizationProjectIO.Read(Required("input"));
+                LocalizationProject patch = LocalizationProjectExport.CreatePatch(source, Required("name"));
+                LocalizationProjectIO.WriteNew(patch, Required("output"), options.GetValueOrDefault("format", source.Manifest.Format), options.GetValueOrDefault("layout", source.Manifest.Layout), cancellation.Token);
+                Console.WriteLine("Created disabled localization patch: " + Required("output"));
                 return 0;
             }
             string target = Required("target");

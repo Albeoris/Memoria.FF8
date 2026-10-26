@@ -24,7 +24,7 @@ public sealed partial class TripleTriadController
         CanReplay = canReplay;
         ReplaySelection = canReplay ? 0 : 1;
         AwaitingReplay = true;
-        Message = canReplay ? "Play again?" : "Not enough cards to play again.";
+        SetSystemMessage(() => canReplay ? SystemText("card.ui.beginreplayprompt.play.again", "Play again?") : SystemText("card.ui.beginreplayprompt.not.enough.cards.to.play.again", "Not enough cards to play again."));
     }
 
     public void SelectReplayChoice(int choice)
@@ -79,7 +79,7 @@ public sealed partial class TripleTriadController
         SelectedHand = 0;
         SelectedCell = 4;
         RecentDeckSelection = recentDecks.Length > 0 ? 0 : -1;
-        Message = "Choose five cards.";
+        SetSystemMessage(() => SystemText("card.ui.resetforreplay.choose.five.cards", "Choose five cards."));
         Changed?.Invoke();
     }
 }

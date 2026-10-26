@@ -26,7 +26,7 @@ public sealed partial class MenuController
         }
         else
         {
-            Message = SystemText("ui.executesceneinspectoraction.message.scene.inspector.requires.a.loaded.field.scene", "Scene inspector requires a loaded field scene.");
+            SetSystemMessage(() => SystemText("ui.executesceneinspectoraction.message.scene.inspector.requires.a.loaded.field.scene", "Scene inspector requires a loaded field scene."));
         }
         return true;
     }

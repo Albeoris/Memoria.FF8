@@ -26,7 +26,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.TripleTriadOutcome or UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
 
-    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.Icon or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
+    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton;
 
     public PixelImage? ReadControllerButton(int nativeIconId)
     {
@@ -51,6 +51,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
         {
             portraits = null;
             magazines = null;
+            tutorials = null;
             cards = null;
             tripleTriad = null;
             cardFaces.Clear();
@@ -76,7 +77,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.TripleTriadBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).Background,
             UiImageKind.TripleTriadBoardBackground => (tripleTriad ??= NativeTripleTriadArtwork.Load(gameDirectory, resources)).BoardBackground,
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetIcon(source.Id, source.Palette),
-            UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory)).Read(source.Id),
+            UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory, resources)).Read(source.Id),
             UiImageKind.Magazine => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetImage(source.Id),
             UiImageKind.MagazineButton => (magazines ??= NativeMagazineArtwork.Load(gameDirectory, resources)).GetButtonImage(source.Id),
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")

@@ -35,7 +35,9 @@ public static partial class LocalizationProjectBuilder
             Contributors = (loadedProjects ?? []).Where(layer => dataset == ProjectDatasetId(layer.Project) || dataset == EffectiveProfileDatasetId && (profileOrder is null || profileOrder.Contains(layer.PackageId, StringComparer.OrdinalIgnoreCase))).Select(layer => new { layer.Project.Manifest.ProjectId, layer.Project.Manifest.TargetLanguage }).ToArray()
         }).ToArray());
         string scriptLanguage = request.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : request.FieldScriptBaseLanguage.ToLowerInvariant();
-        return project with { Manifest = project.Manifest with { CompatibleVariants = [edition + ":" + scriptLanguage], ExtensionData = manifestExtensions } };
+        progress?.Report("Reading original lettering artwork…");
+        IReadOnlyList<LocalizationArtworkFile> artwork = ReadArtwork(gameDirectory, scriptLanguage, cancellation);
+        return project with { Manifest = project.Manifest with { CompatibleVariants = [edition + ":" + scriptLanguage], ExtensionData = manifestExtensions, Artwork = artwork.Select(file => file.Declaration).ToArray() }, Artwork = artwork };
     }
 
     public static LocalizationProject CreateProject(LocalizationAuthoringRequest request, IReadOnlyDictionary<string, LocalizationSourceCatalog> catalogs, CancellationToken cancellation = default, bool includeSystem = false)
@@ -128,7 +130,7 @@ public static partial class LocalizationProjectBuilder
 
     private static JsonElement MetadataValue(string key, string? value)
     {
-        if (key is "Context Bindings" or "Call Contexts" or "Place IDs" && value is not null)
+        if (key is "Context Bindings" or "Call Contexts" or "Place IDs" or "Choice Line Map" && value is not null)
         {
             using JsonDocument document = JsonDocument.Parse(value);
             return document.RootElement.Clone();

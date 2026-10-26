@@ -9,6 +9,10 @@ namespace Memoria.FF8;
 /// <summary>Reads current Unicode presentation values without changing the battle's original native content owners.</summary>
 internal sealed class LocalizationBattlePresentation(ResourceService resources)
 {
+    internal string SystemText(string id, string original) => resources.Localize(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original);
+
+    internal string GlobalMessage(int ordinal, string original) => Kernel("MiscTexts", "Text", ordinal, original);
+
     public string Table(string file, int ordinal, string original) => resources.Localize(LocalizationSourceExporter.IndexedKey(resources.Source.Language, file, ordinal), original);
 
     public string CombatantName(BattleCombatant actor) => actor.IsPlayer || actor.HasNativeDisplayNameOverride ? actor.Name : Table($"c0m{actor.ModelId:000}_names", 0, actor.Name);

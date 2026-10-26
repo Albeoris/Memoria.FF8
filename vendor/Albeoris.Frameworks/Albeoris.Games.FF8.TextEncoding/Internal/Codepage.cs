@@ -25,10 +25,11 @@ internal sealed class Codepage
     private readonly Char[] _characters;
     private readonly Dictionary<Char, Int32> _indexByCharacter;
 
-    private Codepage(Char[] characters, Boolean isMultipage)
+    private Codepage(Char[] characters, Boolean isMultipage, Boolean hasNativeWordmarks)
     {
         _characters = characters;
         IsMultipage = isMultipage;
+        HasNativeWordmarks = hasNativeWordmarks;
         _indexByCharacter = BuildIndex(characters);
     }
 
@@ -36,6 +37,8 @@ internal sealed class Codepage
     /// Whether this codepage has multiple 256-entry pages (Japanese), as opposed to a single page.
     /// </summary>
     public Boolean IsMultipage { get; }
+
+    public Boolean HasNativeWordmarks { get; }
 
     /// <summary>
     /// Returns the character stored at the given absolute index (page * 256 + byte offset).
@@ -58,11 +61,11 @@ internal sealed class Codepage
         return _indexByCharacter.TryGetValue(c, out index);
     }
 
-    public static Codepage LoadEuropean() => Load(CodepageResources.European, isMultipage: false);
+    public static Codepage LoadEuropean() => Load(CodepageResources.European, isMultipage: false, hasNativeWordmarks: true);
     public static Codepage LoadJapanese() => Load(CodepageResources.Japanese, isMultipage: true);
     public static Codepage LoadRussian() => Load(CodepageResources.Russian, isMultipage: false);
 
-    public static Codepage Load(String[] entries, Boolean isMultipage)
+    public static Codepage Load(String[] entries, Boolean isMultipage, Boolean hasNativeWordmarks = false)
     {
         Char[] characters = new Char[entries.Length];
         for (Int32 i = 0; i < entries.Length; i++)
@@ -71,7 +74,7 @@ internal sealed class Codepage
             characters[i] = entry.Length == 0 ? '\0' : entry[0];
         }
 
-        return new Codepage(characters, isMultipage);
+        return new Codepage(characters, isMultipage, hasNativeWordmarks);
     }
 
     private static Dictionary<Char, Int32> BuildIndex(Char[] characters)

@@ -72,8 +72,8 @@ internal sealed partial class RecreateGame
     {
         Microsoft.Win32.OpenFileDialog dialog = new()
         {
-            Title = "Import Chocobo World",
-            Filter = "Native Chocobo World saves|chocorpg;*.ff8;*.mcs;*.bin;*.dat|All files|*.*",
+            Title = LocalizeAuthored("chocobo.import.title", "Import Chocobo World"),
+            Filter = LocalizeAuthored("chocobo.import.filter", "Native Chocobo World saves") + "|chocorpg;*.ff8;*.mcs;*.bin;*.dat|" + LocalizeAuthored("common.all-files", "All files") + "|*.*",
             CheckFileExists = true,
             Multiselect = false
         };

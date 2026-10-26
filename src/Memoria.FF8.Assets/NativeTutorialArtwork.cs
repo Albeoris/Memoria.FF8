@@ -19,7 +19,7 @@ public sealed class NativeTutorialArtwork
     private readonly Dictionary<int, PixelImage> pages = [];
     private readonly IReadOnlyDictionary<int, PixelImage> screenshots;
 
-    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes, IReadOnlyDictionary<int, PixelImage> screenshots)
+    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes, IReadOnlyDictionary<int, PixelImage> screenshots, PixelImage localizedBackground)
     {
         this.screenshots = screenshots;
         this.catalog = catalog;
@@ -30,6 +30,8 @@ public sealed class NativeTutorialArtwork
         {
             throw new NotSupportedException("Native tutorial background differs from the original32x32 menu texture at VRAM896,192 and CLUT512,219.");
         }
+        NativeArtworkTexture.Scale(localizedBackground, 32, 32);
+        backgroundPixels = localizedBackground;
     }
 
     public PixelImage Read(int pageId)
@@ -58,7 +60,8 @@ public sealed class NativeTutorialArtwork
             {
                 int sourceX = (row[19] * 4 + x / scale) & 31;
                 int sourceY = (row[20] + y / scale - background.Y) & 31;
-                result[left * scale + x, top * scale + y] = backgroundPixels[sourceX, sourceY];
+                int backgroundScale = backgroundPixels.Width / 32;
+                result[left * scale + x, top * scale + y] = backgroundPixels[sourceX * backgroundScale + x % scale * backgroundScale / scale, sourceY * backgroundScale + y % scale * backgroundScale / scale];
             }
         }
         for (int slot = 0; slot < 4; slot++)
@@ -121,9 +124,9 @@ public sealed class NativeTutorialArtwork
         }
     }
 
-    public static NativeTutorialArtwork Load(string gameDirectory)
+    public static NativeTutorialArtwork Load(string gameDirectory, ResourceService? resources = null)
     {
-        using GameAssets assets = new(gameDirectory);
+        using GameAssets assets = new(gameDirectory, resources: resources);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
         using IFlArchive menu = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
         byte[] Read(string name)
@@ -162,8 +165,23 @@ public sealed class NativeTutorialArtwork
             }
             PixelImage canvas = new(256, 256);
             original.Pixels.CopyTo(canvas.Pixels, 0);
-            screenshots.Add(page.ContentResource, NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), canvas));
+            PixelImage resolved = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), canvas, resources: resources);
+            TextureKey nativeKey = new(new ResourceKey("menu/mngrp.bin"), $"slot{page.ContentResource:000}");
+            if (resources?.Localization.Artwork.ContainsKey(nativeKey) == true)
+            {
+                PixelImage translated = NativeArtworkTexture.Resolve(provider, nativeKey.Owner, original, subresource: nativeKey.Subresource, resources: resources);
+                int scale = NativeArtworkTexture.Scale(translated, original.Width, original.Height);
+                resolved = new PixelImage(256 * scale, 256 * scale);
+                for (int row = 0; row < translated.Height; row++)
+                {
+                    translated.Pixels.AsSpan(row * translated.Width, translated.Width).CopyTo(resolved.Pixels.AsSpan(row * resolved.Width, translated.Width));
+                }
+            }
+            screenshots.Add(page.ContentResource, resolved);
         }
-        return new NativeTutorialArtwork(catalog, Resource(7), Resource(12), screenshots);
+        byte[] background = Resource(12);
+        PixelImage backgroundPixels = WorldAssetReader.ReadTim(background, 0).Image.Decode();
+        backgroundPixels = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/mngrp.bin"), backgroundPixels, subresource: "slot012", resources: resources);
+        return new NativeTutorialArtwork(catalog, Resource(7), background, screenshots, backgroundPixels);
     }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;
@@ -16,12 +17,12 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
 public static class LocalizationRuntime
 {
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
-    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false)
+    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null)
     {
         LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory), watchForPublication);
         try
         {
-            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs);
+            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache);
         }
         catch
         {
@@ -30,14 +31,14 @@ public static class LocalizationRuntime
         }
     }
 
-    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs)
+    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache)
     {
         Stopwatch elapsed = Stopwatch.StartNew();
         List<LocalizationLayer> layers = [];
         foreach (ModPackage package in candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization))
         {
             cancellation.ThrowIfCancellationRequested();
-            LocalizationProject project = LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads);
+            LocalizationProject project = LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads, readCache);
             if (project.Manifest.MappingVersion != FieldCorrespondenceCatalog.Version)
             {
                 throw new InvalidDataException($"{package.Name}: localization mapping version is not supported.");
@@ -61,11 +62,17 @@ public static class LocalizationRuntime
             order = requested;
         }
         List<string> dormant = [];
+        Dictionary<TextureKey, LocalizationArtworkValue> artwork = [];
         Dictionary<string, LocalizationValue> values = new(StringComparer.Ordinal);
         List<IReadOnlyDictionary<string, LocalizationValue>> priorityLayers = [];
         foreach (string packageId in order)
         {
             LocalizationLayer layer = layers.Single(layer => layer.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+            foreach (LocalizationArtworkFile file in layer.Project.Artwork.Where(file => file.TargetPng is not null))
+            {
+                var image = readCache?.ReadArtworkImage(file.TargetPng!, file.Declaration.TargetImage!) ?? DecodeArtworkTarget(file);
+                artwork[file.Declaration.Key] = new(file.Declaration.Key, file.Declaration.Width, file.Declaration.Height, image.Width, image.Height, image.Pixels, file.Declaration.SourceSha256, layer.PackageId, layer.Project.Manifest.ProjectId);
+            }
             Dictionary<string, LocalizationValue> contribution = new(StringComparer.Ordinal);
             foreach (LocalizationRecord row in layer.Project.Entries)
             {
@@ -93,7 +100,12 @@ public static class LocalizationRuntime
                 {
                     continue;
                 }
-                LocalizationValue rebound = new(row.Target!, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = LocalizationFieldPreparation.Prepare(nativeRow with { Target = row.Target }) };
+                Dictionary<string, System.Text.Json.JsonElement> reboundMetadata = new(nativeRow.ExtensionData, StringComparer.Ordinal);
+                if (row.ExtensionData.TryGetValue("Choice Line Map", out var authoredLineMap))
+                {
+                    reboundMetadata["Choice Line Map"] = authoredLineMap;
+                }
+                LocalizationValue rebound = new(row.Target!, layer.PackageId, layer.Project.Manifest.ProjectId) { Field = LocalizationFieldPreparation.Prepare(nativeRow with { Target = row.Target, ExtensionData = reboundMetadata }) };
                 if (contribution.TryGetValue(nativeRow.Key, out LocalizationValue? previous) && previous.Text != rebound.Text)
                 {
                     throw new InvalidDataException($"{nativeRow.Key}: conflicting translations in a shared correspondence group require an explicit native-key translation.");
@@ -104,7 +116,13 @@ public static class LocalizationRuntime
             priorityLayers.Add(contribution);
         }
         inputs.Validate();
-        return new(new LocalizationCatalog(values, priorityLayers), layers.AsReadOnly(), order, selection, elapsed.Elapsed.TotalMilliseconds) { InputRevision = inputs, DormantFieldKeys = dormant.AsReadOnly() };
+        return new(new LocalizationCatalog(values, priorityLayers, artwork), layers.AsReadOnly(), order, selection, elapsed.Elapsed.TotalMilliseconds) { InputRevision = inputs, DormantFieldKeys = dormant.AsReadOnly() };
+    }
+
+    private static LocalizationProjectReadCache.ArtworkImage DecodeArtworkTarget(LocalizationArtworkFile file)
+    {
+        var image = TextureImageDecoder.Decode(file.TargetPng!, file.Declaration.TargetImage!).Image;
+        return new(image.Width, image.Height, image.Pixels.ToImmutableArray());
     }
 
     private static void ValidateTarget(LocalizationRecord row)

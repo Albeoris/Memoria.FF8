@@ -224,7 +224,7 @@ internal sealed partial class RecreateGame
     {
         try
         {
-            if (!browserAssetsComplete && !ModelBrowserDialogs.Confirm(Window.Handle, "Discovery has not finished. Export only the currently discovered selection?", "Export selection", "Continue?"))
+            if (!browserAssetsComplete && !ModelBrowserDialogs.Confirm(Window.Handle, LocalizeAuthored("model.export.incomplete-discovery", "Discovery has not finished. Export only the currently discovered selection?"), LocalizeAuthored("model.export.selection", "Export selection"), LocalizeAuthored("common.continue-question", "Continue?"), LocalizeUiText))
             {
                 return;
             }
@@ -233,7 +233,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Select geometry or at least one clip component.");
             }
-            string? path = ModelBrowserDialogs.Export(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'));
+            string? path = ModelBrowserDialogs.Export(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), LocalizeUiText);
             if (path is null)
             {
                 return;

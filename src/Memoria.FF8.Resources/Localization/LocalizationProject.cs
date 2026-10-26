@@ -7,6 +7,7 @@ public sealed record LocalizationProject
 {
     public LocalizationManifest Manifest { get; init; } = new();
     public IReadOnlyList<LocalizationRecord> Entries { get; init; } = [];
+    public IReadOnlyList<LocalizationArtworkFile> Artwork { get; init; } = [];
 }
 
 public sealed record LocalizationManifest
@@ -26,6 +27,7 @@ public sealed record LocalizationManifest
     public string Format { get; init; } = "json";
     public string Layout { get; init; } = "single";
     public IReadOnlyList<LocalizationPayload> Payloads { get; init; } = [];
+    public IReadOnlyList<LocalizationArtworkDeclaration> Artwork { get; init; } = [];
     public string? ExtensionsPath { get; init; }
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = new(StringComparer.Ordinal);
@@ -38,6 +40,22 @@ public sealed record LocalizationPayload
     public string? File { get; init; }
     public IReadOnlyDictionary<string, string> Worksheets { get; init; } = new Dictionary<string, string>();
 }
+
+public sealed record LocalizationArtworkDeclaration
+{
+    public string Owner { get; init; } = "";
+    public string Subresource { get; init; } = "atlas";
+    public int Palette { get; init; }
+    public string SourceSha256 { get; init; } = "";
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public string SourceImage { get; init; } = "";
+    public string? TargetImage { get; init; }
+    [JsonIgnore]
+    public TextureKey Key => new(new ResourceKey(Owner), Subresource, Palette);
+}
+
+public sealed record LocalizationArtworkFile(LocalizationArtworkDeclaration Declaration, byte[] SourcePng, byte[]? TargetPng = null);
 
 public sealed record LocalizationRecord
 {

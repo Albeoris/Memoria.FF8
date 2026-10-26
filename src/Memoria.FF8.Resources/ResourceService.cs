@@ -35,7 +35,24 @@ public sealed class ResourceService : IResourceChangeFeed
         {
             throw new InvalidOperationException("Prepare localization outside resource notifications.");
         }
-        return new(this, mutationVersion, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, published.Texts, published.Encoded, published.ExclusiveScopes, [], localization);
+        Publication current = published;
+        if (current.Localization.ArtworkFingerprint == localization.ArtworkFingerprint)
+        {
+            return new(this, mutationVersion, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
+        }
+        long version = mutationVersion;
+        HashSet<TextureKey> affected = current.Localization.ArtworkFingerprints.Keys.Union(localization.ArtworkFingerprints.Keys).Where(key => current.Localization.ArtworkFingerprints.GetValueOrDefault(key) != localization.ArtworkFingerprints.GetValueOrDefault(key) && contexts.ContainsKey(key)).ToHashSet();
+        if (affected.Count == 0)
+        {
+            return new(this, version, resolver, ImmutableDictionary<TextureKey, TextureValue>.Empty, current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
+        }
+        ImmutableDictionary<TextureKey, TextureValue>.Builder values = current.Values.ToBuilder();
+        foreach (TextureKey key in affected)
+        {
+            values[key] = Resolve(contexts[key], resolver, localization);
+        }
+        BuildTransforms(values, affected);
+        return new(this, version, resolver, affected.ToImmutableDictionary(key => key, key => values[key]), current.Texts, current.Encoded, current.ExclusiveScopes, [], localization);
     }
     public long Generation => Volatile.Read(ref published).Generation;
     public int ResidentTextureCount => handles.Count;
@@ -210,6 +227,7 @@ public sealed class ResourceService : IResourceChangeFeed
     public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null)
     {
         long version = mutationVersion;
+        LocalizationCatalog nextLocalization = localization ?? published.Localization;
         ImmutableDictionary<ResourceKey, EncodedResource> encoded;
         ImmutableArray<string> exclusiveScopes;
         lock (encodedGate)
@@ -225,17 +243,17 @@ public sealed class ResourceService : IResourceChangeFeed
             TextureValue value;
             try
             {
-                value = Resolve(context, nextResolver);
+                value = Resolve(context, nextResolver, nextLocalization);
             }
             catch (ResourceReplacementRejectedException exception)
             {
-                value = Resolve(context, null);
+                value = Resolve(context, null, nextLocalization);
                 failures.Add((key, exception));
             }
             next.Add(key, value);
         }
         BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), localization ?? published.Localization);
+        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization);
     }
 
     private ImmutableArray<ResourceKey> ChangedEncodedResources(ImmutableDictionary<ResourceKey, EncodedResource> next, ImmutableArray<string> exclusiveScopes)
@@ -257,10 +275,27 @@ public sealed class ResourceService : IResourceChangeFeed
 
     private static bool HiddenByScope(ResourceKey key, ImmutableDictionary<ResourceKey, EncodedResource> encoded, ImmutableArray<string> exclusiveScopes) => !encoded.ContainsKey(key) && EncodedResource.IsInScope(key, exclusiveScopes);
 
-    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
+    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, ISet<TextureKey>? affected = null)
     {
         Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
-        foreach (TextureKey key in preparation.Keys)
+        if (affected is not null)
+        {
+            bool added;
+            do
+            {
+                added = false;
+                foreach ((TextureKey key, TextureTransformContext transform) in preparation)
+                {
+                    if (!affected.Contains(key) && transform.Dependencies.Any(affected.Contains))
+                    {
+                        affected.Add(key);
+                        added = true;
+                    }
+                }
+            }
+            while (added);
+        }
+        foreach (TextureKey key in preparation.Keys.Where(key => affected is null || affected.Contains(key)))
         {
             next.Remove(key);
         }
@@ -280,7 +315,7 @@ public sealed class ResourceService : IResourceChangeFeed
             next.Add(key, value);
             return value;
         }
-        foreach (TextureKey key in preparation.Keys)
+        foreach (TextureKey key in preparation.Keys.Where(key => affected is null || affected.Contains(key)))
         {
             Build(key);
         }
@@ -325,9 +360,9 @@ public sealed class ResourceService : IResourceChangeFeed
         return new Subscription(() => subscribers.Remove(callback));
     }
 
-    private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver)
+    private TextureValue Resolve(TextureBuildContext context, ITextureReplacementResolver? replacementResolver, LocalizationCatalog? localization = null)
     {
-        TextureReplacement? replacement = replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
+        TextureReplacement? replacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
         TextureValue value = replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
         return context.RequestedVariant is { } variant && value.Variants is { } variants && variants.TryGetValue(variant, out var image) ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }

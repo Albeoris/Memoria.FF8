@@ -139,7 +139,7 @@ public sealed partial class TripleTriadController
             }
         }
         SetTradePhase(TripleTriadTradePhase.Entering);
-        Message = chooseCards ? $"Choose {required} card(s) to take." : "Exchanging cards.";
+        SetSystemMessage(() => chooseCards ? FormatSystemText("card.ui.begintradesettlement.choose.card.s.to.take", "Choose {0} card(s) to take.", required) : SystemText("card.ui.begintradesettlement.exchanging.cards", "Exchanging cards."));
     }
 
     private void StartTradeChoice(int slot, bool human = false)
@@ -263,7 +263,7 @@ public sealed partial class TripleTriadController
         {
             TradingCardIndex = index;
             RequestSound(TripleTriadSound.CardReceived);
-            Message = "Exchanging cards.";
+            SetSystemMessage(() => SystemText("card.ui.startnexttradetransfer.exchanging.cards", "Exchanging cards."));
             SetTradePhase(TripleTriadTradePhase.Moving);
         }
         else

@@ -42,7 +42,7 @@ public sealed partial class MenuController
             .. HostSettingsEntries("Battle policy", "Random encounters")];
     }
 
-    internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? SystemText("ui.battlesettingsdetails.details.active.battle", "Active battle") : SystemText("ui.battlesettingsdetails.details.no.active.battle", "No active battle")), SystemText("ui.battlesettingsdetails.details.encounter.execution", "Encounter execution: ") + (HostSettingValue("Battle policy") == "Instant victory" ? SystemText("ui.battlesettingsdetails.details.automatic.victory", "Automatic victory") : SystemText("ui.battlesettingsdetails.details.full.combat", "Full combat")), SystemText("ui.battlesettingsdetails.details.applies.to.the.current.game.at.title.it", "Applies to the current game; at Title it is the new-game default."), SystemText("ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes", "Save normally to retain current-game changes."), SelectedEntry?.Help ?? ""];
+    internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? SystemText("ui.battlesettingsdetails.details.active.battle", "Active battle") : SystemText("ui.battlesettingsdetails.details.no.active.battle", "No active battle")), FormatSystemText("ui.battlesettingsdetails.details.encounter.execution.template", "Encounter execution: {0}", (HostSettingValue("Battle policy") == "Instant victory" ? SystemText("ui.battlesettingsdetails.details.automatic.victory", "Automatic victory") : SystemText("ui.battlesettingsdetails.details.full.combat", "Full combat"))), SystemText("ui.battlesettingsdetails.details.applies.to.the.current.game.at.title.it", "Applies to the current game; at Title it is the new-game default."), SystemText("ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes", "Save normally to retain current-game changes."), SelectedEntry?.Help ?? ""];
     private Func<string>? battleSource;
     private bool pendingEncounterPolicy;
     private Func<bool>? hasPendingEncounter;
@@ -64,7 +64,7 @@ public sealed partial class MenuController
             MenuSetting setting = MenuSettings.Definitions.Single(setting => setting.Id == key);
             string value = HostSettingValue(key);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            return new MenuEntry(key, key == "Battle policy" ? SystemText("ui.hostsettingsentries.entry.label.encounter.execution", "Encounter execution   ") + (value == "Instant victory" ? SystemText("ui.hostsettingsentries.entry.label.automatic.victory", "Automatic victory") : value) : $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
+            return new MenuEntry(key, key == "Battle policy" ? FormatSystemText("ui.hostsettingsentries.entry.label.encounter.execution.template", "Encounter execution   {0}", (value == "Instant victory" ? SystemText("ui.hostsettingsentries.entry.label.automatic.victory", "Automatic victory") : value)) : $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
         }).ToArray();
     }
 
@@ -124,7 +124,7 @@ public sealed partial class MenuController
         {
             if (_completeActiveBattle is null || !(canCompleteOutcome?.Invoke() ?? _hasActiveBattle?.Invoke() == true))
             {
-                Message = SystemText("ui.executehostsettingsaction.message.instant.outcomes.are.available.only.on.your.turn", "Instant outcomes are available only on your turn in battle or Triple Triad.");
+                SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.instant.outcomes.are.available.only.on.your.turn", "Instant outcomes are available only on your turn in battle or Triple Triad."));
                 return true;
             }
             if (action.Value is not ("Victory" or "Defeat"))
@@ -141,12 +141,12 @@ public sealed partial class MenuController
         }
         if (_writePreferences is null)
         {
-            Message = SystemText("ui.executehostsettingsaction.message.local.settings.are.not.connected.to.this.menu", "Local settings are not connected to this menu host.");
+            SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.local.settings.are.not.connected.to.this.menu", "Local settings are not connected to this menu host."));
             return true;
         }
         if (action.SubjectId is not ("Battle policy" or "Random encounters"))
         {
-            Message = SystemText("ui.executehostsettingsaction.message.this.preference.has.its.canonical.editor.in.config", "This preference has its canonical editor in Config.");
+            SetSystemMessage(() => SystemText("ui.executehostsettingsaction.message.this.preference.has.its.canonical.editor.in.config", "This preference has its canonical editor in Config."));
             return true;
         }
         if (action.SubjectId == "Battle policy" && action.Value == "Instant victory" && (encounterPolicyHasConsequence?.Invoke() ?? (_hasActiveBattle?.Invoke() == true || hasPendingEncounter?.Invoke() == true)))

@@ -17,6 +17,9 @@ The imported source preserves these changes relative to that revision:
 
 - `Albeoris.Games.FF8.TextEncoding.Abstractions/Tags/TextTagKey.cs`: imports the semantic junction, ability and element icon keys from upstream commit `39f302eaea422236342d00c748af45ed1f85f4cc`.
 - The same enum imports the thirteen semantic status icon keys from upstream commit `0e3fc21c28c0ad45aa37e5f054a757a2c6abf2d3`.
+- `Albeoris.Games.FF8.TextEncoding.Abstractions/Tags/TextTagCode.cs` and `Albeoris.Games.FF8.TextEncoding/Internal/TextTag.cs`: preserve native item-name control `0x0D` and its single unsigned-byte operand through text decoding and encoding.
+- The same tag files and `Internal/{Codepage,TextDecoder}.cs` retain European font wordmark tiles `0xCC..0xE2` as lossless `{Glyph N}` references. These textual references encode to a single original glyph byte, rather than introducing a native opcode or substituting Unicode for artwork. Japanese and Russian decoding retain their existing character tables.
+- `Albeoris.Games.FF8.NamedicBin/NamedicBin.cs`: accepts at most three zero padding bytes ending at a DWORD boundary after the final terminated string; pointer and termination validation remains strict.
 
 - `Albeoris.Games.FF8.FlArchives/FlArchive.cs`: disposal releases owned resources even when flushing fails, for both synchronous and asynchronous disposal.
 - `Albeoris.Games.FF8.Jsm/Sources/Instructions/{AASK,AMES,AMESW,ASK,MES,RAMESW,WINSIZE}.cs`: expose message channel, position, choice and window-size expressions through the added instruction interfaces.

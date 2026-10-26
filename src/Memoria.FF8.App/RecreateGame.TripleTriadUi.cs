@@ -32,6 +32,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         TripleTriadController controller = world!.EnsureTripleTriad()!;
+        controller.LocalizeText = resourceHost is null ? null : resourceHost.Resources.Localize;
         if (!ReferenceEquals(presentedTripleTriad, controller))
         {
             tripleTriadAudio?.Dispose();

@@ -79,7 +79,7 @@ public sealed partial class MenuController
             Entries = _ => chocoboClaim?.Items.All(item => item.Obtained) != false
                 ? [new("close", SystemText("ui.registerchocoboworldscreens.entry.label.close", "Close"), SystemText("ui.registerchocoboworldscreens.entry.help.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained."), Action: new("menu-back"))]
                 : [new("no", SystemText("ui.registerchocoboworldscreens.entry.label.no", "No"), SystemText("ui.registerchocoboworldscreens.entry.help.leave.inventory.and.acquisition.history.unchanged", "Leave inventory and acquisition history unchanged."), Action: new("menu-back")), new("yes", SystemText("ui.registerchocoboworldscreens.entry.label.yes", "Yes"), chocoboClaim?.Reason ?? SystemText("ui.registerchocoboworldscreens.entry.help.receive.all.remaining.exclusive.items.once", "Receive all remaining exclusive items once."), Action: new("chocobo-claim-commit"), Enabled: chocoboClaim?.CanClaim == true)],
-            Details = _ => [SystemText("ui.registerchocoboworldscreens.details.this.minigame.is.under.development", "This minigame is under development."), chocoboClaim?.Items.All(item => item.Obtained) != false ? SystemText("ui.registerchocoboworldscreens.details.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.registerchocoboworldscreens.details.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?"), .. chocoboClaim?.Items.Select(item => item.Name + (item.Obtained ? " · Obtained" : " · " + item.Details)) ?? [], chocoboClaim?.Reason ?? ""],
+            Details = _ => [SystemText("ui.registerchocoboworldscreens.details.this.minigame.is.under.development", "This minigame is under development."), chocoboClaim?.Items.All(item => item.Obtained) != false ? SystemText("ui.registerchocoboworldscreens.details.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.registerchocoboworldscreens.details.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?"), .. chocoboClaim?.Items.Select(item => item.Name + (item.Obtained ? SystemText("chocobo.item.obtained", " · Obtained") : " · " + item.Details)) ?? [], chocoboClaim?.Reason ?? ""],
             BuildContent = (menus, root) => menus.BuildChocoboClaim(root)
         });
         Register(new MenuScreenDefinition
@@ -108,7 +108,7 @@ public sealed partial class MenuController
         Place(content, Panel(SystemText("ui.buildchocoboimportpreview.panel.incoming.items.tab.to.inspect.arrows.to.scroll", "Incoming items · Tab to inspect / arrows to scroll"), new UiList
         {
             Id = "chocobo-items",
-            Items = rows.Count == 0 ? [SystemText("ui.buildchocoboimportpreview.items.no.new.rewards", "No new rewards.")] : rows.Select(row => (row.Exclusive ? "Exclusive · " : "Ordinary · ") + row.Name + "\n" + row.Details).ToList(),
+            Items = rows.Count == 0 ? [SystemText("ui.buildchocoboimportpreview.items.no.new.rewards", "No new rewards.")] : rows.Select(row => (row.Exclusive ? SystemText("chocobo.import.exclusive", "Exclusive · ") : SystemText("chocobo.import.ordinary", "Ordinary · ")) + row.Name + "\n" + row.Details).ToList(),
             Images = rows.Select(row => row.Icon).ToList(),
             Paginated = true,
             TextFlow = UiTextFlow.Wrap,
@@ -127,7 +127,7 @@ public sealed partial class MenuController
         Place(content, new UiList
         {
             Id = "chocobo-claim-message",
-            Items = [SystemText("ui.buildchocoboclaim.items.this.minigame.is.under.development", "This minigame is under development.\n") + (all ? SystemText("ui.buildchocoboclaim.items.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.buildchocoboclaim.items.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?")), .. chocoboClaim?.Reason is { Length: > 0 } reason ? new[] { reason } : Array.Empty<string>()],
+            Items = [FormatSystemText("ui.buildchocoboclaim.items.this.minigame.is.under.development.template", "This minigame is under development.\n{0}", (all ? SystemText("ui.buildchocoboclaim.items.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.buildchocoboclaim.items.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?"))), .. chocoboClaim?.Reason is { Length: > 0 } reason ? new[] { reason } : Array.Empty<string>()],
             Paginated = true,
             TextFlow = UiTextFlow.Wrap,
             FontSize = 20 * TextScale,
@@ -144,7 +144,7 @@ public sealed partial class MenuController
             {
                 Place(row, new UiImage { Source = icon }, 0, 0);
             }
-            Place(row, Label(item.Name + (item.Obtained ? SystemText("ui.buildchocoboclaim.label.obtained", " · Obtained") : "\n" + item.Details), 18, UiTextFlow.Wrap), 0, 1);
+            Place(row, Label(FormatSystemText("ui.buildchocoboclaim.label.obtained.template", "{0}{1}", item.Name, (item.Obtained ? SystemText("ui.buildchocoboclaim.label.obtained", SystemText("chocobo.item.obtained", " · Obtained")) : "\n" + item.Details)), 18, UiTextFlow.Wrap), 0, 1);
             Place(items, row, index);
         }
         Place(content, items, 1);

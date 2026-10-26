@@ -5,6 +5,12 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Inspects a paused field and applies temporary presentation or event overrides through its host.</summary>
 public sealed class SceneInspectorController
 {
+    internal Func<string, string, string>? LocalizeText { get; set; }
+
+    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
     public const int RowsPerPage = 8;
     public const int DetailLinesPerPage = 4;
     private readonly Func<SceneInspectorSnapshot?> read;
@@ -37,7 +43,24 @@ public sealed class SceneInspectorController
     public int DetailPage { get; private set; }
     public int DetailPageCount => Math.Max(1, (detailLines.Length + DetailLinesPerPage - 1) / DetailLinesPerPage);
     public IEnumerable<string> VisibleDetails => detailLines.Skip(DetailPage * DetailLinesPerPage).Take(DetailLinesPerPage);
-    public string Message { get; private set; } = "Temporary overrides clear on Reset all or field change.";
+    private Func<string>? messageText;
+    public string Message => messageText?.Invoke() ?? SystemText("inspector.message.initial", "Temporary overrides clear on Reset all or field change.");
+
+    internal string KindLabel(SceneInspectorKind kind) => kind switch
+    {
+        SceneInspectorKind.Layer => SystemText("inspector.tab.layers", "Layers"),
+        SceneInspectorKind.Object => SystemText("inspector.tab.objects", "Objects"),
+        SceneInspectorKind.Event => SystemText("inspector.tab.events", "Events"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+
+    internal string FilterLabel => Filter switch
+    {
+        SceneInspectorFilter.All => SystemText("inspector.filter.all", "All"),
+        SceneInspectorFilter.Enabled => SystemText("inspector.filter.enabled", "Enabled"),
+        SceneInspectorFilter.Disabled => SystemText("inspector.filter.disabled", "Disabled"),
+        _ => throw new InvalidOperationException("Unknown scene inspector filter.")
+    };
 
     public UiView BuildView()
     {
@@ -144,14 +167,14 @@ public sealed class SceneInspectorController
         {
             return;
         }
-        Apply(new SceneInspectorCommand(selected.Id, !selected.Enabled), $"{selected.Name}: {(!selected.Enabled ? "enabled" : "disabled")} for this field session.");
+        Apply(new SceneInspectorCommand(selected.Id, !selected.Enabled), () => FormatSystemText("inspector.message.toggle", "{0}: {1} for this field session.", selected.Name, !selected.Enabled ? SystemText("inspector.state.enabled", "enabled") : SystemText("inspector.state.disabled", "disabled")));
     }
 
     public void ResetAll()
     {
         if (Snapshot is not null)
         {
-            Apply(new SceneInspectorCommand(Reset: true), "Temporary overrides reset. Native state and configured mods apply.");
+            Apply(new SceneInspectorCommand(Reset: true), () => SystemText("inspector.message.reset", "Temporary overrides reset. Native state and configured mods apply."));
         }
     }
 
@@ -185,17 +208,17 @@ public sealed class SceneInspectorController
         }
     }
 
-    private void Apply(SceneInspectorCommand command, string message)
+    private void Apply(SceneInspectorCommand command, Func<string> message)
     {
         try
         {
             apply(command);
-            Message = message;
+            messageText = message;
             SoundRequested?.Invoke(MenuSound.Confirm);
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or InvalidOperationException)
         {
-            Message = "Cannot apply override: " + error.Message;
+            messageText = () => FormatSystemText("inspector.message.error", "Cannot apply override: {0}", error.Message);
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
         Refresh();
@@ -203,7 +226,7 @@ public sealed class SceneInspectorController
 
     private void UpdateDetails()
     {
-        detailLines = Selected is { } selected ? new[] { "ID: " + selected.Id }.Concat(selected.Details).SelectMany(WrapDetail).ToArray() : [];
+        detailLines = Selected is { } selected ? new[] { FormatSystemText("inspector.details.identity", "ID: {0}", selected.Id) }.Concat(selected.Details).SelectMany(WrapDetail).ToArray() : [];
         DetailPage = Math.Clamp(DetailPage, 0, DetailPageCount - 1);
     }
 

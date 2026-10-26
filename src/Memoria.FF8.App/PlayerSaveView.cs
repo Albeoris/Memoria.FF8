@@ -28,7 +28,7 @@ internal sealed partial class PlayerSaveView : UiElement
         content.RowDefinitions.Add(UiGridLength.Auto);
         content.RowDefinitions.Add(UiGridLength.Star());
         content.RowDefinitions.Add(UiGridLength.Pixel(ActionHeight(textScale)));
-        UiGrid banks = BuildBanks(menu.Bank, menu.IsQuick, textScale);
+        UiGrid banks = BuildBanks(menu.Bank, menu.IsQuick, textScale, menu);
         foreach (UiButton tab in banks.Children.OfType<UiButton>())
         {
             int bank = tab.GridColumn;
@@ -43,43 +43,43 @@ internal sealed partial class PlayerSaveView : UiElement
         header.RowDefinitions.Add(UiGridLength.Star());
         header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
         header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
-        UiPanel info = new() { Caption = "INFO.", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
-        pageLabel = new UiLabel { Text = $"Page {menu.Page + 1} / {menu.PageCount}" + navigationSuffix, FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center };
+        UiPanel info = new() { Caption = menu.SystemText("save.view.info", "INFO."), CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
+        pageLabel = new UiLabel { Text = menu.FormatSystemText("save.view.page", "Page {0} / {1}", menu.Page + 1, menu.PageCount) + navigationSuffix, FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center };
         info.Children.Add(pageLabel);
         header.Children.Add(info);
         UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 0) };
         string name = menu.Mode switch
         {
-            PlayerSaveMenuMode.QuickLoad => "Quick Load",
-            PlayerSaveMenuMode.QuickSave => "Quick Save",
-            PlayerSaveMenuMode.Load => "Load",
-            _ => "Save"
+            PlayerSaveMenuMode.QuickLoad => menu.SystemText("save.view.quick-load", "Quick Load"),
+            PlayerSaveMenuMode.QuickSave => menu.SystemText("save.view.quick-save", "Quick Save"),
+            PlayerSaveMenuMode.Load => menu.SystemText("save.view.load", "Load"),
+            _ => menu.SystemText("save.view.save", "Save")
         };
-        title.Children.Add(new UiLabel { Text = menu.IsTransferring ? "Transfer" : name, FontSize = 25 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+        title.Children.Add(new UiLabel { Text = menu.IsTransferring ? menu.SystemText("save.view.transfer", "Transfer") : name, FontSize = 25 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
         header.Children.Add(title);
         information.Children.Add(header);
-        string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? "Confirm transfer overwrite" : "Choose destination block" : menu.ConfirmOverwrite ? "Confirm overwrite" : menu.IsSaving ? "Choose block to save" : "Choose block to load";
-        string detail = menu.TransferSource is int source ? $"{PlayerSaveStore.GetLabel(source)}  →  {PlayerSaveStore.GetLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : menu.IsQuick ? menu.IsSaving ? "Create a new quick save." : "Choose a quick save to load." : $"{transferHint}    {confirmHint}: Select    {cancelHint}: Back";
+        string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-transfer-overwrite", "Confirm transfer overwrite") : menu.SystemText("save.view.choose-destination-block", "Choose destination block") : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-overwrite", "Confirm overwrite") : menu.IsSaving ? menu.SystemText("save.view.choose-block-to-save", "Choose block to save") : menu.SystemText("save.view.choose-block-to-load", "Choose block to load");
+        string detail = menu.TransferSource is int source ? $"{menu.SlotLabel(source)}  →  {menu.SlotLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-again-to-overwrite-the-selected-save", "Confirm again to overwrite the selected save.") : menu.IsQuick ? menu.IsSaving ? menu.SystemText("save.view.create-a-new-quick-save", "Create a new quick save.") : menu.SystemText("save.view.choose-a-quick-save-to-load", "Choose a quick save to load.") : menu.FormatSystemText("save.view.navigation", "{0}    {1}: Select    {2}: Back", transferHint, confirmHint, cancelHint);
         if (menu.Message is string message)
         {
             detail = message;
         }
-        help = new() { GridRow = 1, Caption = "HELP", CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
+        help = new() { GridRow = 1, Caption = menu.SystemText("save.view.help", "HELP"), CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
         help.Children.Add(new UiLabel { Text = instruction + "\n" + detail, FontSize = 18 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
         information.Children.Add(help);
         content.Children.Add(information);
         blocks = CreateVisibleBlocks();
         content.Children.Add(blocks);
         actions = new() { GridRow = 3, Columns = menu.IsQuick ? 4 : 5, Rows = 1, Gap = 5 };
-        actions.Children.Add(new UiButton { Id = "save-confirm", GridColumn = 0, Text = menu.ConfirmOverwrite ? "Overwrite" : menu.IsTransferring ? "Copy here" : menu.IsSaving ? "Save" : "Load", FontSize = 18 * textScale, Enabled = menu.Entries.Count > 0 && (menu.IsTransferring || menu.IsSaving || menu.Entries[menu.Selection].CanLoad), Click = menu.RequestConfirm, PointerSize = 0 });
+        actions.Children.Add(new UiButton { Id = "save-confirm", GridColumn = 0, Text = menu.ConfirmOverwrite ? menu.SystemText("save.view.overwrite", "Overwrite") : menu.IsTransferring ? menu.SystemText("save.view.copy-here", "Copy here") : menu.IsSaving ? menu.SystemText("save.view.save", "Save") : menu.SystemText("save.view.load", "Load"), FontSize = 18 * textScale, Enabled = menu.Entries.Count > 0 && (menu.IsTransferring || menu.IsSaving || menu.Entries[menu.Selection].CanLoad), Click = menu.RequestConfirm, PointerSize = 0 });
         if (!menu.IsQuick)
         {
-            actions.Children.Add(new UiButton { Id = "save-transfer", GridColumn = 1, Text = menu.IsTransferring ? "Cancel copy" : menu.Bank == 0 ? "Copy to original" : "Copy to Memoria", FontSize = 16 * textScale, Enabled = menu.IsTransferring || menu.CanTransfer, Click = menu.IsTransferring ? menu.CancelTransfer : menu.RequestTransfer, PointerSize = 0 });
+            actions.Children.Add(new UiButton { Id = "save-transfer", GridColumn = 1, Text = menu.IsTransferring ? menu.SystemText("save.view.cancel-copy", "Cancel copy") : menu.Bank == 0 ? menu.SystemText("save.view.copy-to-original", "Copy to original") : menu.SystemText("save.view.copy-to-memoria", "Copy to Memoria"), FontSize = 16 * textScale, Enabled = menu.IsTransferring || menu.CanTransfer, Click = menu.IsTransferring ? menu.CancelTransfer : menu.RequestTransfer, PointerSize = 0 });
         }
         int pageColumn = menu.IsQuick ? 1 : 2;
-        actions.Children.Add(new UiButton { Id = "save-previous", GridColumn = pageColumn, Text = "Previous", FontSize = 18 * textScale, Enabled = menu.Page > 0, Click = () => menu.RequestPage(-1), PointerSize = 0 });
-        actions.Children.Add(new UiButton { Id = "save-next", GridColumn = pageColumn + 1, Text = "Next", FontSize = 18 * textScale, Enabled = menu.Page + 1 < menu.PageCount, Click = () => menu.RequestPage(1), PointerSize = 0 });
-        actions.Children.Add(new UiButton { Id = "save-back", GridColumn = pageColumn + 2, Text = "Back", FontSize = 18 * textScale, Click = menu.RequestCancel, PointerSize = 0 });
+        actions.Children.Add(new UiButton { Id = "save-previous", GridColumn = pageColumn, Text = menu.SystemText("save.view.previous", "Previous"), FontSize = 18 * textScale, Enabled = menu.Page > 0, Click = () => menu.RequestPage(-1), PointerSize = 0 });
+        actions.Children.Add(new UiButton { Id = "save-next", GridColumn = pageColumn + 1, Text = menu.SystemText("save.view.next", "Next"), FontSize = 18 * textScale, Enabled = menu.Page + 1 < menu.PageCount, Click = () => menu.RequestPage(1), PointerSize = 0 });
+        actions.Children.Add(new UiButton { Id = "save-back", GridColumn = pageColumn + 2, Text = menu.SystemText("save.view.back", "Back"), FontSize = 18 * textScale, Click = menu.RequestCancel, PointerSize = 0 });
         content.Children.Add(actions);
         root.Children.Add(content);
         Children.Add(root);
@@ -132,7 +132,7 @@ internal sealed partial class PlayerSaveView : UiElement
             content.Children[position] = replacement;
             blocks = replacement;
         }
-        pageLabel.Text = $"Page {menu.Page + 1} / {menu.PageCount}" + navigationSuffix;
+        pageLabel.Text = menu.FormatSystemText("save.view.page", "Page {0} / {1}", menu.Page + 1, menu.PageCount) + navigationSuffix;
         foreach (UiButton action in actions.Children.OfType<UiButton>())
         {
             if (action.Id == "save-previous")

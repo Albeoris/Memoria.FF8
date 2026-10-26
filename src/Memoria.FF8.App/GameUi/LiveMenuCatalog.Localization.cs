@@ -1,9 +1,16 @@
 using Memoria.FF8.Assets.Localization;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8.GameUi;
 
 public sealed partial class LiveMenuCatalog
 {
+    internal string SystemText(string id, string original) => resources?.Localize(SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments) => SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
+    internal string KernelText(string collection, string role, int ordinal, string original) => LocalizedKernel(collection, role, ordinal, original) ?? original;
+
     private string? LocalizedTable(string table, int ordinal, string? original)
     {
         if (original is null || resources is null)

@@ -36,6 +36,7 @@ internal sealed partial class RecreateGame
         }
         gameMenus?.Close();
         modelBrowser = new([], CloseModelBrowser, ExportBrowserModel, ImportBrowserModel);
+        modelBrowser.LocalizeText = LocalizeUiText;
         modelBrowser.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         UpdateModelBrowserHints();
         MouseState mouse = Mouse.GetState();

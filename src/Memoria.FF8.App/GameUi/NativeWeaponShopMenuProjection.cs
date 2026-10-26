@@ -6,17 +6,19 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Projects the actual4EA770 recipe list and explicit selection/remodel requests.</summary>
 public static class NativeWeaponShopMenuProjection
 {
-    public static MenuData Build(NativeWeaponShopTransaction shop, NativeCharacterVitals? vitals = null, LiveMenuCatalog? catalog = null)
+    public static MenuData Build(NativeWeaponShopTransaction shop, NativeCharacterVitals? vitals = null, LiveMenuCatalog? catalog = null, Func<int, string>? characterName = null)
     {
         ArgumentNullException.ThrowIfNull(shop);
         shop.Validate();
-        MenuData data = new() { Location = "Junk Shop", Currency = checked((int)shop.Gil), SourceDescription = "Native weapon shop" };
+        string Text(string id, string original) => catalog?.SystemText(id, original) ?? original;
+        string Format(string id, string original, params object?[] values) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(Text(id, original), original, values);
+        MenuData data = new() { Location = Text("shop.weapon.title", "Junk Shop"), Currency = checked((int)shop.Gil), SourceDescription = Text("shop.weapon.source", "Native weapon shop") };
         for (int character = 0; character < 6; character++)
         {
             if ((shop.EligibleMask & 1 << character) != 0)
             {
                 string id = $"character-{character}";
-                data.Characters.Add(new MenuCharacter { Id = id, NativeId = character, Name = CharacterName(character), InParty = character == shop.SelectedCharacter });
+                data.Characters.Add(new MenuCharacter { Id = id, NativeId = character, Name = characterName?.Invoke(character) ?? catalog?.CharacterName(character) ?? CharacterName(character), InParty = character == shop.SelectedCharacter });
                 data.SupportedActions.Add($"weapon-character:{id}");
             }
         }
@@ -24,12 +26,12 @@ public static class NativeWeaponShopMenuProjection
         {
             int id = offer & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
-            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? "Currently equipped" : shop.MissingMagazine(id) ? "Weapons Monthly recipe not read" : shop.MissingPreviousUpgrade(id) ? "Previous weapon upgrade not obtained" : (offer & 0x80) != 0 ? "Materials and gil available" : "Materials or gil missing";
+            string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? Text("shop.weapon.equipped", "Currently equipped") : shop.MissingMagazine(id) ? Text("shop.weapon.magazine-required", "Weapons Monthly recipe not read") : shop.MissingPreviousUpgrade(id) ? Text("shop.weapon.previous-required", "Previous weapon upgrade not obtained") : (offer & 0x80) != 0 ? Text("shop.weapon.available", "Materials and gil available") : Text("shop.weapon.unavailable", "Materials or gil missing");
             string itemId = $"weapon-{id}";
-            MenuItem item = new() { Id = itemId, Name = recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + "." };
+            MenuItem item = new() { Id = itemId, Name = catalog?.WeaponName(id) ?? recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + "." };
             foreach (NativeItemStock material in recipe.Materials.Where(material => material.ItemId != 0))
             {
-                item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? $"Item {material.ItemId}", catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));
+                item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? Format("fallback.item.name", "Item {0}", material.ItemId), catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));
             }
             data.Items.Add(item);
             if ((offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id) && vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon != id)

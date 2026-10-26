@@ -110,7 +110,7 @@ internal sealed partial class RecreateGame
         if (IsNativeWeaponShopActive)
         {
             EnsureLiveMenuCatalog();
-            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals, liveMenuCatalog!);
+            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals, liveMenuCatalog!, id => LiveMenuData.CharacterName(session.State, checked((byte)id), events.Scene.Names, liveMenuCatalog));
         }
         else if (IsNativeShopActive)
         {
@@ -217,7 +217,7 @@ internal sealed partial class RecreateGame
     {
         if (liveMenuCatalog is null)
         {
-            using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
+            using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
             liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
             nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
         }

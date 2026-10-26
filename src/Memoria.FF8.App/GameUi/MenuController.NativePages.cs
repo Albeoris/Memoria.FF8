@@ -6,7 +6,7 @@ public sealed partial class MenuController
 {
     private UiElement BuildNativeGuardianForce()
     {
-        var page = NativeCollectionPage("GF", ScreenId is "gf-learn" or "gf-abilities" ? Label(ScreenId == "gf-learn" ? SystemText("ui.buildnativeguardianforce.label.learn", "Learn") : SystemText("ui.buildnativeguardianforce.label.abilities", "Abilities"), 28) : null);
+        var page = NativeCollectionPage(SystemText("ui.buildnativeguardianforce.nativecollectionpage.gf", "GF"), ScreenId is "gf-learn" or "gf-abilities" ? Label(ScreenId == "gf-learn" ? SystemText("ui.buildnativeguardianforce.label.learn", "Learn") : SystemText("ui.buildnativeguardianforce.label.abilities", "Abilities"), 28) : null);
         if (ScreenId == "gf")
         {
             var tiles = new UiGrid { Columns = 8, Rows = 2, Gap = 8 };
@@ -112,7 +112,7 @@ public sealed partial class MenuController
             return BuildNativeAngeloStatus();
         }
         bool primary = ScreenId is "status" or "status-stats" or "status-info";
-        var page = NativeCollectionPage("Status", Entries.Count > 0 ? NativePageCommands(true, 34, ScreenId == "status-renzokuken" && !IsDemo ? 20 : 23) : null);
+        var page = NativeCollectionPage(SystemText("ui.buildnativestatus.nativecollectionpage.status", "Status"), Entries.Count > 0 ? NativePageCommands(true, 34, ScreenId == "status-renzokuken" && !IsDemo ? 20 : 23) : null);
         var body = Grid([2.6f, 1.05f, 2.4f], [1.1f, 0.9f], 3);
         var identity = Grid([1], [1, 2.3f], 12);
         Place(identity, Portrait(Character), 0, 0);
@@ -128,7 +128,7 @@ public sealed partial class MenuController
             var stats = Grid([1, 1, 1, 1], [1.3f, 0.7f, 1.3f, 0.7f], 0);
             for (int index = 0; index < keys.Length; index++)
             {
-                Place(stats, Label(keys[index], 25), index % 4, index / 4 * 2);
+                Place(stats, Label(StatText(keys[index]), 25), index % 4, index / 4 * 2);
                 Place(stats, Label(Character?.Stats.TryGetValue(keys[index], out int value) == true ? value.ToString() : "--", 25), index % 4, index / 4 * 2 + 1);
             }
             Place(body, stats, 2, 0);
@@ -147,7 +147,7 @@ public sealed partial class MenuController
 
     private UiElement BuildNativeAngeloStatus()
     {
-        var page = NativeCollectionPage("Status", Label(Character?.LimitSettings.GetValueOrDefault("Angelo name", "Angelo") ?? SystemText("ui.buildnativeangelostatus.label.angelo", "Angelo"), 26));
+        var page = NativeCollectionPage(SystemText("ui.buildnativeangelostatus.nativecollectionpage.status", "Status"), Label(Character?.LimitSettings.GetValueOrDefault("Angelo name", "Angelo") ?? SystemText("ui.buildnativeangelostatus.label.angelo", "Angelo"), 26));
         var body = Grid([1], [1, 2.4f], 10);
         var identity = Grid([1.4f, 1, 1.2f], [1], 10);
         Place(identity, Portrait(Character), 0);

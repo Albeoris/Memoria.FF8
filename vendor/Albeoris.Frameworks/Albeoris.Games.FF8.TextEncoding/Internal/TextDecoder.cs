@@ -1,3 +1,5 @@
+using Albeoris.Games.FF8.TextEncoding.Tags;
+
 namespace Albeoris.Games.FF8.TextEncoding.Internal;
 
 /// <summary>
@@ -35,7 +37,14 @@ internal sealed class TextDecoder
             }
 
             Byte b = bytes[index];
-            if (_codepage.IsMultipage && b >= 0x18 && b <= 0x1C)
+            if (_codepage.HasNativeWordmarks && b is >= 0xCC and <= 0xE2)
+            {
+                Int32 offset = 0;
+                result += new TextTag(TextTagCode.Glyph, b).Write(discardBuffer, ref offset);
+                index++;
+                count--;
+            }
+            else if (_codepage.IsMultipage && b >= 0x18 && b <= 0x1C)
             {
                 result += 1;
                 index += 2;
@@ -73,6 +82,12 @@ internal sealed class TextDecoder
 
             Byte b = bytes[byteIndex++];
             byteCount--;
+
+            if (_codepage.HasNativeWordmarks && b is >= 0xCC and <= 0xE2)
+            {
+                new TextTag(TextTagCode.Glyph, b).Write(chars, ref charIndex);
+                continue;
+            }
 
             if (_codepage.IsMultipage && TryReadJapaneseEscape(b, bytes, ref byteIndex, ref byteCount, out var japaneseChar))
             {

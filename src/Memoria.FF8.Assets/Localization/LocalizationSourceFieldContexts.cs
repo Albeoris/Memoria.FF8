@@ -45,6 +45,10 @@ public static class LocalizationSourceFieldContexts
             ["Window State"] = "Native; WINSIZE control-flow state is unresolved and is never materialized by this exporter.",
             ["Call Contexts"] = JsonSerializer.Serialize(calls)
         };
+        if (calls.Any(call => call.Dynamic && call.Opcode is "ASK" or "AASK"))
+        {
+            metadata["Choice Line Map"] = "[]";
+        }
         string basePrefix = common ? groups[0].Key[7..] : "";
         List<LocalizationSourceEntry> result = [row with { Text = basePrefix + row.Text, Metadata = metadata }];
         foreach (var variant in variants)

@@ -52,7 +52,7 @@ public sealed partial class BattleHudController
                 magicCastCount = choices[(Math.Max(0, index) + direction + choices.Count) % choices.Count];
                 magicCastCountSelected = true;
                 selectedMagicTargets.Clear();
-                Message = $"Magic ×{magicCastCount}. Page Left/Right: number of casts.";
+                SetSystemMessage(() => FormatSystemText("battle.ui.changemagiccastcount.magic.page.left.right.number.of.casts", "Magic \u00D7{0}. Page Left/Right: number of casts.", magicCastCount));
                 SoundRequested?.Invoke(MenuSound.Move);
             }
         }
@@ -85,7 +85,7 @@ public sealed partial class BattleHudController
         selectedMagicTargets.Add(target.Id);
         if (selectedMagicTargets.Count < magicCastCount)
         {
-            Message = $"Magic ×{magicCastCount}: select target {selectedMagicTargets.Count + 1}/{magicCastCount}.";
+            SetSystemMessage(() => FormatSystemText("battle.ui.collectmagictarget.magic.select.target", "Magic \u00D7{0}: select target {1}/{2}.", magicCastCount, selectedMagicTargets.Count + 1, magicCastCount));
             SoundRequested?.Invoke(MenuSound.Confirm);
             return false;
         }

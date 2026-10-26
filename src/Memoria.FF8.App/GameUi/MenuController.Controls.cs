@@ -181,7 +181,9 @@ public sealed partial class MenuController
             {
                 Id = id,
                 Title = SystemText("ui.registercontrolsscreens.title.change.binding", "Change binding"),
+                TitleText = c => c.SystemText("ui.registercontrolsscreens.title.change.binding", "Change binding"),
                 Help = SystemText("ui.registercontrolsscreens.help.capture.a.button.or.combination.or.remove.the", "Capture a button or combination, or remove the current binding."),
+                HelpText = c => c.SystemText("ui.registercontrolsscreens.help.capture.a.button.or.combination.or.remove.the", "Capture a button or combination, or remove the current binding."),
                 Entries = c => c.ControlsChoiceEntries(),
                 Details = c => c.ControlsChoiceDetails()
             });
@@ -341,7 +343,7 @@ public sealed partial class MenuController
                 ControlAction selected = Enum.Parse<ControlAction>(action.SubjectId);
                 if (ControlsProfile.IsDeveloperAction(selected) != _developerControls)
                 {
-                    Message = SystemText("ui.executecontrolsaction.message.this.binding.belongs.to.the.other.controls.editor", "This binding belongs to the other controls editor.");
+                    SetSystemMessage(() => SystemText("ui.executecontrolsaction.message.this.binding.belongs.to.the.other.controls.editor", "This binding belongs to the other controls editor."));
                     return true;
                 }
                 _controlsAction = selected;
@@ -365,7 +367,7 @@ public sealed partial class MenuController
                     _capturedChord = null;
                     _captureControllerConnected = false;
                     _captureControllerGeneration = _readControllerGeneration?.Invoke() ?? 0;
-                    Message = SystemText("ui.executecontrolsaction.message.release.controls.then.press.your.new.combination", "Release controls, then press your new combination.");
+                    SetSystemMessage(() => SystemText("ui.executecontrolsaction.message.release.controls.then.press.your.new.combination", "Release controls, then press your new combination."));
                 }
                 return true;
             case "controls-cancel":
@@ -471,7 +473,7 @@ public sealed partial class MenuController
     {
         if (!CanWriteControls)
         {
-            Message = SystemText("ui.writecontrols.message.controls.are.not.connected.to.this.host", "Controls are not connected to this host.");
+            SetSystemMessage(() => SystemText("ui.writecontrols.message.controls.are.not.connected.to.this.host", "Controls are not connected to this host."));
             return false;
         }
         try
@@ -577,7 +579,7 @@ public sealed partial class MenuController
         if (!_captureArmed)
         {
             _captureArmed = released;
-            Message = released ? SystemText("ui.updatecontrolscapture.message.press.a.key.or.combination.then.release.all", "Press a key or combination, then release all to apply.") : SystemText("ui.updatecontrolscapture.message.release.all.keys.and.buttons.first", "Release all keys and buttons first.");
+            SetSystemMessage(() => released ? SystemText("ui.updatecontrolscapture.message.press.a.key.or.combination.then.release.all", "Press a key or combination, then release all to apply.") : SystemText("ui.updatecontrolscapture.message.release.all.keys.and.buttons.first", "Release all keys and buttons first."));
             _view = null;
             return true;
         }
@@ -586,7 +588,7 @@ public sealed partial class MenuController
         if (count > (_capturedChord?.Keys.Length ?? 0) + (_capturedChord?.Buttons.Length ?? 0))
         {
             _capturedChord = held;
-            Message = SystemText("ui.updatecontrolscapture.message.release.all.controls.to.apply.this.combination", "Release all controls to apply this combination.");
+            SetSystemMessage(() => SystemText("ui.updatecontrolscapture.message.release.all.controls.to.apply.this.combination", "Release all controls to apply this combination."));
             _view = null;
         }
         if (released && _capturedChord is not null)

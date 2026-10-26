@@ -30,7 +30,7 @@ public sealed partial class MenuController
             Back();
             if (!valid)
             {
-                Message = SystemText("ui.executeguardianforcetransfer.message.gf.ownership.changed.select.the.guardian.force.again", "GF ownership changed. Select the Guardian Force again.");
+                SetSystemMessage(() => SystemText("ui.executeguardianforcetransfer.message.gf.ownership.changed.select.the.guardian.force.again", "GF ownership changed. Select the Guardian Force again."));
                 return true;
             }
             Execute(transfer);
@@ -46,7 +46,7 @@ public sealed partial class MenuController
             return true;
         }
         pendingGuardianForceTransfer = new MenuAction("junction-gf-reassign", force.Id, destination.Id, owner.Id);
-        string question = $"Remove {force.Name} from {owner.Name} and junction it to {destination.Name}?";
+        string question = FormatSystemText("ui.executeguardianforcetransfer.question.remove.from.and.junction.it.to", "Remove {0} from {1} and junction it to {2}?", force.Name, owner.Name, destination.Name);
         Register(new MenuScreenDefinition
         {
             Id = "junction-gf-confirm",

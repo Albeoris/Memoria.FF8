@@ -4,10 +4,10 @@ using Albeoris.Games.FF8.TextEncoding;
 
 namespace Memoria.FF8.Assets.Localization;
 
-/// <summary>Retains undecodable Japanese source slots while typed readers enumerate their original identities.</summary>
-internal sealed class LocalizationNonFieldEncoding : Encoding
+/// <summary>Retains undecodable source slots while typed readers enumerate their original identities.</summary>
+internal sealed class LocalizationNonFieldEncoding(FF8Encoding selected) : Encoding
 {
-    private readonly FF8Encoding japanese = FF8Encoding.CreateJapanese();
+    private readonly FF8Encoding encoding = selected;
     private readonly Dictionary<string, string> failures = new(StringComparer.Ordinal);
 
     public bool TryGetFailure(string value, out string? failure) => failures.TryGetValue(value, out failure);
@@ -17,7 +17,7 @@ internal sealed class LocalizationNonFieldEncoding : Encoding
         byte[] bounded = bytes.AsSpan(index, count).ToArray();
         try
         {
-            return japanese.GetString(bounded, 0, bounded.Length);
+            return encoding.GetString(bounded, 0, bounded.Length);
         }
         catch (Exception error) when (error is FormatException or InvalidOperationException or IndexOutOfRangeException or ArgumentException)
         {
@@ -37,8 +37,8 @@ internal sealed class LocalizationNonFieldEncoding : Encoding
         value.CopyTo(0, chars, charIndex, value.Length);
         return value.Length;
     }
-    public override int GetByteCount(char[] chars, int index, int count) => japanese.GetByteCount(chars, index, count);
-    public override int GetBytes(char[] chars, int charIndex, int charCount, byte[] bytes, int byteIndex) => japanese.GetBytes(chars, charIndex, charCount, bytes, byteIndex);
-    public override int GetMaxByteCount(int charCount) => japanese.GetMaxByteCount(charCount);
-    public override int GetMaxCharCount(int byteCount) => Math.Max(66, japanese.GetMaxCharCount(byteCount));
+    public override int GetByteCount(char[] chars, int index, int count) => encoding.GetByteCount(chars, index, count);
+    public override int GetBytes(char[] chars, int charIndex, int charCount, byte[] bytes, int byteIndex) => encoding.GetBytes(chars, charIndex, charCount, bytes, byteIndex);
+    public override int GetMaxByteCount(int charCount) => encoding.GetMaxByteCount(charCount);
+    public override int GetMaxCharCount(int byteCount) => Math.Max(66, encoding.GetMaxCharCount(byteCount));
 }

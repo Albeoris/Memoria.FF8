@@ -467,6 +467,7 @@ internal sealed partial class RecreateGame
         BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
         battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, CloseBattleDebug, battleDebugPresets);
+        battleDebug.LocalizeText = LocalizeUiText;
         battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         gameMenus?.Close();
         SynchronizeUiMoviePause();

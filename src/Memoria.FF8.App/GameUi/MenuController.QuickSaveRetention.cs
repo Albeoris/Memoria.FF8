@@ -129,7 +129,7 @@ public sealed partial class MenuController
                 {
                     Push("quick-save-confirm");
                 }
-                Message = FormatSystemText("ui.executequicksaveretentionaction.message.this.will.remove.older.quick.saves", "This will remove {0} older quick saves.", removalCount);
+                SetSystemMessage(() => FormatSystemText("ui.executequicksaveretentionaction.message.this.will.remove.older.quick.saves", "This will remove {0} older quick saves.", removalCount));
                 return true;
             }
             QuickSaveCleanupResult result;

@@ -1,7 +1,7 @@
 using Memoria.FF8.Localization;
 using System.Text.Json;
 
-if (args.FirstOrDefault() is "export" or "convert" or "validate" or "languages")
+if (args.FirstOrDefault() is "export" or "convert" or "patch" or "validate" or "languages")
 {
     return LocalizationCommands.Run(args);
 }
@@ -16,6 +16,7 @@ if (!audit && !refine && !renumber)
     Console.Error.WriteLine("       Memoria.FF8.Localization renumber --input <reviewed mapping CSV> --output <new private report directory>");
     Console.Error.WriteLine("       Memoria.FF8.Localization export --game-dir <installation> --source <language> --script-base <language> --target <identifier> --output <new package> [--format json|xlsx --layout single|split --references en,fr]");
     Console.Error.WriteLine("       Memoria.FF8.Localization convert --input <package> --output <new package> --format json|xlsx --layout single|split");
+    Console.Error.WriteLine("       Memoria.FF8.Localization patch --input <base package> --output <new package> --name <patch name> [--format json|xlsx --layout single|split]");
     Console.Error.WriteLine("       Memoria.FF8.Localization validate --input <package>");
     Console.Error.WriteLine("       Memoria.FF8.Localization languages --game-dir <installation>");
     return 2;

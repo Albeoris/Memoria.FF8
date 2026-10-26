@@ -3,7 +3,11 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-public sealed record NativeGuardianForceLegacyLoss(int GuardianForce, int? Ability, string Kind, string Description);
+public sealed record NativeGuardianForceLegacyLoss(int GuardianForce, int? Ability, string Kind, string Description)
+{
+    public string? DescriptionId { get; init; }
+    public IReadOnlyList<int> DescriptionArguments { get; init; } = [];
+}
 
 /// <summary>A deterministic export proposal. The projected state owns copies of all mutable character data.</summary>
 public sealed record NativeGuardianForceLegacyExportPlan(GameState ProjectedState, IReadOnlyList<NativeGuardianForceLegacyLoss> Losses)
@@ -42,21 +46,21 @@ public static class NativeGuardianForceLegacyCompatibility
         };
         if (current.GuardianForceProfile is not null || current.GuardianForceRecoveryProfile is not null || current.GuardianForceOpaqueBaseline)
         {
-            losses.Add(new(-1, null, "Attribution", "GF mod-layer identities, save-local contributions and their attribution cannot be retained in an original FFVIII save."));
+            losses.Add(new(-1, null, "Attribution", "GF mod-layer identities, save-local contributions and their attribution cannot be retained in an original FFVIII save.") { DescriptionId = "attribution" });
         }
         for (int id = 0; id < 16; id++)
         {
             ImmutableArray<NativeGuardianForceLearningRule> sourceRules = current.MenuDefinitions.Learning[id];
             ImmutableArray<NativeGuardianForceLearningRule> targetRules = targetSource.MenuDefinitions.Learning[id];
             NativeGuardianForceVital gf = current.GuardianForces[id];
-            void Loss(int? ability, string kind, string detail) => losses.Add(new(id, ability, kind, $"GF {id}: {detail}"));
+            void Loss(int? ability, string kind, string detail, string textId, params int[] arguments) => losses.Add(new(id, ability, kind, $"GF {id}: {detail}") { DescriptionId = textId, DescriptionArguments = [id, .. arguments] });
             if (gf.MoveFindDisabled)
             {
-                Loss(79, "Passive", "the disabled Move-Find preference cannot be retained in an original FFVIII save.");
+                Loss(79, "Passive", "the disabled Move-Find preference cannot be retained in an original FFVIII save.", "passive");
             }
             if (!sourceRules.SequenceEqual(targetRules) || !current.MenuDefinitions.Templates.IsDefault && !current.ResolveGuardianForceTemplates()[id].SequenceEqual(targetSource.ResolveGuardianForceTemplates()[id]))
             {
-                Loss(null, "Configuration", "authored learning order, entries or conditions revert to the target game's definitions.");
+                Loss(null, "Configuration", "authored learning order, entries or conditions revert to the target game's definitions.", "configuration");
             }
             if (gf.Progression is { Initialized: false })
             {
@@ -79,7 +83,7 @@ public static class NativeGuardianForceLegacyCompatibility
             uint forgotten = sourceRules.SequenceEqual(targetRules) ? gf.ForgottenAbilities & 0xE00000u : 0;
             if (!sourceRules.SequenceEqual(targetRules) && (gf.ForgottenAbilities & 0xE00000u) != 0)
             {
-                Loss(null, "Unknown", "unmapped high forgotten bits cannot be retained after learning structure changes.");
+                Loss(null, "Unknown", "unmapped high forgotten bits cannot be retained after learning structure changes.", "unknown");
             }
             IEnumerable<GuardianForceAbilityProgress> ledger = gf.Progression?.Abilities ?? sourceRules.Select((rule, index) => new GuardianForceAbilityProgress(rule.Ability, gf.LearnedBank.Has(rule.Ability), gf.AbilityProgress[index], (gf.ForgottenAbilities & (1u << index)) != 0)).ToImmutableArray();
             foreach (GuardianForceAbilityProgress entry in ledger)
@@ -114,7 +118,7 @@ public static class NativeGuardianForceLegacyCompatibility
                     progress[target] = (byte)Math.Clamp(ap, 0, 255);
                     if (ap > 255)
                     {
-                        Loss(ability, "Progress", $"ability {ability} AP {ap} is clamped to the target byte range.");
+                        Loss(ability, "Progress", $"ability {ability} AP {ap} is clamped to the target byte range.", "progress-clamped", ability, ap);
                     }
                     if (isForgotten)
                     {
@@ -122,12 +126,12 @@ public static class NativeGuardianForceLegacyCompatibility
                     }
                     if (target != index && (ap != 0 || isForgotten))
                     {
-                        Loss(ability, "Remap", $"ability {ability} AP/forgotten state maps from slot {index} to {target}.");
+                        Loss(ability, "Remap", $"ability {ability} AP/forgotten state maps from slot {index} to {target}.", "remap", ability, index, target);
                     }
                 }
                 else if (ap != 0 || isForgotten)
                 {
-                    Loss(ability, "Progress", $"ability {ability} has no target learning slot; AP {ap} and forgotten state cannot be preserved.");
+                    Loss(ability, "Progress", $"ability {ability} has no target learning slot; AP {ap} and forgotten state cannot be preserved.", "progress-missing", ability, ap);
                 }
             }
             // Original enumeration visits learned IDs first, in ascending order, with twenty-two effective entries.
@@ -136,12 +140,12 @@ public static class NativeGuardianForceLegacyCompatibility
             {
                 foreach (GuardianForceAbilityProgress entry in gf.Progression.Abilities.Where(entry => entry.Learned && !entry.Forgotten && !learned.Contains(entry.Ability)))
                 {
-                    Loss(entry.Ability, "Dormant", $"dormant ability {entry.Ability} learning history cannot be retained by the target save.");
+                    Loss(entry.Ability, "Dormant", $"dormant ability {entry.Ability} learning history cannot be retained by the target save.", "dormant", entry.Ability);
                 }
             }
             foreach (int ability in learned.Skip(22))
             {
-                Loss(ability, "Capacity", $"learned ability {ability} exceeds the target's twenty-two effective entries and is dropped.");
+                Loss(ability, "Capacity", $"learned ability {ability} exceeds the target's twenty-two effective entries and is dropped.", "capacity", ability);
             }
             ulong low = 0;
             ulong high = 0;
@@ -182,11 +186,11 @@ public static class NativeGuardianForceLegacyCompatibility
             }
             foreach (NativeGuardianForceAbility entry in current.GuardianForceAbilities(id).Where(entry => !entry.Learned && !available.ContainsKey(entry.Ability)))
             {
-                Loss(entry.Ability, "Availability", $"ability {entry.Ability} is unavailable under the target game's learning conditions or twenty-two-entry limit.");
+                Loss(entry.Ability, "Availability", $"ability {entry.Ability} is unavailable under the target game's learning conditions or twenty-two-entry limit.", "availability", entry.Ability);
             }
             if (next.Learning != 0 && (!available.TryGetValue(next.Learning, out bool isLearned) || isLearned))
             {
-                Loss(next.Learning, "Learning", $"learning selection {next.Learning} is invalid in the target and is cleared.");
+                Loss(next.Learning, "Learning", $"learning selection {next.Learning} is invalid in the target and is cleared.", "learning", next.Learning);
                 projected.GuardianForces[id] = next with
                 {
                     Learning = 0
@@ -207,12 +211,12 @@ public static class NativeGuardianForceLegacyCompatibility
                 if (command != 0 && !learned.Contains(command))
                 {
                     commands &= ~(255u << (8 * slot));
-                    losses.Add(new(-1, command, "Equipped", $"Character {row}: unavailable command {command} is cleared."));
+                    losses.Add(new(-1, command, "Equipped", $"Character {row}: unavailable command {command} is cleared.") { DescriptionId = "equipped-command", DescriptionArguments = [row, command] });
                 }
                 if (passive != 0 && (slot >= slots || !learned.Contains(passive)))
                 {
                     abilities &= ~(255u << (8 * slot));
-                    losses.Add(new(-1, passive, "Equipped", $"Character {row}: unavailable passive {passive} is cleared."));
+                    losses.Add(new(-1, passive, "Equipped", $"Character {row}: unavailable passive {passive} is cleared.") { DescriptionId = "equipped-passive", DescriptionArguments = [row, passive] });
                 }
             }
             byte[] magic = character.Junction.MagicJunctions.ToArray();
@@ -221,7 +225,7 @@ public static class NativeGuardianForceLegacyCompatibility
                 if (magic[slot] != 0 && !projected.JunctionMagicSlotAvailable(row, slot))
                 {
                     magic[slot] = 0;
-                    losses.Add(new(-1, null, "Equipped", $"Character {row}: unavailable magic junction slot {slot} is cleared."));
+                    losses.Add(new(-1, null, "Equipped", $"Character {row}: unavailable magic junction slot {slot} is cleared.") { DescriptionId = "equipped-junction", DescriptionArguments = [row, slot] });
                 }
             }
             projected.Records[row] = character with

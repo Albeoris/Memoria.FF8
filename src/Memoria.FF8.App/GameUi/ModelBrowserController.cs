@@ -14,6 +14,12 @@ public enum ModelBrowserMode
 /// <summary>Renderer-independent model catalog, viewer and interchange controls.</summary>
 public sealed partial class ModelBrowserController
 {
+    internal Func<string, string, string>? LocalizeText { get; set; }
+
+    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
     public const int RowsPerPage = 12;
     private readonly Action close;
     private readonly Action<ModelBrowserEntry, ModelBrowserVariant> export;
@@ -48,7 +54,12 @@ public sealed partial class ModelBrowserController
     public float RotationY { get; private set; }
     public float Zoom { get; private set; } = 1;
     public string Message { get; private set; } = "";
-    public string Hints { get; private set; } = "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant";
+    private string? hints;
+    public string Hints
+    {
+        get => hints ?? SystemText("model.hints.default", "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant");
+        private set => hints = value;
+    }
     public UiRect PreviewBounds => AssetsOpen ? new UiRect(18, 92, 480, 360) : Mode == ModelBrowserMode.Catalog ? new UiRect(18, 134, 390, 390) : new UiRect(18, 92, 924, 432);
 
     public UiView BuildView()

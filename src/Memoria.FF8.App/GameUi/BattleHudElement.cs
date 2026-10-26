@@ -89,7 +89,7 @@ internal sealed partial class BattleHudElement : UiElement
         }
         bool canAttack = !controller.CommandMenuHidden && controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
         IReadOnlyList<string> choices = controller.ChoiceLabels;
-        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingGuardianFormAction ? "GF ACTION" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingNativeSlots ? "SLOTS" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
+        string caption = session.Outcome != BattleOutcome.Active ? controller.SystemText("battle.hud.result", "RESULT") : controller.SelectingTarget ? controller.SystemText("battle.hud.target", "TARGET") : controller.SelectingGuardianFormAction ? controller.SystemText("battle.hud.guardian-action", "GF ACTION") : controller.SelectingDrawMode ? controller.SystemText("battle.hud.draw", "DRAW") : controller.SelectingNativeSlots ? controller.SystemText("battle.hud.slots", "SLOTS") : controller.SelectingAction ? controller.CommandLabel(controller.SelectedCommand) : controller.SystemText("battle.hud.command", "COMMAND");
         IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingNativeSlots && !controller.SelectingDrawMode && !controller.SelectingGuardianFormAction && !controller.HasGuardianFormCommands ? controller.ActionChoices : [];
         string[] values = actions.Select(controller.ChoiceValue).ToArray();
         bool guardianHpColumn = controller.SelectedCommand == BattleAbility.GuardianForce && values.Any(value => value.Length > 0);
@@ -154,7 +154,7 @@ internal sealed partial class BattleHudElement : UiElement
         if (session.Outcome != BattleOutcome.Active)
         {
             theme.Pointer(canvas, Left + 38 * Scale, Top + (CommandContentY + 10) * Scale, 12 * Scale);
-            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 60, CommandContentY + 2, 156, 30, 21);
+            Text(canvas, theme, session.CanReturnToField ? controller.SystemText("battle.hud.continue", "Continue") : controller.SystemText("battle.hud.load-retry", "Load / Retry"), 60, CommandContentY + 2, 156, 30, 21);
         }
         else if (!controller.CommandMenuHidden && controller.SelectingTarget)
         {
@@ -237,12 +237,12 @@ internal sealed partial class BattleHudElement : UiElement
             DrawStatuses(canvas, theme, statuses, 520, y + 25, 414);
             if (form is { Phase: BattleGuardianFormPhase.Active })
             {
-                Text(canvas, theme, $"{controller.GuardianFormSeconds(form.RemainingTicks)}s", 906, y - 5, 42, 18, 12);
+                Text(canvas, theme, controller.FormatSystemText("battle.hud.remaining-seconds", "{0}s", controller.GuardianFormSeconds(form.RemainingTicks)), 906, y - 5, 42, 18, 12);
             }
         }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
-            Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
+            Text(canvas, theme, controller.SystemText("battle.hud.trigger", "TRIGGER!"), 372, 100, 280, 48, 30);
         }
     }
 
@@ -266,7 +266,7 @@ internal sealed partial class BattleHudElement : UiElement
         float panelHeight = 4 * TargetRowHeight + TargetContentOffset + 12;
         float y = Math.Min(609 - 4 * TargetRowHeight, 660 - panelHeight);
         TargetPanel = new UiRect(x, y, TargetColumnWidth * columns, panelHeight);
-        string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? "TARGET  < ALLIES >" : "TARGET  < ENEMIES >" : "TARGET";
+        string caption = controller.CanChangeTargetSide ? controller.SelectedTarget?.IsPlayer == true ? controller.SystemText("battle.hud.target-allies", "TARGET  < ALLIES >") : controller.SystemText("battle.hud.target-enemies", "TARGET  < ENEMIES >") : controller.SystemText("battle.hud.target", "TARGET");
         theme.Panel(canvas, Rect(TargetPanel.X, TargetPanel.Y, TargetPanel.Width, TargetPanel.Height), caption, captionSize);
         for (int index = 0; index < targets.Count; index++)
         {

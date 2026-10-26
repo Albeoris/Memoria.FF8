@@ -25,13 +25,13 @@ internal sealed partial class ModelBrowserElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         theme.Panel(canvas, new UiRect(10, 10, 940, 66));
-        Label(canvas, "MODEL BROWSER", 24, new UiRect(24, 20, 700, 28), theme.Foreground);
+        Label(canvas, controller.SystemText("inspector.ui.modelbrowserelement.drawself.model.browser", "MODEL BROWSER"), 24, new UiRect(24, 20, 700, 28), theme.Foreground);
         theme.Panel(canvas, new UiRect(10, 530, 940, 132));
         if (!controller.AssetsOpen)
         {
-            Button(canvas, theme, VariantBounds, "Variant: " + (controller.CurrentVariant?.Name ?? "Unavailable"));
+            Button(canvas, theme, VariantBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawself.variant", "Variant: ") + (controller.CurrentVariant?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawself.unavailable", "Unavailable")));
         }
-        Button(canvas, theme, BackBounds, controller.Mode == ModelBrowserMode.Catalog ? "Close" : "Back");
+        Button(canvas, theme, BackBounds, controller.Mode == ModelBrowserMode.Catalog ? controller.SystemText("inspector.ui.modelbrowserelement.drawself.close", "Close") : controller.SystemText("inspector.ui.modelbrowserelement.drawself.back", "Back"));
         Label(canvas, controller.Message, 13, new UiRect(24, 578, 384, 32), theme.Foreground);
         Label(canvas, controller.Hints, 12, new UiRect(24, 619, 790, 36), theme.Muted);
         if (controller.Mode == ModelBrowserMode.Catalog)
@@ -52,16 +52,16 @@ internal sealed partial class ModelBrowserElement : UiElement
         if (controller.Mode == ModelBrowserMode.Commands)
         {
             theme.Panel(canvas, new UiRect(252, 236, 456, 166));
-            Label(canvas, "MODEL COMMANDS", 19, new UiRect(270, 250, 420, 30), theme.Foreground);
-            Button(canvas, theme, CommandBounds(0), "Export to Blender", controller.CommandIndex == 0);
-            Button(canvas, theme, CommandBounds(1), "Import from Blender (as mod)", controller.CommandIndex == 1);
+            Label(canvas, controller.SystemText("inspector.ui.modelbrowserelement.drawself.model.commands", "MODEL COMMANDS"), 19, new UiRect(270, 250, 420, 30), theme.Foreground);
+            Button(canvas, theme, CommandBounds(0), controller.SystemText("inspector.ui.modelbrowserelement.drawself.export.to.blender", "Export to Blender"), controller.CommandIndex == 0);
+            Button(canvas, theme, CommandBounds(1), controller.SystemText("inspector.ui.modelbrowserelement.drawself.import.from.blender.as.mod", "Import from Blender (as mod)"), controller.CommandIndex == 1);
         }
     }
 
     private void DrawCatalog(IUiCanvas canvas, UiTheme theme)
     {
         theme.Panel(canvas, new UiRect(426, 84, 516, 440));
-        Button(canvas, theme, SearchBounds, controller.Search.Length == 0 ? "Search models (* and ? supported)" : controller.Search, controller.SearchFocused);
+        Button(canvas, theme, SearchBounds, controller.Search.Length == 0 ? controller.SystemText("inspector.ui.modelbrowserelement.drawcatalog.search.models.and.supported", "Search models (* and ? supported)") : controller.Search, controller.SearchFocused);
         int first = controller.Page * ModelBrowserController.RowsPerPage;
         for (int index = first; index < Math.Min(first + ModelBrowserController.RowsPerPage, controller.Entries.Count); index++)
         {
@@ -70,31 +70,31 @@ internal sealed partial class ModelBrowserElement : UiElement
         }
         if (controller.Entries.Count == 0)
         {
-            Label(canvas, "No models match this search.", 16, new UiRect(450, 160, 468, 60), theme.Muted);
+            Label(canvas, controller.SystemText("inspector.ui.modelbrowserelement.drawcatalog.no.models.match.this.search", "No models match this search."), 16, new UiRect(450, 160, 468, 60), theme.Muted);
         }
-        Label(canvas, controller.Selected?.Name ?? "MODEL PREVIEW", 18, new UiRect(18, 92, 390, 30), theme.Foreground);
+        Label(canvas, controller.Selected?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawcatalog.model.preview", "MODEL PREVIEW"), 18, new UiRect(18, 92, 390, 30), theme.Foreground);
         Button(canvas, theme, PreviousBounds, "<");
         Button(canvas, theme, NextBounds, ">");
-        Label(canvas, $"{controller.Entries.Count} models · Page {controller.Page + 1} / {controller.PageCount}", 14, new UiRect(512, 546, 348, 22), theme.Foreground);
-        Button(canvas, theme, ViewBounds, "View selected model");
+        Label(canvas, controller.FormatSystemText("inspector.ui.modelbrowserelement.drawcatalog.models.page", "{0} models \u00B7 Page {1} / {2}", controller.Entries.Count, controller.Page + 1, controller.PageCount), 14, new UiRect(512, 546, 348, 22), theme.Foreground);
+        Button(canvas, theme, ViewBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawcatalog.view.selected.model", "View selected model"));
         string details = string.Join(" · ", controller.Selected?.Details?.Take(2) ?? []);
         Label(canvas, details, 12, new UiRect(634, 582, 294, 28), theme.Muted);
     }
 
     private void DrawViewer(IUiCanvas canvas, UiTheme theme)
     {
-        Label(canvas, (controller.Selected?.Name ?? "Model") + $" · {controller.SelectedIndex + 1}/{controller.Entries.Count} · " + controller.CurrentVariant?.Name, 16, new UiRect(24, 53, 900, 23), theme.Foreground);
-        Button(canvas, theme, CommandsBounds, "Commands");
-        Button(canvas, theme, new UiRect(628, 540, 92, 30), "Prev");
-        Button(canvas, theme, new UiRect(730, 540, 92, 30), "Next");
+        Label(canvas, (controller.Selected?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.model", "Model")) + $" · {controller.SelectedIndex + 1}/{controller.Entries.Count} · " + controller.CurrentVariant?.Name, 16, new UiRect(24, 53, 900, 23), theme.Foreground);
+        Button(canvas, theme, CommandsBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.commands", "Commands"));
+        Button(canvas, theme, new UiRect(628, 540, 92, 30), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.prev", "Prev"));
+        Button(canvas, theme, new UiRect(730, 540, 92, 30), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.next", "Next"));
         Button(canvas, theme, new UiRect(832, 540, 46, 30), "+");
         Button(canvas, theme, new UiRect(886, 540, 44, 30), "-");
-        string[] labels = ["<", ">", "Up", "Down"];
+        string[] labels = ["<", ">", controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.up", "Up"), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.down", "Down")];
         for (int index = 0; index < labels.Length; index++)
         {
             Button(canvas, theme, RotateBounds(index), labels[index]);
         }
-        Label(canvas, $"Rotate · Zoom {controller.Zoom:0.00}x", 13, new UiRect(736, 586, 194, 23), theme.Muted);
+        Label(canvas, controller.FormatSystemText("inspector.ui.modelbrowserelement.drawviewer.rotate.zoom.x", "Rotate \u00B7 Zoom {0:0.00}x", controller.Zoom), 13, new UiRect(736, 586, 194, 23), theme.Muted);
     }
 
     public override bool Key(UiKey key)

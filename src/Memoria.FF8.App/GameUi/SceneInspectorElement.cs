@@ -26,17 +26,17 @@ internal sealed class SceneInspectorElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         theme.Panel(canvas, new UiRect(408, 18, 534, 646));
-        canvas.Text("SCENE INSPECTOR", 23, new UiRect(426, 30, 488, 30), theme.Foreground);
-        string field = controller.Snapshot is { } snapshot ? $"{snapshot.FieldName} · field {snapshot.FieldId} · frame {snapshot.Frame}" : "No field scene is loaded";
+        canvas.Text(controller.SystemText("inspector.ui.sceneinspectorelement.drawself.scene.inspector", "SCENE INSPECTOR"), 23, new UiRect(426, 30, 488, 30), theme.Foreground);
+        string field = controller.Snapshot is { } snapshot ? controller.FormatSystemText("inspector.ui.sceneinspectorelement.drawself.field.frame", "{0} \u00B7 field {1} \u00B7 frame {2}", snapshot.FieldName, snapshot.FieldId, snapshot.Frame) : controller.SystemText("inspector.ui.sceneinspectorelement.drawself.no.field.scene.is.loaded", "No field scene is loaded");
         Label(canvas, field, 15, new UiRect(426, 66, 488, 22), theme.Muted);
         foreach (SceneInspectorKind kind in Enum.GetValues<SceneInspectorKind>())
         {
-            Button(canvas, theme, TabBounds(kind), kind + "s", controller.Kind == kind);
+            Button(canvas, theme, TabBounds(kind), controller.KindLabel(kind), controller.Kind == kind);
         }
-        string explanation = controller.Kind == SceneInspectorKind.Event ? "Suspends one script in place. Other scripts waiting for it may remain blocked." : controller.Kind == SceneInspectorKind.Object ? "Object visibility affects the preview. Its event scripts continue independently." : "Toggle field background layers and preview their composition.";
+        string explanation = controller.Kind == SceneInspectorKind.Event ? controller.SystemText("inspector.ui.sceneinspectorelement.drawself.suspends.one.script.in.place.other.scripts", "Suspends one script in place. Other scripts waiting for it may remain blocked.") : controller.Kind == SceneInspectorKind.Object ? controller.SystemText("inspector.ui.sceneinspectorelement.drawself.object.visibility.affects.the.preview.its.event", "Object visibility affects the preview. Its event scripts continue independently.") : controller.SystemText("inspector.ui.sceneinspectorelement.drawself.toggle.field.background.layers.and.preview.their", "Toggle field background layers and preview their composition.");
         canvas.Text(explanation, 14, new UiRect(426, 145, 488, 39), theme.Foreground);
-        Button(canvas, theme, FilterBounds, "Filter: " + controller.Filter, controller.Focus == SceneInspectorFocus.Filter);
-        canvas.Text($"{controller.Entries.Count} entries", 14, new UiRect(658, 196, 260, 22), theme.Muted);
+        Button(canvas, theme, FilterBounds, controller.FormatSystemText("inspector.filter.label", "Filter: {0}", controller.FilterLabel), controller.Focus == SceneInspectorFocus.Filter);
+        canvas.Text(controller.FormatSystemText("inspector.ui.sceneinspectorelement.drawself.entries", "{0} entries", controller.Entries.Count), 14, new UiRect(658, 196, 260, 22), theme.Muted);
         theme.Panel(canvas, new UiRect(420, 230, 510, 230));
         int first = controller.Page * SceneInspectorController.RowsPerPage;
         for (int index = first; index < Math.Min(first + SceneInspectorController.RowsPerPage, controller.Entries.Count); index++)
@@ -50,17 +50,17 @@ internal sealed class SceneInspectorElement : UiElement
                 theme.Pointer(canvas, 430, y + 8, 8);
             }
             Label(canvas, entry.Name, 15, new UiRect(452, y + 4, 360, 21), entry.Enabled ? theme.Foreground : theme.Muted);
-            Button(canvas, theme, new UiRect(844, y + 1, 72, 24), entry.Enabled ? "On" : "Off", false, entry.Enabled);
+            Button(canvas, theme, new UiRect(844, y + 1, 72, 24), entry.Enabled ? controller.SystemText("inspector.ui.sceneinspectorelement.drawself.on", "On") : controller.SystemText("inspector.ui.sceneinspectorelement.drawself.off", "Off"), false, entry.Enabled);
         }
         if (controller.Entries.Count == 0)
         {
-            canvas.Text("No entries match this tab and filter.", 16, new UiRect(440, 268, 466, 66), theme.Muted);
+            canvas.Text(controller.SystemText("inspector.ui.sceneinspectorelement.drawself.no.entries.match.this.tab.and.filter", "No entries match this tab and filter."), 16, new UiRect(440, 268, 466, 66), theme.Muted);
         }
         Button(canvas, theme, PreviousPageBounds, "<", false, controller.Page > 0);
-        canvas.Text($"Page {controller.Page + 1} / {controller.PageCount} · mouse wheel scrolls", 13, new UiRect(490, 470, 372, 21), theme.Foreground);
+        canvas.Text(controller.FormatSystemText("inspector.ui.sceneinspectorelement.drawself.page.mouse.wheel.scrolls", "Page {0} / {1} \u00B7 mouse wheel scrolls", controller.Page + 1, controller.PageCount), 13, new UiRect(490, 470, 372, 21), theme.Foreground);
         Button(canvas, theme, NextPageBounds, ">", false, controller.Page + 1 < controller.PageCount);
         theme.Panel(canvas, new UiRect(420, 498, 510, 108));
-        Label(canvas, controller.Selected?.Name ?? "Details", 15, new UiRect(432, 505, 352, 23), theme.Foreground);
+        Label(canvas, controller.Selected?.Name ?? controller.SystemText("inspector.ui.sceneinspectorelement.drawself.details", "Details"), 15, new UiRect(432, 505, 352, 23), theme.Foreground);
         Button(canvas, theme, PreviousDetailBounds, "<", false, controller.DetailPage > 0);
         canvas.Text($"{controller.DetailPage + 1}/{controller.DetailPageCount}", 12, new UiRect(835, 508, 59, 18), theme.Muted);
         Button(canvas, theme, NextDetailBounds, ">", false, controller.DetailPage + 1 < controller.DetailPageCount);
@@ -70,13 +70,13 @@ internal sealed class SceneInspectorElement : UiElement
             Label(canvas, detail, 14, new UiRect(432, 530 + line * 17, 484, 18), theme.Foreground);
             line++;
         }
-        Button(canvas, theme, ResetBounds, "Reset all", controller.Focus == SceneInspectorFocus.Reset, controller.Snapshot is not null);
-        Button(canvas, theme, BackBounds, "Back", controller.Focus == SceneInspectorFocus.Back);
+        Button(canvas, theme, ResetBounds, controller.SystemText("inspector.ui.sceneinspectorelement.drawself.reset.all", "Reset all"), controller.Focus == SceneInspectorFocus.Reset, controller.Snapshot is not null);
+        Button(canvas, theme, BackBounds, controller.SystemText("inspector.ui.sceneinspectorelement.drawself.back", "Back"), controller.Focus == SceneInspectorFocus.Back);
         Label(canvas, controller.Message, 12, new UiRect(424, 643, 505, 18), theme.Foreground);
-        canvas.Text("COMPLETE FIELD PREVIEW", 18, new UiRect(18, 122, 370, 29), theme.Foreground);
+        canvas.Text(controller.SystemText("inspector.ui.sceneinspectorelement.drawself.complete.field.preview", "COMPLETE FIELD PREVIEW"), 18, new UiRect(18, 122, 370, 29), theme.Foreground);
         theme.Panel(canvas, new UiRect(18, 550, 370, 106));
-        canvas.Text("FIELD PREVIEW · PAUSED", 16, new UiRect(32, 562, 344, 25), theme.Foreground);
-        canvas.Text("Left / Right: tabs · Up / Down: select\nConfirm: toggle · Page Up / Down: list\nTab: filter / reset / back · Cancel: back", 13, new UiRect(32, 590, 344, 57), theme.Foreground);
+        canvas.Text(controller.SystemText("inspector.ui.sceneinspectorelement.drawself.field.preview.paused", "FIELD PREVIEW · PAUSED"), 16, new UiRect(32, 562, 344, 25), theme.Foreground);
+        canvas.Text(controller.SystemText("inspector.ui.sceneinspectorelement.drawself.left.right.tabs.up.down.select.confirm", "Left / Right: tabs · Up / Down: select\nConfirm: toggle · Page Up / Down: list\nTab: filter / reset / back · Cancel: back"), 13, new UiRect(32, 590, 344, 57), theme.Foreground);
     }
 
     public override bool Key(UiKey key)

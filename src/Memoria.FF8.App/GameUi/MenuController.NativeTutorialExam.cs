@@ -311,7 +311,7 @@ public sealed partial class MenuController
     {
         var heading = Grid([1], [3.7f, 1.3f], 5);
         Place(heading, Panel(null, Label(NativeBrowserText(title), 24)), 0);
-        Place(heading, Panel(null, Label("Tutorial", 27)), 0, 1);
+        Place(heading, Panel(null, Label(SystemText("tutorial.heading", "Tutorial"), 27)), 0, 1);
         return heading;
     }
 

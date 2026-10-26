@@ -11,7 +11,7 @@ public sealed partial class BattleHudController
 
     public bool SelectingGuardianFormAction { get; private set; }
     public bool HasGuardianFormCommands => SelectedActor is { } actor && session.GetGuardianForm(actor.Id) is { Phase: BattleGuardianFormPhase.Active, RemainingTicks: > 0 };
-    public string GuardianFormCommandLabel => commandIndex switch { 1 => "Fire", 2 => "Hell Fire", _ => "Attack" };
+    public string GuardianFormCommandLabel => commandIndex switch { 1 => SystemText("battle.ui.guardianformcommandlabel.fire", "Fire"), 2 => SystemText("battle.ui.guardianformcommandlabel.hell.fire", "Hell Fire"), _ => SystemText("battle.ui.guardianformcommandlabel.attack", "Attack") };
     private BattleGuardianFormAction SelectedGuardianFormCommand => (BattleGuardianFormAction)Math.Clamp(commandIndex, 0, 2);
 
     public bool CanOpenGuardianFormActions(BattleActionDefinition action)
@@ -32,7 +32,7 @@ public sealed partial class BattleHudController
         actionIndex = index;
         guardianFormMenuActorId = SelectedActor!.Id;
         SelectingGuardianFormAction = true;
-        Message = "Summon: transform the selected character into this Guardian Force.";
+        SetSystemMessage(() => SystemText("battle.ui.openguardianformactions.summon.transform.the.selected.character.into.this", "Summon: transform the selected character into this Guardian Force."));
         SoundRequested?.Invoke(MenuSound.Move);
     }
 
@@ -64,14 +64,14 @@ public sealed partial class BattleHudController
         {
             SelectingGuardianFormAction = false;
             guardianFormMenuActorId = null;
-            Message = "Choose a Guardian Force.";
+            SetSystemMessage(() => SystemText("battle.ui.cancelguardianformselection.choose.a.guardian.force", "Choose a Guardian Force."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return true;
         }
         if (HasGuardianFormCommands && SelectingTarget)
         {
             SelectingTarget = false;
-            Message = "Choose a form command.";
+            SetSystemMessage(() => SystemText("battle.ui.cancelguardianformselection.choose.a.form.command", "Choose a form command."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return true;
         }
@@ -88,14 +88,14 @@ public sealed partial class BattleHudController
         {
             if (actor.Id != guardianFormMenuActorId || SelectedAction is not { } action || !session.CanRequestGuardianForm(actor.Id, action.Id))
             {
-                ShowCommandError("This Guardian Force cannot transform the selected character now.");
+                ShowCommandError(SystemText("battle.ui.confirmguardianformcommand.this.guardian.force.cannot.transform.the.selected", "This Guardian Force cannot transform the selected character now."));
                 return true;
             }
             if (!SubmitGuardianFormInput(new(BattleInputKind.GuardianFormActivate, ActorId: actor.Id, TargetId: actor.Id, ActionId: action.Id)))
             {
                 return true;
             }
-            Message = $"{actor.Name}: Summon";
+            SetSystemMessage(() => FormatSystemText("battle.ui.confirmguardianformcommand.summon", "{0}: Summon", actor.Name));
         }
         else
         {
@@ -104,7 +104,7 @@ public sealed partial class BattleHudController
                 SelectingTarget = true;
                 RestoreTargetCursor();
                 session.OpenNativeActionMenu();
-                Message = "Select a target.";
+                SetSystemMessage(() => SystemText("battle.ui.confirmguardianformcommand.select.a.target", "Select a target."));
                 SoundRequested?.Invoke(MenuSound.Confirm);
                 return true;
             }
@@ -112,7 +112,7 @@ public sealed partial class BattleHudController
             {
                 return true;
             }
-            Message = $"{actor.Name}: {GuardianFormCommandLabel} â†’ {target.Name}";
+            SetSystemMessage(() => FormatSystemText("battle.ui.confirmguardianformcommand.", "{0}: {1} \u00E2\u2020\u2019 {2}", actor.Name, GuardianFormCommandLabel, target.Name));
         }
         SelectingGuardianFormAction = false;
         guardianFormMenuActorId = null;

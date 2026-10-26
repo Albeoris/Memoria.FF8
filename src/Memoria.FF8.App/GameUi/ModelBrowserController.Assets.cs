@@ -20,7 +20,12 @@ public sealed partial class ModelBrowserController
     public bool ClipsTab { get; private set; }
     public bool PreviewFocused { get; private set; }
     public string AssetSearch { get; private set; } = "";
-    public string DiscoveryStatus { get; private set; } = "Discovering";
+    private string? discoveryStatus;
+    public string DiscoveryStatus
+    {
+        get => discoveryStatus ?? SystemText("model.discovery.pending", "Discovering");
+        private set => discoveryStatus = value;
+    }
     public int AssetIndex { get; private set; }
     public string? ActiveObject { get; private set; }
     public string? ActiveClip { get; private set; }
@@ -41,7 +46,7 @@ public sealed partial class ModelBrowserController
             return selectedAssets.Count(id => !visible.Contains(id));
         }
     }
-    public string SelectionSummary => $"{assets.Count(row => !row.IsClip && selectedAssets.Contains(row.Id))} objects · {assets.Where(row => row.IsClip && selectedAssets.Contains(row.Id)).Select(row => row.Group).Distinct().Count()} groups · {assets.Count(row => row.IsClip && selectedAssets.Contains(row.Id))} components · {assets.Where(row => selectedAssets.Contains(row.Id)).Select(row => row.RigId).Where(rig => rig is not null).Distinct().Count()} rigs · {assets.Count} discovered · {HiddenSelectedCount} hidden";
+    public string SelectionSummary => FormatSystemText("model.selection.summary", "{0} objects · {1} groups · {2} components · {3} rigs · {4} discovered · {5} hidden", assets.Count(row => !row.IsClip && selectedAssets.Contains(row.Id)), assets.Where(row => row.IsClip && selectedAssets.Contains(row.Id)).Select(row => row.Group).Distinct().Count(), assets.Count(row => row.IsClip && selectedAssets.Contains(row.Id)), assets.Where(row => selectedAssets.Contains(row.Id)).Select(row => row.RigId).Where(rig => rig is not null).Distinct().Count(), assets.Count, HiddenSelectedCount);
 
     public void ResetAssets()
     {
@@ -53,7 +58,7 @@ public sealed partial class ModelBrowserController
         ActiveClip = null;
         AssetIndex = 0;
         PlaybackSeconds = 0;
-        DiscoveryStatus = "Discovering";
+        discoveryStatus = null;
     }
 
     public void AddAsset(ModelBrowserAssetRow row)
@@ -85,7 +90,7 @@ public sealed partial class ModelBrowserController
         {
             beforeAssetHints = Hints;
         }
-        Hints = "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection";
+        Hints = SystemText("model.hints.selection", "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection");
         AssetsOpen = true;
         ImportSelection = importing;
         assetContinue = continueAction;

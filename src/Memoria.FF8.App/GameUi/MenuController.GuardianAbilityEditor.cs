@@ -38,6 +38,19 @@ public sealed partial class MenuController
     private bool guardianWithoutLayer;
     private Action? guardianAfterDiscard;
     private static readonly string[] GuardianCategories = ["All", "Junction", "Command", "Character", "Party", "GF", "Menu"];
+
+    private string GuardianCategoryLabel(int category) => category switch
+    {
+        0 => SystemText("guardian.category.all", "All"),
+        1 => SystemText("guardian.category.junction", "Junction"),
+        2 => SystemText("guardian.category.command", "Command"),
+        3 => SystemText("guardian.category.character", "Character"),
+        4 => SystemText("guardian.category.party", "Party"),
+        5 => SystemText("guardian.category.guardian", "GF"),
+        6 => SystemText("guardian.category.menu", "Menu"),
+        _ => throw new ArgumentOutOfRangeException(nameof(category))
+    };
+
     internal bool GuardianEditorEditionSupported { get; set; } = true;
     private Func<GuardianForceAbilityPatchDocument, GuardianForceEditorReview>? reviewGuardianPackageOwnership;
     private Func<string, GuardianForceEditorReview>? reviewRemoveGuardianLayer;
@@ -130,6 +143,7 @@ public sealed partial class MenuController
             new("mods-edit-existing", SystemText("ui.createmodentries.entry.label.edit.existing.gf.mod", "Edit existing GF mod"), SystemText("ui.createmodentries.entry.help.choose.a.compatible.gf.payload.including.disabled.packages", "Choose a compatible GF payload, including disabled packages."), Destination: "mods-gf-packages", Enabled: GuardianEditorEditionSupported),
             new("mods-edit-playthrough", SystemText("ui.createmodentries.entry.label.edit.this.playthrough", "Edit this playthrough"), playthroughLoaded ? SystemText("ui.createmodentries.entry.help.edit.this.playthrough.s.local.gf.contribution", "Edit this playthrough's local GF contribution.") : SystemText("ui.createmodentries.entry.help.load.a.game.to.edit.this.playthrough", "Load a game to edit this playthrough."), Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded),
             new("mods-localization-new", SystemText("ui.createmodentries.entry.label.new.localization", "New localization"), SystemText("ui.createmodentries.entry.help.create.a.translation.project.from.available.source.datasets", "Create a translation project from available source datasets."), Action: new("localization-new"), Enabled: localizationAuthoring is not null),
+            new("mods-localization-patch", SystemText("localization.newpatch", "New localization patch"), SystemText("localization.newpatch.help", "Create an empty contribution linked to an existing translation."), Action: new("localization-patch"), Enabled: localizationAuthoring is not null),
             new("mods-localization-convert", SystemText("ui.createmodentries.entry.label.convert.localization", "Convert localization"), SystemText("ui.createmodentries.entry.help.convert.json.xlsx.or.payload.layout.without.an", "Convert JSON/XLSX or payload layout without an installed game."), Action: new("localization-convert"), Enabled: localizationAuthoring is not null),
             new("mods-localization-stack", SystemText("ui.createmodentries.entry.label.localization.stack", "Localization stack"), SystemText("ui.createmodentries.entry.help.choose.and.order.active.translations.explicitly", "Choose and order active translations explicitly."), Action: new("localization-stack-open"), Enabled: readLocalizationStack is not null)
         ];
@@ -149,10 +163,10 @@ public sealed partial class MenuController
             string name(int ability) => guardianAbilityName!(ability);
             string change = operation.Kind switch
             {
-                GuardianForceAbilityOperationKind.EnsureAbility => "Ensure " + name(operation.Ability) + "; initially " + (operation.InitialLearned ? "Learned" : "Unlearned, 0 AP"),
-                GuardianForceAbilityOperationKind.ReplaceAbility => "Replace " + name(operation.Ability) + " → " + name(operation.Replacement!.Value),
-                GuardianForceAbilityOperationKind.SetInitialState => name(operation.Ability) + ": initially " + (operation.InitialLearned ? "Learned" : "Unlearned, 0 AP"),
-                _ => "Display order: " + string.Join(" → ", operation.Order.Select(name))
+                GuardianForceAbilityOperationKind.EnsureAbility => FormatSystemText("ui.guardianreviewdetails.change.ensure.template", "Ensure {0}; initially {1}", name(operation.Ability), (operation.InitialLearned ? SystemText("ui.guardianreviewdetails.change.learned", "Learned") : SystemText("ui.guardianreviewdetails.change.unlearned.0.ap", "Unlearned, 0 AP"))),
+                GuardianForceAbilityOperationKind.ReplaceAbility => FormatSystemText("ui.guardianreviewdetails.change.replace.template", "Replace {0} \u2192 {1}", name(operation.Ability), name(operation.Replacement!.Value)),
+                GuardianForceAbilityOperationKind.SetInitialState => FormatSystemText("ui.guardianreviewdetails.change.initially.alternate.template", "{0}: initially {1}", name(operation.Ability), (operation.InitialLearned ? SystemText("ui.guardianreviewdetails.change.learned", "Learned") : SystemText("ui.guardianreviewdetails.change.unlearned.0.ap", "Unlearned, 0 AP"))),
+                _ => FormatSystemText("ui.guardianreviewdetails.change.display.order.template", "Display order: {0}", string.Join(" → ", operation.Order.Select(name)))
             };
             details.Add(guardianEditorName!(operation.GuardianForce) + ": " + change);
         }
@@ -176,11 +190,11 @@ public sealed partial class MenuController
             }
             foreach (GuardianForceAbilityPatchDocument document in context.LocalDocuments)
             {
-                entries.Add(new("local:" + document.DocumentId, SystemText("ui.guardiantargetentries.entry.label.playthrough.contribution", "Playthrough contribution · ") + document.DocumentId, SystemText("ui.guardiantargetentries.entry.help.edit.only.this.separately.owned.local.contribution", "Edit only this separately owned local contribution."), Action: new("gf-editor-target", "local:" + document.DocumentId)));
+                entries.Add(new("local:" + document.DocumentId, FormatSystemText("ui.guardiantargetentries.entry.label.playthrough.contribution.template", "Playthrough contribution \u00B7 {0}", document.DocumentId), SystemText("ui.guardiantargetentries.entry.help.edit.only.this.separately.owned.local.contribution", "Edit only this separately owned local contribution."), Action: new("gf-editor-target", "local:" + document.DocumentId)));
             }
             foreach (GuardianForceAbilityPatchLayer layer in context.Layers.Where(layer => modService is null || !modService.Catalog.Files.Any(file => file.PackageId.Equals(layer.PackageId, StringComparison.OrdinalIgnoreCase) && file.RelativePath.Equals(GuardianForceAbilityMods.PayloadPath, StringComparison.OrdinalIgnoreCase))))
             {
-                entries.Add(new("missing:" + layer.Document.DocumentId, SystemText("ui.guardiantargetentries.entry.label.remove.retained.missing.gf.payload", "Remove retained missing GF payload · ") + layer.PackageId, SystemText("ui.guardiantargetentries.entry.help.review.removal.of.this.saved.contribution.earned.progress", "Review removal of this saved contribution. Earned progress remains dormant."), Action: new("gf-editor-remove-missing", layer.Document.DocumentId)));
+                entries.Add(new("missing:" + layer.Document.DocumentId, FormatSystemText("ui.guardiantargetentries.entry.label.remove.retained.missing.gf.payload.template", "Remove retained missing GF payload \u00B7 {0}", layer.PackageId), SystemText("ui.guardiantargetentries.entry.help.review.removal.of.this.saved.contribution.earned.progress", "Review removal of this saved contribution. Earned progress remains dormant."), Action: new("gf-editor-remove-missing", layer.Document.DocumentId)));
             }
         }
         return entries;
@@ -353,7 +367,7 @@ public sealed partial class MenuController
             if (!guardianCapacityWarning && exceedsCapacity)
             {
                 guardianCapacityWarning = true;
-                Message = SystemText("ui.guardianedit.message.this.gf.exceeds.original.ffviii.ability.capacity.memoria", "This GF exceeds original FFVIII ability capacity. Memoria saves preserve it; original-format export can lose abilities and progression.");
+                SetSystemMessage(() => SystemText("ui.guardianedit.message.this.gf.exceeds.original.ffviii.ability.capacity.memoria", "This GF exceeds original FFVIII ability capacity. Memoria saves preserve it; original-format export can lose abilities and progression."));
             }
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException)
@@ -385,7 +399,7 @@ public sealed partial class MenuController
         }
         if (guardianPreview && index is not (5 or 7 or 15))
         {
-            Message = SystemText("ui.guardiantoolcore.message.preview.is.read.only", "Preview is read-only.");
+            SetSystemMessage(() => SystemText("ui.guardiantoolcore.message.preview.is.read.only", "Preview is read-only."));
             return;
         }
         GuardianForceAbilityTemplate? row = GuardianSelectedRow;
@@ -402,7 +416,7 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    Message = SystemText("ui.guardiantoolcore.message.already.in.this.gf.or.no.catalog.ability", "Already in this GF, or no catalog ability selected.");
+                    SetSystemMessage(() => SystemText("ui.guardiantoolcore.message.already.in.this.gf.or.no.catalog.ability", "Already in this GF, or no catalog ability selected."));
                 }
                 break;
             case 1:
@@ -415,7 +429,7 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    Message = SystemText("ui.guardiantoolcore.message.select.an.incoming.ability.not.already.in.this", "Select an incoming ability not already in this GF and a target row.");
+                    SetSystemMessage(() => SystemText("ui.guardiantoolcore.message.select.an.incoming.ability.not.already.in.this", "Select an incoming ability not already in this GF and a target row."));
                 }
                 break;
             case 2:
@@ -463,10 +477,10 @@ public sealed partial class MenuController
                     guardianPackage = saved;
                     guardianLocal = false;
                     guardianDraft.Accept(saved.Document);
-                    Message = SystemText("ui.guardiantoolcore.message.gf.document.saved.runtime.activation.status.is.shown", "GF document saved. Runtime activation status is shown in Installed Mods.");
+                    SetSystemMessage(() => SystemText("ui.guardiantoolcore.message.gf.document.saved.runtime.activation.status.is.shown", "GF document saved. Runtime activation status is shown in Installed Mods."));
                     if (modService?.Diagnostics.Any(diagnostic => diagnostic.Code == "reload-failed") == true)
                     {
-                        Message = modService.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? SystemText("ui.guardiantoolcore.message.gf.document.saved.open.installed.mods.gf.changes", "GF document saved. Open Installed Mods / GF changes review to activate it.") : SystemText("ui.guardiantoolcore.message.gf.document.saved.activation.failed.see.installed.mods", "GF document saved. Activation failed; see Installed Mods for the reason.");
+                        SetSystemMessage(() => modService.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? SystemText("ui.guardiantoolcore.message.gf.document.saved.open.installed.mods.gf.changes", "GF document saved. Open Installed Mods / GF changes review to activate it.") : SystemText("ui.guardiantoolcore.message.gf.document.saved.activation.failed.see.installed.mods", "GF document saved. Activation failed; see Installed Mods for the reason."));
                     }
                     ContinueGuardianNavigation();
                 }
@@ -481,7 +495,7 @@ public sealed partial class MenuController
             case 14:
                 if (GuardianInstalledPackage is null || reviewGuardianPackageOwnership is null)
                 {
-                    Message = SystemText("ui.guardiantoolcore.message.install.this.package.in.a.discovered.mod.directory", "Install this package in a discovered mod directory before using it.");
+                    SetSystemMessage(() => SystemText("ui.guardiantoolcore.message.install.this.package.in.a.discovered.mod.directory", "Install this package in a discovered mod directory before using it."));
                     break;
                 }
                 guardianReview = reviewGuardianPackageOwnership(guardianDraft.ExportDocument);
@@ -512,7 +526,7 @@ public sealed partial class MenuController
                     Back();
                     guardianDraft!.RebaseInput(guardianPlacementInput);
                     guardianPending = null;
-                    Message = SystemText("ui.executeguardianeditoraction.message.package.position.reviewed.inspect.the.recomputed.draft.then", "Package position reviewed. Inspect the recomputed draft, then Save mod to the reviewed destination.");
+                    SetSystemMessage(() => SystemText("ui.executeguardianeditoraction.message.package.position.reviewed.inspect.the.recomputed.draft.then", "Package position reviewed. Inspect the recomputed draft, then Save mod to the reviewed destination."));
                     break;
                 case "gf-editor-restore-accept":
                     Back();

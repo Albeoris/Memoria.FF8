@@ -219,7 +219,7 @@ internal sealed partial class RecreateGame
         {
             try
             {
-                destination = ModelBrowserDialogs.Destination(Window.Handle, root);
+                destination = ModelBrowserDialogs.Destination(Window.Handle, root, LocalizeUiText);
             }
             finally
             {

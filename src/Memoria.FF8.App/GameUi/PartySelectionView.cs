@@ -7,14 +7,14 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Three combat cells and the retained four-by-two reserve pane.</summary>
 public static class PartySelectionView
 {
-    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate, string? cancelHint = null, float textScale = 1)
+    public static UiView Build(NativePartyMenuState menu, MenuData data, int candidate, string? cancelHint = null, float textScale = 1, Func<string, string, string>? localizeText = null)
     {
         if (!float.IsFinite(textScale) || textScale <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(textScale));
         }
         // TODO(TD-011): Retain native window transitions and cursor animation timing.
-        return new UiView(new PartyPane(menu, data, candidate, cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel), textScale)) { DesignWidth = 960, DesignHeight = 672 };
+        return new UiView(new PartyPane(menu, data, candidate, cancelHint ?? new KeyboardInput().BindingPrompt(ControlAction.Cancel), textScale, localizeText)) { DesignWidth = 960, DesignHeight = 672 };
     }
 
     public static int Navigate(NativePartyMenuState menu, int candidate, int horizontal, int vertical)
@@ -61,8 +61,12 @@ public static class PartySelectionView
         return (0, 3);
     }
 
-    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint, float textScale) : UiElement
+    private sealed class PartyPane(NativePartyMenuState menu, MenuData data, int candidate, string cancelHint, float textScale, Func<string, string, string>? localizeText) : UiElement
     {
+        private string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+
+        private string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
         private float bodyTop = 108;
         private float bodyScale = 1;
 
@@ -90,8 +94,8 @@ public static class PartySelectionView
             float headerHeight = Math.Max(78, captionHeight + helpHeight + 16);
             bodyTop = 18 + headerHeight + 12;
             bodyScale = Math.Max(0, 588 - bodyTop) / 480;
-            theme.Panel(canvas, new UiRect(18, 18, 924, headerHeight), "HELP", captionSize);
-            string help = menu.Phase != NativePartyMenuPhase.Active ? "Returning to field" : lockedSource ? "Select a party member to reorder." : pending ? "Select a character to exchange." : "Select a party member.";
+            theme.Panel(canvas, new UiRect(18, 18, 924, headerHeight), SystemText("inspector.ui.partyselectionview.drawself.help", "HELP"), captionSize);
+            string help = menu.Phase != NativePartyMenuPhase.Active ? SystemText("inspector.ui.partyselectionview.drawself.returning.to.field", "Returning to field") : lockedSource ? SystemText("inspector.ui.partyselectionview.drawself.select.a.party.member.to.reorder", "Select a party member to reorder.") : pending ? SystemText("inspector.ui.partyselectionview.drawself.select.a.character.to.exchange", "Select a character to exchange.") : SystemText("inspector.ui.partyselectionview.drawself.select.a.party.member", "Select a party member.");
             Text(canvas, help, 25, new UiRect(34, Math.Max(34, 18 + captionHeight), 890, helpHeight), theme.Foreground, UiAlignment.Center);
 
             for (int slot = 0; slot < 3; slot++)
@@ -104,7 +108,7 @@ public static class PartySelectionView
                 Status(canvas, theme, character, new UiRect(174, bounds.Y + 18, 328, 124));
                 if (row != 255 && (menu.LockedMask & 1 << row) != 0)
                 {
-                    Text(canvas, "LOCK", 15, BodyRect(new UiRect(62, bounds.Y + 116, 88, 24)), theme.Muted);
+                    Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.lock", "LOCK"), 15, BodyRect(new UiRect(62, bounds.Y + 116, 88, 24)), theme.Muted);
                 }
                 bool active = focused is { Kind: PlayerActionKind.SelectPartySlot } action && action.Value == slot;
                 if (menu.SelectedPartySlot == slot)
@@ -128,14 +132,14 @@ public static class PartySelectionView
                 Text(canvas, character?.Name ?? "", 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), locked || lockedSource ? theme.Muted : theme.Foreground);
                 if (locked)
                 {
-                    Text(canvas, "LOCK", 13, BodyRect(new UiRect(cell.X + 20, cell.Y + 78, 62, 22)), theme.Muted);
+                    Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.lock", "LOCK"), 13, BodyRect(new UiRect(cell.X + 20, cell.Y + 78, 62, 22)), theme.Muted);
                 }
                 if (focused is { Kind: PlayerActionKind.SelectPartyMember } action && action.Value == row && Array.IndexOf(menu.TemporaryReserveParty, row) == index)
                 {
                     theme.Pointer(canvas, cell.X - 8, BodyY(cell.Y + 42), 16 * bodyScale);
                     if (row == 255)
                     {
-                        Text(canvas, "Empty", 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), theme.Foreground);
+                        Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.empty", "Empty"), 18, BodyRect(new UiRect(cell.X, cell.Y + 104, cell.Width, 30)), theme.Foreground);
                     }
                 }
             }
@@ -144,9 +148,9 @@ public static class PartySelectionView
             int selectedRow = focused is { Kind: PlayerActionKind.SelectPartyMember } reserve ? reserve.Value : focused is { Kind: PlayerActionKind.SelectPartySlot } combat ? menu.TemporaryCombatParty![combat.Value] : 255;
             Status(canvas, theme, Character(selectedRow), new UiRect(558, 450, 360, 126));
             theme.Panel(canvas, new UiRect(18, 600, 924, 54));
-            Text(canvas, pending ? $"{cancelHint}: clear selection" : "Choose three members, then confirm.", 19, new UiRect(250, 612, 670, 32), theme.Muted);
+            Text(canvas, pending ? FormatSystemText("inspector.ui.partyselectionview.drawself.clear.selection", "{0}: clear selection", cancelHint) : SystemText("inspector.ui.partyselectionview.drawself.choose.three.members.then.confirm", "Choose three members, then confirm."), 19, new UiRect(250, 612, 670, 32), theme.Muted);
             bool canConfirm = !pending && inputs.Any(input => input.Kind == PlayerActionKind.Confirm);
-            Text(canvas, "Confirm", 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
+            Text(canvas, SystemText("inspector.ui.partyselectionview.drawself.confirm", "Confirm"), 24, new UiRect(62, 610, 142, 36), canConfirm ? theme.Foreground : theme.Muted);
             if (focused is { Kind: PlayerActionKind.Confirm })
             {
                 theme.Pointer(canvas, 30, 620, 18);
@@ -177,13 +181,13 @@ public static class PartySelectionView
 
         private void Status(IUiCanvas canvas, UiTheme theme, MenuCharacter? character, UiRect bounds)
         {
-            Text(canvas, character?.Name ?? "Empty", 28, BodyRect(new UiRect(bounds.X, bounds.Y, bounds.Width, 40)), theme.Foreground);
+            Text(canvas, character?.Name ?? SystemText("inspector.ui.partyselectionview.status.empty", "Empty"), 28, BodyRect(new UiRect(bounds.X, bounds.Y, bounds.Width, 40)), theme.Foreground);
             if (character is null)
             {
                 return;
             }
-            Text(canvas, $"Lv  {MenuController.Number(character.Level)}", 23, BodyRect(new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34)), theme.Foreground);
-            Text(canvas, $"HP  {MenuController.Hp(character)}", 23, BodyRect(new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38)), theme.Foreground);
+            Text(canvas, FormatSystemText("inspector.ui.partyselectionview.status.lv", "Lv  {0}", MenuController.Number(character.Level)), 23, BodyRect(new UiRect(bounds.X, bounds.Y + 43, bounds.Width, 34)), theme.Foreground);
+            Text(canvas, FormatSystemText("inspector.ui.partyselectionview.status.hp", "HP  {0}", MenuController.Hp(character)), 23, BodyRect(new UiRect(bounds.X, bounds.Y + 81, bounds.Width, 38)), theme.Foreground);
         }
     }
 }

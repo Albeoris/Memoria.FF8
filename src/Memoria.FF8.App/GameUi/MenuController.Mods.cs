@@ -42,7 +42,7 @@ public sealed partial class MenuController
             Help = "Type a package name or ID. Confirm/Back finishes text entry; changes are kept.",
             Columns = 8,
             Entries = _ => [.. "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.".Select((letter, index) => new MenuEntry("letter-" + index, letter.ToString(), SystemText("ui.connectmods.entry.help.add.to.package.search", "Add to package search."), Action: new MenuAction("mod-search-letter", Value: letter.ToString()))), new("delete", SystemText("ui.connectmods.entry.label.delete", "Delete"), SystemText("ui.connectmods.entry.help.remove.the.last.search.character", "Remove the last search character."), Action: new("mod-search-delete")), new("clear", SystemText("ui.connectmods.entry.label.clear", "Clear"), SystemText("ui.connectmods.entry.help.show.all.package.names", "Show all package names."), Action: new("mod-search-clear")), new("done", SystemText("ui.connectmods.entry.label.done", "Done"), SystemText("ui.connectmods.entry.help.return.to.the.package.list", "Return to the package list."), Action: new("menu-back"))],
-            Details = _ => [SystemText("ui.connectmods.details.search.mods", "Search mods: ") + modSearch + "│", SystemText("ui.connectmods.details.matches.package.names.and.ids", "Matches package names and IDs.")]
+            Details = _ => [FormatSystemText("ui.connectmods.details.search.mods.template", "Search mods: {0}\u2502", modSearch), SystemText("ui.connectmods.details.matches.package.names.and.ids", "Matches package names and IDs.")]
         });
         Register(new MenuScreenDefinition
         {
@@ -81,8 +81,8 @@ public sealed partial class MenuController
             new("selection", SystemText("ui.modactions.entry.label.enable.disable.selected.mod", "Enable / Disable selected mod"), SystemText("ui.modactions.entry.help.save.the.selected.package.s.requested.setting", "Save the selected package's requested setting."), Action: new("mod-selected-toggle")),
             new("inspect", SystemText("ui.modactions.entry.label.package.details", "Package details"), SystemText("ui.modactions.entry.help.inspect.the.retained.selection", "Inspect the retained selection."), Action: new("mod-inspect")),
             new("search", SystemText("ui.modactions.entry.label.search.mods", "Search mods"), SystemText("ui.modactions.entry.help.search.names.and.ids", "Search names and IDs."), Destination: "mods-search"),
-            new("status", SystemText("ui.modactions.entry.label.status", "Status: ") + ModFilters[modFilter], SystemText("ui.modactions.entry.help.change.requested.state.filter", "Change requested-state filter."), Action: new("mod-filter")),
-            new("format", SystemText("ui.modactions.entry.label.format", "Format: ") + ModFormats[modFormat], SystemText("ui.modactions.entry.help.change.package.format.filter", "Change package format filter."), Action: new("mod-format")),
+            new("status", FormatSystemText("ui.modactions.entry.label.status.template", "Status: {0}", ModFilters[modFilter]), SystemText("ui.modactions.entry.help.change.requested.state.filter", "Change requested-state filter."), Action: new("mod-filter")),
+            new("format", FormatSystemText("ui.modactions.entry.label.format.template", "Format: {0}", ModFormats[modFormat]), SystemText("ui.modactions.entry.help.change.package.format.filter", "Change package format filter."), Action: new("mod-format")),
             new("clear", SystemText("ui.modactions.entry.label.clear.filters", "Clear filters"), SystemText("ui.modactions.entry.help.clear.search.status.and.format", "Clear search, status and format."), Action: new("mod-clear")),
             new("refresh", SystemText("ui.modactions.entry.label.refresh", "Refresh"), SystemText("ui.modactions.entry.help.rescan.packages", "Rescan packages."), Action: new("mod-refresh")),
             new("create", SystemText("ui.modactions.entry.label.create.mods", "Create Mods"), SystemText("ui.modactions.entry.help.open.authoring.tools", "Open authoring tools."), Destination: "mods-create"),
@@ -217,8 +217,8 @@ public sealed partial class MenuController
         {
             details.Add(view.Package.Name);
             details.Add(view.Package.Format.ToString());
-            details.Add(SystemText("ui.moddetails.details.enabled.in.settings", "Enabled in settings: ") + (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off")));
-            details.Add(SystemText("ui.moddetails.details.in.use", "In use: ") + view.StatusText);
+            details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off"))));
+            details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", view.StatusText));
             if (view.Package.JunctionMetadata?.Behaviors.Contains(JunctionBehavior.InstantManualSkip) == true)
             {
                 details.Add(SystemText("ui.moddetails.details.instant.manual.skip.is.built.into.the.engine", "Instant manual skip is built into the engine and is always enabled."));
@@ -241,7 +241,7 @@ public sealed partial class MenuController
         foreach (var group in modService!.View.Diagnostics.GroupBy(diagnostic => diagnostic.PackageId, StringComparer.OrdinalIgnoreCase))
         {
             string name = group.Key ?? "Global transaction";
-            entries.Add(new("diagnostic-mod-" + group.Key, name + " · " + group.Count(), SystemText("ui.moddiagnosticgroups.entry.help.view.diagnostics", "View diagnostics: ") + name, Action: new("mod-diagnostics-open", group.Key ?? ""), Destination: "mods-package-diagnostics"));
+            entries.Add(new("diagnostic-mod-" + group.Key, name + " · " + group.Count(), FormatSystemText("ui.moddiagnosticgroups.entry.help.view.diagnostics.template", "View diagnostics: {0}", name), Action: new("mod-diagnostics-open", group.Key ?? ""), Destination: "mods-package-diagnostics"));
         }
         if (entries.Count == 1)
         {
@@ -267,7 +267,7 @@ public sealed partial class MenuController
         {
             string? packageId = action.SubjectId.Length == 0 ? null : action.SubjectId;
             int count = modService!.View.Diagnostics.Count(diagnostic => string.Equals(diagnostic.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
-            return [packageId ?? SystemText("ui.moddiagnosticgroupdetails.details.global.transaction", "Global transaction"), SystemText("ui.moddiagnosticgroupdetails.details.diagnostics", "Diagnostics: ") + count, SystemText("ui.moddiagnosticgroupdetails.details.confirm.to.view.this.group.s.messages", "Confirm to view this group's messages.")];
+            return [packageId ?? SystemText("ui.moddiagnosticgroupdetails.details.global.transaction", "Global transaction"), FormatSystemText("ui.moddiagnosticgroupdetails.details.diagnostics.template", "Diagnostics: {0}", count), SystemText("ui.moddiagnosticgroupdetails.details.confirm.to.view.this.group.s.messages", "Confirm to view this group's messages.")];
         }
         return [SystemText("ui.moddiagnosticgroupdetails.details.diagnostics.grouped.by.mod", "Diagnostics grouped by mod."), SystemText("ui.moddiagnosticgroupdetails.details.select.a.mod.to.view.its.messages", "Select a mod to view its messages.")];
     }
@@ -346,7 +346,7 @@ public sealed partial class MenuController
         }
         if (IsFixtureContext)
         {
-            Message = SystemText("ui.executemodaction.message.preview.fixture.live.mod.changes.are.unavailable", "Preview / Fixture: live mod changes are unavailable.");
+            SetSystemMessage(() => SystemText("ui.executemodaction.message.preview.fixture.live.mod.changes.are.unavailable", "Preview / Fixture: live mod changes are unavailable."));
             return true;
         }
         IModService service = modService ?? throw new InvalidOperationException("The mod service is not connected.");
@@ -361,7 +361,7 @@ public sealed partial class MenuController
                 ModPackageView? view = service.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(action.SubjectId, StringComparison.OrdinalIgnoreCase));
                 if (view is null || !view.CanToggle)
                 {
-                    Message = view?.Problem ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition.");
+                    SetSystemMessage(() => view?.Problem ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));
                     _view = null;
                     return true;
                 }
@@ -377,7 +377,7 @@ public sealed partial class MenuController
             default:
                 throw new NotSupportedException($"Unknown mod action {action.Kind}.");
         }
-        Message = result.Success ? "" : result.Error ?? SystemText("ui.executemodaction.message.the.change.could.not.be.saved", "The change could not be saved.");
+        SetSystemMessage(() => result.Success ? "" : result.Error ?? SystemText("ui.executemodaction.message.the.change.could.not.be.saved", "The change could not be saved."));
         RestoreModSelection();
         return true;
     }

@@ -100,5 +100,17 @@ public static partial class SystemTextCatalog
 
     public static string Key(string id) => "$en_" + File + "_" + id;
 
+    public static string Format(string template, string original, params object?[] arguments)
+    {
+        try
+        {
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture, template, arguments);
+        }
+        catch (FormatException)
+        {
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture, original, arguments);
+        }
+    }
+
     public static IReadOnlyList<LocalizationSourceEntry> SourceEntries() => Defaults.Select(pair => new LocalizationSourceEntry("System", File, Key(pair.Key), pair.Value, "en", new Dictionary<string, string?> { ["Authored ID"] = pair.Key })).ToArray();
 }

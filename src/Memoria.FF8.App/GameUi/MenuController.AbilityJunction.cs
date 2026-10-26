@@ -41,7 +41,7 @@ public sealed partial class MenuController
         for (int index = 0; index < names.Length; index++)
         {
             string destination = destinations[index];
-            tabs.Children.Add(new UiButton { Text = names[index], FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
+            tabs.Children.Add(new UiButton { Text = JunctionTabText(index), FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
         }
         Place(page, NativeMenuHeader(SystemText("ui.buildabilityjunction.nativemenuheader.junction", "Junction"), tabs), 0);
         var body = Grid([1], [1.08f, 1], 4);

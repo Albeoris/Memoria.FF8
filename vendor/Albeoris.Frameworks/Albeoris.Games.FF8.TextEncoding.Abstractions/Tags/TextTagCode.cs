@@ -46,4 +46,7 @@ public enum TextTagCode
 
     /// <summary>Marks the name of the speaker.</summary>
     Speaker = 0x12,
+
+    /// <summary>A lossless textual reference to one native European font wordmark tile, not a byte control opcode.</summary>
+    Glyph = 0x100,
 }

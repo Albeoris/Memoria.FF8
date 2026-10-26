@@ -91,7 +91,9 @@ public sealed partial class MenuController
             {
                 Id = id,
                 Title = SystemText("ui.registernamingscreens.title.name.input", "Name Input"),
+                TitleText = c => c.SystemText("ui.registernamingscreens.title.name.input", "Name Input"),
                 Help = SystemText("ui.registernamingscreens.help.name.the.character", "Name the character."),
+                HelpText = c => c.SystemText("ui.registernamingscreens.help.name.the.character", "Name the character."),
                 Columns = NameColumns,
                 Entries = c => c.NameInputEntries(),
                 BuildContent = (c, panel) => panel.Children.Add(c.BuildNameInput())
@@ -251,7 +253,7 @@ public sealed partial class MenuController
     {
         if (!GameNames.IsValidDraft(_nameDraft + text))
         {
-            Message = SystemText("ui.appendnametext.message.names.can.contain.at.most.20.characters", "Names can contain at most 20 characters.");
+            SetSystemMessage(() => SystemText("ui.appendnametext.message.names.can.contain.at.most.20.characters", "Names can contain at most 20 characters."));
             return;
         }
         _nameDraft += text;
@@ -435,7 +437,7 @@ public sealed partial class MenuController
                 }
                 catch (ArgumentException)
                 {
-                    Message = SystemText("ui.executenamingaction.message.use.1.20.characters", "Use 1–20 characters.");
+                    SetSystemMessage(() => SystemText("ui.executenamingaction.message.use.1.20.characters", "Use 1–20 characters."));
                 }
                 catch (NotSupportedException exception)
                 {

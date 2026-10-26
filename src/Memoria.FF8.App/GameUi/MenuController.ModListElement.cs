@@ -218,13 +218,13 @@ public sealed partial class MenuController
                 }
             }
             float y = controls["mod-prev"].Bounds.Y;
-            string count = packages.Length == 0 ? "0 packages" : $"{first + 1}–{Math.Min(packages.Length, first + menus.modPageSize)} of {packages.Length}";
+            string count = packages.Length == 0 ? menus.SystemText("ui.drawself.count.0.packages", "0 packages") : menus.FormatSystemText("ui.drawself.count.of", "{0}\u2013{1} of {2}", first + 1, Math.Min(packages.Length, first + menus.modPageSize), packages.Length);
             canvas.Text(count, 15 * unit, new UiRect(Bounds.X + 110 * unit, y, Math.Max(0, Bounds.Width - 430 * unit), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             canvas.Text($"{first / menus.modPageSize + 1}/{Math.Max(1, (packages.Length + menus.modPageSize - 1) / menus.modPageSize)}", 15 * unit, new UiRect(controls["mod-prev"].Bounds.Right + 6, y, 60 * unit, 36 * unit), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             float hintX = controls["mod-auto"].Bounds.Right + 8;
             if (controls["mod-auto"].Visible)
             {
-                canvas.Text(menus.SystemText("ui.drawself.canvas.explicit.choices.are.kept", "Explicit choices are kept · ") + menus.CurrentBindingText(ControlAction.Confirm) + " " + (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")) + " · " + menus.CurrentBindingText(ControlAction.Card) + menus.SystemText("ui.drawself.canvas.details", " Details"), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+                canvas.Text(menus.FormatSystemText("ui.drawself.canvas.explicit.choices.are.kept.template", "Explicit choices are kept \u00B7 {0} {1} \u00B7 {2} Details", menus.CurrentBindingText(ControlAction.Confirm), (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")), menus.CurrentBindingText(ControlAction.Card)), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             }
         }
 
@@ -242,13 +242,13 @@ public sealed partial class MenuController
                 float nameWidth = Math.Max(0, Bounds.Width - check - statusWidth - formatWidth);
                 float top = Bounds.Y + 28 * scale;
                 canvas.Fill(Bounds, new UiColor(30, 43, 61));
-                Text(menus.SystemText("ui.drawself.canvas.on", "On"), Bounds.X + 5, Bounds.Y, check, 28 * scale, theme.Muted, 14);
-                Text(menus.SystemText("ui.drawself.canvas.mod.name", "Mod name"), Bounds.X + check, Bounds.Y, nameWidth, 28 * scale, theme.Muted, 14);
+                Text(owner.menus.SystemText("ui.drawself.canvas.on", "On"), Bounds.X + 5, Bounds.Y, check, 28 * scale, theme.Muted, 14);
+                Text(owner.menus.SystemText("ui.drawself.canvas.mod.name", "Mod name"), Bounds.X + check, Bounds.Y, nameWidth, 28 * scale, theme.Muted, 14);
                 if (!compact)
                 {
-                    Text(menus.SystemText("ui.drawself.canvas.format", "Format"), Bounds.Right - statusWidth - formatWidth, Bounds.Y, formatWidth, 28 * scale, theme.Muted, 14);
+                    Text(owner.menus.SystemText("ui.drawself.canvas.format", "Format"), Bounds.Right - statusWidth - formatWidth, Bounds.Y, formatWidth, 28 * scale, theme.Muted, 14);
                 }
-                Text(menus.SystemText("ui.drawself.canvas.runtime.status", "Runtime status"), Bounds.Right - statusWidth, Bounds.Y, statusWidth, 28 * scale, theme.Muted, 14);
+                Text(owner.menus.SystemText("ui.drawself.canvas.runtime.status", "Runtime status"), Bounds.Right - statusWidth, Bounds.Y, statusWidth, 28 * scale, theme.Muted, 14);
                 for (int offset = 0; offset < owner.menus.modPageSize && owner.first + offset < owner.packages.Length; offset++)
                 {
                     ModPackageView view = owner.packages[owner.first + offset];
@@ -273,7 +273,7 @@ public sealed partial class MenuController
                 }
                 if (owner.packages.Length == 0)
                 {
-                    string empty = owner.snapshot.Outcome == ModUpdateOutcome.Updating ? "Loading installed mods…" : owner.snapshot.Packages.Count == 0 ? "No mods found" : "No matching mods · Clear filters";
+                    string empty = owner.snapshot.Outcome == ModUpdateOutcome.Updating ? owner.menus.SystemText("ui.drawself.empty.loading.installed.mods", "Loading installed mods…") : owner.snapshot.Packages.Count == 0 ? owner.menus.SystemText("ui.drawself.empty.no.mods.found", "No mods found") : owner.menus.SystemText("ui.drawself.empty.no.matching.mods.clear.filters", "No matching mods · Clear filters");
                     Text(empty, Bounds.X + 12, top, Bounds.Width - 24, owner.rowHeight, theme.Muted, 17);
                 }
 

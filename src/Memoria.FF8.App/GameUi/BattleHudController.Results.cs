@@ -194,6 +194,7 @@ public sealed partial class BattleHudController
     internal string ResultText(int id, string fallback, int number = 0, string? subject = null)
     {
         string encoded = id < resultTexts.Count && resultTexts[id] is { } text ? text : resultTexts.Count == 0 ? fallback : throw new NotSupportedException($"Battle results require native message {id}.");
+        encoded = localizeGlobalMessage?.Invoke(id, encoded) ?? encoded;
         encoded = Regex.Replace(encoded, @"\{(?:Var|Dialog)\s*(35|37|38)\}", _ => subject ?? "");
         encoded = encoded.Replace("{Dialog CardLevel}", number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("{Dialog 32}", number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         NativeMessageVariables variables = NativeMessageVariables.FromColdProcess().WithWrite(0, number);

@@ -34,7 +34,7 @@ internal sealed partial class RecreateGame
         }
         OpenFolderDialog picker = new()
         {
-            Title = "Choose the original FINAL FANTASY VIII save folder (containing slot1_save01.ff8)",
+            Title = LocalizeAuthored("save.original.choose-folder", "Choose the original FINAL FANTASY VIII save folder (containing slot1_save01.ff8)"),
             Multiselect = false,
             InitialDirectory = playerSaves.OriginalDirectoryCandidates.FirstOrDefault() ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
         };

@@ -21,7 +21,7 @@ public sealed partial class MenuController
             Place(row, Portrait(character), 0);
             Place(row, Label(character?.Name ?? "", 28), 0, 1);
             Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.lv", "Lv {0}", Number(character.Level)), 23), 0, 2);
-            Place(row, Label(character is null ? "" : SystemText("ui.buildmain.label.hp", "HP ") + Hp(character), 23), 0, 3);
+            Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.hp.template", "HP {0}", Hp(character)), 23), 0, 3);
             UiPanel status = Panel(null, row);
             status.Id = "party-status-" + index;
             if (IsSelectingCharacter && character is not null)
@@ -140,13 +140,13 @@ public sealed partial class MenuController
         Place(identity, summary, 0, 1);
         Place(summary, Label(Character?.Name ?? "--", 30), 0);
         Place(summary, Label(FormatSystemText("ui.buildjunction.label.lv", "Lv      {0}", Number(Character?.Level)), 25), 1);
-        Place(summary, Label(SystemText("ui.buildjunction.label.hp", "HP    ") + (Character is null ? "--" : Hp(Character)), 25), 2);
+        Place(summary, Label(FormatSystemText("ui.buildjunction.label.hp.template", "HP    {0}", (Character is null ? "--" : Hp(Character))), 25), 2);
         var experience = Grid([1, 1], [1.6f, 1.4f], 0);
         Place(character, experience, 1);
         Place(experience, Label(SystemText("ui.buildjunction.label.current.exp", "Current EXP"), 22), 0);
-        Place(experience, Label(Number(Character?.Experience) + SystemText("ui.buildjunction.label.p", "p"), 22), 0, 1);
+        Place(experience, Label(FormatSystemText("ui.buildjunction.label.p.template", "{0}p", Number(Character?.Experience)), 22), 0, 1);
         Place(experience, Label(SystemText("ui.buildjunction.label.next.level", "Next LEVEL"), 22), 1);
-        Place(experience, Label(Number(Character?.NextLevelExperience) + SystemText("ui.buildjunction.label.p", "p"), 22), 1, 1);
+        Place(experience, Label(FormatSystemText("ui.buildjunction.label.p.template", "{0}p", Number(Character?.NextLevelExperience)), 22), 1, 1);
         bool choosingEntity = ScreenId != "junction" && !choosingCategory;
         if (choosingEntity)
         {
@@ -238,7 +238,7 @@ public sealed partial class MenuController
             Place(details, learning, 3);
             return details;
         }
-        return Lines([Character?.Name ?? "--", SystemText("ui.junctionselectiondetails.details.hp", "HP  ") + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
+        return Lines([Character?.Name ?? "--", FormatSystemText("ui.junctionselectiondetails.details.hp.template", "HP  {0}", (Character is null ? "--" : Hp(Character))), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
     }
 
     private UiElement StatColumn(string[] names)
@@ -253,7 +253,7 @@ public sealed partial class MenuController
             {
                 continue;
             }
-            Place(row, JunctionSlotLabel(name, name, 23), 0);
+            Place(row, JunctionSlotLabel(name, StatText(name), 23), 0);
             Place(row, JunctionSlotLabel(name, Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 23), 0, 1);
             string value = name == "HP" ? Number(Character?.MaximumHp) : Character?.Stats.TryGetValue(name, out int stat) == true ? stat.ToString() : "--";
             Place(row, Label(value, 23), 0, 2);

@@ -238,6 +238,8 @@ public sealed class MenuScreenDefinition
     public required string Id { get; init; }
     public required string Title { get; init; }
     public required string Help { get; init; }
+    public Func<MenuController, string>? TitleText { get; init; }
+    public Func<MenuController, string>? HelpText { get; init; }
     public MenuLayout Layout { get; init; } = MenuLayout.List;
     public int Columns { get; init; } = 1;
     public bool MainCommand { get; init; }

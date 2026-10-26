@@ -51,7 +51,7 @@ public sealed partial class MenuController
                 Button("preview", menus.SystemText("ui.drawself.button.preview", "Preview"), new(titleRight - actionWidth, top, actionWidth, buttonHeight), () => menus.GuardianTool(5));
                 titleRight -= actionWidth + gap;
             }
-            string title = previewing ? menus.SystemText("ui.drawself.title.preview.read.only", "Preview · Read-only") : menus.GuardianTargetTitle() + (menus.guardianDraft.Dirty ? menus.SystemText("ui.drawself.title.unsaved", " · Unsaved") : "");
+            string title = previewing ? menus.SystemText("ui.drawself.title.preview.read.only", "Preview · Read-only") : menus.FormatSystemText("ui.drawself.title.unsaved.template", "{0}{1}", menus.GuardianTargetTitle(), (menus.guardianDraft.Dirty ? menus.SystemText("ui.drawself.title.unsaved", " · Unsaved") : ""));
             Text(title, new(x + backWidth + gap, top, Math.Max(0, titleRight - x - backWidth - gap), buttonHeight), theme.Foreground);
             top += buttonHeight + gap;
 
@@ -82,12 +82,12 @@ public sealed partial class MenuController
                 Button("search", menus.guardianSearchEditing ? menus.guardianSearch.Insert(Math.Clamp(menus.guardianSearchCaret, 0, menus.guardianSearch.Length), "|") : menus.guardianSearch.Length == 0 ? menus.SystemText("ui.drawself.button.search.abilities", "Search abilities…") : menus.guardianSearch,
                     new(x, top + 24 * scale, Math.Max(0, catalogWidth - categoryWidth - clearWidth - gap * 3), 26 * scale), menus.GuardianStartSearch);
                 Button("clear-search", menus.SystemText("ui.drawself.button.clear", "Clear"), new(x + catalogWidth - categoryWidth - clearWidth - gap * 2, top + 24 * scale, clearWidth, 26 * scale), menus.GuardianClearSearch, enabled: menus.guardianSearch.Length > 0);
-                Button("category", GuardianCategories[menus.guardianCategory], new(x + catalogWidth - categoryWidth - gap, top + 24 * scale, categoryWidth, 26 * scale), () => menus.GuardianTool(9));
+                Button("category", menus.GuardianCategoryLabel(menus.guardianCategory), new(x + catalogWidth - categoryWidth - gap, top + 24 * scale, categoryWidth, 26 * scale), () => menus.GuardianTool(9));
                 canvas.Line(gfX - gap, top, gfX - gap, footerTop + 55 * scale, theme.BorderLight, 1);
             }
             else
             {
-                string[] modes = ["Source", menus.guardianLocal ? "These local changes only" : "This mod only", "Current setup"];
+                string[] modes = [menus.SystemText("ui.drawself.modes.source", "Source"), menus.guardianLocal ? menus.SystemText("ui.drawself.modes.these.local.changes.only", "These local changes only") : menus.SystemText("ui.drawself.modes.this.mod.only", "This mod only"), menus.SystemText("ui.drawself.modes.current.setup", "Current setup")];
                 float modeWidth = Math.Min(200 * scale, gfWidth / 4);
                 for (int mode = 0; mode < modes.Length; mode++)
                 {
@@ -103,7 +103,7 @@ public sealed partial class MenuController
                 if (menus.guardianPreviewMode == 2)
                 {
                     float includeX = gfX + 3 * (modeWidth + 4 * scale);
-                    Button("include", (menus.guardianWithoutLayer ? "[ ] " : menus.SystemText("ui.drawself.button.x", "[x] ")) + menus.SystemText("ui.drawself.button.include.selected.layer", "Include selected layer"), new(includeX, top, Math.Max(0, gfX + gfWidth - includeX), 25 * scale), () => menus.GuardianTool(7));
+                    Button("include", menus.FormatSystemText("ui.drawself.button.x.template", "{0}Include selected layer", (menus.guardianWithoutLayer ? "[ ] " : menus.SystemText("ui.drawself.button.x", "[x] "))), new(includeX, top, Math.Max(0, gfX + gfWidth - includeX), 25 * scale), () => menus.GuardianTool(7));
                 }
                 top += 28 * scale;
                 bodyTop += 28 * scale;
@@ -116,7 +116,7 @@ public sealed partial class MenuController
 
             float gfButton = 28 * scale;
             Button("previous-gf", "‹", new(gfX, top, gfButton, 25 * scale), () => menus.NavigateGuardianEditor(MenuInput.PageLeft));
-            string acquired = context.Current is null ? "" : (context.Current.GuardianForces[menus.guardianSubject].Flags & 1) != 0 ? " · Acquired" : " · Not acquired";
+            string acquired = context.Current is null ? "" : (context.Current.GuardianForces[menus.guardianSubject].Flags & 1) != 0 ? menus.SystemText("guardian.ability.acquired", " · Acquired") : menus.SystemText("guardian.ability.not-acquired", " · Not acquired");
             Button("gf", menus.guardianEditorName!(menus.guardianSubject) + acquired + menus.FormatSystemText("ui.drawself.button.entries", " \u00B7 {0} entries", rows.Length), new(gfX + gfButton + 3 * scale, top, gfWidth - gfButton * 2 - 6 * scale, 25 * scale), () => menus.GuardianTool(15), active: menus.guardianFocus == "rows");
             Button("next-gf", "›", new(gfX + gfWidth - gfButton, top, gfButton, 25 * scale), () => menus.NavigateGuardianEditor(MenuInput.PageRight));
 
@@ -154,7 +154,7 @@ public sealed partial class MenuController
                     float apWidth = 47 * scale;
                     float presentWidth = 54 * scale;
                     Text(menus.guardianAbilityName!(ability), new(rect.X + 3 * scale, rect.Y, Math.Max(0, rect.Width - apWidth - presentWidth), rowHeight), present ? theme.Muted : theme.Foreground);
-                    Text(context.Source.MenuDefinitions.AbilityPoints[ability] + menus.SystemText("ui.drawself.canvas.ap.alternate", " AP"), new(rect.Right - apWidth - presentWidth, rect.Y, apWidth, rowHeight), theme.Muted, small);
+                    Text(menus.FormatSystemText("ui.drawself.canvas.ap.alternate.template", "{0} AP", context.Source.MenuDefinitions.AbilityPoints[ability]), new(rect.Right - apWidth - presentWidth, rect.Y, apWidth, rowHeight), theme.Muted, small);
                     Text(present ? "✓" : "", new(rect.Right - presentWidth, rect.Y, presentWidth, rowHeight), theme.Muted, small);
                     targets.Add((rect, () => menus.GuardianSelectCatalog(index)));
                 }
@@ -225,8 +225,8 @@ public sealed partial class MenuController
             GuardianForceAbilityTemplate? selectedEntry = rows.FirstOrDefault(entry => entry.Ability == selectedAbility);
             NativeGuardianForceAbility? current = context.Current?.GuardianForceAbilities(menus.guardianSubject).FirstOrDefault(entry => entry.Ability == selectedAbility);
             string currentState = current is null ? "" : current.Learned ? menus.SystemText("ui.drawself.currentstate.current.learned", " · Current: Learned") : menus.FormatSystemText("ui.drawself.currentstate.current.ap", " \u00B7 Current: {0}/{1} AP", current.Progress, current.RequiredPoints);
-            string condition = selectedEntry is null ? "" : !selectedEntry.SupportedCondition ? menus.SystemText("ui.drawself.condition.unsupported.source.condition.inspect.details", " · Unsupported source condition: inspect Details") : selectedEntry.PrerequisiteAbility is int prerequisite ? menus.SystemText("ui.drawself.condition.requires", " · Requires ") + menus.guardianAbilityName!(prerequisite) : selectedEntry.RequiredLevel > 1 ? menus.SystemText("ui.drawself.condition.requires.gf.level", " · Requires GF level ") + selectedEntry.RequiredLevel : "";
-            string secondLine = menus.SystemText("ui.drawself.secondline.start.learned.affects.the.authored.starting.state.current", "Start learned affects the authored starting state; current AP stays unchanged.") + currentState + condition;
+            string condition = selectedEntry is null ? "" : !selectedEntry.SupportedCondition ? menus.SystemText("ui.drawself.condition.unsupported.source.condition.inspect.details", " · Unsupported source condition: inspect Details") : selectedEntry.PrerequisiteAbility is int prerequisite ? menus.FormatSystemText("ui.drawself.condition.requires.template", " \u00B7 Requires {0}", menus.guardianAbilityName!(prerequisite)) : selectedEntry.RequiredLevel > 1 ? menus.FormatSystemText("ui.drawself.condition.requires.gf.level.template", " \u00B7 Requires GF level {0}", selectedEntry.RequiredLevel) : "";
+            string secondLine = menus.FormatSystemText("ui.drawself.secondline.start.learned.affects.the.authored.starting.state.current.template", "Start learned affects the authored starting state; current AP stays unchanged.{0}{1}", currentState, condition);
             if (menus.guardianPending is not null)
             {
                 secondLine = menus.GuardianOperationText() + currentState;
@@ -247,11 +247,7 @@ public sealed partial class MenuController
                 tabBinding = "Tab / Shift+Tab";
             }
             string confirmHint = menus.GuardianConfirmHint();
-            if (confirmHint.StartsWith("Confirm: ", StringComparison.Ordinal))
-            {
-                confirmHint = confirmHint[9..];
-            }
-            string hints = menus.guardianBinding!(ControlAction.Confirm) + ": " + confirmHint + " · " + tabBinding + menus.SystemText("ui.drawself.hints.next.control", ": next control · ") + menus.guardianBinding!(ControlAction.Menu) + menus.SystemText("ui.drawself.hints.actions.page", ": Actions · ←/→: page");
+            string hints = menus.FormatSystemText("ui.drawself.hints.next.control.template", "{0}: {1} \u00B7 {2}: next control \u00B7 {3}: Actions \u00B7 \u2190/\u2192: page", menus.guardianBinding!(ControlAction.Confirm), confirmHint, tabBinding, menus.guardianBinding!(ControlAction.Menu));
             Text(hints, new(x, Bounds.Bottom - 22 * scale, width, 20 * scale), theme.Muted, 13 * scale);
 
             string[] controlOrder = previewing

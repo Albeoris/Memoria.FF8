@@ -44,7 +44,7 @@ public sealed partial class BattleHudController
             SelectingTarget = false;
             SelectingAction = true;
             RestoreActionCursor();
-            Message = "Choose magic to draw.";
+            SetSystemMessage(() => SystemText("battle.ui.refreshdrawselection.choose.magic.to.draw", "Choose magic to draw."));
         }
         else
         {
@@ -56,7 +56,7 @@ public sealed partial class BattleHudController
             {
                 RestoreTargetCursor(drawSource: true);
             }
-            Message = SelectingTarget ? "Choose a source to draw from." : "No drawable entries remain.";
+            SetSystemMessage(() => SelectingTarget ? SystemText("battle.ui.refreshdrawselection.choose.a.source.to.draw.from", "Choose a source to draw from.") : SystemText("battle.ui.refreshdrawselection.no.drawable.entries.remain", "No drawable entries remain."));
         }
         return true;
     }
@@ -118,7 +118,7 @@ public sealed partial class BattleHudController
         SelectingAction = true;
         RestoreActionCursor();
         session.OpenNativeActionMenu();
-        Message = "Choose magic to draw.";
+        SetSystemMessage(() => SystemText("battle.ui.collectdrawtarget.choose.magic.to.draw", "Choose magic to draw."));
         SoundRequested?.Invoke(MenuSound.Confirm);
         return false;
     }
@@ -133,7 +133,7 @@ public sealed partial class BattleHudController
         {
             if (!DrawAvailable)
             {
-                ShowCommandError("No drawable entries remain.");
+                ShowCommandError(SystemText("battle.ui.confirmdrawselection.no.drawable.entries.remain", "No drawable entries remain."));
                 SoundRequested?.Invoke(MenuSound.Error);
                 return true;
             }
@@ -141,7 +141,7 @@ public sealed partial class BattleHudController
             SelectingTarget = true;
             DrawCast = false;
             RestoreTargetCursor(drawSource: true);
-            Message = "Choose a source to draw from.";
+            SetSystemMessage(() => SystemText("battle.ui.confirmdrawselection.choose.a.source.to.draw.from", "Choose a source to draw from."));
         }
         else if (SelectedAction is null)
         {
@@ -157,14 +157,14 @@ public sealed partial class BattleHudController
             selectedDrawActionId = SelectedAction.Id;
             SelectingDrawMode = true;
             RestoreDrawModeCursor();
-            Message = "Stock or Cast?";
+            SetSystemMessage(() => SystemText("battle.ui.confirmdrawselection.stock.or.cast", "Stock or Cast?"));
         }
         else if (CastSelectedDraw)
         {
             SelectingDrawMode = false;
             SelectingTarget = true;
             RestoreTargetCursor();
-            Message = "Choose the spell recipient.";
+            SetSystemMessage(() => SystemText("battle.ui.confirmdrawselection.choose.the.spell.recipient", "Choose the spell recipient."));
         }
         else
         {

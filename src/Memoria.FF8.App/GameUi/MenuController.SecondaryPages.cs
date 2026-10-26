@@ -158,7 +158,7 @@ public sealed partial class MenuController
             Place(page, Panel(null, commands), 1);
         }
         Place(page, Panel(null, Readouts([selected?.Name ?? "", SystemText("ui.buildsecondaryshop.details.owned", "Owned"), selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
-        Place(page, Panel(null, Label(Number(Data.Currency) + SystemText("ui.buildsecondaryshop.label.g", " G"), 24)), 2, 1);
+        Place(page, Panel(null, Label(FormatSystemText("ui.buildsecondaryshop.label.g.template", "{0} G", Number(Data.Currency)), 24)), 2, 1);
         return page;
     }
 
@@ -205,7 +205,7 @@ public sealed partial class MenuController
         Place(details, Label(selected is null ? SystemText("ui.buildweaponshop.label.select.a.weapon.to.view.materials", "Select a weapon to view materials.") : SystemText("ui.buildweaponshop.label.owned.required", "Owned / Required"), 19), 1);
         Place(details, materials, 2);
         Place(page, Panel(SystemText("ui.buildweaponshop.panel.materials", "MATERIALS"), details), 1, 1);
-        Place(page, Panel(null, Label(Number(Data.Currency) + SystemText("ui.buildweaponshop.label.g", " G"), 24)), 2, 1);
+        Place(page, Panel(null, Label(FormatSystemText("ui.buildweaponshop.label.g.template", "{0} G", Number(Data.Currency)), 24)), 2, 1);
         return page;
     }
 
@@ -225,15 +225,15 @@ public sealed partial class MenuController
         string[] details;
         if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {
-            details = [Card?.Name ?? "--", "Owned   " + (Card?.Quantity.ToString() ?? "--"), "Result", Card?.RefinementItemName ?? Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", "Quantity   " + Number(Card?.RefinementQuantity)];
+            details = [Card?.Name ?? "--", SystemText("refinement.summary.owned", "Owned   ") + (Card?.Quantity.ToString() ?? "--"), "Result", Card?.RefinementItemName ?? Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", SystemText("refinement.summary.quantity", "Quantity   ") + Number(Card?.RefinementQuantity)];
         }
         else if (HighlightedRefinementRecipe is { } recipe && ScreenId != "ability")
         {
-            details = [recipe.IngredientName ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", "Owned   " + RefinementStock(recipe), .. (recipe.NativeKind is 0 or 2 ? new[] { Character?.Name ?? "--" } : Array.Empty<string>())];
+            details = [recipe.IngredientName ?? Data.Items.FirstOrDefault(item => item.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId, $"{recipe.IngredientQuantity}  →  {recipe.ResultQuantity} {recipe.ResultName}", SystemText("refinement.summary.owned", "Owned   ") + RefinementStock(recipe), .. (recipe.NativeKind is 0 or 2 ? new[] { Character?.Name ?? "--" } : Array.Empty<string>())];
         }
         else
         {
-            details = [ScreenId == "ability" ? "Choose a refinement ability." : "No items to refine."];
+            details = [ScreenId == "ability" ? SystemText("refinement.prompt.ability", "Choose a refinement ability.") : SystemText("refinement.prompt.empty", "No items to refine.")];
         }
         Place(page, Panel(null, Lines(details, 24)), 1, 1);
         return page;
@@ -277,9 +277,9 @@ public sealed partial class MenuController
         return ScreenId switch
         {
             "tutorial" => [],
-            "tutorial-seed" => ["Practice test", "Ten questions", "SeeD rank   " + Number(Data.SeeDRank)],
-            "seed-test" => TestQuestion >= 10 ? ["Practice completed", $"Score: {TestCorrect}/10"] : [$"Question {TestQuestion + 1} / 10", TestQuestion % 2 == 0 ? "Does Confirm select an entry?" : "Does Cancel increase your gil?"],
-            "tutorial-menu" => ["The menu contains character status, junctions, items and magic.", "Character pages show the selected party member.", "Status includes Limit Break information."],
+            "tutorial-seed" => [SystemText("ui.secondaryreferencetext.details.practice.test", "Practice test"), SystemText("ui.secondaryreferencetext.details.ten.questions", "Ten questions"), FormatSystemText("ui.secondaryreferencetext.details.seed.rank.template", "SeeD rank   {0}", Number(Data.SeeDRank))],
+            "seed-test" => TestQuestion >= 10 ? [SystemText("ui.secondaryreferencetext.details.practice.completed", "Practice completed"), FormatSystemText("ui.secondaryreferencetext.details.score.10", "Score: {0}/10", TestCorrect)] : [FormatSystemText("ui.secondaryreferencetext.details.question.10", "Question {0} / 10", TestQuestion + 1), TestQuestion % 2 == 0 ? SystemText("ui.secondaryreferencetext.details.does.confirm.select.an.entry", "Does Confirm select an entry?") : SystemText("ui.secondaryreferencetext.details.does.cancel.increase.your.gil", "Does Cancel increase your gil?")],
+            "tutorial-menu" => [SystemText("ui.secondaryreferencetext.details.the.menu.contains.character.status.junctions.items.and", "The menu contains character status, junctions, items and magic."), SystemText("ui.secondaryreferencetext.details.character.pages.show.the.selected.party.member", "Character pages show the selected party member."), SystemText("ui.secondaryreferencetext.details.status.includes.limit.break.information", "Status includes Limit Break information.")],
             "tutorial-junction" => CurrentScreen.Details(this).Take(4).ToArray(),
             "tutorial-card" => CurrentScreen.Details(this).Take(4).ToArray(),
             _ => CurrentScreen.Details(this)

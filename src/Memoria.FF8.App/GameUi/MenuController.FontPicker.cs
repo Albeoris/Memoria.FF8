@@ -18,7 +18,7 @@ public sealed partial class MenuController
             return IsFixtureContext || _readPreferences is not null ? preferences.DialogueFontFamily : ConfigValue(key);
         }
         bool themeDefault = (Presentation == MenuPresentation.Vector ? preferences.VectorUiFontFamily : preferences.ClassicUiFontFamily) is null && preferences.LegacyUiFontFamily == SystemFontCatalog.DefaultFamily;
-        return (themeDefault ? SystemText("ui.fontdisplayvalue.details.theme.default", "Theme default — ") : "") + preferences.GetUiFontFamily(Presentation);
+        return FormatSystemText("ui.fontdisplayvalue.details.theme.default.template", "{0}{1}", (themeDefault ? SystemText("ui.fontdisplayvalue.details.theme.default", "Theme default — ") : ""), preferences.GetUiFontFamily(Presentation));
     }
 
     private void RegisterFontPickerScreen()
@@ -29,7 +29,7 @@ public sealed partial class MenuController
             Title = "Config / Text and fonts / Font family",
             Help = "Search installed families with the keyboard or the Search characters action. Confirm applies; Back returns without changing the family.",
             Entries = c => c.FontPickerEntries(),
-            Details = c => [SystemText("ui.registerfontpickerscreen.details.search", "Search: ") + c.fontSearch, SystemText("ui.registerfontpickerscreen.details.current", "Current: ") + c.FontDisplayValue(c.fontPickerKey), SystemText("ui.registerfontpickerscreen.details.latin.0123456789", "Latin / Кириллица · 0123456789 !?"), SystemText("ui.registerfontpickerscreen.details.families.use.os.shaping.and.fallback", "Families use OS shaping and fallback.")]
+            Details = c => [FormatSystemText("ui.registerfontpickerscreen.details.search.template", "Search: {0}", c.fontSearch), FormatSystemText("ui.registerfontpickerscreen.details.current.template", "Current: {0}", c.FontDisplayValue(c.fontPickerKey)), SystemText("ui.registerfontpickerscreen.details.latin.0123456789", "Latin / Кириллица · 0123456789 !?"), SystemText("ui.registerfontpickerscreen.details.families.use.os.shaping.and.fallback", "Families use OS shaping and fallback.")]
         });
         Register(new MenuScreenDefinition
         {
@@ -38,7 +38,7 @@ public sealed partial class MenuController
             Help = "Choose characters to filter installed font families.",
             Columns = 8,
             Entries = _ => [.. "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -".Select((letter, index) => new MenuEntry("letter-" + index, letter.ToString(), SystemText("ui.registerfontpickerscreen.entry.help.add.search.character", "Add search character."), Action: new("font-search-letter", Value: letter.ToString()))), new("delete", SystemText("ui.registerfontpickerscreen.entry.label.delete", "Delete"), SystemText("ui.registerfontpickerscreen.entry.help.remove.search.character", "Remove search character."), Action: new("font-search-delete")), new("clear", SystemText("ui.registerfontpickerscreen.entry.label.clear", "Clear"), SystemText("ui.registerfontpickerscreen.entry.help.clear.search", "Clear search."), Action: new("font-search-clear")), new("done", SystemText("ui.registerfontpickerscreen.entry.label.done", "Done"), SystemText("ui.registerfontpickerscreen.entry.help.return.to.matching.families", "Return to matching families."), Action: new("menu-back"))],
-            Details = c => [SystemText("ui.registerfontpickerscreen.details.search", "Search: ") + c.fontSearch]
+            Details = c => [FormatSystemText("ui.registerfontpickerscreen.details.search.template", "Search: {0}", c.fontSearch)]
         });
     }
 
@@ -47,7 +47,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [new("font-search", SystemText("ui.fontpickerentries.entry.label.search.characters", "Search characters…"), SystemText("ui.fontpickerentries.entry.help.type.to.filter.or.choose.characters.with.a", "Type to filter, or choose characters with a controller."), "font-search"), new("font-clear", SystemText("ui.fontpickerentries.entry.label.clear.search", "Clear search"), SystemText("ui.fontpickerentries.entry.help.show.all.installed.families", "Show all installed families."), Action: new("font-search-clear"))];
         foreach (string family in SystemFontCatalog.Families.Where(family => family.Contains(fontSearch, StringComparison.OrdinalIgnoreCase)))
         {
-            entries.Add(new("family:" + family, family, family + SystemText("ui.fontpickerentries.entry.help.apply.this.family.menu.and.dialogue.sizes.remain", ". Apply this family. Menu and dialogue sizes remain independent."), Action: new("font-picker-select", fontPickerKey, Value: family)));
+            entries.Add(new("family:" + family, family, FormatSystemText("ui.fontpickerentries.entry.help.apply.this.family.menu.and.dialogue.sizes.remain.template", "{0}. Apply this family. Menu and dialogue sizes remain independent.", family), Action: new("font-picker-select", fontPickerKey, Value: family)));
         }
         return entries;
     }

@@ -53,7 +53,7 @@ public sealed partial class MenuController
         var identity = Grid([1], [1, 2.8f], 10);
         identity.Margin = new UiThickness(16, 8);
         Place(identity, Portrait(character), 0);
-        Place(identity, Readouts([character?.Name ?? "--", FormatSystemText("ui.magiccharactersummary.details.lv", "Lv  {0}", Number(character?.Level)), SystemText("ui.magiccharactersummary.details.hp", "HP  ") + (character is null ? "--" : Hp(character))], 26), 0, 1);
+        Place(identity, Readouts([character?.Name ?? "--", FormatSystemText("ui.magiccharactersummary.details.lv", "Lv  {0}", Number(character?.Level)), FormatSystemText("ui.magiccharactersummary.details.hp.template", "HP  {0}", (character is null ? "--" : Hp(character)))], 26), 0, 1);
         Place(summary, identity, 0);
         return compact ? identity : summary;
     }

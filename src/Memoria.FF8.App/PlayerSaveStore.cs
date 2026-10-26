@@ -6,6 +6,9 @@ namespace Memoria.FF8;
 
 internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad)
 {
+    internal string? DetailsSystemId { get; init; }
+    internal string? DetailsError { get; init; }
+    internal Func<string?>? ReadLocation { get; init; }
     public DateTime? SavedAtUtc { get; init; }
     public DateTimeOffset? SavedLocalAt { get; init; }
     public TimeSpan? PlayTime { get; init; }
@@ -241,7 +244,7 @@ internal sealed partial class PlayerSaveStore
         {
             if (bank != 0 && OriginalDirectory is null)
             {
-                entries.Add(new PlayerSaveEntry(slot, GetLabel(slot), null, "Choose the original FF8 save folder.", false));
+                entries.Add(new PlayerSaveEntry(slot, GetLabel(slot), null, "Choose the original FF8 save folder.", false) { DetailsSystemId = "save.slot.choose-original-folder" });
             }
             else
             {
@@ -262,7 +265,7 @@ internal sealed partial class PlayerSaveStore
             if (!file.Exists)
             {
                 entries.Remove(path);
-                return new PlayerSaveEntry(slot, label, null, "Empty", false);
+                return new PlayerSaveEntry(slot, label, null, "Empty", false) { DetailsSystemId = "save.slot.empty" };
             }
             savedAt ??= file.LastWriteTime;
             savedAtUtc = file.LastWriteTimeUtc;
@@ -280,10 +283,12 @@ internal sealed partial class PlayerSaveStore
                 {
                     throw new InvalidDataException("This save contains no active game.");
                 }
-                string location = locationName?.Invoke(state) ?? "Unavailable";
+                GameState locationState = summary?.ToLocationState() ?? new GameState { Scene = state.Scene, FieldId = state.FieldId, FieldName = state.FieldName, EventState = state.EventState, World = state.World is { } world ? new WorldState { X = world.X, Z = world.Z } : null };
+                string location = locationName?.Invoke(locationState) ?? "Unavailable";
                 NativePlaytimeState? playtime = summary?.Playtime ?? state.Playtime;
                 entry = new PlayerSaveEntry(slot, label, savedAt, location, true)
                 {
+                    ReadLocation = () => locationName?.Invoke(locationState),
                     SavedAtUtc = savedAtUtc,
                     SavedLocalAt = summary?.SavedLocalAt,
                     PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
@@ -292,14 +297,14 @@ internal sealed partial class PlayerSaveStore
             }
             catch (Exception exception) when (IsUnavailable(exception))
             {
-                entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { SavedAtUtc = savedAtUtc, SavedLocalAt = summary?.SavedLocalAt };
+                entry = new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = exception.Message, SavedAtUtc = savedAtUtc, SavedLocalAt = summary?.SavedLocalAt };
             }
             entries[path] = new CachedSaveEntry(file.Length, file.LastWriteTimeUtc, entry);
             return entry;
         }
         catch (Exception exception) when (IsUnavailable(exception))
         {
-            return new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { SavedAtUtc = savedAtUtc };
+            return new PlayerSaveEntry(slot, label, savedAt, "Unavailable: " + exception.Message, false) { DetailsSystemId = "save.slot.unavailable", DetailsError = exception.Message, SavedAtUtc = savedAtUtc };
         }
     }
 

@@ -10,15 +10,19 @@ namespace Memoria.FF8;
 internal sealed partial class GameResourceHost
 {
     private readonly CancellationTokenSource localizationCancellation = new();
+    private readonly LocalizationProjectReadCache localizationReadCache = new();
     private Task<LocalizationPreparation>? localizationTask;
     private string? localizationInput;
     private string? observedLocalizationInput;
     private DateTime localizationObservedAt;
     private IReadOnlyDictionary<string, LocalizationSourceEntry>? knownLocalizationEntries;
+    private IReadOnlyDictionary<Memoria.FF8.Resources.TextureKey, LocalizationArtworkSource>? knownLocalizationArtwork;
     public LocalizationPreparation? LocalizationPreview { get; private set; }
     public LocalizationPreparation? CommittedLocalizations { get; private set; }
     public double LastLocalizationPublicationMilliseconds { get; private set; }
     public int LastLocalizationChangedKeys { get; private set; }
+    internal long ParsedLocalizationPayloads => localizationReadCache.ParsedPayloads;
+    internal long ReusedLocalizationPayloads => localizationReadCache.CacheHits;
 
     private bool IsLocalizationOnlyChange(ModCatalogSnapshot candidate)
     {
@@ -83,10 +87,21 @@ internal sealed partial class GameResourceHost
             localizationTask = Task.Run(() =>
             {
                 Stopwatch clock = Stopwatch.StartNew();
-                var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval, watchForPublication: true);
+                var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval, watchForPublication: true, readCache: localizationReadCache);
                 try
                 {
-                    if (!preparation.RequiresSelection && preparation.Catalog.Values.Count != 0)
+                    if (!stableRemoval && CommittedLocalizations is { } committed)
+                    {
+                        foreach (LocalizationLayer layer in preparation.Layers)
+                        {
+                            var oldArtwork = committed.Layers.FirstOrDefault(old => old.PackageId == layer.PackageId)?.Project.Artwork;
+                            if (oldArtwork is not null && layer.Project.Artwork.Any(file => file.TargetPng is null && file.Declaration.TargetImage is not null && oldArtwork.Any(old => old.Declaration.Key == file.Declaration.Key && old.Declaration.TargetImage == file.Declaration.TargetImage && old.TargetPng is not null)))
+                            {
+                                throw new IOException("An artwork Target was removed during saving. Wait for a stable deletion or finish saving, then retry.");
+                            }
+                        }
+                    }
+                    if (!preparation.RequiresSelection && (preparation.Catalog.Values.Count != 0 || preparation.Catalog.Artwork.Count != 0))
                     {
                         using var verification = GameDataSourceFactory.Open(gameDirectory);
                         if (preparation.Layers.Any(layer => layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System"))))
@@ -94,6 +109,17 @@ internal sealed partial class GameResourceHost
                             knownLocalizationEntries ??= LocalizationSourceExporter.ReadNonFields(gameDirectory, source.Descriptor.Language, localizationCancellation.Token).Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
                         }
                         LocalizationBindingValidation.Validate(preparation, verification, localizationCancellation.Token, knownLocalizationEntries);
+                        if (preparation.Catalog.Artwork.Count != 0)
+                        {
+                            knownLocalizationArtwork ??= LocalizationArtworkExporter.Read(gameDirectory, source.Descriptor.Language, localizationCancellation.Token).ToDictionary(image => image.Key);
+                            foreach (var image in preparation.Catalog.Artwork.Values)
+                            {
+                                if (!knownLocalizationArtwork.TryGetValue(image.Key, out var native) || !native.SourceSha256.Equals(image.SourceSha256, StringComparison.OrdinalIgnoreCase) || native.Width != image.LogicalWidth || native.Height != image.LogicalHeight)
+                                {
+                                    throw new InvalidDataException($"{image.Key}: artwork does not match a supported original image in this resource profile.");
+                                }
+                            }
+                        }
                     }
                     var previous = Resources.Localization;
                     int changedKeys = previous.Values.Keys.Union(preparation.Catalog.Values.Keys).Count(key => previous.Values.GetValueOrDefault(key)?.Text != preparation.Catalog.Values.GetValueOrDefault(key)?.Text);

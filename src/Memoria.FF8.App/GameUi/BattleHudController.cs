@@ -50,7 +50,22 @@ public sealed partial class BattleHudController
     public BattleSession Session => session;
     public event Action<MenuSound>? SoundRequested;
     public bool SelectingTarget { get; private set; }
-    public string Message { get; private set; } = "Choose a command when a character is ready.";
+    private string? message;
+    private Func<string>? systemMessage;
+    public string Message
+    {
+        get => systemMessage?.Invoke() ?? message ?? SystemText("battle.ui.ready", "Choose a command when a character is ready.");
+        private set
+        {
+            systemMessage = null;
+            message = value;
+        }
+    }
+
+    private void SetSystemMessage(Func<string> text)
+    {
+        systemMessage = text;
+    }
     public float TextScale { get; set; } = 1;
     public string GunbladeBindingHint { get; set; } = new KeyboardInput().BindingPrompt(ControlAction.RotateRight);
     internal string GuardianForceDisplayName(int id) => guardianForceName(id);
@@ -102,7 +117,7 @@ public sealed partial class BattleHudController
             return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
         }
     }
-    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? ["Do over", "Cast"] : SelectingGuardianFormAction ? ["Summon"] : HasGuardianFormCommands ? ["Attack", "Fire", "Hell Fire"] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
+    public IReadOnlyList<string> ChoiceLabels => SelectingNativeSlots ? [SystemText("battle.ui.choicelabels.do.over", "Do over"), SystemText("battle.ui.choicelabels.cast", "Cast")] : SelectingGuardianFormAction ? [SystemText("battle.ui.choicelabels.summon", "Summon")] : HasGuardianFormCommands ? [SystemText("battle.ui.choicelabels.attack", "Attack"), SystemText("battle.ui.choicelabels.fire", "Fire"), SystemText("battle.ui.choicelabels.hell.fire", "Hell Fire")] : SelectingDrawMode ? SelectedAction?.Id >= 64 ? [SystemText("battle.ui.choicelabels.stock", "Stock")] : [SystemText("battle.ui.choicelabels.stock", "Stock"), SystemText("battle.ui.choicelabels.cast", "Cast")] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(CommandLabel).ToArray());
     public int ChoiceIndex => SelectingNativeSlots ? nativeSlotsChoice : SelectingGuardianFormAction ? 0 : SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)) : Math.Clamp(commandIndex, 0, Math.Max(0, Commands.Count - 1));
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
     public IReadOnlyList<BattleCombatant> Targets
@@ -195,7 +210,7 @@ public sealed partial class BattleHudController
             return action?.NativeAction?.TargetFlags is byte flags ? (flags & 0x30) != 0x10 : action?.AllTargets == true;
         }
     }
-    public string TargetGroupDescription => Targets.All(actor => !actor.IsPlayer) ? "All enemies" : Targets.All(actor => actor.IsPlayer) ? "All allies" : "All targets";
+    public string TargetGroupDescription => Targets.All(actor => !actor.IsPlayer) ? SystemText("battle.ui.targetgroupdescription.all.enemies", "All enemies") : Targets.All(actor => actor.IsPlayer) ? SystemText("battle.ui.targetgroupdescription.all.allies", "All allies") : SystemText("battle.ui.targetgroupdescription.all.targets", "All targets");
     public IReadOnlyList<BattleCombatant> VisibleTargets => Targets;
     public BattleCombatant? SelectedActor
     {
@@ -417,7 +432,7 @@ public sealed partial class BattleHudController
         }
         if (session.Outcome != BattleOutcome.Active || SelectedActor is not BattleCombatant actor)
         {
-            Message = "Waiting for a character's ATB gauge.";
+            SetSystemMessage(() => SystemText("battle.ui.attack.waiting.for.a.character.s.atb.gauge", "Waiting for a character's ATB gauge."));
             return;
         }
         if (ConfirmGuardianFormCommand(actor))
@@ -457,16 +472,16 @@ public sealed partial class BattleHudController
                 session.OpenNativeActionMenu();
             }
             RestoreActionCursor();
-            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
+            SetSystemMessage(() => ActionChoices.Count == 0 ? SystemText("battle.ui.attack.no.available.stock.or.junctioned.gf.for", "No available stock or junctioned GF for this command.") : SelectedCommand == BattleAbility.Magic ? SystemText("battle.ui.attack.choose.magic.page.left.right.number.of", "Choose magic. Page Left/Right: number of casts.") : SelectedCommand == BattleAbility.GuardianForce ? SystemText("battle.ui.attack.choose.a.guardian.force", "Choose a Guardian Force.") : FormatSystemText("battle.ui.attack.choose", "Choose {0}.", SelectedCommand));
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
-                Message = "Do over to change magic, or Cast to accept.";
+                SetSystemMessage(() => SystemText("battle.ui.attack.do.over.to.change.magic.or.cast", "Do over to change magic, or Cast to accept."));
             }
             if (NativeLimitDirectTarget)
             {
                 SelectingTarget = true;
                 RestoreTargetCursor();
-                Message = "Select a target.";
+                SetSystemMessage(() => SystemText("battle.ui.attack.select.a.target", "Select a target."));
             }
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
@@ -475,7 +490,7 @@ public sealed partial class BattleHudController
         {
             if (SelectedAction is { Available: false } || SelectedCommand == BattleAbility.Magic && SelectedAction is { } magicAction && !session.QuoteMagic(actor.Id, magicAction.Id).Allowed)
             {
-                ShowCommandError("The selected action is unavailable.");
+                ShowCommandError(SystemText("battle.ui.attack.the.selected.action.is.unavailable", "The selected action is unavailable."));
                 return;
             }
             if (SelectedCommand != BattleAbility.Attack && SelectedAction is null)
@@ -485,7 +500,7 @@ public sealed partial class BattleHudController
             SelectingTarget = true;
             BeginMagicTargetSelection(actor);
             RestoreTargetCursor();
-            Message = "Select a target.";
+            SetSystemMessage(() => SystemText("battle.ui.attack.select.a.target", "Select a target."));
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
@@ -634,7 +649,7 @@ public sealed partial class BattleHudController
         if (next is not null)
         {
             SelectParty(next);
-            Message = "Choose a command.";
+            SetSystemMessage(() => SystemText("battle.ui.cyclecommandactor.choose.a.command", "Choose a command."));
         }
     }
 
@@ -738,14 +753,14 @@ public sealed partial class BattleHudController
         {
             SelectingTarget = false;
             SelectingDrawMode = true;
-            Message = "Stock or Cast?";
+            SetSystemMessage(() => SystemText("battle.ui.canceltarget.stock.or.cast", "Stock or Cast?"));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
         if (SelectingDrawMode)
         {
             SelectingDrawMode = false;
-            Message = "Choose magic to draw.";
+            SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.magic.to.draw", "Choose magic to draw."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -756,14 +771,14 @@ public sealed partial class BattleHudController
             SelectingAction = false;
             SelectingTarget = true;
             session.CloseNativeActionMenu();
-            Message = "Choose a source to draw from.";
+            SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.a.source.to.draw.from", "Choose a source to draw from."));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
         if (SelectingTarget && selectedMagicTargets.Count != 0)
         {
             selectedMagicTargets.RemoveAt(selectedMagicTargets.Count - 1);
-            Message = $"Magic ×{magicCastCount}: select target {selectedMagicTargets.Count + 1}/{magicCastCount}.";
+            SetSystemMessage(() => FormatSystemText("battle.ui.canceltarget.magic.select.target", "Magic \u00D7{0}: select target {1}/{2}.", magicCastCount, selectedMagicTargets.Count + 1, magicCastCount));
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -775,7 +790,7 @@ public sealed partial class BattleHudController
                 SelectingAction = false;
                 session.CloseNativeActionMenu();
                 SelectNativeLimit((nativeCommandHeldButtons & 0x2000) != 0 && (nativeCommandHeldButtons & 0x5000) == 0);
-                Message = "Choose a command.";
+                SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.a.command", "Choose a command."));
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return;
             }
@@ -783,7 +798,7 @@ public sealed partial class BattleHudController
             {
                 SelectingTarget = false;
                 selectedMagicTargets.Clear();
-                Message = $"Choose {SelectedCommand}.";
+                SetSystemMessage(() => FormatSystemText("battle.ui.canceltarget.choose", "Choose {0}.", SelectedCommand));
                 SoundRequested?.Invoke(MenuSound.Cancel);
                 return;
             }
@@ -793,7 +808,7 @@ public sealed partial class BattleHudController
         SelectingAction = false;
         session.CloseNativeActionMenu();
         selectedMagicTargets.Clear();
-        Message = "Choose a command when a character is ready.";
+        SetSystemMessage(() => SystemText("battle.ui.canceltarget.choose.a.command.when.a.character.is", "Choose a command when a character is ready."));
     }
 
     private static string? Cycle(IReadOnlyList<BattleCombatant> actors, string? selectedId, int direction)

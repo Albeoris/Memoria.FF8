@@ -28,7 +28,7 @@ public sealed partial class MenuController
     internal bool IsGuardianSearchEditing => IsGuardianAbilityEditor && guardianSearchEditing;
     internal bool IsGuardianAbilityWorkspace => IsGuardianAbilityEditor || ScreenId.StartsWith("mods-gf-", StringComparison.Ordinal) || ScreenId.StartsWith("gf-ability-", StringComparison.Ordinal);
 
-    private string GuardianTargetTitle() => guardianLocal ? SystemText("ui.guardiantargettitle.details.this.playthrough.local.changes", "This playthrough · Local changes") : guardianPackage is null ? SystemText("ui.guardiantargettitle.details.new.mod.untitled.mod", "New mod · Untitled mod") : SystemText("ui.guardiantargettitle.details.editing.mod", "Editing mod · ") + Path.GetFileName(guardianPackage.PackageDirectory);
+    private string GuardianTargetTitle() => guardianLocal ? SystemText("ui.guardiantargettitle.details.this.playthrough.local.changes", "This playthrough · Local changes") : guardianPackage is null ? SystemText("ui.guardiantargettitle.details.new.mod.untitled.mod", "New mod · Untitled mod") : FormatSystemText("ui.guardiantargettitle.details.editing.mod.template", "Editing mod \u00B7 {0}", Path.GetFileName(guardianPackage.PackageDirectory));
     private bool GuardianCatalogCanAdd => !guardianPreview && GuardianCatalog().ElementAtOrDefault(guardianCatalogCursor) is > 0 and var ability && !guardianDraft!.Preview.Templates[guardianSubject].Any(row => row.Ability == ability);
     private bool GuardianCanCommitOperation => !guardianPreview && GuardianSelectedRow is { } row && (guardianPending == "swap" ? row.Ability != guardianPendingAbility : guardianPending == "replace" && !guardianDraft!.Preview.Templates[guardianSubject].Any(entry => entry.Ability == guardianPendingAbility));
 
@@ -86,7 +86,7 @@ public sealed partial class MenuController
             Title = "GF Abilities · Controls",
             Help = "Bindings follow the active input device and configured profile.",
             Entries = _ => [new("back", SystemText("ui.registerguardianeditorpages.entry.label.back", "Back"), SystemText("ui.registerguardianeditorpages.entry.help.return.to.the.editor", "Return to the editor."), Action: new("menu-back"))],
-            Details = _ => [SystemText("ui.registerguardianeditorpages.details.up.down.previous.next.ability", "Up / Down: previous / next ability"), SystemText("ui.registerguardianeditorpages.details.left.right.or.page.up.down.full.page", "Left / Right or Page Up / Down: full page"), guardianBinding!(ControlAction.CameraLeft) + " / " + guardianBinding!(ControlAction.CameraRight) + SystemText("ui.registerguardianeditorpages.details.catalog.gf.focus", ": catalog / GF focus"), guardianBinding!(ControlAction.RotateLeft) + " / " + guardianBinding!(ControlAction.RotateRight) + SystemText("ui.registerguardianeditorpages.details.previous.next.gf", ": previous / next GF"), guardianBinding!(ControlAction.GuardianSwitchColumn) + SystemText("ui.registerguardianeditorpages.details.switch.column", ": switch column"), guardianBinding!(ControlAction.Card) + SystemText("ui.registerguardianeditorpages.details.toggle.start.learned", ": toggle Start learned"), guardianBinding!(ControlAction.Menu) + SystemText("ui.registerguardianeditorpages.details.actions", ": Actions"), SystemText("ui.registerguardianeditorpages.details.tab.shift.tab.next.previous.control", "Tab / Shift+Tab: next / previous control"), SystemText("ui.registerguardianeditorpages.details.click.a.row.to.select.use.named.actions", "Click a row to select. Use named actions or checkboxes to edit.")]
+            Details = _ => [SystemText("ui.registerguardianeditorpages.details.up.down.previous.next.ability", "Up / Down: previous / next ability"), SystemText("ui.registerguardianeditorpages.details.left.right.or.page.up.down.full.page", "Left / Right or Page Up / Down: full page"), FormatSystemText("ui.registerguardianeditorpages.details.catalog.gf.focus.template", "{0} / {1}: catalog / GF focus", guardianBinding!(ControlAction.CameraLeft), guardianBinding!(ControlAction.CameraRight)), FormatSystemText("ui.registerguardianeditorpages.details.previous.next.gf.template", "{0} / {1}: previous / next GF", guardianBinding!(ControlAction.RotateLeft), guardianBinding!(ControlAction.RotateRight)), FormatSystemText("ui.registerguardianeditorpages.details.switch.column.template", "{0}: switch column", guardianBinding!(ControlAction.GuardianSwitchColumn)), FormatSystemText("ui.registerguardianeditorpages.details.toggle.start.learned.template", "{0}: toggle Start learned", guardianBinding!(ControlAction.Card)), FormatSystemText("ui.registerguardianeditorpages.details.actions.template", "{0}: Actions", guardianBinding!(ControlAction.Menu)), SystemText("ui.registerguardianeditorpages.details.tab.shift.tab.next.previous.control", "Tab / Shift+Tab: next / previous control"), SystemText("ui.registerguardianeditorpages.details.click.a.row.to.select.use.named.actions", "Click a row to select. Use named actions or checkboxes to edit.")]
         });
         Register(new()
         {
@@ -103,48 +103,48 @@ public sealed partial class MenuController
         void Add(string id, string label, string help, bool enabled = true) => entries.Add(new(id, label, help, Action: new("gf-editor-command", id), Enabled: enabled));
         if (guardianPreview)
         {
-            Add("preview", "Back to editor", "Restore the exact editing view.");
-            Add("mode:0", "Source", "Loaded source; externally modified data may be an opaque baseline.");
-            Add("mode:1", guardianLocal ? "These local changes only" : "This mod only", "Selected contribution over source, with unresolved dependencies shown.");
-            Add("mode:2", "Current setup", "Ordered stack with the selected draft substituted once.");
+            Add("preview", SystemText("ui.guardianactionentries.entry.label.back.to.editor", "Back to editor"), SystemText("ui.guardianactionentries.entry.help.restore.the.exact.editing.view", "Restore the exact editing view."));
+            Add("mode:0", SystemText("ui.guardianactionentries.entry.label.source", "Source"), SystemText("ui.guardianactionentries.entry.help.loaded.source.externally.modified.data.may.be.an", "Loaded source; externally modified data may be an opaque baseline."));
+            Add("mode:1", guardianLocal ? SystemText("ui.guardianactionentries.entry.label.these.local.changes.only", "These local changes only") : SystemText("ui.guardianactionentries.entry.label.this.mod.only", "This mod only"), SystemText("ui.guardianactionentries.entry.help.selected.contribution.over.source.with.unresolved.dependencies.shown", "Selected contribution over source, with unresolved dependencies shown."));
+            Add("mode:2", SystemText("ui.guardianactionentries.entry.label.current.setup", "Current setup"), SystemText("ui.guardianactionentries.entry.help.ordered.stack.with.the.selected.draft.substituted.once", "Ordered stack with the selected draft substituted once."));
             if (guardianPreviewMode == 2)
             {
-                Add("include", (guardianWithoutLayer ? "[ ]" : "[x]") + " Include selected layer", "Simulate inclusion without changing activation.");
+                Add("include", FormatSystemText("ui.guardianactionentries.entry.label.x.template", "{0} Include selected layer", (guardianWithoutLayer ? "[ ]" : SystemText("ui.guardianactionentries.entry.label.x", "[x]"))), SystemText("ui.guardianactionentries.entry.help.simulate.inclusion.without.changing.activation", "Simulate inclusion without changing activation."));
             }
         }
         else
         {
             if (guardianPane == 0)
             {
-                Add("tool:0", "Add", GuardianCatalogCanAdd ? "Append the selected ability." : "Already in this GF, or no matching ability.", GuardianCatalogCanAdd);
-                Add("tool:1", "Replace", "Choose a GF target, then explicitly confirm replacement.", GuardianCatalogCanAdd && GuardianSelectedRow is not null);
+                Add("tool:0", SystemText("ui.guardianactionentries.entry.label.add", "Add"), GuardianCatalogCanAdd ? SystemText("ui.guardianactionentries.entry.help.append.the.selected.ability", "Append the selected ability.") : SystemText("ui.guardianactionentries.entry.help.already.in.this.gf.or.no.matching.ability", "Already in this GF, or no matching ability."), GuardianCatalogCanAdd);
+                Add("tool:1", SystemText("ui.guardianactionentries.entry.label.replace", "Replace"), SystemText("ui.guardianactionentries.entry.help.choose.a.gf.target.then.explicitly.confirm.replacement", "Choose a GF target, then explicitly confirm replacement."), GuardianCatalogCanAdd && GuardianSelectedRow is not null);
             }
             else
             {
-                Add("tool:2", "Swap", "Choose a second ability to exchange positions.", GuardianSelectedRow is not null);
-                Add("toggle", "Toggle Start learned", "Template only; current progress is preserved.", GuardianSelectedRow is not null);
-                Add("tool:3", "Undo", GuardianUndoText(), GuardianSelectedRow is { } row && guardianDraft!.RowDirty(guardianSubject, row.Ability));
-                Add("tool:4", "Restore inherited value", "Remove this layer's selected contribution and dependent operations.", GuardianSelectedRow is not null);
+                Add("tool:2", SystemText("ui.guardianactionentries.entry.label.swap", "Swap"), SystemText("ui.guardianactionentries.entry.help.choose.a.second.ability.to.exchange.positions", "Choose a second ability to exchange positions."), GuardianSelectedRow is not null);
+                Add("toggle", SystemText("ui.guardianactionentries.entry.label.toggle.start.learned", "Toggle Start learned"), SystemText("ui.guardianactionentries.entry.help.template.only.current.progress.is.preserved", "Template only; current progress is preserved."), GuardianSelectedRow is not null);
+                Add("tool:3", SystemText("ui.guardianactionentries.entry.label.undo", "Undo"), GuardianUndoText(), GuardianSelectedRow is { } row && guardianDraft!.RowDirty(guardianSubject, row.Ability));
+                Add("tool:4", SystemText("ui.guardianactionentries.entry.label.restore.inherited.value", "Restore inherited value"), SystemText("ui.guardianactionentries.entry.help.remove.this.layer.s.selected.contribution.and.dependent", "Remove this layer's selected contribution and dependent operations."), GuardianSelectedRow is not null);
             }
-            Add("preview", "Preview", "Read-only comparison workspace.");
-            Add("tool:" + (guardianLocal ? 10 : 11), guardianLocal ? "Apply changes" : "Save mod", "Keep the selected contribution.");
+            Add("preview", SystemText("ui.guardianactionentries.entry.label.preview", "Preview"), SystemText("ui.guardianactionentries.entry.help.read.only.comparison.workspace", "Read-only comparison workspace."));
+            Add("tool:" + (guardianLocal ? 10 : 11), guardianLocal ? SystemText("ui.guardianactionentries.entry.label.apply.changes", "Apply changes") : SystemText("ui.guardianactionentries.entry.label.save.mod", "Save mod"), SystemText("ui.guardianactionentries.entry.help.keep.the.selected.contribution", "Keep the selected contribution."));
             if (!guardianLocal)
             {
-                Add("tool:10", "Apply to this playthrough", "Review progression and junction consequences; does not save the package.", readGuardianEditor!().Current is not null);
-                Add("tool:12", "Save as new mod", "Write an independent package.");
-                Add("tool:14", "Use package", "Review local ownership and reactivate the saved package contribution.", GuardianInstalledPackage is not null && reviewGuardianPackageOwnership is not null);
+                Add("tool:10", SystemText("ui.guardianactionentries.entry.label.apply.to.this.playthrough", "Apply to this playthrough"), SystemText("ui.guardianactionentries.entry.help.review.progression.and.junction.consequences.does.not.save", "Review progression and junction consequences; does not save the package."), readGuardianEditor!().Current is not null);
+                Add("tool:12", SystemText("ui.guardianactionentries.entry.label.save.as.new.mod", "Save as new mod"), SystemText("ui.guardianactionentries.entry.help.write.an.independent.package", "Write an independent package."));
+                Add("tool:14", SystemText("ui.guardianactionentries.entry.label.use.package", "Use package"), SystemText("ui.guardianactionentries.entry.help.review.local.ownership.and.reactivate.the.saved.package", "Review local ownership and reactivate the saved package contribution."), GuardianInstalledPackage is not null && reviewGuardianPackageOwnership is not null);
             }
-            Add("search", "Search abilities", "Type using a keyboard. Controller users can use category and paging.");
-            Add("clear", "Clear search", "Show all names in the selected category.", guardianSearch.Length > 0);
-            Add("tool:9", "Filter category · " + GuardianCategories[guardianCategory], "Choose the next category.");
-            Add("mod-details", "Mod details", "Layer ownership, identity, position and activation are separate from file state.");
-            Add("tool:13", "Change editing target", "Handle unsaved changes before selecting another owner.");
-            Add("discard", "Discard changes", "Review before discarding the selected draft.", guardianDraft?.Dirty == true);
+            Add("search", SystemText("ui.guardianactionentries.entry.label.search.abilities", "Search abilities"), SystemText("ui.guardianactionentries.entry.help.type.using.a.keyboard.controller.users.can.use", "Type using a keyboard. Controller users can use category and paging."));
+            Add("clear", SystemText("ui.guardianactionentries.entry.label.clear.search", "Clear search"), SystemText("ui.guardianactionentries.entry.help.show.all.names.in.the.selected.category", "Show all names in the selected category."), guardianSearch.Length > 0);
+            Add("tool:9", FormatSystemText("ui.guardianactionentries.entry.label.filter.category.template", "Filter category \u00B7 {0}", GuardianCategoryLabel(guardianCategory)), SystemText("ui.guardianactionentries.entry.help.choose.the.next.category", "Choose the next category."));
+            Add("mod-details", SystemText("ui.guardianactionentries.entry.label.mod.details", "Mod details"), SystemText("ui.guardianactionentries.entry.help.layer.ownership.identity.position.and.activation.are.separate", "Layer ownership, identity, position and activation are separate from file state."));
+            Add("tool:13", SystemText("ui.guardianactionentries.entry.label.change.editing.target", "Change editing target"), SystemText("ui.guardianactionentries.entry.help.handle.unsaved.changes.before.selecting.another.owner", "Handle unsaved changes before selecting another owner."));
+            Add("discard", SystemText("ui.guardianactionentries.entry.label.discard.changes", "Discard changes"), SystemText("ui.guardianactionentries.entry.help.review.before.discarding.the.selected.draft", "Review before discarding the selected draft."), guardianDraft?.Dirty == true);
         }
-        Add("select", "Select GF", "Choose any of the sixteen learnable GFs.");
-        Add("column", "Switch column", "Move to the other GF column at the same visible row.");
-        Add("details", "Details", "Full description, provenance and diagnostic information.");
-        Add("controls", "Controls", "Show bindings and interaction reference.");
+        Add("select", SystemText("ui.guardianactionentries.entry.label.select.gf", "Select GF"), SystemText("ui.guardianactionentries.entry.help.choose.any.of.the.sixteen.learnable.gfs", "Choose any of the sixteen learnable GFs."));
+        Add("column", SystemText("ui.guardianactionentries.entry.label.switch.column", "Switch column"), SystemText("ui.guardianactionentries.entry.help.move.to.the.other.gf.column.at.the", "Move to the other GF column at the same visible row."));
+        Add("details", SystemText("ui.guardianactionentries.entry.label.details", "Details"), SystemText("ui.guardianactionentries.entry.help.full.description.provenance.and.diagnostic.information", "Full description, provenance and diagnostic information."));
+        Add("controls", SystemText("ui.guardianactionentries.entry.label.controls", "Controls"), SystemText("ui.guardianactionentries.entry.help.show.bindings.and.interaction.reference", "Show bindings and interaction reference."));
         return entries;
     }
 
@@ -241,16 +241,16 @@ public sealed partial class MenuController
     {
         if (guardianModDetails)
         {
-            return [GuardianTargetTitle(), guardianPackage?.PackageDirectory ?? SystemText("ui.guardiandetaillines.details.no.package.destination.selected", "No package destination selected."), SystemText("ui.guardiandetaillines.details.document", "Document: ") + guardianDraft!.ExportDocument.DocumentId, guardianPackage is null && !guardianLocal ? SystemText("ui.guardiandetaillines.details.provisional.position.after.native.gf.layers.before.playthrough", "Provisional position: after native GF layers, before playthrough local changes. Save determines the final package order.") : SystemText("ui.guardiandetaillines.details.the.selected.layer.is.composed.over.its.preceding", "The selected layer is composed over its preceding input."), SystemText("ui.guardiandetaillines.details.saving.runtime.activation.and.normal.game.saving.have", "Saving, runtime activation and normal game saving have separate states.")];
+            return [GuardianTargetTitle(), guardianPackage?.PackageDirectory ?? SystemText("ui.guardiandetaillines.details.no.package.destination.selected", "No package destination selected."), FormatSystemText("ui.guardiandetaillines.details.document.template", "Document: {0}", guardianDraft!.ExportDocument.DocumentId), guardianPackage is null && !guardianLocal ? SystemText("ui.guardiandetaillines.details.provisional.position.after.native.gf.layers.before.playthrough", "Provisional position: after native GF layers, before playthrough local changes. Save determines the final package order.") : SystemText("ui.guardiandetaillines.details.the.selected.layer.is.composed.over.its.preceding", "The selected layer is composed over its preceding input."), SystemText("ui.guardiandetaillines.details.saving.runtime.activation.and.normal.game.saving.have", "Saving, runtime activation and normal game saving have separate states.")];
         }
         int ability = guardianPane == 0 ? GuardianCatalog().ElementAtOrDefault(guardianCatalogCursor) : GuardianSelectedRow?.Ability ?? 0;
         GuardianForceAbilityComposition composition = GuardianEditorComposition();
         GuardianForceAbilityTemplate? row = composition.Templates[guardianSubject].FirstOrDefault(entry => entry.Ability == ability);
         NativeGuardianForceAbility? current = readGuardianEditor!().Current?.GuardianForceAbilities(guardianSubject).FirstOrDefault(entry => entry.Ability == ability);
-        List<string> lines = [guardianAbilityName!(ability), guardianAbilityDescription!(ability), SystemText("ui.guardiandetaillines.lines.catalog.cost", "Catalog cost: ") + readGuardianEditor!().Source.MenuDefinitions.AbilityPoints[ability] + SystemText("ui.guardiandetaillines.lines.ap", " AP"), SystemText("ui.guardiandetaillines.lines.start.learned.affects.the.template.current.progress.is", "Start learned affects the template; current progress is preserved unless explicitly applied."), current is null ? SystemText("ui.guardiandetaillines.lines.no.current.progress.not.acquired", "No current progress / not acquired.") : current.Learned ? SystemText("ui.guardiandetaillines.lines.current.save.learned", "Current save: learned") : FormatSystemText("ui.guardiandetaillines.lines.current.save.ap", "Current save: {0} / {1} AP", current.Progress, current.RequiredPoints)];
+        List<string> lines = [guardianAbilityName!(ability), guardianAbilityDescription!(ability), FormatSystemText("ui.guardiandetaillines.lines.catalog.cost.template", "Catalog cost: {0} AP", readGuardianEditor!().Source.MenuDefinitions.AbilityPoints[ability]), SystemText("ui.guardiandetaillines.lines.start.learned.affects.the.template.current.progress.is", "Start learned affects the template; current progress is preserved unless explicitly applied."), current is null ? SystemText("ui.guardiandetaillines.lines.no.current.progress.not.acquired", "No current progress / not acquired.") : current.Learned ? SystemText("ui.guardiandetaillines.lines.current.save.learned", "Current save: learned") : FormatSystemText("ui.guardiandetaillines.lines.current.save.ap", "Current save: {0} / {1} AP", current.Progress, current.RequiredPoints)];
         if (row is not null)
         {
-            lines.Add(row.PrerequisiteAbility is int prerequisite ? SystemText("ui.guardiandetaillines.details.requires", "Requires ") + guardianAbilityName!(prerequisite) : SystemText("ui.guardiandetaillines.details.required.gf.level", "Required GF level: ") + row.RequiredLevel);
+            lines.Add(row.PrerequisiteAbility is int prerequisite ? FormatSystemText("ui.guardiandetaillines.details.requires.template", "Requires {0}", guardianAbilityName!(prerequisite)) : FormatSystemText("ui.guardiandetaillines.details.required.gf.level.template", "Required GF level: {0}", row.RequiredLevel));
             lines.Add(row.SupportedCondition ? SystemText("ui.guardiandetaillines.details.availability.condition.supported", "Availability condition supported.") : SystemText("ui.guardiandetaillines.details.unsupported.source.condition.see.diagnostics", "Unsupported source condition; see diagnostics."));
         }
         lines.AddRange(composition.Origins.Where(origin => origin.GuardianForce == guardianSubject && origin.Ability == ability).Select(origin => origin.PackageId + " · " + origin.Aspect));
@@ -383,7 +383,7 @@ public sealed partial class MenuController
     {
         if (guardianPreview || guardianPending is not null)
         {
-            Message = guardianPreview ? SystemText("ui.guardiantogglerow.message.preview.is.read.only", "Preview is read-only.") : SystemText("ui.guardiantogglerow.message.finish.or.cancel.the.pending.operation.first", "Finish or cancel the pending operation first.");
+            SetSystemMessage(() => guardianPreview ? SystemText("ui.guardiantogglerow.message.preview.is.read.only", "Preview is read-only.") : SystemText("ui.guardiantogglerow.message.finish.or.cancel.the.pending.operation.first", "Finish or cancel the pending operation first."));
             return;
         }
         GuardianSelectRow(index);
@@ -397,7 +397,7 @@ public sealed partial class MenuController
     {
         if (!GuardianCanCommitOperation || GuardianSelectedRow is not { } row)
         {
-            Message = guardianPending == "swap" ? SystemText("ui.guardianconfirmoperation.message.choose.a.different.ability", "Choose a different ability.") : SystemText("ui.guardianconfirmoperation.message.the.incoming.ability.must.not.already.be.in", "The incoming ability must not already be in this GF.");
+            SetSystemMessage(() => guardianPending == "swap" ? SystemText("ui.guardianconfirmoperation.message.choose.a.different.ability", "Choose a different ability.") : SystemText("ui.guardianconfirmoperation.message.the.incoming.ability.must.not.already.be.in", "The incoming ability must not already be in this GF."));
             return;
         }
         int follow = guardianPendingAbility;
@@ -422,9 +422,40 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private string GuardianOperationText() => guardianPending is null ? "" : guardianPending == "swap" ? "Swap " + guardianAbilityName!(guardianPendingAbility) + " with " + (GuardianSelectedRow is { } row ? guardianAbilityName!(row.Ability) : "a target") : "Replace " + (GuardianSelectedRow is { } target ? guardianAbilityName!(target.Ability) : "a target") + " with " + guardianAbilityName!(guardianPendingAbility);
-    private string GuardianUndoText() => GuardianSelectedRow is { } row ? guardianDraft!.UndoDescription(guardianSubject, row.Ability, guardianAbilityName!) : "No selected entry";
-    private string GuardianConfirmHint() => guardianFocus == "catalog" ? "Confirm: Add / Replace" : guardianFocus != "rows" ? "Confirm: " + guardianFocus : guardianPreview ? "Confirm: Details" : guardianPending is not null ? "Confirm: " + (guardianPending == "swap" ? "Swap" : "Replace") : GuardianSelectedRow is { } row && guardianDraft!.RowDirty(guardianSubject, row.Ability) ? "Confirm: " + GuardianUndoText() : "Confirm: Actions";
+    private string GuardianOperationText() => guardianPending is null ? "" : guardianPending == "swap" ? FormatSystemText("ui.guardianoperationtext.details.swap.template", "Swap {0} with {1}", guardianAbilityName!(guardianPendingAbility), (GuardianSelectedRow is { } row ? guardianAbilityName!(row.Ability) : SystemText("ui.guardianoperationtext.details.a.target", "a target"))) : FormatSystemText("ui.guardianoperationtext.details.replace.template", "Replace {0} with {1}", (GuardianSelectedRow is { } target ? guardianAbilityName!(target.Ability) : SystemText("ui.guardianoperationtext.details.a.target", "a target")), guardianAbilityName!(guardianPendingAbility));
+    private string GuardianUndoText() => GuardianSelectedRow is { } row ? guardianDraft!.UndoDescription(guardianSubject, row.Ability, guardianAbilityName!) : SystemText("ui.guardianundotext.details.no.selected.entry", "No selected entry");
+    private string GuardianConfirmHint()
+    {
+        if (guardianFocus == "catalog")
+        {
+            return SystemText("guardian.confirm.add-replace", "Add / Replace");
+        }
+        if (guardianFocus != "rows")
+        {
+            return GuardianControlLabel(guardianFocus);
+        }
+        if (guardianPreview)
+        {
+            return SystemText("guardian.confirm.details", "Details");
+        }
+        if (guardianPending is not null)
+        {
+            return guardianPending == "swap" ? SystemText("guardian.confirm.swap", "Swap") : SystemText("guardian.confirm.replace", "Replace");
+        }
+        return GuardianSelectedRow is { } row && guardianDraft!.RowDirty(guardianSubject, row.Ability) ? GuardianUndoText() : SystemText("guardian.confirm.actions", "Actions");
+    }
+
+    private string GuardianControlLabel(string control) => control switch
+    {
+        "search" => SystemText("guardian.control.search", "Search"),
+        "clear-search" => SystemText("guardian.control.clear-search", "Clear search"),
+        "category" => SystemText("guardian.control.category", "Category"),
+        "select" => SystemText("guardian.control.select", "Select GF"),
+        "column" => SystemText("guardian.control.column", "Switch column"),
+        "details" => SystemText("guardian.control.details", "Details"),
+        _ => SystemText("guardian.control.activate", "Activate")
+    };
+
 
     private void GuardianOpenActions()
     {

@@ -38,7 +38,7 @@ internal sealed partial class BattleHudElement
         };
         if (controller.Session.Outcome == BattleOutcome.Escaped)
         {
-            title = "Escaped - " + title;
+            title = controller.FormatSystemText("battle.results.escaped", "Escaped - {0}", title);
         }
         ResultLabel(canvas, theme, title, 26, 17, 332);
         theme.Panel(canvas, ResultRect(16, 184, 352, 26));
@@ -48,7 +48,7 @@ internal sealed partial class BattleHudElement
             DrawResultExperience(canvas, theme);
             if (rewards is null)
             {
-                ResultLabel(canvas, theme, "Standalone battle: rewards are not saved.", 26, 213, 332, true, theme.Muted);
+                ResultLabel(canvas, theme, controller.SystemText("battle.results.standalone", "Standalone battle: rewards are not saved."), 26, 213, 332, true, theme.Muted);
             }
         }
         else if (controller.ResultPage == BattleResultPage.Items)
@@ -99,7 +99,7 @@ internal sealed partial class BattleHudElement
             {
                 ResultLabel(canvas, theme, "↑", x + 14, y + 1, 9, color: highlight);
             }
-            ResultLabel(canvas, theme, "Lv. " + growth.FinalLevel.ToString(CultureInfo.InvariantCulture), x + 24, y + 1, 38, color: leveled ? highlight : theme.Foreground);
+            ResultLabel(canvas, theme, controller.FormatSystemText("battle.results.level", "Lv. {0}", growth.FinalLevel), x + 24, y + 1, 38, color: leveled ? highlight : theme.Foreground);
             if (ability is int abilityId)
             {
                 ResultLabel(canvas, theme, controller.ResultLearnedAbility(abilityId), x + 64, y + 1, 98, color: highlight);
@@ -120,7 +120,7 @@ internal sealed partial class BattleHudElement
             BattleCombatant actor = controller.Party[index];
             (uint? total, int level, uint? next) = controller.DisplayedExperience(actor);
             ResultLabel(canvas, theme, actor.Name, 40, y + 7, 145, color: actor.IsAlive ? null : new UiColor(255, 96, 96));
-            ResultLabel(canvas, theme, "Lv.", 40, y + 20, 20);
+            ResultLabel(canvas, theme, controller.SystemText("battle.results.level-label", "Lv."), 40, y + 20, 20);
             ResultLabel(canvas, theme, level.ToString(CultureInfo.InvariantCulture), 92, y + 20, 30);
             ResultLabel(canvas, theme, controller.ResultText(29, "EXP received"), 196, y + 5, 74);
             ResultLabel(canvas, theme, controller.ResultText(30, "Current EXP"), 196, y + 20, 74);
@@ -129,7 +129,7 @@ internal sealed partial class BattleHudElement
             for (int row = 0; row < numbers.Length; row++)
             {
                 canvas.AlignedText(numbers[row], 20 * Scale * controller.TextScale, ResultRect(268, y + 7 + row * 15, 51, 12), theme.Foreground, UiAlignment.End);
-                ResultLabel(canvas, theme, "EXP", 325, y + 7 + row * 15, 24);
+                ResultLabel(canvas, theme, controller.SystemText("battle.results.experience-label", "EXP"), 325, y + 7 + row * 15, 24);
             }
             if (controller.ExperienceFinished && controller.CharacterResult(actor) is { } growth && growth.FinalLevel > growth.PreviousLevel)
             {

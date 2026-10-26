@@ -66,7 +66,7 @@ internal sealed partial class RecreateGame
             if (nativePartyWindowUi is null || nativePartyWindowKey != key)
             {
                 GameUi.MenuData data = GameUi.LiveMenuData.Build(session.State, events.Scene.Names, liveMenuCatalog, visible);
-                nativePartyWindowUi = GameUi.PartySelectionView.Build(menu, data, partyMenuCandidate, keyboard.BindingPrompt(ControlAction.Cancel), WindowTextScale);
+                nativePartyWindowUi = GameUi.PartySelectionView.Build(menu, data, partyMenuCandidate, keyboard.BindingPrompt(ControlAction.Cancel), WindowTextScale, LocalizeUiText);
                 nativePartyWindowKey = key;
             }
             DrawWindowView(nativePartyWindowUi, bounds);

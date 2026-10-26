@@ -21,7 +21,7 @@ public static partial class LocalizationSourceExporter
             Attempt("Kernel", "main/kernel.bin", Kernel);
             Attempt("Guardians", "main/init.out", GuardianDefaults);
             Attempt("Menus", "menu/mngrp.bin", Menu);
-            foreach ((string resource, string category, string table) in new[] { ("menu/namedic.bin", "Menus", "namedic_menu"), ("menu/areames.dc1", "Locations", "names_locations") })
+            foreach ((string resource, string category, string table) in new[] { (Resource("main/namedic.bin") is not null ? "main/namedic.bin" : "menu/namedic.bin", "Menus", "namedic_menu"), ("menu/areames.dc1", "Locations", "names_locations") })
             {
                 Attempt(category, resource, () =>
                 {
@@ -33,7 +33,7 @@ public static partial class LocalizationSourceExporter
                 });
             }
             Attempt("Monsters", "battle", Enemies);
-            Attempt("World", "world/wmsetus.obj", World);
+            Attempt("World", WorldResource, World);
             foreach ((string resource, string category, string table) in new[] { ("text/card-names", "Cards", "names_cards"), ("text/card-names-alternate", "Cards", "namesalternate_cards"), ("text/card-descriptions", "Cards", "named_texts_cards"), ("text/draw-points", "Draw points", "drawpoints_world") })
             {
                 Attempt(category, resource, () =>
@@ -197,7 +197,7 @@ public static partial class LocalizationSourceExporter
                     case MngrpOpaqueSection:
                         if (section.ReservedSize > 0)
                         {
-                            gaps.Add(new(category, "menu/mngrp.bin/" + prefix, "Opaque section retained by its reader; text coverage is not established."));
+                            ClassifyMenuSection(section.SlotIndex, prefix, metadata, menuHeader, menuContent);
                         }
                         break;
                 }
@@ -300,9 +300,20 @@ public static partial class LocalizationSourceExporter
             }
         }
 
+        private string WorldResource => "world/" + (language switch
+        {
+            "fr" => "wmsetfr.obj",
+            "de" => "wmsetgr.obj",
+            "es" => "wmsetsp.obj",
+            "it" => "wmsetit.obj",
+            "jp" => "wmsetjp.obj",
+            _ => "wmsetus.obj"
+        });
+
         private void World()
         {
-            byte[] bytes = Required("world/wmsetus.obj");
+            string resource = WorldResource;
+            byte[] bytes = Required(resource);
             int start = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(13 * 4));
             int end = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(14 * 4));
             if (start < 0 || end > bytes.Length || start >= end)
@@ -326,7 +337,7 @@ public static partial class LocalizationSourceExporter
                     throw new InvalidDataException("World message pointer enters its index table.");
                 }
                 int index = ordinal;
-                Attempt("World", "world/wmsetus.obj/" + index, () => Add("World", "messages_world", index, NullText(bytes, checked(start + offset), end), "world/wmsetus.obj"));
+                Attempt("World", resource + "/" + index, () => Add("World", "messages_world", index, NullText(bytes, checked(start + offset), end), resource));
             }
         }
 
@@ -346,6 +357,11 @@ public static partial class LocalizationSourceExporter
 
         private void WordBank(string resource, string category, string table)
         {
+            if (source.Descriptor.Edition == Memoria.FF8.Resources.GameDataEdition.Classic && resource != "text/card-names" && Resource(resource) is null)
+            {
+                gaps.Add(new(category, resource, "CapabilityUnavailable: this source edition has no independent named card bank; its native menu card records are exported under their original section identities."));
+                return;
+            }
             if (resource == "text/card-names" && source.Descriptor.Edition == Memoria.FF8.Resources.GameDataEdition.Classic && source is IGameNativeMemorySource memory)
             {
                 var names = TripleTriadCatalog.Read(memory).Names;
@@ -384,6 +400,11 @@ public static partial class LocalizationSourceExporter
 
         private void PointerBank(string resource, string category, string table)
         {
+            if (resource == "text/draw-points" && language == "jp" && source.Descriptor.Edition == Memoria.FF8.Resources.GameDataEdition.Remastered && Resource(resource) is null)
+            {
+                gaps.Add(new(category, resource, "CapabilityUnavailable: this source profile does not ship an independent draw-point text bank."));
+                return;
+            }
             byte[] bytes = Required(resource);
             int header = BinaryPrimitives.ReadInt32LittleEndian(bytes);
             if (header < 4 || header % 4 != 0 || header > bytes.Length)

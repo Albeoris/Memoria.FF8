@@ -73,7 +73,7 @@ public sealed partial class BattleHudController
         }
     }
 
-    private string CommandLabel(BattleAbility command)
+    internal string CommandLabel(BattleAbility command)
     {
         if (command == BattleAbility.LimitBreak && SelectedActor is { } actor)
         {
@@ -97,21 +97,21 @@ public sealed partial class BattleHudController
     {
         if (CommandMenuHidden && session.NativeGuardianBoost is { Enabled: true } boost)
         {
-            string window = boost.Phase == 4 ? boost.Window == 0 ? "STOP" : $"{ButtonPromptText.Mark(NativeButtonBindingHint(0x80))}: PRESS" : "WAIT";
-            Message = $"GF Boost {boost.DisplayPercent}% · {window}";
+            string window = boost.Phase == 4 ? boost.Window == 0 ? SystemText("battle.ui.boost.stop", "STOP") : FormatSystemText("battle.ui.boost.press", "{0}: PRESS", ButtonPromptText.Mark(NativeButtonBindingHint(0x80))) : SystemText("battle.ui.boost.wait", "WAIT");
+            SetSystemMessage(() => FormatSystemText("battle.ui.presentnativeshot.gf.boost", "GF Boost {0}% \u00B7 {1}", boost.DisplayPercent, window));
         }
         else if (NativeShotActor is { } actor && session.GetNativeShot(actor.Id) is { } shot)
         {
-            Message = shot.Phase == BattleNativeShotPhase.Ready ? $"Shot · {GunbladeBindingHint}: Fire · {ButtonPromptText.Mark(NativeButtonBindingHint(0x10))}: Finish · {shot.RemainingAmmo} ammo" : "Shot";
+            SetSystemMessage(() => shot.Phase == BattleNativeShotPhase.Ready ? FormatSystemText("battle.ui.presentnativeshot.shot.fire.finish.ammo", "Shot \u00B7 {0}: Fire \u00B7 {1}: Finish \u00B7 {2} ammo", GunbladeBindingHint, ButtonPromptText.Mark(NativeButtonBindingHint(0x10)), shot.RemainingAmmo) : SystemText("battle.ui.presentnativeshot.shot", "Shot"));
         }
         else if (NativeDuelActor is { } duelist)
         {
-            Message = session.GetNativeDuel(duelist.Id)!.Phase == BattleNativeDuelPhase.Ready ? "Duel · Enter a button sequence" : "Duel";
+            SetSystemMessage(() => session.GetNativeDuel(duelist.Id)!.Phase == BattleNativeDuelPhase.Ready ? SystemText("battle.ui.presentnativeshot.duel.enter.a.button.sequence", "Duel · Enter a button sequence") : SystemText("battle.ui.presentnativeshot.duel", "Duel"));
         }
         else if (NativeRenzokukenActor is { } gunblade)
         {
             BattleNativeRenzokukenState state = session.GetNativeRenzokuken(gunblade.Id)!;
-            Message = session.NativeRenzokukenBarVisible && session.CanTriggerNativeRenzokuken ? $"Renzokuken · {GunbladeBindingHint}: Trigger · Hit {state.Input.ContactIndex + 1}" : "Renzokuken";
+            SetSystemMessage(() => session.NativeRenzokukenBarVisible && session.CanTriggerNativeRenzokuken ? FormatSystemText("battle.ui.presentnativeshot.renzokuken.trigger.hit", "Renzokuken \u00B7 {0}: Trigger \u00B7 Hit {1}", GunbladeBindingHint, state.Input.ContactIndex + 1) : SystemText("battle.ui.presentnativeshot.renzokuken", "Renzokuken"));
         }
     }
 
@@ -135,7 +135,7 @@ public sealed partial class BattleHudController
             throw new InvalidOperationException("Do over requires the active Slots choice menu.");
         }
         session.RollNativeSlots(actor.Id);
-        Message = "Do over to change magic, or Cast to accept.";
+        SetSystemMessage(() => SystemText("battle.ui.rerollnativeslots.do.over.to.change.magic.or.cast", "Do over to change magic, or Cast to accept."));
         SoundRequested?.Invoke(MenuSound.Confirm);
     }
 

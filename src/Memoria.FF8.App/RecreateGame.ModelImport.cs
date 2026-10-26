@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
     {
         try
         {
-            string? path = ModelBrowserDialogs.Import(Window.Handle);
+            string? path = ModelBrowserDialogs.Import(Window.Handle, LocalizeUiText);
             if (path is null)
             {
                 return;
@@ -32,7 +32,7 @@ internal sealed partial class RecreateGame
             if (inventory.Objects.Count == 0)
             {
                 ValidateSingleUnidentifiedModelMapping(bytes);
-                if (!ModelBrowserDialogs.Confirm(Window.Handle, "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to " + entry.Id + "?", "Map GLB target", "Use this target?"))
+                if (!ModelBrowserDialogs.Confirm(Window.Handle, FormatAuthored("model.import.map-identity", "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to {0}?", entry.Id), LocalizeAuthored("model.import.map-target", "Map GLB target"), LocalizeAuthored("model.import.use-target-question", "Use this target?"), LocalizeUiText))
                 {
                     return;
                 }
@@ -300,18 +300,18 @@ internal sealed partial class RecreateGame
                 throw new InvalidDataException("Select at least one matched object or clip component.");
             }
             ModelModInstallPlan plan = ModelModInstaller.Plan(replacements);
-            if (warnings.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, string.Join("\n", warnings.Distinct())))
+            if (warnings.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, string.Join("\n", warnings.Distinct()), localizeText: LocalizeUiText))
             {
                 return;
             }
             string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
-            string? destination = ModelBrowserDialogs.Destination(Window.Handle, root);
+            string? destination = ModelBrowserDialogs.Destination(Window.Handle, root, LocalizeUiText);
             if (destination is null)
             {
                 return;
             }
             IReadOnlyList<string> conflicts = plan.GetConflicts(root, destination);
-            if (conflicts.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, $"{conflicts.Count} selected replacement files already exist. Unselected files and package settings will be retained.", "Replace selected mod content", "Replace these files?"))
+            if (conflicts.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, FormatAuthored("model.import.existing-replacements", "{0} selected replacement files already exist. Unselected files and package settings will be retained.", conflicts.Count), LocalizeAuthored("model.import.replace-content", "Replace selected mod content"), LocalizeAuthored("model.import.replace-question", "Replace these files?"), LocalizeUiText))
             {
                 return;
             }

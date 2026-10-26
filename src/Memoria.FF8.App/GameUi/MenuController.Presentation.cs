@@ -91,10 +91,10 @@ public sealed partial class MenuController
     {
         var page = VectorRows([80, 0, 32], [3.2f, 1], 12);
         page.Id = "vector-main";
-        Place(page, VectorHeader(SelectedEntry?.Label ?? "Menu", SelectedEntry?.Help ?? CurrentScreen.Help), 0);
+        Place(page, VectorHeader(SelectedEntry?.Label ?? SystemText("ui.buildvectormain.caption.menu", "Menu"), SelectedEntry?.Help ?? CurrentScreen.Help), 0);
         var party = VectorRows([18, 0, 18, Math.Max(72, ((CharacterChoices.Count(member => !member.InParty) + 2) / 3) * 56)], [1], 4);
         Place(page, party, 1);
-        Place(party, VectorLabel("A C T I V E   P A R T Y", 11, true), 0);
+        Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.a.c.t.i.v.e.p.a", "A C T I V E   P A R T Y"), 11, true), 0);
         MenuCharacter[] active = CharacterChoices.Where(member => member.InParty).ToArray();
         var cards = Grid([1, 1, 1], [1], 6);
         Place(party, cards, 1);
@@ -107,7 +107,7 @@ public sealed partial class MenuController
             }
             Place(cards, card, index);
         }
-        Place(party, VectorLabel("R E S E R V E", 11, true), 2);
+        Place(party, VectorLabel(SystemText("ui.buildvectormain.caption.r.e.s.e.r.v.e", "R E S E R V E"), 11, true), 2);
         MenuCharacter[] reserve = CharacterChoices.Where(member => !member.InParty).ToArray();
         var reserves = Grid(Enumerable.Repeat(1f, Math.Max(1, (reserve.Length + 2) / 3)).ToArray(), [1, 1, 1], 8);
         for (int index = 0; index < reserve.Length; index++)
@@ -124,7 +124,7 @@ public sealed partial class MenuController
         commands.TextInset = 22;
         Place(sidebar, commands, 0);
         string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, new VectorReadouts([("P L A Y   T I M E", time), ("S e e D   R A N K", Number(Data.SeeDRank)), ("", Number(Data.Currency) + " G")]), 1);
+        Place(sidebar, new VectorReadouts([(SystemText("ui.buildvectormain.caption.p.l.a.y.t.i.m.e", "P L A Y   T I M E"), time), (SystemText("ui.buildvectormain.caption.s.e.e.d.r.a.n.k", "S e e D   R A N K"), Number(Data.SeeDRank)), ("", FormatSystemText("ui.buildvectormain.caption.g.template", "{0} G", Number(Data.Currency)))]), 1);
         Place(page, VectorPanel(null, sidebar, 16), 0, 1, 2);
         var footer = Grid([1], [1, 1], 8);
         Place(footer, VectorLabel(Data.Location, 14, true), 0);
@@ -139,10 +139,10 @@ public sealed partial class MenuController
         Place(content, Portrait(member), 0);
         var name = Grid([1, 1], [1], 0);
         Place(name, VectorLabel(member?.Name ?? "", compact ? 15 : 28), 0);
-        Place(name, VectorLabel(member is null ? "" : $"Lv  {Number(member.Level)}", compact ? 13 : 22, true), 1);
+        Place(name, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.lv", "Lv  {0}", Number(member.Level)), compact ? 13 : 22, true), 1);
         Place(content, name, 0, 1);
         var hp = VectorRows([0, 7], [1], 2);
-        Place(hp, VectorLabel(member is null ? "" : (compact ? "" : "HP   ") + Hp(member), compact ? 12 : 22), 0);
+        Place(hp, VectorLabel(member is null ? "" : FormatSystemText("ui.vectorpartycard.caption.hp.template", "{0}{1}", (compact ? "" : SystemText("ui.vectorpartycard.caption.hp", "HP   ")), Hp(member)), compact ? 12 : 22), 0);
         Place(hp, new UiProgressBar { Min = 0, Max = Math.Max(1, member?.MaximumHp ?? 1), Value = member?.CurrentHp ?? 0, Height = compact ? 4 : 7, VerticalAlignment = UiAlignment.Start }, 1);
         if (compact)
         {
@@ -174,7 +174,7 @@ public sealed partial class MenuController
         var page = VectorRows([Math.Max(78, 24 * TextScale * 1.5f + 16), 0, 34], [1], 12);
         page.Id = "vector-junction";
         var header = Grid([1], [1, 1.3f], 12);
-        Place(header, VectorHeader("Junction", "Junction magic to strengthen your attributes."), 0);
+        Place(header, VectorHeader(SystemText("ui.buildvectorjunction.caption.junction", "Junction"), SystemText("junction.help.summary", "Junction magic to strengthen your attributes.")), 0);
         Place(header, BuildVectorJunctionTabs(), 0, 1);
         Place(page, new VectorRuleContainer(header, bottom: true), 0);
         UiElement body = IsEffectJunctionPage ? BuildEffectJunction(true) : BuildVectorJunctionBody();
@@ -194,7 +194,7 @@ public sealed partial class MenuController
         if (stats)
         {
             Place(body, VectorAttributes(ScreenId == "junction-magic"), 0, 1);
-            Place(body, VectorPanel("C O M M A N D S", new VectorReadouts((Character?.Commands ?? []).Take(4).Select(command => (command, "")).ToArray(), 24), 12), 0, 2);
+            Place(body, VectorPanel(SystemText("ui.buildvectorjunctionbody.caption.c.o.m.m.a.n.d.s", "C O M M A N D S"), new VectorReadouts((Character?.Commands ?? []).Take(4).Select(command => (command, "")).ToArray(), 24), 12), 0, 2);
         }
         else
         {
@@ -207,9 +207,9 @@ public sealed partial class MenuController
             {
                 selection = Commands(30, 19);
             }
-            Place(body, VectorPanel(ScreenId == "junction-stock" ? "M A G I C   S T O C K" : "J U N C T I O N", selection, 12), 0, 1);
+            Place(body, VectorPanel(ScreenId == "junction-stock" ? SystemText("ui.buildvectorjunctionbody.caption.m.a.g.i.c.s.t.o", "M A G I C   S T O C K") : SystemText("ui.buildvectorjunctionbody.caption.j.u.n.c.t.i.o.n", "J U N C T I O N"), selection, 12), 0, 1);
             IReadOnlyDictionary<string, int>? preview = ScreenId == "junction-stock" && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
-            Place(body, ScreenId == "junction-stock" ? VectorAttributes(false, preview) : VectorPanel("D E T A I L S", ScreenId.StartsWith("junction-gf", StringComparison.Ordinal) ? JunctionSelectionDetails() : Details(), 12), 0, 2);
+            Place(body, ScreenId == "junction-stock" ? VectorAttributes(false, preview) : VectorPanel(SystemText("ui.buildvectorjunctionbody.caption.d.e.t.a.i.l.s", "D E T A I L S"), ScreenId.StartsWith("junction-gf", StringComparison.Ordinal) ? JunctionSelectionDetails() : Details(), 12), 0, 2);
         }
         return body;
     }
@@ -236,7 +236,7 @@ public sealed partial class MenuController
             for (int index = 0; index < names.Length; index++)
             {
                 string destination = destinations[index];
-                var tab = new UiButton { Text = names[index], FontSize = fontSize, TextInset = 16 * TextScale, DrawBackground = false, PointerSize = 20 * TextScale, Click = () => Push(destination) };
+                var tab = new UiButton { Text = JunctionTabText(index), FontSize = fontSize, TextInset = 16 * TextScale, DrawBackground = false, PointerSize = 20 * TextScale, Click = () => Push(destination) };
                 Place(strip, index == activeIndex ? new VectorActiveTab(tab) : tab, 0, index);
             }
             tabs = strip;
@@ -257,12 +257,12 @@ public sealed partial class MenuController
         Place(identity, VectorLabel(Character?.Name ?? "--", 34), 0, 1);
         Place(identity, new UiButton { Text = "›", TextInset = 0, DrawBackground = false, FontSize = 28, PointerSize = 0, Click = () => Navigate(MenuInput.PageRight), Width = 32, HorizontalAlignment = UiAlignment.Center }, 0, 2);
         Place(content, identity, 1);
-        Place(content, VectorLabel("Lv   " + Number(Character?.Level), 22, true), 2);
+        Place(content, VectorLabel(FormatSystemText("ui.vectorcharactersummary.caption.lv.template", "Lv   {0}", Number(Character?.Level)), 22, true), 2);
         var hp = VectorRows([0, 7], [1], 1);
-        Place(hp, VectorLabel("HP   " + (Character is null ? "--" : Hp(Character)), 21), 0);
+        Place(hp, VectorLabel(FormatSystemText("ui.vectorcharactersummary.caption.hp.template", "HP   {0}", (Character is null ? "--" : Hp(Character))), 21), 0);
         Place(hp, new UiProgressBar { Min = 0, Max = Math.Max(1, Character?.MaximumHp ?? 1), Value = Character?.CurrentHp ?? 0, Height = 7 }, 1);
         Place(content, hp, 3);
-        Place(content, new VectorReadouts([("Current EXP", Number(Character?.Experience)), ("Next level", Number(Character?.NextLevelExperience))], 14), 4);
+        Place(content, new VectorReadouts([(SystemText("ui.vectorcharactersummary.caption.current.exp", "Current EXP"), Number(Character?.Experience)), (SystemText("ui.vectorcharactersummary.caption.next.level", "Next level"), Number(Character?.NextLevelExperience))], 14), 4);
         return VectorPanel(null, content, 12);
     }
 
@@ -274,7 +274,7 @@ public sealed partial class MenuController
         {
             Place(table, JunctionAbilityPageLink(), 0);
         }
-        Place(table, new VectorReadouts([("S T A T       M A G I C", "V A L U E")], 12), interactive ? 1 : 0);
+        Place(table, new VectorReadouts([(SystemText("ui.vectorattributes.caption.s.t.a.t.m.a.g.i", "S T A T       M A G I C"), SystemText("ui.vectorattributes.caption.v.a.l.u.e", "V A L U E"))], 12), interactive ? 1 : 0);
         var rows = Grid(Enumerable.Repeat(1f, names.Length).ToArray(), [1], 0);
         for (int index = 0; index < names.Length; index++)
         {
@@ -287,7 +287,7 @@ public sealed partial class MenuController
             {
                 display += " → " + projected;
             }
-            UiElement row = new VectorAttributeRow(stat, Character?.Junctions.GetValueOrDefault(stat, "----") ?? "----", display, interactive && entryIndex == SelectedIndex) { Enabled = enabled };
+            UiElement row = new VectorAttributeRow(StatText(stat), Character?.Junctions.GetValueOrDefault(stat, "----") ?? "----", display, interactive && entryIndex == SelectedIndex) { Enabled = enabled };
             if (interactive && entryIndex >= 0)
             {
                 int selected = entryIndex;
@@ -298,13 +298,13 @@ public sealed partial class MenuController
             Place(rows, row, index);
         }
         Place(table, rows, interactive ? 2 : 1);
-        return VectorPanel("A T T R I B U T E   J U N C T I O N S", table, 16);
+        return VectorPanel(SystemText("ui.vectorattributes.caption.a.t.t.r.i.b.u.t", "A T T R I B U T E   J U N C T I O N S"), table, 16);
     }
 
     private UiElement VectorHeader(string title, string help)
     {
         var header = VectorRows([12, 0, 19], [1], 1);
-        Place(header, VectorLabel("M E N U", 10, true), 0);
+        Place(header, VectorLabel(SystemText("ui.vectorheader.caption.m.e.n.u", "M E N U"), 10, true), 0);
         Place(header, VectorLabel(title, 40), 1);
         Place(header, VectorLabel(help, 13, true), 2);
         var branded = Grid([1], [70, 1], 14);
@@ -315,7 +315,7 @@ public sealed partial class MenuController
         return branded;
     }
 
-    private UiElement VectorPrompts() => new VectorText($"{CurrentBindingText(ControlAction.MoveUp)}{CurrentBindingText(ControlAction.MoveDown)}  Navigate    {CurrentBindingText(ControlAction.Confirm)}  Select    {CurrentBindingText(ControlAction.Cancel)}  Back    F7  UI", 10 * TextScale, horizontalAlignment: UiAlignment.End);
+    private UiElement VectorPrompts() => new VectorText(FormatSystemText("ui.vectorprompts.caption.navigate.select.back.f7.ui", "{0}{1}  Navigate    {2}  Select    {3}  Back    F7  UI", CurrentBindingText(ControlAction.MoveUp), CurrentBindingText(ControlAction.MoveDown), CurrentBindingText(ControlAction.Confirm), CurrentBindingText(ControlAction.Cancel)), 10 * TextScale, horizontalAlignment: UiAlignment.End);
 
     private static UiGrid VectorRows(float[] heights, float[] columns, float gap)
     {

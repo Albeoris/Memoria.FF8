@@ -62,16 +62,29 @@ internal static class LocalizationFieldPreparation
         }
         List<LocalizationCallBinding> bindings = [];
         ImmutableArray<LocalizationChoiceLineMapEntry> choiceLineMap = [];
-        if (metadata.TryGetProperty("Choice Line Map", out JsonElement lineMap))
+        bool hasChoiceLineMap = record.ExtensionData.TryGetValue("Choice Line Map", out JsonElement lineMap);
+        if (!hasChoiceLineMap)
         {
-            if (lineMap.ValueKind != JsonValueKind.String)
+            hasChoiceLineMap = metadata.TryGetProperty("Choice Line Map", out lineMap);
+        }
+        if (hasChoiceLineMap)
+        {
+            if (lineMap.ValueKind == JsonValueKind.String)
             {
-                throw new InvalidDataException($"{record.Key}: choice line map requires its declared typed JSON representation.");
+                lineMap = JsonSerializer.Deserialize<JsonElement>(lineMap.GetString()!);
             }
-            choiceLineMap = JsonSerializer.Deserialize<ImmutableArray<LocalizationChoiceLineMapEntry>>(lineMap.GetString()!);
-            if (choiceLineMap.IsDefault || choiceLineMap.Any(entry => entry is null || entry.SourceLine < 0 || entry.TargetLine < 0) || choiceLineMap.Select(entry => entry.SourceLine).Distinct().Count() != choiceLineMap.Length)
+            if (lineMap.ValueKind != JsonValueKind.Array)
             {
-                throw new InvalidDataException($"{record.Key}: choice line map contains missing, negative or duplicate source lines.");
+                throw new InvalidDataException($"{record.Key}: choice line map requires an array of SourceLine/TargetLine entries.");
+            }
+            if (lineMap.EnumerateArray().Any(entry => entry.ValueKind != JsonValueKind.Object || !entry.TryGetProperty("SourceLine", out JsonElement sourceLine) || sourceLine.ValueKind != JsonValueKind.Number || !sourceLine.TryGetInt32(out _) || !entry.TryGetProperty("TargetLine", out JsonElement targetLine) || targetLine.ValueKind != JsonValueKind.Number || !targetLine.TryGetInt32(out _)))
+            {
+                throw new InvalidDataException($"{record.Key}: each choice line map entry requires integer SourceLine and TargetLine values.");
+            }
+            choiceLineMap = lineMap.Deserialize<ImmutableArray<LocalizationChoiceLineMapEntry>>();
+            if (choiceLineMap.IsDefault || choiceLineMap.Any(entry => entry is null || entry.SourceLine < 0 || entry.TargetLine < 0 || entry.TargetLine >= authoredLineCount) || choiceLineMap.Select(entry => entry.SourceLine).Distinct().Count() != choiceLineMap.Length || choiceLineMap.Select(entry => entry.TargetLine).Distinct().Count() != choiceLineMap.Length)
+            {
+                throw new InvalidDataException($"{record.Key}: choice line map contains missing, out-of-range or duplicate lines.");
             }
         }
         foreach (FieldCompatibilityContext call in calls.Where(call => call.IsMessage))

@@ -31,7 +31,7 @@ public static class LocalizationTextValidation
     private static Dictionary<string, int> Placeholders(string text, string key)
     {
         Dictionary<string, int> placeholders = new(StringComparer.Ordinal);
-        foreach (Match match in Regex.Matches(text, "\\{(End|Next|Line|Speaker|Pause|Var|Char|Key|Color|Dialog|Option|Term|Name)(?=[ }]|$)", RegexOptions.CultureInvariant))
+        foreach (Match match in Regex.Matches(text, "\\{(End|Next|Line|Speaker|Pause|Var|Item|Char|Key|Color|Dialog|Option|Term|Name)(?=[ }]|$)", RegexOptions.CultureInvariant))
         {
             int close = text.IndexOf('}', match.Index + 1);
             if (close < 0 || close - match.Index + 1 > 32)
@@ -56,6 +56,7 @@ public static class LocalizationTextValidation
                     valid = parameter.Length == 0 && !hasSpace;
                     break;
                 case "Var":
+                case "Item":
                 case "Pause":
                 case "Option":
                     valid = hasSpace && byte.TryParse(parameter, NumberStyles.Integer, CultureInfo.InvariantCulture, out number);
@@ -86,7 +87,7 @@ public static class LocalizationTextValidation
             {
                 throw new InvalidDataException($"{key}: malformed known control tag {{{code}{(hasSpace ? " " : "")}{parameter}}}.");
             }
-            if (code is "Var" or "Char" or "Key" or "Dialog" or "Term" or "Name")
+            if (code is "Var" or "Item" or "Char" or "Key" or "Dialog" or "Term" or "Name")
             {
                 string identity = code + " " + number;
                 placeholders[identity] = placeholders.GetValueOrDefault(identity) + 1;

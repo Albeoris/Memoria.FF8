@@ -172,7 +172,7 @@ internal sealed partial class RecreateGame
             {
                 gameMenus.Open("config-magic", false);
             }
-            gameMenus.ShowMagicRulesReview(DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview), session.CancelPendingGameplayPreferences);
+            gameMenus.ShowMagicRulesReview(() => DescribeMagicMigration(preview), () => session.ApplyGameplayPreferences(preview), session.CancelPendingGameplayPreferences);
         }
     }
 
@@ -182,20 +182,27 @@ internal sealed partial class RecreateGame
         string Spell(int id) => liveMenuCatalog?.MagicName(id) ?? $"Magic {id}";
         foreach (MagicStockMove move in preview.Moves)
         {
-            lines.Add(MagicUiText.Format("Moved", move.RecordId, 0, Spell(move.SpellId), move.Quantity));
+            lines.Add(LocalizedMagicText("Moved", move.RecordId, 0, Spell(move.SpellId), move.Quantity));
         }
         foreach (MagicStockMove overflow in preview.Overflow)
         {
-            lines.Add(MagicUiText.Format("Overflow", overflow.RecordId, Spell(overflow.SpellId), overflow.Quantity));
+            lines.Add(LocalizedMagicText("Overflow", overflow.RecordId, Spell(overflow.SpellId), overflow.Quantity));
         }
         foreach (MagicJunctionChange removed in preview.RemovedJunctions)
         {
-            lines.Add(MagicUiText.Format("Removed", removed.RecordId, LiveMenuData.JunctionSlotName(removed.Slot), Spell(removed.SpellId)));
+            lines.Add(LocalizedMagicText("Removed", removed.RecordId, LiveMenuData.JunctionSlotName(removed.Slot), Spell(removed.SpellId)));
         }
         foreach (MagicHitPointChange hp in preview.HitPointChanges)
         {
-            lines.Add(MagicUiText.Format("HpChange", hp.RecordId, hp.PreviousMaximum, hp.Maximum));
+            lines.Add(LocalizedMagicText("HpChange", hp.RecordId, hp.PreviousMaximum, hp.Maximum));
         }
-        return lines.Count == 0 ? [MagicUiText.Get("NoStockChanges")] : lines;
+        return lines.Count == 0 ? [LocalizedMagicText("NoStockChanges")] : lines;
+    }
+
+    private string LocalizedMagicText(string id, params object?[] arguments)
+    {
+        string original = MagicUiText.Get(id);
+        string template = resourceHost?.Resources.Localize(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key("magic." + id), original) ?? original;
+        return Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(template, original, arguments);
     }
 }

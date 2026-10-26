@@ -17,7 +17,8 @@ public static class LocalizationBindingValidation
             foreach (var row in layer.Project.Entries.Where(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System")))
             {
                 cancellation.ThrowIfCancellationRequested();
-                if (knownEntries is not null && (!knownEntries.TryGetValue(row.Key, out LocalizationSourceEntry? known) || known.Category != row.Category || known.File != row.File))
+                LocalizationSourceEntry? known = knownEntries?.GetValueOrDefault(row.Key);
+                if (knownEntries is not null && (known is null || known.Category != row.Category || known.File != row.File))
                 {
                     throw new InvalidDataException($"{row.Key}: no supported original text identity exists in this resource profile.");
                 }
@@ -26,6 +27,14 @@ public static class LocalizationBindingValidation
                     throw new InvalidDataException($"{row.Key}: the original resource identity is missing.");
                 }
                 string? Metadata(string name) => context.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                bool information = known?.Metadata.GetValueOrDefault("Structure") == "information-body-v1";
+                if (Metadata("Structure") == "information-body-v1" || information)
+                {
+                    if (!information || !NativeTutorialInformationText.ValidateTarget(known!.Text, row.Target!))
+                    {
+                        throw new InvalidDataException($"{row.Key}: translated Information text must preserve its original conditions, links and value operands.");
+                    }
+                }
                 if (Metadata("Native Source Fingerprint") is string nativeFingerprint)
                 {
                     if (source is not IGameNativeMemorySource native || !native.SourceHash.Equals(nativeFingerprint, StringComparison.OrdinalIgnoreCase))

@@ -6,6 +6,12 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Deck selection and human input for the single Triple Triad match implementation.</summary>
 public sealed partial class TripleTriadController
 {
+    internal Func<string, string, string>? LocalizeText { get; set; }
+
+    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
+
     public const int CardsPerPage = 9;
     private readonly IReadOnlyList<TripleTriadCard> definitions;
     private readonly IReadOnlyDictionary<int, int> collection;
@@ -71,7 +77,22 @@ public sealed partial class TripleTriadController
     public Action<TripleTriadMatch>? RestartDraw { get; set; }
     public Action<int>? RuleChoiceRequested { get; set; }
     public float PromptFade { get; set; }
-    public string Message { get; private set; } = "Choose five cards. Cancel removes the last choice.";
+    private string? message;
+    private Func<string>? systemMessage;
+    public string Message
+    {
+        get => systemMessage?.Invoke() ?? message ?? SystemText("card.ui.initial-prompt", "Choose five cards. Cancel removes the last choice.");
+        private set
+        {
+            systemMessage = null;
+            message = value;
+        }
+    }
+
+    private void SetSystemMessage(Func<string> text)
+    {
+        systemMessage = text;
+    }
     public event Action<int[]>? DeckConfirmed;
     public event Action? Changed;
     public event Action? CompletionRequested;
@@ -121,12 +142,12 @@ public sealed partial class TripleTriadController
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules);
             ResetTurnSelection();
-            Message = "Choose a card, then a square.";
+            SetSystemMessage(() => SystemText("card.ui.completedeckselection.choose.a.card.then.a.square", "Choose a card, then a square."));
             DeckConfirmed?.Invoke(deck.ToArray());
         }
         else if (completingRecentDeck)
         {
-            Message = $"Deck incomplete: choose {5 - deck.Count} more card(s).";
+            SetSystemMessage(() => FormatSystemText("card.ui.completedeckselection.deck.incomplete.choose.more.card.s", "Deck incomplete: choose {0} more card(s).", 5 - deck.Count));
         }
     }
 
@@ -156,7 +177,7 @@ public sealed partial class TripleTriadController
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         ResetTurnSelection();
-        Message = Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? "Choose a card, then a square." : "Opponent is thinking\u2026";
+        SetSystemMessage(() => Match.Outcome != TripleTriadOutcome.InProgress ? ResultText() : Match.CurrentPlayer == 0 ? SystemText("card.ui.restorematch.choose.a.card.then.a.square", "Choose a card, then a square.") : SystemText("card.ui.restorematch.opponent.is.thinking", "Opponent is thinking\u2026"));
     }
 
     public void RestoreDeck(IReadOnlyList<int> selected)
@@ -301,7 +322,7 @@ public sealed partial class TripleTriadController
                 }
                 ChoosingCell = false;
                 ResetTurnSelection();
-                Message = "Sudden Death. Cards follow their owners into the next round.";
+                SetSystemMessage(() => SystemText("card.ui.navigatecore.sudden.death.cards.follow.their.owners.into", "Sudden Death. Cards follow their owners into the next round."));
                 Changed?.Invoke();
             }
             else if (key == UiKey.Confirm)
@@ -365,7 +386,7 @@ public sealed partial class TripleTriadController
         }
         if ((uint)handIndex >= 5 || (uint)cellIndex >= 9 || Match is null || Match.CurrentPlayer != 0 || Match.Outcome != TripleTriadOutcome.InProgress || Match.Hands[0][handIndex] is null || Match.Board[cellIndex] is not null)
         {
-            Message = "Choose an empty square.";
+            SetSystemMessage(() => SystemText("card.ui.play.choose.an.empty.square", "Choose an empty square."));
             RequestSound(TripleTriadSound.Error);
             return;
         }
@@ -378,7 +399,7 @@ public sealed partial class TripleTriadController
         PresentMove(result, before);
         ChoosingCell = false;
         ResetTurnSelection();
-        Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Opponent is thinking…" : ResultText();
+        SetSystemMessage(() => Match.Outcome == TripleTriadOutcome.InProgress ? SystemText("card.ui.play.opponent.is.thinking", "Opponent is thinking…") : ResultText());
         Changed?.Invoke();
     }
 
@@ -393,7 +414,7 @@ public sealed partial class TripleTriadController
         TripleTriadMoveResult result = Match.Play(move.HandIndex, move.CellIndex);
         PresentMove(result, before);
         ResetTurnSelection();
-        Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Choose a card, then a square." : ResultText();
+        SetSystemMessage(() => Match.Outcome == TripleTriadOutcome.InProgress ? SystemText("card.ui.advanceopponent.choose.a.card.then.a.square", "Choose a card, then a square.") : ResultText());
         Changed?.Invoke();
         return true;
     }
@@ -449,7 +470,7 @@ public sealed partial class TripleTriadController
         tradeCards = originalPlayerHand.Concat(losingHand).ToArray();
         tradeOwners = Enumerable.Range(0, 10).Select(index => index < 5 ? 0 : 1).ToArray();
         SetTradePhase(TripleTriadTradePhase.Selecting);
-        Message = $"Choose {required} card(s) to take.";
+        SetSystemMessage(() => FormatSystemText("card.ui.begintradeselection.choose.card.s.to.take", "Choose {0} card(s) to take.", required));
     }
 
     public void BeginRulesPrompt(string tradeRule, Action accepted, Action cancelled)
@@ -459,7 +480,7 @@ public sealed partial class TripleTriadController
         cancelRules = cancelled;
         AwaitingRules = true;
         RulesSelection = 0;
-        Message = "Review the rules before playing.";
+        SetSystemMessage(() => SystemText("card.ui.beginrulesprompt.review.the.rules.before.playing", "Review the rules before playing."));
     }
 
     public void SelectRulesChoice(int choice)
@@ -479,7 +500,7 @@ public sealed partial class TripleTriadController
         if (accepted)
         {
             AwaitingRules = false;
-            Message = "Choose five cards.";
+            SetSystemMessage(() => SystemText("card.ui.completerulesprompt.choose.five.cards", "Choose five cards."));
             acceptRules?.Invoke();
         }
         else
@@ -518,9 +539,9 @@ public sealed partial class TripleTriadController
 
     private string ResultText() => Match!.Outcome switch
     {
-        TripleTriadOutcome.PlayerWin => "You win!",
-        TripleTriadOutcome.OpponentWin => "You lose.",
-        _ => Match.CanRestartSuddenDeath ? "Draw. Sudden Death continues." : "Draw."
+        TripleTriadOutcome.PlayerWin => SystemText("card.ui.resulttext.you.win", "You win!"),
+        TripleTriadOutcome.OpponentWin => SystemText("card.ui.resulttext.you.lose", "You lose."),
+        _ => Match.CanRestartSuddenDeath ? SystemText("card.ui.resulttext.draw.sudden.death.continues", "Draw. Sudden Death continues.") : SystemText("card.ui.resulttext.draw", "Draw.")
     };
 
     private void ResetTurnSelection()

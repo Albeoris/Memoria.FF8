@@ -48,9 +48,9 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         if (controller.AwaitingReplay)
         {
             theme.Panel(canvas, new UiRect(330, 254, 300, 156));
-            canvas.Text("Play again?", 24, new UiRect(354, 270, 260, 32), theme.Foreground);
-            canvas.Text("Yes", 24, new UiRect(400, 312, 190, 36), controller.CanReplay ? theme.Foreground : theme.Muted);
-            canvas.Text("No", 24, new UiRect(400, 354, 190, 36), theme.Foreground);
+            canvas.Text(controller.SystemText("card.ui.drawself.play.again", "Play again?"), 24, new UiRect(354, 270, 260, 32), theme.Foreground);
+            canvas.Text(controller.SystemText("card.ui.drawself.yes", "Yes"), 24, new UiRect(400, 312, 190, 36), controller.CanReplay ? theme.Foreground : theme.Muted);
+            canvas.Text(controller.SystemText("card.ui.drawself.no", "No"), 24, new UiRect(400, 354, 190, 36), theme.Foreground);
             theme.Pointer(canvas, 350, 316 + controller.ReplaySelection * 42, 26);
         }
         DrawPromptFade(canvas);
@@ -61,20 +61,25 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         const float fontSize = 26;
         const float padding = 18;
         const float choiceIndent = 78;
-        string[] rules = controller.Rules == TripleTriadRules.None ? ["Basic rules"] : Enum.GetValues<TripleTriadRules>().Where(rule => rule != TripleTriadRules.None && controller.Rules.HasFlag(rule)).Select(rule => rule switch
+        string[] rules = controller.Rules == TripleTriadRules.None ? [controller.SystemText("card.ui.drawrules.basic.rules", "Basic rules")] : Enum.GetValues<TripleTriadRules>().Where(rule => rule != TripleTriadRules.None && controller.Rules.HasFlag(rule)).Select(rule => rule switch
         {
-            TripleTriadRules.SameWall => "Same Wall",
-            TripleTriadRules.SuddenDeath => "Sudden Death",
+            TripleTriadRules.SameWall => controller.SystemText("card.ui.drawrules.same.wall", "Same Wall"),
+            TripleTriadRules.SuddenDeath => controller.SystemText("card.ui.drawrules.sudden.death", "Sudden Death"),
+            TripleTriadRules.Open => controller.SystemText("card.rule.open", "Open"),
+            TripleTriadRules.Same => controller.SystemText("card.rule.same", "Same"),
+            TripleTriadRules.Plus => controller.SystemText("card.rule.plus", "Plus"),
+            TripleTriadRules.Elemental => controller.SystemText("card.rule.elemental", "Elemental"),
+            TripleTriadRules.Random => controller.SystemText("card.rule.random", "Random"),
             _ => rule.ToString()
         }).ToArray();
-        string[] lines = ["Rules:", .. rules.Select(rule => "·  " + rule), "·  Trade Rule: " + controller.TradeRuleDescription, "Play", "Quit"];
+        string[] lines = [controller.SystemText("card.ui.drawrules.rules", "Rules:"), .. rules.Select(rule => "·  " + rule), controller.SystemText("card.ui.drawrules.trade.rule", "·  Trade Rule: ") + controller.TradeRuleDescription, controller.SystemText("card.ui.drawrules.play", "Play"), controller.SystemText("card.ui.drawrules.quit", "Quit")];
         UiSize[] sizes = lines.Select(line => canvas.MeasureText(line, fontSize, float.PositiveInfinity)).ToArray();
         float rowHeight = Math.Max(38, sizes.Max(size => size.Height) + 8);
         float width = sizes.Select((size, index) => size.Width + (index >= lines.Length - 2 ? choiceIndent : padding)).Max() + padding + 4;
         float height = 22 + lines.Length * rowHeight + padding;
         UiRect panel = new(Bounds.X + (Bounds.Width - width) / 2, Bounds.Y + (Bounds.Height - height) / 2, width, height);
         theme.Panel(canvas, panel);
-        canvas.OutlinedText("INFO.", 14, new UiRect(panel.X + 10, panel.Y + 2, width - 20, 17), theme.Foreground, new UiColor(0, 0, 0), 1);
+        canvas.OutlinedText(controller.SystemText("card.ui.drawrules.info", "INFO."), 14, new UiRect(panel.X + 10, panel.Y + 2, width - 20, 17), theme.Foreground, new UiColor(0, 0, 0), 1);
         for (int index = 0; index < lines.Length; index++)
         {
             float indent = index >= lines.Length - 2 ? choiceIndent : padding;
@@ -106,7 +111,7 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         bool selecting = controller.TradePhase == TripleTriadTradePhase.Selecting;
         if (controller.IsChoosingTradeCards)
         {
-            string prompt = $"Select {controller.RequiredTradeCards} card(s) you want";
+            string prompt = controller.FormatSystemText("card.ui.drawtrade.select.card.s.you.want", "Select {0} card(s) you want", controller.RequiredTradeCards);
             float textWidth = canvas.MeasureText(prompt, 25, float.PositiveInfinity).Width;
             theme.Panel(canvas, new UiRect(480 - (textWidth + 40) / 2, 24, textWidth + 40, 84));
             canvas.OutlinedText(prompt, 25, new UiRect(480 - textWidth / 2, 24, textWidth, 84), theme.Foreground, new UiColor(0, 0, 0), 1);
@@ -126,9 +131,9 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         if (controller.TradePhase == TripleTriadTradePhase.ConfirmingSelection)
         {
             theme.Panel(canvas, new UiRect(330, 254, 300, 156));
-            canvas.Text("Are you sure?", 24, new UiRect(354, 270, 260, 32), theme.Foreground);
-            canvas.Text("Yes", 24, new UiRect(400, 312, 190, 36), theme.Foreground);
-            canvas.Text("No", 24, new UiRect(400, 354, 190, 36), theme.Foreground);
+            canvas.Text(controller.SystemText("card.ui.drawtrade.are.you.sure", "Are you sure?"), 24, new UiRect(354, 270, 260, 32), theme.Foreground);
+            canvas.Text(controller.SystemText("card.ui.drawtrade.yes", "Yes"), 24, new UiRect(400, 312, 190, 36), theme.Foreground);
+            canvas.Text(controller.SystemText("card.ui.drawtrade.no", "No"), 24, new UiRect(400, 354, 190, 36), theme.Foreground);
             theme.Pointer(canvas, 350, 316 + controller.TradeConfirmationSelection * 42, 26);
         }
 
@@ -203,8 +208,8 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
             }
         }
         theme.Panel(canvas, SelectionPanel);
-        canvas.OutlinedText("CARDS", 17, new UiRect(155, 91, 270, 25), theme.Foreground, new UiColor(0, 0, 0), 1);
-        canvas.OutlinedText("NUM.", 17, new UiRect(465, 91, 76, 25), theme.Foreground, new UiColor(0, 0, 0), 1);
+        canvas.OutlinedText(controller.SystemText("card.ui.drawselection.cards", "CARDS"), 17, new UiRect(155, 91, 270, 25), theme.Foreground, new UiColor(0, 0, 0), 1);
+        canvas.OutlinedText(controller.SystemText("card.ui.drawselection.num", "NUM."), 17, new UiRect(465, 91, 76, 25), theme.Foreground, new UiColor(0, 0, 0), 1);
         int historyRows = controller.SelectionPage == 0 ? controller.RecentDecks.Count : 0;
         for (int index = 0; index < historyRows; index++)
         {
@@ -213,7 +218,7 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
             {
                 theme.Pointer(canvas, 98, bounds.Y + 14, 32);
             }
-            canvas.Text($"Recent deck {index + 1}", 20, new UiRect(162, bounds.Y, 160, bounds.Height), theme.Foreground, UiAlignment.Center);
+            canvas.Text(controller.FormatSystemText("card.ui.drawselection.recent.deck", "Recent deck {0}", index + 1), 20, new UiRect(162, bounds.Y, 160, bounds.Height), theme.Foreground, UiAlignment.Center);
             for (int slot = 0; slot < 5; slot++)
             {
                 UiRect cardBounds = new(326 + slot * 42, bounds.Y + 4, 36, 46);

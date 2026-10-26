@@ -22,7 +22,7 @@ internal sealed partial class RecreateGame
             content.ColumnDefinitions.Add(UiGridLength.Star());
             content.RowDefinitions.Add(UiGridLength.Star());
             content.RowDefinitions.Add(UiGridLength.Star(1.8f));
-            salaryTitleText = new SalaryText { FontSize = 8, Text = "SeeD salary" };
+            salaryTitleText = new SalaryText { FontSize = 8 };
             salaryOldText = new SalaryText { GridRow = 1, FontSize = 8 };
             salaryNewText = new SalaryText { GridRow = 1, FontSize = 8 };
             content.Children.Add(salaryTitleText);
@@ -33,11 +33,12 @@ internal sealed partial class RecreateGame
             salaryWindowUi = new UiView(root) { DesignWidth = 320, DesignHeight = 224 };
         }
         float progress = salary.Scale9A / 4096f;
+        salaryTitleText!.Text = LocalizeAuthored("salary.title", "SeeD salary");
         float blend = salary.RankBlend98 / 4096f;
         salaryTitleText!.Opacity = progress;
-        salaryOldText!.Text = $"Rank {SalaryGlyphs(salary.OldRankGlyphs)}   {SalaryGlyphs(salary.OldPayGlyphs)} gil";
+        salaryOldText!.Text = FormatAuthored("salary.rank-pay", "Rank {0}   {1} gil", SalaryGlyphs(salary.OldRankGlyphs), SalaryGlyphs(salary.OldPayGlyphs));
         salaryOldText.Opacity = progress * (1 - blend);
-        salaryNewText!.Text = $"Rank {SalaryGlyphs(salary.NewRankGlyphs)}   {SalaryGlyphs(salary.NewPayGlyphs)} gil";
+        salaryNewText!.Text = FormatAuthored("salary.rank-pay", "Rank {0}   {1} gil", SalaryGlyphs(salary.NewRankGlyphs), SalaryGlyphs(salary.NewPayGlyphs));
         salaryNewText.Opacity = progress * blend;
         salaryWindowUi.Resize(bounds.Width, bounds.Height);
         salaryWindowUi.Draw(uiCanvas!, CreateUiTheme(8));

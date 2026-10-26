@@ -16,9 +16,9 @@ public sealed partial class MenuController
         body.Id = "junction-effects";
         var identity = Grid([1], [0.7f, 1.3f], 8);
         Place(identity, Portrait(Character), 0);
-        Place(identity, Lines([Character?.Name ?? "--", FormatSystemText("ui.buildeffectjunction.details.lv", "Lv  {0}", Number(Character?.Level)), SystemText("ui.buildeffectjunction.details.hp", "HP  ") + (Character is null ? "--" : Hp(Character))], 23), 0, 1);
+        Place(identity, Lines([Character?.Name ?? "--", FormatSystemText("ui.buildeffectjunction.details.lv", "Lv  {0}", Number(Character?.Level)), FormatSystemText("ui.buildeffectjunction.details.hp.template", "HP  {0}", (Character is null ? "--" : Hp(Character)))], 23), 0, 1);
         Place(body, EffectPanel(null, identity), 0);
-        Place(body, EffectPanel("MAGIC STOCK", choosingSpell ? Commands(27, 20) : MagicStockPreview(Character)), 0, 1);
+        Place(body, EffectPanel(SystemText("ui.buildeffectjunction.effectpanel.magic.stock", "MAGIC STOCK"), choosingSpell ? Commands(27, 20) : MagicStockPreview(Character)), 0, 1);
 
         var junctions = Grid([0.65f, 5], [1], 4);
         Place(junctions, JunctionPageLinks(elemental), 0);
@@ -34,7 +34,7 @@ public sealed partial class MenuController
             {
                 string slot = slots[index];
                 var row = Grid([1], [1, 1.3f], 4);
-                Place(row, JunctionSlotLabel(slot, (slot == _junctionSlot ? "› " : "") + slot, 19), 0);
+                Place(row, JunctionSlotLabel(slot, (slot == _junctionSlot ? "› " : "") + StatText(slot), 19), 0);
                 string magic = Character?.Junctions.GetValueOrDefault(slot, "----") ?? "----";
                 if (slot == _junctionSlot && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" })
                 {
@@ -46,7 +46,7 @@ public sealed partial class MenuController
             choices = rows;
         }
         Place(junctions, choices, 1);
-        Place(body, EffectPanel(elemental ? "EL-A/D" : "ST-A/D", junctions), 1);
+        Place(body, EffectPanel(elemental ? SystemText("ui.buildeffectjunction.effectpanel.el.a.d", "EL-A/D") : SystemText("ui.buildeffectjunction.effectpanel.st.a.d", "ST-A/D"), junctions), 1);
 
         MenuJunctionEffects? current = Character?.JunctionEffects;
         MenuJunctionEffects? preview = choosingSpell && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" } entry ? Character?.JunctionEffectsPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
@@ -97,7 +97,7 @@ public sealed partial class MenuController
             Place(columns, rows, 0, column);
         }
         Place(percentages, columns, 1);
-        Place(body, EffectPanel(elemental ? "ELEMENTAL ATTACK / DEFENSE" : "STATUS ATTACK / DEFENSE", percentages), 1, 1);
+        Place(body, EffectPanel(elemental ? SystemText("ui.buildeffectjunction.effectpanel.elemental.attack.defense", "ELEMENTAL ATTACK / DEFENSE") : SystemText("ui.buildeffectjunction.effectpanel.status.attack.defense", "STATUS ATTACK / DEFENSE"), percentages), 1, 1);
         return body;
 
         UiPanel EffectPanel(string? caption, UiElement content) => vector ? VectorPanel(caption, content, 10) : Panel(caption, content);
@@ -110,12 +110,12 @@ public sealed partial class MenuController
         var links = Grid([1], [1, 1], 3);
         if (elemental)
         {
-            Place(links, Link("‹ ST-A/D", MenuInput.Left), 0);
-            Place(links, Link("Ability ›", MenuInput.Right), 0, 1);
+            Place(links, Link(SystemText("ui.junctionpagelinks.label.st.a.d", "‹ ST-A/D"), MenuInput.Left), 0);
+            Place(links, Link(SystemText("ui.junctionpagelinks.label.ability", "Ability ›"), MenuInput.Right), 0, 1);
         }
         else
         {
-            Place(links, Link("EL-A/D ›", MenuInput.Right), 0, 1);
+            Place(links, Link(SystemText("ui.junctionpagelinks.label.el.a.d", "EL-A/D ›"), MenuInput.Right), 0, 1);
         }
         return links;
 

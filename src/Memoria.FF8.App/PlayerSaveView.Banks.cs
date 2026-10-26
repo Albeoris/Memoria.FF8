@@ -4,20 +4,24 @@ namespace Memoria.FF8;
 
 internal sealed partial class PlayerSaveView
 {
-    internal static UiGrid BuildBanks(int selectedBank, bool quick = false, float textScale = 1)
+    internal static UiGrid BuildBanks(int selectedBank, bool quick = false, float textScale = 1, PlayerSaveMenu? menu = null)
     {
         UiGrid banks = new() { Columns = quick ? 1 : 3, Rows = 1, Gap = 6 };
         for (int bank = 0; bank < (quick ? 1 : PlayerSaveStore.BankCount); bank++)
         {
             UiButton tab = new() { Id = "save-bank-" + bank, GridColumn = bank, DrawBackground = false, HighlightSelection = false, PointerSize = 0 };
-            tab.Children.Add(new SaveBankPlaque(bank, bank == selectedBank, quick, textScale));
+            tab.Children.Add(new SaveBankPlaque(bank, bank == selectedBank, quick, textScale, menu));
             banks.Children.Add(tab);
         }
         return banks;
     }
 
-    private sealed class SaveBankPlaque(int bank, bool active, bool quick, float textScale) : UiElement
+    private sealed class SaveBankPlaque(int bank, bool active, bool quick, float textScale, PlayerSaveMenu? menu) : UiElement
     {
+        private string SystemText(string id, string original) => menu?.SystemText(id, original) ?? original;
+
+        private string FormatSystemText(string id, string original, params object?[] values) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, values);
+
         public override UiElement? HitTest(float x, float y)
         {
             return null;
@@ -42,8 +46,8 @@ internal sealed partial class PlayerSaveView
             float textLeft = Bounds.X + iconWidth + 22;
             float rowHeight = Math.Max(0, Bounds.Height - 12) / 2;
             UiRect label = new(textLeft, Bounds.Y + 6, Math.Max(0, Bounds.Right - textLeft - 10), rowHeight);
-            string name = bank == 0 ? "Memoria" : "Original";
-            string details = (active ? "ACTIVE  ·  " : "") + (quick ? "Quick saves" : PlayerSaveStore.GetBankSlotCount(bank) + " slots");
+            string name = bank == 0 ? SystemText("save.bank.memoria", "Memoria") : SystemText("save.bank.original", "Original");
+            string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? SystemText("save.bank.quick", "Quick saves") : FormatSystemText("save.bank.slots", "{0} slots", PlayerSaveStore.GetBankSlotCount(bank)));
             canvas.Text(name, 24 * textScale, label, foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             UiRect capacity = new(textLeft, label.Bottom, label.Width, rowHeight);
             canvas.Text(details, 15 * textScale, capacity, foreground, UiAlignment.Center, UiTextFlow.SingleLine);

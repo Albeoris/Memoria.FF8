@@ -25,12 +25,24 @@ public sealed class LocalizationCatalog
 {
     public static LocalizationCatalog Empty { get; } = new([]);
     public ImmutableDictionary<string, LocalizationValue> Values { get; }
+    public ImmutableDictionary<TextureKey, LocalizationArtworkValue> Artwork { get; }
     private readonly ImmutableArray<(ImmutableDictionary<string, LocalizationValue> Values, ImmutableDictionary<(string Key, int Operation), LocalizationValue> Variants)> layers;
     public string Fingerprint { get; }
+    public string ArtworkFingerprint { get; }
+    public ImmutableDictionary<TextureKey, string> ArtworkFingerprints { get; }
 
-    public LocalizationCatalog(IEnumerable<KeyValuePair<string, LocalizationValue>> values, IEnumerable<IReadOnlyDictionary<string, LocalizationValue>>? priorityLayers = null)
+    public LocalizationCatalog(IEnumerable<KeyValuePair<string, LocalizationValue>> values, IEnumerable<IReadOnlyDictionary<string, LocalizationValue>>? priorityLayers = null, IEnumerable<KeyValuePair<TextureKey, LocalizationArtworkValue>>? artwork = null)
     {
         Values = values.ToImmutableDictionary(StringComparer.Ordinal);
+        Artwork = (artwork ?? []).ToImmutableDictionary();
+        foreach ((TextureKey key, LocalizationArtworkValue value) in Artwork)
+        {
+            value.Validate();
+            if (key != value.Key)
+            {
+                throw new InvalidDataException("Artwork catalog key differs from its declared native identity.");
+            }
+        }
         layers = (priorityLayers ?? new[] { Values }).Where(layer => layer.Count != 0).Select(layer =>
         {
             ImmutableDictionary<string, LocalizationValue> owned = layer.ToImmutableDictionary(StringComparer.Ordinal);
@@ -62,8 +74,31 @@ public sealed class LocalizationCatalog
                 }
             }
         }
+        ImmutableDictionary<TextureKey, string>.Builder artworkFingerprints = ImmutableDictionary.CreateBuilder<TextureKey, string>();
+        using IncrementalHash artworkHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach ((TextureKey key, LocalizationArtworkValue value) in Artwork.OrderBy(pair => pair.Key.Owner.Path, StringComparer.Ordinal).ThenBy(pair => pair.Key.Subresource, StringComparer.Ordinal).ThenBy(pair => pair.Key.Palette))
+        {
+            using IncrementalHash entryHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] identity = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new { Owner = key.Owner.Path, key.Subresource, key.Palette, value.SourceSha256, value.LogicalWidth, value.LogicalHeight, value.Width, value.Height }));
+            entryHash.AppendData(BitConverter.GetBytes(identity.Length));
+            entryHash.AppendData(identity);
+            entryHash.AppendData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(value.Pixels.AsSpan()));
+            byte[] digest = entryHash.GetHashAndReset();
+            artworkFingerprints.Add(key, Convert.ToHexString(digest));
+            artworkHash.AppendData(digest);
+        }
+        ArtworkFingerprints = artworkFingerprints.ToImmutable();
+        byte[] artworkDigest = artworkHash.GetHashAndReset();
+        ArtworkFingerprint = Convert.ToHexString(artworkDigest);
+        if (Artwork.Count != 0)
+        {
+            hash.AppendData(new byte[] { 0xFE });
+            hash.AppendData(artworkDigest);
+        }
         Fingerprint = Convert.ToHexString(hash.GetHashAndReset());
     }
+
+    public TextureReplacement? ResolveArtwork(TextureBuildContext context) => Artwork.TryGetValue(context.Key, out LocalizationArtworkValue? value) ? value.CreateReplacement(context) : null;
 
     public string Resolve(string key, string original) => Values.TryGetValue(key, out LocalizationValue? value) ? value.Text : original;
 
@@ -98,7 +133,7 @@ public sealed class LocalizationCatalog
                     int translatedFirst = Map(first);
                     int translatedLast = Map(last);
                     int lineCount = CountAuthoredLines(field.Body);
-                    if (translatedFirst < 0 || translatedLast >= lineCount || translatedLast - translatedFirst != last - first || Enumerable.Range(first, last - first + 1).Any(line => Map(line) != translatedFirst + line - first))
+                    if (translatedFirst < 0 || translatedLast >= lineCount || (long)translatedLast - translatedFirst != (long)last - first || Enumerable.Range(0, translatedLast - translatedFirst + 1).Any(offset => Map(first + offset) != translatedFirst + offset))
                     {
                         continue;
                     }

@@ -93,7 +93,7 @@ public sealed class LocalizationInputRevision : IDisposable
     private void Changed(string path)
     {
         string name = Path.GetFileName(path);
-        if (!name.StartsWith('~') && !name.StartsWith('.') && (!Path.HasExtension(path) || path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)))
+        if (!name.StartsWith('~') && !name.StartsWith('.') && (!Path.HasExtension(path) || path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)))
         {
             Interlocked.Increment(ref changes);
         }
@@ -117,7 +117,7 @@ public sealed class LocalizationInputRevision : IDisposable
         Dictionary<string, Stamp> result = new(StringComparer.OrdinalIgnoreCase);
         foreach (string root in roots)
         {
-            foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Where(path => !Path.GetFileName(path).StartsWith('~') && !Path.GetFileName(path).StartsWith('.') && (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))))
+            foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Where(path => !Path.GetFileName(path).StartsWith('~') && !Path.GetFileName(path).StartsWith('.') && (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))))
             {
                 FileInfo file = new(path);
                 using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
