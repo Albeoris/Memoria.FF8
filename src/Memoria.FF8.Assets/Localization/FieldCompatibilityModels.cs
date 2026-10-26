@@ -15,7 +15,12 @@ public sealed record FieldCompatibilityInstruction(FieldCompatibilityPosition Po
 /// <summary>Operands are in the EventEngine's original push order. Null operands require runtime evaluation.</summary>
 public sealed record FieldCompatibilityContext(FieldCompatibilityPosition Position, string Opcode, ImmutableArray<int?> Operands, int? MessageId, bool IsMessage, bool Dynamic, ImmutableArray<int> CandidateOrdinals, FieldCompatibilityRow? Row, string PresentationStateFingerprint = "EntryAndControlFlowStateUnresolved");
 
-public sealed record FieldCompatibilityInventory(string Field, string Language, string ResourceIdentity, string? JsmSha256, int? JsmLength, string ParserVersion, bool BankCountKnown, int? DeclaredTextCount, ImmutableArray<FieldCompatibilityRow> Bank, ImmutableArray<FieldCompatibilityInstruction> Instructions, ImmutableArray<FieldCompatibilityContext> Contexts, ImmutableArray<int> ReferencedOrdinals, ImmutableArray<int> UnreferencedOrdinals, ImmutableArray<int> EmptyOrdinals, ImmutableArray<string> Problems, string? ExecutableLayout);
+public sealed record FieldCompatibilityInventory(string Field, string Language, string ResourceIdentity, string? JsmSha256, int? JsmLength, string ParserVersion, bool BankCountKnown, int? DeclaredTextCount, ImmutableArray<FieldCompatibilityRow> Bank, ImmutableArray<FieldCompatibilityInstruction> Instructions, ImmutableArray<FieldCompatibilityContext> Contexts, ImmutableArray<int> ReferencedOrdinals, ImmutableArray<int> UnreferencedOrdinals, ImmutableArray<int> EmptyOrdinals, ImmutableArray<string> Problems, string? ExecutableLayout)
+{
+    public bool ScriptValidated { get; init; }
+    public bool BankValidated { get; init; }
+    public bool StaticReferencesValidated { get; init; }
+}
 
 public sealed record FieldCompatibilityDivergence(string Reason, int? RawByteOffset, FieldCompatibilityPosition? EnglishPosition, FieldCompatibilityPosition? LocalPosition, ImmutableArray<FieldCompatibilityInstruction> EnglishPrecedingContext, ImmutableArray<FieldCompatibilityInstruction> LocalPrecedingContext, int? StructuralBoundaryOperationIndex = null);
 

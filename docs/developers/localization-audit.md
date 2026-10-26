@@ -30,7 +30,19 @@ The tool also builds a directed location graph from field-transition instruction
 
 English Remastered bank ordinals are the identity baseline. Identical executable streams preserve all shared bank positions, including empty/unused slots. A nonempty bank-only suffix has no counterpart. Any real executable difference prevents automatic suffix resynchronization: later equal-looking messages remain candidates. Unreferenced rows remain conservative candidates; rows used exclusively in a proved prefix can be excluded. Structural-only differences with unproved object/script layout retain the complete bank bound.
 
-Static operand inference currently recognizes contiguous literal pushes with no intervening branch entry. Other expressions are retained as unresolved, with a whole-bank bound when known. Context diagnostics retain ownership and explicitly unproved control-flow/window-state observations. Dynamic candidate ranges use a first ordinal and count, referencing the indexed bank instead of duplicating its strings. Japanese escapes are checked before decoding to catch missing tables, invalid indices and truncation; valid square characters are not mistaken for substitution. Legitimate character aliases do not require byte-identical re-encoding.
+Static operand inference maintains an abstract stack suffix within each script. It preserves independent constants beside unknown operands and folds exact CAL expressions through the native scalar contract. Unknown memory/results remain unknown. Script changes, branch targets and commands/stores reset the suffix; no control-flow merge or observed gameplay value is assumed. A dynamic coordinate or choice operand does not erase a known message ID. Only unresolved message IDs expand the reference bound to the whole bank. Context diagnostics retain ownership and explicitly unproved control-flow/window-state observations. Dynamic candidate ranges use a first ordinal and count, referencing the indexed bank instead of duplicating its strings. Japanese escapes are checked before decoding to catch missing tables, invalid indices and truncation; valid square characters are not mistaken for substitution. Legitimate character aliases do not require byte-identical re-encoding.
+
+Ordinal correspondence and runtime presentation readiness are separate evidence. Fully identical validated executable streams with valid decoded banks and statically bounded references prove shared ordinals even when a presentation operand remains dynamic. Such pairs remain `Incomplete` for runtime readiness and retain their context diagnostics. For divergent scripts, only proven prefix-exclusive references can leave the candidate set; every later text-bearing suffix and unused row remains conservative. Invalid resources, undecoded banks and unknown text IDs do not obtain this shortcut.
+
+To refine an existing original audit without reopening game archives or duplicating its captured assets:
+
+```powershell
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- refine --input $env:MEMORIA_FF8_LOCALIZATION_AUDIT_INPUT --output $env:MEMORIA_FF8_LOCALIZATION_AUDIT_OUTPUT
+```
+
+The input must be a finished schema-1 Remastered audit, including its original resources and manifest. Incomplete coverage is allowed; an unfinished-run marker is rejected. The tool verifies the corpus fingerprint, binds each bank's metadata to the physical manifest, checks original resource lengths/SHA256 and decodes them again. It prepares each field/language inventory once and reuses it across comparisons. The new output references original evidence, field names and graphs instead of copying them. Keep the input report available.
+
+The refined `summary.md`/`report.json` compare counts across the full corpus and the originally incomplete subset. `grouped-review.json` separates shared technical repairs, blocked alignments and actionable alignment/context groups, with explicit language-specific members. Grouping identical structural evidence does not merge canonical rows or decide that translated prose means the same thing. A more precise context inventory can contain additional cases even while fewer rows need alignment review.
 
 Review cases are mechanically identified unmatched runs, choice/context groups and repeated-message presentation conflicts. Repeated identical operand sets share a case. Their count is a work queue, not a finding about semantic equivalence. Effective stateful window layout, dynamic expressions, control-flow analysis, cross-edition mappings, non-field text families and translation runtime behavior require further work. Incomplete counts and unsupported resources must be reported before approving semantic review.
 
@@ -39,6 +51,7 @@ Focused portable checks:
 ```powershell
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldCompatibilityAuditTests' --filter-class '*FieldAuditDecoderTests'
 dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldLocationGraphTests'
+dotnet run --project tests/Memoria.FF8.Assets.Tests -c Release -- --filter-class '*FieldCompatibilityOperandStateTests' --filter-class '*FieldCompatibilityReductionTests'
 ```
 
 Fixtures are synthetic; these tests do not require an installed game and do not run battle-effect tests.

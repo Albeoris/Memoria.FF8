@@ -8,16 +8,29 @@ namespace Memoria.FF8.Assets.Localization;
 /// <summary>Mechanical field correspondence only; no prose matching or semantic suffix resynchronization.</summary>
 public static class FieldCompatibilityAudit
 {
+    public static PreparedFieldCompatibility Prepare(FieldCompatibilityInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return new(input);
+    }
+
     public static FieldCompatibilityResult Compare(FieldCompatibilityInput english, FieldCompatibilityInput localized)
     {
-        ArgumentNullException.ThrowIfNull(english);
-        ArgumentNullException.ThrowIfNull(localized);
+        return Compare(Prepare(english), Prepare(localized));
+    }
+
+    public static FieldCompatibilityResult Compare(PreparedFieldCompatibility englishSource, PreparedFieldCompatibility localizedSource)
+    {
+        ArgumentNullException.ThrowIfNull(englishSource);
+        ArgumentNullException.ThrowIfNull(localizedSource);
+        FieldCompatibilityInput english = englishSource.Input;
+        FieldCompatibilityInput localized = localizedSource.Input;
         if (english.Field != localized.Field)
         {
             throw new ArgumentException("Counterparts must have the same logical field identity.");
         }
-        FieldCompatibilityInventory baseline = Inspect(english);
-        FieldCompatibilityInventory local = Inspect(localized);
+        FieldCompatibilityInventory baseline = englishSource.Inventory;
+        FieldCompatibilityInventory local = localizedSource.Inventory;
         bool rawEqual = english.Jsm is not null && localized.Jsm is not null && english.Jsm.AsSpan().SequenceEqual(localized.Jsm);
         int common = 0;
         while (common < baseline.Instructions.Length && common < local.Instructions.Length && SameInstruction(baseline.Instructions[common], local.Instructions[common]))
@@ -30,6 +43,9 @@ public static class FieldCompatibilityAudit
         int? structuralBoundary = layoutEqual ? null : StructuralBoundary(baseline, local);
         int trustedPrefix = Math.Min(common, structuralBoundary ?? common);
         bool complete = baseline.Problems.IsEmpty && local.Problems.IsEmpty;
+        bool identityInputsValid = baseline.ScriptValidated && local.ScriptValidated && baseline.BankValidated && local.BankValidated;
+        bool ordinalIdentity = streamEqual && identityInputsValid && baseline.StaticReferencesValidated && local.StaticReferencesValidated;
+        bool prefixIdentity = identityInputsValid && PrefixReferencesValid(baseline, trustedPrefix) && PrefixReferencesValid(local, trustedPrefix);
         bool bankEqual = baseline.BankCountKnown && local.BankCountKnown && baseline.DeclaredTextCount == local.DeclaredTextCount;
         bool compatible = streamEqual && complete && bankEqual;
         FieldCompatibilityKind kind = compatible ? rawEqual ? FieldCompatibilityKind.ByteIdentical : FieldCompatibilityKind.StorageOnly : complete ? FieldCompatibilityKind.Divergent : FieldCompatibilityKind.Incomplete;
@@ -62,15 +78,18 @@ public static class FieldCompatibilityAudit
         ImmutableArray<int> localOrdinals = Ordinals(local);
         // A divergent suffix has no approved semantic correspondence. Keep unused rows
         // and suffix reuse in the bound; exclude only proven prefix-exclusive references.
-        ImmutableArray<int> candidates = compatible ? [] : streamEqual && complete ? localOrdinals.Except(baseOrdinals).ToImmutableArray() : CandidateSuffix(local, localOrdinals, trustedPrefix, complete);
-        ImmutableArray<int> implicated = compatible ? [] : streamEqual && complete ? baseOrdinals.Except(localOrdinals).ToImmutableArray() : CandidateSuffix(baseline, baseOrdinals, trustedPrefix, complete);
-        ImmutableArray<FieldCompatibilityMatch> matches = streamEqual && complete
+        ImmutableArray<int> candidates = ordinalIdentity ? localOrdinals.Except(baseOrdinals).ToImmutableArray() : CandidateSuffix(local, localOrdinals, trustedPrefix, prefixIdentity);
+        ImmutableArray<int> implicated = ordinalIdentity ? baseOrdinals.Except(localOrdinals).ToImmutableArray() : CandidateSuffix(baseline, baseOrdinals, trustedPrefix, prefixIdentity);
+        ImmutableArray<FieldCompatibilityMatch> matches = ordinalIdentity
             ? baseOrdinals.Intersect(localOrdinals).Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Complete executable stream identity")).ToImmutableArray()
-            : baseline.Contexts.Where(context => complete && context.Position.OperationIndex < trustedPrefix && context.IsMessage && context.MessageId is not null)
+            : baseline.Contexts.Where(context => prefixIdentity && context.Position.OperationIndex < trustedPrefix && context.IsMessage && context.MessageId is not null)
                 .Select(context => context.MessageId!.Value).Intersect(baseOrdinals).Intersect(localOrdinals)
                 .Select(ordinal => new FieldCompatibilityMatch(ordinal, ordinal, "Identical instruction prefix reference; suffix remains unapproved")).ToImmutableArray();
         int contexts = baseline.Contexts.Count(context => context.Dynamic) + local.Contexts.Count(context => context.Dynamic) + ConflictingMessageIds(baseline.Contexts).Count() + ConflictingMessageIds(local.Contexts).Count();
-        ImmutableArray<FieldCompatibilityReviewCase> reviewCases = compatible ? CreateReviewCases(baseline, local, 0, [], [], false) : CreateReviewCases(baseline, local, boundary, implicated, candidates);
+        bool unmatchedRows = !candidates.IsEmpty || !implicated.IsEmpty;
+        ImmutableArray<FieldCompatibilityReviewCase> reviewCases = ordinalIdentity
+            ? CreateReviewCases(baseline, local, 0, implicated, candidates, unmatchedRows, true)
+            : CreateReviewCases(baseline, local, boundary, implicated, candidates);
         return new(kind, baseline, local, divergence,
             baseline.Contexts.Where(context => boundary == int.MaxValue ? !compatible : context.Position.OperationIndex >= boundary).ToImmutableArray(),
             local.Contexts.Where(context => boundary == int.MaxValue ? !compatible : context.Position.OperationIndex >= boundary).ToImmutableArray(),
@@ -98,6 +117,7 @@ public static class FieldCompatibilityAudit
         List<FieldCompatibilityInstruction> instructions = [];
         List<FieldCompatibilityContext> contexts = [];
         string? layout = null;
+        bool scriptValidated = false;
         if (input.Jsm is null)
         {
             problems.Add("JSM resource is missing.");
@@ -106,7 +126,9 @@ public static class FieldCompatibilityAudit
         {
             try
             {
+                int priorProblems = problems.Count;
                 layout = Parse(input.Jsm, count, bank, instructions, contexts, problems);
+                scriptValidated = problems.Count == priorProblems;
             }
             catch (Exception exception) when (exception is InvalidDataException or ArgumentException or OverflowException)
             {
@@ -120,14 +142,22 @@ public static class FieldCompatibilityAudit
         }
         foreach (FieldCompatibilityContext context in contexts.Where(context => context.Dynamic))
         {
-            problems.Add($"Unresolved {context.Opcode} context at operation {context.Position.OperationIndex}; candidate bound is {(count is null ? "unknown" : count.ToString())} bank rows.");
+            string scope = !context.IsMessage ? "non-message state; no text-identity expansion"
+                : context.MessageId is int id ? $"text ordinal {id} is known; presentation operands remain unresolved"
+                : $"candidate bound is {(count is null ? "unknown" : count.ToString())} bank rows";
+            problems.Add($"Unresolved {context.Opcode} context at operation {context.Position.OperationIndex}; {scope}.");
         }
         return new(input.Field, input.Language, input.ResourceIdentity,
             input.Jsm is null ? null : Convert.ToHexString(SHA256.HashData(input.Jsm)), input.Jsm?.Length,
-            "field-compatibility-v1/" + typeof(JsmDocument).Assembly.GetName().Version,
+            "field-compatibility-v2/" + typeof(JsmDocument).Assembly.GetName().Version,
             count is not null, count, bank, instructions.ToImmutableArray(), contexts.ToImmutableArray(), referenced.ToImmutableArray(),
             count is int known ? Enumerable.Range(0, known).Except(referenced).ToImmutableArray() : [],
-            bank.Where(row => row.Text.Length == 0 || row.Text == "{End}").Select(row => row.Ordinal).ToImmutableArray(), problems.ToImmutableArray(), layout);
+            bank.Where(row => row.Text.Length == 0 || row.Text == "{End}").Select(row => row.Ordinal).ToImmutableArray(), problems.ToImmutableArray(), layout)
+        {
+            ScriptValidated = scriptValidated,
+            BankValidated = input.Bank is not null && bank.Length == count && !bank.Where((row, index) => row.Ordinal != index).Any() && (input.Errors?.Count ?? 0) == 0,
+            StaticReferencesValidated = count is int knownCount && contexts.Where(context => context.IsMessage).All(context => context.MessageId is int id && id >= 0 && id < knownCount)
+        };
     }
 
     private static string Parse(byte[] data, int? bankCount, ImmutableArray<FieldCompatibilityRow> bank, List<FieldCompatibilityInstruction> instructions, List<FieldCompatibilityContext> contexts, List<string> problems)
@@ -192,11 +222,19 @@ public static class FieldCompatibilityAudit
             objectIndex++;
         }
         Dictionary<(int Object, int Script), SortedDictionary<string, string>> observedStates = [];
+        FieldCompatibilityOperandState operandState = new();
+        (int Object, int Script) priorOwner = (-1, -1);
         for (int index = 0; index < operations.Count; index++)
         {
             JsmOperation operation = operations[index];
             var owners = ranges.Where(range => range.Start <= index && index < range.End).ToArray();
             var owner = owners.Length == 1 ? owners[0] : (-1, -1, -1, 0, 0);
+            var currentOwner = (owner.Item1, owner.Item3);
+            if (currentOwner != priorOwner || branchTargets.Contains(index) || owners.Length != 1)
+            {
+                operandState.Reset();
+            }
+            priorOwner = currentOwner;
             FieldCompatibilityPosition position = new(owner.Item1, owner.Item2, owner.Item3, owners.Length == 1 ? index - owner.Item4 : index, index, operation.Offset);
             int encoded = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(operation.Offset));
             instructions.Add(new(position, operation.Opcode.ToString(), encoded, operation.Parameter));
@@ -204,44 +242,25 @@ public static class FieldCompatibilityAudit
             {
                 problems.Add($"Unsupported opcode {encoded:X8} at operation {index}.");
             }
+            if (operation.Opcode == Jsm.Opcode.CAL && (uint)operation.Parameter > 17)
+            {
+                problems.Add($"Unsupported CAL operator {operation.Parameter} at operation {index}.");
+            }
             (int operandCount, bool message) = ContextOperands(operation.Opcode);
             if (operandCount == 0)
             {
+                operandState.Observe(operation);
                 continue;
             }
-            int?[] operands = new int?[operandCount];
-            // Only direct literal pushes in the same script prove an operand. Expressions,
-            // branches and stack values inherited across instructions stay unresolved.
-            bool direct = owners.Length == 1 && index - operandCount >= owner.Item4;
-            if (branchTargets.Any(target => target > index - operandCount && target <= index))
-            {
-                direct = false;
-            }
+            int?[] operands = operandState.ReadOperands(operandCount);
             bool resultContext = operation.Opcode is Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.JPF or Jsm.Opcode.CAL;
-            for (int argument = 0; argument < operandCount && direct; argument++)
-            {
-                JsmOperation push = operations[index - operandCount + argument];
-                if (push.Opcode != Jsm.Opcode.PSHN_L)
-                {
-                    direct = false;
-                }
-                else
-                {
-                    operands[argument] = push.Parameter;
-                }
-            }
-            if (!direct)
-            {
-                Array.Clear(operands);
-            }
             if (resultContext)
             {
                 operands = [operation.Parameter];
-                direct = true;
             }
             int? messageId = message ? operands[1] : null;
-            bool dynamic = !direct;
-            ImmutableArray<int> bound = message && dynamic && bankCount is int known ? Enumerable.Range(0, known).ToImmutableArray() : [];
+            bool dynamic = operands.Any(value => value is null);
+            ImmutableArray<int> bound = message && messageId is null && bankCount is int known ? Enumerable.Range(0, known).ToImmutableArray() : [];
             var ownerKey = (position.ObjectIndex, position.ScriptId);
             if (!observedStates.TryGetValue(ownerKey, out SortedDictionary<string, string>? observedState))
             {
@@ -257,6 +276,7 @@ public static class FieldCompatibilityAudit
             // window state: field entry, other scripts and control flow remain unresolved.
             string state = "EntryAndControlFlowStateUnresolved:" + string.Join(';', observedState.Select(pair => pair.Key + "=" + pair.Value));
             contexts.Add(new(position, operation.Opcode.ToString(), operands.ToImmutableArray(), messageId, message, dynamic, bound, messageId is int id ? bank.FirstOrDefault(row => row.Ordinal == id) : null, state));
+            operandState.Observe(operation);
         }
         return Convert.ToHexString(data.AsSpan(0, 4)) + ":" + string.Join(',', rawGroups) + ":" + string.Join(',', pointers);
     }
@@ -280,7 +300,7 @@ public static class FieldCompatibilityAudit
 
     private static ImmutableArray<int> CandidateSuffix(FieldCompatibilityInventory inventory, ImmutableArray<int> ordinals, int boundary, bool complete)
     {
-        if (!complete || inventory.Contexts.Any(context => context.IsMessage && context.Dynamic && context.Position.OperationIndex >= boundary))
+        if (!complete || inventory.Contexts.Any(context => context.IsMessage && context.MessageId is null && context.Position.OperationIndex >= boundary))
         {
             return ordinals;
         }
@@ -289,7 +309,9 @@ public static class FieldCompatibilityAudit
         return ordinals.Except(prefix.Except(suffix)).ToImmutableArray();
     }
 
-    private static ImmutableArray<FieldCompatibilityReviewCase> CreateReviewCases(FieldCompatibilityInventory baseline, FieldCompatibilityInventory local, int boundary, ImmutableArray<int> englishOrdinals, ImmutableArray<int> localOrdinals, bool includeAlignment = true)
+    private static bool PrefixReferencesValid(FieldCompatibilityInventory inventory, int boundary) => inventory.DeclaredTextCount is int count && inventory.Contexts.Where(context => context.IsMessage && context.Position.OperationIndex < boundary).All(context => context.MessageId is int id && id >= 0 && id < count);
+
+    private static ImmutableArray<FieldCompatibilityReviewCase> CreateReviewCases(FieldCompatibilityInventory baseline, FieldCompatibilityInventory local, int boundary, ImmutableArray<int> englishOrdinals, ImmutableArray<int> localOrdinals, bool includeAlignment = true, bool includeDynamic = false)
     {
         List<FieldCompatibilityReviewCase> cases = [];
         string prefix = baseline.Field + "/" + local.Language + "/";
@@ -306,7 +328,7 @@ public static class FieldCompatibilityAudit
         void AddContextCases(FieldCompatibilityContext[] contexts, bool english)
         {
             string side = english ? "english" : "localized";
-            foreach (IGrouping<string, FieldCompatibilityContext> group in contexts.Where(context => includeAlignment && (context.Dynamic || context.Opcode is "ASK" or "AASK")).GroupBy(ContextSignature))
+            foreach (IGrouping<string, FieldCompatibilityContext> group in contexts.Where(context => (includeAlignment || includeDynamic && context.Dynamic) && (context.Dynamic || context.Opcode is "ASK" or "AASK")).GroupBy(ContextSignature))
             {
                 FieldCompatibilityContext first = group.First();
                 string kind = first.Dynamic ? "DynamicContext" : "ChoiceGroup";

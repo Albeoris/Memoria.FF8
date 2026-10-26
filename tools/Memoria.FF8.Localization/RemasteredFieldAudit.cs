@@ -145,8 +145,9 @@ internal static class RemasteredFieldAudit
                 Write(Path.Combine(directory, "bank.json"), new { Field = field, Language = language, Script = Metadata(script), Text = Metadata(bank), Decoded = decoded, Errors = problems });
                 FieldCompatibilityText[]? rows = decoded is { Complete: true } ? decoded.Rows.Select(row => new FieldCompatibilityText(row.Ordinal, row.Text!, row.Tokens)).ToArray() : null;
                 FieldCompatibilityInput input = new(field, language, script?.Identity ?? bank?.Identity ?? $"missing:field/{field}/{language}", script?.Bytes, rows, problems, decoded?.Rows.Length);
-                datasets.Add((field, language), new(input, decoded, script is not null && bank is not null));
-                FieldCompatibilityInventory inventory = FieldCompatibilityAudit.Inspect(input);
+                PreparedFieldCompatibility prepared = FieldCompatibilityAudit.Prepare(input);
+                datasets.Add((field, language), new(input, decoded, script is not null && bank is not null, prepared));
+                FieldCompatibilityInventory inventory = prepared.Inventory;
                 Write(Path.Combine(directory, "inventory.json"), new
                 {
                     inventory.Field, inventory.Language, inventory.ResourceIdentity, inventory.JsmSha256, inventory.JsmLength,
@@ -197,7 +198,7 @@ internal static class RemasteredFieldAudit
             foreach (string language in Languages.Where(language => language != "en"))
             {
                 Dataset localized = datasets[(field, language)];
-                FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english.Input, localized.Input);
+                FieldCompatibilityResult result = FieldCompatibilityAudit.Compare(english.Prepared, localized.Prepared);
                 string diagnostic = $"pairs/{field}.{language}.json";
                 Write(Path.Combine(output, diagnostic), new
                 {
@@ -334,12 +335,12 @@ internal static class RemasteredFieldAudit
         BankOrdinal = context.Row?.Ordinal
     }).ToArray();
 
-    private static void ValidateOutput(string output, string gameDirectory)
+    internal static void ValidateOutput(string output, string gameDirectory)
     {
         string gameRoot = gameDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (output.Equals(gameDirectory, StringComparison.OrdinalIgnoreCase) || output.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("The audit output must be outside the selected game installation.");
+            throw new ArgumentException("The audit output must be outside the selected source directory.");
         }
         for (DirectoryInfo? directory = new(output); directory is not null; directory = directory.Parent)
         {
@@ -356,7 +357,7 @@ internal static class RemasteredFieldAudit
     private static IFlArchiveEntry Require(Dictionary<string, IFlArchiveEntry> entries, string name) => entries.GetValueOrDefault(name) ?? throw new InvalidDataException($"Missing archive member {name}.");
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
     private static object? Metadata(Member? member) => member is null ? null : new { member.Identity, Length = member.Bytes.Length, Sha256 = Hash(member.Bytes) };
-    private static bool IsResourceError(Exception exception) => exception is IOException or ArgumentException or InvalidOperationException or FormatException or IndexOutOfRangeException or OverflowException or NotSupportedException;
+    private static bool IsResourceError(Exception exception) => exception is IOException or InvalidDataException or ArgumentException or InvalidOperationException or FormatException or IndexOutOfRangeException or OverflowException or NotSupportedException;
 
     private static byte[] Read(IFlArchiveEntry entry)
     {
@@ -401,6 +402,6 @@ internal static class RemasteredFieldAudit
     }
 
     private sealed record Member(string Field, string Language, string Stem, string Extension, string Identity, byte[] Bytes);
-    private sealed record Dataset(FieldCompatibilityInput Input, FieldAuditDecodedBank? Decoded, bool Found);
+    private sealed record Dataset(FieldCompatibilityInput Input, FieldAuditDecodedBank? Decoded, bool Found, PreparedFieldCompatibility Prepared);
     private sealed record Pair(string Field, string Language, string Kind, int PotentialRows, int ReviewCases, int ContextProblems, bool CountKnown, string Diagnostic);
 }
