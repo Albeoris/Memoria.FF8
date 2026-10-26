@@ -82,6 +82,8 @@ public sealed class NativeBattleCinematicEffect246DispatchTests
         Assert.Equal(0x1860390u, profile.BoneTable);
         Assert.Equal(4, profile.TextureCount);
         Assert.Equal(0u, profile.LoadCallback);
+        Assert.Equal(0x2796748u, profile.File0Publication);
+        Assert.Equal(0x279674Cu, profile.File1Publication);
         Assert.False(profile.Lit);
         Assert.False(profile.HasVibrationDirectory);
     }

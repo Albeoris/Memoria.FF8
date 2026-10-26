@@ -150,6 +150,15 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
                     transitions.Add("draw-26-live");
                 }
             }
+            if (kind == 31 && shape >= basis)
+            {
+                transitions.Add("draw-31");
+                int commonStart = prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor ?? 0;
+                if (CurrentCommands(current, commonStart).Any(command => (command.Opcode & 0xFC) == 0x38))
+                {
+                    transitions.Add("draw-31-live");
+                }
+            }
             if (kind == 34 && shape >= basis)
             {
                 uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(0xB8));
@@ -234,7 +243,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         {
             if (markers.Add(transition))
             {
-                if (transition is "draw-52-live" or "draw-22-body" or "draw-22-live" or "update-8")
+                if (transition is "draw-52-live" or "draw-22-body" or "draw-22-live" or "update-8" or "draw-31-live")
                 {
                     publish($"{transition}-before", prior);
                 }

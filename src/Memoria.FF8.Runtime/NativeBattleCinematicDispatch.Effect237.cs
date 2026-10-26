@@ -8,6 +8,7 @@ public static partial class NativeBattleCinematicDispatch
     {
         [("bone_table", 0x0)] = (0xA2A790, 0xB262E0),
         [("bone_table", 0x1)] = (0xA2A790, 0xB262E0),
+        [("bone_table", 0x3)] = (0xA2A8A0, 0xB263F0),
         [("bone_table", 0x4)] = (0xA2A950, 0xA671C0),
         [("bone_table", 0x8)] = (0xA2D400, 0xA2D400),
         [("draw_table", 0x1)] = (0xA2B130, 0xB26FB0),
@@ -15,6 +16,7 @@ public static partial class NativeBattleCinematicDispatch
         [("draw_table", 0x4)] = (0xA2AFA0, 0xB26E20),
         [("draw_table", 0x5)] = (0xA2D950, 0xB298D0),
         [("draw_table", 0x6)] = (0xA2DFA0, 0xB29F20),
+        [("draw_table", 0x1F)] = (0xA2D000, 0xA2D000),
         [("pop_table", 0x0)] = (0xA2E540, 0xB2A4C0),
         [("pop_table", 0x1)] = (0xA2E570, 0xB2A4F0),
         [("pop_table", 0x4)] = (0xA2E5F0, 0xB2A570),
@@ -24,6 +26,7 @@ public static partial class NativeBattleCinematicDispatch
         [("pop_table", 0xA)] = (0xA2E840, 0xB2A7C0),
         [("pop_table", 0xB)] = (0xA2E910, 0xB2A890),
         [("prim_table", 0x8)] = (0xA2C380, 0xB28110),
+        [("prim_table", 0x7)] = (0xA2C100, 0xB27E90),
         [("prim_table", 0x30)] = (0xA2C9D0, 0xB11100),
         [("ptype_table", 0x1)] = (0xA2E360, 0xB2A2E0),
         [("ptype_table", 0x2)] = (0xA2E3B0, 0xB2A330),

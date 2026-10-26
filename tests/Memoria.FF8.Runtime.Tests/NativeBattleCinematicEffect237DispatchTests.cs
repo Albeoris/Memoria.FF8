@@ -5,6 +5,7 @@ public sealed class NativeBattleCinematicEffect237DispatchTests
     [Theory]
     [InlineData("bone_table", 0x0, 0xA2A790u, 0xB262E0u)]
     [InlineData("bone_table", 0x1, 0xA2A790u, 0xB262E0u)]
+    [InlineData("bone_table", 0x3, 0xA2A8A0u, 0xB263F0u)]
     [InlineData("bone_table", 0x4, 0xA2A950u, 0xA671C0u)]
     [InlineData("bone_table", 0x8, 0xA2D400u, 0xA2D400u)]
     [InlineData("draw_table", 0x1, 0xA2B130u, 0xB26FB0u)]
@@ -107,13 +108,39 @@ public sealed class NativeBattleCinematicEffect237DispatchTests
 
     [Theory]
     [InlineData("vm_table", 0x80, 0xA32E10u)]
-    [InlineData("bone_table", 3, 0xA2D400u)]
+    [InlineData("bone_table", 2, 0xA2D400u)]
     [InlineData("draw_table", 0x1B, 0xA2B1D0u)]
     [InlineData("prim_table", 0x44, 0xA2C9D0u)]
     [InlineData("ptype_table", 3, 0xA2E3B0u)]
     public void Unselected_slots_do_not_inherit_an_alias(string table, int index, uint selected)
     {
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, table, index, selected));
+    }
+
+    [Fact]
+    public void Register5A_selected_orbit3_requires_its_current_handler()
+    {
+        Assert.Equal(0xB263F0u, NativeBattleCinematicDispatch.RequireSlot(237, "bone_table", 3, 0xA2A8A0));
+        Assert.Equal(0xB263F0u, NativeBattleCinematicDispatch.Canonicalize(237, 0xA2A8A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "bone_table", 2, 0xA2A8A0));
+    }
+
+    [Fact]
+    public void Selected_textured_triangle7_requires_its_current_handler()
+    {
+        Assert.Equal(0xB27E90u, NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 7, 0xA2C100));
+        Assert.Equal(0xB27E90u, NativeBattleCinematicDispatch.Canonicalize(237, 0xA2C100));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 6, 0xA2C100));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 7, 0xB27E90));
+    }
+
+    [Fact]
+    public void Register44_selected_culling31_requires_its_current_handler()
+    {
+        Assert.Equal(0xA2D000u, NativeBattleCinematicDispatch.RequireSlot(237, "draw_table", 31, 0xA2D000));
+        Assert.Equal(0xA2D000u, NativeBattleCinematicDispatch.Canonicalize(237, 0xA2D000));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "draw_table", 30, 0xA2D000));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "draw_table", 32, 0xA2D000));
     }
 
     [Fact]
