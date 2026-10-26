@@ -21,6 +21,9 @@ public sealed partial class BattleSession
                 physical = checked((ushort)(1 << index));
             }
         }
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native50D300 requires its retained camera alias memory.");
+        NativeBattleCameraAliases aliases = memory.CameraAliases ?? NativeBattleCameraAliases.Unknown();
+        NativeEffectMemory = memory with { CameraAliases = aliases.Observe50D300(checked((byte)actorIndex), physical ?? 0) };
         if (physical is not ushort mask || mask == 0)
         {
             return PrepareNativeActionMatrices(graphics with { ActionContext = context });

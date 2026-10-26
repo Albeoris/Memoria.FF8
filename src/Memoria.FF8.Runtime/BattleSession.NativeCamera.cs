@@ -65,8 +65,8 @@ public sealed partial class BattleSession
         int model = reference >> 4;
         if (model is 9 or 10)
         {
-            NativeBattleActionGeometry context = RequireNativeGraphics().ActionContext ?? throw new NotSupportedException("Native50D790 camera aliases require the actual50D300 command geometry owner.");
-            model = model == 9 ? context.ActorIndex : context.TargetIndex ?? throw new NotSupportedException("Native camera target alias requires its resolved physical target packet.");
+            NativeBattleCameraAliases aliases = NativeEffectMemory?.CameraAliases ?? throw new NotSupportedException("Native50D790 requires its retained camera alias BYTEs; migrate the needed older snapshot explicitly.");
+            model = aliases.Resolve50D790(reference);
         }
         if (model >= 7)
         {

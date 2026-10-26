@@ -50,7 +50,7 @@ public sealed partial class BattleSession
             registers = registers with { NormalInput = input.ToImmutableArray(), NormalInputKnown = known.ToImmutableArray(), Mac = [null, null, null], Ir = [null, projected.Ir2, null], Flags = projected.Projected.Flags };
             return projected.Ir2;
         });
-        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, NativeBattleBodyBoneMatrices.Publish508C90(graphics.Models[actorIndex], pose)) };
+        graphics = graphics with { Models = graphics.Models.SetItem(actorIndex, NativeBattlePandemona291ActorBones.Restore508C90(graphics.Models[actorIndex], pose)) };
         return (graphics, memory with { ScriptedColorRegisters = registers }, bounds);
     }
 }
