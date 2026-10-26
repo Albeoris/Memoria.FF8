@@ -132,4 +132,3 @@ public sealed class LocalizationArtworkTests
         Assert.Throws<InvalidDataException>(() => new LocalizationCatalog([], artwork: new Dictionary<TextureKey, LocalizationArtworkValue> { [key] = image with { LogicalHeight = 2 } }));
     }
 }
-

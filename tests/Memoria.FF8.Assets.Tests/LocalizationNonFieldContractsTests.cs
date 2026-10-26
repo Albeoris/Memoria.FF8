@@ -170,4 +170,3 @@ public sealed class LocalizationNonFieldContractsTests
         public Stream OpenForWrite(uint desiredSize) => throw new NotSupportedException();
     }
 }
-
