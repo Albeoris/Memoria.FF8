@@ -17,6 +17,11 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         {
             return;
         }
+        if (selectedEffect == 9)
+        {
+            ObserveModulePools(prior, current, effect, publish);
+            return;
+        }
         NativeBattleScriptedEffectMemory core = current.NativeEffectMemory!.ScriptedEffects!;
         NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
         uint manager = Dword(core, 0x27973EC);
@@ -247,6 +252,55 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
                 {
                     publish($"{transition}-before", prior);
                 }
+                publish(transition, current);
+            }
+        }
+    }
+
+    private void ObserveModulePools(BattleSnapshot prior, BattleSnapshot current, NativeBattleOriginalEffectState effect, Action<string, BattleSnapshot> publish)
+    {
+        NativeBattleEffect9State state = current.NativeEffectMemory!.Effect9!;
+        List<string> transitions = [];
+        List<object> tasks = [];
+        for (int poolIndex = 0; poolIndex < effect.Pools.Length; poolIndex++)
+        {
+            NativeBattleEffectTaskPool pool = effect.Pools[poolIndex];
+            for (int index = 0; index < pool.Slots.Length; index++)
+            {
+                NativeBattleModulePoolTask task = pool.Slots[index];
+                if ((task.Flags & 1) == 0)
+                {
+                    continue;
+                }
+                uint address = checked(pool.BankAddress + (uint)(index * pool.Stride));
+                tasks.Add(new { Address = address, task.Callback, Counter = task.ReadWord(0x24), Phase = task.ReadByte(0x29), Flags = task.ReadByte(0x26) });
+                if (task.Callback is 0x8C0BC0 or 0x8C3C30)
+                {
+                    uint frame = task.ReadDword(0x98);
+                    foreach (uint boundary in new uint[] { 1, 20, 40 })
+                    {
+                        if (frame >= boundary)
+                        {
+                            transitions.Add($"effect9-gf-{task.Callback:X}-{boundary}");
+                        }
+                    }
+                }
+                if (task.Callback == 0x8C3E00 && task.ReadWord(0x50) >= 1 && (task.ReadByte(0x26) & 4) == 0)
+                {
+                    transitions.Add("effect9-particle-live");
+                }
+                if (task.Callback == 0x8C3490 && (task.ReadByte(0x26) & 8) != 0 && current.NativeGraphics!.PrimitiveFrame!.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && ((item.Command.Opcode & 0xFC) is 0x34 or 0x3C) && (item.Command.Words[0] & 0xFFFFFF) != 0))
+                {
+                    transitions.Add("effect9-body-live");
+                }
+            }
+        }
+        observations.Add(new { current.Frame, CurrentGte = current.NativeEffectMemory.GeometryRegisters, CurrentColors = current.NativeEffectMemory.ScriptedColorRegisters, PrivatePacketEnd = state.ReadDword(0x274EFEC), Tasks = tasks, CommonScope = "Not attributed from the reset frame-end cursor" });
+        foreach (string transition in transitions.Distinct())
+        {
+            if (markers.Add(transition))
+            {
+                publish($"{transition}-before", prior);
                 publish(transition, current);
             }
         }

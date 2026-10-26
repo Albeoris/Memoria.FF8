@@ -160,6 +160,10 @@ public sealed partial class BattleSession
                 {
                     graphics = completedDegenerator306;
                 }
+                else if (TryWriteNativeEffect9Completion(graphics, address, value, out NativeBattleGraphicsState completedEffect9))
+                {
+                    graphics = completedEffect9;
+                }
                 else if (TryWriteNativeDoom8Completion(graphics, address, value, out NativeBattleGraphicsState completedDoom8))
                 {
                     graphics = completedDoom8;

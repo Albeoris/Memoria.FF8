@@ -216,6 +216,16 @@ public sealed partial class GameAssets
                 binding = binding with { Doom8Resources = doom, InitializerAsset = doom.MainTim };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 9)
+            {
+                if (binding.Entry != 0x8C0380 || binding.Initializer != 0x8C0360 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag008.tim", 0x274EFE8) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect9 differs from its original module and initializer identity.");
+                }
+                NativeBattleEffect9Resources effect9Resources = ReadNativeEffect9Resources();
+                binding = binding with { Effect9Resources = effect9Resources, InitializerAsset = effect9Resources.MainTim };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 260)
             {
                 if (binding.Entry != 0x690690 || binding.Initializer != 0x6906A0 || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag069-259.tim", 0x2508610) || binding.InitializerResources is not null)
@@ -368,6 +378,14 @@ public sealed partial class GameAssets
                     throw new InvalidDataException("Laser Eye requires its original entry and initializer resource identity.");
                 }
                 binding = binding with { LaserEye71Resources = ReadNativeLaserEye71Resources() };
+            }
+            if (binding.Effect == 30)
+            {
+                if (binding.Entry != NativeBattleEffect30Profile.Entry || binding.Initializer != NativeBattleEffect30Profile.Initializer || binding.InitializerIsRet != false || binding.InitializerResource != new NativeBattleEffectInitializerResource("mag029.tim", NativeBattleEffect30Profile.InitializerGlobal) || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect30 requires its original entry and initializer resource identity.");
+                }
+                binding = binding with { Effect30Resources = ReadNativeEffect30Resources() };
             }
             if (binding.Effect == 130)
             {

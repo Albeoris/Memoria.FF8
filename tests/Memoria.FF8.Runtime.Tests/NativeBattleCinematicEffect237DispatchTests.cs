@@ -126,6 +126,15 @@ public sealed class NativeBattleCinematicEffect237DispatchTests
     }
 
     [Fact]
+    public void Selected_gouraud_quad17_requires_its_current_handler()
+    {
+        Assert.Equal(0xB28B00u, NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 17, 0xA2C6A0));
+        Assert.Equal(0xB28B00u, NativeBattleCinematicDispatch.Canonicalize(237, 0xA2C6A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 16, 0xA2C6A0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 17, 0xB28B00));
+    }
+
+    [Fact]
     public void Selected_textured_triangle7_requires_its_current_handler()
     {
         Assert.Equal(0xB27E90u, NativeBattleCinematicDispatch.RequireSlot(237, "prim_table", 7, 0xA2C100));

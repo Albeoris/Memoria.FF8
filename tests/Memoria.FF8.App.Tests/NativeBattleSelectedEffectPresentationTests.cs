@@ -51,7 +51,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Assert.True(maximum > 0);
         BattleSession battle = Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition, true);
-        NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) ? new(source, effect) : null;
+        NativeBattleSelectedCinematicObserver? observer = NativeBattleCinematicProfile.IsSupported(effect) || effect == 9 ? new(source, effect) : null;
         HashSet<string> boundaries = [];
         HashSet<string> restoredBoundaries = [];
         int completions = 0;

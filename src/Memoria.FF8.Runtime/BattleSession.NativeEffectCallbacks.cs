@@ -449,6 +449,10 @@ public sealed partial class BattleSession
         {
             return RunNativeLaserEye71(graphics, false);
         }
+        if (effect.Binding.Entry == NativeBattleEffect30Profile.Entry)
+        {
+            return RunNativeEffect30(graphics, false);
+        }
         if (effect.Binding.Entry == NativeBattleEerieSoundWave130Profile.Entry)
         {
             return AdvanceNativeEerieSoundWave130(graphics);
@@ -484,6 +488,10 @@ public sealed partial class BattleSession
         if (effect.Binding.Entry == NativeBattleCurse47Controller.Entry)
         {
             return AdvanceNativeCurse47(graphics);
+        }
+        if (effect.Binding.Entry == NativeBattleEffect9Controller.Entry)
+        {
+            return AdvanceNativeEffect9(graphics);
         }
         if (effect.Binding.Entry == NativeBattleDoom8Controller.Entry)
         {

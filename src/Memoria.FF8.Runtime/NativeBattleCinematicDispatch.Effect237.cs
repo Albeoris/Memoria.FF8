@@ -27,6 +27,7 @@ public static partial class NativeBattleCinematicDispatch
         [("pop_table", 0xB)] = (0xA2E910, 0xB2A890),
         [("prim_table", 0x8)] = (0xA2C380, 0xB28110),
         [("prim_table", 0x7)] = (0xA2C100, 0xB27E90),
+        [("prim_table", 0x11)] = (0xA2C6A0, 0xB28B00),
         [("prim_table", 0x30)] = (0xA2C9D0, 0xB11100),
         [("ptype_table", 0x1)] = (0xA2E360, 0xB2A2E0),
         [("ptype_table", 0x2)] = (0xA2E3B0, 0xB2A330),
