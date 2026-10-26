@@ -27,6 +27,9 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? WaterStepEdges2045C7C { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int FuelMessageMovementCallbacks2045C78 { get; init; }
+
     [JsonIgnore]
     public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0;
 
@@ -41,6 +44,10 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
         VerticalBias204DADC?.Validate();
         InputHistory?.Validate();
         GroundSelection?.Validate();
+        if (FuelMessageMovementCallbacks2045C78 is < 0 or > 30)
+        {
+            throw new InvalidDataException("Native fuel message movement counter is outside its callback range.");
+        }
         if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || InputHistory?.Samples > MainLoopCallbacks || CarCameraFollowSpeed is < 0 or > 128 || ForcedAnimationC76628 is not (null or -1 or 0 or 4) || PreviousContactC76784 is < -1 || WaterStepEdges2045C7C is > 3)
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");

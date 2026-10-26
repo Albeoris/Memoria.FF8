@@ -20,6 +20,7 @@ public sealed partial record NativeWorldSalaryState
         InputHistory = departure.WorldProcess?.InputHistory;
         WaterStepEdges2045C7C = departure.WorldProcess?.WaterStepEdges2045C7C;
         PreviousContactC76784 = departure.WorldProcess?.PreviousContactC76784;
+        FuelMessageMovementCallbacks = departure.WorldProcess?.FuelMessageMovementCallbacks2045C78 ?? 0;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
@@ -41,6 +42,7 @@ public sealed partial record NativeWorldSalaryState
     public NativeWorldInputHistory? InputHistory { get; private init; }
     public byte? WaterStepEdges2045C7C { get; private init; }
     public int? PreviousContactC76784 { get; private init; }
+    public int FuelMessageMovementCallbacks { get; private init; }
 
     public NativeWorldSalaryState WithPreviousContact(int? contact)
     {
@@ -131,7 +133,7 @@ public sealed partial record NativeWorldSalaryState
         NativeWorldProcess? process = candidate.WorldProcess;
         if (process is not null)
         {
-            process = process with { WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784 };
+            process = process with { WaterStepEdges2045C7C = WaterStepEdges2045C7C, PreviousContactC76784 = PreviousContactC76784, FuelMessageMovementCallbacks2045C78 = FuelMessageMovementCallbacks };
         }
         if (InputHistory is not null)
         {
@@ -164,31 +166,49 @@ public sealed partial record NativeWorldSalaryState
         return this with { VibrationProcess = next };
     }
 
-    public NativeWorldSalaryState PrepareCarFuel(byte entityType, byte groundType, int rawMagnitude)
+    public NativeWorldSalaryState PrepareCarFuel(byte entityType, byte groundType, int rawMagnitude, Func<byte, NativeWorldMessage>? prepareMessage = null)
     {
         if (entityType is not (32 or 33 or 35) || rawMagnitude is < 0 or > 64)
         {
             throw new NotSupportedException("Native car fuel requires the supported entity and actual raw car velocity magnitude.");
         }
-        if (entityType == 33)
+        NativeWorldSalaryState staged = AdvanceFuelMessage(rawMagnitude);
+        if (entityType == 33 || staged.EventUi?.ScriptMode is > 0)
         {
-            return this;
+            return staged;
         }
         uint distance = FuelDistance112 ?? throw new NotSupportedException("Native car fuel requires its executed saved-world DWORD112 owner.");
         NativeEconomy economy = Economy ?? throw new NotSupportedException("Native car fuel requires its canonical original inventory pairs.");
         economy.Validate();
-        //54FDA0 tests the old unsigned DWORD before adding this callback's raw
-        //velocity. The threshold UI/consumption branch is a distinct boundary.
+        //54FDA0 tests the old unsigned DWORD before adding this callback's raw velocity.
         if (distance >= 0x20000)
         {
-            throw new NotSupportedException("Native car fuel consumption reached its unimplemented original fuel-message process.");
+            int slot = Array.FindIndex(economy.Items, item => item.ItemId == 162 && item.Count != 0);
+            byte remaining = slot < 0 ? (byte)0 : (byte)(economy.Items[slot].Count - 1);
+            NativeWorldMessage message = (prepareMessage ?? throw new NotSupportedException("Native car fuel requires its original message resource producer."))(remaining);
+            if (message.WindowId != 1 || message.MessageId != (remaining == 0 ? 43 : 254) || message.FuelRemaining != (remaining == 0 ? null : remaining))
+            {
+                throw new InvalidDataException("Native car fuel message differs from its consumed inventory quantity.");
+            }
+            NativeWorldEventUi ui = staged.RequireWorldEventUi().Show(message);
+            NativeEconomy next = economy.DeepCopy();
+            if (slot >= 0)
+            {
+                next.Items[slot] = next.Items[slot] with { Count = remaining };
+            }
+            return staged with { Economy = next, EventUi = ui, FuelDistance112 = 0, FuelMessageMovementCallbacks = 30 };
         }
         if (!economy.Items.Any(item => item.ItemId == 162 && item.Count != 0))
         {
-            return this;
+            return staged;
         }
         int increment = groundType == 28 ? rawMagnitude >> 1 : groundType is 27 or 8 ? 2 * rawMagnitude : rawMagnitude;
-        return this with { FuelDistance112 = unchecked(distance + (uint)increment) };
+        return staged with { FuelDistance112 = unchecked(distance + (uint)increment) };
+    }
+
+    public NativeWorldSalaryState AdvanceFuelMessage(int rawMagnitude)
+    {
+        return FuelMessageMovementCallbacks <= 0 ? this with { EventUi = EventUi?.Close(1) } : rawMagnitude != 0 ? this with { FuelMessageMovementCallbacks = FuelMessageMovementCallbacks - 1 } : this;
     }
 
     public NativeWorldSalaryState AdvanceCarCameraCooldown(bool throttle, bool steering)

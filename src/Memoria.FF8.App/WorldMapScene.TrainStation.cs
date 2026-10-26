@@ -31,13 +31,16 @@ internal sealed partial class WorldMapScene
         {
             if (State.EventUi?.Windows.LastOrDefault() is { } nativeMessage)
             {
-                NativeWorldMessage prepared = assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
-                if (prepared != (nativeMessage with { TextComplete = false, Text = null }) || nativeMessage.Text is { } text && !text.Bytes.AsSpan().SequenceEqual(assets.ReadWorldMessageBytes(nativeMessage.MessageId)))
+                NativeWorldMessage prepared = nativeMessage.FuelRemaining is byte remaining ? assets.ReadNativeFuelMessage(remaining) : assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
+                bool emptyFuel = nativeMessage.WindowId == 1 && nativeMessage.MessageId == 43;
+                byte[] source = nativeMessage.FuelRemaining is byte fuel ? assets.ReadFuelMessageBytes(fuel) : emptyFuel ? assets.ReadFuelMessageBytes(0) : assets.ReadWorldMessageBytes(nativeMessage.MessageId);
+                if (prepared != (nativeMessage with { TextComplete = false, Text = null }) || nativeMessage.Text is { } text && !text.Bytes.AsSpan().SequenceEqual(source))
                 {
                     throw new InvalidDataException("The saved world message differs from its installed source.");
                 }
                 // Confirm supplies a real digital pulse to authored world-event predicates; it does not assert native text completion or close the window itself.
-                return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, assets.ReadWorldMessage(nativeMessage.MessageId), nativeMessage.X, nativeMessage.Y, Operation: 0x543790);
+                string messageText = nativeMessage.FuelRemaining is byte count ? assets.ReadFuelMessage(count) : emptyFuel ? assets.ReadFuelMessage(0) : assets.ReadWorldMessage(nativeMessage.MessageId);
+                return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, messageText, nativeMessage.X, nativeMessage.Y, Operation: 0x543790);
             }
             if (State.NativeTrainRuntime is not { Primary.Pause: -1 } train)
             {

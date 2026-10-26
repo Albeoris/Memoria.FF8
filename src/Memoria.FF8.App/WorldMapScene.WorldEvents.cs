@@ -52,6 +52,10 @@ internal sealed partial class WorldMapScene
 
     private NativeWorldMessage PrepareWorldMessage(int window, int message)
     {
+        if (window == 1 && message == 43)
+        {
+            return PrepareFuelMessage(0);
+        }
         byte speed = session.State.InputConfiguration?.FieldMessageSpeedByte ?? throw new NotSupportedException("World text requires its saved native field-message speed; migrate the historical input configuration explicitly.");
         NativeWorldMessage binding = assets.ReadNativeWorldMessage(window, message);
         byte[] bytes = assets.ReadWorldMessageBytes(message);
@@ -61,5 +65,12 @@ internal sealed partial class WorldMapScene
             throw new NotSupportedException("World message pages require their executed native channel focus and input owner.");
         }
         return binding with { Text = NativeWorldTextState.Create(System.Collections.Immutable.ImmutableArray.CreateRange(bytes), assets.ReadWorldMessageSpeed(speed)) };
+    }
+
+    private NativeWorldMessage PrepareFuelMessage(byte remaining)
+    {
+        byte speed = session.State.InputConfiguration?.FieldMessageSpeedByte ?? throw new NotSupportedException("World fuel text requires its saved native field-message speed.");
+        NativeWorldMessage binding = assets.ReadNativeFuelMessage(remaining);
+        return binding with { Text = NativeWorldTextState.Create(System.Collections.Immutable.ImmutableArray.CreateRange(assets.ReadFuelMessageBytes(remaining)), assets.ReadWorldMessageSpeed(speed)) };
     }
 }

@@ -423,8 +423,12 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 if (candidate.NativeCarRuntime is { } fuelCar)
                 {
-                    salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed);
+                    salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed, PrepareFuelMessage);
                     salary = salary.AdvanceCarCameraCooldown(ReadSignedMovementComponent(-vertical) != 0, ReadSignedMovementComponent(-horizontal) != 0);
+                }
+                else
+                {
+                    salary = salary.AdvanceFuelMessage(graphicsSpeed);
                 }
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
