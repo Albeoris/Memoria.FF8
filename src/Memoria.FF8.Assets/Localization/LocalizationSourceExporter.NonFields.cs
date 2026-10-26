@@ -18,56 +18,46 @@ public static partial class LocalizationSourceExporter
     {
         public void NonFields()
         {
-            if (language == "jp")
+            Attempt("Kernel", "main/kernel.bin", Kernel);
+            Attempt("Guardians", "main/init.out", GuardianDefaults);
+            Attempt("Menus", "menu/mngrp.bin", Menu);
+            foreach ((string resource, string category, string table) in new[] { ("menu/namedic.bin", "Menus", "namedic_menu"), ("menu/areames.dc1", "Locations", "names_locations") })
             {
-                foreach (string family in new[] { "Kernel", "Menus", "Monsters", "World", "Locations", "Tutorials", "Cards", "Draw points", "Information", "Publications" })
+                Attempt(category, resource, () =>
                 {
-                    gaps.Add(new(family, family.ToLowerInvariant(), "A field-independent Japanese character-table decoder has not been established for this source family."));
-                }
-            }
-            else
-            {
-                Attempt("Kernel", "main/kernel.bin", Kernel);
-                Attempt("Guardians", "main/init.out", GuardianDefaults);
-                Attempt("Menus", "menu/mngrp.bin", Menu);
-                foreach ((string resource, string category, string table) in new[] { ("menu/namedic.bin", "Menus", "namedic_menu"), ("menu/areames.dc1", "Locations", "names_locations") })
-                {
-                    Attempt(category, resource, () =>
+                    string[] texts = NamedicBin.ReadStrings(Required(resource), nonFieldEncoding);
+                    for (int ordinal = 0; ordinal < texts.Length; ordinal++)
                     {
-                        string[] texts = NamedicBin.ReadStrings(Required(resource), encoding);
-                        for (int ordinal = 0; ordinal < texts.Length; ordinal++)
-                        {
-                            Add(category, table, ordinal, texts[ordinal], resource);
-                        }
-                    });
-                }
-                Attempt("Monsters", "battle", Enemies);
-                Attempt("World", "world/wmsetus.obj", World);
-                foreach ((string resource, string category, string table) in new[] { ("text/card-names", "Cards", "names_cards"), ("text/card-names-alternate", "Cards", "namesalternate_cards"), ("text/card-descriptions", "Cards", "named_texts_cards"), ("text/draw-points", "Draw points", "drawpoints_world") })
-                {
-                    Attempt(category, resource, () =>
-                    {
-                        if (category == "Cards")
-                        {
-                            WordBank(resource, category, table);
-                        }
-                        else
-                        {
-                            PointerBank(resource, category, table);
-                        }
-                    });
-                }
-                Attempt("Monsters", "text/enemy-scan", Scan);
-                Attempt("Abilities", "menu/pet_exp.msg", () =>
-                {
-                    var moves = NativeAngeloTrainingDefinitionReader.Read(Required("menu/pet_exp.bin"), Required("menu/pet_exp.msg"), encoding);
-                    for (int ordinal = 0; ordinal < moves.Length; ordinal++)
-                    {
-                        Add("Abilities", "names_angelo_abilities", ordinal, moves[ordinal].Name, "menu/pet_exp.msg");
-                        Add("Abilities", "descriptions_angelo_abilities", ordinal, moves[ordinal].Description, "menu/pet_exp.msg");
+                        Add(category, table, ordinal, texts[ordinal], resource);
                     }
                 });
             }
+            Attempt("Monsters", "battle", Enemies);
+            Attempt("World", "world/wmsetus.obj", World);
+            foreach ((string resource, string category, string table) in new[] { ("text/card-names", "Cards", "names_cards"), ("text/card-names-alternate", "Cards", "namesalternate_cards"), ("text/card-descriptions", "Cards", "named_texts_cards"), ("text/draw-points", "Draw points", "drawpoints_world") })
+            {
+                Attempt(category, resource, () =>
+                {
+                    if (category == "Cards")
+                    {
+                        WordBank(resource, category, table);
+                    }
+                    else
+                    {
+                        PointerBank(resource, category, table);
+                    }
+                });
+            }
+            Attempt("Monsters", "text/enemy-scan", Scan);
+            Attempt("Abilities", "menu/pet_exp.msg", () =>
+            {
+                var moves = NativeAngeloTrainingDefinitionReader.Read(Required("menu/pet_exp.bin"), Required("menu/pet_exp.msg"), nonFieldEncoding);
+                for (int ordinal = 0; ordinal < moves.Length; ordinal++)
+                {
+                    Add("Abilities", "names_angelo_abilities", ordinal, moves[ordinal].Name, "menu/pet_exp.msg");
+                    Add("Abilities", "descriptions_angelo_abilities", ordinal, moves[ordinal].Description, "menu/pet_exp.msg");
+                }
+            });
             gaps.Add(new("System", "authored-interface", "Authored interface messages require explicit semantic identifiers and are not original-game archive text."));
             gaps.Add(new("Minigames", "pocketstation", "Player-owned names and binary transfer data are not localization catalogue resources."));
             gaps.Add(new("Publications", "menu-artwork", "Lettering embedded in textures is outside plain-string source export."));
@@ -84,13 +74,13 @@ public static partial class LocalizationSourceExporter
             {
                 ReadOnlySpan<byte> name = initial.AsSpan(ordinal * 68, 12);
                 int end = name.IndexOf((byte)0);
-                Add("Guardians", "defaults_guardians", ordinal, encoding.GetString(end < 0 ? name : name[..end]), "main/init.out");
+                Add("Guardians", "defaults_guardians", ordinal, nonFieldEncoding.GetString(end < 0 ? name : name[..end]), "main/init.out");
             }
         }
 
         private void Kernel()
         {
-            KernelData kernel = KernelData.ReadFromArray(Required("main/kernel.bin"), encoding);
+            KernelData kernel = KernelData.ReadFromArray(Required("main/kernel.bin"), nonFieldEncoding);
             foreach (PropertyInfo collectionProperty in typeof(KernelData).GetProperties().Where(property => typeof(IList).IsAssignableFrom(property.PropertyType)).OrderBy(property => property.Name, StringComparer.Ordinal))
             {
                 IList collection = (IList)collectionProperty.GetValue(kernel)!;
@@ -154,7 +144,7 @@ public static partial class LocalizationSourceExporter
                     {
                         menuHeader.AsSpan((index + 8) * 8, 8).CopyTo(selected.AsSpan((index + 8) * 8));
                     }
-                    sections.AddRange(MngrpArchive.Read(menuContent, selected, encoding).Sections);
+                    sections.AddRange(MngrpArchive.Read(menuContent, selected, nonFieldEncoding).Sections);
                 });
             }
             foreach (IMngrpSection section in sections.OrderBy(section => section.SlotIndex))
@@ -280,7 +270,7 @@ public static partial class LocalizationSourceExporter
             {
                 throw new InvalidDataException("Enemy name is not terminated within its fixed buffer.");
             }
-            Add("Monsters", stem + "_names", 0, encoding.GetString(name[..terminator]), "battle/" + file);
+            Add("Monsters", stem + "_names", 0, nonFieldEncoding.GetString(name[..terminator]), "battle/" + file);
             int start = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(count == 11 ? 32 : 8));
             int end = count == 11 ? BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(36)) : bytes.Length;
             if (BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(start)) != 3)
@@ -343,7 +333,7 @@ public static partial class LocalizationSourceExporter
             {
                 throw new InvalidDataException("Source text has no bounded terminator.");
             }
-            return encoding.GetString(bytes.AsSpan(start, terminator));
+            return nonFieldEncoding.GetString(bytes.AsSpan(start, terminator));
         }
 
         private void WordBank(string resource, string category, string table)

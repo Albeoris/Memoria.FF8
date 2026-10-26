@@ -34,7 +34,8 @@ public static partial class LocalizationProjectBuilder
             Reference = request.ReferenceLanguages.Contains(dataset, StringComparer.OrdinalIgnoreCase),
             Contributors = (loadedProjects ?? []).Where(layer => dataset == ProjectDatasetId(layer.Project) || dataset == EffectiveProfileDatasetId && (profileOrder is null || profileOrder.Contains(layer.PackageId, StringComparer.OrdinalIgnoreCase))).Select(layer => new { layer.Project.Manifest.ProjectId, layer.Project.Manifest.TargetLanguage }).ToArray()
         }).ToArray());
-        return project with { Manifest = project.Manifest with { CompatibleVariants = [edition + ":" + request.FieldScriptBaseLanguage], ExtensionData = manifestExtensions } };
+        string scriptLanguage = request.FieldScriptBaseLanguage.Equals("ja", StringComparison.OrdinalIgnoreCase) ? "jp" : request.FieldScriptBaseLanguage.ToLowerInvariant();
+        return project with { Manifest = project.Manifest with { CompatibleVariants = [edition + ":" + scriptLanguage], ExtensionData = manifestExtensions } };
     }
 
     public static LocalizationProject CreateProject(LocalizationAuthoringRequest request, IReadOnlyDictionary<string, LocalizationSourceCatalog> catalogs, CancellationToken cancellation = default, bool includeSystem = false)
@@ -135,4 +136,3 @@ public static partial class LocalizationProjectBuilder
         return JsonSerializer.SerializeToElement(value);
     }
 }
-

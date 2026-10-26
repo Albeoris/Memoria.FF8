@@ -51,6 +51,29 @@ public sealed class DialogueRevealTests
     }
 
     [Fact]
+    public void Translation_reflow_retains_native_opening_progress_and_clamps_shorter_text()
+    {
+        DialogueState dialogue = new(0, 1, "Native", 0, 0);
+        DialoguePageCache cache = new();
+        var original = cache.Get(dialogue, null, "Arial", 8, "Original", false, () => [Page("First"), Page(new string('a', 100))], retainPosition: true);
+        Assert.True(original.Pager.Advance(original.Pages.Count));
+        original.Pager.UpdateReveal(TimeSpan.FromSeconds(1), original.Pages[1], 1);
+        Assert.Equal(15, original.Pager.VisibleCharacters);
+
+        var longer = cache.Get(dialogue, null, "Arial", 8, "Translation", false, () => [Page("First"), Page(new string('b', 120))], retainPosition: true);
+        Assert.Equal(1, longer.Pager.PageIndex);
+        Assert.Equal(15, longer.Pager.VisibleCharacters);
+        longer.Pager.UpdateReveal(TimeSpan.FromSeconds(1), longer.Pages[1], 1);
+        Assert.Equal(30, longer.Pager.VisibleCharacters);
+
+        var shorter = cache.Get(dialogue, null, "Arial", 8, "Short translation", false, () => [Page("Short")], retainPosition: true);
+        Assert.Equal(0, shorter.Pager.PageIndex);
+        Assert.Equal(5, shorter.Pager.VisibleCharacters);
+        var reopened = cache.Get(dialogue with { }, null, "Arial", 8, "Short translation", false, () => [Page("Short")], retainPosition: true);
+        Assert.Equal(0, reopened.Pager.VisibleCharacters);
+    }
+
+    [Fact]
     public void Slow_popup_pages_remain_visible_until_their_text_can_finish_revealing()
     {
         DialogueVisualPage page = Page(new string('a', 120));

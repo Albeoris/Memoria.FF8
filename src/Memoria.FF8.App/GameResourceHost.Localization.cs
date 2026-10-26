@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Mods.Localization;
 using Memoria.FF8.Resources.Localization;
@@ -13,6 +14,7 @@ internal sealed partial class GameResourceHost
     private string? localizationInput;
     private string? observedLocalizationInput;
     private DateTime localizationObservedAt;
+    private IReadOnlyDictionary<string, LocalizationSourceEntry>? knownLocalizationEntries;
     public LocalizationPreparation? LocalizationPreview { get; private set; }
     public LocalizationPreparation? CommittedLocalizations { get; private set; }
     public double LastLocalizationPublicationMilliseconds { get; private set; }
@@ -37,10 +39,11 @@ internal sealed partial class GameResourceHost
         return new(true, Mods.Catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && !package.LocalizationOnly).Select(package => package.Id).Concat(localization.Layers.Select(layer => layer.PackageId)).ToArray(), Commit: () =>
         {
             Stopwatch clock = Stopwatch.StartNew();
-            localization.InputRevision?.Validate();
+            localization.InputRevision?.ValidatePublication();
             prepared?.Commit(notify: false);
+            CommittedLocalizations?.InputRevision?.Dispose();
             CommittedLocalizations = localization;
-            LastLocalizationChangedKeys = previous.Values.Keys.Union(localization.Catalog.Values.Keys).Count(key => previous.Values.GetValueOrDefault(key)?.Text != localization.Catalog.Values.GetValueOrDefault(key)?.Text);
+            LastLocalizationChangedKeys = localization.ChangedKeys;
             LastLocalizationPublicationMilliseconds = clock.Elapsed.TotalMilliseconds;
         }, AfterCommit: prepared is null ? null : prepared.Notify);
     }
@@ -55,10 +58,13 @@ internal sealed partial class GameResourceHost
             LocalizationPreview = prepared;
             return null;
         }
-        string identity = string.Join(';', order ?? []) + "\n" + string.Join('\n', candidate.Packages.Where(package => package.HasLocalization).Select(package => package.Id + ":" + package.Status)) + "\n" + string.Join('\n', candidate.Files.Where(file => file.RelativePath.StartsWith("Localization/", StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId + ":" + file.RelativePath + ":" + file.Revision));
-        if (identity != observedLocalizationInput)
+        string membership = string.Join(';', order ?? []) + "\n" + string.Join('\n', candidate.Packages.Where(package => package.HasLocalization).Select(package => package.Id + ":" + package.RootDirectory + ":" + package.Status));
+        ModFile[] files = candidate.Files.Where(file => file.RelativePath.StartsWith("Localization/", StringComparison.OrdinalIgnoreCase)).ToArray();
+        string identity = membership + "\n" + string.Join('\n', files.Select(file => file.PackageId + ":" + file.RelativePath + ":" + file.Revision));
+        string physicalIdentity = membership + "\n" + string.Join('\n', files.Select(file => file.PackageId + ":" + file.RelativePath + ":" + (file.ContentStamp?.ToString() ?? file.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        if (physicalIdentity != observedLocalizationInput)
         {
-            observedLocalizationInput = identity;
+            observedLocalizationInput = physicalIdentity;
             localizationObservedAt = DateTime.UtcNow;
         }
         if (identity != localizationInput)
@@ -67,19 +73,38 @@ internal sealed partial class GameResourceHost
             {
                 return new(false) { Deferred = true };
             }
+            if (localizationTask?.IsCompletedSuccessfully == true && !ReferenceEquals(localizationTask.Result, CommittedLocalizations))
+            {
+                localizationTask.Result.InputRevision?.Dispose();
+            }
             _ = localizationTask?.Exception;
             localizationInput = identity;
             bool stableRemoval = DateTime.UtcNow - localizationObservedAt >= TimeSpan.FromSeconds(1) && candidate.Packages.Where(package => package.HasLocalization && package.Status == ModEffectiveStatus.Active).All(package => CommittedLocalizations?.Layers.Any(layer => layer.PackageId == package.Id) == true);
             localizationTask = Task.Run(() =>
             {
                 Stopwatch clock = Stopwatch.StartNew();
-                var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval);
-                if (!preparation.RequiresSelection && preparation.Catalog.Values.Count != 0)
+                var preparation = LocalizationRuntime.Prepare(candidate, order, source.Descriptor, localizationCancellation.Token, stableRemoval, watchForPublication: true);
+                try
                 {
-                    using var verification = GameDataSourceFactory.Open(gameDirectory);
-                    LocalizationBindingValidation.Validate(preparation, verification, localizationCancellation.Token);
+                    if (!preparation.RequiresSelection && preparation.Catalog.Values.Count != 0)
+                    {
+                        using var verification = GameDataSourceFactory.Open(gameDirectory);
+                        if (preparation.Layers.Any(layer => layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System"))))
+                        {
+                            knownLocalizationEntries ??= LocalizationSourceExporter.ReadNonFields(gameDirectory, source.Descriptor.Language, localizationCancellation.Token).Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);
+                        }
+                        LocalizationBindingValidation.Validate(preparation, verification, localizationCancellation.Token, knownLocalizationEntries);
+                    }
+                    var previous = Resources.Localization;
+                    int changedKeys = previous.Values.Keys.Union(preparation.Catalog.Values.Keys).Count(key => previous.Values.GetValueOrDefault(key)?.Text != preparation.Catalog.Values.GetValueOrDefault(key)?.Text);
+                    preparation.InputRevision?.Validate();
+                    return preparation with { PreparationMilliseconds = clock.Elapsed.TotalMilliseconds, ChangedKeys = changedKeys };
                 }
-                return preparation with { PreparationMilliseconds = clock.Elapsed.TotalMilliseconds };
+                catch
+                {
+                    preparation.InputRevision?.Dispose();
+                    throw;
+                }
             }, localizationCancellation.Token);
         }
         if (!localizationTask!.IsCompleted)

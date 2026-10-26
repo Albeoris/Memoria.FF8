@@ -360,4 +360,3 @@ public sealed partial class MenuController
         public void Report(string value) => report(value);
     }
 }
-

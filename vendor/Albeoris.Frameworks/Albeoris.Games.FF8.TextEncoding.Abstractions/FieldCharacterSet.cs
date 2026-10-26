@@ -9,9 +9,9 @@ namespace Albeoris.Games.FF8.TextEncoding;
 public sealed class FieldCharacterSet
 {
     /// <summary>
-    /// The identifier of the field (map) that owns this character set.
+    /// The native identifier of the field (map), or null for a named archive entry outside the indexed map list.
     /// </summary>
-    public Int32 Id { get; }
+    public Int32? Id { get; }
 
     /// <summary>
     /// The name of the field (map) that owns this character set.
@@ -28,7 +28,7 @@ public sealed class FieldCharacterSet
     /// </summary>
     public Char PlaceholderCharacter { get; }
 
-    public FieldCharacterSet(Int32 id, String name, String characters, Char placeholderCharacter)
+    public FieldCharacterSet(Int32? id, String name, String characters, Char placeholderCharacter)
     {
         Id = id;
         Name = name ?? throw new ArgumentNullException(nameof(name));

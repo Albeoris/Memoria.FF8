@@ -69,10 +69,16 @@ internal static class LocalizationCommands
             LocalizationAuthoringRequest request = new(sourceLanguage, scriptBase, target, references, options.GetValueOrDefault("name", target));
             LocalizationProject created = LocalizationProjectBuilder.Prepare(Required("game-dir"), request, cancellation.Token, new Progress<string>(Console.WriteLine));
             LocalizationProjectIO.WriteNew(created, Required("output"), options.GetValueOrDefault("format", "json"), options.GetValueOrDefault("layout", "split"), cancellation.Token);
-            Console.WriteLine($"Created disabled localization: {created.Entries.Count} records, {created.Entries.Select(row => row.Category).Distinct().Count()} categories. Source gaps: {created.Entries.Count(row => !row.SourcePresent)}. {Required("output")}");
+            int missingSourceCells = created.Entries.Count(row => !row.SourcePresent);
+            int resourceDiagnostics = created.Manifest.ExtensionData.TryGetValue("sourceGaps", out System.Text.Json.JsonElement sourceGaps) && sourceGaps.ValueKind == System.Text.Json.JsonValueKind.Array ? sourceGaps.GetArrayLength() : 0;
+            Console.WriteLine($"Created disabled localization: {created.Entries.Count} records, {created.Entries.Select(row => row.Category).Distinct().Count()} categories. Missing Source cells: {missingSourceCells}. Resource/coverage diagnostics: {resourceDiagnostics}. {Required("output")}");
+            if (resourceDiagnostics > 0)
+            {
+                Console.WriteLine("Review sourceGaps in Localization/localization.manifest.json. Resource/coverage diagnostics include unsupported or unavailable resources and are not a count of missing Source cells.");
+            }
             return 0;
         }
-        catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or UnauthorizedAccessException or OperationCanceledException or System.Text.Json.JsonException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or UnauthorizedAccessException or OperationCanceledException or System.Text.Json.JsonException or NotSupportedException or InvalidOperationException or FormatException or OverflowException)
         {
             Console.Error.WriteLine(exception.Message);
             return 2;

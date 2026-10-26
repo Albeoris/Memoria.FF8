@@ -41,6 +41,24 @@ public sealed class LocalizationRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void DefaultOrderPlacesTheDeclaredBaseAboveItsPatchButKeepsAnExplicitOrder()
+    {
+        ModPackage parent = Package("z-base", Row("$en_sample_0000", "base"));
+        ModPackage patch = Package("a-patch", Row("$en_sample_0000", "patch"));
+        string manifestPath = Path.Combine(patch.RootDirectory, "Localization", "localization.manifest.json");
+        var manifest = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        manifest["baseProjectId"] = LocalizationProjectIO.Read(parent.RootDirectory).Manifest.ProjectId;
+        File.WriteAllText(manifestPath, manifest.ToJsonString());
+        ModCatalogSnapshot candidate = new(1, [patch, parent], []);
+        LocalizationPreparation suggested = LocalizationRuntime.Prepare(candidate, null, Source, TestContext.Current.CancellationToken);
+        Assert.True(suggested.RequiresSelection);
+        Assert.Equal(new[] { parent.Id, patch.Id }, suggested.RequestedOrder);
+        Assert.Equal("patch", suggested.Catalog.Resolve("$en_sample_0000", "native"));
+        LocalizationPreparation explicitOrder = LocalizationRuntime.Prepare(candidate, [patch.Id, parent.Id], Source, TestContext.Current.CancellationToken);
+        Assert.Equal("base", explicitOrder.Catalog.Resolve("$en_sample_0000", "native"));
+    }
+
+    [Fact]
     public void FieldBindingsRequireTheNativeScriptAndKeepNativeChoiceOperandsIndependent()
     {
         ModPackage package = Package("field", FieldRow("$en_bgroom_6_0000", "{X40Y50F2L3B2C255}Заголовок{Line}Подсказка{Line}Да{Line}Нет"));

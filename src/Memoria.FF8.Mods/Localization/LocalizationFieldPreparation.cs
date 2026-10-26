@@ -14,15 +14,31 @@ internal static class LocalizationFieldPreparation
         {
             throw new InvalidDataException($"{record.Key}: a field translation requires its original resource binding.");
         }
-        FieldCompatibilityContext[] calls = metadata.TryGetProperty("Call Contexts", out JsonElement contexts) && contexts.ValueKind == JsonValueKind.String ? JsonSerializer.Deserialize<FieldCompatibilityContext[]>(contexts.GetString()!) ?? [] : [];
+        if (!metadata.TryGetProperty("Call Contexts", out JsonElement contexts) || contexts.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException($"{record.Key}: field call bindings must use the declared context representation.");
+        }
+        FieldCompatibilityContext[] calls = JsonSerializer.Deserialize<FieldCompatibilityContext[]>(contexts.GetString()!) ?? throw new InvalidDataException($"{record.Key}: missing field call bindings.");
+        if (calls.Any(call => call is null || call.Position is null || call.Operands.IsDefault || call.CandidateOrdinals.IsDefault || call.Position.OperationIndex < 0))
+        {
+            throw new InvalidDataException($"{record.Key}: malformed field call binding.");
+        }
         string? scriptHash = metadata.TryGetProperty("JSM SHA256", out JsonElement hash) && hash.ValueKind == JsonValueKind.String ? hash.GetString() : null;
-        if (string.IsNullOrEmpty(scriptHash) && calls.Length == 0 && metadata.TryGetProperty("Source MSD SHA256", out JsonElement bankHash) && bankHash.ValueKind == JsonValueKind.String && bankHash.GetString()?.Length == 64)
+        if (string.IsNullOrEmpty(scriptHash) && calls.Length == 0 && metadata.TryGetProperty("Source MSD SHA256", out JsonElement bankHash) && bankHash.ValueKind == JsonValueKind.String && bankHash.GetString() is { Length: 64 } bankFingerprint && bankFingerprint.All(char.IsAsciiHexDigit))
         {
             return null;
         }
         if (scriptHash?.Length != 64 || !scriptHash.All(char.IsAsciiHexDigit))
         {
             throw new InvalidDataException($"{record.Key}: invalid original script fingerprint.");
+        }
+        scriptHash = scriptHash.ToUpperInvariant();
+        int suffixStart = record.Key.IndexOf('_') + record.File.Length + 2;
+        int contextStart = record.Key.IndexOf("_ctx_", suffixStart, StringComparison.Ordinal);
+        string expectedBaseKey = contextStart < 0 ? record.Key : record.Key[..contextStart];
+        if (metadata.TryGetProperty("Base Key", out JsonElement declaredBase) && (declaredBase.ValueKind != JsonValueKind.String || declaredBase.GetString() != expectedBaseKey))
+        {
+            throw new InvalidDataException($"{record.Key}: contradictory field context base identity.");
         }
         FieldMessageContext? presentation = null;
         int tagLength = 0;
@@ -51,6 +67,10 @@ internal static class LocalizationFieldPreparation
             {
                 LocalizationTextValidation.Validate(record with { Source = call.Row.Text, SourcePresent = true });
             }
+            if (call.Dynamic && (presentation?.Position is not null || presentation?.Size is not null || presentation?.Choices is not null))
+            {
+                throw new InvalidDataException($"{record.Key}: dynamic field presentation operands must remain native.");
+            }
             bool choice = call.Opcode is "ASK" or "AASK";
             int? Operand(int index) => index < call.Operands.Length ? call.Operands[index] : null;
             if (choice)
@@ -76,6 +96,6 @@ internal static class LocalizationFieldPreparation
         {
             throw new InvalidDataException($"{record.Key}: choice metadata has no original choice call.");
         }
-        return new(target[tagLength..], scriptHash, presentation?.Position?.X, presentation?.Position?.Y, presentation?.Size?.Width, presentation?.Size?.Height, presentation?.Choices?.FirstLine, presentation?.Choices?.LastLine, presentation?.Choices?.BeginLine, presentation?.Choices?.CancelLine, bindings.ToImmutableArray()) { BaseKey = metadata.TryGetProperty("Base Key", out JsonElement baseKey) && baseKey.ValueKind == JsonValueKind.String ? baseKey.GetString() : record.Key };
+        return new(target[tagLength..], scriptHash, presentation?.Position?.X, presentation?.Position?.Y, presentation?.Size?.Width, presentation?.Size?.Height, presentation?.Choices?.FirstLine, presentation?.Choices?.LastLine, presentation?.Choices?.BeginLine, presentation?.Choices?.CancelLine, bindings.ToImmutableArray()) { BaseKey = expectedBaseKey };
     }
 }

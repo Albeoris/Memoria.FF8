@@ -199,5 +199,3 @@ public sealed class LocalizationAuthoringTests
         return menus;
     }
 }
-
-

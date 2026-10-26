@@ -37,6 +37,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private bool autoEnable = true;
     private bool disposed;
     private long fileRevision;
+    private long localizationChangeEpoch;
     private string? lastIdentity;
     private string? pendingIdentity;
 
@@ -345,8 +346,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 changedPackageIds.Clear();
                 foreach (string id in candidate.Packages.Select(package => package.Id).Concat(catalog.Packages.Select(package => package.Id)).Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    IEnumerable<(string Path, FileStamp Stamp)> before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
-                    IEnumerable<(string Path, FileStamp Stamp)> after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp));
+                    var before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
+                    var after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
                     if (!before.SequenceEqual(after) || candidate.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority != catalog.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority)
                     {
                         changedPackageIds.Add(id);
@@ -580,7 +581,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 foreach (string packageRoot in packageRoots)
                 {
                     List<(string Physical, string Relative)> sourceFiles = [];
-                    EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices);
+                    EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices, hasLocalization);
                     packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
                 }
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -607,10 +608,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     string key = id + "/" + relative + "\0" + physical;
                     visitedFiles.Add(key);
                     FileStamp stamp = new(info.Length, info.LastWriteTimeUtc.Ticks);
-                    if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || forceRevalidate)
+                    bool localizationManifest = hasLocalization && relative.Equals("Localization/localization.manifest.json", StringComparison.OrdinalIgnoreCase);
+                    long localizationEpoch = localizationManifest ? localizationChangeEpoch : 0;
+                    if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || previous.LocalizationEpoch != localizationEpoch || forceRevalidate)
                     {
                         long revision = ++fileRevision;
-                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)));
+                        previous = new(stamp, new ModFile(id, format, relative, revision, () => ReadVersion(packageRoot, physical, stamp)) { ContentStamp = localizationManifest ? (localizationEpoch, 0) : (stamp.Length, stamp.LastWriteTicks) }, localizationEpoch);
                         fileEntries[key] = previous;
                     }
                     identities.Add($"{key}\0{previous.File.Revision}");
@@ -643,7 +646,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         public string RelativePath => "mod.ini";
     }
 
-    private static void EnumerateFiles(string packageRoot, string directory, string prefix, string id, HashSet<string> ancestors, List<(string Physical, string Relative)> files, List<ModDiagnostic> diagnostics)
+    private static void EnumerateFiles(string packageRoot, string directory, string prefix, string id, HashSet<string> ancestors, List<(string Physical, string Relative)> files, List<ModDiagnostic> diagnostics, bool localizationPayload = false)
     {
         string actualDirectory = Path.GetFullPath(directory);
         if (!ancestors.Add(actualDirectory))
@@ -667,7 +670,19 @@ public sealed partial class ModRuntime : IModService, IDisposable
             }
             if ((entry.Attributes & FileAttributes.Directory) != 0)
             {
-                EnumerateFiles(packageRoot, physical, relative + "/", id, ancestors, files, diagnostics);
+                if (localizationPayload && relative.Equals("Localization", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Payload inventory and snapshots belong to the background localization reader.
+                    string manifest = Path.Combine(physical, "localization.manifest.json");
+                    if (File.Exists(manifest))
+                    {
+                        files.Add((manifest, relative + "/localization.manifest.json"));
+                    }
+                }
+                else
+                {
+                    EnumerateFiles(packageRoot, physical, relative + "/", id, ancestors, files, diagnostics, localizationPayload);
+                }
             }
             else
             {
@@ -722,6 +737,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void RequestRefreshCore(DateTime time)
     {
+        localizationChangeEpoch++;
         if (!reloadRequested)
         {
             firstRequestedAt = time;
@@ -868,7 +884,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         return exception is not OutOfMemoryException and not StackOverflowException and not AccessViolationException;
     }
 
-    private sealed record FileEntry(FileStamp Stamp, ModFile File);
+    private sealed record FileEntry(FileStamp Stamp, ModFile File, long LocalizationEpoch = 0);
     private readonly record struct FileStamp(long Length, long LastWriteTicks);
 
     private sealed class Subscription(ModRuntime owner, Action<ModCatalogSnapshot> callback) : IDisposable

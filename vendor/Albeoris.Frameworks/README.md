@@ -11,6 +11,7 @@ This directory contains only the source and embedded resources needed by Memoria
 The imported source preserves these changes relative to that revision:
 
 - `Albeoris.Games.FF8.TextEncoding/Resources/japanese.field-characters.json`: retains the declared blank third glyph in `tgview1` as an explicit space, rather than dropping the trailing blank entry.
+- The same resource supplies the field-specific character tables for `bg2f_1a`, `bgmast_6`, `bgroom_2`, `ewbrdg2` and `glstage2`, and corrects character 23 in `testno` to 慣. `FieldCharacterSet.Id` and `DefaultJapaneseFieldCharacters` support name-only tables without assigning them a numeric map identity; all existing numeric table identities are retained.
 
 - `Albeoris.Games.FF8.Imaging/PixelImage.cs`: accepts image dimensions up to 16384 for wide native texture sheets while retaining the previous maximum total allocation of 64 million pixels.
 

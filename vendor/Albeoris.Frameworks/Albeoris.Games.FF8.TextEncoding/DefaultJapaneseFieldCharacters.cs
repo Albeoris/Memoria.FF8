@@ -62,7 +62,10 @@ public sealed class DefaultJapaneseFieldCharacters : IFieldCharacterProvider
             {
                 FieldCharacterSet set = new FieldCharacterSet(entry.Id, entry.Name, entry.Characters, placeholder);
                 byName[entry.Name] = set;
-                byId[entry.Id] = set;
+                if (entry.Id is Int32 id)
+                {
+                    byId[id] = set;
+                }
             }
 
             return new Registry(byName, byId);
@@ -94,7 +97,7 @@ public sealed class DefaultJapaneseFieldCharacters : IFieldCharacterProvider
     private sealed class FieldEntry
     {
         [JsonPropertyName("id")]
-        public Int32 Id { get; set; }
+        public Int32? Id { get; set; }
 
         [JsonPropertyName("name")]
         public String Name { get; set; } = String.Empty;

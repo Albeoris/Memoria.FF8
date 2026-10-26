@@ -10,15 +10,29 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
 {
     public LocalizationInputRevision? InputRevision { get; init; }
     public IReadOnlyList<string> DormantFieldKeys { get; init; } = [];
+    public int ChangedKeys { get; init; }
 }
 
 public static class LocalizationRuntime
 {
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
-    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false)
+    public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false)
+    {
+        LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory), watchForPublication);
+        try
+        {
+            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs);
+        }
+        catch
+        {
+            inputs.Dispose();
+            throw;
+        }
+    }
+
+    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs)
     {
         Stopwatch elapsed = Stopwatch.StartNew();
-        LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory));
         List<LocalizationLayer> layers = [];
         foreach (ModPackage package in candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization))
         {
@@ -39,7 +53,7 @@ public static class LocalizationRuntime
         {
             throw new InvalidDataException("Two active localization packages have the same project identity.");
         }
-        string[] requested = layers.Select(layer => layer.PackageId).ToArray();
+        string[] requested = DefaultOrder(layers);
         bool selection = acceptedOrder is null ? layers.Count > 1 : requested.Any(id => !acceptedOrder.Contains(id, StringComparer.OrdinalIgnoreCase));
         string[] order = acceptedOrder is null ? requested : acceptedOrder.Where(id => requested.Contains(id, StringComparer.OrdinalIgnoreCase)).ToArray();
         if (layers.Count == 1 && order.Length == 0 && acceptedOrder is null)
@@ -110,5 +124,36 @@ public static class LocalizationRuntime
                 throw new InvalidDataException($"{row.Key}: unknown field source identity.");
             }
         }
+    }
+
+    private static string[] DefaultOrder(IReadOnlyList<LocalizationLayer> layers)
+    {
+        Dictionary<string, LocalizationLayer> projects = layers.ToDictionary(layer => layer.Project.Manifest.ProjectId, StringComparer.Ordinal);
+        HashSet<string> visiting = new(StringComparer.Ordinal);
+        HashSet<string> added = new(StringComparer.Ordinal);
+        List<string> result = [];
+        void Add(LocalizationLayer layer)
+        {
+            if (added.Contains(layer.PackageId))
+            {
+                return;
+            }
+            if (!visiting.Add(layer.PackageId))
+            {
+                throw new InvalidDataException("Localization base relationships contain a cycle.");
+            }
+            if (layer.Project.Manifest.BaseProjectId is string baseId && projects.TryGetValue(baseId, out LocalizationLayer? parent))
+            {
+                Add(parent);
+            }
+            visiting.Remove(layer.PackageId);
+            added.Add(layer.PackageId);
+            result.Add(layer.PackageId);
+        }
+        foreach (LocalizationLayer layer in layers)
+        {
+            Add(layer);
+        }
+        return result.ToArray();
     }
 }

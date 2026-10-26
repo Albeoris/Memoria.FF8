@@ -279,19 +279,38 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
-            localization!.InputRevision?.Validate();
+            System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();
+            localization!.InputRevision?.ValidatePublication();
             prepared.Commit(notify: false, beforePublish: guardianPublication.Commit);
+            CommittedLocalizations?.InputRevision?.Dispose();
             CommittedLocalizations = localization;
             GuardianForceMods = guardianMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
             StartupPolicy = startupPolicy;
+            LastLocalizationChangedKeys = localization.ChangedKeys;
+            LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
         }, prepared.Notify);
     }
 
     public void Dispose()
     {
         localizationCancellation.Cancel();
+        CommittedLocalizations?.InputRevision?.Dispose();
+        if (localizationTask is { } pendingLocalization)
+        {
+            _ = pendingLocalization.ContinueWith(task =>
+            {
+                if (task.IsCompletedSuccessfully)
+                {
+                    task.Result.InputRevision?.Dispose();
+                }
+                else
+                {
+                    _ = task.Exception;
+                }
+            }, TaskScheduler.Default);
+        }
         Mods.Dispose();
         recognition?.Clear();
         source.Dispose();

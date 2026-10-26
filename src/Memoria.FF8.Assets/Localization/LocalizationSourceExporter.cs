@@ -112,7 +112,8 @@ public static partial class LocalizationSourceExporter
 
     private sealed partial class Reader(IResourceSource source, IGameArchiveSource archives, string language, List<LocalizationSourceEntry> entries, List<LocalizationSourceGap> gaps, CancellationToken cancellation)
     {
-        private readonly FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        private readonly FF8Encoding encoding = language == "jp" ? FF8Encoding.CreateJapanese() : FF8Encoding.CreateEuropean();
+        private readonly Encoding nonFieldEncoding = language == "jp" ? new LocalizationNonFieldEncoding() : FF8Encoding.CreateEuropean();
         private readonly Dictionary<string, byte[]?> resourceBytes = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> resourceHashes = new(StringComparer.OrdinalIgnoreCase);
         private byte[]? Resource(string path)
@@ -160,6 +161,13 @@ public static partial class LocalizationSourceExporter
         private void Add(string category, string table, int ordinal, string text, string resource, IReadOnlyDictionary<string, string?>? metadata = null)
         {
             Dictionary<string, string?> values = metadata is null ? [] : new(metadata, StringComparer.Ordinal);
+            if (nonFieldEncoding is LocalizationNonFieldEncoding japanese && japanese.TryGetFailure(text, out string? failure))
+            {
+                values["Source Present"] = "false";
+                values["Decode Error"] = failure;
+                gaps.Add(new(category, resource + "/" + table + "/" + ordinal.ToString(CultureInfo.InvariantCulture), "Japanese source decoding failed: " + failure));
+                text = "";
+            }
             values["Resource"] = resource;
             if (resourceBytes.TryGetValue(resource, out byte[]? bytes) && bytes is not null)
             {
@@ -216,10 +224,7 @@ public static partial class LocalizationSourceExporter
                     });
                 }
                 string[] places = [];
-                if (language != "jp")
-                {
-                    Attempt("Locations", "menu/areames.dc1", () => places = NamedicBin.ReadStrings(Required("menu/areames.dc1"), encoding));
-                }
+                Attempt("Locations", "menu/areames.dc1", () => places = NamedicBin.ReadStrings(Required("menu/areames.dc1"), encoding));
                 FieldLocationGraphResult graph = FieldLocationGraph.Build(scripts, places);
                 Dictionary<string, FieldLocationResolution> resolutions = graph.Resolutions.ToDictionary(row => row.Field);
                 foreach (FieldLocationSource script in scripts)
