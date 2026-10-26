@@ -6,6 +6,20 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class GameAssets
 {
+    /// <summary>Validates standalone geometry and materials without inventing field animation data.</summary>
+    public static void ValidateMainCharacterResource(ResourceContent content)
+    {
+        string[] parts = content.Key.Path.Split('/');
+        if (parts.Length != 3 || parts[0] != "field" || parts[1] != "main_chr" || !parts[2].EndsWith(".mch", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("A main-character source requires its canonical library resource identity.", nameof(content));
+        }
+        using Stream input = content.OpenRead();
+        using MemoryStream bytes = new();
+        input.CopyTo(bytes);
+        FieldModelReader.ValidateMainCharacter(parts[2][..^4], bytes.ToArray());
+    }
+
     /// <summary>Loads the original library material table independently of field placement or animation.</summary>
     public IReadOnlyList<PixelImage> LoadFieldMainCharacterTextures(string name)
     {

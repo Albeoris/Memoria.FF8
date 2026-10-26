@@ -1,19 +1,26 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Mods;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
-    private IReadOnlyList<ModDiagnostic> ValidateSceneModResources(FieldSceneMods mods)
+    private IReadOnlyList<ModDiagnostic> ValidateSceneModResources(FieldSceneMods mods, IReadOnlyList<EncodedResource> encodedResources)
     {
+        if (mods.Patches.Count == 0)
+        {
+            return [];
+        }
+        ResourceService candidate = new(source);
+        candidate.Prepare(null, encodedResources: encodedResources).Commit();
+        using GameAssets sceneValidationAssets = new(gameDirectory, resources: candidate);
         List<ModDiagnostic> diagnostics = [];
         foreach (OwnedFieldScenePatch owned in mods.Patches)
         {
             try
             {
-                sceneValidationAssets ??= new GameAssets(gameDirectory, resources: Resources);
                 FieldScenePatch patch = owned.Patch;
                 FieldAssets target = sceneValidationAssets.LoadField(patch.FieldId);
                 if (!target.Name.Equals(patch.FieldName, StringComparison.OrdinalIgnoreCase))

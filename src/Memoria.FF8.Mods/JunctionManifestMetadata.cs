@@ -225,6 +225,6 @@ public static partial class JunctionModImporter
     private static string ResourceFolderPrefix(string folder)
     {
         string first = folder.Split('/')[0];
-        return first.Equals("data", StringComparison.OrdinalIgnoreCase) || first.Equals("mods", StringComparison.OrdinalIgnoreCase) || first.Equals("movies", StringComparison.OrdinalIgnoreCase) || first.Equals("music", StringComparison.OrdinalIgnoreCase) || first.Equals("field", StringComparison.OrdinalIgnoreCase) || first.Equals("battle", StringComparison.OrdinalIgnoreCase) || first.Equals("textures", StringComparison.OrdinalIgnoreCase) ? folder + "/" : "";
+        return first.Equals("direct", StringComparison.OrdinalIgnoreCase) || first.Equals("data", StringComparison.OrdinalIgnoreCase) || first.Equals("mods", StringComparison.OrdinalIgnoreCase) || first.Equals("movies", StringComparison.OrdinalIgnoreCase) || first.Equals("music", StringComparison.OrdinalIgnoreCase) || first.Equals("field", StringComparison.OrdinalIgnoreCase) || first.Equals("battle", StringComparison.OrdinalIgnoreCase) || first.Equals("textures", StringComparison.OrdinalIgnoreCase) ? folder + "/" : "";
     }
 }

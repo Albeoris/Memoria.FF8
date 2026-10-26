@@ -12,7 +12,6 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly Dictionary<ModFile, string> materializedFiles = [];
     private TonberryRecognitionCache? recognition;
     private readonly string gameDirectory;
-    private GameAssets? sceneValidationAssets;
 
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null)
     {
@@ -140,6 +139,26 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
         }
         StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
+        if (!JunctionEncodedResources.TryPrepare(catalog, out IReadOnlyList<EncodedResource> encodedResources, out IReadOnlyList<ModDiagnostic> encodedDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
+        }
+        foreach (EncodedResource resource in encodedResources)
+        {
+            ModFile owner = catalog.Files.First(file => file.Format == ModFormat.Junction && JunctionEncodedResources.Address(file.RelativePath) == resource.Key);
+            try
+            {
+                if (source.Find(resource.Key) is null)
+                {
+                    throw new NotSupportedException($"The selected game source does not provide model resource {resource.Key}.");
+                }
+                GameAssets.ValidateMainCharacterResource(resource.Content);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or NotSupportedException or OverflowException or UnauthorizedAccessException)
+            {
+                return new ModPreparationResult(false, Diagnostics: [new("Junction.InvalidEncodedResource", exception.Message, owner.PackageId, owner.RelativePath)]);
+            }
+        }
         if (!JunctionTextResources.TryPrepare(catalog, out IReadOnlyList<StaticTextResource> textResources, out IReadOnlyList<ModDiagnostic> textDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: textDiagnostics);
@@ -157,7 +176,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: sceneDiagnostics);
         }
-        IReadOnlyList<ModDiagnostic> sceneResourceDiagnostics = ValidateSceneModResources(sceneMods);
+        IReadOnlyList<ModDiagnostic> sceneResourceDiagnostics = ValidateSceneModResources(sceneMods, encodedResources);
         if (sceneResourceDiagnostics.Count != 0)
         {
             return new ModPreparationResult(false, Diagnostics: sceneResourceDiagnostics);
@@ -212,11 +231,18 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             1 => resolvers[0],
             _ => new OrderedTextureResolver(resolvers.ToArray())
         };
-        ResourceService.PreparedResources prepared = Resources.Prepare(resolver, textResources);
+        ResourceService.PreparedResources prepared;
+        try
+        {
+            prepared = Resources.Prepare(resolver, textResources, encodedResources);
+        }
+        catch (ResourceReloadRequiredException exception)
+        {
+            return new ModPreparationResult(false, Diagnostics: [new("resource-reload-required", exception.Message)]);
+        }
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
-            guardianPublication.Commit?.Invoke();
-            prepared.Commit(notify: false);
+            prepared.Commit(notify: false, beforePublish: guardianPublication.Commit);
             GuardianForceMods = guardianMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
@@ -228,7 +254,6 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     {
         Mods.Dispose();
         recognition?.Clear();
-        sceneValidationAssets?.Dispose();
         source.Dispose();
         if (Directory.Exists(materializationDirectory))
         {

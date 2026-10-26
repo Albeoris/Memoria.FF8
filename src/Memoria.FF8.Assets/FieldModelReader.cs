@@ -80,6 +80,24 @@ internal static class FieldModelReader
 
     internal static FieldModel ReadMainCharacterMaterials(string name, byte[] mch)
     {
+        (int[] offsets, _) = ReadMainCharacterTable(mch);
+        TimImage[] textures = offsets.Select(offset => ReadTim(mch, offset)).ToArray();
+        return new(name, [], [], [], textures.Select(texture => texture.Decode()).ToArray(), [])
+        {
+            TextureResourceName = name,
+            MainCharacterTextures = true,
+            TextureRegions = textures.Select(NativeTextureRegion).ToArray()
+        };
+    }
+
+    internal static void ValidateMainCharacter(string name, byte[] mch)
+    {
+        (int[] textures, int modelOffset) = ReadMainCharacterTable(mch);
+        _ = ReadModel(name, mch, modelOffset, textures, 0, null, 0, animations: []);
+    }
+
+    private static (int[] Textures, int ModelOffset) ReadMainCharacterTable(byte[] mch)
+    {
         using BinaryReader reader = Reader(mch);
         List<int> offsets = [];
         uint pointer;
@@ -96,13 +114,7 @@ internal static class FieldModelReader
         {
             throw new InvalidDataException("MCH model section offset lies outside its original container.");
         }
-        TimImage[] textures = offsets.Select(offset => ReadTim(mch, offset)).ToArray();
-        return new(name, [], [], [], textures.Select(texture => texture.Decode()).ToArray(), [])
-        {
-            TextureResourceName = name,
-            MainCharacterTextures = true,
-            TextureRegions = textures.Select(NativeTextureRegion).ToArray()
-        };
+        return (offsets.ToArray(), modelOffset);
     }
 
     private static IReadOnlyList<FieldModel> ReadSelected(byte[] one, Func<string, byte[]> mainCharacter, IReadOnlyList<NativeFieldOneModelEntry> headers, IEnumerable<int> selected)
@@ -126,18 +138,7 @@ internal static class FieldModelReader
             {
                 string referenceName = header.Name[..4];
                 byte[] main = mainCharacter(referenceName);
-                using BinaryReader global = Reader(main);
-                List<int> textures = [];
-                uint value;
-                while ((value = global.ReadUInt32()) != uint.MaxValue)
-                {
-                    textures.Add(checked((int)(value & 0xFFFFFF)));
-                    if (textures.Count > 100)
-                    {
-                        throw new InvalidDataException("MCH texture pointer table is unbounded.");
-                    }
-                }
-                int modelOffset = checked((int)global.ReadUInt32());
+                (int[] textures, int modelOffset) = ReadMainCharacterTable(main);
                 result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset) with { TextureResourceName = header.Name[..Math.Min(4, header.Name.Length)], MainCharacterTextures = true };
             }
             else if ((header.Flag >> 28) == 0xA)
