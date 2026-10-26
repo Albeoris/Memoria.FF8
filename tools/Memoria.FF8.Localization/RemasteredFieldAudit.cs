@@ -301,7 +301,7 @@ internal static class RemasteredFieldAudit
                 UnknownOrEmptyFieldPlaceholders = mappingRows - mappingKnownOrdinalRows,
                 Fields = fields.Length,
                 LanguageOrder = new[] { "en", "fr", "de", "es", "it", "jp" },
-                KeyRule = "$<language>_<field>_<source ordinal:D4>00; reviewed insertions use 01..99; Japanese language prefix is jp",
+                KeyRule = "$<language>_<field>_<source ordinal:D4>; independent zero-based bank ordinal per language; Japanese language prefix is jp",
                 Coverage = "All fields and known indexed bank slots, including empty and universally unused rows. Fields with no known slots receive one blank-key placeholder; unknown bank sizes cannot supply ordinal rows.",
                 KnownBankCounts = datasets.Values.Count(value => value.Prepared.Inventory.BankCountKnown),
                 UnknownOrMissingBankCounts = datasets.Values.Count(value => !value.Prepared.Inventory.BankCountKnown),
@@ -321,7 +321,7 @@ internal static class RemasteredFieldAudit
         });
         StringBuilder human = new();
         human.AppendLine(summary).AppendLine().AppendLine(limitations).AppendLine();
-        human.AppendLine($"[mapping.csv](mapping.csv): {mappingRows} CSV records ({mappingKnownOrdinalRows} known bank slots and {mappingRows - mappingKnownOrdinalRows} field placeholders), with English keys first and the existing English graph-derived Field Name where available. Same-ordinal keys are positional placeholders for manual editing; language status records proof or uncertainty. Empty and unused rows remain included. Keys contain language, field and a minimum four-digit source ordinal followed by 00; reviewed language-only insertions use 01..99; Japanese uses jp.").AppendLine();
+        human.AppendLine($"[mapping.csv](mapping.csv): {mappingRows} CSV records ({mappingKnownOrdinalRows} known bank slots and {mappingRows - mappingKnownOrdinalRows} field placeholders), with English keys first and the existing English graph-derived Field Name where available. Same-ordinal keys are positional placeholders for manual editing; language status records proof or uncertainty. Empty and unused rows remain included. Keys contain language, field and a minimum four-digit original source ordinal, independently numbered from zero in each language; correspondence is stored separately; Japanese uses jp.").AppendLine();
         human.AppendLine($"Universally unused exclusion: {pairs.Sum(pair => pair.PotentialRowsBeforeUnusedFilter)} candidate rows before, {pairs.Sum(pair => pair.UniversallyUnusedRowsRemoved)} removed, {potentialRows} after. Complete all-language unused evidence: {unusedByField.Values.Count(evidence => evidence.Complete)}/{unusedByField.Count} fields.").AppendLine();
         human.AppendLine("| Language | Expected | Found | Decoded | Compatible | Divergent | Incomplete | Potential rows | Review cases | Unknown counts |");
         human.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");

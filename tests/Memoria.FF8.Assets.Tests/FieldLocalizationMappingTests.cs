@@ -12,11 +12,12 @@ public sealed class FieldLocalizationMappingTests
     [Fact]
     public void KeysAreLanguageUniqueAndJapaneseAliasesUseJp()
     {
-        Assert.Equal("$en_bgroom_6_000000", FieldLocalizationKey.Create("en", Field, 0));
-        Assert.Equal("$jp_bgroom_6_000600", FieldLocalizationKey.Create("ja", Field, 6));
+        Assert.Equal("$en_bgroom_6_0000", FieldLocalizationKey.Create("en", Field, 0));
+        Assert.Equal("$jp_bgroom_6_0006", FieldLocalizationKey.Create("ja", Field, 6));
         Assert.Equal(FieldLocalizationKey.Create("ja", Field, 6), FieldLocalizationKey.Create("jp", Field, 6));
-        Assert.Equal("$en_bgroom_6_1000000", FieldLocalizationKey.Create("en", Field, 10000));
-        Assert.Equal("$en_sample-room_1_000600", FieldLocalizationKey.Create("en", "sample-room_1", 6));
+        Assert.Equal("$en_bgroom_6_10000", FieldLocalizationKey.Create("en", Field, 10000));
+        Assert.Equal("$en_bgroom_6_2147483647", FieldLocalizationKey.Create("en", Field, int.MaxValue));
+        Assert.Equal("$en_sample-room_1_0006", FieldLocalizationKey.Create("en", "sample-room_1", 6));
         Assert.Equal(6, Languages.Select(language => FieldLocalizationKey.Create(language, Field, 0)).Distinct().Count());
         Assert.NotEqual(FieldLocalizationKey.Create("en", "bgroom_6", 1), FieldLocalizationKey.Create("en", "bgroom_7", 1));
     }
@@ -36,9 +37,6 @@ public sealed class FieldLocalizationMappingTests
     {
         Assert.Throws<ArgumentException>(() => FieldLocalizationKey.Create("ru", Field, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => FieldLocalizationKey.Create("en", Field, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => FieldLocalizationKey.Create("en", Field, 1, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => FieldLocalizationKey.Create("en", Field, 1, 100));
-        Assert.Equal("$jp_bgroom_6_000101", FieldLocalizationKey.Create("jp", Field, 1, 1));
     }
 
     [Fact]
@@ -52,8 +50,8 @@ public sealed class FieldLocalizationMappingTests
         Assert.Equal(5, count);
         Assert.Equal("en,fr,de,es,it,jp,Field,Ordinal,Field Name,fr Status,de Status,es Status,it Status,jp Status,Unused Across Languages,en Source Ordinal,fr Source Ordinal,de Source Ordinal,es Source Ordinal,it Source Ordinal,jp Source Ordinal", string.Join(',', rows[0]));
         Assert.Equal(6, rows.Length);
-        Assert.Equal("$en_bgroom_6_000000", rows[1][0]);
-        Assert.Equal("$jp_bgroom_6_000400", rows[5][5]);
+        Assert.Equal("$en_bgroom_6_0000", rows[1][0]);
+        Assert.Equal("$jp_bgroom_6_0004", rows[5][5]);
         Assert.Empty(rows[5][0]);
         Assert.Equal("4", rows[5][7]);
         Assert.Equal("UnusedAllLanguages", rows[5][13]);
@@ -140,7 +138,7 @@ public sealed class FieldLocalizationMappingTests
         const string name = "Room, \"Lobby\"\r\nNext line";
         using StringWriter writer = new();
         FieldLocalizationMapping.WriteCsv(writer, Field, [Inventory("en", 1)], [], includeHeader: false, fieldName: name);
-        Assert.StartsWith("$en_bgroom_6_000000,", writer.ToString());
+        Assert.StartsWith("$en_bgroom_6_0000,", writer.ToString());
         Assert.Contains(",\"Room, \"\"Lobby\"\"\r\nNext line\",", writer.ToString());
         Assert.DoesNotContain("fr Status", writer.ToString());
     }

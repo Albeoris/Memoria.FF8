@@ -4,13 +4,11 @@ namespace Memoria.FF8.Assets.Localization;
 
 public static class FieldLocalizationKey
 {
-    public static string Create(string language, string field, int ordinal, int insertion = 0)
+    public static string Create(string language, string field, int ordinal)
     {
         ValidateField(field);
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
-        ArgumentOutOfRangeException.ThrowIfNegative(insertion);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(insertion, 99);
-        return "$" + CanonicalLanguage(language) + "_" + field + "_" + ordinal.ToString("D4", CultureInfo.InvariantCulture) + insertion.ToString("D2", CultureInfo.InvariantCulture);
+        return "$" + CanonicalLanguage(language) + "_" + field + "_" + ordinal.ToString("D4", CultureInfo.InvariantCulture);
     }
 
     internal static string CanonicalLanguage(string language)
