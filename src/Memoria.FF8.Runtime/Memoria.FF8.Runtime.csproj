@@ -4,6 +4,8 @@
     <RootNamespace>Memoria.FF8</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <InternalsVisibleTo Include="Memoria.FF8.Runtime.Tests" />
   </ItemGroup>
 </Project>
+

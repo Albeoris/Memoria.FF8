@@ -27,6 +27,11 @@ public sealed class SteamAchievementBackend : IAchievementBackend
         try
         {
             ValidateConfiguration();
+            if (!OperatingSystem.IsWindows())
+            {
+                Stop("Steam achievements are unavailable on this host; local achievements remain available.");
+                return;
+            }
             api = new SteamAchievementNativeApi(nativePath);
             Initialize();
         }

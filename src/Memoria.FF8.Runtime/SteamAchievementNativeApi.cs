@@ -1,10 +1,12 @@
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Runtime.Versioning;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Steamworks SDK 1.65 flat API and manual dispatch ABI; all image loading uses an explicit path.</summary>
+[SupportedOSPlatform("windows")]
 internal sealed class SteamAchievementNativeApi : ISteamAchievementApi
 {
     private const string ImageHash = "e6d9bafb9a41e42fba7b21553db49f8719027af3f0deb23ff86cfc44d60e776d";

@@ -1,3 +1,5 @@
+using Memoria.FF8.Platform;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed record LaunchOptions
@@ -6,7 +8,7 @@ public sealed record LaunchOptions
     public string GameDirectory { get; init; } = ConfiguredGameDirectory;
     public string? ModsDirectory { get; init; }
     public string? StatePath { get; init; }
-    public string SavePath { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "checkpoint.json");
+    public string SavePath { get; init; } = ApplicationPaths.Current.DefaultCheckpoint;
     public string? MediaToolsDirectory { get; init; }
     public GameState InitialState { get; init; } = new();
     public double? ExitAfterSeconds { get; init; }
@@ -87,7 +89,7 @@ public sealed record LaunchOptions
         if (options.BattleTestPath is not null)
         {
             string[] paths = [Path.GetFullPath(options.SettingsDirectory!), Path.GetFullPath(options.ControlDirectory!), Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!];
-            string global = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8");
+            string global = ApplicationPaths.Current.Configuration;
             if (paths.Any(path => IsWithin(path, global) || IsWithin(global, path)))
             {
                 throw new ArgumentException("Diagnostic output and settings must not overlap the user's global settings directory.");
@@ -142,3 +144,4 @@ public sealed record LaunchOptions
         return options with { Width = width, Height = height, ResolutionSpecified = true };
     }
 }
+
