@@ -12,7 +12,59 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private string SystemText(string id, string original) => localizeInterface?.Invoke(SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => localizeInterface?.Invoke(SystemTextCatalog.Key(id), original) ?? original;
+
+    internal string FormatSystemText(string id, string original, params object?[] arguments)
+    {
+        string template = SystemText(id, original);
+        try
+        {
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture, template, arguments);
+        }
+        catch (FormatException)
+        {
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture, original, arguments);
+        }
+    }
+
+    private MenuScreenDefinition LocalizeSystemScreen(MenuScreenDefinition definition)
+    {
+        if (localizeInterface is null)
+        {
+            return definition;
+        }
+        return new MenuScreenDefinition
+        {
+            Id = definition.Id,
+            Title = SystemText("screen." + definition.Id + ".title", definition.Title),
+            Help = SystemText("screen." + definition.Id + ".help", definition.Help),
+            Layout = definition.Layout,
+            Columns = definition.Columns,
+            MainCommand = definition.MainCommand,
+            GalleryEligible = definition.GalleryEligible,
+            Entries = definition.Entries,
+            Details = definition.Details,
+            BuildContent = definition.BuildContent
+        };
+    }
+
+    internal string MagicText(string id) => SystemText("magic." + id, MagicUiText.Get(id));
+
+    private string LocalizeSettingHelp(string setting, string original)
+    {
+        string? identity = SettingsPlacement.All.FirstOrDefault(item => item.LegacyKey == setting)?.Identity;
+        return identity is null ? original : SystemText("setting." + identity + ".help", original);
+    }
+
+    private string LocalizeSettingValue(MenuSetting setting, int index) => LocalizeSettingValue(setting.Id, setting.Values[index]);
+
+    private string LocalizeSettingValue(string setting, string original)
+    {
+        string? identity = SettingsPlacement.All.FirstOrDefault(item => item.LegacyKey == setting)?.Identity;
+        MenuSetting? definition = MenuSettings.Definitions.FirstOrDefault(item => item.Id == setting);
+        int index = definition is null ? -1 : Array.IndexOf(definition.Values, original);
+        return identity is null || index < 0 ? original : SystemText("setting." + identity + ".option." + index.ToString(System.Globalization.CultureInfo.InvariantCulture), original);
+    }
 
     private string LocalizeSettingLabel(string setting, string original)
     {

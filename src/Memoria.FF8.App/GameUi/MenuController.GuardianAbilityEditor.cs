@@ -68,7 +68,7 @@ public sealed partial class MenuController
             Title = "Mods · Create Mods",
             Help = "Create a native gameplay mod or edit a compatible GF package.",
             Entries = _ => CreateModEntries(),
-            Details = _ => ["GF Abilities", "Create or edit one GF ability contribution. Package activation is managed in Installed Mods."],
+            Details = _ => [SystemText("ui.connectguardianforceeditor.details.gf.abilities", "GF Abilities"), SystemText("ui.connectguardianforceeditor.details.create.or.edit.one.gf.ability.contribution.package", "Create or edit one GF ability contribution. Package activation is managed in Installed Mods.")],
             BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage())
         });
         Register(new()
@@ -77,7 +77,7 @@ public sealed partial class MenuController
             Title = "Create Mods · GF Abilities · Target",
             Help = "Choose exactly one editing owner. Disabled packages can be edited without activation.",
             Entries = _ => GuardianTargetEntries(),
-            Details = _ => ["Create new mod opens an independent draft immediately. No file is written until Save mod.", "Edit existing mod includes compatible disabled packages.", readGuardianEditor!().Current is null ? "Load a game to edit this playthrough." : "Edit this playthrough changes its save-local contribution."]
+            Details = _ => [SystemText("ui.connectguardianforceeditor.details.create.new.mod.opens.an.independent.draft.immediately", "Create new mod opens an independent draft immediately. No file is written until Save mod."), SystemText("ui.connectguardianforceeditor.details.edit.existing.mod.includes.compatible.disabled.packages", "Edit existing mod includes compatible disabled packages."), readGuardianEditor!().Current is null ? SystemText("ui.connectguardianforceeditor.details.load.a.game.to.edit.this.playthrough", "Load a game to edit this playthrough.") : SystemText("ui.connectguardianforceeditor.details.edit.this.playthrough.changes.its.save.local.contribution", "Edit this playthrough changes its save-local contribution.")]
         });
         Register(new()
         {
@@ -92,14 +92,14 @@ public sealed partial class MenuController
             Id = "gf-ability-dirty",
             Title = "GF Abilities · Unsaved changes",
             Help = "Save or apply the selected draft, discard it, or cancel navigation.",
-            Entries = _ => [new("save", guardianLocal ? "Apply to playthrough" : "Save mod", "Keep these changes.", Action: new("gf-editor-keep")), new("discard", "Discard", "Discard only this draft.", Action: new("gf-editor-discard")), new("cancel", "Cancel", "Continue editing.", Action: new("menu-back"))]
+            Entries = _ => [new("save", guardianLocal ? SystemText("ui.connectguardianforceeditor.entry.label.apply.to.playthrough", "Apply to playthrough") : SystemText("ui.connectguardianforceeditor.entry.label.save.mod", "Save mod"), SystemText("ui.connectguardianforceeditor.entry.help.keep.these.changes", "Keep these changes."), Action: new("gf-editor-keep")), new("discard", SystemText("ui.connectguardianforceeditor.entry.label.discard", "Discard"), SystemText("ui.connectguardianforceeditor.entry.help.discard.only.this.draft", "Discard only this draft."), Action: new("gf-editor-discard")), new("cancel", SystemText("ui.connectguardianforceeditor.entry.label.cancel", "Cancel"), SystemText("ui.connectguardianforceeditor.entry.help.continue.editing", "Continue editing."), Action: new("menu-back"))]
         });
         Register(new()
         {
             Id = "gf-ability-review",
             Title = "GF Abilities · Apply review",
             Help = "Review current progress and junction consequences before applying once.",
-            Entries = _ => [new("reset", $"[{(guardianResetDefaults ? "x" : " ")}] Also apply edited starting states", "Only explicitly edited starting states; learned or unlearned with 0 AP. These writes occur once.", Action: new("gf-editor-review-reset")), new("apply", "Apply reviewed changes", "The current playthrough changes and needs a normal game save.", Action: new("gf-editor-apply")), new("cancel", "Cancel", "Keep the draft and live playthrough.", Action: new("menu-back"))],
+            Entries = _ => [new("reset", FormatSystemText("ui.connectguardianforceeditor.entry.label.also.apply.edited.starting.states", "[{0}] Also apply edited starting states", (guardianResetDefaults ? SystemText("ui.connectguardianforceeditor.value.x", "x") : " ")), SystemText("ui.connectguardianforceeditor.entry.help.only.explicitly.edited.starting.states.learned.or.unlearned", "Only explicitly edited starting states; learned or unlearned with 0 AP. These writes occur once."), Action: new("gf-editor-review-reset")), new("apply", SystemText("ui.connectguardianforceeditor.entry.label.apply.reviewed.changes", "Apply reviewed changes"), SystemText("ui.connectguardianforceeditor.entry.help.the.current.playthrough.changes.and.needs.a.normal", "The current playthrough changes and needs a normal game save."), Action: new("gf-editor-apply")), new("cancel", SystemText("ui.connectguardianforceeditor.entry.label.cancel", "Cancel"), SystemText("ui.connectguardianforceeditor.entry.help.keep.the.draft.and.live.playthrough", "Keep the draft and live playthrough."), Action: new("menu-back"))],
             Details = _ => GuardianReviewDetails()
         });
 
@@ -112,8 +112,8 @@ public sealed partial class MenuController
             Id = "gf-mod-review",
             Title = "Mods · GF changes review",
             Help = "The previous runtime generation remains active until this review is accepted.",
-            Entries = _ => [new("accept", "Accept reviewed changes", "Revalidate and publish the pending mod generation.", Action: new("gf-editor-publish"), Enabled: read() is not null), new("back", "Back", "Keep the previous generation active.", Action: new("menu-back"))],
-            Details = _ => read() ?? ["No pending GF progression changes."]
+            Entries = _ => [new("accept", SystemText("ui.connectguardianmodreview.entry.label.accept.reviewed.changes", "Accept reviewed changes"), SystemText("ui.connectguardianmodreview.entry.help.revalidate.and.publish.the.pending.mod.generation", "Revalidate and publish the pending mod generation."), Action: new("gf-editor-publish"), Enabled: read() is not null), new("back", SystemText("ui.connectguardianmodreview.entry.label.back", "Back"), SystemText("ui.connectguardianmodreview.entry.help.keep.the.previous.generation.active", "Keep the previous generation active."), Action: new("menu-back"))],
+            Details = _ => read() ?? [SystemText("ui.connectguardianmodreview.details.no.pending.gf.progression.changes", "No pending GF progression changes.")]
         });
         acceptGuardianModReview = accept;
     }
@@ -125,13 +125,13 @@ public sealed partial class MenuController
         bool playthroughLoaded = readGuardianEditor?.Invoke().Current is not null;
         return
         [
-            new("mods-installed-tab", "Installed Mods", "Installed packages and enablement.", Destination: "mods"),
-            new("mods-create-new", "Create new mod", "Open an independent GF mod draft. No file is written until Save mod.", Action: new("gf-editor-target", "new"), Enabled: GuardianEditorEditionSupported),
-            new("mods-edit-existing", "Edit existing GF mod", "Choose a compatible GF payload, including disabled packages.", Destination: "mods-gf-packages", Enabled: GuardianEditorEditionSupported),
-            new("mods-edit-playthrough", "Edit this playthrough", playthroughLoaded ? "Edit this playthrough's local GF contribution." : "Load a game to edit this playthrough.", Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded),
-            new("mods-localization-new", "New localization", "Create a translation project from available source datasets.", Action: new("localization-new"), Enabled: localizationAuthoring is not null),
-            new("mods-localization-convert", "Convert localization", "Convert JSON/XLSX or payload layout without an installed game.", Action: new("localization-convert"), Enabled: localizationAuthoring is not null),
-            new("mods-localization-stack", "Localization stack", "Choose and order active translations explicitly.", Action: new("localization-stack-open"), Enabled: readLocalizationStack is not null)
+            new("mods-installed-tab", SystemText("ui.createmodentries.entry.label.installed.mods", "Installed Mods"), SystemText("ui.createmodentries.entry.help.installed.packages.and.enablement", "Installed packages and enablement."), Destination: "mods"),
+            new("mods-create-new", SystemText("ui.createmodentries.entry.label.create.new.mod", "Create new mod"), SystemText("ui.createmodentries.entry.help.open.an.independent.gf.mod.draft.no.file", "Open an independent GF mod draft. No file is written until Save mod."), Action: new("gf-editor-target", "new"), Enabled: GuardianEditorEditionSupported),
+            new("mods-edit-existing", SystemText("ui.createmodentries.entry.label.edit.existing.gf.mod", "Edit existing GF mod"), SystemText("ui.createmodentries.entry.help.choose.a.compatible.gf.payload.including.disabled.packages", "Choose a compatible GF payload, including disabled packages."), Destination: "mods-gf-packages", Enabled: GuardianEditorEditionSupported),
+            new("mods-edit-playthrough", SystemText("ui.createmodentries.entry.label.edit.this.playthrough", "Edit this playthrough"), playthroughLoaded ? SystemText("ui.createmodentries.entry.help.edit.this.playthrough.s.local.gf.contribution", "Edit this playthrough's local GF contribution.") : SystemText("ui.createmodentries.entry.help.load.a.game.to.edit.this.playthrough", "Load a game to edit this playthrough."), Action: new("gf-editor-target", "local"), Enabled: GuardianEditorEditionSupported && playthroughLoaded),
+            new("mods-localization-new", SystemText("ui.createmodentries.entry.label.new.localization", "New localization"), SystemText("ui.createmodentries.entry.help.create.a.translation.project.from.available.source.datasets", "Create a translation project from available source datasets."), Action: new("localization-new"), Enabled: localizationAuthoring is not null),
+            new("mods-localization-convert", SystemText("ui.createmodentries.entry.label.convert.localization", "Convert localization"), SystemText("ui.createmodentries.entry.help.convert.json.xlsx.or.payload.layout.without.an", "Convert JSON/XLSX or payload layout without an installed game."), Action: new("localization-convert"), Enabled: localizationAuthoring is not null),
+            new("mods-localization-stack", SystemText("ui.createmodentries.entry.label.localization.stack", "Localization stack"), SystemText("ui.createmodentries.entry.help.choose.and.order.active.translations.explicitly", "Choose and order active translations explicitly."), Action: new("localization-stack-open"), Enabled: readLocalizationStack is not null)
         ];
     }
 
@@ -143,7 +143,7 @@ public sealed partial class MenuController
         {
             return [];
         }
-        List<string> details = [guardianReview.Intent ?? (guardianReview.PackageOwnership ? "Review contribution ownership/removal." : "Only the selected contribution is applied. Unrelated mods are not copied.")];
+        List<string> details = [guardianReview.Intent ?? (guardianReview.PackageOwnership ? SystemText("ui.guardianreviewdetails.details.review.contribution.ownership.removal", "Review contribution ownership/removal.") : SystemText("ui.guardianreviewdetails.details.only.the.selected.contribution.is.applied.unrelated.mods", "Only the selected contribution is applied. Unrelated mods are not copied."))];
         foreach (GuardianForceAbilityPatchOperation operation in guardianReview.Document.Operations)
         {
             string name(int ability) => guardianAbilityName!(ability);
@@ -159,28 +159,28 @@ public sealed partial class MenuController
         details.AddRange(guardianReview.Preview.Consequences);
         if (guardianReview.Preview.Consequences.Length == 0)
         {
-            details.Add("Current learned/AP state and junctions are preserved.");
+            details.Add(SystemText("ui.guardianreviewdetails.details.current.learned.ap.state.and.junctions.are.preserved", "Current learned/AP state and junctions are preserved."));
         }
-        details.Add("Focus this review list with the Tab binding; page through every consequence before applying.");
+        details.Add(SystemText("ui.guardianreviewdetails.details.focus.this.review.list.with.the.tab.binding", "Focus this review list with the Tab binding; page through every consequence before applying."));
         return details;
     }
 
     private IReadOnlyList<MenuEntry> GuardianTargetEntries()
     {
-        List<MenuEntry> entries = [new("new", "Create new mod", "Open an independent draft. No file is written yet.", Action: new("gf-editor-target", "new")), new("existing", "Edit existing mod", "Choose a compatible GF package, including disabled packages.", Destination: "mods-gf-packages"), new("local", "Edit this playthrough", readGuardianEditor?.Invoke().Current is null ? "Load a game to edit this playthrough." : "Continue the save-local contribution.", Action: new("gf-editor-target", "local"), Enabled: readGuardianEditor?.Invoke().Current is not null)];
+        List<MenuEntry> entries = [new("new", SystemText("ui.guardiantargetentries.entry.label.create.new.mod", "Create new mod"), SystemText("ui.guardiantargetentries.entry.help.open.an.independent.draft.no.file.is.written", "Open an independent draft. No file is written yet."), Action: new("gf-editor-target", "new")), new("existing", SystemText("ui.guardiantargetentries.entry.label.edit.existing.mod", "Edit existing mod"), SystemText("ui.guardiantargetentries.entry.help.choose.a.compatible.gf.package.including.disabled.packages", "Choose a compatible GF package, including disabled packages."), Destination: "mods-gf-packages"), new("local", SystemText("ui.guardiantargetentries.entry.label.edit.this.playthrough", "Edit this playthrough"), readGuardianEditor?.Invoke().Current is null ? SystemText("ui.guardiantargetentries.entry.help.load.a.game.to.edit.this.playthrough", "Load a game to edit this playthrough.") : SystemText("ui.guardiantargetentries.entry.help.continue.the.save.local.contribution", "Continue the save-local contribution."), Action: new("gf-editor-target", "local"), Enabled: readGuardianEditor?.Invoke().Current is not null)];
         if (readGuardianEditor?.Invoke() is { } context)
         {
             if (context.Current?.GuardianForceOpaqueBaseline == true && context.Current.GuardianForceRecoveryProfile is not null)
             {
-                entries.Add(new("recover", "Review recovered native GF layers", "Old changes are baked into the imported baseline. Reconcile before reactivating their native documents.", Action: new("gf-editor-recover")));
+                entries.Add(new("recover", SystemText("ui.guardiantargetentries.entry.label.review.recovered.native.gf.layers", "Review recovered native GF layers"), SystemText("ui.guardiantargetentries.entry.help.old.changes.are.baked.into.the.imported.baseline", "Old changes are baked into the imported baseline. Reconcile before reactivating their native documents."), Action: new("gf-editor-recover")));
             }
             foreach (GuardianForceAbilityPatchDocument document in context.LocalDocuments)
             {
-                entries.Add(new("local:" + document.DocumentId, "Playthrough contribution · " + document.DocumentId, "Edit only this separately owned local contribution.", Action: new("gf-editor-target", "local:" + document.DocumentId)));
+                entries.Add(new("local:" + document.DocumentId, SystemText("ui.guardiantargetentries.entry.label.playthrough.contribution", "Playthrough contribution · ") + document.DocumentId, SystemText("ui.guardiantargetentries.entry.help.edit.only.this.separately.owned.local.contribution", "Edit only this separately owned local contribution."), Action: new("gf-editor-target", "local:" + document.DocumentId)));
             }
             foreach (GuardianForceAbilityPatchLayer layer in context.Layers.Where(layer => modService is null || !modService.Catalog.Files.Any(file => file.PackageId.Equals(layer.PackageId, StringComparison.OrdinalIgnoreCase) && file.RelativePath.Equals(GuardianForceAbilityMods.PayloadPath, StringComparison.OrdinalIgnoreCase))))
             {
-                entries.Add(new("missing:" + layer.Document.DocumentId, "Remove retained missing GF payload · " + layer.PackageId, "Review removal of this saved contribution. Earned progress remains dormant.", Action: new("gf-editor-remove-missing", layer.Document.DocumentId)));
+                entries.Add(new("missing:" + layer.Document.DocumentId, SystemText("ui.guardiantargetentries.entry.label.remove.retained.missing.gf.payload", "Remove retained missing GF payload · ") + layer.PackageId, SystemText("ui.guardiantargetentries.entry.help.review.removal.of.this.saved.contribution.earned.progress", "Review removal of this saved contribution. Earned progress remains dormant."), Action: new("gf-editor-remove-missing", layer.Document.DocumentId)));
             }
         }
         return entries;
@@ -353,7 +353,7 @@ public sealed partial class MenuController
             if (!guardianCapacityWarning && exceedsCapacity)
             {
                 guardianCapacityWarning = true;
-                Message = "This GF exceeds original FFVIII ability capacity. Memoria saves preserve it; original-format export can lose abilities and progression.";
+                Message = SystemText("ui.guardianedit.message.this.gf.exceeds.original.ffviii.ability.capacity.memoria", "This GF exceeds original FFVIII ability capacity. Memoria saves preserve it; original-format export can lose abilities and progression.");
             }
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException)
@@ -385,7 +385,7 @@ public sealed partial class MenuController
         }
         if (guardianPreview && index is not (5 or 7 or 15))
         {
-            Message = "Preview is read-only.";
+            Message = SystemText("ui.guardiantoolcore.message.preview.is.read.only", "Preview is read-only.");
             return;
         }
         GuardianForceAbilityTemplate? row = GuardianSelectedRow;
@@ -402,7 +402,7 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    Message = "Already in this GF, or no catalog ability selected.";
+                    Message = SystemText("ui.guardiantoolcore.message.already.in.this.gf.or.no.catalog.ability", "Already in this GF, or no catalog ability selected.");
                 }
                 break;
             case 1:
@@ -415,7 +415,7 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    Message = "Select an incoming ability not already in this GF and a target row.";
+                    Message = SystemText("ui.guardiantoolcore.message.select.an.incoming.ability.not.already.in.this", "Select an incoming ability not already in this GF and a target row.");
                 }
                 break;
             case 2:
@@ -463,10 +463,10 @@ public sealed partial class MenuController
                     guardianPackage = saved;
                     guardianLocal = false;
                     guardianDraft.Accept(saved.Document);
-                    Message = "GF document saved. Runtime activation status is shown in Installed Mods.";
+                    Message = SystemText("ui.guardiantoolcore.message.gf.document.saved.runtime.activation.status.is.shown", "GF document saved. Runtime activation status is shown in Installed Mods.");
                     if (modService?.Diagnostics.Any(diagnostic => diagnostic.Code == "reload-failed") == true)
                     {
-                        Message = modService.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? "GF document saved. Open Installed Mods / GF changes review to activate it." : "GF document saved. Activation failed; see Installed Mods for the reason.";
+                        Message = modService.Diagnostics.Any(diagnostic => diagnostic.Code == "Memoria.GuardianForceReview") ? SystemText("ui.guardiantoolcore.message.gf.document.saved.open.installed.mods.gf.changes", "GF document saved. Open Installed Mods / GF changes review to activate it.") : SystemText("ui.guardiantoolcore.message.gf.document.saved.activation.failed.see.installed.mods", "GF document saved. Activation failed; see Installed Mods for the reason.");
                     }
                     ContinueGuardianNavigation();
                 }
@@ -481,7 +481,7 @@ public sealed partial class MenuController
             case 14:
                 if (GuardianInstalledPackage is null || reviewGuardianPackageOwnership is null)
                 {
-                    Message = "Install this package in a discovered mod directory before using it.";
+                    Message = SystemText("ui.guardiantoolcore.message.install.this.package.in.a.discovered.mod.directory", "Install this package in a discovered mod directory before using it.");
                     break;
                 }
                 guardianReview = reviewGuardianPackageOwnership(guardianDraft.ExportDocument);
@@ -512,7 +512,7 @@ public sealed partial class MenuController
                     Back();
                     guardianDraft!.RebaseInput(guardianPlacementInput);
                     guardianPending = null;
-                    Message = "Package position reviewed. Inspect the recomputed draft, then Save mod to the reviewed destination.";
+                    Message = SystemText("ui.executeguardianeditoraction.message.package.position.reviewed.inspect.the.recomputed.draft.then", "Package position reviewed. Inspect the recomputed draft, then Save mod to the reviewed destination.");
                     break;
                 case "gf-editor-restore-accept":
                     Back();

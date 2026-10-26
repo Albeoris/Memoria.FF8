@@ -14,9 +14,9 @@ public sealed partial class MenuController
         Register(new MenuScreenDefinition
         {
             Id = "mode-review",
-            Title = MagicUiText.Get("ReviewTitle"),
-            Help = MagicUiText.Get("ReviewHelp"),
-            Entries = _ => [new MenuEntry("apply", MagicUiText.Get("Apply"), MagicUiText.Get("ReviewHelp"), Action: new MenuAction("magic-rules-apply")), new MenuEntry("cancel", MagicUiText.Get("Cancel"), MagicUiText.Get("ReviewHelp"), Action: new MenuAction("magic-rules-cancel"))],
+            Title = MagicText("ReviewTitle"),
+            Help = MagicText("ReviewHelp"),
+            Entries = _ => [new MenuEntry("apply", MagicText("Apply"), MagicText("ReviewHelp"), Action: new MenuAction("magic-rules-apply")), new MenuEntry("cancel", MagicText("Cancel"), MagicText("ReviewHelp"), Action: new MenuAction("magic-rules-cancel"))],
             Details = _ => magicRulesReview
         });
         Push("mode-review");
@@ -24,9 +24,9 @@ public sealed partial class MenuController
 
     internal IReadOnlyList<MenuEntry> CommandSlotEntries()
     {
-        string mode = Character?.AttackMode == "SmartMagic" ? MagicUiText.Get("SmartMagic") : MagicUiText.Get("PhysicalOnly");
-        MenuEntry attack = new("attack", (Character?.Commands.FirstOrDefault() ?? "Attack") + " · " + mode, Data.SmartAttack ? MagicUiText.Get("AttackChoiceHelp") : MagicUiText.Get("SmartLocked"), Action: new MenuAction("attack-mode", Value: Character?.AttackMode == "SmartMagic" ? "PhysicalOnly" : "SmartMagic"), Enabled: Data.SmartAttack);
-        return (Data.SmartAttack ? new[] { attack } : Array.Empty<MenuEntry>()).Concat(Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), Character?.Commands.ElementAtOrDefault(slot) ?? "--", MagicUiText.Get("CommandSlotHelp"), "junction-command-choice", new MenuAction("select-command-slot", slot.ToString())))).ToArray();
+        string mode = Character?.AttackMode == "SmartMagic" ? MagicText("SmartMagic") : MagicText("PhysicalOnly");
+        MenuEntry attack = new("attack", (Character?.Commands.FirstOrDefault() ?? SystemText("ui.commandslotentries.entry.label.attack", "Attack")) + " · " + mode, Data.SmartAttack ? MagicText("AttackChoiceHelp") : MagicText("SmartLocked"), Action: new MenuAction("attack-mode", Value: Character?.AttackMode == "SmartMagic" ? "PhysicalOnly" : "SmartMagic"), Enabled: Data.SmartAttack);
+        return (Data.SmartAttack ? new[] { attack } : Array.Empty<MenuEntry>()).Concat(Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), Character?.Commands.ElementAtOrDefault(slot) ?? "--", MagicText("CommandSlotHelp"), "junction-command-choice", new MenuAction("select-command-slot", slot.ToString())))).ToArray();
     }
 
     internal IReadOnlyList<MenuEntry> AutoJunctionEntries()
@@ -34,7 +34,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries = [];
         foreach (string priority in new[] { "Attack", "Magic", "Defense" })
         {
-            entries.Add(new MenuEntry(priority, priority, MagicUiText.Get("ConservativeHelp"), Action: new MenuAction("junction-auto", Value: priority)));
+            entries.Add(new MenuEntry(priority, priority, MagicText("ConservativeHelp"), Action: new MenuAction("junction-auto", Value: priority)));
         }
         return entries;
     }

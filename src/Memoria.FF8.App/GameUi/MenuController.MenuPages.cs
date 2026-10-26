@@ -20,8 +20,8 @@ public sealed partial class MenuController
             var row = Grid([1], [0.75f, 1.7f, 1.15f, 2.7f], 5);
             Place(row, Portrait(character), 0);
             Place(row, Label(character?.Name ?? "", 28), 0, 1);
-            Place(row, Label(character is null ? "" : $"Lv {Number(character.Level)}", 23), 0, 2);
-            Place(row, Label(character is null ? "" : "HP " + Hp(character), 23), 0, 3);
+            Place(row, Label(character is null ? "" : FormatSystemText("ui.buildmain.label.lv", "Lv {0}", Number(character.Level)), 23), 0, 2);
+            Place(row, Label(character is null ? "" : SystemText("ui.buildmain.label.hp", "HP ") + Hp(character), 23), 0, 3);
             UiPanel status = Panel(null, row);
             status.Id = "party-status-" + index;
             if (IsSelectingCharacter && character is not null)
@@ -45,7 +45,7 @@ public sealed partial class MenuController
             var member = Grid([1, 1], [0.75f, 2.5f], 3);
             Place(member, Portrait(character), 0, 0, 2);
             Place(member, Label(character.Name, 26), 0, 1);
-            Place(member, Label($"Lv {Number(character.Level)}   HP {character.HpDisplay ?? Number(character.CurrentHp)}", 20), 1, 1);
+            Place(member, Label(FormatSystemText("ui.buildmain.label.lv.hp", "Lv {0}   HP {1}", Number(character.Level), character.HpDisplay ?? Number(character.CurrentHp)), 20), 1, 1);
             if (IsSelectingCharacter)
             {
                 string characterId = character.Id;
@@ -65,7 +65,7 @@ public sealed partial class MenuController
         Place(sidebar, Panel(null, Commands(40, 29)), 0);
         Place(page, Panel(null, Label(Data.Location, 29)), 2);
         string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, Panel(null, Readouts([$"PLAY  {time}", $"SeeD  {Number(Data.SeeDRank)}", $"{Number(Data.Currency)}G"], 23)), 2);
+        Place(sidebar, Panel(null, Readouts([FormatSystemText("ui.buildmain.details.play", "PLAY  {0}", time), FormatSystemText("ui.buildmain.details.seed", "SeeD  {0}", Number(Data.SeeDRank)), FormatSystemText("ui.buildmain.details.g", "{0}G", Number(Data.Currency))], 23)), 2);
         return page;
     }
 
@@ -126,7 +126,7 @@ public sealed partial class MenuController
             }
             tabs = strip;
         }
-        Place(page, NativeMenuHeader("Junction", tabs, choosingCategory), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildjunction.nativemenuheader.junction", "Junction"), tabs, choosingCategory), 0);
         var body = Grid([1], [3, 1.1f], 4);
         Place(page, body, 1);
         var character = Grid([2.1f, 0.7f], [1], 4);
@@ -139,24 +139,24 @@ public sealed partial class MenuController
         var summary = Grid([1, 1, 1], [1], 0);
         Place(identity, summary, 0, 1);
         Place(summary, Label(Character?.Name ?? "--", 30), 0);
-        Place(summary, Label($"Lv      {Number(Character?.Level)}", 25), 1);
-        Place(summary, Label("HP    " + (Character is null ? "--" : Hp(Character)), 25), 2);
+        Place(summary, Label(FormatSystemText("ui.buildjunction.label.lv", "Lv      {0}", Number(Character?.Level)), 25), 1);
+        Place(summary, Label(SystemText("ui.buildjunction.label.hp", "HP    ") + (Character is null ? "--" : Hp(Character)), 25), 2);
         var experience = Grid([1, 1], [1.6f, 1.4f], 0);
         Place(character, experience, 1);
-        Place(experience, Label("Current EXP", 22), 0);
-        Place(experience, Label(Number(Character?.Experience) + "p", 22), 0, 1);
-        Place(experience, Label("Next LEVEL", 22), 1);
-        Place(experience, Label(Number(Character?.NextLevelExperience) + "p", 22), 1, 1);
+        Place(experience, Label(SystemText("ui.buildjunction.label.current.exp", "Current EXP"), 22), 0);
+        Place(experience, Label(Number(Character?.Experience) + SystemText("ui.buildjunction.label.p", "p"), 22), 0, 1);
+        Place(experience, Label(SystemText("ui.buildjunction.label.next.level", "Next LEVEL"), 22), 1);
+        Place(experience, Label(Number(Character?.NextLevelExperience) + SystemText("ui.buildjunction.label.p", "p"), 22), 1, 1);
         bool choosingEntity = ScreenId != "junction" && !choosingCategory;
         if (choosingEntity)
         {
-            UiPanel selection = Panel("JUNCTION", Commands(31, 21));
+            UiPanel selection = Panel(SystemText("ui.buildjunction.panel.junction", "JUNCTION"), Commands(31, 21));
             selection.Id = "junction-selection";
             Place(body, selection, 0, 1);
         }
         else
         {
-            Place(body, Panel("COMMAND", Readouts(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
+            Place(body, Panel(SystemText("ui.buildjunction.panel.command", "COMMAND"), Readouts(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
         }
         var footer = Grid([1], choosingEntity ? [3, 1.1f] : [1], 4);
         var stats = Grid([1], [1, 1], 12);
@@ -178,17 +178,17 @@ public sealed partial class MenuController
         if (IsEffectJunctionPage)
         {
             var effectPage = Grid([1.35f, 6.3f], [1], 4);
-            Place(effectPage, NativeMenuHeader("Junction", Label("Magic", 25)), 0);
+            Place(effectPage, NativeMenuHeader(SystemText("ui.buildmagicjunction.nativemenuheader.junction", "Junction"), Label(SystemText("ui.buildmagicjunction.label.magic", "Magic"), 25)), 0);
             Place(effectPage, BuildEffectJunction(false), 1);
             return effectPage;
         }
         var page = Grid([1.35f, 0.8f, 5.5f], [1], 4);
-        Place(page, NativeMenuHeader("Junction", Label("Magic", 25)), 0);
-        Place(page, Panel(null, Label($"{Character?.Name ?? "--"}    Lv {Number(Character?.Level)}    HP {(Character is null ? "--" : Hp(Character))}", 24)), 1);
+        Place(page, NativeMenuHeader(SystemText("ui.buildmagicjunction.nativemenuheader.junction", "Junction"), Label(SystemText("ui.buildmagicjunction.label.magic", "Magic"), 25)), 0);
+        Place(page, Panel(null, Label(FormatSystemText("ui.buildmagicjunction.label.lv.hp", "{0}    Lv {1}    HP {2}", Character?.Name ?? "--", Number(Character?.Level), (Character is null ? "--" : Hp(Character))), 24)), 1);
         var body = Grid([1], [1, 1], 4);
         Place(page, body, 2);
         bool choosingSpell = ScreenId == "junction-stock";
-        Place(body, Panel(choosingSpell ? "MAGIC STOCK" : "JUNCTION", Commands(29, 21)), 0, choosingSpell ? 1 : 0);
+        Place(body, Panel(choosingSpell ? SystemText("ui.buildmagicjunction.panel.magic.stock", "MAGIC STOCK") : SystemText("ui.buildmagicjunction.panel.junction", "JUNCTION"), Commands(29, 21)), 0, choosingSpell ? 1 : 0);
         IReadOnlyDictionary<string, int>? preview = choosingSpell && SelectedEntry is { Enabled: true, Action.Kind: "junction-magic" or "junction-magic-reassign" } entry ? Character?.JunctionPreview?.Invoke(_junctionSlot, entry.Action.SubjectId) : null;
         var details = Grid([0.7f, 5, 0.65f], [1], 2);
         string selection = choosingSpell ? $"{_junctionSlot}    {SelectedEntry?.Label ?? "--"}" : SelectedEntry?.Label ?? "--";
@@ -218,8 +218,8 @@ public sealed partial class MenuController
             Place(row, label, 0, 2);
         }
         Place(details, stats, 1);
-        Place(details, choosingSpell ? Label("Current → Preview    Confirm to apply", 17) : JunctionAbilityPageLink(), 2);
-        Place(body, Panel("STATUS", details), 0, choosingSpell ? 0 : 1);
+        Place(details, choosingSpell ? Label(SystemText("ui.buildmagicjunction.label.current.preview.confirm.to.apply", "Current → Preview    Confirm to apply"), 17) : JunctionAbilityPageLink(), 2);
+        Place(body, Panel(SystemText("ui.buildmagicjunction.panel.status", "STATUS"), details), 0, choosingSpell ? 0 : 1);
         return page;
     }
 
@@ -231,14 +231,14 @@ public sealed partial class MenuController
             var details = Grid([1, 1, 1, 1], [1], 0);
             details.Id = "junction-gf-details";
             Place(details, Label(force?.Name ?? "--", 18), 0);
-            Place(details, Label(force is null ? "--" : $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", 18), 1);
-            Place(details, Label("Learning", 18), 2);
+            Place(details, Label(force is null ? "--" : FormatSystemText("ui.junctionselectiondetails.label.lv.hp", "Lv {0}    HP {1} / {2}", Number(force.Level), Number(force.CurrentHp), Number(force.MaximumHp)), 18), 1);
+            Place(details, Label(SystemText("ui.junctionselectiondetails.label.learning", "Learning"), 18), 2);
             UiLabel learning = Label(force?.Learning ?? "--", 18);
             learning.Id = "junction-gf-learning";
             Place(details, learning, 3);
             return details;
         }
-        return Lines([Character?.Name ?? "--", "HP  " + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
+        return Lines([Character?.Name ?? "--", SystemText("ui.junctionselectiondetails.details.hp", "HP  ") + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 18);
     }
 
     private UiElement StatColumn(string[] names)
@@ -274,7 +274,7 @@ public sealed partial class MenuController
         bool targetPage = ScreenId == "item-target";
         var page = Grid([1.2f, 5], [1], 4);
         UiElement strip = rootPage ? NativeCommandStrip() : InventoryNavigation(false);
-        Place(page, NativeMenuHeader("Item", strip), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.builditempage.nativemenuheader.item", "Item"), strip), 0);
         var body = Grid([1], [1, 1], 4);
         Place(page, body, 1);
         UiElement inventory;
@@ -293,13 +293,13 @@ public sealed partial class MenuController
         {
             inventory = InventoryQuantities(inventoryList, Data.Items.Select(value => value.Name).ToList(), Data.Items.Select(value => value.Quantity.ToString()).ToList());
         }
-        Place(body, Panel("ITEM", inventory), 0);
+        Place(body, Panel(SystemText("ui.builditempage.panel.item", "ITEM"), inventory), 0);
         var right = Grid([3, 1], [1], 3);
         Place(body, right, 0, 1);
         UiElement characters = targetPage ? Commands(47, 25) : InventoryParty();
-        Place(right, Panel("NAME                 HP", characters), 0);
+        Place(right, Panel(SystemText("ui.builditempage.panel.name.hp", "NAME                 HP"), characters), 0);
         string[] conditions = targetPage ? Character?.Conditions.ToArray() ?? [] : [];
-        Place(right, Panel("STATUS", Lines(conditions, 22)), 1);
+        Place(right, Panel(SystemText("ui.builditempage.panel.status", "STATUS"), Lines(conditions, 22)), 1);
         return page;
     }
 

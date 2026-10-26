@@ -30,9 +30,9 @@ public sealed partial class MenuController
     private UiElement SecondaryHeader(string title, string info, string help)
     {
         var header = Grid([1, 1.2f], [3.7f, 1.3f], 5);
-        Place(header, Panel("INFO.", Label(info, 24, UiTextFlow.Wrap)), 0);
+        Place(header, Panel(SystemText("ui.secondaryheader.panel.info", "INFO."), Label(info, 24, UiTextFlow.Wrap)), 0);
         Place(header, Panel(null, Label(title, 27, UiTextFlow.Wrap)), 0, 1);
-        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : help, 23, UiTextFlow.Wrap)), 1, 0, 1, 2);
+        Place(header, Panel(SystemText("ui.secondaryheader.panel.help", "HELP"), Label(Message.Length > 0 ? Message : help, 23, UiTextFlow.Wrap)), 1, 0, 1, 2);
         return header;
     }
 
@@ -62,8 +62,8 @@ public sealed partial class MenuController
         var page = Grid(ScreenId == "config-text" ? [1.7f * TextScale, 4, 3] : [1.4f * TextScale, newGame ? 3.5f : 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
         string help = Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help;
-        Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
-        Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : SettingsPlacement.Pages.TryGetValue(ScreenId, out SettingsPage? pageDefinition) ? pageDefinition.Label : "Config", 27, UiTextFlow.Wrap)), 0, 1);
+        Place(header, Panel(SystemText("ui.buildsecondaryconfig.panel.help", "HELP"), new UiLabel { Text = help, FontSize = 18 * TextScale, TextFlow = UiTextFlow.Wrap }), 0);
+        Place(header, Panel(null, Label(ScreenId == "new-game-options" ? SystemText("ui.buildsecondaryconfig.label.new.game", "New Game") : SettingsPlacement.Pages.TryGetValue(ScreenId, out SettingsPage? pageDefinition) ? pageDefinition.Label : SystemText("ui.buildsecondaryconfig.label.config", "Config"), 27, UiTextFlow.Wrap)), 0, 1);
         Place(page, header, 0);
         int count = Math.Min(Math.Max(1, Entries.Count), ConfigRowsPerPage);
         int first = SelectedIndex / count * count;
@@ -81,10 +81,10 @@ public sealed partial class MenuController
         Place(content, rows, 0);
         int pages = Math.Max(1, (Entries.Count + count - 1) / count);
         Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
-        Place(page, Panel(IsFixtureContext && !newGame ? "Preview / Fixture" : null, content), 1);
+        Place(page, Panel(IsFixtureContext && !newGame ? SystemText("ui.buildsecondaryconfig.panel.preview.fixture", "Preview / Fixture") : null, content), 1);
         if (ScreenId == "config-text")
         {
-            Place(page, Panel("Menus / Dialogue preview", BuildFontPreviews()), 2);
+            Place(page, Panel(SystemText("ui.buildsecondaryconfig.panel.menus.dialogue.preview", "Menus / Dialogue preview"), BuildFontPreviews()), 2);
         }
         if (newGame)
         {
@@ -101,11 +101,11 @@ public sealed partial class MenuController
         bool confirmation = ScreenId.EndsWith("-confirm", StringComparison.Ordinal);
         bool loading = ScreenId.StartsWith("load", StringComparison.Ordinal);
         var page = Grid([1.9f * Math.Max(1, TextScale), 6], [1], 5);
-        Place(page, SecondaryHeader(loading ? "Load" : "Save", confirmation ? SaveSlot?.Name ?? "Slot unavailable" : "Select a save block", confirmation ? loading ? "Load the selected slot?" : "Save to the selected slot?" : loading ? "Choose block to load" : "Choose block to save"), 0);
+        Place(page, SecondaryHeader(loading ? SystemText("ui.buildsecondarysave.header.load", "Load") : SystemText("ui.buildsecondarysave.header.save", "Save"), confirmation ? SaveSlot?.Name ?? SystemText("ui.buildsecondarysave.header.slot.unavailable", "Slot unavailable") : SystemText("ui.buildsecondarysave.header.select.a.save.block", "Select a save block"), confirmation ? loading ? SystemText("ui.buildsecondarysave.header.load.the.selected.slot", "Load the selected slot?") : SystemText("ui.buildsecondarysave.header.save.to.the.selected.slot", "Save to the selected slot?") : loading ? SystemText("ui.buildsecondarysave.header.choose.block.to.load", "Choose block to load") : SystemText("ui.buildsecondarysave.header.choose.block.to.save", "Choose block to save")), 0);
         if (confirmation)
         {
             var area = Grid([2, 1, 2], [1, 2, 1], 5);
-            Place(area, Panel(null, Lines([SaveSlot?.Name ?? "Unavailable", SaveSlot?.Summary ?? "Slot metadata unavailable."], 24)), 0, 0, 1, 3);
+            Place(area, Panel(null, Lines([SaveSlot?.Name ?? SystemText("ui.buildsecondarysave.details.unavailable", "Unavailable"), SaveSlot?.Summary ?? SystemText("ui.buildsecondarysave.details.slot.metadata.unavailable", "Slot metadata unavailable.")], 24)), 0, 0, 1, 3);
             Place(area, Panel(null, SecondaryCommands()), 1, 1, 2);
             Place(page, area, 1);
             return page;
@@ -126,7 +126,7 @@ public sealed partial class MenuController
             var content = Grid([0.7f, 1.3f], [1], 2);
             content.Margin = new UiThickness(35, 6, 12, 6);
             Place(content, Label(slot?.Name ?? entry.Label, 23), 0);
-            Place(content, Label(slot?.Summary ?? "Slot metadata unavailable.", 26, UiTextFlow.Wrap), 1);
+            Place(content, Label(slot?.Summary ?? SystemText("ui.buildsecondarysave.label.slot.metadata.unavailable", "Slot metadata unavailable."), 26, UiTextFlow.Wrap), 1);
             card.Children.Add(content);
             Place(cards, card, index - first);
         }
@@ -142,8 +142,8 @@ public sealed partial class MenuController
         }
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f, 0.65f], [3, 1.7f], 5);
-        string help = ScreenId == "shop-buy" ? "Choose an item to purchase." : ScreenId == "shop-sell" ? "Choose an item to sell." : ScreenId == "shop-junk" ? "Select a weapon to remodel." : "Select a shop command.";
-        Place(page, SecondaryHeader("Shop", ScreenId == "shop-buy" ? "Buy" : ScreenId == "shop-sell" ? "Sell" : "Shop", selected?.Description ?? help), 0, 0, 1, 2);
+        string help = ScreenId == "shop-buy" ? SystemText("ui.buildsecondaryshop.help.choose.an.item.to.purchase", "Choose an item to purchase.") : ScreenId == "shop-sell" ? SystemText("ui.buildsecondaryshop.help.choose.an.item.to.sell", "Choose an item to sell.") : ScreenId == "shop-junk" ? SystemText("ui.buildsecondaryshop.help.select.a.weapon.to.remodel", "Select a weapon to remodel.") : SystemText("ui.buildsecondaryshop.help.select.a.shop.command", "Select a shop command.");
+        Place(page, SecondaryHeader(SystemText("ui.buildsecondaryshop.header.shop", "Shop"), ScreenId == "shop-buy" ? SystemText("ui.buildsecondaryshop.header.buy", "Buy") : ScreenId == "shop-sell" ? SystemText("ui.buildsecondaryshop.header.sell", "Sell") : SystemText("ui.buildsecondaryshop.header.shop", "Shop"), selected?.Description ?? help), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         if (ScreenId is "shop-buy" or "shop-sell")
         {
@@ -151,14 +151,14 @@ public sealed partial class MenuController
             commands.SecondaryItems = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList();
             commands.Images = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Icon).ToList();
             commands.AutoSecondaryWidth = true;
-            Place(page, Panel("ITEM", commands), 1);
+            Place(page, Panel(SystemText("ui.buildsecondaryshop.panel.item", "ITEM"), commands), 1);
         }
         else
         {
             Place(page, Panel(null, commands), 1);
         }
-        Place(page, Panel(null, Readouts([selected?.Name ?? "", "Owned", selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
-        Place(page, Panel(null, Label(Number(Data.Currency) + " G", 24)), 2, 1);
+        Place(page, Panel(null, Readouts([selected?.Name ?? "", SystemText("ui.buildsecondaryshop.details.owned", "Owned"), selected?.Quantity.ToString() ?? "--"], 25)), 1, 1);
+        Place(page, Panel(null, Label(Number(Data.Currency) + SystemText("ui.buildsecondaryshop.label.g", " G"), 24)), 2, 1);
         return page;
     }
 
@@ -167,7 +167,7 @@ public sealed partial class MenuController
         MenuItem? selected = Data.Items.FirstOrDefault(item => item.Id == SelectedEntry?.Id);
         MenuCharacter? character = Data.Characters.FirstOrDefault(value => value.InParty);
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f, 0.65f], [3, 2.4f], 5);
-        Place(page, SecondaryHeader("Junk Shop", character?.Name ?? "Select a character", selected?.Description ?? "Select a character or a weapon to remodel."), 0, 0, 1, 2);
+        Place(page, SecondaryHeader(SystemText("ui.buildweaponshop.header.junk.shop", "Junk Shop"), character?.Name ?? SystemText("ui.buildweaponshop.header.select.a.character", "Select a character"), selected?.Description ?? SystemText("ui.buildweaponshop.header.select.a.character.or.a.weapon.to.remodel", "Select a character or a weapon to remodel.")), 0, 0, 1, 2);
         var choices = Grid([2, 3], [1], 5);
         int characterCount = Data.Characters.Count;
         UiList characters = SecondaryCommands(36, 23);
@@ -176,7 +176,7 @@ public sealed partial class MenuController
         characters.EnabledItems = Entries.Take(characterCount).Select(entry => entry.Enabled).ToList();
         characters.SelectedIndex = SelectedIndex < characterCount ? SelectedIndex : Math.Max(0, Data.Characters.FindIndex(value => value.InParty));
         characters.ShowSelection = SelectedIndex < characterCount;
-        Place(choices, Panel("CHARACTER", characters), 0);
+        Place(choices, Panel(SystemText("ui.buildweaponshop.panel.character", "CHARACTER"), characters), 0);
         UiList weapons = SecondaryCommands();
         weapons.Items = Data.Items.Select(item => item.Name).ToList();
         weapons.EnabledItems = Entries.Skip(characterCount).Select(entry => entry.Enabled).ToList();
@@ -186,7 +186,7 @@ public sealed partial class MenuController
         weapons.ShowSelection = SelectedIndex >= characterCount;
         weapons.SelectionChanged = index => Select(index + characterCount, Entries.Count);
         weapons.Confirmed = index => Activate(index + characterCount);
-        Place(choices, Panel("WEAPON", weapons), 1);
+        Place(choices, Panel(SystemText("ui.buildweaponshop.panel.weapon", "WEAPON"), weapons), 1);
         Place(page, choices, 1);
         var materials = new UiList
         {
@@ -202,17 +202,17 @@ public sealed partial class MenuController
         };
         var details = Grid([0.7f, 0.5f, 4], [1], 5);
         Place(details, Label(selected?.Name ?? character?.Name ?? "", 25), 0);
-        Place(details, Label(selected is null ? "Select a weapon to view materials." : "Owned / Required", 19), 1);
+        Place(details, Label(selected is null ? SystemText("ui.buildweaponshop.label.select.a.weapon.to.view.materials", "Select a weapon to view materials.") : SystemText("ui.buildweaponshop.label.owned.required", "Owned / Required"), 19), 1);
         Place(details, materials, 2);
-        Place(page, Panel("MATERIALS", details), 1, 1);
-        Place(page, Panel(null, Label(Number(Data.Currency) + " G", 24)), 2, 1);
+        Place(page, Panel(SystemText("ui.buildweaponshop.panel.materials", "MATERIALS"), details), 1, 1);
+        Place(page, Panel(null, Label(Number(Data.Currency) + SystemText("ui.buildweaponshop.label.g", " G"), 24)), 2, 1);
         return page;
     }
 
     private UiElement BuildSecondaryAbility()
     {
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1.35f, 1], 5);
-        Place(page, SecondaryHeader("Ability", ScreenId == "ability" ? "Select an ability" : RefinementAbility, ScreenId == "ability" ? "Select a menu ability." : SelectedEntry?.Help ?? "Select an item to refine."), 0, 0, 1, 2);
+        Place(page, SecondaryHeader(SystemText("ui.buildsecondaryability.header.ability", "Ability"), ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.an.ability", "Select an ability") : RefinementAbility, ScreenId == "ability" ? SystemText("ui.buildsecondaryability.header.select.a.menu.ability", "Select a menu ability.") : SelectedEntry?.Help ?? SystemText("ui.buildsecondaryability.header.select.an.item.to.refine", "Select an item to refine.")), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         if (ScreenId == "ability-recipes")
         {
@@ -221,7 +221,7 @@ public sealed partial class MenuController
             commands.AutoSecondaryWidth = true;
             commands.SecondaryAlignment = UiAlignment.End;
         }
-        Place(page, Panel(ScreenId == "ability" ? null : "ITEM", commands), 1);
+        Place(page, Panel(ScreenId == "ability" ? null : SystemText("ui.buildsecondaryability.panel.item", "ITEM"), commands), 1);
         string[] details;
         if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {
@@ -244,21 +244,21 @@ public sealed partial class MenuController
         bool controls = ScreenId.StartsWith("config-", StringComparison.Ordinal);
         bool practice = ScreenId is "tutorial-seed" or "seed-test";
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [2, 3], 5);
-        string help = controls ? SelectedEntry?.Help ?? CurrentScreen.Help : practice ? "Practice questions. Results do not change your SeeD rank." : ScreenId == "tutorial" ? SelectedEntry?.Id switch
+        string help = controls ? SelectedEntry?.Help ?? CurrentScreen.Help : practice ? SystemText("ui.buildsecondaryreference.help.practice.questions.results.do.not.change.your.seed", "Practice questions. Results do not change your SeeD rank.") : ScreenId == "tutorial" ? SelectedEntry?.Id switch
         {
-            "tutorial-junction" => "Junction explanation",
-            "tutorial-battle" => "Battle explanation",
-            "tutorial-gf" => "Guardian Force explanation",
-            "tutorial-card" => "Card game rules",
-            "tutorial-menu" => "Menu controls",
-            "tutorial-seed" => "Practice SeeD questions",
-            _ => "Select a heading to search"
+            "tutorial-junction" => SystemText("ui.buildsecondaryreference.help.junction.explanation", "Junction explanation"),
+            "tutorial-battle" => SystemText("ui.buildsecondaryreference.help.battle.explanation", "Battle explanation"),
+            "tutorial-gf" => SystemText("ui.buildsecondaryreference.help.guardian.force.explanation", "Guardian Force explanation"),
+            "tutorial-card" => SystemText("ui.buildsecondaryreference.help.card.game.rules", "Card game rules"),
+            "tutorial-menu" => SystemText("ui.buildsecondaryreference.help.menu.controls", "Menu controls"),
+            "tutorial-seed" => SystemText("ui.buildsecondaryreference.help.practice.seed.questions", "Practice SeeD questions"),
+            _ => SystemText("ui.buildsecondaryreference.help.select.a.heading.to.search", "Select a heading to search")
         } : CurrentScreen.Help;
-        Place(page, SecondaryHeader(controls ? "Config" : "Tutorial", controls ? CurrentScreen.Title : practice ? "Practice test" : "Select a heading to search", help), 0, 0, 1, 2);
+        Place(page, SecondaryHeader(controls ? SystemText("ui.buildsecondaryreference.header.config", "Config") : SystemText("ui.buildsecondaryreference.header.tutorial", "Tutorial"), controls ? CurrentScreen.Title : practice ? SystemText("ui.buildsecondaryreference.header.practice.test", "Practice test") : SystemText("ui.buildsecondaryreference.header.select.a.heading.to.search", "Select a heading to search"), help), 0, 0, 1, 2);
         UiList commands = SecondaryCommands();
         if (ScreenId == "tutorial-seed")
         {
-            commands.Items = ["Start practice test"];
+            commands.Items = [SystemText("ui.buildsecondaryreference.items.start.practice.test", "Start practice test")];
         }
         if (Entries.Count > 0)
         {

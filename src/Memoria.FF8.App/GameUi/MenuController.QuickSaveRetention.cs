@@ -25,9 +25,9 @@ public sealed partial class MenuController
             Help = "Adjust the draft, then choose Save. Cancel leaves your saved limit and files unchanged. Shared across all saves.",
             Entries = c =>
             [
-                new MenuEntry("quick-save-value", $"Quick saves to keep   {c.quickSaveDraft}", "Left and Right adjust the draft. Existing files stay unchanged until Save.", Action: new MenuAction("quick-save-edit-value")),
-                new MenuEntry("save", "Save", "Review and save this limit.", Action: new MenuAction("quick-save-review")),
-                new MenuEntry("cancel", "Cancel", "Discard the draft.", Action: new MenuAction("menu-back"))
+                new MenuEntry("quick-save-value", FormatSystemText("ui.registerquicksaveretentionscreen.entry.label.quick.saves.to.keep", "Quick saves to keep   {0}", c.quickSaveDraft), SystemText("ui.registerquicksaveretentionscreen.entry.help.left.and.right.adjust.the.draft.existing.files", "Left and Right adjust the draft. Existing files stay unchanged until Save."), Action: new MenuAction("quick-save-edit-value")),
+                new MenuEntry("save", SystemText("ui.registerquicksaveretentionscreen.entry.label.save", "Save"), SystemText("ui.registerquicksaveretentionscreen.entry.help.review.and.save.this.limit", "Review and save this limit."), Action: new MenuAction("quick-save-review")),
+                new MenuEntry("cancel", SystemText("ui.registerquicksaveretentionscreen.entry.label.cancel", "Cancel"), SystemText("ui.registerquicksaveretentionscreen.entry.help.discard.the.draft", "Discard the draft."), Action: new MenuAction("menu-back"))
             ],
             BuildContent = (c, root) => root.Children.Add(c.BuildQuickSaveRetentionEditor())
         });
@@ -38,10 +38,10 @@ public sealed partial class MenuController
             Help = "Deletion cannot be undone. Ordinary save slots are preserved.",
             Entries = c =>
             [
-                new MenuEntry("cancel", "Cancel", "Keep the saved limit and every quick save unchanged.", Action: new MenuAction("menu-back")),
-                new MenuEntry("confirm", $"Remove {c.quickSaveRemovalCount} quick saves", "Save the new limit, then remove these older quick saves.", Action: new MenuAction("quick-save-commit"))
+                new MenuEntry("cancel", SystemText("ui.registerquicksaveretentionscreen.entry.label.cancel", "Cancel"), SystemText("ui.registerquicksaveretentionscreen.entry.help.keep.the.saved.limit.and.every.quick.save", "Keep the saved limit and every quick save unchanged."), Action: new MenuAction("menu-back")),
+                new MenuEntry("confirm", FormatSystemText("ui.registerquicksaveretentionscreen.entry.label.remove.quick.saves", "Remove {0} quick saves", c.quickSaveRemovalCount), SystemText("ui.registerquicksaveretentionscreen.entry.help.save.the.new.limit.then.remove.these.older", "Save the new limit, then remove these older quick saves."), Action: new MenuAction("quick-save-commit"))
             ],
-            Details = c => [$"New limit: {c.quickSaveDraft}", $"Older quick saves to remove: {c.quickSaveRemovalCount}", "Your newest quick saves and ordinary save slots are kept."]
+            Details = c => [FormatSystemText("ui.registerquicksaveretentionscreen.details.new.limit", "New limit: {0}", c.quickSaveDraft), FormatSystemText("ui.registerquicksaveretentionscreen.details.older.quick.saves.to.remove", "Older quick saves to remove: {0}", c.quickSaveRemovalCount), SystemText("ui.registerquicksaveretentionscreen.details.your.newest.quick.saves.and.ordinary.save.slots", "Your newest quick saves and ordinary save slots are kept.")]
         });
     }
 
@@ -52,7 +52,7 @@ public sealed partial class MenuController
         var slider = new UiNumericSlider
         {
             Id = "quick-save-value",
-            Text = "Quick saves to keep",
+            Text = SystemText("ui.buildquicksaveretentioneditor.text.quick.saves.to.keep", "Quick saves to keep"),
             Min = 1,
             Max = 999,
             Step = 1,
@@ -129,7 +129,7 @@ public sealed partial class MenuController
                 {
                     Push("quick-save-confirm");
                 }
-                Message = $"This will remove {removalCount} older quick saves.";
+                Message = FormatSystemText("ui.executequicksaveretentionaction.message.this.will.remove.older.quick.saves", "This will remove {0} older quick saves.", removalCount);
                 return true;
             }
             QuickSaveCleanupResult result;

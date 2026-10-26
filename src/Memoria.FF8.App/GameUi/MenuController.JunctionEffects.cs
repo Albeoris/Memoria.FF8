@@ -16,7 +16,7 @@ public sealed partial class MenuController
         body.Id = "junction-effects";
         var identity = Grid([1], [0.7f, 1.3f], 8);
         Place(identity, Portrait(Character), 0);
-        Place(identity, Lines([Character?.Name ?? "--", $"Lv  {Number(Character?.Level)}", "HP  " + (Character is null ? "--" : Hp(Character))], 23), 0, 1);
+        Place(identity, Lines([Character?.Name ?? "--", FormatSystemText("ui.buildeffectjunction.details.lv", "Lv  {0}", Number(Character?.Level)), SystemText("ui.buildeffectjunction.details.hp", "HP  ") + (Character is null ? "--" : Hp(Character))], 23), 0, 1);
         Place(body, EffectPanel(null, identity), 0);
         Place(body, EffectPanel("MAGIC STOCK", choosingSpell ? Commands(27, 20) : MagicStockPreview(Character)), 0, 1);
 
@@ -55,7 +55,7 @@ public sealed partial class MenuController
         string[] names = elemental ? ["Fire", "Ice", "Thunder", "Earth", "Poison", "Wind", "Water", "Holy"] : ["Death", "Poison", "Petrify", "Darkness", "Silence", "Berserk", "Zombie", "Sleep", "Slow", "Stop", "Curse", "Confuse", "Drain"];
         int rowCount = (names.Length + 1) / 2;
         var percentages = Grid([0.65f, rowCount], [1], 4);
-        Place(percentages, Label(elemental ? "Attack / Defense    >100% defense: absorb" : "Attack / Defense    Current → Preview", 16), 0);
+        Place(percentages, Label(elemental ? SystemText("ui.buildeffectjunction.label.attack.defense.100.defense.absorb", "Attack / Defense    >100% defense: absorb") : SystemText("ui.buildeffectjunction.label.attack.defense.current.preview", "Attack / Defense    Current → Preview"), 16), 0);
         var columns = Grid([1], [1, 1], 12);
         for (int column = 0; column < 2; column++)
         {
@@ -103,7 +103,7 @@ public sealed partial class MenuController
         UiPanel EffectPanel(string? caption, UiElement content) => vector ? VectorPanel(caption, content, 10) : Panel(caption, content);
     }
 
-    private UiElement JunctionAbilityPageLink() => new UiButton { Text = "‹ EL-A/D", FontSize = 17 * TextScale, DrawBackground = false, PointerSize = 0, Click = () => Navigate(MenuInput.Left) };
+    private UiElement JunctionAbilityPageLink() => new UiButton { Text = SystemText("ui.junctionabilitypagelink.text.el.a.d", "‹ EL-A/D"), FontSize = 17 * TextScale, DrawBackground = false, PointerSize = 0, Click = () => Navigate(MenuInput.Left) };
 
     private UiElement JunctionPageLinks(bool elemental)
     {

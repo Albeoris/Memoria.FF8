@@ -55,47 +55,69 @@ internal static class LocalizationFieldPreparation
             throw new InvalidDataException($"{record.Key}: field window size must be positive.");
         }
         string body = target[tagLength..];
-        int authoredLineCount = body.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Count(character => character == '\n') + 1 + System.Text.RegularExpressions.Regex.Matches(body, "\\{(?:Line|Page|Next)\\}").Count;
+        int authoredLineCount = LocalizationCatalog.CountAuthoredLines(body);
         if (presentation?.Choices is { } range && range.LastLine >= authoredLineCount)
         {
             throw new InvalidDataException($"{record.Key}: translated choice lines exceed the authored body.");
         }
         List<LocalizationCallBinding> bindings = [];
+        ImmutableArray<LocalizationChoiceLineMapEntry> choiceLineMap = [];
+        if (metadata.TryGetProperty("Choice Line Map", out JsonElement lineMap))
+        {
+            if (lineMap.ValueKind != JsonValueKind.String)
+            {
+                throw new InvalidDataException($"{record.Key}: choice line map requires its declared typed JSON representation.");
+            }
+            choiceLineMap = JsonSerializer.Deserialize<ImmutableArray<LocalizationChoiceLineMapEntry>>(lineMap.GetString()!);
+            if (choiceLineMap.IsDefault || choiceLineMap.Any(entry => entry is null || entry.SourceLine < 0 || entry.TargetLine < 0) || choiceLineMap.Select(entry => entry.SourceLine).Distinct().Count() != choiceLineMap.Length)
+            {
+                throw new InvalidDataException($"{record.Key}: choice line map contains missing, negative or duplicate source lines.");
+            }
+        }
         foreach (FieldCompatibilityContext call in calls.Where(call => call.IsMessage))
         {
             if (call.Row is not null)
             {
                 LocalizationTextValidation.Validate(record with { Source = call.Row.Text, SourcePresent = true });
             }
-            if (call.Dynamic && (presentation?.Position is not null || presentation?.Size is not null || presentation?.Choices is not null))
+            if (call.Dynamic && presentation?.Choices is not null)
             {
-                throw new InvalidDataException($"{record.Key}: dynamic field presentation operands must remain native.");
+                throw new InvalidDataException($"{record.Key}: dynamic choices require a choice line map instead of literal F/L/B/C.");
             }
             bool choice = call.Opcode is "ASK" or "AASK";
             int? Operand(int index) => index < call.Operands.Length ? call.Operands[index] : null;
             if (choice)
             {
-                if (call.Dynamic || Operand(2) is not int first || Operand(3) is not int last)
+                if (!call.Dynamic && (Operand(2) is null || Operand(3) is null))
                 {
-                    throw new InvalidDataException($"{record.Key}: dynamic choice presentation has no supported translation binding.");
+                    throw new InvalidDataException($"{record.Key}: static choice binding lacks its proven operands.");
                 }
-                if (presentation?.Choices is not { } translated || translated.FirstLine < 0 || translated.LastLine < translated.FirstLine || (long)translated.LastLine - translated.FirstLine != (long)last - first || translated.BeginLine < translated.FirstLine || translated.BeginLine > translated.LastLine)
+                if (!call.Dynamic)
                 {
-                    throw new InvalidDataException($"{record.Key}: translated choice must preserve native option count and explicit F/L/B/C.");
-                }
-                int? begin = Operand(4);
-                int? cancel = Operand(5);
-                if (begin is null || cancel is null || translated.BeginLine - translated.FirstLine != begin - first || (cancel < first || cancel > last ? translated.CancelLine != cancel : translated.CancelLine - translated.FirstLine != cancel - first))
-                {
-                    throw new InvalidDataException($"{record.Key}: initial/cancel semantic option identity changed.");
+                    int first = Operand(2)!.Value;
+                    int last = Operand(3)!.Value;
+                    if (presentation?.Choices is not { } translated || translated.FirstLine < 0 || translated.LastLine < translated.FirstLine || (long)translated.LastLine - translated.FirstLine != (long)last - first || translated.BeginLine < translated.FirstLine || translated.BeginLine > translated.LastLine)
+                    {
+                        throw new InvalidDataException($"{record.Key}: translated choice must preserve native option count and explicit F/L/B/C.");
+                    }
+                    int? begin = Operand(4);
+                    int? cancel = Operand(5);
+                    if (begin is null || cancel is null || translated.BeginLine - translated.FirstLine != begin - first || (cancel < first || cancel > last ? translated.CancelLine != cancel : translated.CancelLine - translated.FirstLine != cancel - first))
+                    {
+                        throw new InvalidDataException($"{record.Key}: initial/cancel semantic option identity changed.");
+                    }
                 }
             }
-            bindings.Add(new(call.Position.OperationIndex, call.MessageId, call.Dynamic, choice ? Operand(2) : null, choice ? Operand(3) : null, choice ? Operand(4) : null, choice ? Operand(5) : null));
+            bindings.Add(new(call.Position.OperationIndex, call.MessageId, call.Dynamic, choice ? Operand(2) : null, choice ? Operand(3) : null, choice ? Operand(4) : null, choice ? Operand(5) : null) { IsChoice = choice });
         }
         if (presentation?.Choices is not null && !bindings.Any(binding => binding.FirstChoice is not null))
         {
             throw new InvalidDataException($"{record.Key}: choice metadata has no original choice call.");
         }
-        return new(target[tagLength..], scriptHash, presentation?.Position?.X, presentation?.Position?.Y, presentation?.Size?.Width, presentation?.Size?.Height, presentation?.Choices?.FirstLine, presentation?.Choices?.LastLine, presentation?.Choices?.BeginLine, presentation?.Choices?.CancelLine, bindings.ToImmutableArray()) { BaseKey = expectedBaseKey };
+        if (!choiceLineMap.IsEmpty && !bindings.Any(binding => binding.Dynamic && binding.IsChoice))
+        {
+            throw new InvalidDataException($"{record.Key}: choice line map has no original dynamic choice call.");
+        }
+        return new(target[tagLength..], scriptHash, presentation?.Position?.X, presentation?.Position?.Y, presentation?.Size?.Width, presentation?.Size?.Height, presentation?.Choices?.FirstLine, presentation?.Choices?.LastLine, presentation?.Choices?.BeginLine, presentation?.Choices?.CancelLine, bindings.ToImmutableArray()) { BaseKey = expectedBaseKey, ChoiceLineMap = choiceLineMap };
     }
 }

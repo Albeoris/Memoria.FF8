@@ -28,7 +28,7 @@ public sealed partial class MenuController
     internal bool IsGuardianSearchEditing => IsGuardianAbilityEditor && guardianSearchEditing;
     internal bool IsGuardianAbilityWorkspace => IsGuardianAbilityEditor || ScreenId.StartsWith("mods-gf-", StringComparison.Ordinal) || ScreenId.StartsWith("gf-ability-", StringComparison.Ordinal);
 
-    private string GuardianTargetTitle() => guardianLocal ? "This playthrough · Local changes" : guardianPackage is null ? "New mod · Untitled mod" : "Editing mod · " + Path.GetFileName(guardianPackage.PackageDirectory);
+    private string GuardianTargetTitle() => guardianLocal ? SystemText("ui.guardiantargettitle.details.this.playthrough.local.changes", "This playthrough · Local changes") : guardianPackage is null ? SystemText("ui.guardiantargettitle.details.new.mod.untitled.mod", "New mod · Untitled mod") : SystemText("ui.guardiantargettitle.details.editing.mod", "Editing mod · ") + Path.GetFileName(guardianPackage.PackageDirectory);
     private bool GuardianCatalogCanAdd => !guardianPreview && GuardianCatalog().ElementAtOrDefault(guardianCatalogCursor) is > 0 and var ability && !guardianDraft!.Preview.Templates[guardianSubject].Any(row => row.Ability == ability);
     private bool GuardianCanCommitOperation => !guardianPreview && GuardianSelectedRow is { } row && (guardianPending == "swap" ? row.Ability != guardianPendingAbility : guardianPending == "replace" && !guardianDraft!.Preview.Templates[guardianSubject].Any(entry => entry.Ability == guardianPendingAbility));
 
@@ -39,7 +39,7 @@ public sealed partial class MenuController
             Id = "mods-gf-placement-review",
             Title = "GF Abilities · Package order review",
             Help = "The chosen package position changes the editable input. No file has been written.",
-            Entries = _ => [new("accept", "Use reviewed package position", "Recompute the editable draft at this position. Review it, then Save mod again.", Action: new("gf-editor-placement-accept")), new("cancel", "Cancel", "Keep the current authoring input.", Action: new("menu-back"))],
+            Entries = _ => [new("accept", SystemText("ui.registerguardianeditorpages.entry.label.use.reviewed.package.position", "Use reviewed package position"), SystemText("ui.registerguardianeditorpages.entry.help.recompute.the.editable.draft.at.this.position.review", "Recompute the editable draft at this position. Review it, then Save mod again."), Action: new("gf-editor-placement-accept")), new("cancel", SystemText("ui.registerguardianeditorpages.entry.label.cancel", "Cancel"), SystemText("ui.registerguardianeditorpages.entry.help.keep.the.current.authoring.input", "Keep the current authoring input."), Action: new("menu-back"))],
             Details = _ => guardianPlacementChanges
         });
         Register(new()
@@ -47,7 +47,7 @@ public sealed partial class MenuController
             Id = "mods-gf-restore-review",
             Title = "GF Abilities · Restore inherited value",
             Help = "Review the contribution and dependent changes before restoring inherited fields.",
-            Entries = _ => [new("accept", "Restore reviewed contribution", "Author the reviewed restore as a new draft command.", Action: new("gf-editor-restore-accept")), new("cancel", "Cancel", "Keep the draft.", Action: new("menu-back"))],
+            Entries = _ => [new("accept", SystemText("ui.registerguardianeditorpages.entry.label.restore.reviewed.contribution", "Restore reviewed contribution"), SystemText("ui.registerguardianeditorpages.entry.help.author.the.reviewed.restore.as.a.new.draft", "Author the reviewed restore as a new draft command."), Action: new("gf-editor-restore-accept")), new("cancel", SystemText("ui.registerguardianeditorpages.entry.label.cancel", "Cancel"), SystemText("ui.registerguardianeditorpages.entry.help.keep.the.draft", "Keep the draft."), Action: new("menu-back"))],
             Details = _ => guardianDraft!.RestoreInheritedReview(guardianSubject, guardianRestoreAbility, guardianAbilityName!)
         });
         Register(new()
@@ -55,7 +55,7 @@ public sealed partial class MenuController
             Id = "mods-gf-undo-review",
             Title = "GF Abilities · Undo review",
             Help = "Undo also removes later dependent edits. Unrelated edits remain.",
-            Entries = _ => [new("accept", "Undo reviewed group", "Remove the listed dependent edits together.", Action: new("gf-editor-undo-accept")), new("cancel", "Cancel", "Keep the draft.", Action: new("menu-back"))],
+            Entries = _ => [new("accept", SystemText("ui.registerguardianeditorpages.entry.label.undo.reviewed.group", "Undo reviewed group"), SystemText("ui.registerguardianeditorpages.entry.help.remove.the.listed.dependent.edits.together", "Remove the listed dependent edits together."), Action: new("gf-editor-undo-accept")), new("cancel", SystemText("ui.registerguardianeditorpages.entry.label.cancel", "Cancel"), SystemText("ui.registerguardianeditorpages.entry.help.keep.the.draft", "Keep the draft."), Action: new("menu-back"))],
             Details = _ => guardianDraft!.UndoReview(guardianSubject, guardianUndoAbility, guardianAbilityName!)
         });
         Register(new()
@@ -63,7 +63,7 @@ public sealed partial class MenuController
             Id = "mods-gf-packages",
             Title = "GF Abilities · Edit existing mod",
             Help = "Compatible GF packages can be edited while disabled.",
-            Entries = _ => modService?.InstalledPackages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Select(package => new MenuEntry(package.Id, package.Name + " · " + package.Status, "Edit this package's GF contribution. Save offers a copy when needed.", Action: new("gf-editor-target", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition)).ToArray() ?? []
+            Entries = _ => modService?.InstalledPackages.Where(package => package.Format == ModFormat.Memoria && File.Exists(Path.Combine(package.RootDirectory, GuardianForceAbilityMods.PayloadPath))).Select(package => new MenuEntry(package.Id, package.Name + " · " + package.Status, SystemText("ui.registerguardianeditorpages.entry.help.edit.this.package.s.gf.contribution.save.offers", "Edit this package's GF contribution. Save offers a copy when needed."), Action: new("gf-editor-target", package.Id), Enabled: package.Status != ModEffectiveStatus.IncompatibleEdition)).ToArray() ?? []
         });
         Register(new()
         {
@@ -77,7 +77,7 @@ public sealed partial class MenuController
             Id = "mods-gf-details",
             Title = "GF Abilities · Details",
             Help = "Inspect the selected entry without changing it.",
-            Entries = _ => [new("back", "Back", "Return to the editor.", Action: new("menu-back"))],
+            Entries = _ => [new("back", SystemText("ui.registerguardianeditorpages.entry.label.back", "Back"), SystemText("ui.registerguardianeditorpages.entry.help.return.to.the.editor", "Return to the editor."), Action: new("menu-back"))],
             Details = _ => GuardianDetailLines()
         });
         Register(new()
@@ -85,15 +85,15 @@ public sealed partial class MenuController
             Id = "mods-gf-controls",
             Title = "GF Abilities · Controls",
             Help = "Bindings follow the active input device and configured profile.",
-            Entries = _ => [new("back", "Back", "Return to the editor.", Action: new("menu-back"))],
-            Details = _ => ["Up / Down: previous / next ability", "Left / Right or Page Up / Down: full page", guardianBinding!(ControlAction.CameraLeft) + " / " + guardianBinding!(ControlAction.CameraRight) + ": catalog / GF focus", guardianBinding!(ControlAction.RotateLeft) + " / " + guardianBinding!(ControlAction.RotateRight) + ": previous / next GF", guardianBinding!(ControlAction.GuardianSwitchColumn) + ": switch column", guardianBinding!(ControlAction.Card) + ": toggle Start learned", guardianBinding!(ControlAction.Menu) + ": Actions", "Tab / Shift+Tab: next / previous control", "Click a row to select. Use named actions or checkboxes to edit."]
+            Entries = _ => [new("back", SystemText("ui.registerguardianeditorpages.entry.label.back", "Back"), SystemText("ui.registerguardianeditorpages.entry.help.return.to.the.editor", "Return to the editor."), Action: new("menu-back"))],
+            Details = _ => [SystemText("ui.registerguardianeditorpages.details.up.down.previous.next.ability", "Up / Down: previous / next ability"), SystemText("ui.registerguardianeditorpages.details.left.right.or.page.up.down.full.page", "Left / Right or Page Up / Down: full page"), guardianBinding!(ControlAction.CameraLeft) + " / " + guardianBinding!(ControlAction.CameraRight) + SystemText("ui.registerguardianeditorpages.details.catalog.gf.focus", ": catalog / GF focus"), guardianBinding!(ControlAction.RotateLeft) + " / " + guardianBinding!(ControlAction.RotateRight) + SystemText("ui.registerguardianeditorpages.details.previous.next.gf", ": previous / next GF"), guardianBinding!(ControlAction.GuardianSwitchColumn) + SystemText("ui.registerguardianeditorpages.details.switch.column", ": switch column"), guardianBinding!(ControlAction.Card) + SystemText("ui.registerguardianeditorpages.details.toggle.start.learned", ": toggle Start learned"), guardianBinding!(ControlAction.Menu) + SystemText("ui.registerguardianeditorpages.details.actions", ": Actions"), SystemText("ui.registerguardianeditorpages.details.tab.shift.tab.next.previous.control", "Tab / Shift+Tab: next / previous control"), SystemText("ui.registerguardianeditorpages.details.click.a.row.to.select.use.named.actions", "Click a row to select. Use named actions or checkboxes to edit.")]
         });
         Register(new()
         {
             Id = "mods-gf-select",
             Title = "GF Abilities · Guardian Force",
             Help = "Changing GF keeps draft edits to every GF.",
-            Entries = _ => Enumerable.Range(0, 16).Select(id => new MenuEntry("gf-" + id, guardianEditorName!(id), "Select this GF.", Action: new("gf-editor-command", "subject:" + id))).ToArray()
+            Entries = _ => Enumerable.Range(0, 16).Select(id => new MenuEntry("gf-" + id, guardianEditorName!(id), SystemText("ui.registerguardianeditorpages.entry.help.select.this.gf", "Select this GF."), Action: new("gf-editor-command", "subject:" + id))).ToArray()
         });
     }
 
@@ -241,17 +241,17 @@ public sealed partial class MenuController
     {
         if (guardianModDetails)
         {
-            return [GuardianTargetTitle(), guardianPackage?.PackageDirectory ?? "No package destination selected.", "Document: " + guardianDraft!.ExportDocument.DocumentId, guardianPackage is null && !guardianLocal ? "Provisional position: after native GF layers, before playthrough local changes. Save determines the final package order." : "The selected layer is composed over its preceding input.", "Saving, runtime activation and normal game saving have separate states."];
+            return [GuardianTargetTitle(), guardianPackage?.PackageDirectory ?? SystemText("ui.guardiandetaillines.details.no.package.destination.selected", "No package destination selected."), SystemText("ui.guardiandetaillines.details.document", "Document: ") + guardianDraft!.ExportDocument.DocumentId, guardianPackage is null && !guardianLocal ? SystemText("ui.guardiandetaillines.details.provisional.position.after.native.gf.layers.before.playthrough", "Provisional position: after native GF layers, before playthrough local changes. Save determines the final package order.") : SystemText("ui.guardiandetaillines.details.the.selected.layer.is.composed.over.its.preceding", "The selected layer is composed over its preceding input."), SystemText("ui.guardiandetaillines.details.saving.runtime.activation.and.normal.game.saving.have", "Saving, runtime activation and normal game saving have separate states.")];
         }
         int ability = guardianPane == 0 ? GuardianCatalog().ElementAtOrDefault(guardianCatalogCursor) : GuardianSelectedRow?.Ability ?? 0;
         GuardianForceAbilityComposition composition = GuardianEditorComposition();
         GuardianForceAbilityTemplate? row = composition.Templates[guardianSubject].FirstOrDefault(entry => entry.Ability == ability);
         NativeGuardianForceAbility? current = readGuardianEditor!().Current?.GuardianForceAbilities(guardianSubject).FirstOrDefault(entry => entry.Ability == ability);
-        List<string> lines = [guardianAbilityName!(ability), guardianAbilityDescription!(ability), "Catalog cost: " + readGuardianEditor!().Source.MenuDefinitions.AbilityPoints[ability] + " AP", "Start learned affects the template; current progress is preserved unless explicitly applied.", current is null ? "No current progress / not acquired." : current.Learned ? "Current save: learned" : $"Current save: {current.Progress} / {current.RequiredPoints} AP"];
+        List<string> lines = [guardianAbilityName!(ability), guardianAbilityDescription!(ability), SystemText("ui.guardiandetaillines.lines.catalog.cost", "Catalog cost: ") + readGuardianEditor!().Source.MenuDefinitions.AbilityPoints[ability] + SystemText("ui.guardiandetaillines.lines.ap", " AP"), SystemText("ui.guardiandetaillines.lines.start.learned.affects.the.template.current.progress.is", "Start learned affects the template; current progress is preserved unless explicitly applied."), current is null ? SystemText("ui.guardiandetaillines.lines.no.current.progress.not.acquired", "No current progress / not acquired.") : current.Learned ? SystemText("ui.guardiandetaillines.lines.current.save.learned", "Current save: learned") : FormatSystemText("ui.guardiandetaillines.lines.current.save.ap", "Current save: {0} / {1} AP", current.Progress, current.RequiredPoints)];
         if (row is not null)
         {
-            lines.Add(row.PrerequisiteAbility is int prerequisite ? "Requires " + guardianAbilityName!(prerequisite) : "Required GF level: " + row.RequiredLevel);
-            lines.Add(row.SupportedCondition ? "Availability condition supported." : "Unsupported source condition; see diagnostics.");
+            lines.Add(row.PrerequisiteAbility is int prerequisite ? SystemText("ui.guardiandetaillines.details.requires", "Requires ") + guardianAbilityName!(prerequisite) : SystemText("ui.guardiandetaillines.details.required.gf.level", "Required GF level: ") + row.RequiredLevel);
+            lines.Add(row.SupportedCondition ? SystemText("ui.guardiandetaillines.details.availability.condition.supported", "Availability condition supported.") : SystemText("ui.guardiandetaillines.details.unsupported.source.condition.see.diagnostics", "Unsupported source condition; see diagnostics."));
         }
         lines.AddRange(composition.Origins.Where(origin => origin.GuardianForce == guardianSubject && origin.Ability == ability).Select(origin => origin.PackageId + " · " + origin.Aspect));
         lines.AddRange(composition.Outcomes.Where(outcome => outcome.GuardianForce == guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.Message));
@@ -285,17 +285,17 @@ public sealed partial class MenuController
     {
         if (guardianPreviewMode == 0)
         {
-            return readGuardianEditor!().Current?.GuardianForceOpaqueBaseline == true ? "Opaque external baseline; prior attribution is baked into source." : "Loaded source before managed authored layers.";
+            return readGuardianEditor!().Current?.GuardianForceOpaqueBaseline == true ? SystemText("ui.guardianpreviewstatus.details.opaque.external.baseline.prior.attribution.is.baked.into", "Opaque external baseline; prior attribution is baked into source.") : SystemText("ui.guardianpreviewstatus.details.loaded.source.before.managed.authored.layers", "Loaded source before managed authored layers.");
         }
         if (guardianPreviewMode == 2 && GuardianInstalledPackage is null && !guardianLocal)
         {
-            return "Simulated candidate · Provisional position: after native layers, before local changes.";
+            return SystemText("ui.guardianpreviewstatus.details.simulated.candidate.provisional.position.after.native.layers.before", "Simulated candidate · Provisional position: after native layers, before local changes.");
         }
         if (guardianPreviewMode == 2 && !guardianWithoutLayer && guardianPackage is not null && !readGuardianEditor!().Layers.Any(layer => layer.Document.DocumentId == guardianDraft!.ExportDocument.DocumentId))
         {
-            return "Preview as enabled · Package activation is unchanged.";
+            return SystemText("ui.guardianpreviewstatus.details.preview.as.enabled.package.activation.is.unchanged", "Preview as enabled · Package activation is unchanged.");
         }
-        return "Read-only comparison · Current progress is preserved.";
+        return SystemText("ui.guardianpreviewstatus.details.read.only.comparison.current.progress.is.preserved", "Read-only comparison · Current progress is preserved.");
     }
 
     private void GuardianFocus(string id)
@@ -383,7 +383,7 @@ public sealed partial class MenuController
     {
         if (guardianPreview || guardianPending is not null)
         {
-            Message = guardianPreview ? "Preview is read-only." : "Finish or cancel the pending operation first.";
+            Message = guardianPreview ? SystemText("ui.guardiantogglerow.message.preview.is.read.only", "Preview is read-only.") : SystemText("ui.guardiantogglerow.message.finish.or.cancel.the.pending.operation.first", "Finish or cancel the pending operation first.");
             return;
         }
         GuardianSelectRow(index);
@@ -397,7 +397,7 @@ public sealed partial class MenuController
     {
         if (!GuardianCanCommitOperation || GuardianSelectedRow is not { } row)
         {
-            Message = guardianPending == "swap" ? "Choose a different ability." : "The incoming ability must not already be in this GF.";
+            Message = guardianPending == "swap" ? SystemText("ui.guardianconfirmoperation.message.choose.a.different.ability", "Choose a different ability.") : SystemText("ui.guardianconfirmoperation.message.the.incoming.ability.must.not.already.be.in", "The incoming ability must not already be in this GF.");
             return;
         }
         int follow = guardianPendingAbility;

@@ -41,7 +41,7 @@ public sealed partial class MenuController
     {
         if (ScreenId == "config")
         {
-            return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
+            return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, SystemText("config." + category.Id, category.Label), SystemText("config." + category.Id + ".help", category.Help), category.Id == "mods" ? "mods" : "config-" + category.Id, Enabled: category.Id != "mods" || _screens.ContainsKey("mods"))).ToArray();
         }
         bool newGame = ScreenId == "new-game-options";
         string[] ids = newGame ? NewGameSettings.Ids : SettingsPlacement.Pages[ScreenId].Items;
@@ -50,13 +50,13 @@ public sealed partial class MenuController
         {
             if (SettingsPlacement.Pages.TryGetValue(id, out var child))
             {
-                entries.Add(new MenuEntry(id, child.Label + "…", child.Help, id));
+                entries.Add(new MenuEntry(id, SystemText("screen." + id + ".title", child.Label) + "…", SystemText("screen." + id + ".help", child.Help), id));
                 continue;
             }
             if (id is "config-keyboard" or "config-controller" or "config-controller-settings")
             {
-                string label = id == "config-keyboard" ? "Keyboard bindings" : id == "config-controller" ? "Controller bindings" : "Controller settings";
-                entries.Add(new MenuEntry(id, label + "…", "Player controls shared across saves for this user.", id));
+                string label = id == "config-keyboard" ? SystemText("ui.configentries.label.keyboard.bindings", "Keyboard bindings") : id == "config-controller" ? SystemText("ui.configentries.label.controller.bindings", "Controller bindings") : SystemText("ui.configentries.label.controller.settings", "Controller settings");
+                entries.Add(new MenuEntry(id, label + "…", SystemText("ui.configentries.entry.help.player.controls.shared.across.saves.for.this.user", "Player controls shared across saves for this user."), id));
                 continue;
             }
             MenuSetting setting = MenuSettings.Definitions.Single(setting => setting.Id == id);
@@ -69,21 +69,21 @@ public sealed partial class MenuController
             string? unavailableReason = setting.Id switch
             {
                 "Chocobo World" => Data.ChocoboWorldUnavailableReason,
-                "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? "GF Transformations is unavailable until the battle ends." : "GF Transformations is unavailable until the active or pending battle ends.",
-                "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => "Limit once per turn is unavailable until the active or pending battle ends.",
-                "Selphie card Slots" when Data.SelphieCardSlotsPreferenceLocked => "Selphie card Slots is unavailable until the active or pending battle ends.",
-                "Draw once per spell" when Data.DrawOncePerSpellPreferenceLocked => "Draw once per spell is unavailable until the active or pending battle ends.",
+                "GF Transformations" when Data.GuardianFormsPreferenceLocked => newGame ? SystemText("ui.configentries.unavailablereason.gf.transformations.is.unavailable.until.the.battle.ends", "GF Transformations is unavailable until the battle ends.") : SystemText("ui.configentries.unavailablereason.gf.transformations.is.unavailable.until.the.active.or", "GF Transformations is unavailable until the active or pending battle ends."),
+                "Limit once per turn" when Data.LimitOncePerTurnPreferenceLocked => SystemText("ui.configentries.unavailablereason.limit.once.per.turn.is.unavailable.until.the", "Limit once per turn is unavailable until the active or pending battle ends."),
+                "Selphie card Slots" when Data.SelphieCardSlotsPreferenceLocked => SystemText("ui.configentries.unavailablereason.selphie.card.slots.is.unavailable.until.the.active", "Selphie card Slots is unavailable until the active or pending battle ends."),
+                "Draw once per spell" when Data.DrawOncePerSpellPreferenceLocked => SystemText("ui.configentries.unavailablereason.draw.once.per.spell.is.unavailable.until.the", "Draw once per spell is unavailable until the active or pending battle ends."),
                 "Shared magic stock" or "Infinite magic" or "Smart Attack" => Data.MagicPreferencesUnavailableReason,
                 _ => null
             };
             if (NewGameSettings.IsLocked(setting.Id, Enum.Parse<Memoria.FF8.Runtime.BattleDifficulty>(ConfigValue("Difficulty"))))
             {
-                unavailableReason = "Hardcore is permanent and requires every optional gameplay rule to stay On.";
+                unavailableReason = SystemText("ui.configentries.unavailablereason.hardcore.is.permanent.and.requires.every.optional.gameplay", "Hardcore is permanent and requires every optional gameplay rule to stay On.");
             }
             bool enabled = unavailableReason is null;
-            string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + setting.Description : setting.Description);
+            string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + LocalizeSettingHelp(setting.Id, setting.Description) : LocalizeSettingHelp(setting.Id, setting.Description));
             MenuAction action = setting.Id == "Quick saves" && !newGame ? new("quick-save-open") : setting.Id is "UI font" or "Dialogue font" ? new("font-picker-open", setting.Id) : new("config", setting.Id, Value: setting.Values[next]);
-            entries.Add(new MenuEntry(setting.Id, newGame ? MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
+            entries.Add(new MenuEntry(setting.Id, newGame ? LocalizeSettingLabel(setting.Id, MagicUiText.SettingLabel(setting.Id)) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
         }
         if (ScreenId == "config-chocobo")
         {
@@ -91,7 +91,7 @@ public sealed partial class MenuController
         }
         if (newGame)
         {
-            entries.Add(new MenuEntry("begin", "Begin", MagicUiText.Get("SettingBeginHelp"), Action: new MenuAction("new-game-start")));
+            entries.Add(new MenuEntry("begin", SystemText("ui.configentries.entry.label.begin", "Begin"), MagicText("SettingBeginHelp"), Action: new MenuAction("new-game-start")));
         }
         return entries;
     }
@@ -165,7 +165,7 @@ public sealed partial class MenuController
         {
             row = new UiNumericSlider
             {
-                Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id),
+                Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? SystemText("ui.buildconfigrow.text.atb.mode", "ATB mode") : LocalizeSettingLabel(setting.Id, MagicUiText.SettingLabel(setting.Id)) : ConfigLabel(setting.Id),
                 Max = numbers[^1],
                 Min = numbers[0],
                 Step = setting.Id is "Music volume" or "Effect volume" or "Voice volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
@@ -185,8 +185,8 @@ public sealed partial class MenuController
         {
             row = new UiChoiceRow
             {
-                Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? "ATB mode" : MagicUiText.SettingLabel(setting.Id) : ConfigLabel(setting.Id),
-                Items = setting.Values,
+                Text = ScreenId == "new-game-options" ? setting.Id == "Battle ATB mode" ? SystemText("ui.buildconfigrow.text.atb.mode", "ATB mode") : LocalizeSettingLabel(setting.Id, MagicUiText.SettingLabel(setting.Id)) : ConfigLabel(setting.Id),
+                Items = Enumerable.Range(0, setting.Values.Length).Select(index => LocalizeSettingValue(setting, index)).ToArray(),
                 ReadOnly = !entry.Enabled,
                 OptionGap = 12 * TextScale,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),

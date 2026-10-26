@@ -70,7 +70,7 @@ public sealed partial class MenuController
         var pages = Item?.NativeMagazinePages ?? [];
         if (pages.Length == 0)
         {
-            return "Magazine page metadata is unavailable.";
+            return SystemText("ui.magazinepagereason.details.magazine.page.metadata.is.unavailable", "Magazine page metadata is unavailable.");
         }
         int selected = (index % pages.Length + pages.Length) % pages.Length;
         return Item!.NativeMagazinePageUnavailableReasons.GetValueOrDefault(pages[selected].PageId);

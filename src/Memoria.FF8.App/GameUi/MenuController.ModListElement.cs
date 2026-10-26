@@ -184,7 +184,7 @@ public sealed partial class MenuController
             controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected)?.CanToggle == true;
             if (packages.ElementAtOrDefault(selected) is { } package)
             {
-                ((UiButton)controls["mod-selected-toggle"]).Text = package.Package.RequestedEnabled ? "Disable" : "Enable";
+                ((UiButton)controls["mod-selected-toggle"]).Text = package.Package.RequestedEnabled ? menus.SystemText("ui.arrange.text.disable", "Disable") : menus.SystemText("ui.arrange.text.enable", "Enable");
             }
             float actionWidth = Math.Min(130 * unit, inspector.Width);
             Place("mod-selected-toggle", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
@@ -194,7 +194,7 @@ public sealed partial class MenuController
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
             canvas.Fill(Bounds, new UiColor(21, 31, 46));
-            canvas.Text("Mods", 25 * unit, new UiRect(Bounds.X + 14, Bounds.Y + 10, Math.Max(0, Bounds.Width - 240 * unit), 36 * unit), theme.Foreground);
+            canvas.Text(menus.SystemText("ui.drawself.canvas.mods", "Mods"), 25 * unit, new UiRect(Bounds.X + 14, Bounds.Y + 10, Math.Max(0, Bounds.Width - 240 * unit), 36 * unit), theme.Foreground);
             UiRect tab = controls["installed-tab"].Bounds;
             canvas.Fill(new UiRect(tab.X, tab.Bottom - 3, tab.Width, 3), theme.Foreground);
             if (notice is not null)
@@ -224,7 +224,7 @@ public sealed partial class MenuController
             float hintX = controls["mod-auto"].Bounds.Right + 8;
             if (controls["mod-auto"].Visible)
             {
-                canvas.Text("Explicit choices are kept · " + menus.CurrentBindingText(ControlAction.Confirm) + " " + (SelectedRequestedEnabled ? "Disable" : "Enable") + " · " + menus.CurrentBindingText(ControlAction.Card) + " Details", 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+                canvas.Text(menus.SystemText("ui.drawself.canvas.explicit.choices.are.kept", "Explicit choices are kept · ") + menus.CurrentBindingText(ControlAction.Confirm) + " " + (SelectedRequestedEnabled ? menus.SystemText("ui.drawself.canvas.disable", "Disable") : menus.SystemText("ui.drawself.canvas.enable", "Enable")) + " · " + menus.CurrentBindingText(ControlAction.Card) + menus.SystemText("ui.drawself.canvas.details", " Details"), 14 * unit, new UiRect(hintX, controls["mod-auto"].Bounds.Y, Math.Max(0, Bounds.Right - hintX - 14), 36 * unit), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             }
         }
 
@@ -242,13 +242,13 @@ public sealed partial class MenuController
                 float nameWidth = Math.Max(0, Bounds.Width - check - statusWidth - formatWidth);
                 float top = Bounds.Y + 28 * scale;
                 canvas.Fill(Bounds, new UiColor(30, 43, 61));
-                Text("On", Bounds.X + 5, Bounds.Y, check, 28 * scale, theme.Muted, 14);
-                Text("Mod name", Bounds.X + check, Bounds.Y, nameWidth, 28 * scale, theme.Muted, 14);
+                Text(menus.SystemText("ui.drawself.canvas.on", "On"), Bounds.X + 5, Bounds.Y, check, 28 * scale, theme.Muted, 14);
+                Text(menus.SystemText("ui.drawself.canvas.mod.name", "Mod name"), Bounds.X + check, Bounds.Y, nameWidth, 28 * scale, theme.Muted, 14);
                 if (!compact)
                 {
-                    Text("Format", Bounds.Right - statusWidth - formatWidth, Bounds.Y, formatWidth, 28 * scale, theme.Muted, 14);
+                    Text(menus.SystemText("ui.drawself.canvas.format", "Format"), Bounds.Right - statusWidth - formatWidth, Bounds.Y, formatWidth, 28 * scale, theme.Muted, 14);
                 }
-                Text("Runtime status", Bounds.Right - statusWidth, Bounds.Y, statusWidth, 28 * scale, theme.Muted, 14);
+                Text(menus.SystemText("ui.drawself.canvas.runtime.status", "Runtime status"), Bounds.Right - statusWidth, Bounds.Y, statusWidth, 28 * scale, theme.Muted, 14);
                 for (int offset = 0; offset < owner.menus.modPageSize && owner.first + offset < owner.packages.Length; offset++)
                 {
                     ModPackageView view = owner.packages[owner.first + offset];

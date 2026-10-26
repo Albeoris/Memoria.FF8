@@ -26,7 +26,7 @@ public sealed partial class MenuController
         {
             return false;
         }
-        const string warning = "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:";
+        const string warning = SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
         string[] rules = GameplayPreferences.NewGameOptions.Select(option => MagicUiText.SettingLabel(option.Label)).ToArray();
         Register(new MenuScreenDefinition
         {
@@ -35,8 +35,8 @@ public sealed partial class MenuController
             Help = warning,
             Entries = _ =>
             [
-                new MenuEntry("no", "No", "Keep the current difficulty and rules.", Action: new MenuAction("menu-back")),
-                new MenuEntry("yes", "Yes, enable Hardcore", warning, Action: new MenuAction("hardcore-confirm"))
+                new MenuEntry("no", SystemText("ui.executehardcoreconfirmation.entry.label.no", "No"), SystemText("ui.executehardcoreconfirmation.entry.help.keep.the.current.difficulty.and.rules", "Keep the current difficulty and rules."), Action: new MenuAction("menu-back")),
+                new MenuEntry("yes", SystemText("ui.executehardcoreconfirmation.entry.label.yes.enable.hardcore", "Yes, enable Hardcore"), warning, Action: new MenuAction("hardcore-confirm"))
             ],
             Details = _ => [warning, .. rules],
             BuildContent = (menus, root) =>
@@ -54,7 +54,7 @@ public sealed partial class MenuController
                 }
                 Place(content, options, 1);
                 Place(content, menus.Commands(30, 22), 2);
-                UiPanel panel = menus.Panel("Enable Hardcore?", content);
+                UiPanel panel = menus.Panel(SystemText("ui.executehardcoreconfirmation.panel.enable.hardcore", "Enable Hardcore?"), content);
                 panel.Anchors = new UiAnchors(0.06f, 0.04f, 0.94f, 0.96f);
                 anchor.Children.Add(panel);
                 root.Children.Add(anchor);

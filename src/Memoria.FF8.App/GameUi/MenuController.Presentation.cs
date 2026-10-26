@@ -76,13 +76,13 @@ public sealed partial class MenuController
     private UiElement BuildVectorMagicTarget()
     {
         var page = Grid([1.2f, 5], [1], 4);
-        Place(page, NativeMenuHeader("Magic", InventoryNavigation(true)), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildvectormagictarget.nativemenuheader.magic", "Magic"), InventoryNavigation(true)), 0);
         var body = Grid([1], [1.05f, 1], 12);
         var characterAndTargets = Grid([2, 3], [1], 10);
         Place(characterAndTargets, MagicCharacterSummary(Character, true), 0);
-        Place(characterAndTargets, Panel("NAME", Commands(48, 25)), 1);
+        Place(characterAndTargets, Panel(SystemText("ui.buildvectormagictarget.panel.name", "NAME"), Commands(48, 25)), 1);
         Place(body, characterAndTargets, 0);
-        Place(body, Panel("MAGIC", MagicStockPreview(Character)), 0, 1);
+        Place(body, Panel(SystemText("ui.buildvectormagictarget.panel.magic", "MAGIC"), MagicStockPreview(Character)), 0, 1);
         Place(page, body, 1);
         return page;
     }

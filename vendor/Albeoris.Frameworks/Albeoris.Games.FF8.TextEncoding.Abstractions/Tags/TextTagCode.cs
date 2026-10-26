@@ -35,6 +35,9 @@ public enum TextTagCode
     /// <summary>References a <see cref="TextTagOption"/> parameter.</summary>
     Option = 0x0B,
 
+    /// <summary>References an item name; the native item selector is the parameter minus 32.</summary>
+    Item = 0x0D,
+
     /// <summary>References a <see cref="TextTagTerm"/> parameter.</summary>
     Term = 0x0E,
 

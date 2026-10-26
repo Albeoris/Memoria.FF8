@@ -54,7 +54,9 @@ public static class NamedicBin
             position += terminatorOffset + 1;
         }
 
-        if (position != content.Length)
+        // Some original tables reserve zero padding up to the next DWORD boundary.
+        Int32 padding = content.Length - position;
+        if (padding != 0 && (padding > 3 || content.Length % 4 != 0 || content.AsSpan(position).ContainsAnyExcept((Byte)0)))
         {
             throw new InvalidDataException($"The string table ends at offset {position}, but the file is {content.Length} bytes long.");
         }

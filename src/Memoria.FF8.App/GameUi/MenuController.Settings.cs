@@ -26,8 +26,8 @@ public sealed partial class MenuController
             return [];
         }
         bool enabled = canCompleteOutcome?.Invoke() ?? _hasActiveBattle?.Invoke() == true;
-        return [new("instant-victory", "Instant victory", "Win the current battle or Triple Triad match. Available only on your turn.", Action: new("battle-debug-outcome", Value: "Victory"), Enabled: enabled),
-            new("instant-defeat", "Instant defeat", "Lose the current battle or Triple Triad match. Available only on your turn.", Action: new("battle-debug-outcome", Value: "Defeat"), Enabled: enabled)];
+        return [new("instant-victory", SystemText("ui.instantoutcomeentries.entry.label.instant.victory", "Instant victory"), SystemText("ui.instantoutcomeentries.entry.help.win.the.current.battle.or.triple.triad.match", "Win the current battle or Triple Triad match. Available only on your turn."), Action: new("battle-debug-outcome", Value: "Victory"), Enabled: enabled),
+            new("instant-defeat", SystemText("ui.instantoutcomeentries.entry.label.instant.defeat", "Instant defeat"), SystemText("ui.instantoutcomeentries.entry.help.lose.the.current.battle.or.triple.triad.match", "Lose the current battle or Triple Triad match. Available only on your turn."), Action: new("battle-debug-outcome", Value: "Defeat"), Enabled: enabled)];
     }
 
     internal void ConnectBattleSettings(Func<bool> hasActiveBattle, Action<bool> completeActiveBattle)
@@ -38,11 +38,11 @@ public sealed partial class MenuController
 
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
-        return [new MenuEntry("battle-laboratory", "Battle laboratory…", "Edit an isolated scenario; Start launches it explicitly.", Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
+        return [new MenuEntry("battle-laboratory", SystemText("ui.battlesettingsentries.entry.label.battle.laboratory", "Battle laboratory…"), SystemText("ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly", "Edit an isolated scenario; Start launches it explicitly."), Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
             .. HostSettingsEntries("Battle policy", "Random encounters")];
     }
 
-    internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? "Active battle" : "No active battle"), "Encounter execution: " + (HostSettingValue("Battle policy") == "Instant victory" ? "Automatic victory" : "Full combat"), "Applies to the current game; at Title it is the new-game default.", "Save normally to retain current-game changes.", SelectedEntry?.Help ?? ""];
+    internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? SystemText("ui.battlesettingsdetails.details.active.battle", "Active battle") : SystemText("ui.battlesettingsdetails.details.no.active.battle", "No active battle")), SystemText("ui.battlesettingsdetails.details.encounter.execution", "Encounter execution: ") + (HostSettingValue("Battle policy") == "Instant victory" ? SystemText("ui.battlesettingsdetails.details.automatic.victory", "Automatic victory") : SystemText("ui.battlesettingsdetails.details.full.combat", "Full combat")), SystemText("ui.battlesettingsdetails.details.applies.to.the.current.game.at.title.it", "Applies to the current game; at Title it is the new-game default."), SystemText("ui.battlesettingsdetails.details.save.normally.to.retain.current.game.changes", "Save normally to retain current-game changes."), SelectedEntry?.Help ?? ""];
     private Func<string>? battleSource;
     private bool pendingEncounterPolicy;
     private Func<bool>? hasPendingEncounter;
@@ -64,7 +64,7 @@ public sealed partial class MenuController
             MenuSetting setting = MenuSettings.Definitions.Single(setting => setting.Id == key);
             string value = HostSettingValue(key);
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
-            return new MenuEntry(key, key == "Battle policy" ? "Encounter execution   " + (value == "Instant victory" ? "Automatic victory" : value) : $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
+            return new MenuEntry(key, key == "Battle policy" ? SystemText("ui.hostsettingsentries.entry.label.encounter.execution", "Encounter execution   ") + (value == "Instant victory" ? SystemText("ui.hostsettingsentries.entry.label.automatic.victory", "Automatic victory") : value) : $"{key}   {value}", setting.Description, Action: new MenuAction("host-config", key, Value: setting.Values[next]), Enabled: _writePreferences is not null);
         }).ToArray();
     }
 
@@ -124,7 +124,7 @@ public sealed partial class MenuController
         {
             if (_completeActiveBattle is null || !(canCompleteOutcome?.Invoke() ?? _hasActiveBattle?.Invoke() == true))
             {
-                Message = "Instant outcomes are available only on your turn in battle or Triple Triad.";
+                Message = SystemText("ui.executehostsettingsaction.message.instant.outcomes.are.available.only.on.your.turn", "Instant outcomes are available only on your turn in battle or Triple Triad.");
                 return true;
             }
             if (action.Value is not ("Victory" or "Defeat"))
@@ -141,12 +141,12 @@ public sealed partial class MenuController
         }
         if (_writePreferences is null)
         {
-            Message = "Local settings are not connected to this menu host.";
+            Message = SystemText("ui.executehostsettingsaction.message.local.settings.are.not.connected.to.this.menu", "Local settings are not connected to this menu host.");
             return true;
         }
         if (action.SubjectId is not ("Battle policy" or "Random encounters"))
         {
-            Message = "This preference has its canonical editor in Config.";
+            Message = SystemText("ui.executehostsettingsaction.message.this.preference.has.its.canonical.editor.in.config", "This preference has its canonical editor in Config.");
             return true;
         }
         if (action.SubjectId == "Battle policy" && action.Value == "Instant victory" && (encounterPolicyHasConsequence?.Invoke() ?? (_hasActiveBattle?.Invoke() == true || hasPendingEncounter?.Invoke() == true)))

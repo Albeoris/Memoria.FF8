@@ -30,7 +30,7 @@ public sealed partial class MenuController
             {
                 return null;
             }
-            NativeTutorialInformationPage page = _nativeExamCatalog.InformationPage(_nativeInformationNode, _nativeTutorialUnlocks?.Invoke() ?? new HashSet<int>(), _nativeExamProgress);
+            NativeTutorialInformationPage page = _nativeExamCatalog.InformationPage(_nativeInformationNode, _nativeTutorialUnlocks?.Invoke() ?? new HashSet<int>(), _nativeExamProgress, (node, source) => node.LocalizationFile is { } bodyFile ? LocalizeNativeTutorial(bodyFile, 1, source) : source);
             return page.Node.LocalizationFile is { } file ? page with { Node = page.Node with { Title = LocalizeNativeTutorial(file, 0, page.Node.Title) } } : page;
         }
     }

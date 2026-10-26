@@ -56,7 +56,7 @@ public sealed class NativeTutorialExamCatalog
         return new NativeTutorialExamResult(score, passed, prompt, next);
     }
 
-    public NativeTutorialInformationPage InformationPage(int id, IReadOnlySet<int> unlocked, NativeTutorialExamProgress progress)
+    public NativeTutorialInformationPage InformationPage(int id, IReadOnlySet<int> unlocked, NativeTutorialExamProgress progress, Func<NativeTutorialInformationNode, string, string>? localizeBody = null)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)id, (uint)Information.Length);
         ArgumentNullException.ThrowIfNull(unlocked);
@@ -75,9 +75,14 @@ public sealed class NativeTutorialExamCatalog
             }
         }
         NativeTutorialInformationNode node = Information[id];
-        FF8Encoding encoding = FF8Encoding.CreateEuropean();
-        List<byte> plain = [];
-        List<byte> label = [];
+        string source = NativeTutorialInformationText.Format(node.Body.AsSpan(), FF8Encoding.CreateEuropean());
+        string body = localizeBody?.Invoke(node, source) ?? source;
+        if (!NativeTutorialInformationText.ValidateTarget(source, body))
+        {
+            throw new InvalidDataException("Information translation changes its native control stream or line roles.");
+        }
+        System.Text.StringBuilder plain = new();
+        System.Text.StringBuilder label = new();
         List<NativeTutorialInformationLink> links = [];
         int target = -1;
         int lineIndex = 0;
@@ -87,25 +92,24 @@ public sealed class NativeTutorialExamCatalog
         {
             if (target >= 0)
             {
-                links.Add(new NativeTutorialInformationLink(target, encoding.GetString(label.ToArray()).Trim(), linkLine));
+                links.Add(new NativeTutorialInformationLink(target, label.ToString().Trim(), linkLine));
                 target = -1;
                 label.Clear();
             }
         }
-        void Append(byte value)
+        void Append(string value)
         {
-            plain.Add(value);
+            plain.Append(value);
             if (target >= 0)
             {
-                label.Add(value);
+                label.Append(value);
             }
         }
-        for (int position = 0; position < node.Body.Length; position++)
+        foreach ((string text, bool control) in NativeTutorialInformationText.Parts(body))
         {
-            byte value = node.Body[position];
-            if (value == 0x0A)
+            if (control && (text.StartsWith("{Info Gate ", StringComparison.Ordinal) || text.StartsWith("{Info Number ", StringComparison.Ordinal)))
             {
-                int operand = node.Body[++position];
+                int operand = int.Parse(text.AsSpan(text.LastIndexOf(' ') + 1, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
                 if (operand == 0x3F)
                 {
                     visible = true;
@@ -116,17 +120,15 @@ public sealed class NativeTutorialExamCatalog
                 }
                 else if (visible)
                 {
-                    long? number = ReadInformationNumber(operand, progress);
-                    foreach (byte encoded in encoding.GetBytes(number?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—"))
-                    {
-                        Append(encoded);
-                    }
+                    Append(ReadInformationNumber(operand, progress)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
                 }
                 continue;
             }
-            if (value == 0x0B)
+            if (control && text.StartsWith("{Info Link ", StringComparison.Ordinal))
             {
-                int destination = (node.Body[++position] << 7) + node.Body[++position] - 0x1020;
+                int first = int.Parse(text.AsSpan(11, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                int second = int.Parse(text.AsSpan(13, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+                int destination = (first << 7) + second - 0x1020;
                 FinishLink();
                 if (visible)
                 {
@@ -139,7 +141,7 @@ public sealed class NativeTutorialExamCatalog
                 }
                 continue;
             }
-            if (value == 2)
+            if (control && text is "{Line}" or "\n" or "\r" or "\r\n")
             {
                 FinishLink();
                 if (visible)
@@ -147,22 +149,13 @@ public sealed class NativeTutorialExamCatalog
                     lineIndex++;
                 }
             }
-            if (value is >= 3 and <= 15)
+            if (visible)
             {
-                byte operand = node.Body[++position];
-                if (visible)
-                {
-                    Append(value);
-                    Append(operand);
-                }
-            }
-            else if (visible)
-            {
-                Append(value);
+                Append(text);
             }
         }
         FinishLink();
-        return new NativeTutorialInformationPage(node, encoding.GetString(plain.ToArray()), links.ToImmutableArray());
+        return new NativeTutorialInformationPage(node, plain.ToString(), links.ToImmutableArray());
     }
 
     public static void ValidateProgress(NativeTutorialExamProgress progress)

@@ -187,7 +187,7 @@ public static partial class LocalizationSourceExporter
                             {
                                 if (section.SlotIndex is >= 128 and <= 133 && text == 1)
                                 {
-                                    gaps.Add(new(category, "menu/mngrp.bin/" + prefix + "/block" + block + "/text01", "Information bodies require a structured Unicode adapter preserving conditional gates and two-byte link operands; generic text decoding is not a translatable representation."));
+                                    InformationBody(blocks.Blocks[block].Texts[text].EncodedValue!.Value.ToArray(), prefix + "_block" + block.ToString("D4", CultureInfo.InvariantCulture), text, metadata);
                                     continue;
                                 }
                                 Add(category, prefix + "_block" + block.ToString("D4", CultureInfo.InvariantCulture), text, blocks.Blocks[block].Texts[text].Value, "menu/mngrp.bin", metadata);
@@ -273,6 +273,10 @@ public static partial class LocalizationSourceExporter
             Add("Monsters", stem + "_names", 0, nonFieldEncoding.GetString(name[..terminator]), "battle/" + file);
             int start = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(count == 11 ? 32 : 8));
             int end = count == 11 ? BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(36)) : bytes.Length;
+            if (start == end)
+            {
+                return;
+            }
             if (BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(start)) != 3)
             {
                 throw new InvalidDataException("Enemy script text header is unsupported.");
@@ -313,6 +317,10 @@ public static partial class LocalizationSourceExporter
             for (int ordinal = 0; ordinal < tableBytes / 4; ordinal++)
             {
                 int offset = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(start + ordinal * 4)));
+                if (offset == 0 && ordinal == tableBytes / 4 - 1)
+                {
+                    break;
+                }
                 if (offset < tableBytes)
                 {
                     throw new InvalidDataException("World message pointer enters its index table.");
@@ -360,6 +368,11 @@ public static partial class LocalizationSourceExporter
                 Attempt(category, resource + "/" + index, () =>
                 {
                     int offset = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(2 + index * 2));
+                    if (offset == 0)
+                    {
+                        Add(category, table, index, string.Empty, resource, new Dictionary<string, string?> { ["Native Null Pointer"] = "true" });
+                        return;
+                    }
                     if (offset < header)
                     {
                         throw new InvalidDataException("Named WORD text pointer enters its index table.");

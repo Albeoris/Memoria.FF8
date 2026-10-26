@@ -12,7 +12,7 @@ public sealed partial class MenuController
         }
         if (ModelBrowserRequested is null)
         {
-            Message = "The model browser is not connected to this menu host.";
+            Message = SystemText("ui.executemodelbrowseraction.message.the.model.browser.is.not.connected.to.this", "The model browser is not connected to this menu host.");
         }
         else
         {

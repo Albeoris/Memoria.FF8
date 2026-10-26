@@ -9,10 +9,15 @@ public sealed record LocalizationValue(string Text, string PackageId, string Pro
     public LocalizationFieldText? Field { get; init; }
 }
 
-public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool Dynamic, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice);
+public sealed record LocalizationCallBinding(int Operation, int? MessageId, bool Dynamic, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice)
+{
+    public bool IsChoice { get; init; }
+}
+public sealed record LocalizationChoiceLineMapEntry(int SourceLine, int TargetLine);
 public sealed record LocalizationFieldText(string Body, string ScriptHash, int? X, int? Y, int? Width, int? Height, int? FirstChoice, int? LastChoice, int? InitialChoice, int? CancelChoice, ImmutableArray<LocalizationCallBinding> Calls)
 {
     public string? BaseKey { get; init; }
+    public ImmutableArray<LocalizationChoiceLineMapEntry> ChoiceLineMap { get; init; } = [];
 }
 
 /// <summary>One fully validated, immutable presentation generation. Empty targets never shadow another layer.</summary>
@@ -73,7 +78,33 @@ public sealed class LocalizationCatalog
                     continue;
                 }
                 LocalizationCallBinding? call = field.Calls.FirstOrDefault(call => call.Operation == operation);
-                if (call is not null && call.FirstChoice == nativeFirst && call.LastChoice == nativeLast && call.InitialChoice == nativeInitial && call.CancelChoice == nativeCancel)
+                if (call is null)
+                {
+                    continue;
+                }
+                bool Matches(int? expected, int? actual) => expected == actual || call.Dynamic && expected is null;
+                if (!Matches(call.FirstChoice, nativeFirst) || !Matches(call.LastChoice, nativeLast) || !Matches(call.InitialChoice, nativeInitial) || !Matches(call.CancelChoice, nativeCancel))
+                {
+                    continue;
+                }
+                if (call.Dynamic && call.IsChoice)
+                {
+                    if (nativeFirst is not int first || nativeLast is not int last || nativeInitial is not int initial || nativeCancel is not int cancel || first < 0 || last < first || initial < first || initial > last)
+                    {
+                        continue;
+                    }
+                    Dictionary<int, int> map = field.ChoiceLineMap.ToDictionary(entry => entry.SourceLine, entry => entry.TargetLine);
+                    int Map(int line) => map.Count == 0 ? line : map.GetValueOrDefault(line, -1);
+                    int translatedFirst = Map(first);
+                    int translatedLast = Map(last);
+                    int lineCount = CountAuthoredLines(field.Body);
+                    if (translatedFirst < 0 || translatedLast >= lineCount || translatedLast - translatedFirst != last - first || Enumerable.Range(first, last - first + 1).Any(line => Map(line) != translatedFirst + line - first))
+                    {
+                        continue;
+                    }
+                    return field with { FirstChoice = translatedFirst, LastChoice = translatedLast, InitialChoice = Map(initial), CancelChoice = cancel >= first && cancel <= last ? Map(cancel) : cancel };
+                }
+                if (call.FirstChoice == nativeFirst && call.LastChoice == nativeLast && call.InitialChoice == nativeInitial && call.CancelChoice == nativeCancel || call.Dynamic && !call.IsChoice && nativeFirst is null && nativeLast is null && nativeInitial is null && nativeCancel is null)
                 {
                     return field;
                 }
@@ -81,4 +112,6 @@ public sealed class LocalizationCatalog
         }
         return null;
     }
+
+    public static int CountAuthoredLines(string body) => body.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Count(character => character == '\n') + 1 + System.Text.RegularExpressions.Regex.Matches(body, "\\{(?:Line|Page|Next)\\}").Count;
 }

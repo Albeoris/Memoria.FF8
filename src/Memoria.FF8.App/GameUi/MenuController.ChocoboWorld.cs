@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Ui;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -36,11 +36,11 @@ public sealed partial class MenuController
         string mode = ConfigValue("Chocobo World");
         if (mode == "Native Import")
         {
-            yield return new("chocobo-import", "Import Chocobo World…", "Preview a native save without changing the source file.", Action: new("chocobo-import-open"), Enabled: previewChocoboImport is not null);
+            yield return new("chocobo-import", SystemText("ui.chocoboworldactions.entry.label.import.chocobo.world", "Import Chocobo World…"), SystemText("ui.chocoboworldactions.entry.help.preview.a.native.save.without.changing.the.source", "Preview a native save without changing the source file."), Action: new("chocobo-import-open"), Enabled: previewChocoboImport is not null);
         }
         if (mode == "Memoria")
         {
-            yield return new("chocobo-claim", "Claim remaining exclusive items…", "The minigame is under development. Review the remaining exclusive items.", Action: new("chocobo-claim-open"), Enabled: previewChocoboClaim is not null);
+            yield return new("chocobo-claim", SystemText("ui.chocoboworldactions.entry.label.claim.remaining.exclusive.items", "Claim remaining exclusive items…"), SystemText("ui.chocoboworldactions.entry.help.the.minigame.is.under.development.review.the.remaining", "The minigame is under development. Review the remaining exclusive items."), Action: new("chocobo-claim-open"), Enabled: previewChocoboClaim is not null);
         }
     }
 
@@ -51,15 +51,15 @@ public sealed partial class MenuController
             Id = "chocobo-sources",
             Title = "Import Chocobo World",
             Help = "Select a detected save or browse for a file. Source files are read only.",
-            Entries = _ => [.. chocoboSources.Select(source => new MenuEntry(source.Path, source.Label, source.Path, Action: new("chocobo-import-preview", source.Path))), new("browse", "Browse…", "Choose any native Chocobo World save file.", Action: new("chocobo-import-browse")), new("cancel", "Cancel", "Return without importing.", Action: new("menu-back"))],
-            Details = _ => chocoboSources.Count == 0 ? ["No saves found. Use Browse to choose a file."] : ["Detected saves", SelectedEntry?.Help ?? ""]
+            Entries = _ => [.. chocoboSources.Select(source => new MenuEntry(source.Path, source.Label, source.Path, Action: new("chocobo-import-preview", source.Path))), new("browse", SystemText("ui.registerchocoboworldscreens.entry.label.browse", "Browse…"), SystemText("ui.registerchocoboworldscreens.entry.help.choose.any.native.chocobo.world.save.file", "Choose any native Chocobo World save file."), Action: new("chocobo-import-browse")), new("cancel", SystemText("ui.registerchocoboworldscreens.entry.label.cancel", "Cancel"), SystemText("ui.registerchocoboworldscreens.entry.help.return.without.importing", "Return without importing."), Action: new("menu-back"))],
+            Details = _ => chocoboSources.Count == 0 ? [SystemText("ui.registerchocoboworldscreens.details.no.saves.found.use.browse.to.choose.a", "No saves found. Use Browse to choose a file.")] : [SystemText("ui.registerchocoboworldscreens.details.detected.saves", "Detected saves"), SelectedEntry?.Help ?? ""]
         });
         Register(new MenuScreenDefinition
         {
             Id = "chocobo-import-preview",
             Title = "Chocobo World · Preview",
             Help = "Review the incoming items and progression, then confirm Import.",
-            Entries = _ => [new("cancel", "Cancel", "Leave the source and game unchanged.", Action: new("menu-back")), .. chocoboImport?.RequiresAssociationReview == true ? new[] { new MenuEntry("review-association", "Review world association…", "This source belongs to a different world. Explicit review is required.", Action: new("chocobo-association-open")) } : Array.Empty<MenuEntry>(), new("import", "Import", chocoboImport?.Reason ?? "Commit this unchanged preview.", Action: new("chocobo-import-commit"), Enabled: chocoboImport?.CanImport == true)],
+            Entries = _ => [new("cancel", SystemText("ui.registerchocoboworldscreens.entry.label.cancel", "Cancel"), SystemText("ui.registerchocoboworldscreens.entry.help.leave.the.source.and.game.unchanged", "Leave the source and game unchanged."), Action: new("menu-back")), .. chocoboImport?.RequiresAssociationReview == true ? new[] { new MenuEntry("review-association", SystemText("ui.registerchocoboworldscreens.entry.label.review.world.association", "Review world association…"), SystemText("ui.registerchocoboworldscreens.entry.help.this.source.belongs.to.a.different.world.explicit", "This source belongs to a different world. Explicit review is required."), Action: new("chocobo-association-open")) } : Array.Empty<MenuEntry>(), new("import", SystemText("ui.registerchocoboworldscreens.entry.label.import", "Import"), chocoboImport?.Reason ?? SystemText("ui.registerchocoboworldscreens.entry.help.commit.this.unchanged.preview", "Commit this unchanged preview."), Action: new("chocobo-import-commit"), Enabled: chocoboImport?.CanImport == true)],
             Details = _ => [.. chocoboImport?.Header ?? [], .. chocoboImport?.Items.Select(item => item.Name + " · " + item.Details) ?? [], chocoboImport?.Reason ?? ""],
             BuildContent = (menus, root) => menus.BuildChocoboImportPreview(root)
         });
@@ -68,8 +68,8 @@ public sealed partial class MenuController
             Id = "chocobo-association-review",
             Title = "Review Chocobo World association",
             Help = "This source belongs to a different world. Review the identities before allowing this source.",
-            Entries = _ => [new("no", "No", "Keep the current association and return to preview.", Action: new("menu-back")), new("use-source", "Use this source", "Authorize this foreign source for the preview. Import still requires confirmation.", Action: new("chocobo-association-confirm"), Enabled: reviewChocoboAssociation is not null)],
-            Details = _ => [.. chocoboImport?.Header ?? [], chocoboImport?.Reason ?? "The selected source has a different world identity.", "The external source file will remain unchanged."]
+            Entries = _ => [new("no", SystemText("ui.registerchocoboworldscreens.entry.label.no", "No"), SystemText("ui.registerchocoboworldscreens.entry.help.keep.the.current.association.and.return.to.preview", "Keep the current association and return to preview."), Action: new("menu-back")), new("use-source", SystemText("ui.registerchocoboworldscreens.entry.label.use.this.source", "Use this source"), SystemText("ui.registerchocoboworldscreens.entry.help.authorize.this.foreign.source.for.the.preview.import", "Authorize this foreign source for the preview. Import still requires confirmation."), Action: new("chocobo-association-confirm"), Enabled: reviewChocoboAssociation is not null)],
+            Details = _ => [.. chocoboImport?.Header ?? [], chocoboImport?.Reason ?? SystemText("ui.registerchocoboworldscreens.details.the.selected.source.has.a.different.world.identity", "The selected source has a different world identity."), SystemText("ui.registerchocoboworldscreens.details.the.external.source.file.will.remain.unchanged", "The external source file will remain unchanged.")]
         });
         Register(new MenuScreenDefinition
         {
@@ -77,9 +77,9 @@ public sealed partial class MenuController
             Title = "Memoria Chocobo World",
             Help = "This minigame is under development.",
             Entries = _ => chocoboClaim?.Items.All(item => item.Obtained) != false
-                ? [new("close", "Close", "All exclusive items have already been obtained.", Action: new("menu-back"))]
-                : [new("no", "No", "Leave inventory and acquisition history unchanged.", Action: new("menu-back")), new("yes", "Yes", chocoboClaim?.Reason ?? "Receive all remaining exclusive items once.", Action: new("chocobo-claim-commit"), Enabled: chocoboClaim?.CanClaim == true)],
-            Details = _ => ["This minigame is under development.", chocoboClaim?.Items.All(item => item.Obtained) != false ? "All exclusive items have already been obtained." : "Would you like to receive all remaining Chocobo World-exclusive items now?", .. chocoboClaim?.Items.Select(item => item.Name + (item.Obtained ? " · Obtained" : " · " + item.Details)) ?? [], chocoboClaim?.Reason ?? ""],
+                ? [new("close", SystemText("ui.registerchocoboworldscreens.entry.label.close", "Close"), SystemText("ui.registerchocoboworldscreens.entry.help.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained."), Action: new("menu-back"))]
+                : [new("no", SystemText("ui.registerchocoboworldscreens.entry.label.no", "No"), SystemText("ui.registerchocoboworldscreens.entry.help.leave.inventory.and.acquisition.history.unchanged", "Leave inventory and acquisition history unchanged."), Action: new("menu-back")), new("yes", SystemText("ui.registerchocoboworldscreens.entry.label.yes", "Yes"), chocoboClaim?.Reason ?? SystemText("ui.registerchocoboworldscreens.entry.help.receive.all.remaining.exclusive.items.once", "Receive all remaining exclusive items once."), Action: new("chocobo-claim-commit"), Enabled: chocoboClaim?.CanClaim == true)],
+            Details = _ => [SystemText("ui.registerchocoboworldscreens.details.this.minigame.is.under.development", "This minigame is under development."), chocoboClaim?.Items.All(item => item.Obtained) != false ? SystemText("ui.registerchocoboworldscreens.details.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.registerchocoboworldscreens.details.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?"), .. chocoboClaim?.Items.Select(item => item.Name + (item.Obtained ? " · Obtained" : " · " + item.Details)) ?? [], chocoboClaim?.Reason ?? ""],
             BuildContent = (menus, root) => menus.BuildChocoboClaim(root)
         });
         Register(new MenuScreenDefinition
@@ -87,7 +87,7 @@ public sealed partial class MenuController
             Id = "chocobo-result",
             Title = "Chocobo World · Result",
             Help = "The external source file has not been changed.",
-            Entries = _ => [new("close", "Close", "Return to Chocobo World settings.", Action: new("menu-back"))],
+            Entries = _ => [new("close", SystemText("ui.registerchocoboworldscreens.entry.label.close", "Close"), SystemText("ui.registerchocoboworldscreens.entry.help.return.to.chocobo.world.settings", "Return to Chocobo World settings."), Action: new("menu-back"))],
             Details = _ => [Message]
         });
     }
@@ -95,7 +95,7 @@ public sealed partial class MenuController
     private void BuildChocoboImportPreview(UiPanel root)
     {
         UiGrid content = Grid([2.3f, 4.5f, 1.4f], [1], 8);
-        Place(content, Panel("Source and progression", new UiList
+        Place(content, Panel(SystemText("ui.buildchocoboimportpreview.panel.source.and.progression", "Source and progression"), new UiList
         {
             Id = "chocobo-progression",
             Items = [.. chocoboImport?.Header ?? [], chocoboImport?.Reason ?? ""],
@@ -105,10 +105,10 @@ public sealed partial class MenuController
             RowHeight = 30 * TextScale
         }), 0);
         IReadOnlyList<ChocoboRewardRow> rows = (chocoboImport?.Items ?? []).OrderByDescending(row => row.Exclusive).ToArray();
-        Place(content, Panel("Incoming items · Tab to inspect / arrows to scroll", new UiList
+        Place(content, Panel(SystemText("ui.buildchocoboimportpreview.panel.incoming.items.tab.to.inspect.arrows.to.scroll", "Incoming items · Tab to inspect / arrows to scroll"), new UiList
         {
             Id = "chocobo-items",
-            Items = rows.Count == 0 ? ["No new rewards."] : rows.Select(row => (row.Exclusive ? "Exclusive · " : "Ordinary · ") + row.Name + "\n" + row.Details).ToList(),
+            Items = rows.Count == 0 ? [SystemText("ui.buildchocoboimportpreview.items.no.new.rewards", "No new rewards.")] : rows.Select(row => (row.Exclusive ? "Exclusive · " : "Ordinary · ") + row.Name + "\n" + row.Details).ToList(),
             Images = rows.Select(row => row.Icon).ToList(),
             Paginated = true,
             TextFlow = UiTextFlow.Wrap,
@@ -127,7 +127,7 @@ public sealed partial class MenuController
         Place(content, new UiList
         {
             Id = "chocobo-claim-message",
-            Items = ["This minigame is under development.\n" + (all ? "All exclusive items have already been obtained." : "Would you like to receive all remaining Chocobo World-exclusive items now?"), .. chocoboClaim?.Reason is { Length: > 0 } reason ? new[] { reason } : Array.Empty<string>()],
+            Items = [SystemText("ui.buildchocoboclaim.items.this.minigame.is.under.development", "This minigame is under development.\n") + (all ? SystemText("ui.buildchocoboclaim.items.all.exclusive.items.have.already.been.obtained", "All exclusive items have already been obtained.") : SystemText("ui.buildchocoboclaim.items.would.you.like.to.receive.all.remaining.chocobo", "Would you like to receive all remaining Chocobo World-exclusive items now?")), .. chocoboClaim?.Reason is { Length: > 0 } reason ? new[] { reason } : Array.Empty<string>()],
             Paginated = true,
             TextFlow = UiTextFlow.Wrap,
             FontSize = 20 * TextScale,
@@ -144,12 +144,12 @@ public sealed partial class MenuController
             {
                 Place(row, new UiImage { Source = icon }, 0, 0);
             }
-            Place(row, Label(item.Name + (item.Obtained ? " · Obtained" : "\n" + item.Details), 18, UiTextFlow.Wrap), 0, 1);
+            Place(row, Label(item.Name + (item.Obtained ? SystemText("ui.buildchocoboclaim.label.obtained", " · Obtained") : "\n" + item.Details), 18, UiTextFlow.Wrap), 0, 1);
             Place(items, row, index);
         }
         Place(content, items, 1);
         Place(content, Commands(28, 22), 2);
-        UiPanel panel = Panel("Memoria Chocobo World", content);
+        UiPanel panel = Panel(SystemText("ui.buildchocoboclaim.panel.memoria.chocobo.world", "Memoria Chocobo World"), content);
         panel.Anchors = new UiAnchors(0.08f, 0.06f, 0.92f, 0.94f);
         anchor.Children.Add(panel);
         root.Children.Add(anchor);
@@ -211,7 +211,7 @@ public sealed partial class MenuController
                     ShowChocoboClaim();
                     break;
                 case "chocobo-import-commit" when ScreenId == "chocobo-import-preview" && chocoboImport?.CanImport == true:
-                    string importMessage = commitChocoboImport?.Invoke() ?? "Import is unavailable.";
+                    string importMessage = commitChocoboImport?.Invoke() ?? SystemText("ui.executechocoboworldaction.importmessage.import.is.unavailable", "Import is unavailable.");
                     chocoboImport = null;
                     Back();
                     Push("chocobo-result");
@@ -219,7 +219,7 @@ public sealed partial class MenuController
                     _liveData = null;
                     break;
                 case "chocobo-claim-commit" when ScreenId == "chocobo-claim" && chocoboClaim?.CanClaim == true:
-                    string claimMessage = commitChocoboClaim?.Invoke() ?? "Claim is unavailable.";
+                    string claimMessage = commitChocoboClaim?.Invoke() ?? SystemText("ui.executechocoboworldaction.claimmessage.claim.is.unavailable", "Claim is unavailable.");
                     chocoboClaim = null;
                     Back();
                     Push("chocobo-result");

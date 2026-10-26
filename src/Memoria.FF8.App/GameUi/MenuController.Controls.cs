@@ -55,11 +55,11 @@ public sealed partial class MenuController
         var page = Grid([1.8f * Math.Max(1, TextScale), 5.8f], [1], 5);
         ControlDevice device = _controlsDevice;
         string advancedBinding = ControlsBindingText(ControlAction.Card, device);
-        string advancedHelp = advancedBinding == "Unbound" ? "Card / Details is unbound. Assign it to open advanced options." : $"Press {advancedBinding} for advanced options.";
+        string advancedHelp = advancedBinding == "Unbound" ? SystemText("ui.buildcontrolspage.advancedhelp.card.details.is.unbound.assign.it.to.open", "Card / Details is unbound. Assign it to open advanced options.") : FormatSystemText("ui.buildcontrolspage.advancedhelp.press.for.advanced.options", "Press {0} for advanced options.", advancedBinding);
         advancedHelp = $"{(IsDemoControls ? "Preview / Fixture" : "Global preferences")}. {advancedHelp}";
-        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingBindingsReset ? $"Default bindings conflict with {string.Join(", ", CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel))}. Replace only after reviewing this scope." : ScreenId == "config-controls-conflict" && _pendingChord is not null ? $"{_pendingChord.FormatPrompt(CurrentControllerPresentation)} is assigned to {string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsConflictLabel))}." : SelectedEntry?.Help ?? CurrentScreen.Help;
-        string title = ScreenId == "config-controls-conflict" && _pendingBindingsReset ? $"Restore {ControlsOwnerName} ({ControlsDeviceName})" : ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : IsControlsBindingList && !_developerControls ? $"{CurrentScreen.Title} / {ControlsGroups[_controlsGroup]}" : CurrentScreen.Title;
-        Place(page, SecondaryHeader(_developerControls ? "Debug Room" : "Config", title, help), 0);
+        string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingBindingsReset ? FormatSystemText("ui.buildcontrolspage.help.default.bindings.conflict.with.replace.only.after.reviewing", "Default bindings conflict with {0}. Replace only after reviewing this scope.", string.Join(", ", CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel))) : ScreenId == "config-controls-conflict" && _pendingChord is not null ? FormatSystemText("ui.buildcontrolspage.help.is.assigned.to", "{0} is assigned to {1}.", _pendingChord.FormatPrompt(CurrentControllerPresentation), string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsConflictLabel))) : SelectedEntry?.Help ?? CurrentScreen.Help;
+        string title = ScreenId == "config-controls-conflict" && _pendingBindingsReset ? FormatSystemText("ui.buildcontrolspage.title.restore", "Restore {0} ({1})", ControlsOwnerName, ControlsDeviceName) : ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : IsControlsBindingList && !_developerControls ? $"{CurrentScreen.Title} / {ControlsGroups[_controlsGroup]}" : CurrentScreen.Title;
+        Place(page, SecondaryHeader(_developerControls ? SystemText("ui.buildcontrolspage.header.debug.room", "Debug Room") : SystemText("ui.buildcontrolspage.header.config", "Config"), title, help), 0);
         UiList commands = SecondaryCommands();
         commands.TextFlow = UiTextFlow.Wrap;
         commands.AutoRowHeight = true;
@@ -130,7 +130,7 @@ public sealed partial class MenuController
         }
     }
 
-    private static string ControlsConflictLabel(ControlAction action) => $"{ControlsLabel(action)} ({(ControlsProfile.IsDeveloperAction(action) ? "Debug Room" : "Config")})";
+    private string ControlsConflictLabel(ControlAction action) => $"{ControlsLabel(action)} ({(ControlsProfile.IsDeveloperAction(action) ? "Debug Room" : "Config")})";
 
     internal void RegisterControlsScreens()
     {
@@ -147,7 +147,7 @@ public sealed partial class MenuController
             Id = "config-controller-settings-reset",
             Title = "Restore controller settings",
             Help = "Restore both deadzones, run threshold, button labels and vibration. Bindings remain unchanged.",
-            Entries = _ => [new("keep", "Keep controller settings", "Return without changes.", Action: new("menu-back")), new("reset", "Restore controller settings", "Restore the five controller preferences only.", Action: new("controls-settings-reset"))]
+            Entries = _ => [new("keep", SystemText("ui.registercontrolsscreens.entry.label.keep.controller.settings", "Keep controller settings"), SystemText("ui.registercontrolsscreens.entry.help.return.without.changes", "Return without changes."), Action: new("menu-back")), new("reset", SystemText("ui.registercontrolsscreens.entry.label.restore.controller.settings", "Restore controller settings"), SystemText("ui.registercontrolsscreens.entry.help.restore.the.five.controller.preferences.only", "Restore the five controller preferences only."), Action: new("controls-settings-reset"))]
         });
         Register(new MenuScreenDefinition
         {
@@ -173,15 +173,15 @@ public sealed partial class MenuController
             Title = "Controller settings",
             Help = "Confirm cycles each setting. Changes save automatically.",
             Entries = c => c.ControllerSettingsEntries(),
-            Details = c => ["Deadzones remove stick drift.", "Run threshold uses the adjusted stick.", "A lighter tilt selects native walking.", "Right stick steers / throttles the car.", "Button labels follow the connected pad.", "Choose labels manually for virtual pads.", "Confirm cycles the selected setting."]
+            Details = c => [SystemText("ui.registercontrolsscreens.details.deadzones.remove.stick.drift", "Deadzones remove stick drift."), SystemText("ui.registercontrolsscreens.details.run.threshold.uses.the.adjusted.stick", "Run threshold uses the adjusted stick."), SystemText("ui.registercontrolsscreens.details.a.lighter.tilt.selects.native.walking", "A lighter tilt selects native walking."), SystemText("ui.registercontrolsscreens.details.right.stick.steers.throttles.the.car", "Right stick steers / throttles the car."), SystemText("ui.registercontrolsscreens.details.button.labels.follow.the.connected.pad", "Button labels follow the connected pad."), SystemText("ui.registercontrolsscreens.details.choose.labels.manually.for.virtual.pads", "Choose labels manually for virtual pads."), SystemText("ui.registercontrolsscreens.details.confirm.cycles.the.selected.setting", "Confirm cycles the selected setting.")]
         });
         foreach (string id in new[] { "config-keyboard-choice", "config-controller-choice" })
         {
             Register(new MenuScreenDefinition
             {
                 Id = id,
-                Title = "Change binding",
-                Help = "Capture a button or combination, or remove the current binding.",
+                Title = SystemText("ui.registercontrolsscreens.title.change.binding", "Change binding"),
+                Help = SystemText("ui.registercontrolsscreens.help.capture.a.button.or.combination.or.remove.the", "Capture a button or combination, or remove the current binding."),
                 Entries = c => c.ControlsChoiceEntries(),
                 Details = c => c.ControlsChoiceDetails()
             });
@@ -191,7 +191,7 @@ public sealed partial class MenuController
             Id = "config-controls-conflict",
             Title = "Binding in use",
             Help = "Replacing removes this same combination from the other actions.",
-            Entries = _ => [new("keep", "Keep current bindings", "Discard the proposed binding.", Action: new("controls-keep")), new("replace", "Replace conflicting bindings", "Assign this combination and remove its conflicting bindings.", Action: new("controls-replace"))],
+            Entries = _ => [new("keep", SystemText("ui.registercontrolsscreens.entry.label.keep.current.bindings", "Keep current bindings"), SystemText("ui.registercontrolsscreens.entry.help.discard.the.proposed.binding", "Discard the proposed binding."), Action: new("controls-keep")), new("replace", SystemText("ui.registercontrolsscreens.entry.label.replace.conflicting.bindings", "Replace conflicting bindings"), SystemText("ui.registercontrolsscreens.entry.help.assign.this.combination.and.remove.its.conflicting.bindings", "Assign this combination and remove its conflicting bindings."), Action: new("controls-replace"))],
             Details = c => c.ControlsConflictDetails()
         });
         Register(new MenuScreenDefinition
@@ -199,8 +199,8 @@ public sealed partial class MenuController
             Id = "config-controls-reset",
             Title = "Restore defaults",
             Help = "Restore only the selected owner's bindings on this device. Conflicts require a separate review.",
-            Entries = c => [new("keep", "Keep current bindings", "Return without changing bindings.", Action: new("menu-back")), new("reset", c._developerControls ? "Restore debug shortcuts" : "Restore player bindings", "Preserve the other owner, the other device and controller settings.", Action: new("controls-reset-confirm"))],
-            Details = c => [$"Device: {c.ControlsDeviceName}", $"Scope: {c.ControlsOwnerName}", "Other bindings and controller settings stay.", c.IsDemoControls ? "Changes stay in this menu demo." : "Global: changes save automatically."]
+            Entries = c => [new("keep", SystemText("ui.registercontrolsscreens.entry.label.keep.current.bindings", "Keep current bindings"), SystemText("ui.registercontrolsscreens.entry.help.return.without.changing.bindings", "Return without changing bindings."), Action: new("menu-back")), new("reset", c._developerControls ? SystemText("ui.registercontrolsscreens.entry.label.restore.debug.shortcuts", "Restore debug shortcuts") : SystemText("ui.registercontrolsscreens.entry.label.restore.player.bindings", "Restore player bindings"), SystemText("ui.registercontrolsscreens.entry.help.preserve.the.other.owner.the.other.device.and", "Preserve the other owner, the other device and controller settings."), Action: new("controls-reset-confirm"))],
+            Details = c => [FormatSystemText("ui.registercontrolsscreens.details.device", "Device: {0}", c.ControlsDeviceName), FormatSystemText("ui.registercontrolsscreens.details.scope", "Scope: {0}", c.ControlsOwnerName), SystemText("ui.registercontrolsscreens.details.other.bindings.and.controller.settings.stay", "Other bindings and controller settings stay."), c.IsDemoControls ? SystemText("ui.registercontrolsscreens.details.changes.stay.in.this.menu.demo", "Changes stay in this menu demo.") : SystemText("ui.registercontrolsscreens.details.global.changes.save.automatically", "Global: changes save automatically.")]
         });
     }
 
@@ -208,13 +208,13 @@ public sealed partial class MenuController
     {
         string destination = device == ControlDevice.Keyboard ? "config-keyboard-choice" : "config-controller-choice";
         IReadOnlyList<ControlAction> actions = _developerControls ? ControlsProfile.DeveloperActions : ControlsGroupActions[_controlsGroup];
-        List<MenuEntry> result = [new("device", $"Device: {ControlsDeviceName}", "Switch keyboard/controller while retaining the selected group and action.", Action: new("controls-switch-device"))];
+        List<MenuEntry> result = [new("device", FormatSystemText("ui.controlsentries.entry.label.device", "Device: {0}", ControlsDeviceName), SystemText("ui.controlsentries.entry.help.switch.keyboard.controller.while.retaining.the.selected.group", "Switch keyboard/controller while retaining the selected group and action."), Action: new("controls-switch-device"))];
         if (!_developerControls)
         {
-            result.Add(new("group", $"Group: {ControlsGroups[_controlsGroup]}", "Choose Navigation, Interaction, Camera and battle, or Shortcuts.", Action: new("controls-group")));
+            result.Add(new("group", FormatSystemText("ui.controlsentries.entry.label.group", "Group: {0}", ControlsGroups[_controlsGroup]), SystemText("ui.controlsentries.entry.help.choose.navigation.interaction.camera.and.battle.or.shortcuts", "Choose Navigation, Interaction, Camera and battle, or Shortcuts."), Action: new("controls-group")));
         }
-        result.AddRange(actions.Select(action => new MenuEntry(action.ToString(), ControlsLabel(action), $"Global {ControlsOwnerName}: {BindingText(action, device)}", destination, new("controls-select", action.ToString(), Value: device.ToString()))));
-        result.Add(new("reset", _developerControls ? "Restore debug shortcuts..." : "Restore player bindings...", "Restore this owner's bindings for the selected device only.", "config-controls-reset", new("controls-device", device.ToString())));
+        result.AddRange(actions.Select(action => new MenuEntry(action.ToString(), ControlsLabel(action), FormatSystemText("ui.controlsentries.entry.help.global", "Global {0}: {1}", ControlsOwnerName, BindingText(action, device)), destination, new("controls-select", action.ToString(), Value: device.ToString()))));
+        result.Add(new("reset", _developerControls ? SystemText("ui.controlsentries.entry.label.restore.debug.shortcuts", "Restore debug shortcuts...") : SystemText("ui.controlsentries.entry.label.restore.player.bindings", "Restore player bindings..."), SystemText("ui.controlsentries.entry.help.restore.this.owner.s.bindings.for.the.selected", "Restore this owner's bindings for the selected device only."), "config-controls-reset", new("controls-device", device.ToString())));
         return result;
     }
 
@@ -222,10 +222,10 @@ public sealed partial class MenuController
     {
         if (SelectedEntry?.Id == "settings")
         {
-            return ["Controller settings", "Adjust left and right radial deadzones.", "Choose the tilt needed to run.", "Right stick: camera / car controls.", "Choose button labels for virtual pads.", "Enable or disable controller vibration.", "Changes save automatically."];
+            return [SystemText("ui.controlslistdetails.details.controller.settings", "Controller settings"), SystemText("ui.controlslistdetails.details.adjust.left.and.right.radial.deadzones", "Adjust left and right radial deadzones."), SystemText("ui.controlslistdetails.details.choose.the.tilt.needed.to.run", "Choose the tilt needed to run."), SystemText("ui.controlslistdetails.details.right.stick.camera.car.controls", "Right stick: camera / car controls."), SystemText("ui.controlslistdetails.details.choose.button.labels.for.virtual.pads", "Choose button labels for virtual pads."), SystemText("ui.controlslistdetails.details.enable.or.disable.controller.vibration", "Enable or disable controller vibration."), SystemText("ui.controlslistdetails.details.changes.save.automatically", "Changes save automatically.")];
         }
         ControlActionDefinition? selected = ControlsProfile.Definitions.FirstOrDefault(definition => definition.Action.ToString() == SelectedEntry?.Id);
-        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera / car controls" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
+        List<string> details = [selected is null ? SystemText("ui.controlslistdetails.details.restore.defaults", "Restore defaults") : ControlsLabel(selected.Action), selected?.Category ?? SystemText("ui.controlslistdetails.details.all.actions", "All actions"), selected is null ? "" : BindingText(selected.Action, device), SystemText("ui.controlslistdetails.details.key.button.combinations.supported", "Key / button combinations supported."), device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.left.stick.movement", "Left stick: movement") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.right.stick.camera.car.controls.alternate", "Right stick: camera / car controls") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.stick.directions.cannot.bind.actions", "Stick directions cannot bind actions.") : "", IsDemoControls ? SystemText("ui.controlslistdetails.details.menu.demo.changes.stay.isolated", "Menu demo: changes stay isolated.") : CanWriteControls ? SystemText("ui.controlslistdetails.details.changes.save.automatically", "Changes save automatically.") : SystemText("ui.controlslistdetails.details.controls.are.not.connected.to.this.host", "Controls are not connected to this host.")];
         return details.Where(line => line.Length != 0).ToArray();
     }
 
@@ -233,39 +233,39 @@ public sealed partial class MenuController
     {
         if (_captureControls)
         {
-            return [new("cancel-capture", "Cancel capture", "Keep the current binding.", Action: new("controls-cancel"))];
+            return [new("cancel-capture", SystemText("ui.controlschoiceentries.entry.label.cancel.capture", "Cancel capture"), SystemText("ui.controlschoiceentries.entry.help.keep.the.current.binding", "Keep the current binding."), Action: new("controls-cancel"))];
         }
-        return [new("capture", "Capture key / button combination", "Release controls, hold the new combination, then release to apply.", Action: new("controls-capture"), Enabled: CanWriteControls), new("clear", "Clear binding", "Remove this action's binding for this device.", Action: new("controls-clear"), Enabled: CanWriteControls && (_controlsDevice == ControlDevice.Keyboard || _controlsAction is not ControlAction.Confirm and not ControlAction.Cancel)), new("back", "Back", "Return to the action list.", Action: new("menu-back"))];
+        return [new("capture", SystemText("ui.controlschoiceentries.entry.label.capture.key.button.combination", "Capture key / button combination"), SystemText("ui.controlschoiceentries.entry.help.release.controls.hold.the.new.combination.then.release", "Release controls, hold the new combination, then release to apply."), Action: new("controls-capture"), Enabled: CanWriteControls), new("clear", SystemText("ui.controlschoiceentries.entry.label.clear.binding", "Clear binding"), SystemText("ui.controlschoiceentries.entry.help.remove.this.action.s.binding.for.this.device", "Remove this action's binding for this device."), Action: new("controls-clear"), Enabled: CanWriteControls && (_controlsDevice == ControlDevice.Keyboard || _controlsAction is not ControlAction.Confirm and not ControlAction.Cancel)), new("back", SystemText("ui.controlschoiceentries.entry.label.back", "Back"), SystemText("ui.controlschoiceentries.entry.help.return.to.the.action.list", "Return to the action list."), Action: new("menu-back"))];
     }
 
     private IReadOnlyList<string> ControlsChoiceDetails()
     {
         if (_captureControls)
         {
-            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatPrompt(CurrentControllerPresentation) ?? "Waiting for input...", "Gameplay input is paused."];
+            return [ControlsActionName, _captureArmed ? SystemText("ui.controlschoicedetails.details.press.the.new.key.buttons", "Press the new key / buttons.") : SystemText("ui.controlschoicedetails.details.release.all.keys.and.buttons.first", "Release all keys and buttons first."), SystemText("ui.controlschoicedetails.details.hold.combination.buttons.together", "Hold combination buttons together."), SystemText("ui.controlschoicedetails.details.release.all.to.finish.capture", "Release all to finish capture."), _capturedChord?.FormatPrompt(CurrentControllerPresentation) ?? SystemText("ui.controlschoicedetails.details.waiting.for.input", "Waiting for input..."), SystemText("ui.controlschoicedetails.details.gameplay.input.is.paused", "Gameplay input is paused.")];
         }
-        return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."];
+        return [ControlsActionName, FormatSystemText("ui.controlschoicedetails.details.device", "Device: {0}", ControlsDeviceName), FormatSystemText("ui.controlschoicedetails.details.current", "Current: {0}", ControlsMapping), SystemText("ui.controlschoicedetails.details.capture.replaces.this.action.s.bindings", "Capture replaces this action's bindings."), SystemText("ui.controlschoicedetails.details.hold.combination.buttons.together", "Hold combination buttons together."), SystemText("ui.controlschoicedetails.details.confirm.and.cancel.must.stay.bound", "Confirm and Cancel must stay bound."), IsDemoControls ? SystemText("ui.controlschoicedetails.details.changes.stay.in.this.menu.demo", "Changes stay in this menu demo.") : SystemText("ui.controlschoicedetails.details.changes.save.automatically", "Changes save automatically.")];
     }
 
     private IReadOnlyList<string> ControlsConflictDetails()
     {
         if (_pendingBindingsReset)
         {
-            return [$"Restore {ControlsOwnerName} ({ControlsDeviceName})", "Default bindings conflict with:", .. CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel), "Replace removes only conflicting chords.", "Keep current bindings to cancel."];
+            return [FormatSystemText("ui.controlsconflictdetails.details.restore", "Restore {0} ({1})", ControlsOwnerName, ControlsDeviceName), SystemText("ui.controlsconflictdetails.details.default.bindings.conflict.with", "Default bindings conflict with:"), .. CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel), SystemText("ui.controlsconflictdetails.details.replace.removes.only.conflicting.chords", "Replace removes only conflicting chords."), SystemText("ui.controlsconflictdetails.details.keep.current.bindings.to.cancel", "Keep current bindings to cancel.")];
         }
-        return [ControlsActionName, $"New: {_pendingChord?.FormatPrompt(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsConflictLabel(action)), "Keep current bindings to cancel."];
+        return [ControlsActionName, FormatSystemText("ui.controlsconflictdetails.details.new", "New: {0}", _pendingChord?.FormatPrompt(CurrentControllerPresentation)), SystemText("ui.controlsconflictdetails.details.already.assigned.to", "Already assigned to:"), .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsConflictLabel(action)), SystemText("ui.controlsconflictdetails.details.keep.current.bindings.to.cancel", "Keep current bindings to cancel.")];
     }
 
     private string BindingText(ControlAction action, ControlDevice device)
     {
         IReadOnlyList<InputChord> bindings = CurrentControls.GetBindings(action, device);
-        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
+        return bindings.Count == 0 ? SystemText("ui.bindingtext.details.unbound", "Unbound") : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
     }
 
     private string ControlsBindingText(ControlAction action, ControlDevice device)
     {
         string[] bindings = CurrentControls.GetBindings(action, device).Concat(ControlsProfile.GetPermanentBindings(action, device)).Select(binding => binding.FormatPrompt(CurrentControllerPresentation)).Distinct().ToArray();
-        return bindings.Length == 0 ? "Unbound" : string.Join(" / ", bindings);
+        return bindings.Length == 0 ? SystemText("ui.controlsbindingtext.details.unbound", "Unbound") : string.Join(" / ", bindings);
     }
 
     private string CurrentBindingText(ControlAction action)
@@ -284,21 +284,21 @@ public sealed partial class MenuController
                 bindings = ControlsProfile.GetPermanentBindings(action, ControlDevice.Keyboard);
             }
         }
-        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
+        return bindings.Count == 0 ? SystemText("ui.currentbindingtext.details.unbound", "Unbound") : string.Join(" / ", bindings.Select(binding => binding.FormatPrompt(CurrentControllerPresentation)));
     }
 
-    private static string ControlsLabel(ControlAction action)
+    private string ControlsLabel(ControlAction action)
     {
         return action switch
         {
-            ControlAction.DebugRoom => "Open Debug Room",
-            ControlAction.BattleDebug => "Open battle laboratory",
-            ControlAction.BattleInstantVictory => "Instant victory",
-            ControlAction.BattleInstantDefeat => "Instant defeat",
-            ControlAction.RotateLeft => "Rotate left / Previous character",
-            ControlAction.RotateRight => "Rotate right / Gunblade / Next",
-            ControlAction.CameraRight => "Camera mode / Escape battle (R)",
-            _ => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label
+            ControlAction.DebugRoom => SystemText("ui.controlslabel.details.open.debug.room", "Open Debug Room"),
+            ControlAction.BattleDebug => SystemText("ui.controlslabel.details.open.battle.laboratory", "Open battle laboratory"),
+            ControlAction.BattleInstantVictory => SystemText("ui.controlslabel.details.instant.victory", "Instant victory"),
+            ControlAction.BattleInstantDefeat => SystemText("ui.controlslabel.details.instant.defeat", "Instant defeat"),
+            ControlAction.RotateLeft => SystemText("ui.controlslabel.details.rotate.left.previous.character", "Rotate left / Previous character"),
+            ControlAction.RotateRight => SystemText("ui.controlslabel.details.rotate.right.gunblade.next", "Rotate right / Gunblade / Next"),
+            ControlAction.CameraRight => SystemText("ui.controlslabel.details.camera.mode.escape.battle.r", "Camera mode / Escape battle (R)"),
+            _ => SystemText("controls.action." + action.ToString(), ControlsProfile.Definitions.Single(definition => definition.Action == action).Label)
         };
     }
 
@@ -341,7 +341,7 @@ public sealed partial class MenuController
                 ControlAction selected = Enum.Parse<ControlAction>(action.SubjectId);
                 if (ControlsProfile.IsDeveloperAction(selected) != _developerControls)
                 {
-                    Message = "This binding belongs to the other controls editor.";
+                    Message = SystemText("ui.executecontrolsaction.message.this.binding.belongs.to.the.other.controls.editor", "This binding belongs to the other controls editor.");
                     return true;
                 }
                 _controlsAction = selected;
@@ -365,7 +365,7 @@ public sealed partial class MenuController
                     _capturedChord = null;
                     _captureControllerConnected = false;
                     _captureControllerGeneration = _readControllerGeneration?.Invoke() ?? 0;
-                    Message = "Release controls, then press your new combination.";
+                    Message = SystemText("ui.executecontrolsaction.message.release.controls.then.press.your.new.combination", "Release controls, then press your new combination.");
                 }
                 return true;
             case "controls-cancel":
@@ -424,12 +424,12 @@ public sealed partial class MenuController
         ControllerSettings settings = CurrentControls.Controller;
         return
         [
-            new("left-deadzone", $"Left stick deadzone: {settings.LeftStickDeadZone:P0}", "Adjust by 5%, from 0% to 50%.", Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
-            new("right-deadzone", $"Right stick deadzone: {settings.RightStickDeadZone:P0}", "Adjust by 5%, from 0% to 50%.", Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
-            new("run-threshold", $"Run threshold: {settings.WalkRunThreshold:P0}", "Adjust by 5%, from 10% to 95%.", Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
-            new("presentation", $"Button labels: {settings.Presentation}", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels.", Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
-            new("vibration", $"Vibration: {(settings.VibrationEnabled ? "On" : "Off")}", "Enable or disable controller vibration.", Action: new("controls-setting", "vibration"), Enabled: CanWriteControls),
-            new("reset-settings", "Restore controller settings...", "Restore only these five preferences; preserve all bindings.", "config-controller-settings-reset")
+            new("left-deadzone", FormatSystemText("ui.controllersettingsentries.entry.label.left.stick.deadzone", "Left stick deadzone: {0:P0}", settings.LeftStickDeadZone), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.0.to.50", "Adjust by 5%, from 0% to 50%."), Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
+            new("right-deadzone", FormatSystemText("ui.controllersettingsentries.entry.label.right.stick.deadzone", "Right stick deadzone: {0:P0}", settings.RightStickDeadZone), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.0.to.50", "Adjust by 5%, from 0% to 50%."), Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
+            new("run-threshold", FormatSystemText("ui.controllersettingsentries.entry.label.run.threshold", "Run threshold: {0:P0}", settings.WalkRunThreshold), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.10.to.95", "Adjust by 5%, from 10% to 95%."), Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
+            new("presentation", FormatSystemText("ui.controllersettingsentries.entry.label.button.labels", "Button labels: {0}", settings.Presentation), SystemText("ui.controllersettingsentries.entry.help.cycle.automatic.generic.xbox.playstation.and.nintendo.labels", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels."), Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
+            new("vibration", FormatSystemText("ui.controllersettingsentries.entry.label.vibration", "Vibration: {0}", (settings.VibrationEnabled ? SystemText("ui.controllersettingsentries.value.on", "On") : SystemText("ui.controllersettingsentries.value.off", "Off"))), SystemText("ui.controllersettingsentries.entry.help.enable.or.disable.controller.vibration", "Enable or disable controller vibration."), Action: new("controls-setting", "vibration"), Enabled: CanWriteControls),
+            new("reset-settings", SystemText("ui.controllersettingsentries.entry.label.restore.controller.settings", "Restore controller settings..."), SystemText("ui.controllersettingsentries.entry.help.restore.only.these.five.preferences.preserve.all.bindings", "Restore only these five preferences; preserve all bindings."), "config-controller-settings-reset")
         ];
     }
 
@@ -471,7 +471,7 @@ public sealed partial class MenuController
     {
         if (!CanWriteControls)
         {
-            Message = "Controls are not connected to this host.";
+            Message = SystemText("ui.writecontrols.message.controls.are.not.connected.to.this.host", "Controls are not connected to this host.");
             return false;
         }
         try
@@ -577,7 +577,7 @@ public sealed partial class MenuController
         if (!_captureArmed)
         {
             _captureArmed = released;
-            Message = released ? "Press a key or combination, then release all to apply." : "Release all keys and buttons first.";
+            Message = released ? SystemText("ui.updatecontrolscapture.message.press.a.key.or.combination.then.release.all", "Press a key or combination, then release all to apply.") : SystemText("ui.updatecontrolscapture.message.release.all.keys.and.buttons.first", "Release all keys and buttons first.");
             _view = null;
             return true;
         }
@@ -586,7 +586,7 @@ public sealed partial class MenuController
         if (count > (_capturedChord?.Keys.Length ?? 0) + (_capturedChord?.Buttons.Length ?? 0))
         {
             _capturedChord = held;
-            Message = "Release all controls to apply this combination.";
+            Message = SystemText("ui.updatecontrolscapture.message.release.all.controls.to.apply.this.combination", "Release all controls to apply this combination.");
             _view = null;
         }
         if (released && _capturedChord is not null)

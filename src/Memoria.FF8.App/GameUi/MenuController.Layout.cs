@@ -122,8 +122,8 @@ public sealed partial class MenuController
         {
             var summary = Grid([1, 1], [1, 6], 2);
             Place(summary, Portrait(Character), 0, 0, 2);
-            Place(summary, Label($"Lv {Number(Character?.Level)}     HP {(Character is null ? "--" : Hp(Character))}     {Character?.Weapon ?? "--"}", 19), 0, 1);
-            Place(summary, Label("Commands: " + (Character?.Commands.Count > 0 ? string.Join(" / ", Character.Commands) : "--"), 18), 1, 1);
+            Place(summary, Label(FormatSystemText("ui.buildstandard.label.lv.hp", "Lv {0}     HP {1}     {2}", Number(Character?.Level), (Character is null ? "--" : Hp(Character)), Character?.Weapon ?? "--"), 19), 0, 1);
+            Place(summary, Label(SystemText("ui.buildstandard.label.commands", "Commands: ") + (Character?.Commands.Count > 0 ? string.Join(" / ", Character.Commands) : "--"), 18), 1, 1);
             Place(content, Panel(Character?.Name ?? "--", summary), 0);
         }
         else if (collectionDetail)
@@ -138,7 +138,7 @@ public sealed partial class MenuController
         Place(content, panes, showSummary ? 1 : 0);
         Place(panes, Panel(null, Commands(30, 19)), 0, 0);
         bool showFontPreviews = ScreenId is "config-text" or "font-picker";
-        Place(panes, Panel(ScreenId == "debug-room" ? "Selected preview" : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
+        Place(panes, Panel(ScreenId == "debug-room" ? SystemText("ui.buildstandard.panel.selected.preview", "Selected preview") : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
         return content;
     }
 
@@ -148,9 +148,9 @@ public sealed partial class MenuController
         var previews = Grid([1], [1, 1], 8);
         var menus = Grid([1, 2], [1], 4);
         var dialogue = Grid([1, 2], [1], 4);
-        Place(menus, Label($"Menus: {preferences.UiFontSize}px / {preferences.TextScale}%", 15), 0);
+        Place(menus, Label(FormatSystemText("ui.buildfontpreviews.label.menus.px", "Menus: {0}px / {1}%", preferences.UiFontSize, preferences.TextScale), 15), 0);
         Place(menus, new FontPreviewElement(preferences.GetUiFontFamily(Presentation), preferences.UiFontSize * preferences.TextScale / 100f) { Id = "ui-font-preview" }, 1);
-        Place(dialogue, Label($"Dialogue: {preferences.DialogueFontSize}px (field)", 15), 0);
+        Place(dialogue, Label(FormatSystemText("ui.buildfontpreviews.label.dialogue.px.field", "Dialogue: {0}px (field)", preferences.DialogueFontSize), 15), 0);
         Place(dialogue, new FontPreviewElement(preferences.DialogueFontFamily, preferences.DialogueFontSize * 3) { Id = "dialogue-font-preview" }, 1);
         Place(previews, menus, 0);
         Place(previews, dialogue, 0, 1);
@@ -178,17 +178,17 @@ public sealed partial class MenuController
             bool guardianForce = CurrentScreen.Layout == MenuLayout.GuardianForceGrid;
             int? nativeId = guardianForce ? Data.GuardianForces.FirstOrDefault(force => force.Id == entry.Id)?.NativeId : Data.Cards.FirstOrDefault(card => card.Id == entry.Id)?.NativeId;
             Place(tile, Artwork(guardianForce ? UiImageKind.GuardianForcePortrait : UiImageKind.Card, nativeId), 1);
-            string detail = CurrentScreen.Layout == MenuLayout.GuardianForceGrid ? "Lv  " + Number(Data.GuardianForces.FirstOrDefault(force => force.Id == entry.Id)?.Level) : "x" + (Data.Cards.FirstOrDefault(card => card.Id == entry.Id)?.Quantity.ToString() ?? "--");
+            string detail = CurrentScreen.Layout == MenuLayout.GuardianForceGrid ? SystemText("ui.buildcollection.detail.lv", "Lv  ") + Number(Data.GuardianForces.FirstOrDefault(force => force.Id == entry.Id)?.Level) : SystemText("ui.buildcollection.detail.x", "x") + (Data.Cards.FirstOrDefault(card => card.Id == entry.Id)?.Quantity.ToString() ?? "--");
             Place(tile, Label(detail, 20), 2);
             int local = index - first;
             Place(tiles, button, local / columns, local % columns);
         }
         if (Entries.Count == 0)
         {
-            Place(tiles, Label("No collection data", 20), 0, 0, visibleRows, columns);
+            Place(tiles, Label(SystemText("ui.buildcollection.label.no.collection.data", "No collection data"), 20), 0, 0, visibleRows, columns);
         }
         int pages = Math.Max(1, (Entries.Count + columns * visibleRows - 1) / (columns * visibleRows));
-        Place(content, Panel($"Page {page + 1} / {pages}", Details()), 1);
+        Place(content, Panel(FormatSystemText("ui.buildcollection.panel.page", "Page {0} / {1}", page + 1, pages), Details()), 1);
         return content;
     }
 
@@ -201,7 +201,7 @@ public sealed partial class MenuController
             var enemy = Grid([2.5f, 0.6f, 0.7f], [1], 4);
             Place(enemy, new UiSigil { Seed = StableHash(target.Id), Initials = target.Name[..1] }, 0);
             Place(enemy, Label(target.Name, 18), 1);
-            Place(enemy, Label($"HP {Number(target.CurrentHp)} / {Number(target.MaximumHp)}", 16), 2);
+            Place(enemy, Label(FormatSystemText("ui.buildbattle.label.hp", "HP {0} / {1}", Number(target.CurrentHp), Number(target.MaximumHp)), 16), 2);
             enemies.Children.Add(enemy);
         }
         Place(battlefield, enemies, 0, 0, 1, 2);
@@ -211,8 +211,8 @@ public sealed partial class MenuController
         {
             var member = Grid([1, 0.6f], [1.2f, 1.5f, 1.4f], 8);
             Place(member, Label(character.Name, 22), 0, 0);
-            Place(member, Label("HP " + Hp(character), 20), 0, 1);
-            var atb = new UiProgressBar { Min = 0, Max = 1, Value = character.AtbProgress ?? 0, Text = character.AtbProgress.HasValue ? "ATB" : "ATB --" };
+            Place(member, Label(SystemText("ui.buildbattle.label.hp.alternate", "HP ") + Hp(character), 20), 0, 1);
+            var atb = new UiProgressBar { Min = 0, Max = 1, Value = character.AtbProgress ?? 0, Text = character.AtbProgress.HasValue ? SystemText("ui.buildbattle.text.atb", "ATB") : SystemText("ui.buildbattle.text.atb.alternate", "ATB --") };
             Place(member, atb, 0, 2);
             Place(member, Label(string.Join(" / ", character.Conditions), 14), 1, 0, 1, 3);
             party.Children.Add(member);
@@ -220,7 +220,7 @@ public sealed partial class MenuController
         var information = Grid([2, 1], [1], 6);
         Place(information, party, 0);
         Place(information, Details(), 1);
-        Place(battlefield, Panel("PARTY", information), 1, 1);
+        Place(battlefield, Panel(SystemText("ui.buildbattle.panel.party", "PARTY"), information), 1, 1);
         return battlefield;
     }
 
@@ -228,21 +228,21 @@ public sealed partial class MenuController
     {
         var header = Grid([1], [4, 1]);
         Place(header, Help(), 0, 0);
-        Place(header, Panel(null, Label(IsFixtureContext ? "Preview / Fixture" : CurrentScreen.Title, CurrentScreen.Title.Length > 12 ? 18 : 26, UiTextFlow.Wrap)), 0, 1);
+        Place(header, Panel(null, Label(IsFixtureContext ? SystemText("ui.header.label.preview.fixture", "Preview / Fixture") : CurrentScreen.Title, CurrentScreen.Title.Length > 12 ? 18 : 26, UiTextFlow.Wrap)), 0, 1);
         return header;
     }
 
     private UiElement Help()
     {
-        string help = ScreenId == "main" && !IsSelectingCharacter ? (SelectedEntry?.Label ?? "Main") + " Menu" : SelectedEntry?.Help ?? CurrentScreen.Help;
-        return Panel("HELP", Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
+        string help = ScreenId == "main" && !IsSelectingCharacter ? (SelectedEntry?.Label ?? SystemText("ui.help.help.main", "Main")) + SystemText("ui.help.help.menu", " Menu") : SelectedEntry?.Help ?? CurrentScreen.Help;
+        return Panel(SystemText("ui.help.panel.help", "HELP"), Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18, UiTextFlow.Wrap));
     }
 
     private UiElement Footer()
     {
         if (IsNamingScreen)
         {
-            return Panel(null, Label("Current game", 14));
+            return Panel(null, Label(SystemText("ui.footer.label.current.game", "Current game"), 14));
         }
         string text = $"{(IsDemo ? "DEMO · " : "")}{Data.Location}";
         return Panel(null, Label(text, 14));

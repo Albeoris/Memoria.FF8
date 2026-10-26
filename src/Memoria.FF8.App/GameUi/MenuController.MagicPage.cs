@@ -9,7 +9,7 @@ public sealed partial class MenuController
         bool root = ScreenId == "magic";
         bool exchange = ScreenId.StartsWith("magic-exchange", StringComparison.Ordinal);
         var page = Grid([1.2f, 5], [1], 4);
-        Place(page, NativeMenuHeader("Magic", root ? NativeCommandStrip() : InventoryNavigation(true)), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildmagicpage.nativemenuheader.magic", "Magic"), root ? NativeCommandStrip() : InventoryNavigation(true)), 0);
         var body = Grid(exchange ? [1, 1] : [1], [1.05f, 1], exchange ? 24 : 4);
         Place(page, body, 1);
         Place(body, MagicCharacterSummary(Character, exchange), 0);
@@ -26,12 +26,12 @@ public sealed partial class MenuController
             ConfigureMagicColumns(list, spells);
             stock = InventoryQuantities(list, spells.Select(value => value.Name).ToList(), spells.Select(value => value.StockPresentation).ToList());
         }
-        Place(body, Panel("MAGIC", stock), 0, 1);
+        Place(body, Panel(SystemText("ui.buildmagicpage.panel.magic", "MAGIC"), stock), 0, 1);
         if (exchange)
         {
             MenuCharacter? recipient = Data.Characters.FirstOrDefault(value => value.Id == _exchangeId) ?? Data.Characters.FirstOrDefault(value => value.Id != Character?.Id);
             Place(body, MagicCharacterSummary(recipient, true), 1);
-            Place(body, Panel(chooseTarget ? "CHOICE" : "MAGIC", chooseTarget ? Commands(38, 24) : MagicStockPreview(recipient)), 1, 1);
+            Place(body, Panel(chooseTarget ? SystemText("ui.buildmagicpage.panel.choice", "CHOICE") : SystemText("ui.buildmagicpage.panel.magic", "MAGIC"), chooseTarget ? Commands(38, 24) : MagicStockPreview(recipient)), 1, 1);
         }
         else if (ScreenId == "magic-target")
         {
@@ -39,7 +39,7 @@ public sealed partial class MenuController
             var content = new UiElement();
             content.Children.Add(page);
             overlay.Children.Add(content);
-            var choices = Panel("NAME", Commands(48, 25));
+            var choices = Panel(SystemText("ui.buildmagicpage.panel.name", "NAME"), Commands(48, 25));
             choices.Anchors = new UiAnchors(0.18f, 0.42f, 0.76f, 0.84f);
             overlay.Children.Add(choices);
             return overlay;
@@ -53,7 +53,7 @@ public sealed partial class MenuController
         var identity = Grid([1], [1, 2.8f], 10);
         identity.Margin = new UiThickness(16, 8);
         Place(identity, Portrait(character), 0);
-        Place(identity, Readouts([character?.Name ?? "--", $"Lv  {Number(character?.Level)}", "HP  " + (character is null ? "--" : Hp(character))], 26), 0, 1);
+        Place(identity, Readouts([character?.Name ?? "--", FormatSystemText("ui.magiccharactersummary.details.lv", "Lv  {0}", Number(character?.Level)), SystemText("ui.magiccharactersummary.details.hp", "HP  ") + (character is null ? "--" : Hp(character))], 26), 0, 1);
         Place(summary, identity, 0);
         return compact ? identity : summary;
     }

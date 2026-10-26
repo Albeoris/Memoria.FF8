@@ -1,10 +1,14 @@
 namespace Memoria.FF8.Resources.Localization;
 
 /// <summary>Authored interface text with semantic identities independent of screen and source ordering.</summary>
-public static class SystemTextCatalog
+public static partial class SystemTextCatalog
 {
     public const string File = "interface_system";
-    public static IReadOnlyDictionary<string, string> Defaults { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
+    public static IReadOnlyDictionary<string, string> Defaults { get; } = CreateDefaults();
+
+    private static IReadOnlyDictionary<string, string> CreateDefaults()
+    {
+        Dictionary<string, string> defaults = new(StringComparer.Ordinal)
     {
         ["main.menu"] = "Menu",
         ["main.junction"] = "Junction",
@@ -89,7 +93,10 @@ public static class SystemTextCatalog
         ["common.done"] = "Done",
         ["common.delete"] = "Delete",
         ["common.clear"] = "Clear"
-    };
+        };
+        AddAuthoredDefaults(defaults);
+        return defaults;
+    }
 
     public static string Key(string id) => "$en_" + File + "_" + id;
 

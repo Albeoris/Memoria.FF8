@@ -1,4 +1,5 @@
 using System.Text;
+using System.Buffers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Memoria.FF8.Resources.Localization;
@@ -12,13 +13,13 @@ public static partial class LocalizationProjectIO
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     internal const long MaximumFileBytes = 128 * 1024 * 1024;
 
-    public static LocalizationProject Read(string packageDirectory, bool allowMissingPayloads = false)
+    public static LocalizationProject Read(string packageDirectory, bool allowMissingPayloads = false, LocalizationProjectReadCache? cache = null)
     {
         for (int attempt = 0; ; attempt++)
         {
             try
             {
-                return ReadOnce(packageDirectory, allowMissingPayloads);
+                return ReadOnce(packageDirectory, allowMissingPayloads, cache);
             }
             catch (IOException exception) when (attempt < 2 && exception is not LocalizationFileAccessException && exception is not FileNotFoundException && exception is not DirectoryNotFoundException)
             {
@@ -31,7 +32,7 @@ public static partial class LocalizationProjectIO
         }
     }
 
-    private static LocalizationProject ReadOnce(string packageDirectory, bool allowMissingPayloads)
+    private static LocalizationProject ReadOnce(string packageDirectory, bool allowMissingPayloads, LocalizationProjectReadCache? cache)
     {
         string root = System.IO.Path.GetFullPath(packageDirectory);
         Dictionary<string, (long Length, DateTime Modified, DateTime Created, LocalizationSnapshotIdentity? Identity)> stamps = new(StringComparer.OrdinalIgnoreCase);
@@ -89,7 +90,7 @@ public static partial class LocalizationProjectIO
                 missingPayloads.Add(payload);
                 continue;
             }
-            rows.AddRange(manifest.Format == "json" ? LocalizationProjectJson.Read(bytes, manifest, payload) : LocalizationProjectWorkbook.Read(bytes, manifest, payload));
+            rows.AddRange(cache is null ? manifest.Format == "json" ? LocalizationProjectJson.Read(bytes, manifest, payload) : LocalizationProjectWorkbook.Read(bytes, manifest, payload) : cache.Read(bytes, manifest, payload));
         }
         if (manifest.ExtensionsPath is not null)
         {
@@ -424,15 +425,22 @@ public static partial class LocalizationProjectIO
                 using (MemoryStream copy = new())
                 {
                     identity = LocalizationSnapshotIdentity.Capture(stream);
-                    byte[] buffer = new byte[64 * 1024];
-                    int count;
-                    while ((count = stream.Read(buffer)) != 0)
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+                    try
                     {
-                        if (copy.Length + count > MaximumFileBytes)
+                        int count;
+                        while ((count = stream.Read(buffer)) != 0)
                         {
-                            throw new InvalidDataException("Localization snapshot exceeds the size limit.");
+                            if (copy.Length + count > MaximumFileBytes)
+                            {
+                                throw new InvalidDataException("Localization snapshot exceeds the size limit.");
+                            }
+                            copy.Write(buffer, 0, count);
                         }
-                        copy.Write(buffer, 0, count);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
                     }
                     bytes = copy.ToArray();
                     if (identity != LocalizationSnapshotIdentity.Capture(stream))

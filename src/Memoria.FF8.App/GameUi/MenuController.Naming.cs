@@ -64,14 +64,14 @@ public sealed partial class MenuController
             Id = "item-name-confirm",
             Title = "Item · Name",
             Help = "Use this item to change the name?",
-            Entries = c => [new MenuEntry("yes", "Yes", "Use one item and open name entry.", Action: new MenuAction("item-use", TargetId: "character-0")), new MenuEntry("no", "No", "Return without using the item.", Action: new MenuAction("menu-back"))],
-            Details = c => [c.Item?.Name ?? "", "Change this name?", "The item is used when you choose Yes."],
+            Entries = c => [new MenuEntry("yes", SystemText("ui.registernamingscreens.entry.label.yes", "Yes"), SystemText("ui.registernamingscreens.entry.help.use.one.item.and.open.name.entry", "Use one item and open name entry."), Action: new MenuAction("item-use", TargetId: "character-0")), new MenuEntry("no", SystemText("ui.registernamingscreens.entry.label.no", "No"), SystemText("ui.registernamingscreens.entry.help.return.without.using.the.item", "Return without using the item."), Action: new MenuAction("menu-back"))],
+            Details = c => [c.Item?.Name ?? "", SystemText("ui.registernamingscreens.details.change.this.name", "Change this name?"), SystemText("ui.registernamingscreens.details.the.item.is.used.when.you.choose.yes", "The item is used when you choose Yes.")],
             BuildContent = (c, panel) =>
             {
                 UiGrid page = Grid([1.2f, 5], [1], 4);
-                Place(page, c.NativeMenuHeader("Item"), 0);
+                Place(page, c.NativeMenuHeader(SystemText("ui.registernamingscreens.nativemenuheader.item", "Item")), 0);
                 UiGrid confirmation = Grid([1, 2, 2, 1], [1, 2, 1]);
-                Place(confirmation, c.Panel(null, c.Lines([c.Item?.Name ?? "", "Change the name?"], 24)), 1, 1);
+                Place(confirmation, c.Panel(null, c.Lines([c.Item?.Name ?? "", SystemText("ui.registernamingscreens.details.change.the.name", "Change the name?")], 24)), 1, 1);
                 Place(confirmation, c.Panel(null, c.Commands(48, 26)), 2, 1);
                 Place(page, confirmation, 1);
                 panel.Children.Add(page);
@@ -82,16 +82,16 @@ public sealed partial class MenuController
             Id = "debug-names",
             Title = "Names",
             Help = "Select a character or Guardian Force to rename.",
-            Entries = c => c._readNames?.Invoke().Select(target => new MenuEntry(target.Subject.ToString(CultureInfo.InvariantCulture), $"{target.Category} · {target.Name}", "Edit this name in the current game.", Action: new MenuAction("name-edit", target.Subject.ToString(CultureInfo.InvariantCulture)))).ToArray() ?? [],
-            Details = _ => ["Characters and Guardian Forces", "Select a name to edit it.", "Confirm applies to the current game.", "Cancel discards the draft.", "Save the game to keep your changes."]
+            Entries = c => c._readNames?.Invoke().Select(target => new MenuEntry(target.Subject.ToString(CultureInfo.InvariantCulture), $"{target.Category} · {target.Name}", SystemText("ui.registernamingscreens.entry.help.edit.this.name.in.the.current.game", "Edit this name in the current game."), Action: new MenuAction("name-edit", target.Subject.ToString(CultureInfo.InvariantCulture)))).ToArray() ?? [],
+            Details = _ => [SystemText("ui.registernamingscreens.details.characters.and.guardian.forces", "Characters and Guardian Forces"), SystemText("ui.registernamingscreens.details.select.a.name.to.edit.it", "Select a name to edit it."), SystemText("ui.registernamingscreens.details.confirm.applies.to.the.current.game", "Confirm applies to the current game."), SystemText("ui.registernamingscreens.details.cancel.discards.the.draft", "Cancel discards the draft."), SystemText("ui.registernamingscreens.details.save.the.game.to.keep.your.changes", "Save the game to keep your changes.")]
         });
         foreach (string id in new[] { "debug-name-input", "name-input" })
         {
             Register(new MenuScreenDefinition
             {
                 Id = id,
-                Title = "Name Input",
-                Help = "Name the character.",
+                Title = SystemText("ui.registernamingscreens.title.name.input", "Name Input"),
+                Help = SystemText("ui.registernamingscreens.help.name.the.character", "Name the character."),
                 Columns = NameColumns,
                 Entries = c => c.NameInputEntries(),
                 BuildContent = (c, panel) => panel.Children.Add(c.BuildNameInput())
@@ -128,11 +128,11 @@ public sealed partial class MenuController
         {
             if (_nameKeyboard)
             {
-                entries.Add(new MenuEntry("letter-" + index, "", "Enter a name using your keyboard.", Action: new MenuAction("name-keyboard"), Enabled: index == 0));
+                entries.Add(new MenuEntry("letter-" + index, "", SystemText("ui.nameinputentries.entry.help.enter.a.name.using.your.keyboard", "Enter a name using your keyboard."), Action: new MenuAction("name-keyboard"), Enabled: index == 0));
                 continue;
             }
             string letter = index < characters.Length && characters[index] != '\0' ? characters[index].ToString() : "";
-            entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, "Append this character.", Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0));
+            entries.Add(new MenuEntry("letter-" + index, letter == " " ? "␣" : letter, SystemText("ui.nameinputentries.entry.help.append.this.character", "Append this character."), Action: new MenuAction("name-letter", Value: letter), Enabled: letter.Length > 0));
         }
         entries.AddRange(new[] { ("Keyboard", "name-keyboard", ""), ("English", "name-page", "English"), ("Symbols", "name-page", "Symbols"), ("Cyrillic", "name-page", "Cyrillic"), ("Space", "name-letter", " "), ("Confirm", "name-save", ""), ("Delete", "name-delete", ""), ("Default", "name-default", ""), ("Clear", "name-clear", ""), ("Cancel", "menu-back", "") }.Select((entry, index) => new MenuEntry("name-command-" + index, entry.Item1, entry.Item1, Action: new MenuAction(entry.Item2, Value: entry.Item3), Enabled: index != 9 || !IsNamePrompt)));
         return entries;
@@ -141,7 +141,7 @@ public sealed partial class MenuController
     private UiElement BuildNameInput()
     {
         UiGrid page = Grid([0.65f, 2.4f, 4.6f, 0.65f], [1, 3.25f], 5);
-        UiPanel title = Panel(null, Label("Name Input", 27));
+        UiPanel title = Panel(null, Label(SystemText("ui.buildnameinput.label.name.input", "Name Input"), 27));
         title.HorizontalAlignment = UiAlignment.End;
         title.Width = 220;
         Place(page, title, 0, 1);
@@ -160,11 +160,11 @@ public sealed partial class MenuController
         };
         Place(page, portrait, 1, 0);
         UiGrid identity = Grid([1, 1.4f], [1], 3);
-        Place(identity, Panel("HELP", Label(_nameTarget?.Subject is >= 16 and <= 31 ? "Name the Guardian Force" : "Name the character", 24)), 0);
+        Place(identity, Panel(SystemText("ui.buildnameinput.panel.help", "HELP"), Label(_nameTarget?.Subject is >= 16 and <= 31 ? SystemText("ui.buildnameinput.label.name.the.guardian.force", "Name the Guardian Force") : SystemText("ui.buildnameinput.label.name.the.character", "Name the character"), 24)), 0);
         UiGrid name = Grid([1, 0.45f], [1], 0);
         Place(name, Label(_nameDraft + "_", 28), 0);
         Place(name, Label($"{StringInfo.ParseCombiningCharacters(_nameDraft).Length}/{GameNames.MaximumLength}", 15), 1);
-        Place(identity, Panel("NAME", name), 1);
+        Place(identity, Panel(SystemText("ui.buildnameinput.panel.name", "NAME"), name), 1);
         Place(page, identity, 1, 1);
         UiGrid commands = new() { Columns = 1, Rows = 10, Gap = 1 };
         UiGrid keys = new() { Columns = NameColumns, Rows = NameRows, Gap = 0 };
@@ -192,11 +192,11 @@ public sealed partial class MenuController
         if (_nameKeyboard)
         {
             UiButton keyboard = new() { Id = "letter-0", DrawBackground = false, HighlightSelection = false, PointerSize = 0, Click = () => Execute(new MenuAction("name-keyboard")) };
-            keyboard.Children.Add(Lines(["Use your keyboard to enter a name.", "Or select an on-screen keyboard", "from the menu on the left."], 22));
+            keyboard.Children.Add(Lines([SystemText("ui.buildnameinput.details.use.your.keyboard.to.enter.a.name", "Use your keyboard to enter a name."), SystemText("ui.buildnameinput.details.or.select.an.on.screen.keyboard", "Or select an on-screen keyboard"), SystemText("ui.buildnameinput.details.from.the.menu.on.the.left", "from the menu on the left.")], 22));
             input = keyboard;
         }
-        Place(page, Panel(_nameKeyboard ? "Keyboard" : NamePages[_namePage].Title, input), 2, 1);
-        Place(page, Panel(null, Label(Message.Length > 0 ? Message : "20 characters", 16)), 3, 0, 1, 2);
+        Place(page, Panel(_nameKeyboard ? SystemText("ui.buildnameinput.panel.keyboard", "Keyboard") : NamePages[_namePage].Title, input), 2, 1);
+        Place(page, Panel(null, Label(Message.Length > 0 ? Message : SystemText("ui.buildnameinput.label.20.characters", "20 characters"), 16)), 3, 0, 1, 2);
         return page;
     }
 
@@ -251,7 +251,7 @@ public sealed partial class MenuController
     {
         if (!GameNames.IsValidDraft(_nameDraft + text))
         {
-            Message = "Names can contain at most 20 characters.";
+            Message = SystemText("ui.appendnametext.message.names.can.contain.at.most.20.characters", "Names can contain at most 20 characters.");
             return;
         }
         _nameDraft += text;
@@ -435,7 +435,7 @@ public sealed partial class MenuController
                 }
                 catch (ArgumentException)
                 {
-                    Message = "Use 1–20 characters.";
+                    Message = SystemText("ui.executenamingaction.message.use.1.20.characters", "Use 1–20 characters.");
                 }
                 catch (NotSupportedException exception)
                 {

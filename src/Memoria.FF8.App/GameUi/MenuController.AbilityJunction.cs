@@ -43,7 +43,7 @@ public sealed partial class MenuController
             string destination = destinations[index];
             tabs.Children.Add(new UiButton { Text = names[index], FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
         }
-        Place(page, NativeMenuHeader("Junction", tabs), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildabilityjunction.nativemenuheader.junction", "Junction"), tabs), 0);
         var body = Grid([1], [1.08f, 1], 4);
         Place(page, body, 1);
         var slots = Grid([0.6f, 2.4f, 2.4f], [1], 4);
@@ -61,16 +61,16 @@ public sealed partial class MenuController
         {
             var nativeCommands = Grid([1, 3], [1], 0);
             nativeCommands.RowDefinitions[0] = UiGridLength.Pixel(31 * TextScale);
-            UiLabel attack = Label(Character?.Commands.FirstOrDefault() ?? "Attack", 25);
+            UiLabel attack = Label(Character?.Commands.FirstOrDefault() ?? SystemText("ui.buildabilityjunction.label.attack", "Attack"), 25);
             attack.Margin = new UiThickness(35 * TextScale, 0, 0, 0);
             Place(nativeCommands, attack, 0);
             Place(nativeCommands, AbilitySlots("junction-command", choosing), 1);
             commands = nativeCommands;
         }
-        UiPanel commandPanel = Panel("COMMAND", commands);
+        UiPanel commandPanel = Panel(SystemText("ui.buildabilityjunction.panel.command", "COMMAND"), commands);
         commandPanel.Id = "junction-command-slots";
         Place(slots, commandPanel, 1);
-        UiPanel passivePanel = Panel("ABILITY", AbilitySlots("junction-ability", choosing));
+        UiPanel passivePanel = Panel(SystemText("ui.buildabilityjunction.panel.ability", "ABILITY"), AbilitySlots("junction-ability", choosing));
         passivePanel.Id = "junction-passive-slots";
         Place(slots, passivePanel, 2);
         UiList candidates;
@@ -83,7 +83,7 @@ public sealed partial class MenuController
             IReadOnlyList<MenuEntry> entries = _screens[command ? "junction-command-choice" : "junction-ability-choice"].Entries(this);
             candidates = new UiList { TextFlow = UiTextFlow.SingleLine, Items = entries.Select(entry => entry.Label).ToList(), Images = entries.Select(EntryImage).ToList(), EnabledItems = entries.Select(entry => entry.Enabled).ToList(), RowHeight = 31 * TextScale, FontSize = 25 * TextScale, TextInset = 35 * TextScale, Paginated = true, ShowSelection = false, Focusable = false };
         }
-        UiPanel choices = Panel("ABILITY", candidates);
+        UiPanel choices = Panel(SystemText("ui.buildabilityjunction.panel.ability", "ABILITY"), candidates);
         choices.Id = "junction-ability-choices";
         Place(body, choices, 0, 1);
         return page;

@@ -18,7 +18,7 @@ public sealed partial class MenuController
             theme.Panel(canvas, Bounds);
             if (menus.guardianDraft is null)
             {
-                canvas.Text("Choose a GF editing target.", 20, Bounds, theme.Foreground);
+                canvas.Text(menus.SystemText("ui.drawself.canvas.choose.a.gf.editing.target", "Choose a GF editing target."), 20, Bounds, theme.Foreground);
                 return;
             }
 
@@ -38,20 +38,20 @@ public sealed partial class MenuController
             int[] catalog = menus.GuardianCatalog();
 
             float backWidth = (previewing ? 126 : 54) * scale;
-            Button("back", previewing ? "Back to editor" : "Back", new(x, top, backWidth, buttonHeight), () => menus.NavigateGuardianEditor(MenuInput.Cancel));
+            Button("back", previewing ? menus.SystemText("ui.drawself.button.back.to.editor", "Back to editor") : menus.SystemText("ui.drawself.button.back", "Back"), new(x, top, backWidth, buttonHeight), () => menus.NavigateGuardianEditor(MenuInput.Cancel));
             float actionWidth = 83 * scale;
             float primaryWidth = 112 * scale;
             float right = x + width;
-            Button("actions", "Actions", new(right - actionWidth, top, actionWidth, buttonHeight), menus.GuardianOpenActions);
+            Button("actions", menus.SystemText("ui.drawself.button.actions", "Actions"), new(right - actionWidth, top, actionWidth, buttonHeight), menus.GuardianOpenActions);
             float titleRight = right - actionWidth - gap;
             if (!previewing)
             {
-                Button("save", menus.guardianLocal ? "Apply changes" : "Save mod", new(titleRight - primaryWidth, top, primaryWidth, buttonHeight), () => menus.GuardianTool(menus.guardianLocal ? 10 : 11), primary: true);
+                Button("save", menus.guardianLocal ? menus.SystemText("ui.drawself.button.apply.changes", "Apply changes") : menus.SystemText("ui.drawself.button.save.mod", "Save mod"), new(titleRight - primaryWidth, top, primaryWidth, buttonHeight), () => menus.GuardianTool(menus.guardianLocal ? 10 : 11), primary: true);
                 titleRight -= primaryWidth + gap;
-                Button("preview", "Preview", new(titleRight - actionWidth, top, actionWidth, buttonHeight), () => menus.GuardianTool(5));
+                Button("preview", menus.SystemText("ui.drawself.button.preview", "Preview"), new(titleRight - actionWidth, top, actionWidth, buttonHeight), () => menus.GuardianTool(5));
                 titleRight -= actionWidth + gap;
             }
-            string title = previewing ? "Preview · Read-only" : menus.GuardianTargetTitle() + (menus.guardianDraft.Dirty ? " · Unsaved" : "");
+            string title = previewing ? menus.SystemText("ui.drawself.title.preview.read.only", "Preview · Read-only") : menus.GuardianTargetTitle() + (menus.guardianDraft.Dirty ? menus.SystemText("ui.drawself.title.unsaved", " · Unsaved") : "");
             Text(title, new(x + backWidth + gap, top, Math.Max(0, titleRight - x - backWidth - gap), buttonHeight), theme.Foreground);
             top += buttonHeight + gap;
 
@@ -76,12 +76,12 @@ public sealed partial class MenuController
 
             if (!previewing)
             {
-                Text($"Available abilities · {catalog.Length} results", new(x, top, catalogWidth - gap, 23 * scale), PaneColor("catalog"));
+                Text(menus.FormatSystemText("ui.drawself.canvas.available.abilities.results", "Available abilities \u00B7 {0} results", catalog.Length), new(x, top, catalogWidth - gap, 23 * scale), PaneColor("catalog"));
                 float categoryWidth = Math.Min(110 * scale, catalogWidth * 0.40f);
                 float clearWidth = 43 * scale;
-                Button("search", menus.guardianSearchEditing ? menus.guardianSearch.Insert(Math.Clamp(menus.guardianSearchCaret, 0, menus.guardianSearch.Length), "|") : menus.guardianSearch.Length == 0 ? "Search abilities…" : menus.guardianSearch,
+                Button("search", menus.guardianSearchEditing ? menus.guardianSearch.Insert(Math.Clamp(menus.guardianSearchCaret, 0, menus.guardianSearch.Length), "|") : menus.guardianSearch.Length == 0 ? menus.SystemText("ui.drawself.button.search.abilities", "Search abilities…") : menus.guardianSearch,
                     new(x, top + 24 * scale, Math.Max(0, catalogWidth - categoryWidth - clearWidth - gap * 3), 26 * scale), menus.GuardianStartSearch);
-                Button("clear-search", "Clear", new(x + catalogWidth - categoryWidth - clearWidth - gap * 2, top + 24 * scale, clearWidth, 26 * scale), menus.GuardianClearSearch, enabled: menus.guardianSearch.Length > 0);
+                Button("clear-search", menus.SystemText("ui.drawself.button.clear", "Clear"), new(x + catalogWidth - categoryWidth - clearWidth - gap * 2, top + 24 * scale, clearWidth, 26 * scale), menus.GuardianClearSearch, enabled: menus.guardianSearch.Length > 0);
                 Button("category", GuardianCategories[menus.guardianCategory], new(x + catalogWidth - categoryWidth - gap, top + 24 * scale, categoryWidth, 26 * scale), () => menus.GuardianTool(9));
                 canvas.Line(gfX - gap, top, gfX - gap, footerTop + 55 * scale, theme.BorderLight, 1);
             }
@@ -103,7 +103,7 @@ public sealed partial class MenuController
                 if (menus.guardianPreviewMode == 2)
                 {
                     float includeX = gfX + 3 * (modeWidth + 4 * scale);
-                    Button("include", (menus.guardianWithoutLayer ? "[ ] " : "[x] ") + "Include selected layer", new(includeX, top, Math.Max(0, gfX + gfWidth - includeX), 25 * scale), () => menus.GuardianTool(7));
+                    Button("include", (menus.guardianWithoutLayer ? "[ ] " : menus.SystemText("ui.drawself.button.x", "[x] ")) + menus.SystemText("ui.drawself.button.include.selected.layer", "Include selected layer"), new(includeX, top, Math.Max(0, gfX + gfWidth - includeX), 25 * scale), () => menus.GuardianTool(7));
                 }
                 top += 28 * scale;
                 bodyTop += 28 * scale;
@@ -117,7 +117,7 @@ public sealed partial class MenuController
             float gfButton = 28 * scale;
             Button("previous-gf", "‹", new(gfX, top, gfButton, 25 * scale), () => menus.NavigateGuardianEditor(MenuInput.PageLeft));
             string acquired = context.Current is null ? "" : (context.Current.GuardianForces[menus.guardianSubject].Flags & 1) != 0 ? " · Acquired" : " · Not acquired";
-            Button("gf", menus.guardianEditorName!(menus.guardianSubject) + acquired + $" · {rows.Length} entries", new(gfX + gfButton + 3 * scale, top, gfWidth - gfButton * 2 - 6 * scale, 25 * scale), () => menus.GuardianTool(15), active: menus.guardianFocus == "rows");
+            Button("gf", menus.guardianEditorName!(menus.guardianSubject) + acquired + menus.FormatSystemText("ui.drawself.button.entries", " \u00B7 {0} entries", rows.Length), new(gfX + gfButton + 3 * scale, top, gfWidth - gfButton * 2 - 6 * scale, 25 * scale), () => menus.GuardianTool(15), active: menus.guardianFocus == "rows");
             Button("next-gf", "›", new(gfX + gfWidth - gfButton, top, gfButton, 25 * scale), () => menus.NavigateGuardianEditor(MenuInput.PageRight));
 
             if (previewing)
@@ -129,8 +129,8 @@ public sealed partial class MenuController
             {
                 float columnX = gfX + column * columnWidth;
                 Text("#", new(columnX + 3 * scale, bodyTop - 25 * scale, 28 * scale, 22 * scale), theme.Muted, small);
-                Text("Ability", new(columnX + 34 * scale, bodyTop - 25 * scale, Math.Max(0, columnWidth - 138 * scale), 22 * scale), PaneColor("rows"), small);
-                Text("Start learned", new(columnX + columnWidth - 100 * scale, bodyTop - 25 * scale, 98 * scale, 22 * scale), theme.Muted, small);
+                Text(menus.SystemText("ui.drawself.canvas.ability", "Ability"), new(columnX + 34 * scale, bodyTop - 25 * scale, Math.Max(0, columnWidth - 138 * scale), 22 * scale), PaneColor("rows"), small);
+                Text(menus.SystemText("ui.drawself.canvas.start.learned", "Start learned"), new(columnX + columnWidth - 100 * scale, bodyTop - 25 * scale, 98 * scale, 22 * scale), theme.Muted, small);
                 if (column > 0)
                 {
                     canvas.Line(columnX - 3 * scale, bodyTop - 25 * scale, columnX - 3 * scale, footerTop, theme.Muted, 0.5f);
@@ -140,9 +140,9 @@ public sealed partial class MenuController
             if (!previewing)
             {
                 float catalogBodyWidth = Math.Max(0, catalogWidth - gap * 2);
-                Text("Ability", new(x + 3 * scale, bodyTop - 25 * scale, Math.Max(0, catalogBodyWidth - 101 * scale), 22 * scale), PaneColor("catalog"), small);
-                Text("AP", new(x + catalogBodyWidth - 101 * scale, bodyTop - 25 * scale, 47 * scale, 22 * scale), theme.Muted, small);
-                Text("Present", new(x + catalogBodyWidth - 54 * scale, bodyTop - 25 * scale, 54 * scale, 22 * scale), theme.Muted, small);
+                Text(menus.SystemText("ui.drawself.canvas.ability", "Ability"), new(x + 3 * scale, bodyTop - 25 * scale, Math.Max(0, catalogBodyWidth - 101 * scale), 22 * scale), PaneColor("catalog"), small);
+                Text(menus.SystemText("ui.drawself.canvas.ap", "AP"), new(x + catalogBodyWidth - 101 * scale, bodyTop - 25 * scale, 47 * scale, 22 * scale), theme.Muted, small);
+                Text(menus.SystemText("ui.drawself.canvas.present", "Present"), new(x + catalogBodyWidth - 54 * scale, bodyTop - 25 * scale, 54 * scale, 22 * scale), theme.Muted, small);
                 menus.guardianControls.Add(("catalog", () => menus.NavigateGuardianEditor(MenuInput.Confirm)));
                 for (int slot = 0; slot < visible && menus.guardianCatalogScroll + slot < catalog.Length; slot++)
                 {
@@ -154,19 +154,19 @@ public sealed partial class MenuController
                     float apWidth = 47 * scale;
                     float presentWidth = 54 * scale;
                     Text(menus.guardianAbilityName!(ability), new(rect.X + 3 * scale, rect.Y, Math.Max(0, rect.Width - apWidth - presentWidth), rowHeight), present ? theme.Muted : theme.Foreground);
-                    Text(context.Source.MenuDefinitions.AbilityPoints[ability] + " AP", new(rect.Right - apWidth - presentWidth, rect.Y, apWidth, rowHeight), theme.Muted, small);
+                    Text(context.Source.MenuDefinitions.AbilityPoints[ability] + menus.SystemText("ui.drawself.canvas.ap.alternate", " AP"), new(rect.Right - apWidth - presentWidth, rect.Y, apWidth, rowHeight), theme.Muted, small);
                     Text(present ? "✓" : "", new(rect.Right - presentWidth, rect.Y, presentWidth, rowHeight), theme.Muted, small);
                     targets.Add((rect, () => menus.GuardianSelectCatalog(index)));
                 }
                 if (catalog.Length == 0)
                 {
-                    Text("No abilities match.", menus.guardianCatalogBounds, theme.Muted);
+                    Text(menus.SystemText("ui.drawself.canvas.no.abilities.match", "No abilities match."), menus.guardianCatalogBounds, theme.Muted);
                 }
                 Pager(true, x, Math.Max(0, catalogWidth - gap * 2), catalog.Length, visible, menus.guardianCatalogScroll);
                 float localY = footerTop + 28 * scale;
                 float half = Math.Max(0, (catalogWidth - gap * 2 - 4 * scale) / 2);
-                Button("add", "Add", new(x, localY, half, 25 * scale), () => menus.GuardianTool(0), enabled: menus.GuardianCatalogCanAdd && menus.guardianPending is null);
-                Button("replace", "Replace", new(x + half + 4 * scale, localY, half, 25 * scale), () => menus.GuardianTool(1), enabled: menus.GuardianCatalogCanAdd && rows.Length > 0 && menus.guardianPending is null);
+                Button("add", menus.SystemText("ui.drawself.button.add", "Add"), new(x, localY, half, 25 * scale), () => menus.GuardianTool(0), enabled: menus.GuardianCatalogCanAdd && menus.guardianPending is null);
+                Button("replace", menus.SystemText("ui.drawself.button.replace", "Replace"), new(x + half + 4 * scale, localY, half, 25 * scale), () => menus.GuardianTool(1), enabled: menus.GuardianCatalogCanAdd && rows.Length > 0 && menus.guardianPending is null);
             }
 
             menus.guardianControls.Add(("rows", () => menus.NavigateGuardianEditor(MenuInput.Confirm)));
@@ -195,7 +195,7 @@ public sealed partial class MenuController
             }
             if (rows.Length == 0)
             {
-                Text("No abilities in this GF.", menus.guardianRowsBounds, theme.Muted);
+                Text(menus.SystemText("ui.drawself.canvas.no.abilities.in.this.gf", "No abilities in this GF."), menus.guardianRowsBounds, theme.Muted);
             }
             Pager(false, gfX, gfWidth, rows.Length, capacity, menus.guardianRowScroll);
             if (!previewing)
@@ -205,14 +205,14 @@ public sealed partial class MenuController
                 {
                     float cancelWidth = 73 * scale;
                     float commitWidth = 120 * scale;
-                    string operation = menus.guardianPending.StartsWith("swap", StringComparison.Ordinal) ? "Swap entries" : "Replace ability";
+                    string operation = menus.guardianPending.StartsWith("swap", StringComparison.Ordinal) ? menus.SystemText("ui.drawself.operation.swap.entries", "Swap entries") : menus.SystemText("ui.drawself.operation.replace.ability", "Replace ability");
                     Text(menus.GuardianOperationText(), new(gfX, localY, Math.Max(0, gfWidth - commitWidth - cancelWidth - gap * 2), 25 * scale), theme.Foreground, small);
                     Button("operation-confirm", operation, new(gfX + gfWidth - commitWidth - cancelWidth - gap, localY, commitWidth, 25 * scale), menus.GuardianConfirmOperation, enabled: menus.GuardianCanCommitOperation);
-                    Button("operation-cancel", "Cancel", new(gfX + gfWidth - cancelWidth, localY, cancelWidth, 25 * scale), menus.GuardianCancelOperation);
+                    Button("operation-cancel", menus.SystemText("ui.drawself.button.cancel", "Cancel"), new(gfX + gfWidth - cancelWidth, localY, cancelWidth, 25 * scale), menus.GuardianCancelOperation);
                 }
                 else
                 {
-                    Button("swap", "Swap", new(gfX, localY, 80 * scale, 25 * scale), () => menus.GuardianTool(2), enabled: rows.Length > 1);
+                    Button("swap", menus.SystemText("ui.drawself.button.swap", "Swap"), new(gfX, localY, 80 * scale, 25 * scale), () => menus.GuardianTool(2), enabled: rows.Length > 1);
                     Button("undo", menus.GuardianUndoText(), new(gfX + 84 * scale, localY, 130 * scale, 25 * scale), () => menus.GuardianTool(3), enabled: menus.GuardianSelectedRow is { } selected && menus.guardianDraft.RowDirty(menus.guardianSubject, selected.Ability));
                 }
             }
@@ -224,9 +224,9 @@ public sealed partial class MenuController
             string diagnostics = string.Join(" · ", composition.Outcomes.Where(outcome => outcome.GuardianForce == menus.guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Take(1).Select(outcome => outcome.Message));
             GuardianForceAbilityTemplate? selectedEntry = rows.FirstOrDefault(entry => entry.Ability == selectedAbility);
             NativeGuardianForceAbility? current = context.Current?.GuardianForceAbilities(menus.guardianSubject).FirstOrDefault(entry => entry.Ability == selectedAbility);
-            string currentState = current is null ? "" : current.Learned ? " · Current: Learned" : $" · Current: {current.Progress}/{current.RequiredPoints} AP";
-            string condition = selectedEntry is null ? "" : !selectedEntry.SupportedCondition ? " · Unsupported source condition: inspect Details" : selectedEntry.PrerequisiteAbility is int prerequisite ? " · Requires " + menus.guardianAbilityName!(prerequisite) : selectedEntry.RequiredLevel > 1 ? " · Requires GF level " + selectedEntry.RequiredLevel : "";
-            string secondLine = "Start learned affects the authored starting state; current AP stays unchanged." + currentState + condition;
+            string currentState = current is null ? "" : current.Learned ? menus.SystemText("ui.drawself.currentstate.current.learned", " · Current: Learned") : menus.FormatSystemText("ui.drawself.currentstate.current.ap", " \u00B7 Current: {0}/{1} AP", current.Progress, current.RequiredPoints);
+            string condition = selectedEntry is null ? "" : !selectedEntry.SupportedCondition ? menus.SystemText("ui.drawself.condition.unsupported.source.condition.inspect.details", " · Unsupported source condition: inspect Details") : selectedEntry.PrerequisiteAbility is int prerequisite ? menus.SystemText("ui.drawself.condition.requires", " · Requires ") + menus.guardianAbilityName!(prerequisite) : selectedEntry.RequiredLevel > 1 ? menus.SystemText("ui.drawself.condition.requires.gf.level", " · Requires GF level ") + selectedEntry.RequiredLevel : "";
+            string secondLine = menus.SystemText("ui.drawself.secondline.start.learned.affects.the.authored.starting.state.current", "Start learned affects the authored starting state; current AP stays unchanged.") + currentState + condition;
             if (menus.guardianPending is not null)
             {
                 secondLine = menus.GuardianOperationText() + currentState;
@@ -240,7 +240,7 @@ public sealed partial class MenuController
                 secondLine = menus.Message;
             }
             Text(secondLine, new(x, detailsY + 21 * scale, Math.Max(0, width - 77 * scale), 19 * scale), theme.Muted, small);
-            Button("details", "Details", new(x + width - 73 * scale, detailsY, 73 * scale, 25 * scale), menus.GuardianDetails);
+            Button("details", menus.SystemText("ui.drawself.button.details", "Details"), new(x + width - 73 * scale, detailsY, 73 * scale, 25 * scale), menus.GuardianDetails);
             string tabBinding = menus.guardianBinding!(ControlAction.UiTab);
             if (string.IsNullOrWhiteSpace(tabBinding) || tabBinding.Equals("Unbound", StringComparison.OrdinalIgnoreCase))
             {
@@ -251,7 +251,7 @@ public sealed partial class MenuController
             {
                 confirmHint = confirmHint[9..];
             }
-            string hints = menus.guardianBinding!(ControlAction.Confirm) + ": " + confirmHint + " · " + tabBinding + ": next control · " + menus.guardianBinding!(ControlAction.Menu) + ": Actions · ←/→: page";
+            string hints = menus.guardianBinding!(ControlAction.Confirm) + ": " + confirmHint + " · " + tabBinding + menus.SystemText("ui.drawself.hints.next.control", ": next control · ") + menus.guardianBinding!(ControlAction.Menu) + menus.SystemText("ui.drawself.hints.actions.page", ": Actions · ←/→: page");
             Text(hints, new(x, Bounds.Bottom - 22 * scale, width, 20 * scale), theme.Muted, 13 * scale);
 
             string[] controlOrder = previewing
@@ -301,7 +301,7 @@ public sealed partial class MenuController
                 Button(isCatalog ? "catalog-previous" : "gf-prev-page", "‹", new(left, footerTop, arrowWidth, 25 * scale), () => menus.GuardianPage(isCatalog, -1), enabled: start > 0);
                 string range = count == 0 ? "0 / 0" : $"{start + 1}–{Math.Min(count, start + pageCapacity)} / {count}";
                 int pageCount = Math.Max(1, (count + pageCapacity - 1) / pageCapacity);
-                Text(range + $" · Page {start / pageCapacity + 1}/{pageCount}", new(left + arrowWidth + 2 * scale, footerTop, Math.Max(0, paneWidth - arrowWidth * 2 - 4 * scale), 25 * scale), theme.Foreground, small);
+                Text(range + menus.FormatSystemText("ui.drawself.canvas.page", " \u00B7 Page {0}/{1}", start / pageCapacity + 1, pageCount), new(left + arrowWidth + 2 * scale, footerTop, Math.Max(0, paneWidth - arrowWidth * 2 - 4 * scale), 25 * scale), theme.Foreground, small);
                 Button(isCatalog ? "catalog-next" : "gf-next-page", "›", new(left + paneWidth - arrowWidth, footerTop, arrowWidth, 25 * scale), () => menus.GuardianPage(isCatalog, 1), enabled: start + pageCapacity < count);
             }
         }

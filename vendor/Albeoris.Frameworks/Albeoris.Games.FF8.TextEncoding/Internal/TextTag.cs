@@ -94,6 +94,7 @@ internal sealed class TextTag
 
             case TextTagCode.Pause:
             case TextTagCode.Var:
+            case TextTagCode.Item:
                 if (left < 2)
                 {
                     break;
@@ -217,6 +218,7 @@ internal sealed class TextTag
 
             case TextTagCode.Pause:
             case TextTagCode.Var:
+            case TextTagCode.Item:
                 if (Byte.TryParse(parameterText, NumberStyles.Integer, CultureInfo.InvariantCulture, out Byte numericParameter))
                 {
                     return new TextTag(code, numericParameter);

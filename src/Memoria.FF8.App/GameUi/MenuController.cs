@@ -68,9 +68,9 @@ public sealed partial class MenuController
             return data;
         }
     }
-    public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values;
+    public IReadOnlyCollection<MenuScreenDefinition> Definitions => _screens.Values.Select(LocalizeSystemScreen).ToArray();
     public IReadOnlyList<string> ScreenIds => _screens.Keys.ToArray();
-    public MenuScreenDefinition CurrentScreen => _screens[ScreenId];
+    public MenuScreenDefinition CurrentScreen => LocalizeSystemScreen(_screens[ScreenId]);
     public int SelectedIndex => _selections.GetValueOrDefault(ScreenId);
     public IReadOnlyList<MenuEntry> Entries => LocalizeSystemEntries(CurrentScreen.Entries(this));
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
@@ -386,14 +386,14 @@ public sealed partial class MenuController
     {
         if (!_screens.ContainsKey(screenId))
         {
-            Message = $"Screen '{screenId}' is not registered.";
+            Message = FormatSystemText("ui.push.message.screen.is.not.registered", "Screen \u0027{0}\u0027 is not registered.", screenId);
             return;
         }
         if (ScreenId == "debug-gallery")
         {
             if (!_screens[screenId].GalleryEligible)
             {
-                Message = "This tool has no isolated fixture adapter.";
+                Message = SystemText("ui.push.message.this.tool.has.no.isolated.fixture.adapter", "This tool has no isolated fixture adapter.");
                 return;
             }
             IsFixtureContext = true;
@@ -502,12 +502,12 @@ public sealed partial class MenuController
         IReadOnlyList<MenuCharacter> choices = CharacterChoices;
         if (choices.Count == 0)
         {
-            Message = "No characters are available.";
+            Message = SystemText("ui.begincharacterselection.message.no.characters.are.available", "No characters are available.");
             return;
         }
         _characterSelectionDestination = destination;
         _characterSelectionIndex = Math.Max(0, Array.FindIndex(choices.ToArray(), character => character.Id == _characterId));
-        Message = "Select a character.";
+        Message = SystemText("ui.begincharacterselection.message.select.a.character", "Select a character.");
         _view = null;
     }
 
@@ -521,7 +521,7 @@ public sealed partial class MenuController
         }
         if (choices.Count == 0)
         {
-            Message = "No characters are available.";
+            Message = SystemText("ui.navigatecharacterselection.message.no.characters.are.available", "No characters are available.");
             return;
         }
         if (input == MenuInput.Confirm)
@@ -582,7 +582,7 @@ public sealed partial class MenuController
         var characters = Data.Characters;
         if (characters.Count == 0)
         {
-            Message = "Character data is unavailable.";
+            Message = SystemText("ui.changepagesubject.message.character.data.is.unavailable", "Character data is unavailable.");
             return;
         }
         var index = characters.FindIndex(c => c.Id == Character?.Id);
@@ -769,7 +769,7 @@ public sealed partial class MenuController
             case "open-battle-debug":
                 if (BattleDebugRequested is null)
                 {
-                    Message = "The battle laboratory is not connected to this menu host.";
+                    Message = SystemText("ui.execute.message.the.battle.laboratory.is.not.connected.to.this", "The battle laboratory is not connected to this menu host.");
                     return;
                 }
                 BattleDebugRequested.Invoke();
@@ -836,7 +836,7 @@ public sealed partial class MenuController
             case "test-answer":
                 if (!IsDemo)
                 {
-                    Message = "The original SeeD test bank and rank mutation contract are not available.";
+                    Message = SystemText("ui.execute.message.the.original.seed.test.bank.and.rank.mutation", "The original SeeD test bank and rank mutation contract are not available.");
                     return;
                 }
                 if (action.Value == (_testQuestion % 2 == 0 ? "Yes" : "No"))
@@ -844,7 +844,7 @@ public sealed partial class MenuController
                     _testCorrect++;
                 }
                 _testQuestion++;
-                Message = _testQuestion >= 10 ? $"Fixture completed: {_testCorrect}/10. No native SeeD rank changed." : $"Fixture answer recorded ({_testQuestion}/10).";
+                Message = _testQuestion >= 10 ? FormatSystemText("ui.execute.message.fixture.completed.10.no.native.seed.rank.changed", "Fixture completed: {0}/10. No native SeeD rank changed.", _testCorrect) : FormatSystemText("ui.execute.message.fixture.answer.recorded.10", "Fixture answer recorded ({0}/10).", _testQuestion);
                 return;
             case "test-reset":
                 _testQuestion = 0;
@@ -854,7 +854,7 @@ public sealed partial class MenuController
                 if (IsDemo)
                 {
                     _demo = MenuDemoData.Create();
-                    Message = "All synthetic fixture changes reset.";
+                    Message = SystemText("ui.execute.message.all.synthetic.fixture.changes.reset", "All synthetic fixture changes reset.");
                 }
                 return;
         }
@@ -864,25 +864,25 @@ public sealed partial class MenuController
             {
                 if (Magic is not { Quantity: > 0 } selectedMagic)
                 {
-                    Message = "Selected magic stock is no longer available. Select a spell again.";
+                    Message = SystemText("ui.execute.message.selected.magic.stock.is.no.longer.available.select", "Selected magic stock is no longer available. Select a spell again.");
                     return;
                 }
                 action = action with { SubjectId = selectedMagic.Id, TargetId = action.Kind == "magic-transfer" && action.TargetId.Length == 0 ? _exchangeId : action.TargetId };
                 if (Character?.CurrentHp is null || Data.Characters.FirstOrDefault(character => character.Id == action.TargetId)?.CurrentHp is null)
                 {
-                    Message = "Magic requires exact saved HP values for the selected characters.";
+                    Message = SystemText("ui.execute.message.magic.requires.exact.saved.hp.values.for.the", "Magic requires exact saved HP values for the selected characters.");
                     return;
                 }
             }
             var supported = Data.SupportedActions.Contains(action.Kind) || Data.SupportedActions.Contains($"{action.Kind}:{action.SubjectId}");
             if (!supported || _liveAction == null)
             {
-                Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
+                Message = FormatSystemText("ui.execute.message.unsupported.native.contract.this.view.remains.read.only", "Unsupported native contract: {0}. This view remains read-only.", action.Kind);
                 return;
             }
             if (action.Kind is "junction-gf" or "junction-gf-reassign" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" or "junction-auto" && Character is null)
             {
-                Message = "Selected character data is unavailable.";
+                Message = SystemText("ui.execute.message.selected.character.data.is.unavailable", "Selected character data is unavailable.");
                 return;
             }
             action = action.Kind switch
@@ -949,18 +949,18 @@ public sealed partial class MenuController
         switch (action.Kind)
         {
             case "battle-preview":
-                Message = $"Fixture {action.Value} target preview: {data.BattleTargets.FirstOrDefault(t => t.Id == action.TargetId)?.Name ?? target?.Name ?? action.TargetId}. No combat effect was executed.";
+                Message = FormatSystemText("ui.applydemo.message.fixture.target.preview.no.combat.effect.was.executed", "Fixture {0} target preview: {1}. No combat effect was executed.", action.Value, data.BattleTargets.FirstOrDefault(t => t.Id == action.TargetId)?.Name ?? target?.Name ?? action.TargetId);
                 break;
             case "battle-draw":
                 if (action.Value == "Stock" && Magic is { } drawn)
                 {
                     var quantity = Math.Min(3, 100 - drawn.Quantity);
                     drawn.Quantity += quantity;
-                    Message = $"Fixture stocked {quantity} {drawn.Name}; native Draw formulas are unsupported.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.stocked.native.draw.formulas.are.unsupported", "Fixture stocked {0} {1}; native Draw formulas are unsupported.", quantity, drawn.Name);
                 }
                 else
                 {
-                    Message = "Fixture Cast preview selected; no combat spell was executed.";
+                    Message = SystemText("ui.applydemo.message.fixture.cast.preview.selected.no.combat.spell.was", "Fixture Cast preview selected; no combat spell was executed.");
                 }
                 break;
             case "card-mod":
@@ -971,19 +971,19 @@ public sealed partial class MenuController
                     {
                         card.Quantity--;
                         output.Quantity += card.RefinementQuantity.Value;
-                        Message = $"Fixture Card Mod produced {card.RefinementQuantity} {output.Name}; original card recipes are not inferred.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.card.mod.produced.original.card.recipes.are", "Fixture Card Mod produced {0} {1}; original card recipes are not inferred.", card.RefinementQuantity, output.Name);
                     }
                 }
                 break;
             case "load":
-                Message = "Fixture load confirmation accepted. No native save or game state was loaded.";
+                Message = SystemText("ui.applydemo.message.fixture.load.confirmation.accepted.no.native.save.or", "Fixture load confirmation accepted. No native save or game state was loaded.");
                 break;
             case "limit-setting":
                 var limitOwner = target ?? character;
                 if (limitOwner != null)
                 {
                     limitOwner.LimitSettings[action.SubjectId] = action.Value;
-                    Message = $"Fixture {limitOwner.Name} {action.SubjectId}: {action.Value}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture", "Fixture {0} {1}: {2}.", limitOwner.Name, action.SubjectId, action.Value);
                 }
                 break;
             case "slot-do-over":
@@ -992,15 +992,15 @@ public sealed partial class MenuController
                 {
                     var preview = int.TryParse(slotOwner.LimitSettings.GetValueOrDefault("Preview index"), out var oldPreview) ? oldPreview : 0;
                     slotOwner.LimitSettings["Preview index"] = ((preview + 1) % slotOwner.SlotPreview.Count).ToString();
-                    Message = "Fixture Slot preview advanced; original random outcomes are not simulated.";
+                    Message = SystemText("ui.applydemo.message.fixture.slot.preview.advanced.original.random.outcomes.are", "Fixture Slot preview advanced; original random outcomes are not simulated.");
                 }
                 break;
             case "slot-select":
-                Message = "Fixture spell preview selected. No battle spell was cast.";
+                Message = SystemText("ui.applydemo.message.fixture.spell.preview.selected.no.battle.spell.was", "Fixture spell preview selected. No battle spell was cast.");
                 break;
             case "config":
                 data.Settings[action.SubjectId] = action.Value;
-                Message = $"Fixture {action.SubjectId}: {action.Value}";
+                Message = FormatSystemText("ui.applydemo.message.fixture.alternate", "Fixture {0}: {1}", action.SubjectId, action.Value);
                 break;
             case "item-use":
                 if (Item is { Quantity: > 0 } item && target != null)
@@ -1009,23 +1009,23 @@ public sealed partial class MenuController
                     {
                         target.CurrentHp = Math.Min(target.MaximumHp ?? 0, (target.CurrentHp ?? 0) + item.DemoHealing);
                         item.Quantity--;
-                        Message = $"Fixture: {item.Name} restored {target.Name}'s HP.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.restored.s.hp", "Fixture: {0} restored {1}\u0027s HP.", item.Name, target.Name);
                     }
                     else if (item.Name is "Antidote" or "Remedy")
                     {
                         target.Conditions.Clear();
                         item.Quantity--;
-                        Message = $"Fixture: conditions cleared on {target.Name}.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.conditions.cleared.on", "Fixture: conditions cleared on {0}.", target.Name);
                     }
                     else
                     {
-                        Message = "This fixture item has no simulated field effect.";
+                        Message = SystemText("ui.applydemo.message.this.fixture.item.has.no.simulated.field.effect", "This fixture item has no simulated field effect.");
                     }
                 }
                 break;
             case "item-sort":
                 data.Items.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
-                Message = "Fixture inventory sorted by name.";
+                Message = SystemText("ui.applydemo.message.fixture.inventory.sorted.by.name", "Fixture inventory sorted by name.");
                 break;
             case "item-move":
                 var sourceIndex = data.Items.FindIndex(i => i.Id == _itemId);
@@ -1033,7 +1033,7 @@ public sealed partial class MenuController
                 if (sourceIndex >= 0 && targetIndex >= 0)
                 {
                     (data.Items[sourceIndex], data.Items[targetIndex]) = (data.Items[targetIndex], data.Items[sourceIndex]);
-                    Message = "Fixture item positions exchanged.";
+                    Message = SystemText("ui.applydemo.message.fixture.item.positions.exchanged", "Fixture item positions exchanged.");
                 }
                 break;
             case "magic-use":
@@ -1041,11 +1041,11 @@ public sealed partial class MenuController
                 {
                     target.CurrentHp = Math.Min(target.MaximumHp ?? 0, (target.CurrentHp ?? 0) + magic.DemoHealing);
                     magic.Quantity--;
-                    Message = $"Fixture: cast {magic.Name} on {target.Name}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.cast.on", "Fixture: cast {0} on {1}.", magic.Name, target.Name);
                 }
                 else
                 {
-                    Message = "This fixture spell has no simulated field effect.";
+                    Message = SystemText("ui.applydemo.message.this.fixture.spell.has.no.simulated.field.effect", "This fixture spell has no simulated field effect.");
                 }
                 break;
             case "magic-transfer":
@@ -1058,13 +1058,13 @@ public sealed partial class MenuController
                         var quantity = Math.Min(requested, Math.Min(stock.Quantity, 100 - destination.Quantity));
                         stock.Quantity -= quantity;
                         destination.Quantity += quantity;
-                        Message = $"Fixture: transferred {quantity} {stock.Name} to {target.Name}.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.transferred.to", "Fixture: transferred {0} {1} to {2}.", quantity, stock.Name, target.Name);
                     }
                 }
                 break;
             case "magic-sort":
                 data.Magic.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
-                Message = "Fixture magic stocks sorted by name.";
+                Message = SystemText("ui.applydemo.message.fixture.magic.stocks.sorted.by.name", "Fixture magic stocks sorted by name.");
                 break;
             case "junction-gf-reassign":
             case "junction-gf":
@@ -1078,14 +1078,14 @@ public sealed partial class MenuController
                         }
                         character.GuardianForceIds.Add(action.SubjectId);
                     }
-                    Message = "Fixture GF ownership toggled. Native junction effects are not calculated.";
+                    Message = SystemText("ui.applydemo.message.fixture.gf.ownership.toggled.native.junction.effects.are", "Fixture GF ownership toggled. Native junction effects are not calculated.");
                 }
                 break;
             case "junction-magic":
                 if (character != null)
                 {
                     character.Junctions[_junctionSlot] = action.Value;
-                    Message = $"Fixture {_junctionSlot} junction: {action.Value}. Native stat effects are not calculated.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.junction.native.stat.effects.are.not.calculated", "Fixture {0} junction: {1}. Native stat effects are not calculated.", _junctionSlot, action.Value);
                 }
                 break;
             case "junction-off":
@@ -1096,7 +1096,7 @@ public sealed partial class MenuController
                     {
                         character.GuardianForceIds.Clear();
                     }
-                    Message = "Fixture junctions removed.";
+                    Message = SystemText("ui.applydemo.message.fixture.junctions.removed", "Fixture junctions removed.");
                 }
                 break;
             case "junction-auto":
@@ -1104,7 +1104,7 @@ public sealed partial class MenuController
                 {
                     var slot = action.Value == "Magic" ? "Mag" : action.Value == "Defense" ? "Vit" : "Str";
                     character.Junctions[slot] = "Ultima";
-                    Message = $"Fixture {slot} assigned Ultima; original Auto optimization is unsupported.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.assigned.ultima.original.auto.optimization.is.unsupported", "Fixture {0} assigned Ultima; original Auto optimization is unsupported.", slot);
                 }
                 break;
             case "junction-command":
@@ -1116,7 +1116,7 @@ public sealed partial class MenuController
                         character.Commands.Add("Empty");
                     }
                     character.Commands[slot] = action.Value;
-                    Message = $"Fixture command slot {slot + 1}: {action.Value}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.command.slot", "Fixture command slot {0}: {1}.", slot + 1, action.Value);
                 }
                 break;
             case "junction-ability":
@@ -1127,7 +1127,7 @@ public sealed partial class MenuController
                         character.Abilities.Add("Empty");
                     }
                     character.Abilities[_abilitySlot] = action.Value;
-                    Message = $"Fixture ability slot {_abilitySlot + 1}: {action.Value}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.ability.slot", "Fixture ability slot {0}: {1}.", _abilitySlot + 1, action.Value);
                 }
                 break;
             case "gf-learn":
@@ -1135,7 +1135,7 @@ public sealed partial class MenuController
                 {
                     GuardianForce.Learning = action.Value;
                     GuardianForce.LearningAbilityId = action.SubjectId;
-                    Message = $"Fixture {GuardianForce.Name} is learning {action.Value}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.is.learning", "Fixture {0} is learning {1}.", GuardianForce.Name, action.Value);
                 }
                 break;
             case "party-switch":
@@ -1143,7 +1143,7 @@ public sealed partial class MenuController
                 if (source != null && target != null)
                 {
                     (source.InParty, target.InParty) = (target.InParty, source.InParty);
-                    Message = $"Fixture party membership exchanged: {source.Name} / {target.Name}.";
+                    Message = FormatSystemText("ui.applydemo.message.fixture.party.membership.exchanged", "Fixture party membership exchanged: {0} / {1}.", source.Name, target.Name);
                 }
                 break;
             case "junction-exchange":
@@ -1187,7 +1187,7 @@ public sealed partial class MenuController
                             spell.CharacterId = other.Id;
                         }
                     }
-                    Message = "Fixture GF, magic, command, ability and stat junctions exchanged.";
+                    Message = SystemText("ui.applydemo.message.fixture.gf.magic.command.ability.and.stat.junctions", "Fixture GF, magic, command, ability and stat junctions exchanged.");
                 }
                 break;
             case "refine":
@@ -1204,16 +1204,16 @@ public sealed partial class MenuController
                         {
                             ingredient.Quantity -= recipe.IngredientQuantity * count;
                             result.Quantity += recipe.ResultQuantity * count;
-                            Message = $"Fixture recipe ×{count} produced {recipe.ResultQuantity * count} {recipe.ResultName}.";
+                            Message = FormatSystemText("ui.applydemo.message.fixture.recipe.produced", "Fixture recipe \u00D7{0} produced {1} {2}.", count, recipe.ResultQuantity * count, recipe.ResultName);
                         }
                         else
                         {
-                            Message = "Fixture recipe lacks ingredients or exceeds the 100 stock capacity.";
+                            Message = SystemText("ui.applydemo.message.fixture.recipe.lacks.ingredients.or.exceeds.the.100", "Fixture recipe lacks ingredients or exceeds the 100 stock capacity.");
                         }
                     }
                     else
                     {
-                        Message = "Fixture recipe lacks ingredients or exceeds the 100 stock capacity.";
+                        Message = SystemText("ui.applydemo.message.fixture.recipe.lacks.ingredients.or.exceeds.the.100", "Fixture recipe lacks ingredients or exceeds the 100 stock capacity.");
                     }
                 }
                 break;
@@ -1222,7 +1222,7 @@ public sealed partial class MenuController
                 if (save != null)
                 {
                     save.Summary = $"DEMO {character?.Name} · {data.Location}";
-                    Message = "Fixture slot updated in memory. No game save was written.";
+                    Message = SystemText("ui.applydemo.message.fixture.slot.updated.in.memory.no.game.save", "Fixture slot updated in memory. No game save was written.");
                 }
                 break;
             case "shop-buy":
@@ -1234,18 +1234,18 @@ public sealed partial class MenuController
                     {
                         data.Currency -= shopItem.Price;
                         shopItem.Quantity++;
-                        Message = $"Fixture bought one {shopItem.Name}.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.bought.one", "Fixture bought one {0}.", shopItem.Name);
                     }
                     else if (action.Kind == "shop-sell" && shopItem.Quantity > 0)
                     {
                         data.Currency += shopItem.Price / 2;
                         shopItem.Quantity--;
-                        Message = $"Fixture sold one {shopItem.Name}.";
+                        Message = FormatSystemText("ui.applydemo.message.fixture.sold.one", "Fixture sold one {0}.", shopItem.Name);
                     }
                 }
                 break;
             default:
-                Message = $"Unsupported contract: {action.Kind}. No fixture mutation is defined.";
+                Message = FormatSystemText("ui.applydemo.message.unsupported.contract.no.fixture.mutation.is.defined", "Unsupported contract: {0}. No fixture mutation is defined.", action.Kind);
                 break;
         }
     }

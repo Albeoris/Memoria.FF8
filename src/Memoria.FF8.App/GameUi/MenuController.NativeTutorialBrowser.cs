@@ -148,7 +148,7 @@ public sealed partial class MenuController
     private UiElement BuildNativeTutorialList()
     {
         var page = Grid([1.8f, 6.2f], [1], 5);
-        Place(page, SecondaryHeader("Tutorial", NativeBrowserText(CurrentScreen.Title), NativeBrowserText(SelectedEntry?.Help ?? CurrentScreen.Help)), 0);
+        Place(page, SecondaryHeader(SystemText("ui.buildnativetutoriallist.header.tutorial", "Tutorial"), NativeBrowserText(CurrentScreen.Title), NativeBrowserText(SelectedEntry?.Help ?? CurrentScreen.Help)), 0);
         Place(page, Panel(null, SecondaryCommands()), 1);
         return page;
     }

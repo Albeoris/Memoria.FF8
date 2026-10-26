@@ -25,7 +25,7 @@ public sealed partial class MenuController
         {
             _demo = MenuDemoData.Create();
             demoFontPreferences = new UiPreferences();
-            Message = "Preview / Fixture data reset.";
+            Message = SystemText("ui.executefixtureaction.message.preview.fixture.data.reset", "Preview / Fixture data reset.");
             return true;
         }
         if (!IsFixtureContext)
@@ -40,7 +40,7 @@ public sealed partial class MenuController
                 Presentation = demoFontPreferences.MenuPresentation;
             }
             Data.Settings[action.SubjectId] = action.Value;
-            Message = "Preview / Fixture: " + action.SubjectId + " = " + action.Value;
+            Message = SystemText("ui.executefixtureaction.message.preview.fixture", "Preview / Fixture: ") + action.SubjectId + " = " + action.Value;
             return true;
         }
         if (action.Kind is "menu-back" or "demo-reset" or "select-character" or "select-gf" or "select-item" or "select-magic" or "select-card" or "select-recipe" or "select-refinement-ability" or "select-slot" or "select-command-slot" or "select-ability-slot" or "select-exchange" or "select-save-slot" or "test-answer" or "test-reset" || action.Kind.StartsWith("controls-", StringComparison.Ordinal) || action.Kind.StartsWith("font-", StringComparison.Ordinal))
@@ -48,7 +48,7 @@ public sealed partial class MenuController
             return false;
         }
         ApplyDemo(action);
-        Message = "Preview / Fixture: " + Message;
+        Message = SystemText("ui.executefixtureaction.message.preview.fixture", "Preview / Fixture: ") + Message;
         return true;
     }
 }

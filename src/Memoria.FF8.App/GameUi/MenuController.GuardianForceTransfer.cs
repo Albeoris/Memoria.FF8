@@ -30,7 +30,7 @@ public sealed partial class MenuController
             Back();
             if (!valid)
             {
-                Message = "GF ownership changed. Select the Guardian Force again.";
+                Message = SystemText("ui.executeguardianforcetransfer.message.gf.ownership.changed.select.the.guardian.force.again", "GF ownership changed. Select the Guardian Force again.");
                 return true;
             }
             Execute(transfer);
@@ -54,8 +54,8 @@ public sealed partial class MenuController
             Help = question,
             Entries = _ =>
             [
-                new MenuEntry("no", "No", "Keep the current junction.", Action: new MenuAction("menu-back")),
-                new MenuEntry("yes", "Yes", question, Action: new MenuAction("junction-gf-confirm"))
+                new MenuEntry("no", SystemText("ui.executeguardianforcetransfer.entry.label.no", "No"), SystemText("ui.executeguardianforcetransfer.entry.help.keep.the.current.junction", "Keep the current junction."), Action: new MenuAction("menu-back")),
+                new MenuEntry("yes", SystemText("ui.executeguardianforcetransfer.entry.label.yes", "Yes"), question, Action: new MenuAction("junction-gf-confirm"))
             ],
             BuildContent = (menus, root) =>
             {
@@ -65,7 +65,7 @@ public sealed partial class MenuController
                 prompt.TextFlow = UiTextFlow.Wrap;
                 Place(content, prompt, 0);
                 Place(content, menus.Commands(36, 24), 1);
-                UiPanel panel = menus.Panel("Transfer GF", content);
+                UiPanel panel = menus.Panel(SystemText("ui.executeguardianforcetransfer.panel.transfer.gf", "Transfer GF"), content);
                 panel.Anchors = new UiAnchors(0.1f, 0.12f, 0.9f, 0.88f);
                 anchor.Children.Add(panel);
                 root.Children.Add(anchor);

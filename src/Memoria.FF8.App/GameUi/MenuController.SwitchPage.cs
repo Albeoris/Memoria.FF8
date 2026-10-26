@@ -63,9 +63,9 @@ public sealed partial class MenuController
         }
         else
         {
-            strip = Label(ScreenId.StartsWith("switch-party", StringComparison.Ordinal) ? "Switch Member" : "Junction Exchange", 25);
+            strip = Label(ScreenId.StartsWith("switch-party", StringComparison.Ordinal) ? SystemText("ui.buildnativeswitch.label.switch.member", "Switch Member") : SystemText("ui.buildnativeswitch.label.junction.exchange", "Junction Exchange"), 25);
         }
-        Place(page, NativeMenuHeader("Switch", strip), 0);
+        Place(page, NativeMenuHeader(SystemText("ui.buildnativeswitch.nativemenuheader.switch", "Switch"), strip), 0);
 
         var body = Grid([1], [1, 1], 4);
         Place(body, Panel(null, NativeSwitchMembers(Data.Characters.Where(character => character.InParty).ToArray(), false, !root)), 0);
@@ -74,7 +74,7 @@ public sealed partial class MenuController
         MenuCharacter[] reserves = Data.Characters.Where(character => !character.InParty).ToArray();
         Place(right, Panel(null, NativeSwitchMembers(reserves, true, !root)), 0);
         MenuCharacter? selected = root ? Character : NativeSwitchCharacter(SelectedEntry);
-        Place(right, Panel(null, Lines([selected?.Name ?? "--", $"Lv  {Number(selected?.Level)}", "HP  " + (selected is null ? "--" : Hp(selected))], 25)), 1);
+        Place(right, Panel(null, Lines([selected?.Name ?? "--", FormatSystemText("ui.buildnativeswitch.details.lv", "Lv  {0}", Number(selected?.Level)), SystemText("ui.buildnativeswitch.details.hp", "HP  ") + (selected is null ? "--" : Hp(selected))], 25)), 1);
         Place(body, right, 0, 1);
         Place(page, body, 1);
         return page;
@@ -106,7 +106,7 @@ public sealed partial class MenuController
             }
             else
             {
-                Place(row, Lines([character.Name, $"Lv  {Number(character.Level)}", $"HP  {Hp(character)}"], 24), 0, 1);
+                Place(row, Lines([character.Name, FormatSystemText("ui.nativeswitchmembers.details.lv", "Lv  {0}", Number(character.Level)), FormatSystemText("ui.nativeswitchmembers.details.hp", "HP  {0}", Hp(character))], 24), 0, 1);
             }
             UiElement member = row;
             if (interactive)
