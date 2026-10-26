@@ -69,21 +69,28 @@ public static partial class NativeBattlePoseMatrices
         {
             return new(null, 0, transform.Position28);
         }
-        if (model.ModelId4 == 0x8F)
-        {
-            throw new NotSupportedException("Native model8F bone selectors require its B8B6EC source table.");
-        }
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502170 requires a decoded model pose.");
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
         int bone = selector;
         if (selector >= 240)
         {
-            int offset = selector - 236;
-            if (offset >= 16)
+            if (model.ModelId4 == 0x8F)
             {
-                throw new NotSupportedException("Native selector exceeds its skeleton header aliases.");
+                if (source.Model8FBoneAliases.IsDefaultOrEmpty)
+                {
+                    throw new NotSupportedException("Native model8F bone selectors require its B8B6EC source table.");
+                }
+                bone = source.Model8FBoneAliases[selector - 240];
             }
-            bone = offset == 4 ? state.Geometry4 ?? source.Skeleton[offset] : offset == 5 ? state.Geometry5 ?? source.Skeleton[offset] : source.Skeleton[offset];
+            else
+            {
+                int offset = selector - 236;
+                if (offset >= 16)
+                {
+                    throw new NotSupportedException("Native selector exceeds its skeleton header aliases.");
+                }
+                bone = offset == 4 ? state.Geometry4 ?? source.Skeleton[offset] : offset == 5 ? state.Geometry5 ?? source.Skeleton[offset] : source.Skeleton[offset];
+            }
             if ((bone & 0x80) != 0)
             {
                 fraction = 4096;

@@ -12,11 +12,16 @@ public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, us
 public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, ImmutableArray<byte> Animations)
 {
     public ImmutableArray<bool> SkeletonKnownBytes { get; init; } = [];
+    public ImmutableArray<byte> Model8FBoneAliases { get; init; } = [];
 
     public int BoneCount => Skeleton.IsDefaultOrEmpty ? throw new InvalidDataException("Native pose lacks its original skeleton.") : Skeleton[0];
 
     public void Validate()
     {
+        if (!Model8FBoneAliases.IsDefaultOrEmpty && Model8FBoneAliases.Length != 16)
+        {
+            throw new InvalidDataException("Native model8F requires its complete selectorF0..FF directory.");
+        }
         if (Skeleton.IsDefaultOrEmpty || BoneCount is < 1 or > 128 || Skeleton.Length < 16 + 48 * BoneCount || Animations.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native pose requires its original skeleton records and animation directory.");

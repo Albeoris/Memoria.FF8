@@ -9,12 +9,36 @@ public sealed record NativeBattleEffect187Resources(NativeBattleEffectHeapAlloca
     public required NativeBattleEffectOwnedModelResource OwnedModel { get; init; }
     public required ImmutableArray<byte> ScrollPixels { get; init; }
     public required ImmutableArray<byte> ScrollRectangle { get; init; }
+    public required ImmutableDictionary<uint, ImmutableArray<byte>> StaticFronts { get; init; }
 
     public NativeBattleStaticMeshResource Mesh(uint address) => Meshes.TryGetValue(address, out NativeBattleStaticMeshResource? resource) ? resource : throw new NotSupportedException("Effect187 selected an unsupported original mesh.");
 
     public NativeBattleModuleResource Sprite(uint address) => Sprites.TryGetValue(address, out NativeBattleModuleResource? resource) ? resource : throw new NotSupportedException("Effect187 selected an unsupported projected source.");
 
     public NativeBattleEffectFileAsset File(short id) => Files.SingleOrDefault(file => file.FileId == id) ?? throw new NotSupportedException("Effect187 selected an unsupported original file.");
+
+    public byte[] ReadStatic(uint address, int length)
+    {
+        if (length >= 0 && address >= 0xFA54A8 && (ulong)address + (uint)length <= 0xFA94A8)
+        {
+            return ScrollPixels.AsSpan(checked((int)(address - 0xFA54A8)), length).ToArray();
+        }
+        foreach ((uint start, ImmutableArray<byte> bytes) in StaticFronts)
+        {
+            if (length >= 0 && address >= start && (ulong)address + (uint)length <= (ulong)start + (uint)bytes.Length)
+            {
+                return bytes.AsSpan(checked((int)(address - start)), length).ToArray();
+            }
+        }
+        foreach (NativeBattleStaticMeshResource mesh in Meshes.Values)
+        {
+            if (length >= 0 && address >= mesh.Address && (ulong)address + (uint)length <= (ulong)mesh.Address + (uint)mesh.Bytes.Length)
+            {
+                return mesh.Bytes.AsSpan(checked((int)(address - mesh.Address)), length).ToArray();
+            }
+        }
+        throw new NotSupportedException("Effect187 static read leaves its selected original owners.");
+    }
 
     public void Validate()
     {
@@ -65,6 +89,14 @@ public sealed record NativeBattleEffect187Resources(NativeBattleEffectHeapAlloca
         foreach (NativeBattleRawMesh mesh in OwnedModel.Geometry)
         {
             mesh.Validate();
+        }
+        if (StaticFronts is null)
+        {
+            throw new InvalidDataException("Effect187 requires its reached source tables.");
+        }
+        foreach ((uint address, int length) in new (uint, int)[] { (0xE41E5C, 28), (0xE41E90, 8), (0xE41EA8, 12), (0xE41EF8, 48), (0xE4206C, 224), (0xE3FD70, 1008) })
+        {
+            _ = ReadStatic(address, length);
         }
         _ = NativeBattleGuardianCameraProgram.Begin63E960(NativeBattleGuardianCameraProgram.FromColdProcess(), Camera.Data, 0);
     }

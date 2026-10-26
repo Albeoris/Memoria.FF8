@@ -25,6 +25,7 @@ public static class NativeBattleEnemyResourceView
         {
             pose = new(NativeBattleModelEnemyHeap.Read(cpu, staging, skeleton, skeletonLength).ToImmutableArray(), Block(20));
         }
+        pose = pose with { Model8FBoneAliases = original.PoseSource?.Model8FBoneAliases ?? [] };
         bool camera = row.Fields.TryGetValue(44, out NativeBattleModelCpuReference? cameraReference) ? cameraReference is not null : throw new NotSupportedException("Native enemy action-camera pointer remains unknown.");
         NativeBattleGraphicsResource result = original with { PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), SequenceSection = Block(24), Geometry = Geometry(), GeometryRelocated507550 = true, HasActionCamera = camera, ActionCameraBank = camera ? new(Block(44)) : null, TextureAnimations = row.Fields.TryGetValue(48, out NativeBattleModelCpuReference? motion) && motion is not null ? Block(48) : [] };
         result.Validate();

@@ -299,6 +299,10 @@ public sealed partial class BattleSession
         {
             return RunNativeEffect298(graphics, true);
         }
+        if (effect.Binding.Effect is 271 or 272)
+        {
+            return EnterNativeLevel(graphics);
+        }
         if (effect.Binding.Entry == NativeBattleEffect338Profile.Entry)
         {
             return EnterNativeEffect338(graphics);

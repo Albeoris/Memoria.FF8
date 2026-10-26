@@ -195,22 +195,6 @@ public static partial class NativeBattleEffect312Controller
 
     private static int ContactIndexMain(NativeBattleEffect312Frame frame, int actor, NativeBattleEffect312Inputs inputs)
     {
-        NativeBattleEffectArena parameters = inputs.ReadPhysical(frame, frame.State.ReadDword(ParametersGlobal), 8);
-        uint headerAddress = BinaryPrimitives.ReadUInt32LittleEndian(parameters.Read(4, 4));
-        NativeBattleEffectArena header = inputs.ReadPhysical(frame, headerAddress, 20);
-        int count = header.Read(0x10, 1)[0];
-        if (count == 0)
-        {
-            return -1;
-        }
-        uint first = BinaryPrimitives.ReadUInt32LittleEndian(header.Read(8, 4));
-        for (int index = 0; index < count; index++)
-        {
-            if (inputs.ReadPhysical(frame, checked(first + (uint)(index * 24)), 1).Read(0, 1)[0] == actor)
-            {
-                return index;
-            }
-        }
-        return -1;
+        return NativeBattleEffect312Contacts.Find(frame.State.ReadDword(ParametersGlobal), actor, (address, length) => inputs.ReadPhysical(frame, address, length));
     }
 }

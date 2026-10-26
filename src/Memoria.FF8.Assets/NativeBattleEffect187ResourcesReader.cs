@@ -33,7 +33,8 @@ public static class NativeBattleEffect187ResourcesReader
         {
             OwnedModel = ReadModel(loadedFiles[1].Data),
             ScrollPixels = Bytes(0xFA54A8, 0x4000),
-            ScrollRectangle = Bytes(0xE41EA0, 8)
+            ScrollRectangle = Bytes(0xE41EA0, 8),
+            StaticFronts = new (uint Address, int Length)[] { (0xE41E5C, 28), (0xE41E90, 8), (0xE41EA8, 12), (0xE41EF8, 48), (0xE4206C, 224), (0xE3FD70, 1008) }.ToImmutableDictionary(source => source.Address, source => Bytes(source.Address, source.Length))
         };
         result.Validate();
         return result;
@@ -56,7 +57,7 @@ public static class NativeBattleEffect187ResourcesReader
         {
             mesh.Validate();
         }
-        return new(NativeBattleEffectNodeMemory.ArenaAddress, bytes, pose, meshes);
+        return new(NativeBattleEffect187Profile.ArenaAddress, bytes, pose, meshes);
     }
 }
 

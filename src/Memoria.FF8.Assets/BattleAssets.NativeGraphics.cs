@@ -72,6 +72,12 @@ public sealed partial class BattleAssets
         BattleModel decoded = LoadEnemy(model);
         resource = resource with { PoseSource = decoded.NativePoseSource, AnimationFrames = decoded.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray() };
         resource.Validate();
-        return model == 126 ? resource with { ModelLoadSources = [dat, ReadNativeModelDatSource(143, false, 0)] } : resource;
+        if (model == 126)
+        {
+            NativeExecutableMemory memory = new(GameDataResources.ReadNativeExecutable(resources));
+            NativeBattlePoseSource source = resource.PoseSource ?? throw new InvalidDataException("Native model142/143 requires its shared skeleton source.");
+            resource = resource with { PoseSource = source with { Model8FBoneAliases = memory.Read(0xB8B7DC, 16).ToImmutableArray() }, ModelLoadSources = [dat, ReadNativeModelDatSource(143, false, 0)] };
+        }
+        return resource;
     }
 }

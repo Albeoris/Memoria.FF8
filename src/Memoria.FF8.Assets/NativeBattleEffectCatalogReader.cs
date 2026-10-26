@@ -995,6 +995,17 @@ public sealed partial class GameAssets
                 }
                 binding = binding with { Effect303Resources = ReadNativeEffect303Resources() };
             }
+            if (binding.Effect is 271 or 272)
+            {
+                uint entry = binding.Effect == 271 ? 0x68F550u : 0x68DC70u;
+                uint initializer = binding.Effect == 271 ? 0x68F560u : 0x68DC80u;
+                if (binding.Entry != entry || binding.Initializer != initializer || binding.InitializerIsRet != false || binding.InitializerResource?.Name != $"mag{binding.Effect - 1}.tim" || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Native level effect requires its original entry and texture initializer contract.");
+                }
+                binding = binding with { LevelResources = ReadNativeLevelResources(binding.Effect) };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 338)
             {
                 if (binding.Entry != NativeBattleEffect338Profile.Entry || binding.Initializer != NativeBattleEffect338Profile.Initializer || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)

@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleCinematicEffect269DispatchTests
 {
     [Theory]
+    [InlineData("prim_table", 0x11, 0x8FD4A0u, 0xB28B00u)]
+    [InlineData("prim_table", 0x10, 0x8FD230u, 0xB105B0u)]
     [InlineData("prim_table", 0x7, 0x8FC9F0u, 0xB27E90u)]
     [InlineData("draw_table", 0x2, 0x8FBCA0u, 0xB27050u)]
     [InlineData("vm_table", 0x35, 0x902F80u, 0xA996A0u)]

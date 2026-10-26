@@ -15,7 +15,7 @@ public static class NativeBattleStaticMeshContext88
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0 or 0x2000 or 0x20C0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3 or 0x2030 or 0x20F0) || depthShift > 31)
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xFC or 0xF0 or 0x2000 or 0x20C0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3 or 0x2030 or 0x20F0) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
@@ -30,7 +30,7 @@ public static class NativeBattleStaticMeshContext88
         NativeBattlePrimitiveProcess primitive = memory.PrimitiveProcess ?? throw new NotSupportedException("Masamune requires its current far-color controls.");
         NativeBattleModelRendererRegisters far = primitive.ModelRendererRegisters ?? throw new NotSupportedException("Masamune requires its current renderer registers.");
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xF0 or 0x2000 or 0x20C0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3 or 0x2030 or 0x20F0) || depthShift > 31)
+        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0x33 or 0xC0 or 0xC3 or 0xF3 or 0xFC or 0xF0 or 0x2000 or 0x20C0 or 0x2033 or 0x20F3 or 0x1433 or 0x14F3 or 0x2030 or 0x20F0) || depthShift > 31)
         {
             throw new InvalidDataException("Masamune mesh requires its actual addressed caller context.");
         }
