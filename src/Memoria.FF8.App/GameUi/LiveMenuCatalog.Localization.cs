@@ -5,7 +5,7 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class LiveMenuCatalog
 {
-    internal string SystemText(string id, string original) => resources?.Localize(SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => resources is null ? original : SystemTextCatalog.Translate(resources.Localize, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 

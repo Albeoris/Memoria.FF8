@@ -2,7 +2,11 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-public sealed record ModelBrowserVariant(string Id, string Name);
+public sealed record ModelBrowserVariant(string Id, string Name)
+{
+    public Func<string>? ReadName { get; init; }
+    public string DisplayName => ReadName?.Invoke() ?? Name;
+}
 public sealed record ModelBrowserEntry(string Id, string Name, string Category, string SearchText, IReadOnlyList<ModelBrowserVariant> Variants, IReadOnlyList<string>? Details = null);
 public enum ModelBrowserMode
 {
@@ -16,7 +20,7 @@ public sealed partial class ModelBrowserController
 {
     internal Func<string, string, string>? LocalizeText { get; set; }
 
-    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(LocalizeText, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 
@@ -53,12 +57,17 @@ public sealed partial class ModelBrowserController
     public float RotationX { get; private set; }
     public float RotationY { get; private set; }
     public float Zoom { get; private set; } = 1;
-    public string Message { get; private set; } = "";
-    private string? hints;
+    private Func<string>? readMessage;
+    public string Message
+    {
+        get => readMessage?.Invoke() ?? "";
+        private set => readMessage = () => value;
+    }
+    private Func<string>? readHints;
     public string Hints
     {
-        get => hints ?? SystemText("model.hints.default", "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant");
-        private set => hints = value;
+        get => readHints?.Invoke() ?? SystemText("model.hints.default", "Arrows: select / rotate · Confirm: view / commands · Cancel: back\nShoulders: previous / next model · Page Up / Down: zoom · Alternate: variant");
+        private set => readHints = () => value;
     }
     public UiRect PreviewBounds => AssetsOpen ? new UiRect(18, 92, 480, 360) : Mode == ModelBrowserMode.Catalog ? new UiRect(18, 134, 390, 390) : new UiRect(18, 92, 924, 432);
 
@@ -70,6 +79,16 @@ public sealed partial class ModelBrowserController
     public void SetMessage(string message)
     {
         Message = message;
+    }
+
+    public void SetMessage(Func<string> message)
+    {
+        readMessage = message;
+    }
+
+    public void SetHints(Func<string> hints)
+    {
+        readHints = hints;
     }
 
     public void SetHints(string hints)
@@ -95,7 +114,7 @@ public sealed partial class ModelBrowserController
 
     private void Filter(string? selected)
     {
-        entries = catalog.Where(entry => MatchesSearch(entry.SearchText + " " + entry.Id + " " + entry.Name + " " + entry.Category + " " + string.Join(" ", entry.Variants.Select(variant => variant.Id + " " + variant.Name)) + " " + string.Join(" ", entry.Details ?? []), Search)).ToArray();
+        entries = catalog.Where(entry => MatchesSearch(entry.SearchText + " " + entry.Id + " " + entry.Name + " " + entry.Category + " " + string.Join(" ", entry.Variants.Select(variant => variant.Id + " " + variant.Name + " " + variant.DisplayName)) + " " + string.Join(" ", entry.Details ?? []), Search)).ToArray();
         int preserved = Array.FindIndex(entries, entry => entry.Id == selected);
         SelectedIndex = preserved >= 0 ? preserved : 0;
         if (preserved < 0)

@@ -52,6 +52,8 @@ Where a source slot has distinct proven call contexts, a context-specific key ad
 
 Other original resources use their registered table/entity identities, such as a kernel collection, role and row index. Engine-owned System strings use registered semantic IDs, for example `$en_interface_system_main.junction`. Unknown identities and contradictory/case-colliding filenames are diagnosed. Do not manufacture new original-game rows or use translated names as keys.
 
+System messages can be templates containing numbered arguments such as `{0}` and `{1}`. Preserve these arguments while translating the surrounding prose; their values include current player names, quantities and paths. When the chosen Source dataset has no authored System translation, **Authored Original [en]** retains the English template explicitly. This reference does not claim an existing translation in the selected Source language.
+
 ## Field controls and choices
 
 Preserve required dynamic placeholders such as `{Var 2}`, `{Char Squall}` or key/name tokens, including their occurrence counts. Their contents come from runtime owners, including player-assigned names. Unicode translation text does not need to fit the original game's byte encoding.
@@ -60,7 +62,15 @@ Field presentation metadata, when present, is a leading tag with complete blocks
 
 For `ASK`/`AASK`, **F** and **L** identify the first and last selectable lines; **B** identifies the initial line and **C** the native cancellation result. A translated heading may move selectable lines, but the number/order of semantic options and the relative initial/cancel identities must remain unchanged. An out-of-range native cancel result must also remain unchanged. The translated body must contain the declared lines, and window sizes must be positive.
 
-Keep the original script fingerprint and call bindings. A key reused by incompatible calls needs its exported context variants; do not solve it by adding a guessed global offset. Dynamic or unsupported choice bindings are rejected. These checks change presentation only; they do not patch JSM or change branch results.
+Keep the original script fingerprint and call bindings. A key reused by incompatible calls needs its exported context variants; do not solve it by adding a guessed global offset. For dynamic choices, edit the structured **Choice Line Map**, mapping each selectable native `SourceLine` to its translated `TargetLine`. An empty map means unchanged line positions. At presentation time every evaluated native option must map completely, contiguously and in the original order. Initial and cancel identities are preserved, including native out-of-range sentinels. These checks change presentation only; they do not patch JSM or change branch results.
+
+## Structured Information and artwork
+
+Information bodies preserve `{Info Gate XX}`, `{Info Number XX}` and `{Info Link XXXX}` tokens. Translate prose around them while retaining the original control stream and its structure. Activation checks the translation against installed native controls, rather than trusting edited Source cells.
+
+The manifest's `artwork` declarations bind native image identities, source hashes and canvas sizes to files under `Localization/Artwork/`. Each declaration has a required Source PNG and an optional Target PNG path. Create the Target file at that declared path to override an image; an absent Target retains the lower-priority image or installed original. Use the original canvas or a uniform integer enlargement. Do not edit native identity, hash or geometry metadata to force compatibility. PNG overrides participate in stack priority and live publication; malformed updates retain the last valid presentation.
+
+Conversion and patch creation preserve Source PNG files and artwork declarations. A new patch starts without Target images. Image lettering is edited in the PNG, not extracted automatically as prose. Native European `{Glyph N}` wordmark fragments retain byte identities and source-font rectangles; they are not ordinary Unicode letters.
 
 ## Validate and convert from the command line
 
@@ -74,6 +84,8 @@ dotnet run --project tools/Memoria.FF8.Localization -c Release -- export --game-
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- validate --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT"
 
 dotnet run --project tools/Memoria.FF8.Localization -c Release -- convert --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT" --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT" --format xlsx --layout single
+
+dotnet run --project tools/Memoria.FF8.Localization -c Release -- patch --input "$env:MEMORIA_FF8_LOCALIZATION_INPUT" --output "$env:MEMORIA_FF8_LOCALIZATION_OUTPUT" --name "Translation corrections"
 ```
 
 Formats are `json` and `xlsx`; layouts are `single` and `split`. Export also accepts comma-separated `--references en,fr`. Probe actual availability first: requesting a dataset does not install it. Validate and convert are offline operations. Ctrl+C cancels export/conversion, and completed new packages remain disabled. Existing output directories are rejected.

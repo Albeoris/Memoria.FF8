@@ -9,6 +9,8 @@ public sealed record ChocoboImportItem(byte ItemId, int Class, int Count, bool A
 public sealed record ChocoboImportPreview(GameState Source, NativeChocoboWorldImport Import, NativeChocoboWorldTransferTable Table, GameState? Candidate, ImmutableArray<ChocoboImportItem> Items, string Message, bool RequiresAssociationReview = false)
 {
     public bool CanImport => Candidate is not null;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ChocoboPresentationText? MessageText { get; init; }
 }
 
 public sealed partial class GameSession
@@ -22,12 +24,12 @@ public sealed partial class GameSession
     {
         if (currentContentSha256 != preview.Import.ContentSha256 || !ChocoboWorldTransfers.SameOwners(State, preview.Source))
         {
-            throw new InvalidOperationException("The source or game state changed. Refresh the import preview.");
+            throw ChocoboText.Create("chocobo.import.source-changed").InvalidOperation();
         }
         ChocoboImportPreview verified = ChocoboWorldTransfers.Preview(State, preview.Import, preview.Table, preview.RequiresAssociationReview);
         if (verified.Candidate is null || preview.Candidate is null || !ChocoboWorldTransfers.SameOwners(verified.Candidate, preview.Candidate))
         {
-            throw new InvalidOperationException(verified.Message);
+            throw (verified.MessageText ?? ChocoboText.Create("chocobo.literal", verified.Message)).InvalidOperation();
         }
         State = verified.Candidate;
         return verified.Message;
@@ -45,33 +47,33 @@ public static class ChocoboWorldTransfers
 
     public static ChocoboImportPreview Preview(GameState source, NativeChocoboWorldImport import, NativeChocoboWorldTransferTable table, bool reviewedAssociation = false)
     {
-        ChocoboImportPreview Reject(string message, bool review = false) => new(source, import, table, null, [], message, review);
+        ChocoboImportPreview Reject(ChocoboPresentationText message, bool review = false) => new(source, import, table, null, [], message.Fallback, review) { MessageText = message };
         table.Validate();
         if (import.RawState.IsDefault || import.RawState.Length != 64 || import.ClassCounts.IsDefault || import.ClassCounts.Length != 4 || import.ClassCounts.Any(count => count is < 0 or > 99))
         {
-            throw new InvalidDataException("The decoded Chocobo World state is incomplete.");
+            throw ChocoboText.Create("chocobo.error.state-incomplete").InvalidData();
         }
         if (source.GameplayPreferences.ChocoboWorldMode != ChocoboWorldMode.NativeImport)
         {
-            return Reject("Select Native Import mode before transferring rewards.");
+            return Reject(ChocoboText.Create("chocobo.import.mode-required"));
         }
         if (source.Battle is not null || source.PendingBattleEncounter is not null)
         {
-            return Reject("Import is unavailable until the active or pending battle ends.");
+            return Reject(ChocoboText.Create("chocobo.import.battle-active"));
         }
         if (source.PocketStation is not { } pocket || (pocket.Flags & 1) == 0)
         {
-            return Reject("Unlock Boko in a Chocobo Forest before transferring rewards.");
+            return Reject(ChocoboText.Create("chocobo.import.boko-locked"));
         }
         if (source.Economy is null || source.MenuRandom is null)
         {
-            return Reject("The saved inventory and menu random state are required for a transfer.");
+            return Reject(ChocoboText.Create("chocobo.import.state-required"));
         }
         uint world = pocket.WorldId;
         bool foreign = world != 0 && import.WorldId != 0 && world != import.WorldId;
         if (foreign && !reviewedAssociation)
         {
-            return Reject("This source belongs to another Chocobo World. Review the association before importing it.", true);
+            return Reject(ChocoboText.Create("chocobo.import.association-required"), true);
         }
         GameState state = ChocoboRewardTransactions.Reconcile(source);
         string sourceId = import.SourceId;
@@ -79,11 +81,11 @@ public static class ChocoboWorldTransfers
         int[] prior = receipt?.ConsumedClassCounters.Select(count => (int)count).ToArray() ?? [0, 0, 0, 0];
         if (receipt is not null && (import.Revision < receipt.Revision || Enumerable.Range(0, 4).Any(index => import.ClassCounts[index] < prior[index])))
         {
-            return Reject("These counters precede an imported transfer or were reset. A new transfer cycle cannot be established safely; no repeatable loot was imported.");
+            return Reject(ChocoboText.Create("chocobo.import.counters-stale"));
         }
         if (receipt is not null && import.Revision == receipt.Revision && !import.ClassCounts.SequenceEqual(prior))
         {
-            return Reject("The source counters changed without a new native save revision. Refresh with a newer save.");
+            return Reject(ChocoboText.Create("chocobo.import.revision-stale"));
         }
         NativeMenuRandomState random = source.MenuRandom;
         List<ChocoboImportItem> rows = [];
@@ -119,7 +121,8 @@ public static class ChocoboWorldTransfers
         ImmutableArray<ChocoboImportItem> grouped = rows.GroupBy(row => (row.ItemId, row.Class, row.AlreadyAcquired)).Select(group => new ChocoboImportItem(group.Key.ItemId, group.Key.Class, group.Count(), group.Key.AlreadyAcquired)).ToImmutableArray();
         if (!ChocoboRewardTransactions.TryGrantItems(state.Economy!, state.ChocoboRewards, requested, out NativeEconomy economy, out ChocoboRewardLedger ledger, out ImmutableArray<NativeItemStock> delivered))
         {
-            return new(source, import, table, null, grouped, "Deferred due to capacity. The complete transfer must fit; inventory, random state and import counters remain unchanged.", foreign);
+            ChocoboPresentationText message = ChocoboText.Create("chocobo.import.capacity");
+            return new(source, import, table, null, grouped, message.Fallback, foreign) { MessageText = message };
         }
         byte[] raw = import.RawState.ToArray();
         raw[0] = (byte)((raw[0] | (pocket.Flags & 5)) & ~2);
@@ -138,11 +141,14 @@ public static class ChocoboWorldTransfers
         bool newCounts = Enumerable.Range(0, 4).Any(index => import.ClassCounts[index] != prior[index]);
         if (receipt is not null && !newCounts && !changedProgression)
         {
-            return new(source, import, table, null, grouped, "No new rewards.", foreign);
+            ChocoboPresentationText message = ChocoboText.Create("chocobo.import.no-rewards");
+            return new(source, import, table, null, grouped, message.Fallback, foreign) { MessageText = message };
         }
         ChocoboImportReceipt nextReceipt = new(sourceId, import.Revision, import.BackupRevision ?? import.Revision, receipt?.Cycle ?? 0, import.ClassCounts.Select(count => (byte)count).ToImmutableArray(), import.ContentSha256);
         ledger = ledger with { NativeImportSources = ledger.NativeImportSources.SetItem(sourceId, nextReceipt) };
         GameState candidate = state with { Economy = economy, PocketStation = merged, MenuRandom = random, ChocoboRewards = ledger };
-        return new(source, import, table, candidate, grouped, delivered.Length == 0 ? "Boko progression and transfer checkpoint updated. No new items." : $"Added {delivered.Sum(stock => stock.Count)} item(s). Boko progression and transfer checkpoint updated.", foreign);
+        ChocoboPresentationText completed = delivered.Length == 0 ? ChocoboText.Create("chocobo.import.progression") : ChocoboText.Create("chocobo.import.items-added", delivered.Sum(stock => stock.Count));
+        return new(source, import, table, candidate, grouped, completed.Fallback, foreign) { MessageText = completed };
+
     }
 }

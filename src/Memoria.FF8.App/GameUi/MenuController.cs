@@ -998,6 +998,10 @@ public sealed partial class MenuController
                 if (limitOwner != null)
                 {
                     limitOwner.LimitSettings[action.SubjectId] = action.Value;
+                    if (action.SubjectId is "Auto" or "Indicator" or "Duel-Auto" or "Angel Wing")
+                    {
+                        limitOwner.LimitToggles[action.SubjectId] = action.Value == "On";
+                    }
                     SetSystemMessage(() => FormatSystemText("ui.applydemo.message.fixture", "Fixture {0} {1}: {2}.", limitOwner.Name, action.SubjectId, action.Value));
                 }
                 break;

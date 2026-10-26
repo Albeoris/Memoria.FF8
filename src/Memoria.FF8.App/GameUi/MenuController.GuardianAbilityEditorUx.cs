@@ -48,7 +48,7 @@ public sealed partial class MenuController
             Title = "GF Abilities · Restore inherited value",
             Help = "Review the contribution and dependent changes before restoring inherited fields.",
             Entries = _ => [new("accept", SystemText("ui.registerguardianeditorpages.entry.label.restore.reviewed.contribution", "Restore reviewed contribution"), SystemText("ui.registerguardianeditorpages.entry.help.author.the.reviewed.restore.as.a.new.draft", "Author the reviewed restore as a new draft command."), Action: new("gf-editor-restore-accept")), new("cancel", SystemText("ui.registerguardianeditorpages.entry.label.cancel", "Cancel"), SystemText("ui.registerguardianeditorpages.entry.help.keep.the.draft", "Keep the draft."), Action: new("menu-back"))],
-            Details = _ => guardianDraft!.RestoreInheritedReview(guardianSubject, guardianRestoreAbility, guardianAbilityName!)
+            Details = _ => guardianDraft!.RestoreInheritedReview(guardianSubject, guardianRestoreAbility, guardianAbilityName!, SystemText)
         });
         Register(new()
         {
@@ -56,7 +56,7 @@ public sealed partial class MenuController
             Title = "GF Abilities · Undo review",
             Help = "Undo also removes later dependent edits. Unrelated edits remain.",
             Entries = _ => [new("accept", SystemText("ui.registerguardianeditorpages.entry.label.undo.reviewed.group", "Undo reviewed group"), SystemText("ui.registerguardianeditorpages.entry.help.remove.the.listed.dependent.edits.together", "Remove the listed dependent edits together."), Action: new("gf-editor-undo-accept")), new("cancel", SystemText("ui.registerguardianeditorpages.entry.label.cancel", "Cancel"), SystemText("ui.registerguardianeditorpages.entry.help.keep.the.draft", "Keep the draft."), Action: new("menu-back"))],
-            Details = _ => guardianDraft!.UndoReview(guardianSubject, guardianUndoAbility, guardianAbilityName!)
+            Details = _ => guardianDraft!.UndoReview(guardianSubject, guardianUndoAbility, guardianAbilityName!, SystemText)
         });
         Register(new()
         {
@@ -224,7 +224,7 @@ public sealed partial class MenuController
                 changes.Add(guardianEditorName!(gf) + ": " + string.Join(", ", expected.Templates[gf].Select(entry => guardianAbilityName!(entry.Ability) + (entry.InitialLearned ? " [learned]" : ""))) + " → " + string.Join(", ", proposed.Templates[gf].Select(entry => guardianAbilityName!(entry.Ability) + (entry.InitialLearned ? " [learned]" : ""))));
             }
         }
-        changes.AddRange(proposed.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.Message));
+        changes.AddRange(proposed.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.FormatMessage(SystemText)));
         if (changes.Count > 0)
         {
             guardianPlacementInput = input;
@@ -254,7 +254,7 @@ public sealed partial class MenuController
             lines.Add(row.SupportedCondition ? SystemText("ui.guardiandetaillines.details.availability.condition.supported", "Availability condition supported.") : SystemText("ui.guardiandetaillines.details.unsupported.source.condition.see.diagnostics", "Unsupported source condition; see diagnostics."));
         }
         lines.AddRange(composition.Origins.Where(origin => origin.GuardianForce == guardianSubject && origin.Ability == ability).Select(origin => origin.PackageId + " · " + origin.Aspect));
-        lines.AddRange(composition.Outcomes.Where(outcome => outcome.GuardianForce == guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.Message));
+        lines.AddRange(composition.Outcomes.Where(outcome => outcome.GuardianForce == guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.FormatMessage(SystemText)));
         return lines;
     }
 
@@ -423,7 +423,7 @@ public sealed partial class MenuController
     }
 
     private string GuardianOperationText() => guardianPending is null ? "" : guardianPending == "swap" ? FormatSystemText("ui.guardianoperationtext.details.swap.template", "Swap {0} with {1}", guardianAbilityName!(guardianPendingAbility), (GuardianSelectedRow is { } row ? guardianAbilityName!(row.Ability) : SystemText("ui.guardianoperationtext.details.a.target", "a target"))) : FormatSystemText("ui.guardianoperationtext.details.replace.template", "Replace {0} with {1}", (GuardianSelectedRow is { } target ? guardianAbilityName!(target.Ability) : SystemText("ui.guardianoperationtext.details.a.target", "a target")), guardianAbilityName!(guardianPendingAbility));
-    private string GuardianUndoText() => GuardianSelectedRow is { } row ? guardianDraft!.UndoDescription(guardianSubject, row.Ability, guardianAbilityName!) : SystemText("ui.guardianundotext.details.no.selected.entry", "No selected entry");
+    private string GuardianUndoText() => GuardianSelectedRow is { } row ? guardianDraft!.UndoDescription(guardianSubject, row.Ability, guardianAbilityName!, SystemText) : SystemText("ui.guardianundotext.details.no.selected.entry", "No selected entry");
     private string GuardianConfirmHint()
     {
         if (guardianFocus == "catalog")

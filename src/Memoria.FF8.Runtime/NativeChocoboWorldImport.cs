@@ -4,6 +4,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeChocoboWorldImport(string Format, string ContentSha256, int SelectedBank, uint Revision, uint WorldId, int BokoId, int Level, int CurrentHp, int MaximumHp, int AttackTier, byte EventFlags, ImmutableArray<int> ClassCounts, ImmutableArray<byte> RawState, ImmutableArray<byte> RawWorld)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ChocoboPresentationText? FormatText { get; init; }
+
     public string SourceId => $"world:{WorldId:X8}/boko:{BokoId:D4}";
     public uint? BackupRevision { get; init; }
     public bool BackupStructurallyValid { get; init; }
@@ -18,7 +21,7 @@ public sealed record NativeChocoboWorldTransferTable(ImmutableArray<byte> Entrie
     {
         if (Entries.IsDefault || Entries.Length != 512 || Entries.Any(item => item >= 199))
         {
-            throw new InvalidDataException("Chocobo World transfer table requires 128 complete native item rows.");
+            throw ChocoboText.Create("chocobo.error.table-invalid").InvalidData();
         }
     }
 

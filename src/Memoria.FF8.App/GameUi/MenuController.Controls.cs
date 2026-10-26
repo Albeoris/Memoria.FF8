@@ -29,7 +29,7 @@ public sealed partial class MenuController
         [ControlAction.SpeedToggle, ControlAction.QuickSave, ControlAction.QuickLoad, ControlAction.SaveMenu, ControlAction.LoadMenu, ControlAction.BattleInstantVictory, ControlAction.BattleInstantDefeat]
     ];
     private readonly Dictionary<int, string> _controlsGroupSelection = [];
-    private string ControlsOwnerName => _developerControls ? "Debug shortcuts" : "Player bindings";
+    private string ControlsOwnerName => _developerControls ? SystemText("controls.owner.developer", "Debug shortcuts") : SystemText("controls.owner.player", "Player bindings");
     private InputChord? _pendingChord;
     private bool _captureControls;
     private bool _returnToControlsList;
@@ -42,7 +42,7 @@ public sealed partial class MenuController
     private bool IsDemoControls => IsFixtureContext;
     private ControlsProfile CurrentControls => IsDemoControls ? _demoControls : _readControls?.Invoke() ?? _demoControls;
     private bool CanWriteControls => IsDemoControls || _writeControls is not null;
-    private string ControlsDeviceName => _controlsDevice == ControlDevice.Keyboard ? "Keyboard" : "Controller";
+    private string ControlsDeviceName => _controlsDevice == ControlDevice.Keyboard ? SystemText("controls.device.keyboard", "Keyboard") : SystemText("controls.device.controller", "Controller");
     private string ControlsActionName => ControlsLabel(_controlsAction);
     private ControllerPresentation CurrentControllerPresentation => CurrentControls.Controller.Presentation == ControllerPresentation.Automatic ? _readControllerPresentation?.Invoke() ?? ControllerPresentation.Generic : CurrentControls.Controller.Presentation;
     private ControlDevice CurrentControlDevice => _readControlDevice?.Invoke() ?? (ScreenId.StartsWith("config-controller", StringComparison.Ordinal) ? ControlDevice.Controller : ControlDevice.Keyboard);
@@ -58,7 +58,7 @@ public sealed partial class MenuController
         string advancedHelp = advancedBinding == "Unbound" ? SystemText("ui.buildcontrolspage.advancedhelp.card.details.is.unbound.assign.it.to.open", "Card / Details is unbound. Assign it to open advanced options.") : FormatSystemText("ui.buildcontrolspage.advancedhelp.press.for.advanced.options", "Press {0} for advanced options.", advancedBinding);
         advancedHelp = $"{(IsDemoControls ? "Preview / Fixture" : "Global preferences")}. {advancedHelp}";
         string help = IsControlsBindingList ? advancedHelp : ScreenId == "config-controls-conflict" && _pendingBindingsReset ? FormatSystemText("ui.buildcontrolspage.help.default.bindings.conflict.with.replace.only.after.reviewing", "Default bindings conflict with {0}. Replace only after reviewing this scope.", string.Join(", ", CurrentControls.FindResetConflicts(_controlsDevice, _developerControls).Select(ControlsConflictLabel))) : ScreenId == "config-controls-conflict" && _pendingChord is not null ? FormatSystemText("ui.buildcontrolspage.help.is.assigned.to", "{0} is assigned to {1}.", _pendingChord.FormatPrompt(CurrentControllerPresentation), string.Join(", ", CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(ControlsConflictLabel))) : SelectedEntry?.Help ?? CurrentScreen.Help;
-        string title = ScreenId == "config-controls-conflict" && _pendingBindingsReset ? FormatSystemText("ui.buildcontrolspage.title.restore", "Restore {0} ({1})", ControlsOwnerName, ControlsDeviceName) : ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : IsControlsBindingList && !_developerControls ? $"{CurrentScreen.Title} / {ControlsGroups[_controlsGroup]}" : CurrentScreen.Title;
+        string title = ScreenId == "config-controls-conflict" && _pendingBindingsReset ? FormatSystemText("ui.buildcontrolspage.title.restore", "Restore {0} ({1})", ControlsOwnerName, ControlsDeviceName) : ScreenId.EndsWith("-choice", StringComparison.Ordinal) || ScreenId == "config-controls-conflict" ? $"{ControlsActionName} ({ControlsDeviceName})" : IsControlsBindingList && !_developerControls ? $"{CurrentScreen.Title} / {ControlsGroupLabel(_controlsGroup)}" : CurrentScreen.Title;
         Place(page, SecondaryHeader(_developerControls ? SystemText("ui.buildcontrolspage.header.debug.room", "Debug Room") : SystemText("ui.buildcontrolspage.header.config", "Config"), title, help), 0);
         UiList commands = SecondaryCommands();
         commands.TextFlow = UiTextFlow.Wrap;
@@ -130,7 +130,28 @@ public sealed partial class MenuController
         }
     }
 
-    private string ControlsConflictLabel(ControlAction action) => $"{ControlsLabel(action)} ({(ControlsProfile.IsDeveloperAction(action) ? "Debug Room" : "Config")})";
+    private string ControlsGroupLabel(int group) => group switch
+    {
+        0 => SystemText("controls.group.navigation", "Navigation"),
+        1 => SystemText("controls.group.interaction", "Interaction"),
+        2 => SystemText("controls.group.camera-battle", "Camera and battle"),
+        3 => SystemText("controls.group.shortcuts", "Shortcuts"),
+        _ => throw new ArgumentOutOfRangeException(nameof(group))
+    };
+
+    private string ControlsCategory(ControlAction action) => action <= ControlAction.MoveRight ? SystemText("controls.category.movement", "Movement") : action <= ControlAction.RotateRight ? SystemText("controls.category.original", "Original game") : SystemText("controls.category.shortcuts", "Memoria shortcuts");
+
+    private string ControllerPresentationLabel(ControllerPresentation presentation) => presentation switch
+    {
+        ControllerPresentation.Automatic => SystemText("controls.presentation.automatic", "Automatic"),
+        ControllerPresentation.Generic => SystemText("controls.presentation.generic", "Generic"),
+        ControllerPresentation.Xbox => SystemText("controls.presentation.xbox", "Xbox"),
+        ControllerPresentation.PlayStation => SystemText("controls.presentation.playstation", "PlayStation"),
+        ControllerPresentation.Nintendo => SystemText("controls.presentation.nintendo", "Nintendo"),
+        _ => throw new ArgumentOutOfRangeException(nameof(presentation))
+    };
+
+    private string ControlsConflictLabel(ControlAction action) => FormatSystemText("controls.conflict.action", "{0} ({1})", ControlsLabel(action), ControlsProfile.IsDeveloperAction(action) ? SystemText("controls.owner.debug-room", "Debug Room") : SystemText("controls.owner.config", "Config"));
 
     internal void RegisterControlsScreens()
     {
@@ -213,7 +234,7 @@ public sealed partial class MenuController
         List<MenuEntry> result = [new("device", FormatSystemText("ui.controlsentries.entry.label.device", "Device: {0}", ControlsDeviceName), SystemText("ui.controlsentries.entry.help.switch.keyboard.controller.while.retaining.the.selected.group", "Switch keyboard/controller while retaining the selected group and action."), Action: new("controls-switch-device"))];
         if (!_developerControls)
         {
-            result.Add(new("group", FormatSystemText("ui.controlsentries.entry.label.group", "Group: {0}", ControlsGroups[_controlsGroup]), SystemText("ui.controlsentries.entry.help.choose.navigation.interaction.camera.and.battle.or.shortcuts", "Choose Navigation, Interaction, Camera and battle, or Shortcuts."), Action: new("controls-group")));
+            result.Add(new("group", FormatSystemText("ui.controlsentries.entry.label.group", "Group: {0}", ControlsGroupLabel(_controlsGroup)), SystemText("ui.controlsentries.entry.help.choose.navigation.interaction.camera.and.battle.or.shortcuts", "Choose Navigation, Interaction, Camera and battle, or Shortcuts."), Action: new("controls-group")));
         }
         result.AddRange(actions.Select(action => new MenuEntry(action.ToString(), ControlsLabel(action), FormatSystemText("ui.controlsentries.entry.help.global", "Global {0}: {1}", ControlsOwnerName, BindingText(action, device)), destination, new("controls-select", action.ToString(), Value: device.ToString()))));
         result.Add(new("reset", _developerControls ? SystemText("ui.controlsentries.entry.label.restore.debug.shortcuts", "Restore debug shortcuts...") : SystemText("ui.controlsentries.entry.label.restore.player.bindings", "Restore player bindings..."), SystemText("ui.controlsentries.entry.help.restore.this.owner.s.bindings.for.the.selected", "Restore this owner's bindings for the selected device only."), "config-controls-reset", new("controls-device", device.ToString())));
@@ -227,7 +248,7 @@ public sealed partial class MenuController
             return [SystemText("ui.controlslistdetails.details.controller.settings", "Controller settings"), SystemText("ui.controlslistdetails.details.adjust.left.and.right.radial.deadzones", "Adjust left and right radial deadzones."), SystemText("ui.controlslistdetails.details.choose.the.tilt.needed.to.run", "Choose the tilt needed to run."), SystemText("ui.controlslistdetails.details.right.stick.camera.car.controls", "Right stick: camera / car controls."), SystemText("ui.controlslistdetails.details.choose.button.labels.for.virtual.pads", "Choose button labels for virtual pads."), SystemText("ui.controlslistdetails.details.enable.or.disable.controller.vibration", "Enable or disable controller vibration."), SystemText("ui.controlslistdetails.details.changes.save.automatically", "Changes save automatically.")];
         }
         ControlActionDefinition? selected = ControlsProfile.Definitions.FirstOrDefault(definition => definition.Action.ToString() == SelectedEntry?.Id);
-        List<string> details = [selected is null ? SystemText("ui.controlslistdetails.details.restore.defaults", "Restore defaults") : ControlsLabel(selected.Action), selected?.Category ?? SystemText("ui.controlslistdetails.details.all.actions", "All actions"), selected is null ? "" : BindingText(selected.Action, device), SystemText("ui.controlslistdetails.details.key.button.combinations.supported", "Key / button combinations supported."), device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.left.stick.movement", "Left stick: movement") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.right.stick.camera.car.controls.alternate", "Right stick: camera / car controls") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.stick.directions.cannot.bind.actions", "Stick directions cannot bind actions.") : "", IsDemoControls ? SystemText("ui.controlslistdetails.details.menu.demo.changes.stay.isolated", "Menu demo: changes stay isolated.") : CanWriteControls ? SystemText("ui.controlslistdetails.details.changes.save.automatically", "Changes save automatically.") : SystemText("ui.controlslistdetails.details.controls.are.not.connected.to.this.host", "Controls are not connected to this host.")];
+        List<string> details = [selected is null ? SystemText("ui.controlslistdetails.details.restore.defaults", "Restore defaults") : ControlsLabel(selected.Action), selected is null ? SystemText("ui.controlslistdetails.details.all.actions", "All actions") : ControlsCategory(selected.Action), selected is null ? "" : BindingText(selected.Action, device), SystemText("ui.controlslistdetails.details.key.button.combinations.supported", "Key / button combinations supported."), device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.left.stick.movement", "Left stick: movement") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.right.stick.camera.car.controls.alternate", "Right stick: camera / car controls") : "", device == ControlDevice.Controller ? SystemText("ui.controlslistdetails.details.stick.directions.cannot.bind.actions", "Stick directions cannot bind actions.") : "", IsDemoControls ? SystemText("ui.controlslistdetails.details.menu.demo.changes.stay.isolated", "Menu demo: changes stay isolated.") : CanWriteControls ? SystemText("ui.controlslistdetails.details.changes.save.automatically", "Changes save automatically.") : SystemText("ui.controlslistdetails.details.controls.are.not.connected.to.this.host", "Controls are not connected to this host.")];
         return details.Where(line => line.Length != 0).ToArray();
     }
 
@@ -291,17 +312,17 @@ public sealed partial class MenuController
 
     private string ControlsLabel(ControlAction action)
     {
-        return action switch
+        return SystemText("controls.action." + action.ToString(), action switch
         {
-            ControlAction.DebugRoom => SystemText("ui.controlslabel.details.open.debug.room", "Open Debug Room"),
-            ControlAction.BattleDebug => SystemText("ui.controlslabel.details.open.battle.laboratory", "Open battle laboratory"),
-            ControlAction.BattleInstantVictory => SystemText("ui.controlslabel.details.instant.victory", "Instant victory"),
-            ControlAction.BattleInstantDefeat => SystemText("ui.controlslabel.details.instant.defeat", "Instant defeat"),
-            ControlAction.RotateLeft => SystemText("ui.controlslabel.details.rotate.left.previous.character", "Rotate left / Previous character"),
-            ControlAction.RotateRight => SystemText("ui.controlslabel.details.rotate.right.gunblade.next", "Rotate right / Gunblade / Next"),
-            ControlAction.CameraRight => SystemText("ui.controlslabel.details.camera.mode.escape.battle.r", "Camera mode / Escape battle (R)"),
-            _ => SystemText("controls.action." + action.ToString(), ControlsProfile.Definitions.Single(definition => definition.Action == action).Label)
-        };
+            ControlAction.DebugRoom => "Open Debug Room",
+            ControlAction.BattleDebug => "Open battle laboratory",
+            ControlAction.BattleInstantVictory => "Instant victory",
+            ControlAction.BattleInstantDefeat => "Instant defeat",
+            ControlAction.RotateLeft => "Rotate left / Previous character",
+            ControlAction.RotateRight => "Rotate right / Gunblade / Next",
+            ControlAction.CameraRight => "Camera mode / Escape battle (R)",
+            _ => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label
+        });
     }
 
     private bool ExecuteControlsAction(MenuAction action)
@@ -429,7 +450,7 @@ public sealed partial class MenuController
             new("left-deadzone", FormatSystemText("ui.controllersettingsentries.entry.label.left.stick.deadzone", "Left stick deadzone: {0:P0}", settings.LeftStickDeadZone), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.0.to.50", "Adjust by 5%, from 0% to 50%."), Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
             new("right-deadzone", FormatSystemText("ui.controllersettingsentries.entry.label.right.stick.deadzone", "Right stick deadzone: {0:P0}", settings.RightStickDeadZone), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.0.to.50", "Adjust by 5%, from 0% to 50%."), Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
             new("run-threshold", FormatSystemText("ui.controllersettingsentries.entry.label.run.threshold", "Run threshold: {0:P0}", settings.WalkRunThreshold), SystemText("ui.controllersettingsentries.entry.help.adjust.by.5.from.10.to.95", "Adjust by 5%, from 10% to 95%."), Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
-            new("presentation", FormatSystemText("ui.controllersettingsentries.entry.label.button.labels", "Button labels: {0}", settings.Presentation), SystemText("ui.controllersettingsentries.entry.help.cycle.automatic.generic.xbox.playstation.and.nintendo.labels", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels."), Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
+            new("presentation", FormatSystemText("ui.controllersettingsentries.entry.label.button.labels", "Button labels: {0}", ControllerPresentationLabel(settings.Presentation)), SystemText("ui.controllersettingsentries.entry.help.cycle.automatic.generic.xbox.playstation.and.nintendo.labels", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels."), Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
             new("vibration", FormatSystemText("ui.controllersettingsentries.entry.label.vibration", "Vibration: {0}", (settings.VibrationEnabled ? SystemText("ui.controllersettingsentries.value.on", "On") : SystemText("ui.controllersettingsentries.value.off", "Off"))), SystemText("ui.controllersettingsentries.entry.help.enable.or.disable.controller.vibration", "Enable or disable controller vibration."), Action: new("controls-setting", "vibration"), Enabled: CanWriteControls),
             new("reset-settings", SystemText("ui.controllersettingsentries.entry.label.restore.controller.settings", "Restore controller settings..."), SystemText("ui.controllersettingsentries.entry.help.restore.only.these.five.preferences.preserve.all.bindings", "Restore only these five preferences; preserve all bindings."), "config-controller-settings-reset")
         ];

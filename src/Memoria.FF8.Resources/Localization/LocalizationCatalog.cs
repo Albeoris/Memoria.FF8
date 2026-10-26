@@ -102,6 +102,21 @@ public sealed class LocalizationCatalog
 
     public string Resolve(string key, string original) => Values.TryGetValue(key, out LocalizationValue? value) ? value.Text : original;
 
+    public string ResolveAliases(IReadOnlyList<string> keys, string original)
+    {
+        foreach (var layer in layers.Reverse())
+        {
+            foreach (string key in keys)
+            {
+                if (layer.Values.TryGetValue(key, out LocalizationValue? value) && !string.IsNullOrEmpty(value.Text))
+                {
+                    return value.Text;
+                }
+            }
+        }
+        return original;
+    }
+
     public LocalizationFieldText? ResolveField(string key, int operation, string scriptHash, int? nativeFirst, int? nativeLast, int? nativeInitial, int? nativeCancel)
     {
         foreach (var layer in layers.Reverse())

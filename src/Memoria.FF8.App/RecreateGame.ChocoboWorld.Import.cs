@@ -10,10 +10,11 @@ internal sealed partial class RecreateGame
     private ChocoboImportPreview? chocoboTransferPreview;
     private string? chocoboTransferPath;
     private bool promptNewGameChocoboClaim;
+    private ChocoboPresentationText? lastChocoboResultText;
 
     private void InitializeChocoboWorldIntegration()
     {
-        gameMenus!.ConnectChocoboWorld(DiscoverChocoboWorldSaves, BrowseChocoboWorldSave, path => PreviewChocoboWorldFile(path, false), CommitChocoboWorldFile, PreviewChocoboWorldClaim, CommitChocoboWorldClaim, () => PreviewChocoboWorldFile(chocoboTransferPath!, true));
+        gameMenus!.ConnectChocoboWorld(DiscoverChocoboWorldSaves, BrowseChocoboWorldSave, path => PreviewChocoboWorldFile(path, false), CommitChocoboWorldFile, PreviewChocoboWorldClaim, CommitChocoboWorldClaim, () => PreviewChocoboWorldFile(chocoboTransferPath!, true), () => lastChocoboResultText);
     }
 
     private IReadOnlyList<ChocoboImportSource> DiscoverChocoboWorldSaves()
@@ -34,7 +35,8 @@ internal sealed partial class RecreateGame
                     string name = Path.GetFileName(file);
                     if (name.Equals("chocorpg", StringComparison.OrdinalIgnoreCase) || name.Equals("chocorpg.ff8", StringComparison.OrdinalIgnoreCase))
                     {
-                        sources.Add(new(file, $"Classic / PC · {name} · {Path.GetDirectoryName(file)}"));
+                        ChocoboPresentationText label = ChocoboText.Create("chocobo.source.pc", name, Path.GetDirectoryName(file));
+                        sources.Add(new(file, label.Fallback) { LabelText = label });
                     }
                 }
             }
@@ -51,7 +53,7 @@ internal sealed partial class RecreateGame
         using FileStream stream = File.OpenRead(path);
         if (stream.Length > 0xE080)
         {
-            throw new InvalidDataException("The selected file is too large for a supported standalone Chocobo World save.");
+            throw ChocoboText.Create("chocobo.error.file-too-large").InvalidData();
         }
         byte[] bytes = new byte[checked((int)stream.Length)];
         stream.ReadExactly(bytes);
@@ -69,57 +71,36 @@ internal sealed partial class RecreateGame
             ChocoboImportPreview preview = session.PreviewChocoboWorldImport(imported, assets.ReadNativeChocoboWorldTransferTable(), reviewed);
             chocoboTransferPreview = preview;
             EnsureLiveMenuCatalog();
-            string[] attacks = ["ChocoFire", "ChocoFlare", "ChocoMeteor", "ChocoBocle"];
-            string[] header =
-            [
-                Path.GetFileName(path) + " · " + imported.Format,
-                $"Saved name: {NativePocketStationText.ChocoboName(session.State.PocketStation) ?? "Boko"} · ID {imported.BokoId:D4} · Level {imported.Level} · {attacks[imported.AttackTier]}",
-                $"Selected bank {imported.SelectedBank + 1} · Revision {imported.Revision} · Backup {imported.BackupRevision?.ToString() ?? "none"}",
-                $"Source world {imported.WorldId:X8} / Current world {session.State.PocketStation?.WorldId ?? 0:X8} · " + (preview.RequiresAssociationReview ? reviewed ? "Association reviewed" : "Association review required" : "Compatible / first association"),
-                $"Level {session.State.PocketStation?.Level ?? 0} → {preview.Candidate?.PocketStation?.Level ?? session.State.PocketStation?.Level ?? 0}",
-                $"Attack tier {session.State.PocketStation?.AttackVariant ?? 0} → {preview.Candidate?.PocketStation?.AttackVariant ?? session.State.PocketStation?.AttackVariant ?? 0}",
-                "Transfers use the installed item table. Source files remain unchanged."
-            ];
-            ChocoboRewardRow[] rows = preview.Items.OrderByDescending(item => ChocoboRewardCatalog.FindItem(item.ItemId) is not null).Select(item => new ChocoboRewardRow(liveMenuCatalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", (ChocoboRewardCatalog.FindItem(item.ItemId) is null ? "Ordinary" : "Exclusive") + $" · {(item.Class < 0 ? "MiniMog" : "Class " + (char)('A' + item.Class))} · {item.Count} · " + (item.AlreadyAcquired ? "Already acquired" : preview.CanImport ? "Incoming" : "Deferred"), liveMenuCatalog?.ItemIcon(item.ItemId), item.AlreadyAcquired, Exclusive: ChocoboRewardCatalog.FindItem(item.ItemId) is not null)).ToArray();
-            Dictionary<byte, int> totals = preview.Items.Where(item => !item.AlreadyAcquired).GroupBy(item => item.ItemId).ToDictionary(group => group.Key, group => group.Sum(item => item.Count));
-            List<ChocoboRewardRow> detailedRows = [];
-            foreach (ChocoboImportItem item in preview.Items.OrderByDescending(item => ChocoboRewardCatalog.FindItem(item.ItemId) is not null))
-            {
-                int current = session.State.Economy?.Items.FirstOrDefault(stock => stock.ItemId == item.ItemId)?.Count ?? 0;
-                bool noSlot = current == 0 && session.State.Economy?.Items.Any(stock => stock.ItemId == item.ItemId || stock.ItemId == 0) != true;
-                int overflow = item.AlreadyAcquired ? 0 : noSlot ? totals.GetValueOrDefault(item.ItemId) : Math.Max(0, current + totals.GetValueOrDefault(item.ItemId) - 100);
-                ChocoboRewardRow row = rows[detailedRows.Count];
-                detailedRows.Add(row with { Details = row.Details + $" · Grant {(preview.CanImport && !item.AlreadyAcquired ? item.Count : 0)} · Overflow {overflow}" });
-            }
-            session.State.ChocoboRewards.NativeImportSources.TryGetValue(imported.SourceId, out ChocoboImportReceipt? checkpoint);
-            header = [.. header, string.Join(" · ", Enumerable.Range(0, 4).Select(index => $"{(char)('A' + index)} {imported.ClassCounts[index]} / previously imported {checkpoint?.ConsumedClassCounters[index] ?? 0}"))];
-            string? boundary = ChocoboWorldBoundaryUnavailableReason;
-            return new(header, detailedRows, preview.CanImport && boundary is null, boundary ?? preview.Message, preview.RequiresAssociationReview && !reviewed);
+            return ChocoboWorldPresentation.Import(path, session.State, imported, preview, reviewed, ChocoboWorldBoundaryUnavailableText, itemId => liveMenuCatalog?.ItemName(itemId), itemId => liveMenuCatalog?.ItemIcon(itemId));
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
-            return new([Path.GetFileName(path)], [], false, exception.Message);
+            ChocoboPresentationText reason = ChocoboPresentationText.FromException(exception);
+            return new([Path.GetFileName(path)], [], false, reason.Fallback) { HeaderText = [ChocoboWorldPresentation.Literal(Path.GetFileName(path))], ReasonText = reason };
         }
     }
 
     private string CommitChocoboWorldFile()
     {
-        if (ChocoboWorldBoundaryUnavailableReason is { } reason)
+        if (ChocoboWorldBoundaryUnavailableText is { } reason)
         {
-            return reason;
+            lastChocoboResultText = reason;
+            return reason.Fallback;
         }
         try
         {
-            ChocoboImportPreview preview = chocoboTransferPreview ?? throw new InvalidOperationException("Refresh the import preview first.");
+            ChocoboImportPreview preview = chocoboTransferPreview ?? throw ChocoboText.Create("chocobo.import.refresh-required").InvalidOperation();
             string hash = Convert.ToHexString(SHA256.HashData(ReadChocoboWorldFile(chocoboTransferPath!)));
             string result = session.CommitChocoboWorldImport(preview, hash);
+            lastChocoboResultText = preview.MessageText ?? ChocoboWorldPresentation.Literal(result);
             chocoboTransferPreview = null;
             gameMenus?.InvalidateLiveData();
             return result;
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
         {
-            return exception.Message;
+            lastChocoboResultText = ChocoboPresentationText.FromException(exception);
+            return lastChocoboResultText.Fallback;
         }
     }
 
@@ -127,26 +108,19 @@ internal sealed partial class RecreateGame
     {
         EnsureLiveMenuCatalog();
         ChocoboRewardGrantResult preview = ChocoboRewardTransactions.ClaimRemaining(session.State);
-        ChocoboRewardRow[] rows = ChocoboRewardCatalog.Entries.Select(entry => new ChocoboRewardRow(liveMenuCatalog?.ItemName(entry.ItemId) ?? entry.DisplayName, liveMenuCatalog?.ItemDescription(entry.ItemId) ?? entry.Description, liveMenuCatalog?.ItemIcon(entry.ItemId), session.State.ChocoboRewards.AcquiredUniqueRewardIds.Contains(entry.Id))).ToArray();
-        string? boundary = ChocoboWorldBoundaryUnavailableReason;
-        string? reason = preview.Status == ChocoboRewardGrantStatus.Granted ? null : preview.Message;
-        if (preview.Status == ChocoboRewardGrantStatus.InventoryFull)
-        {
-            string[] remaining = rows.Where(row => !row.Obtained).Select(row => row.Name).ToArray();
-            int slots = session.State.Economy?.Items.Count(item => item.ItemId == 0) ?? 0;
-            reason = $"Claim blocked: the {remaining.Length} remaining items below need inventory space; {slots} slots are empty. Free space for the complete claim.";
-        }
-        return new(rows, preview.Status == ChocoboRewardGrantStatus.Granted && boundary is null, boundary ?? reason);
+        return ChocoboWorldPresentation.Claim(session.State, preview, ChocoboWorldBoundaryUnavailableText, itemId => liveMenuCatalog?.ItemName(itemId), itemId => liveMenuCatalog?.ItemDescription(itemId), itemId => liveMenuCatalog?.ItemIcon(itemId));
     }
 
     private string CommitChocoboWorldClaim()
     {
-        if (ChocoboWorldBoundaryUnavailableReason is { } reason)
+        if (ChocoboWorldBoundaryUnavailableText is { } reason)
         {
-            return reason;
+            lastChocoboResultText = reason;
+            return reason.Fallback;
         }
         ChocoboRewardGrantResult result = session.ClaimRemainingChocoboRewards();
         gameMenus?.InvalidateLiveData();
+        lastChocoboResultText = result.MessageText ?? ChocoboWorldPresentation.Literal(result.Message);
         return result.Message;
     }
 

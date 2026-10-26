@@ -6,7 +6,10 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.GameUi;
 
 internal sealed record GuardianForceEditorContext(NativeCharacterVitals Source, NativeCharacterVitals? Current, ImmutableArray<GuardianForceAbilityPatchLayer> Layers, ImmutableArray<GuardianForceAbilityPatchDocument> LocalDocuments, ImmutableArray<string> ExcludedDocuments);
-internal sealed record GuardianForceEditorReview(GuardianForceAbilityApplyPreview Preview, GuardianForceAbilityPatchDocument Document, bool ResetStartingStates, bool PackageOwnership = false, string? Intent = null);
+internal sealed record GuardianForceEditorReview(GuardianForceAbilityApplyPreview Preview, GuardianForceAbilityPatchDocument Document, bool ResetStartingStates, bool PackageOwnership = false, string? Intent = null)
+{
+    public GuardianForceAbilityText? IntentText { get; init; }
+}
 
 public sealed partial class MenuController
 {
@@ -80,6 +83,7 @@ public sealed partial class MenuController
             Id = "mods-create",
             Title = "Mods · Create Mods",
             Help = "Create a native gameplay mod or edit a compatible GF package.",
+            HelpText = c => c.SystemText("mods.create.help.guardian", "Create a native gameplay mod or edit a compatible GF package."),
             Entries = _ => CreateModEntries(),
             Details = _ => [SystemText("ui.connectguardianforceeditor.details.gf.abilities", "GF Abilities"), SystemText("ui.connectguardianforceeditor.details.create.or.edit.one.gf.ability.contribution.package", "Create or edit one GF ability contribution. Package activation is managed in Installed Mods.")],
             BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage())
@@ -125,6 +129,7 @@ public sealed partial class MenuController
             Id = "gf-mod-review",
             Title = "Mods · GF changes review",
             Help = "The previous runtime generation remains active until this review is accepted.",
+            HelpText = c => c.SystemText("mods.guardian-review.help.pending", "The previous runtime generation remains active until this review is accepted."),
             Entries = _ => [new("accept", SystemText("ui.connectguardianmodreview.entry.label.accept.reviewed.changes", "Accept reviewed changes"), SystemText("ui.connectguardianmodreview.entry.help.revalidate.and.publish.the.pending.mod.generation", "Revalidate and publish the pending mod generation."), Action: new("gf-editor-publish"), Enabled: read() is not null), new("back", SystemText("ui.connectguardianmodreview.entry.label.back", "Back"), SystemText("ui.connectguardianmodreview.entry.help.keep.the.previous.generation.active", "Keep the previous generation active."), Action: new("menu-back"))],
             Details = _ => read() ?? [SystemText("ui.connectguardianmodreview.details.no.pending.gf.progression.changes", "No pending GF progression changes.")]
         });
@@ -157,7 +162,7 @@ public sealed partial class MenuController
         {
             return [];
         }
-        List<string> details = [guardianReview.Intent ?? (guardianReview.PackageOwnership ? SystemText("ui.guardianreviewdetails.details.review.contribution.ownership.removal", "Review contribution ownership/removal.") : SystemText("ui.guardianreviewdetails.details.only.the.selected.contribution.is.applied.unrelated.mods", "Only the selected contribution is applied. Unrelated mods are not copied."))];
+        List<string> details = [guardianReview.IntentText?.Format(SystemText) ?? guardianReview.Intent ?? (guardianReview.PackageOwnership ? SystemText("ui.guardianreviewdetails.details.review.contribution.ownership.removal", "Review contribution ownership/removal.") : SystemText("ui.guardianreviewdetails.details.only.the.selected.contribution.is.applied.unrelated.mods", "Only the selected contribution is applied. Unrelated mods are not copied."))];
         foreach (GuardianForceAbilityPatchOperation operation in guardianReview.Document.Operations)
         {
             string name(int ability) => guardianAbilityName!(ability);
@@ -170,8 +175,9 @@ public sealed partial class MenuController
             };
             details.Add(guardianEditorName!(operation.GuardianForce) + ": " + change);
         }
-        details.AddRange(guardianReview.Preview.Consequences);
-        if (guardianReview.Preview.Consequences.Length == 0)
+        string[] consequences = guardianReview.Preview.FormatConsequences(SystemText).ToArray();
+        details.AddRange(consequences);
+        if (consequences.Length == 0)
         {
             details.Add(SystemText("ui.guardianreviewdetails.details.current.learned.ap.state.and.junctions.are.preserved", "Current learned/AP state and junctions are preserved."));
         }
@@ -358,7 +364,9 @@ public sealed partial class MenuController
         {
             if (guardianPreview)
             {
-                throw new InvalidOperationException("This comparison is read-only. Select This mod only or Current setup with the selected layer before editing.");
+                SetSystemMessage(() => SystemText("guardian.editor.read-only", "This comparison is read-only. Select This mod only or Current setup with the selected layer before editing."));
+                _view = null;
+                return;
             }
             edit();
             var template = guardianDraft!.Preview.Templates[guardianSubject];
@@ -372,7 +380,7 @@ public sealed partial class MenuController
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException)
         {
-            Message = exception.Message;
+            SetSystemMessage(() => exception is GuardianForceAbilityTextException localized ? localized.Text.Format(SystemText) : exception.Message);
         }
         guardianRowCursor = Math.Clamp(guardianRowCursor, 0, Math.Max(0, GuardianEditorComposition().Templates[guardianSubject].Length - 1));
         _view = null;
@@ -386,7 +394,7 @@ public sealed partial class MenuController
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
-            Message = exception.Message;
+            SetSystemMessage(() => exception is GuardianForceAbilityTextException localized ? localized.Text.Format(SystemText) : exception.Message);
         }
         _view = null;
     }
@@ -588,7 +596,7 @@ public sealed partial class MenuController
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
-            Message = exception.Message;
+            SetSystemMessage(() => exception is GuardianForceAbilityTextException localized ? localized.Text.Format(SystemText) : exception.Message);
         }
         _view = null;
         return true;

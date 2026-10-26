@@ -103,7 +103,13 @@ public sealed record GuardianForceAbilityPatchDocument
 }
 
 public sealed record GuardianForceAbilityPatchLayer(string PackageId, GuardianForceAbilityPatchDocument Document);
-public sealed record GuardianForceAbilityOperationOutcome(string PackageId, string DocumentId, string OperationId, int GuardianForce, int Ability, string Status, string Message);
+public sealed record GuardianForceAbilityOperationOutcome(string PackageId, string DocumentId, string OperationId, int GuardianForce, int Ability, string Status, string Message)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public GuardianForceAbilityText? MessageText { get; init; }
+
+    public string FormatMessage(Func<string, string, string>? localize = null) => MessageText?.Format(localize) ?? Message;
+}
 public sealed record GuardianForceAbilityOrigin(int GuardianForce, int Ability, string PackageId, string DocumentId, string OperationId, string Aspect);
 public sealed record GuardianForceAbilityComposition(ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> Templates, ImmutableArray<GuardianForceAbilityOperationOutcome> Outcomes, ImmutableArray<GuardianForceAbilityOrigin> Origins);
 
@@ -134,19 +140,19 @@ public static class GuardianForceAbilityComposer
             {
                 List<GuardianForceAbilityTemplate> row = rows[operation.GuardianForce];
                 string status = "Applied";
-                string message = "Applied authored contribution.";
+                GuardianForceAbilityText messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.applied");
                 int index = row.FindIndex(entry => entry.Ability == operation.Ability);
                 if (operation.Producers.Any(reference => !producers.TryGetValue((reference.DocumentId, reference.OperationId), out var produced) || produced.Gf != operation.GuardianForce || produced.Ability != reference.Ability || !creators.TryGetValue((operation.GuardianForce, reference.Ability), out var creator) || creator != (reference.DocumentId, reference.OperationId)) || operation.ProducerOperationId is string dependency && (!producers.TryGetValue((operation.ProducerDocumentId ?? layer.Document.DocumentId, dependency), out var producer) || producer.Gf != operation.GuardianForce || !creators.TryGetValue((operation.GuardianForce, producer.Ability), out var creator) || creator != (operation.ProducerDocumentId ?? layer.Document.DocumentId, dependency) || operation.Kind != GuardianForceAbilityOperationKind.OrderSubset && producer.Ability != operation.Ability))
                 {
                     status = "MissingProducer";
-                    message = "The producing operation did not create this row.";
+                    messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.missing-producer");
                 }
                 else if (operation.Kind == GuardianForceAbilityOperationKind.EnsureAbility)
                 {
                     if (index >= 0)
                     {
                         status = row[index].InitialLearned == operation.InitialLearned ? "AlreadySatisfied" : "ConflictingValue";
-                        message = "The existing row retains its creator and starting state.";
+                        messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.existing-row");
                     }
                     else
                     {
@@ -161,7 +167,7 @@ public static class GuardianForceAbilityComposer
                     if (positions.Length != operation.Order.Length)
                     {
                         status = "MissingTarget";
-                        message = "An ordering participant is absent; the entire permutation was skipped.";
+                        messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.missing-ordering");
                     }
                     else if (positions.Select(position => row[position].Ability).SequenceEqual(operation.Order))
                     {
@@ -174,18 +180,18 @@ public static class GuardianForceAbilityComposer
                         {
                             row[positions[i]] = subset[operation.Order[i]];
                         }
-                        message = "Applied sequential ordering; earlier overlapping order may be overridden.";
+                        messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.ordering");
                     }
                 }
                 else if (index < 0)
                 {
                     status = "MissingTarget";
-                    message = "The expected ability is absent; no other row was changed.";
+                    messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.missing-ability");
                 }
                 else if (!row[index].SupportedCondition)
                 {
                     status = "UnsupportedCondition";
-                    message = "This source row has an unsupported preserved native condition and is read-only.";
+                    messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.unsupported-source");
                 }
                 else if (operation.Kind == GuardianForceAbilityOperationKind.SetInitialState)
                 {
@@ -196,7 +202,7 @@ public static class GuardianForceAbilityComposer
                     else if (operation.ExpectedInitialLearned is bool expected && row[index].InitialLearned != expected)
                     {
                         status = "ConflictingValue";
-                        message = "The inherited starting state differs from the authored guard.";
+                        messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.conflicting-start");
                     }
                     else
                     {
@@ -212,7 +218,7 @@ public static class GuardianForceAbilityComposer
                     if (row.Any(entry => entry.Ability == replacement))
                     {
                         status = "ConflictingValue";
-                        message = "The replacement already exists; neither row was removed.";
+                        messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.replacement-exists");
                     }
                     else
                     {
@@ -220,7 +226,7 @@ public static class GuardianForceAbilityComposer
                         if (HasCycle(candidate))
                         {
                             status = "UnsupportedCondition";
-                            message = "Retargeted conditions would introduce a dependency cycle.";
+                            messageText = GuardianForceAbilityText.Create("guardian.editor.outcome.condition-cycle");
                         }
                         else
                         {
@@ -235,7 +241,7 @@ public static class GuardianForceAbilityComposer
                         }
                     }
                 }
-                outcomes.Add(new(layer.PackageId, layer.Document.DocumentId, operation.Id, operation.GuardianForce, operation.Ability, status, message));
+                outcomes.Add(new(layer.PackageId, layer.Document.DocumentId, operation.Id, operation.GuardianForce, operation.Ability, status, messageText.Format()) { MessageText = messageText });
                 if (status == "Applied")
                 {
                     IEnumerable<int> affected = operation.Kind == GuardianForceAbilityOperationKind.OrderSubset ? operation.Order : [operation.Replacement ?? operation.Ability];

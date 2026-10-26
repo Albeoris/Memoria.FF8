@@ -10,7 +10,13 @@ public enum ChocoboWorldMode
     Memoria
 }
 
-public sealed record ChocoboRewardDefinition(string Id, byte ItemId, string DisplayName, string Description, int? TaughtAbilityId = null);
+public sealed record ChocoboRewardDefinition(string Id, byte ItemId, string DisplayName, string Description, int? TaughtAbilityId = null)
+{
+    [JsonIgnore]
+    public ChocoboPresentationText NameText => ChocoboText.Create("chocobo.reward." + Id + ".name");
+    [JsonIgnore]
+    public ChocoboPresentationText DescriptionText => ChocoboText.Create("chocobo.reward." + Id + ".description");
+}
 
 /// <summary>Names are fallbacks; presentation resolves names, descriptions and icons from installed item metadata by ItemId.</summary>
 public static class ChocoboRewardCatalog
@@ -42,13 +48,13 @@ public sealed record ChocoboRewardLedger
     {
         if (Version != 1 || AcquiredUniqueRewardIds is null || NativeImportSources is null || AcquiredUniqueRewardIds.Any(id => !ChocoboRewardCatalog.Entries.Any(entry => entry.Id == id)))
         {
-            throw new InvalidDataException("Unsupported Chocobo reward ledger.");
+            throw ChocoboText.Create("chocobo.error.ledger-unsupported").InvalidData();
         }
         foreach ((string key, ChocoboImportReceipt receipt) in NativeImportSources)
         {
             if (receipt is null || key != receipt.SourceId || string.IsNullOrWhiteSpace(key) || receipt.Cycle < 0 || receipt.ConsumedClassCounters.IsDefault || receipt.ConsumedClassCounters.Length != 4 || receipt.ConsumedClassCounters.Any(count => count > 99) || string.IsNullOrWhiteSpace(receipt.BatchId))
             {
-                throw new InvalidDataException("Invalid Chocobo World transfer receipt.");
+                throw ChocoboText.Create("chocobo.error.receipt-invalid").InvalidData();
             }
         }
     }
@@ -77,7 +83,11 @@ public enum ChocoboRewardGrantStatus
     UnsafeBoundary,
     Unavailable
 }
-public sealed record ChocoboRewardGrantResult(GameState State, ChocoboRewardGrantStatus Status, ImmutableArray<NativeItemStock> Delivered, string Message);
+public sealed record ChocoboRewardGrantResult(GameState State, ChocoboRewardGrantStatus Status, ImmutableArray<NativeItemStock> Delivered, string Message)
+{
+    [JsonIgnore]
+    public ChocoboPresentationText? MessageText { get; init; }
+}
 
 /// <summary>Publishes inventory and history together only after every requested item fits.</summary>
 public static class ChocoboRewardTransactions
@@ -95,7 +105,7 @@ public static class ChocoboRewardTransactions
         sourceLedger.Validate();
         if (sourceItems.Length != NativeEconomy.ItemSlotCount)
         {
-            throw new InvalidDataException("A reward grant requires the native inventory slots.");
+            throw ChocoboText.Create("chocobo.error.inventory-slots").InvalidData();
         }
         NativeItemStock[] candidate = sourceItems.ToArray();
         ChocoboRewardLedger candidateLedger = sourceLedger.ObserveInventory(sourceItems);
@@ -104,7 +114,7 @@ public static class ChocoboRewardTransactions
         {
             if (item.ItemId == 0 || item.Count == 0 || item.Count > 100)
             {
-                throw new InvalidDataException("A reward grant requires a nonempty native item and a quantity from one to one hundred.");
+                throw ChocoboText.Create("chocobo.error.grant-quantity").InvalidData();
             }
             ChocoboRewardDefinition? unique = ChocoboRewardCatalog.FindItem(item.ItemId);
             if (unique is not null && candidateLedger.AcquiredUniqueRewardIds.Contains(unique.Id))
@@ -142,7 +152,7 @@ public static class ChocoboRewardTransactions
     {
         if (state.ChocoboRewards is null)
         {
-            throw new InvalidDataException("The saved Chocobo reward ledger is invalid.");
+            throw ChocoboText.Create("chocobo.error.ledger-invalid").InvalidData();
         }
         ChocoboRewardLedger ledger = state.ChocoboRewards.ObserveInventory(state.Economy?.Items ?? []);
         if (state.GameplayPreferences.ChocoboWorldMode is null && state.CharacterVitals is { } vitals)
@@ -185,39 +195,40 @@ public static class ChocoboRewardTransactions
 
     public static ChocoboRewardGrantResult ClaimRemaining(GameState source)
     {
+        ChocoboRewardGrantResult Result(GameState resultState, ChocoboRewardGrantStatus status, ImmutableArray<NativeItemStock> delivered, ChocoboPresentationText message) => new(resultState, status, delivered, message.Fallback) { MessageText = message };
         GameState state = Reconcile(source);
         if (state.GameplayPreferences.ChocoboWorldMode != ChocoboWorldMode.Memoria)
         {
-            return new(source, ChocoboRewardGrantStatus.WrongMode, [], "Select Memoria Chocobo World to claim these rewards.");
+            return Result(source, ChocoboRewardGrantStatus.WrongMode, [], ChocoboText.Create("chocobo.claim.mode-required"));
         }
         if (state.Battle is not null || state.PendingBattleEncounter is not null)
         {
-            return new(source, ChocoboRewardGrantStatus.UnsafeBoundary, [], "Rewards cannot be claimed during a battle.");
+            return Result(source, ChocoboRewardGrantStatus.UnsafeBoundary, [], ChocoboText.Create("chocobo.claim.battle-active"));
         }
         NativeEconomy? economy = state.Economy;
         if (economy is null)
         {
-            return new(source, ChocoboRewardGrantStatus.Unavailable, [], "Inventory is not initialized.");
+            return Result(source, ChocoboRewardGrantStatus.Unavailable, [], ChocoboText.Create("chocobo.claim.inventory-required"));
         }
         ChocoboRewardDefinition[] remaining = ChocoboRewardCatalog.Entries.Where(entry => !state.ChocoboRewards.AcquiredUniqueRewardIds.Contains(entry.Id)).ToArray();
         if (remaining.Length == 0)
         {
-            return new(state, ChocoboRewardGrantStatus.AlreadyAcquired, [], "All exclusive items have already been obtained.");
+            return Result(state, ChocoboRewardGrantStatus.AlreadyAcquired, [], ChocoboText.Create("chocobo.claim.complete"));
         }
         if (!TryGrantItems(economy, state.ChocoboRewards, remaining.Select(reward => new NativeItemStock(reward.ItemId, 1)), out NativeEconomy grantedEconomy, out ChocoboRewardLedger ledger, out ImmutableArray<NativeItemStock> delivered))
         {
             int available = economy.Items.Count(stock => stock.ItemId == 0);
-            List<string> blocked = [];
+            List<ChocoboPresentationText> blocked = [];
             foreach (ChocoboRewardDefinition reward in remaining)
             {
                 NativeItemStock? existing = economy.Items.FirstOrDefault(stock => stock.ItemId == reward.ItemId);
                 if (existing is null ? available-- <= 0 : existing.Count >= 100)
                 {
-                    blocked.Add(reward.DisplayName);
+                    blocked.Add(reward.NameText);
                 }
             }
-            return new(source, ChocoboRewardGrantStatus.InventoryFull, [], $"No room for {string.Join(", ", blocked)}; no rewards were claimed.");
+            return Result(source, ChocoboRewardGrantStatus.InventoryFull, [], ChocoboText.Create("chocobo.claim.capacity", new ChocoboPresentationList(blocked)));
         }
-        return new(state with { Economy = grantedEconomy, ChocoboRewards = ledger }, ChocoboRewardGrantStatus.Granted, delivered, "Received the remaining exclusive items.");
+        return Result(state with { Economy = grantedEconomy, ChocoboRewards = ledger }, ChocoboRewardGrantStatus.Granted, delivered, ChocoboText.Create("chocobo.claim.received"));
     }
 }

@@ -12,7 +12,7 @@ internal sealed partial class ModelBrowserElement
 
     private void DrawAssets(IUiCanvas canvas, UiTheme theme)
     {
-        Label(canvas, (controller.ImportSelection ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.import.selection", "IMPORT SELECTION") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.export.selection", "EXPORT SELECTION")) + " · " + controller.Selected?.Name + " · " + controller.CurrentVariant?.Name, 16, new UiRect(24, 52, 900, 24), theme.Foreground);
+        Label(canvas, (controller.ImportSelection ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.import.selection", "IMPORT SELECTION") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.export.selection", "EXPORT SELECTION")) + " · " + controller.Selected?.Name + " · " + controller.CurrentVariant?.DisplayName, 16, new UiRect(24, 52, 900, 24), theme.Foreground);
         theme.Panel(canvas, new UiRect(504, 84, 438, 440));
         Button(canvas, theme, new UiRect(514, 92, 202, 29), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.objects", "Objects"), !controller.ClipsTab);
         Button(canvas, theme, new UiRect(724, 92, 206, 29), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.clips", "Clips"), controller.ClipsTab);
@@ -23,18 +23,18 @@ internal sealed partial class ModelBrowserElement
         {
             ModelBrowserAssetRow row = rows[index];
             float y = 167 + (index - first) * 35;
-            string check = !row.Supported ? "[!]" : controller.SelectedAssets.Contains(row.Id) ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.x", "[x]") : "[ ]";
-            Button(canvas, theme, new UiRect(514, y, 416, 32), check + " " + row.Name, index == controller.AssetIndex && !controller.PreviewFocused);
+            string check = !row.Supported ? "[!]" : controller.SelectedAssets.Contains(row.Id) ? "[x]" : "[ ]";
+            Button(canvas, theme, new UiRect(514, y, 416, 32), check + " " + row.DisplayName, index == controller.AssetIndex && !controller.PreviewFocused);
         }
         ModelBrowserAssetRow? active = rows.ElementAtOrDefault(controller.AssetIndex);
-        string state = active is null ? "" : new[] { "[ ]", "[-]", controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.x", "[x]") }[controller.GroupSelection(active.Group)];
-        Button(canvas, theme, new UiRect(514, 421, 416, 27), active is null ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.no.matching.assets", "No matching assets") : state + controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.group", " Group: ") + active.Group);
+        string state = active is null ? "" : new[] { "[ ]", "[-]", "[x]" }[controller.GroupSelection(active.Group)];
+        Button(canvas, theme, new UiRect(514, 421, 416, 27), active is null ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.no.matching.assets", "No matching assets") : state + controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.group", " Group: ") + active.DisplayGroup);
         Button(canvas, theme, AssetButton(0), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.select.all", "Select all"));
         Button(canvas, theme, AssetButton(1), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.select.visible", "Select visible"));
         Button(canvas, theme, AssetButton(2), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.clear.all", "Clear all"));
         Button(canvas, theme, AssetContinueBounds, controller.ImportSelection ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.validate.and.install.selection", "Validate and install selection") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.export.selection.to.glb", "Export selection to GLB"));
         Label(canvas, controller.DiscoveryStatus, 12, new UiRect(18, 94, 474, 26), theme.Foreground);
-        string[] controls = [controller.Playing ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.pause", "Pause") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.play", "Play"), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.frame", "< frame"), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.frame", "frame >"), controller.Loop ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.loop.on", "Loop: on") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.loop.off", "Loop: off"), controller.FormatSystemText("inspector.ui.modelbrowserelement.assets.drawassets.x", "{0:0.##}x", controller.PlaybackSpeed), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.reset", "Reset")];
+        string[] controls = [controller.Playing ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.pause", "Pause") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.play", "Play"), controller.SystemText("model.playback.previous-frame", "< frame"), controller.SystemText("model.playback.next-frame", "frame >"), controller.Loop ? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.loop.on", "Loop: on") : controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.loop.off", "Loop: off"), controller.FormatSystemText("model.playback.speed", "{0:0.##}x", controller.PlaybackSpeed), controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.reset", "Reset")];
         for (int index = 0; index < controls.Length; index++)
         {
             Button(canvas, theme, PlaybackButton(index), controls[index]);
@@ -44,8 +44,8 @@ internal sealed partial class ModelBrowserElement
         canvas.Fill(new UiRect(18, 505, 474 * fraction, 9), theme.Highlight);
         int frame = (int)MathF.Round(Math.Min(controller.PlaybackSeconds, controller.ClipDuration) / controller.ClipFrameSeconds);
         int count = (int)MathF.Round(controller.ClipDuration / controller.ClipFrameSeconds) + 1;
-        Label(canvas, controller.FormatSystemText("inspector.ui.modelbrowserelement.assets.drawassets.frame", "Frame {0}/{1} \u00B7 {2}", frame, count, controller.SelectionSummary), 12, new UiRect(24, 542, 894, 28), theme.Foreground);
-        Label(canvas, active?.Detail ?? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.rigs.materials.and.textures.are.required.dependencies", "Rigs, materials and textures are required dependencies."), 12, new UiRect(440, 578, 490, 34), theme.Muted);
+        Label(canvas, controller.FormatSystemText("model.playback.summary", "Frame {0}/{1} \u00B7 {2}", frame, count, controller.SelectionSummary), 12, new UiRect(24, 542, 894, 28), theme.Foreground);
+        Label(canvas, active?.DisplayDetail ?? controller.SystemText("inspector.ui.modelbrowserelement.assets.drawassets.rigs.materials.and.textures.are.required.dependencies", "Rigs, materials and textures are required dependencies."), 12, new UiRect(440, 578, 490, 34), theme.Muted);
     }
 
     private void AssetsPointer(float x, float y)

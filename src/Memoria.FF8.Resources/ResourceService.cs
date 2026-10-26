@@ -28,7 +28,7 @@ public sealed class ResourceService : IResourceChangeFeed
     public ResourceSourceDescriptor Source => source.Descriptor;
     public T? GetSource<T>() where T : class => source as T;
     public LocalizationCatalog Localization => Volatile.Read(ref published).Localization;
-    public string Localize(string key, string original) => Localization.Resolve(key, original);
+    public string Localize(string key, string original) => SystemTextCatalog.KeysForCatalogKey(key) is { } aliases ? Localization.ResolveAliases(aliases, original) : Localization.Resolve(key, original);
     public PreparedResources PrepareLocalization(LocalizationCatalog localization)
     {
         if (notifying)

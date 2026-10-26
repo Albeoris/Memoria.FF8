@@ -45,7 +45,7 @@ public sealed partial class MenuController
         abilities.PageSize = 10;
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;
-        abilities.SecondaryItems = choices.Select(choice => choice.IsPassive && choice.Learned ? $"{(choice.PassiveEnabled ? "On" : "Off")} / {(choice.PassiveAvailable ? "Available" : "GF KO")}" : choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
+        abilities.SecondaryItems = choices.Select(choice => choice.IsPassive && choice.Learned ? FormatSystemText("guardian.passive.state", "{0} / {1}", choice.PassiveEnabled ? SystemText("guardian.passive.on", "On") : SystemText("guardian.passive.off", "Off"), choice.PassiveAvailable ? SystemText("guardian.passive.available", "Available") : SystemText("guardian.passive.ko", "GF KO")) : choice.Learned ? SystemText("guardian.learning.complete", "Complete!") : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
         string guardianForceId = GuardianForce?.Id ?? "";
         abilities.ItemTextColor = index => index < choices.Length
             ? choices[index] is { IsPassive: true, Learned: true } passive
@@ -160,7 +160,7 @@ public sealed partial class MenuController
         abilities.FitPageRows = true;
         abilities.AutoSecondaryWidth = true;
         MenuLimitMove[] moves = Entries.Select(entry => Character!.LimitMoves.Single(move => move.Id == entry.Id)).ToArray();
-        abilities.SecondaryItems = moves.Select(move => move.Learned == true ? "Complete!" : move.TrainingProgress is int progress ? $"{progress * 100 / 64}%{(move.IsLearning ? " � Learning" : "")}" : "?").ToList();
+        abilities.SecondaryItems = moves.Select(move => move.Learned == true ? SystemText("guardian.learning.complete", "Complete!") : move.TrainingProgress is int progress ? $"{progress * 100 / 64}%{(move.IsLearning ? SystemText("guardian.learning.active", " · Learning") : "")}" : "?").ToList();
         abilities.LeadingImages = moves.Select(move => move.IsLearning ? (UiImageSource?)new UiImageSource(UiImageKind.Icon, 207) : null).ToList();
         Place(body, Panel(SystemText("ui.buildnativeangelostatus.panel.ability", "ABILITY"), abilities), 0, 1);
         Place(page, body, 2);

@@ -221,7 +221,7 @@ public sealed partial class MenuController
             float detailsY = footerTop + 56 * scale;
             string detail = menus.guardianAbilityName!(selectedAbility) + " · " + menus.guardianAbilityDescription!(selectedAbility).Replace('\n', ' ');
             Text(detail, new(x, detailsY, Math.Max(0, width - 77 * scale), 22 * scale), theme.Foreground, small);
-            string diagnostics = string.Join(" · ", composition.Outcomes.Where(outcome => outcome.GuardianForce == menus.guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Take(1).Select(outcome => outcome.Message));
+            string diagnostics = string.Join(" · ", composition.Outcomes.Where(outcome => outcome.GuardianForce == menus.guardianSubject && outcome.Status is not ("Applied" or "AlreadySatisfied")).Take(1).Select(outcome => outcome.FormatMessage(menus.SystemText)));
             GuardianForceAbilityTemplate? selectedEntry = rows.FirstOrDefault(entry => entry.Ability == selectedAbility);
             NativeGuardianForceAbility? current = context.Current?.GuardianForceAbilities(menus.guardianSubject).FirstOrDefault(entry => entry.Ability == selectedAbility);
             string currentState = current is null ? "" : current.Learned ? menus.SystemText("ui.drawself.currentstate.current.learned", " · Current: Learned") : menus.FormatSystemText("ui.drawself.currentstate.current.ap", " \u00B7 Current: {0}/{1} AP", current.Progress, current.RequiredPoints);

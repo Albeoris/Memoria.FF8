@@ -255,6 +255,10 @@ internal sealed partial class NativeTutorialPlayer
             foreach ((string key, string value) in settings)
             {
                 character.LimitSettings[key] = value;
+                if (key is "Auto" or "Indicator" or "Duel-Auto")
+                {
+                    character.LimitToggles[key] = value == "On";
+                }
             }
         }
         result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn", "tutorial-setting", "tutorial-party", "tutorial-exchange", "tutorial-exchange-preview", "tutorial-auto"]);

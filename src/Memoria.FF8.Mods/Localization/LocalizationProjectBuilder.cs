@@ -19,6 +19,11 @@ public static partial class LocalizationProjectBuilder
             progress?.Report("Reading " + language + " resources…");
             catalogs.Add(language, ReadDataset(gameDirectory, language, loadedProjects ?? [], profileOrder, cancellation));
         }
+        foreach (string dataset in catalogs.Keys.ToArray())
+        {
+            LocalizationSourceCatalog catalog = catalogs[dataset];
+            catalogs[dataset] = catalog with { Gaps = catalog.Gaps.Where(gap => gap.Category != "System" || gap.Resource != "authored-interface").ToArray() };
+        }
         if (catalogs.TryGetValue("en", out LocalizationSourceCatalog? english))
         {
             catalogs["en"] = english with { Entries = english.Entries.Concat(SystemTextCatalog.SourceEntries()).ToArray(), Gaps = english.Gaps.Where(gap => gap.Category != "System" || gap.Resource != "authored-interface").ToArray() };
@@ -51,13 +56,26 @@ public static partial class LocalizationProjectBuilder
             throw new InvalidDataException("Package name must be nonempty and contain no control characters.");
         }
         Dictionary<string, Dictionary<(string Category, string File, string Key), LocalizationSourceEntry>> indexes = catalogs.ToDictionary(pair => pair.Key, pair => pair.Value.Entries.ToDictionary(row => (row.Category, row.File, row.Key)), StringComparer.OrdinalIgnoreCase);
+        Dictionary<(string Category, string File, string Key), LocalizationSourceEntry> authored = (includeSystem ? SystemTextCatalog.SourceEntries() : []).ToDictionary(row => (row.Category, row.File, row.Key));
+        const string authoredReference = "Authored Original [en]";
+        bool includeAuthoredReference = includeSystem && !request.SourceLanguage.Equals("en", StringComparison.OrdinalIgnoreCase) && !request.ReferenceLanguages.Contains("en", StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> referenceLanguages = request.ReferenceLanguages.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(language => "Reference [" + language + "]", language => language);
+        if (includeAuthoredReference)
+        {
+            referenceLanguages.Add(authoredReference, "en");
+        }
         List<LocalizationRecord> records = [];
         IEnumerable<LocalizationSourceEntry> union = catalogs.Values.SelectMany(catalog => catalog.Entries).Concat(includeSystem ? SystemTextCatalog.SourceEntries() : []).DistinctBy(row => (row.Category, row.File, row.Key)).OrderBy(row => row.Category, StringComparer.Ordinal).ThenBy(row => row.File, StringComparer.Ordinal).ThenBy(row => row.Key, StringComparer.Ordinal);
         foreach (LocalizationSourceEntry identity in union)
         {
             cancellation.ThrowIfCancellationRequested();
+            authored.TryGetValue((identity.Category, identity.File, identity.Key), out LocalizationSourceEntry? authoredOriginal);
             LocalizationSourceEntry? Lookup(string language)
             {
+                if (language.Equals("en", StringComparison.OrdinalIgnoreCase) && authoredOriginal is not null)
+                {
+                    return authoredOriginal;
+                }
                 Dictionary<(string Category, string File, string Key), LocalizationSourceEntry> index = indexes[language];
                 if (index.TryGetValue((identity.Category, identity.File, identity.Key), out LocalizationSourceEntry? exact))
                 {
@@ -89,11 +107,21 @@ public static partial class LocalizationProjectBuilder
                 references.Add("Reference [" + language + "]", referencePresent ? reference!.Text : null);
                 presence.Add("Reference [" + language + "]", referencePresent);
             }
+            if (includeAuthoredReference)
+            {
+                references.Add(authoredReference, authoredOriginal?.Text);
+                presence.Add(authoredReference, authoredOriginal is not null);
+            }
             Dictionary<string, JsonElement> extensions = identity.Metadata.ToDictionary(pair => pair.Key, pair => MetadataValue(pair.Key, pair.Value), StringComparer.Ordinal);
             extensions["sourceContext"] = JsonSerializer.SerializeToElement(identity.Metadata);
+            if (authoredOriginal is not null)
+            {
+                extensions["Authored Original Language"] = JsonSerializer.SerializeToElement("en");
+                extensions["Authored Original"] = JsonSerializer.SerializeToElement(authoredOriginal.Text);
+            }
             extensions["equivalentKeys"] = JsonSerializer.SerializeToElement(aliases);
             extensions["equivalentContexts"] = JsonSerializer.SerializeToElement(aliases.Where(pair => pair.Value.Length > 1).ToDictionary(pair => pair.Key, pair => pair.Value.Select(key => indexes[pair.Key].GetValueOrDefault((identity.Category, identity.File, key))).Where(entry => entry is not null).Select(entry => new { entry!.Key, entry.Text, entry.Metadata }).ToArray()));
-            extensions["sourceGap"] = JsonSerializer.SerializeToElement(!sourcePresent ? source?.Metadata.GetValueOrDefault("Decode Error") ?? (aliases.GetValueOrDefault(request.SourceLanguage)?.Length > 1 ? "Several source counterparts exist; review each preserved source key." : "No source counterpart is available.") : null);
+            extensions["sourceGap"] = JsonSerializer.SerializeToElement(authoredOriginal is not null && !sourcePresent ? "The selected Source dataset has no interface contribution. The English authored original is available in the Authored Original reference and metadata." : !sourcePresent ? source?.Metadata.GetValueOrDefault("Decode Error") ?? (aliases.GetValueOrDefault(request.SourceLanguage)?.Length > 1 ? "Several source counterparts exist; review each preserved source key." : "No source counterpart is available.") : null);
             records.Add(new()
             {
                 Category = identity.Category,
@@ -116,11 +144,12 @@ public static partial class LocalizationProjectBuilder
                 TargetLanguage = request.TargetLanguage,
                 SourceColumn = "Source [" + request.SourceLanguage + "]",
                 MappingVersion = FieldCorrespondenceCatalog.Version,
-                ReferenceLanguages = request.ReferenceLanguages.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(language => "Reference [" + language + "]", language => language),
+                ReferenceLanguages = referenceLanguages,
                 CompatibleVariants = [],
                 ExtensionData = new(StringComparer.Ordinal)
                 {
                     ["packageName"] = JsonSerializer.SerializeToElement(request.PackageName),
+                    ["authoredInterfaceOriginalReference"] = JsonSerializer.SerializeToElement(includeAuthoredReference ? authoredReference : null),
                     ["sourceGaps"] = JsonSerializer.SerializeToElement(catalogs.SelectMany(pair => pair.Value.Gaps.Select(gap => new { Language = pair.Key, gap.Category, gap.Resource, gap.Reason })).ToArray())
                 }
             },

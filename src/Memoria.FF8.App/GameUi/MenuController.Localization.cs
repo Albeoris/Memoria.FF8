@@ -48,7 +48,7 @@ public sealed partial class MenuController
     internal void ConnectLocalizationAuthoring(LocalizationAuthoringServices services)
     {
         localizationAuthoring = services;
-        Register(new() { Id = "mods-create", Title = "Mods · Create Mods", Help = "Create gameplay mods or translation projects.", Entries = _ => CreateModEntries(), BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage()) });
+        Register(new() { Id = "mods-create", Title = "Mods · Create Mods", Help = "Create gameplay mods or translation projects.", HelpText = c => c.SystemText("mods.create.help.localization", "Create gameplay mods or translation projects."), Entries = _ => CreateModEntries(), BuildContent = (c, panel) => panel.Children.Add(c.BuildCreateModsPage()) });
         Register(new() { Id = "localization-new", Title = "New localization", Help = "Source is the main prose reference; script base selects the field dialogue topology. Target accepts a custom translation name.", Entries = _ => LocalizationOptions(), Details = _ => LocalizationOptionsDetails() });
         Register(new() { Id = "localization-convert", Title = "Convert localization", Help = "Convert an existing project into a new package. No installed game is required.", Entries = _ => LocalizationOptions(), Details = _ => LocalizationOptionsDetails() });
         Register(new() { Id = "localization-patch", Title = "New localization patch", Help = "Choose a base project. The patch keeps its Target and source identities, with empty translations for your changes.", Entries = _ => LocalizationOptions(), Details = _ => LocalizationOptionsDetails() });

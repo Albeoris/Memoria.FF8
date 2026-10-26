@@ -29,7 +29,7 @@ internal sealed partial class ModelBrowserElement : UiElement
         theme.Panel(canvas, new UiRect(10, 530, 940, 132));
         if (!controller.AssetsOpen)
         {
-            Button(canvas, theme, VariantBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawself.variant", "Variant: ") + (controller.CurrentVariant?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawself.unavailable", "Unavailable")));
+            Button(canvas, theme, VariantBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawself.variant", "Variant: ") + (controller.CurrentVariant?.DisplayName ?? controller.SystemText("inspector.ui.modelbrowserelement.drawself.unavailable", "Unavailable")));
         }
         Button(canvas, theme, BackBounds, controller.Mode == ModelBrowserMode.Catalog ? controller.SystemText("inspector.ui.modelbrowserelement.drawself.close", "Close") : controller.SystemText("inspector.ui.modelbrowserelement.drawself.back", "Back"));
         Label(canvas, controller.Message, 13, new UiRect(24, 578, 384, 32), theme.Foreground);
@@ -83,7 +83,7 @@ internal sealed partial class ModelBrowserElement : UiElement
 
     private void DrawViewer(IUiCanvas canvas, UiTheme theme)
     {
-        Label(canvas, (controller.Selected?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.model", "Model")) + $" · {controller.SelectedIndex + 1}/{controller.Entries.Count} · " + controller.CurrentVariant?.Name, 16, new UiRect(24, 53, 900, 23), theme.Foreground);
+        Label(canvas, (controller.Selected?.Name ?? controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.model", "Model")) + $" · {controller.SelectedIndex + 1}/{controller.Entries.Count} · " + controller.CurrentVariant?.DisplayName, 16, new UiRect(24, 53, 900, 23), theme.Foreground);
         Button(canvas, theme, CommandsBounds, controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.commands", "Commands"));
         Button(canvas, theme, new UiRect(628, 540, 92, 30), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.prev", "Prev"));
         Button(canvas, theme, new UiRect(730, 540, 92, 30), controller.SystemText("inspector.ui.modelbrowserelement.drawviewer.next", "Next"));

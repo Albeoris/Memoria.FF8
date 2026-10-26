@@ -68,7 +68,7 @@ internal sealed class GuardianForceAbilityDraft
     {
         if (Preview.Templates[gf].Any(entry => entry.Ability == ability))
         {
-            throw new InvalidOperationException("This GF already has that ability.");
+            throw new GuardianForceAbilityTextException(GuardianForceAbilityText.Create("guardian.editor.error.already-present"));
         }
         string id = Guid.NewGuid().ToString("N");
         Add(new()
@@ -84,7 +84,7 @@ internal sealed class GuardianForceAbilityDraft
     {
         if (Preview.Templates[gf].Any(entry => entry.Ability == replacement))
         {
-            throw new InvalidOperationException("The replacement is already present. Neither entry was changed.");
+            throw new GuardianForceAbilityTextException(GuardianForceAbilityText.Create("guardian.editor.error.replacement-present"));
         }
         Add(Dependent(new()
         {
@@ -114,12 +114,12 @@ internal sealed class GuardianForceAbilityDraft
     {
         if (first == second)
         {
-            throw new InvalidOperationException("Select two different entries.");
+            throw new GuardianForceAbilityTextException(GuardianForceAbilityText.Create("guardian.editor.error.select-different"));
         }
         int[] existing = Preview.Templates[gf].Where(entry => entry.Ability == first || entry.Ability == second).Select(entry => entry.Ability).ToArray();
         if (existing.Length != 2)
         {
-            throw new InvalidOperationException("Both swap participants must exist.");
+            throw new GuardianForceAbilityTextException(GuardianForceAbilityText.Create("guardian.editor.error.swap-participants"));
         }
         Add(Dependent(new()
         {
@@ -158,19 +158,22 @@ internal sealed class GuardianForceAbilityDraft
 
     public bool UndoRequiresReview(int gf, int ability) => UndoGroup(gf, ability).Count > 1;
 
-    public string UndoDescription(int gf, int ability, Func<int, string> name)
+    public string UndoDescription(int gf, int ability, Func<int, string> name, Func<string, string, string>? localize = null)
     {
         Command? command = UndoGroup(gf, ability).FirstOrDefault();
-        return command?.Operation is not { } operation ? "Undo" : operation.Kind switch
+        GuardianForceAbilityText text = command?.Operation is not { } operation ? GuardianForceAbilityText.Create("guardian.editor.undo.default") : operation.Kind switch
         {
-            GuardianForceAbilityOperationKind.OrderSubset => "Undo swap with " + name(operation.Order.FirstOrDefault(id => id != ability)),
-            GuardianForceAbilityOperationKind.EnsureAbility => "Undo add",
-            GuardianForceAbilityOperationKind.ReplaceAbility => "Undo replace",
-            _ => "Undo starting state"
+            GuardianForceAbilityOperationKind.OrderSubset => GuardianForceAbilityText.Create("guardian.editor.undo.swap", (Func<string>)(() => name(operation.Order.FirstOrDefault(id => id != ability)))),
+            GuardianForceAbilityOperationKind.EnsureAbility => GuardianForceAbilityText.Create("guardian.editor.undo.add"),
+            GuardianForceAbilityOperationKind.ReplaceAbility => GuardianForceAbilityText.Create("guardian.editor.undo.replace"),
+            _ => GuardianForceAbilityText.Create("guardian.editor.undo.state")
         };
+        return text.Format(localize);
     }
 
-    public IReadOnlyList<string> UndoReview(int gf, int ability, Func<int, string> name) => UndoGroup(gf, ability).Select(command => command.Operation is { } operation ? operation.Kind + ": " + string.Join(", ", operation.Kind == GuardianForceAbilityOperationKind.OrderSubset ? operation.Order.Select(name) : new[] { name(operation.Ability), name(operation.Replacement ?? operation.Ability) }.Distinct()) : "Restore inherited contribution").ToArray();
+    public IReadOnlyList<string> UndoReview(int gf, int ability, Func<int, string> name, Func<string, string, string>? localize = null) => UndoGroup(gf, ability).Select(command => command.Operation is { } operation
+        ? GuardianForceAbilityText.Create("guardian.editor.review.operation", GuardianForceAbilityText.Create("guardian.editor.operation." + operation.Kind), (Func<string>)(() => string.Join(", ", operation.Kind == GuardianForceAbilityOperationKind.OrderSubset ? operation.Order.Select(name) : new[] { name(operation.Ability), name(operation.Replacement ?? operation.Ability) }.Distinct()))).Format(localize)
+        : GuardianForceAbilityText.Create("guardian.editor.review.restore").Format(localize)).ToArray();
 
     public void Undo(int gf, int ability)
     {
@@ -202,26 +205,28 @@ internal sealed class GuardianForceAbilityDraft
         Invalidate();
     }
 
-    public IReadOnlyList<string> RestoreInheritedReview(int gf, int ability, Func<int, string> name)
+    public IReadOnlyList<string> RestoreInheritedReview(int gf, int ability, Func<int, string> name, Func<string, string, string>? localize = null)
     {
         GuardianForceAbilityDraft proposed = new(input, costs, RawDocument());
         proposed.RestoreInherited(gf, ability);
         var before = Preview.Templates[gf];
         var after = proposed.Preview.Templates[gf];
-        List<string> result = ["Restore inherited contribution for " + name(ability) + ". Current learned/AP progress is preserved."];
+        List<string> result = [GuardianForceAbilityText.Create("guardian.editor.inherited.summary", (Func<string>)(() => name(ability))).Format(localize)];
         foreach (int id in before.Select(entry => entry.Ability).Union(after.Select(entry => entry.Ability)))
         {
             int oldIndex = before.ToList().FindIndex(entry => entry.Ability == id);
             int newIndex = after.ToList().FindIndex(entry => entry.Ability == id);
             if (oldIndex != newIndex || oldIndex < 0 || newIndex < 0 || before[oldIndex] != after[newIndex])
             {
-                string describe(ImmutableArray<GuardianForceAbilityTemplate> entries, int index) => index < 0 ? "absent" : "position " + (index + 1) + ", Start learned " + entries[index].InitialLearned + ", prerequisite " + (entries[index].PrerequisiteAbility is int required ? name(required) : "none");
-                result.Add(name(id) + ": " + describe(before, oldIndex) + " → " + describe(after, newIndex));
+                GuardianForceAbilityText Describe(ImmutableArray<GuardianForceAbilityTemplate> entries, int index) => index < 0
+                    ? GuardianForceAbilityText.Create("guardian.editor.inherited.absent")
+                    : GuardianForceAbilityText.Create("guardian.editor.inherited.state", index + 1, GuardianForceAbilityText.Boolean(entries[index].InitialLearned), entries[index].PrerequisiteAbility is int required ? (object)(Func<string>)(() => name(required)) : GuardianForceAbilityText.Create("guardian.editor.common.none"));
+                result.Add(GuardianForceAbilityText.Create("guardian.editor.inherited.change", (Func<string>)(() => name(id)), Describe(before, oldIndex), Describe(after, newIndex)).Format(localize));
             }
         }
         if (result.Count == 1)
         {
-            result.Add("No inherited fields differ from the selected contribution.");
+            result.Add(GuardianForceAbilityText.Create("guardian.editor.inherited.nochange").Format(localize));
         }
         return result;
     }
@@ -299,7 +304,7 @@ internal sealed class GuardianForceAbilityDraft
         GuardianForceAbilityOperationOutcome outcome = preview.Outcomes[^1];
         if (outcome.Status is not ("Applied" or "AlreadySatisfied"))
         {
-            throw new InvalidOperationException(outcome.Message);
+            throw new GuardianForceAbilityTextException(outcome.MessageText!);
         }
         int gf = operation.GuardianForce;
         var before = Preview.Templates[gf];

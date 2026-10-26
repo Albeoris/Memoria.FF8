@@ -27,6 +27,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly HashSet<string> changedPackageIds = new(StringComparer.OrdinalIgnoreCase);
     private ModCatalogSnapshot? pending;
     private ModPreparationResult? pendingPreparation;
+    private (ModCatalogSnapshot Candidate, bool AutoEnable, string Identity)? deferredDiscovery;
     private IReadOnlyList<ModDiagnostic> diagnostics = Array.Empty<ModDiagnostic>();
     private DateTime requestedAt = DateTime.MinValue;
     private DateTime firstRequestedAt = DateTime.MinValue;
@@ -341,19 +342,32 @@ public sealed partial class ModRuntime : IModService, IDisposable
             pendingPreparation = null;
             try
             {
-                ConfigureWatcher();
-                ModCatalogSnapshot candidate = Discover(out bool nextAutoEnable, out string identity);
-                changedPackageIds.Clear();
-                foreach (string id in candidate.Packages.Select(package => package.Id).Concat(catalog.Packages.Select(package => package.Id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                ModCatalogSnapshot candidate;
+                bool nextAutoEnable;
+                string identity;
+                if (deferredDiscovery is { } deferred)
                 {
-                    var before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
-                    var after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
-                    if (!before.SequenceEqual(after) || candidate.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority != catalog.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority)
-                    {
-                        changedPackageIds.Add(id);
-                    }
+                    candidate = deferred.Candidate;
+                    nextAutoEnable = deferred.AutoEnable;
+                    identity = deferred.Identity;
                 }
-                installedPackages = Array.AsReadOnly(candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active ? package with { Status = ModEffectiveStatus.ReloadFailure } : package).ToArray());
+                else
+                {
+                    ConfigureWatcher();
+                    candidate = Discover(out nextAutoEnable, out identity);
+                    changedPackageIds.Clear();
+                    foreach (string id in candidate.Packages.Select(package => package.Id).Concat(catalog.Packages.Select(package => package.Id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        var before = committedFileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
+                        var after = fileEntries.Where(entry => entry.Value.File.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase)).OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.Stamp, entry.Value.LocalizationEpoch));
+                        if (!before.SequenceEqual(after) || candidate.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority != catalog.Packages.SingleOrDefault(package => package.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Priority)
+                        {
+                            changedPackageIds.Add(id);
+                        }
+                    }
+                    installedPackages = Array.AsReadOnly(candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active ? package with { Status = ModEffectiveStatus.ReloadFailure } : package).ToArray());
+                }
+                deferredDiscovery = null;
                 autoEnable = nextAutoEnable;
                 if (identity == lastIdentity)
                 {
@@ -367,6 +381,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
                 {
+                    deferredDiscovery = (candidate, nextAutoEnable, identity);
                     reloadRequested = true;
                     requestedAt = now;
                     retryDue = now + TimeSpan.FromMilliseconds(25);
@@ -737,6 +752,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void RequestRefreshCore(DateTime time)
     {
+        deferredDiscovery = null;
         localizationChangeEpoch++;
         if (!reloadRequested)
         {
@@ -752,6 +768,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void ScheduleRetry()
     {
+        deferredDiscovery = null;
         int[] delays = [100, 250, 500, 1000];
         if (retryAttempt >= delays.Length)
         {

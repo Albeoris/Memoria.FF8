@@ -5,6 +5,12 @@ namespace Memoria.FF8.GameUi;
 public sealed record ModelBrowserAssetRow(string Id, string Name, string Group, bool IsClip, bool Supported = true, string Detail = "", bool DefaultSelected = true)
 {
     public string? RigId { get; init; }
+    public Func<string>? ReadName { get; init; }
+    public Func<string>? ReadGroup { get; init; }
+    public Func<string>? ReadDetail { get; init; }
+    public string DisplayName => ReadName?.Invoke() ?? Name;
+    public string DisplayGroup => ReadGroup?.Invoke() ?? Group;
+    public string DisplayDetail => ReadDetail?.Invoke() ?? Detail;
 }
 
 public sealed partial class ModelBrowserController
@@ -14,17 +20,17 @@ public sealed partial class ModelBrowserController
     private readonly HashSet<string> selectedAssets = new(StringComparer.Ordinal);
     private Action? assetContinue;
     private bool manuallySelectedAssets;
-    private string? beforeAssetHints;
+    private Func<string>? beforeAssetHints;
     public bool AssetsOpen { get; private set; }
     public bool ImportSelection { get; private set; }
     public bool ClipsTab { get; private set; }
     public bool PreviewFocused { get; private set; }
     public string AssetSearch { get; private set; } = "";
-    private string? discoveryStatus;
+    private Func<string>? readDiscoveryStatus;
     public string DiscoveryStatus
     {
-        get => discoveryStatus ?? SystemText("model.discovery.pending", "Discovering");
-        private set => discoveryStatus = value;
+        get => readDiscoveryStatus?.Invoke() ?? SystemText("model.discovery.pending", "Discovering");
+        private set => readDiscoveryStatus = () => value;
     }
     public int AssetIndex { get; private set; }
     public string? ActiveObject { get; private set; }
@@ -37,7 +43,7 @@ public sealed partial class ModelBrowserController
     public float ClipFrameSeconds { get; private set; } = 1f / 30;
     public IReadOnlyList<ModelBrowserAssetRow> Assets => assets;
     public IReadOnlySet<string> SelectedAssets => selectedAssets;
-    public IReadOnlyList<ModelBrowserAssetRow> VisibleAssets => assets.Where(row => row.IsClip == ClipsTab && MatchesSearch(row.Name + " " + row.Group + " " + row.Detail, AssetSearch)).ToArray();
+    public IReadOnlyList<ModelBrowserAssetRow> VisibleAssets => assets.Where(row => row.IsClip == ClipsTab && MatchesSearch(row.Name + " " + row.Group + " " + row.Detail + " " + row.DisplayName + " " + row.DisplayGroup + " " + row.DisplayDetail, AssetSearch)).ToArray();
     public int HiddenSelectedCount
     {
         get
@@ -58,7 +64,7 @@ public sealed partial class ModelBrowserController
         ActiveClip = null;
         AssetIndex = 0;
         PlaybackSeconds = 0;
-        discoveryStatus = null;
+        readDiscoveryStatus = null;
     }
 
     public void AddAsset(ModelBrowserAssetRow row)
@@ -84,13 +90,15 @@ public sealed partial class ModelBrowserController
 
     public void SetDiscoveryStatus(string status) => DiscoveryStatus = status;
 
+    public void SetDiscoveryStatus(Func<string> status) => readDiscoveryStatus = status;
+
     public void OpenAssetPanel(Action? continueAction = null, bool importing = false)
     {
         if (!AssetsOpen)
         {
-            beforeAssetHints = Hints;
+            beforeAssetHints = readHints;
         }
-        Hints = SystemText("model.hints.selection", "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection");
+        readHints = () => SystemText("model.hints.selection", "Tab: preview / list · Arrows: navigate / rotate · Confirm / Space: checkbox\nClick label: preview · Select all includes hidden rows · Back: cancel selection");
         AssetsOpen = true;
         ImportSelection = importing;
         assetContinue = continueAction;
@@ -102,11 +110,8 @@ public sealed partial class ModelBrowserController
     public void CloseAssetPanel()
     {
         AssetsOpen = false;
-        if (beforeAssetHints is not null)
-        {
-            Hints = beforeAssetHints;
-            beforeAssetHints = null;
-        }
+        readHints = beforeAssetHints;
+        beforeAssetHints = null;
         assetContinue = null;
         SearchFocused = false;
         PreviewFocused = false;

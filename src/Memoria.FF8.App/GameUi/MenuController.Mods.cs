@@ -119,7 +119,7 @@ public sealed partial class MenuController
             new("mod-auto", SystemText("ui.modentries.entry.label.automatically.enable.new.mods", "Automatically enable new mods"), SystemText("ui.modentries.entry.help.explicit.choices.are.kept.turning.off.preserves.existing", "Explicit choices are kept; turning off preserves existing packages."), Action: new("mod-auto")),
             new("mod-refresh", SystemText("ui.modentries.entry.label.refresh", "Refresh"), SystemText("ui.modentries.entry.help.rescan.packages.in.both.game.and.application.mods", "Rescan packages in both game and application Mods directories and retry rejected changes."), Action: new("mod-refresh"))
         ];
-        entries.AddRange(FilteredModViews().Select(view => new MenuEntry(view.Package.Id, view.Package.Name, view.StatusText, Action: new("mod-toggle", view.Package.Id))));
+        entries.AddRange(FilteredModViews().Select(view => new MenuEntry(view.Package.Id, view.Package.Name, ModStatusText(view), Action: new("mod-toggle", view.Package.Id))));
         if (HasModReview)
         {
             entries.Add(new("gf-review", SystemText("ui.modentries.entry.label.review.gf.changes.pending", "Review GF changes · Pending"), SystemText("ui.modentries.entry.help.review.pending.gameplay.consequences", "Review pending gameplay consequences."), Destination: "gf-mod-review"));
@@ -218,14 +218,14 @@ public sealed partial class MenuController
             details.Add(view.Package.Name);
             details.Add(view.Package.Format.ToString());
             details.Add(FormatSystemText("ui.moddetails.details.enabled.in.settings.template", "Enabled in settings: {0}", (view.Package.RequestedEnabled ? SystemText("ui.moddetails.details.on", "On") : SystemText("ui.moddetails.details.off", "Off"))));
-            details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", view.StatusText));
+            details.Add(FormatSystemText("ui.moddetails.details.in.use.template", "In use: {0}", ModStatusText(view)));
             if (view.Package.JunctionMetadata?.Behaviors.Contains(JunctionBehavior.InstantManualSkip) == true)
             {
                 details.Add(SystemText("ui.moddetails.details.instant.manual.skip.is.built.into.the.engine", "Instant manual skip is built into the engine and is always enabled."));
             }
             if (!string.IsNullOrEmpty(view.Problem))
             {
-                details.Add(view.Problem);
+                details.Add(ModProblemText(view)!);
             }
         }
         else
@@ -361,7 +361,7 @@ public sealed partial class MenuController
                 ModPackageView? view = service.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(action.SubjectId, StringComparison.OrdinalIgnoreCase));
                 if (view is null || !view.CanToggle)
                 {
-                    SetSystemMessage(() => view?.Problem ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));
+                    SetSystemMessage(() => (view is null ? null : ModProblemText(view)) ?? SystemText("ui.executemodaction.message.this.package.is.unavailable.or.incompatible.with.the", "This package is unavailable or incompatible with the current edition."));
                     _view = null;
                     return true;
                 }

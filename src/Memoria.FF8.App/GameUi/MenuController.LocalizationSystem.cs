@@ -12,7 +12,7 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    internal string SystemText(string id, string original) => localizeInterface?.Invoke(SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => SystemTextCatalog.Translate(localizeInterface, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments)
     {
@@ -78,6 +78,18 @@ public sealed partial class MenuController
         3 => SystemText("junction.tab.ability", "Ability"),
         _ => throw new ArgumentOutOfRangeException(nameof(tab))
     };
+
+    internal string LimitSettingLabel(string setting) => setting switch
+    {
+        "Auto" => SystemText("limit.setting.auto", "Auto"),
+        "Indicator" => SystemText("limit.setting.indicator", "Indicator"),
+        "Duel-Auto" => SystemText("limit.setting.duel-auto", "Duel Auto"),
+        _ => setting
+    };
+
+    internal string LimitToggleText(MenuCharacter? owner, string setting) => owner?.LimitToggles.TryGetValue(setting, out bool enabled) == true ? enabled ? SystemText("limit.option.on", "On") : SystemText("limit.option.off", "Off") : SystemText("common.unavailable", "Unavailable");
+
+    internal string LimitAvailabilityText(MenuCharacter? owner, string setting) => owner?.LimitAvailability.TryGetValue(setting, out bool available) == true ? available ? SystemText("limit.option.available", "Available") : SystemText("common.unavailable", "Unavailable") : SystemText("common.unavailable", "Unavailable");
 
     private string LocalizeSettingHelp(string setting, string original)
     {

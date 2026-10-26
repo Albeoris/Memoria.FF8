@@ -77,6 +77,7 @@ public static partial class LocalizationProjectExport
                 }
             }
         }
+        NormalizeSystemAliasTargets(projects, rows);
         Dictionary<string, JsonElement> provenance = first.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         provenance["contributors"] = JsonSerializer.SerializeToElement(projects.Select(project => new { projectId = project.Manifest.ProjectId, targetLanguage = project.Manifest.TargetLanguage }).ToArray());
         provenance["sourceGeneration"] = JsonSerializer.SerializeToElement(committedGeneration);
@@ -89,6 +90,31 @@ public static partial class LocalizationProjectExport
         };
         LocalizationProjectIO.Validate(result);
         return result;
+    }
+
+    private static void NormalizeSystemAliasTargets(IReadOnlyList<LocalizationProject> projects, Dictionary<string, LocalizationRecord> rows)
+    {
+        var layers = projects.Select(project => (project.Manifest.ProjectId, Rows: project.Entries.Where(row => row.Category == "System" && row.File == SystemTextCatalog.File && !string.IsNullOrEmpty(row.Target)).ToDictionary(row => row.Key, StringComparer.Ordinal))).ToArray();
+        foreach ((string identity, LocalizationRecord row) in rows.ToArray())
+        {
+            if (row.Category != "System" || row.File != SystemTextCatalog.File || SystemTextCatalog.KeysForCatalogKey(row.Key) is not { } aliases)
+            {
+                continue;
+            }
+            foreach (var layer in layers.Reverse())
+            {
+                LocalizationRecord? winner = aliases.Select(key => layer.Rows.GetValueOrDefault(key)).FirstOrDefault(candidate => candidate is not null);
+                if (winner is null)
+                {
+                    continue;
+                }
+                Dictionary<string, JsonElement> metadata = row.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+                metadata["translationContributor"] = JsonSerializer.SerializeToElement(layer.ProjectId);
+                metadata["resolvedSystemAlias"] = JsonSerializer.SerializeToElement(winner.Key);
+                rows[identity] = row with { Target = winner.Target, ExtensionData = metadata };
+                break;
+            }
+        }
     }
 
     /// <summary>Refreshes authoring sources while retaining all translator work, including obsolete identities.</summary>

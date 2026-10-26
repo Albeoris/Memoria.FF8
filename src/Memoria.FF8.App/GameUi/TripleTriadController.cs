@@ -8,7 +8,7 @@ public sealed partial class TripleTriadController
 {
     internal Func<string, string, string>? LocalizeText { get; set; }
 
-    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(LocalizeText, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 

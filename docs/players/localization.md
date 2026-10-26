@@ -27,7 +27,7 @@ Select any subset and review their order: **LOW priority is at the TOP; HIGH pri
 
 A stack can contain different Target IDs. Its **Primary target** is displayed explicitly and can be changed among the selected translations before **Apply selected stack**. The saved primary identifier and package order describe the chosen profile. Cancel keeps the previously saved selection.
 
-Patches use a separate project identity and declare their base relationship. A base and its patches must be selected in a compatible order; a common Target label alone does not declare a dependency. There is currently no separate patch-creation wizard.
+Patches use a separate project identity and declare their base relationship. Use **Create localization patch** to select a base package and create a disabled patch with empty Targets. A base and its patches must be selected in a compatible order; a common Target label alone does not declare a dependency.
 
 ## Use existing translations as references
 
@@ -45,13 +45,13 @@ Read [the translator guide](../modding/localization.md) before editing. Keep the
 
 Exports inventory all currently implemented resource families and report unavailable families explicitly. These include field dialogue and contexts; kernel names and help for magic, items, weapons, characters, abilities and GF/battle records; menu tables; monster names, Scan and enemy dialogue; card text; world/location text; tutorials and SeeD exam text; and plain publication text. A category in the inventory does not imply that every original string or every display consumer is supported.
 
-- The authored **System** catalog currently contains about 80 registered interface labels covering main/config/mods/localization commands and settings. Other authored prompts, help and errors still require semantic IDs and consumer integration.
+- The authored **System** catalog includes registered interface labels, prompts, help, settings and formatted messages. It covers gameplay menus, save/load, battle and card presentation, mod authoring and developer views. Templates keep runtime names, numbers and technical identifiers as arguments.
 - Japanese field-source decoding is supported using the shared Japanese codepage and registered field-specific character tables. Unknown indices still fail strict decoding.
-- Japanese non-field text uses the game's common Japanese character pages. Missing bank-specific characters and unsupported resource layouts remain explicit gaps. An undecodable known string keeps its identity with missing-source metadata, rather than invented empty source text. Field-specific Japanese character tables are a separate decoding contract.
-- Current Japanese non-field checks retain six undecodable World strings as missing-source rows. Other diagnostics cover unsupported menu/named-bank/enemy-script layouts, strict namedic trailing-byte validation and an unavailable draw-point resource. These are separate resource contracts from field-source decoding.
-- Information titles can be exported. Information bodies with native conditional gates and two-byte link operands need a structured adapter and are reported as unsupported.
-- Text inside images, original assets, and player-assigned character/GF/PocketStation names are outside plain-string translation export.
-- Known dynamic or incompatible field-choice contracts fail validation instead of altering gameplay semantics. Cross-language correspondence does not imply that arbitrary scripts are compatible.
+- Japanese non-field text uses the game's common Japanese character pages. World item-name controls, empty enemy-script sections, namedic padding and card pointer tables are supported. Each available language uses its own World bank. Physically absent edition/language resources remain explicit capability diagnostics.
+- Information titles and bodies can be translated. Structured gate, link and number controls retain their native behavior.
+- Native menu, tutorial, startup and card-result images are exported as PNG references. Add a corresponding Target PNG to translate lettering drawn into an image; see the translator guide. Native European wordmark fragments retain their glyph references and source-font context.
+- Player-assigned character/GF/PocketStation names remain save-owned values, inserted through the original name controls.
+- Dynamic field choices support explicit source-to-target line maps. Validation preserves option order, relative results and cancellation behavior. Incompatible contracts fail before publication. Cross-language correspondence does not imply that arbitrary scripts are compatible.
 - JSON/XLSX conversion and workbook schema checks have automated coverage. Acceptance in the actual Microsoft Excel application has not been run because Excel was unavailable in the validation environment.
 
 Missing source, an actually empty original string and an untranslated Target are different states. The preview and retained metadata expose gaps so they can be investigated without losing record identities. CLI export reports **Missing Source cells** separately from **Resource/coverage diagnostics**. The latter also includes unsupported or unavailable resources, may overlap individual row gaps, and is not a count of missing translations. Review the manifest's `sourceGaps` array for details.

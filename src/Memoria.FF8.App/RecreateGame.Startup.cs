@@ -14,6 +14,7 @@ internal sealed partial class RecreateGame
     private Task<MovieInformation>? startupMovieInformation;
     private Task<NativeStartupArtwork>? startupArtwork;
     private readonly Dictionary<int, Texture2D> startupTextures = [];
+    private string? startupArtworkFingerprint;
     private bool startupMusicStarted;
     private bool startupFaulted;
     private BlendState? startupSubtract;
@@ -88,6 +89,16 @@ internal sealed partial class RecreateGame
             {
                 return true;
             }
+            string? artworkFingerprint = resourceHost?.Resources.Localization.ArtworkFingerprint;
+            if (startupArtworkFingerprint != artworkFingerprint)
+            {
+                foreach (Texture2D texture in startupTextures.Values)
+                {
+                    texture.Dispose();
+                }
+                startupTextures.Clear();
+                startupArtworkFingerprint = artworkFingerprint;
+            }
             NativeStartupCreditsFrame frame = startup.Stage == StartupStage.SquareLogo ? NativeStartupCredits.SampleSquare(startup.Elapsed) : NativeStartupCredits.SampleCredits(startup.Elapsed, startup.Policy.SkipCreditsPause);
             if (frame.Finished)
             {
@@ -108,7 +119,7 @@ internal sealed partial class RecreateGame
             {
                 PixelImage image = startupArtwork.GetAwaiter().GetResult().Read(frame.ResourceIndex);
                 Texture2D texture = new(GraphicsDevice, image.Width, image.Height);
-                texture.SetData(image.Pixels.Select(color => new Color(color.R, color.G, color.B, (byte)255)).ToArray());
+                texture.SetData(image.Pixels.Select(color => new Color(color.R, color.G, color.B, color.A)).ToArray());
                 startupTextures.Add(frame.ResourceIndex, texture);
             }
             if (startup.Stage == StartupStage.Credits && !startupMusicStarted)

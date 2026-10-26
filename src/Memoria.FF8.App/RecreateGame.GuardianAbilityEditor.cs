@@ -6,6 +6,7 @@ using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8;
 
@@ -35,7 +36,7 @@ internal sealed partial class RecreateGame
         gameMenus!.GuardianEditorEditionSupported = resourceHost.NativeGameplayModsSupported;
         gameMenus.ConnectGuardianPackageOwnership(ReviewGuardianPackageOwnership, ReviewRemoveMissingGuardianLayer);
         gameMenus.ConnectGuardianRecovery(ReviewRecoveredGuardianLayers);
-        gameMenus.ConnectGuardianModReview(() => guardianPendingModReview?.Consequences.ToArray(), AcceptGuardianModReview);
+        gameMenus.ConnectGuardianModReview(() => guardianPendingModReview?.FormatConsequences(LocalizeGuardianEditorText).ToArray(), AcceptGuardianModReview);
     }
 
     private GuardianForceEditorContext ReadGuardianEditorContext()
@@ -97,7 +98,7 @@ internal sealed partial class RecreateGame
         ImmutableArray<GuardianForceAbilityPatchDocument> local = context.LocalDocuments.Where(existing => existing.DocumentId != document.DocumentId).Append(document).ToImmutableArray();
         GuardianForceAbilityProfile profile = GuardianProfile(context, locals: local, exclusions: excluded.ToImmutableArray());
         GuardianForceAbilityComposition composed = ComposeGuardianProfile(profile);
-        string[] unsuccessful = composed.Outcomes.Where(outcome => outcome.DocumentId == document.DocumentId && outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.Message).ToArray();
+        GuardianForceAbilityText[] unsuccessful = composed.Outcomes.Where(outcome => outcome.DocumentId == document.DocumentId && outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.MessageText!).ToArray();
         if (unsuccessful.Length > 0)
         {
             // A failed operation must not be saved locally to become active unexpectedly on a later refresh.
@@ -116,9 +117,11 @@ internal sealed partial class RecreateGame
         GuardianForceAbilityApplyPreview preview = session.PreviewGuardianForceAbilities(composed.Templates, profile, resets, guardianSourceRevision, resourceHost!.Mods.Catalog.Generation);
         if (unsuccessful.Length > 0)
         {
+            ImmutableArray<GuardianForceAbilityText> prose = preview.ConsequenceTexts.AddRange(unsuccessful.Select(message => GuardianForceAbilityText.Create("guardian.editor.review.skipped", message)));
             preview = preview with
             {
-                Consequences = preview.Consequences.AddRange(unsuccessful.Select(message => "Skipped: " + message))
+                Consequences = prose.Select(text => text.Format()).ToImmutableArray(),
+                ConsequenceTexts = prose
             };
         }
         return new(preview, document, resetStartingStates);
@@ -152,7 +155,7 @@ internal sealed partial class RecreateGame
         }
         GuardianForceAbilityProfile profile = GuardianProfile(context, layers: context.Layers.Where(item => item.Document.DocumentId != documentId).ToImmutableArray());
         GuardianForceAbilityComposition composition = ComposeGuardianProfile(profile);
-        return new(session.PreviewGuardianForceAbilities(composition.Templates, profile, sourceRevision: guardianSourceRevision, modGeneration: resourceHost.Mods.Catalog.Generation), layer.Document, false, true, "Remove retained missing GF contribution: " + layer.PackageId);
+        return new(session.PreviewGuardianForceAbilities(composition.Templates, profile, sourceRevision: guardianSourceRevision, modGeneration: resourceHost.Mods.Catalog.Generation), layer.Document, false, true, "Remove retained missing GF contribution: " + layer.PackageId) { IntentText = GuardianForceAbilityText.Create("guardian.editor.review.remove-missing", layer.PackageId) };
     }
 
     private GuardianForceEditorReview ReviewRecoveredGuardianLayers()
@@ -163,27 +166,31 @@ internal sealed partial class RecreateGame
         GuardianForceAbilityProfile profile = GuardianProfile(context, exclusions: context.ExcludedDocuments.Where(id => !previouslyActive.Contains(id)).ToImmutableArray());
         GuardianForceAbilityComposition composition = ComposeGuardianProfile(profile);
         GuardianForceAbilityApplyPreview preview = session.PreviewGuardianForceAbilities(composition.Templates, profile, sourceRevision: guardianSourceRevision, modGeneration: resourceHost!.Mods.Catalog.Generation);
+        ImmutableArray<GuardianForceAbilityText> prose = preview.ConsequenceTexts.Prepend(GuardianForceAbilityText.Create("guardian.editor.review.imported-baseline")).Concat(composition.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => GuardianForceAbilityText.Create("guardian.editor.review.package", outcome.PackageId, outcome.MessageText!))).ToImmutableArray();
         preview = preview with
         {
-            Consequences = preview.Consequences.Prepend("Prior contributions are baked into the imported baseline. Disabling former packages cannot subtract those unknown edits.").Concat(composition.Outcomes.Where(outcome => outcome.Status is not ("Applied" or "AlreadySatisfied")).Select(outcome => outcome.PackageId + ": " + outcome.Message)).ToImmutableArray()
+            Consequences = prose.Select(text => text.Format()).ToImmutableArray(),
+            ConsequenceTexts = prose
         };
         return new(preview, new()
         {
             DocumentId = "recovery-review"
-        }, false, true, "Reactivate supported native documents over the observed opaque baseline after fresh reconciliation.");
+        }, false, true, "Reactivate supported native documents over the observed opaque baseline after fresh reconciliation.") { IntentText = GuardianForceAbilityText.Create("guardian.editor.review.reactivate") };
     }
+
+    private string LocalizeGuardianEditorText(string id, string original) => SystemTextCatalog.Translate((key, fallback) => resourceHost?.Resources.Localize(key, fallback) ?? fallback, id, original);
 
     private string? GuardianMutationUnavailableReason
     {
         get
         {
-            if (!session.CanApplyGuardianForceAbilities(out string? reason))
+            if (!session.CanApplyGuardianForceAbilities(out string? reason, LocalizeGuardianEditorText))
             {
                 return reason;
             }
             if (session.State.Scene == SceneKind.Field && events is not null && (events.Scene.NativeTutorial is not null || events.Scene.NativeMenuTutorial is not null || events.HasPendingBattle || events.PartyMenu is not null && events.PartyMenu is not { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active } || events.PartyMenu is null && (!events.IsUserControlEnabled || events.IsDialogueBlocking || !events.Scene.MenuEnabled || events.PendingTripleTriad is not null)))
             {
-                return "GF abilities can change only while the field or normal Config menu is idle.";
+                return GuardianForceAbilityText.Create("guardian.editor.boundary.idle").Format(LocalizeGuardianEditorText);
             }
             return null;
         }

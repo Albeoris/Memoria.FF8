@@ -45,7 +45,7 @@ internal static class GuardianForceLegacyExportReview
 {
     internal static string LossText(NativeGuardianForceLegacyLoss loss, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
         object?[] arguments = loss.DescriptionArguments.Cast<object?>().ToArray();
         return loss.DescriptionId switch
@@ -70,7 +70,7 @@ internal static class GuardianForceLegacyExportReview
 
     public static bool Confirm(nint owner, NativeGuardianForceLegacyExportPlan plan, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         System.Windows.Window dialog = new()
         {
             Title = SystemText("save.gf-export.title", "Original FFVIII GF conversion"),

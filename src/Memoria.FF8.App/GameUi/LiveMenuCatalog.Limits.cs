@@ -48,6 +48,7 @@ public sealed partial class LiveMenuCatalog
             if (state.SavedBattleFlags is { } flags && (flags.EffectiveKnownMask & 0x20) != 0)
             {
                 character.LimitSettings["Angel Wing"] = (flags.Value & 0x20) != 0 ? "Available" : "Unavailable";
+                character.LimitAvailability["Angel Wing"] = (flags.Value & 0x20) != 0;
             }
         }
         else if (command == 16)
@@ -76,7 +77,9 @@ public sealed partial class LiveMenuCatalog
         if (progress?.Options978 is ushort options)
         {
             character.LimitSettings["Auto"] = (options & 1) != 0 ? "On" : "Off";
+            character.LimitToggles["Auto"] = (options & 1) != 0;
             character.LimitSettings["Indicator"] = (options & 0x8000) == 0 ? "On" : "Off";
+            character.LimitToggles["Indicator"] = (options & 0x8000) == 0;
         }
         if ((uint)weaponId >= kernel.Weapons.Count || kernel.Weapons[weaponId].CharacterId != id)
         {

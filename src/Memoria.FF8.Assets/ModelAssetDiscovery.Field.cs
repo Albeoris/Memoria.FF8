@@ -45,7 +45,7 @@ public sealed partial class GameAssets
                 continue;
             }
             string path = $"field/{name}/chara.one";
-            yield return new(selected.Id + "/scan/" + field, "Discovering field references: " + name, ModelAssetDiscoveryKind.Progress, selected.Id, path, "", -1, "parsed main_chr reverse references");
+            yield return new(selected.Id + "/scan/" + field, "Discovering field references: " + name, ModelAssetDiscoveryKind.Progress, selected.Id, path, "", -1, "parsed main_chr reverse references") { Progress = new(ModelAssetProgressKind.FieldReferences, name) };
             IReadOnlyList<NativeFieldOneModelEntry>? directory = null;
             error = null;
             try

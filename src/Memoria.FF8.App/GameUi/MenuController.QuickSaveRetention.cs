@@ -149,7 +149,7 @@ public sealed partial class MenuController
             Back();
             _liveData = null;
             Console.WriteLine(result.Message);
-            Message = result.Error is not null || result.Remaining > 0 ? result.Message : "";
+            SetSystemMessage(() => result.Error is not null ? FormatSystemText("save.retention.cleanup-error", "Quick-save limit saved. Removed {0} quick saves; {1} still need cleanup. {2}", result.Removed, result.Remaining, result.Error) : result.Remaining > 0 ? FormatSystemText("save.retention.cleanup-pending", "Quick-save limit saved. {0} older quick saves remain pending cleanup.", result.Remaining) : "");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {

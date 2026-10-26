@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private readonly Dictionary<string, EditableModel> browserImportOriginals = new(StringComparer.Ordinal);
-    private readonly List<string> browserImportWarnings = [];
+    private readonly List<Func<string>> browserImportWarnings = [];
 
     private void OpenBrowserImport(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
@@ -48,7 +48,7 @@ internal sealed partial class RecreateGame
             browserAssetsComplete = true;
             browserImportOriginals.Clear();
             browserImportWarnings.Clear();
-            browserImportWarnings.AddRange(inventory.Warnings);
+            browserImportWarnings.AddRange(inventory.Warnings.Select(warning => (Func<string>)(() => warning)));
             browserImport = inventory;
             modelPreviewIdentity = entry.Id + "\0" + variant.Id;
             modelPreview = ReadBrowserModel(entry, variant);
@@ -56,7 +56,7 @@ internal sealed partial class RecreateGame
             modelBrowser!.ResetAssets();
             foreach (ModelAssetObject item in inventory.Objects.Where(item => item.GeometrySelected))
             {
-                AddImportRow("object:" + item.Target, item.Model.Name, item.AlternativeGroup ?? "Objects", false, item.Target, "embedded", item.Model, fingerprint: item.Fingerprint);
+                AddImportRow("object:" + item.Target, item.Model.Name, item.AlternativeGroup ?? "Objects", false, item.Target, "embedded", item.Model, fingerprint: item.Fingerprint, readGroup: () => item.AlternativeGroup ?? LocalizeAuthored("model.group.objects", "Objects"));
             }
             foreach (ModelAssetClip clip in inventory.Clips)
             {
@@ -66,11 +66,11 @@ internal sealed partial class RecreateGame
             }
             foreach (string warning in inventory.Warnings.Where(warning => warning.Contains("mapping", StringComparison.OrdinalIgnoreCase)))
             {
-                modelBrowser.AddAsset(new("unmapped:" + warning, "Needs mapping", "Unresolved content", false, false, warning, false));
+                modelBrowser.AddAsset(new("unmapped:" + warning, "Needs mapping", "Unresolved content", false, false, warning, false) { ReadName = () => LocalizeAuthored("model.import.needs-mapping", "Needs mapping"), ReadGroup = () => LocalizeAuthored("model.import.unresolved-content", "Unresolved content") });
             }
-            modelBrowser.SetDiscoveryStatus("Import inventory: actual surviving objects and channels");
+            modelBrowser.SetDiscoveryStatus(() => LocalizeAuthored("model-browser.import.inventory", "Import inventory: actual surviving objects and channels"));
             modelBrowser.OpenAssetPanel(CompleteBrowserImport, importing: true);
-            modelBrowser.SetHints("Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nUnchecked leaves unchanged · Rigs are validation context · Back: cancel without installation");
+            modelBrowser.SetHints(() => LocalizeAuthored("model-browser.import.hints", "Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nUnchecked leaves unchanged · Rigs are validation context · Back: cancel without installation"));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
@@ -104,9 +104,10 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void AddImportRow(string id, string name, string group, bool clip, string target, string bank, EditableModel imported, int slot = -1, string fingerprint = "", EditableAnimation? animation = null)
+    private void AddImportRow(string id, string name, string group, bool clip, string target, string bank, EditableModel imported, int slot = -1, string fingerprint = "", EditableAnimation? animation = null, Func<string>? readGroup = null)
     {
         string status = "Matched: " + target + (clip ? $" / {bank} / {slot}" : " / geometry");
+        Func<string> readStatus = () => FormatAuthored("model.import.matched", "Matched: {0}{1}", target, clip ? $" / {bank} / {slot}" : LocalizeAuthored("model.import.geometry-suffix", " / geometry"));
         bool supported = true;
         try
         {
@@ -115,17 +116,18 @@ internal sealed partial class RecreateGame
             int after = imported.Bones.Count(bone => bone.IsJoint);
             if (before != after)
             {
-                browserImportWarnings.Add($"{target}: native joint count changed from {before} to {after}.");
+                browserImportWarnings.Add(() => FormatAuthored("model.import.joint-count-changed", "{0}: native joint count changed from {1} to {2}.", target, before, after));
             }
             _ = ModelMods.Preview(original, new(target, imported, !clip, clip && animation is not null ? [new(bank, slot, animation)] : []));
             if (fingerprint.Length != 0 && !Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(ModelExchange.ExportGlb(original))).Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
             {
-                browserImportWarnings.Add($"{target} / {bank}: source revision differs from the exported provider; retained target content is resolved from the current mod stack.");
+                browserImportWarnings.Add(() => FormatAuthored("model.import.source-revision", "{0} / {1}: source revision differs from the exported provider; retained target content is resolved from the current mod stack.", target, bank));
                 status = "Warning: source revision differs · " + target;
+                readStatus = () => FormatAuthored("model.import.revision-warning", "Warning: source revision differs · {0}", target);
             }
             if (clip && animation is not null && animation.Channels.Any(channel => channel.Interpolation != "LINEAR" || channel.Times.Any(time => MathF.Abs(time * original.NativeFramesPerSecond - MathF.Round(time * original.NativeFramesPerSecond)) > 0.0001f)))
             {
-                browserImportWarnings.Add($"{target} / {bank} / {slot}: edited interpolation or keys between native frames will be sampled on the native frame grid; between-frame curves are not preserved by the native clip format.");
+                browserImportWarnings.Add(() => FormatAuthored("model.import.frame-sampling", "{0} / {1} / {2}: edited interpolation or keys between native frames will be sampled on the native frame grid; between-frame curves are not preserved by the native clip format.", target, bank, slot));
             }
             if (clip && (uint)slot >= original.Animations.Count)
             {
@@ -136,8 +138,9 @@ internal sealed partial class RecreateGame
         {
             supported = false;
             status = "Unsupported: " + target + " · " + exception.Message;
+            readStatus = () => FormatAuthored("model.import.unsupported", "Unsupported: {0} · {1}", target, exception.Message);
         }
-        modelBrowser!.AddAsset(new(id, name, group, clip, supported, status + " · Scope: all consumers of this exact target slot · Retained target rig is required", supported) { RigId = target });
+        modelBrowser!.AddAsset(new(id, name, group, clip, supported, status + " · Scope: all consumers of this exact target slot · Retained target rig is required", supported) { RigId = target, ReadGroup = readGroup, ReadDetail = () => FormatAuthored("model.import.target-scope", "{0} · Scope: all consumers of this exact target slot · Retained target rig is required", readStatus()) });
     }
 
     private EditableModel ReadImportOriginal(string target, string bank)
@@ -266,7 +269,7 @@ internal sealed partial class RecreateGame
         {
             ModelAssetSelection selection = BrowserImportSelection(preview: false);
             List<ModelModReplacement> replacements = [];
-            List<string> warnings = [.. browserImportWarnings];
+            List<string> warnings = [.. browserImportWarnings.Select(read => read())];
             foreach (ModelAssetObject item in selection.Objects)
             {
                 ModelAssetClip[] clips = selection.Clips.Where(clip => clip.ModelTarget == item.Target).ToArray();
@@ -280,7 +283,7 @@ internal sealed partial class RecreateGame
                     EditableModel original = ReadImportOriginal(item.Target, bank);
                     if (MathF.Abs(original.Animations[slot].Duration - clip.Animation.Duration) > 0.0001f)
                     {
-                        warnings.Add($"{clip.Target}: clip duration changed; game scripts may rely on native frame positions.");
+                        warnings.Add(FormatAuthored("model.import.duration-warning", "{0}: clip duration changed; game scripts may rely on native frame positions.", clip.Target));
                     }
                     return new ModelModClipReplacement(bank, slot, clip.Animation);
                 }).ToArray();
@@ -297,7 +300,7 @@ internal sealed partial class RecreateGame
             }
             if (replacements.Count == 0)
             {
-                throw new InvalidDataException("Select at least one matched object or clip component.");
+                throw new InvalidDataException(LocalizeAuthored("model.import.selection-required", "Select at least one matched object or clip component."));
             }
             ModelModInstallPlan plan = ModelModInstaller.Plan(replacements);
             if (warnings.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, string.Join("\n", warnings.Distinct()), localizeText: LocalizeUiText))
@@ -321,7 +324,7 @@ internal sealed partial class RecreateGame
             modelBrowser!.CloseAssetPanel();
             RefreshModelBrowserEntries(refreshVariants: true);
             modelPreviewIdentity = null;
-            modelBrowser.SetMessage(published ? "Selected replacements installed. Reload the scene to apply them." : "Files installed; inspect Mods diagnostics before use.");
+            modelBrowser.SetMessage(() => published ? LocalizeAuthored("model-browser.import.published", "Selected replacements installed. Reload the scene to apply them.") : LocalizeAuthored("model-browser.import.pending", "Files installed; inspect Mods diagnostics before use."));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {

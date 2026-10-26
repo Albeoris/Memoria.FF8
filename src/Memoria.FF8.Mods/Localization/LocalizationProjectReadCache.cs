@@ -7,7 +7,7 @@ using Albeoris.Games.FF8.Imaging;
 
 namespace Memoria.FF8.Mods.Localization;
 
-/// <summary>Bounded parsed-payload reuse. File snapshots and complete-project validation still run for every read.</summary>
+/// <summary>Bounded content-keyed reuse of parsed rows, validated PNG dimensions and decoded target pixels. Files and project contracts are checked on every read.</summary>
 public sealed class LocalizationProjectReadCache
 {
     private sealed record Entry(object Value, long Cost, LinkedListNode<string> Node);
@@ -67,7 +67,7 @@ public sealed class LocalizationProjectReadCache
             ReferencePresence = row.ReferencePresence.ToImmutableDictionary(StringComparer.Ordinal),
             ExtensionData = row.ExtensionData.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal)
         }).ToImmutableArray();
-        long cost = checked((long)bytes.Length * 4 + rows.Length * 512L + key.Length * 2L);
+        long cost = checked((long)bytes.Length * 4 + rows.Length * 512L + key.Length * 2L + 512L);
         Store(key, rows, cost);
         return rows;
     }
@@ -89,7 +89,7 @@ public sealed class LocalizationProjectReadCache
         PixelImage decoded = TextureImageDecoder.Decode(bytes, path).Image;
         Interlocked.Increment(ref artworkDecodes);
         dimensions = new(decoded.Width, decoded.Height);
-        Store(key, dimensions, 128L + key.Length * 2L);
+        Store(key, dimensions, 512L + key.Length * 2L);
         return dimensions;
     }
 
@@ -104,7 +104,7 @@ public sealed class LocalizationProjectReadCache
         PixelImage decoded = TextureImageDecoder.Decode(bytes, path).Image;
         Interlocked.Increment(ref artworkDecodes);
         image = new(decoded.Width, decoded.Height, decoded.Pixels.ToImmutableArray());
-        Store(key, image, checked((long)decoded.Width * decoded.Height * 4 + 256L + key.Length * 2L));
+        Store(key, image, checked((long)decoded.Width * decoded.Height * 4 + 512L + key.Length * 2L));
         return image;
     }
 

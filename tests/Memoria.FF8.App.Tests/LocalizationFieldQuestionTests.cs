@@ -34,7 +34,7 @@ public sealed class LocalizationFieldQuestionTests
         restored.Restore(active);
         Assert.True(JsonElement.DeepEquals(active, restored.Capture()));
         string hash = Convert.ToHexString(SHA256.HashData(Program(commands)));
-        LocalizationFieldText field = new("Localized heading{Line}Help{Line}Options{Line}Yes{Line}No", hash, 20, 30, 300, 120, null, null, null, null, [new(native.Operation, 0, true, null, null, null, null) { IsChoice = true }]) { ChoiceLineMap = [new(1, 3), new(2, 4)] };
+        LocalizationFieldText field = new("日本語 😀{Line}Help{Line}Options{Line}Да{Line}Нет", hash, 20, 30, 300, 120, null, null, null, null, [new(native.Operation, 0, true, null, null, null, null) { IsChoice = true }]) { ChoiceLineMap = [new(1, 3), new(2, 4)] };
         LocalizationCatalog Catalog(LocalizationFieldText value) => new(new Dictionary<string, LocalizationValue> { ["$en_fixture_0000"] = new(value.Body, "fixture", "fixture") { Field = value } });
         DialogueState Display(EventEngine engine, LocalizationCatalog catalog)
         {
@@ -47,7 +47,7 @@ public sealed class LocalizationFieldQuestionTests
         Assert.Equal(4, display.InitialChoice);
         Assert.Equal(cancel == 1 ? 3 : cancel, display.CancelChoice);
         Assert.Equal(display, Display(restored, Catalog(field)));
-        Assert.StartsWith("Updated", Display(restored, Catalog(field with { Body = field.Body.Replace("Localized", "Updated", StringComparison.Ordinal) })).Text);
+        Assert.StartsWith("更新", Display(restored, Catalog(field with { Body = field.Body.Replace("日本語", "更新", StringComparison.Ordinal) })).Text);
         Assert.True(JsonElement.DeepEquals(active, live.Capture()));
         Assert.True(JsonElement.DeepEquals(active, restored.Capture()));
         Assert.Equal(native.Text, RecreateGame.ProjectLocalizedDialogue(native, null).Text);
@@ -80,13 +80,14 @@ public sealed class LocalizationFieldQuestionTests
         Assert.NotNull(native.LastChoice);
         JsonElement before = world.Events.Capture();
         string hash = Convert.ToHexString(SHA256.HashData(world.Field!.Jsm));
-        LocalizationFieldText field = new("Localized heading{Line}Unicode translation{Line}" + native.Text, hash, null, null, null, null, null, null, null, null, [new(native.Operation, native.MessageId, true, null, null, null, null) { IsChoice = true }])
+        LocalizationFieldText field = new("日本語 😀{Line}Перевод{Line}" + native.Text, hash, null, null, null, null, null, null, null, null, [new(native.Operation, native.MessageId, true, null, null, null, null) { IsChoice = true }])
         {
             ChoiceLineMap = Enumerable.Range(native.FirstChoice!.Value, native.LastChoice!.Value - native.FirstChoice.Value + 1).Select(line => new LocalizationChoiceLineMapEntry(line, line + 2)).ToImmutableArray()
         };
         LocalizationCatalog catalog = new(new Dictionary<string, LocalizationValue> { ["$en_fixture_0000"] = new(field.Body, "fixture", "fixture") { Field = field } });
         DialogueState Display(DialogueState dialogue) => RecreateGame.ProjectLocalizedDialogue(dialogue, catalog.ResolveField("$en_fixture_0000", dialogue.Operation, hash, dialogue.FirstChoice, dialogue.LastChoice, dialogue.InitialChoice, dialogue.CancelChoice));
         DialogueState display = Display(native);
+        Assert.StartsWith("日本語 😀{Line}Перевод{Line}", display.Text);
         Assert.Equal(native.FirstChoice + 2, display.FirstChoice);
         Assert.Equal(native.LastChoice + 2, display.LastChoice);
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
@@ -94,7 +95,7 @@ public sealed class LocalizationFieldQuestionTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOCALIZATION_CHECKPOINT_OUTPUT") ?? TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         string active = Path.Combine(output, "localized-question-active.json");
-        session.Save(active);
+        session.Save(active, compact: true);
         using GameWorld restored = new(new GameSession(GameSession.Load(active)), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -105,7 +106,7 @@ public sealed class LocalizationFieldQuestionTests
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         session.SetEventState(world.Events.Capture());
         string selected = Path.Combine(output, "localized-question-selected.json");
-        session.Save(selected);
+        session.Save(selected, compact: true);
         File.WriteAllText(Path.Combine(output, "localized-question-validation.json"), JsonSerializer.Serialize(new { Source = original, Active = active, Selected = selected, Field = world.Events.FieldId, Frame = world.Events.Frame, native.Operation, native.MessageId, native.FirstChoice, native.LastChoice, native.InitialChoice, native.CancelChoice, NativeTextUnchanged = true, ActiveRestoreEqual = true, ChoiceRestoreEqual = true }));
     }
 

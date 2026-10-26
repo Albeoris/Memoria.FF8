@@ -41,7 +41,13 @@ public sealed record GuardianForceAbilityProfile(ImmutableArray<ImmutableArray<G
 }
 
 public sealed record GuardianForceAbilityReset(int GuardianForce, int Ability, bool Learned);
-public sealed record GuardianForceAbilityApplyPreview(NativeCharacterVitals Source, NativeCharacterVitals Vitals, string SourceRevision, long ModGeneration, ImmutableArray<string> Consequences);
+public sealed record GuardianForceAbilityApplyPreview(NativeCharacterVitals Source, NativeCharacterVitals Vitals, string SourceRevision, long ModGeneration, ImmutableArray<string> Consequences)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ImmutableArray<GuardianForceAbilityText> ConsequenceTexts { get; init; } = [];
+
+    public ImmutableArray<string> FormatConsequences(Func<string, string, string>? localize = null) => Consequences.Select((original, index) => index < ConsequenceTexts.Length ? ConsequenceTexts[index].Format(localize) : original).ToImmutableArray();
+}
 
 public sealed class GuardianForceAbilityPreparedApply
 {
@@ -87,20 +93,20 @@ public sealed partial class GameSession
         }
         result = result.ApplyGuardianForceTemplates(templates);
         NativeCharacterVitals priorProgress = source.ApplyGuardianForceTemplates(source.ResolveGuardianForceTemplates());
-        List<string> consequences = [];
+        List<GuardianForceAbilityText> consequences = [];
         for (int id = 0; id < 16; id++)
         {
             NativeGuardianForceVital before = source.GuardianForces[id];
             NativeGuardianForceVital after = result.GuardianForces[id];
             if (before.Learning != after.Learning)
             {
-                consequences.Add($"GF {id}: learning target {before.Learning} -> {after.Learning}.");
+                consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.learning", id, before.Learning, after.Learning));
             }
             foreach (NativeGuardianForceAbility ability in source.GuardianForceAbilities(id).Where(entry => entry.Learned))
             {
                 if (!result.GuardianForceAbilities(id).Any(entry => entry.Ability == ability.Ability && entry.Learned))
                 {
-                    consequences.Add($"GF {id}: learned ability {ability.Ability} becomes inactive.");
+                    consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.inactive", id, ability.Ability));
                 }
             }
         }
@@ -109,13 +115,13 @@ public sealed partial class GameSession
             HashSet<int> knownLearned = source.GuardianForceAbilities(id).Where(entry => entry.Learned).Select(entry => entry.Ability).ToHashSet();
             foreach (NativeGuardianForceAbility ability in result.GuardianForceAbilities(id).Where(entry => entry.Learned && !knownLearned.Contains(entry.Ability)))
             {
-                consequences.Add($"GF {id}: ability {ability.Ability} becomes learned for the first time.");
+                consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.first-learned", id, ability.Ability));
             }
             foreach (GuardianForceAbilityProgress progress in priorProgress.GuardianForces[id].Progression?.Abilities ?? [])
             {
                 if (progress.EarnedPoints > 0 && source.ResolveGuardianForceTemplates()[id].Any(entry => entry.Ability == progress.Ability) && !templates[id].Any(entry => entry.Ability == progress.Ability))
                 {
-                    consequences.Add($"GF {id}: ability {progress.Ability}, {progress.EarnedPoints} AP retained dormant while absent from the new template.");
+                    consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.dormant-ap", id, progress.Ability, progress.EarnedPoints));
                 }
             }
         }
@@ -131,23 +137,23 @@ public sealed partial class GameSession
                 byte newPassive = (byte)(after.Abilities >> (8 * slot));
                 if (oldCommand != newCommand)
                 {
-                    consequences.Add($"Character {row}: command slot {slot + 1}, ability {oldCommand} -> {newCommand}.");
+                    consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.command", row, slot + 1, oldCommand, newCommand));
                 }
                 if (oldPassive != newPassive)
                 {
-                    consequences.Add($"Character {row}: passive slot {slot + 1}, ability {oldPassive} -> {newPassive}.");
+                    consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.passive", row, slot + 1, oldPassive, newPassive));
                 }
             }
             for (int slot = 0; slot < before.MagicJunctions.Length; slot++)
             {
                 if (before.MagicJunctions[slot] != after.MagicJunctions[slot])
                 {
-                    consequences.Add($"Character {row}: magic junction slot {slot}, spell {before.MagicJunctions[slot]} -> {after.MagicJunctions[slot]}.");
+                    consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.junction", row, slot, before.MagicJunctions[slot], after.MagicJunctions[slot]));
                 }
             }
             if (source.Records[row].HitPoints != result.Records[row].HitPoints)
             {
-                consequences.Add($"Character {row}: HP {source.Records[row].HitPoints.Minimum}..{source.Records[row].HitPoints.Maximum} -> {result.Records[row].HitPoints.Minimum}..{result.Records[row].HitPoints.Maximum}.");
+                consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.hp", row, source.Records[row].HitPoints.Minimum, source.Records[row].HitPoints.Maximum, result.Records[row].HitPoints.Minimum, result.Records[row].HitPoints.Maximum));
             }
         }
         foreach (GuardianForceAbilityReset reset in resetEntries)
@@ -157,22 +163,22 @@ public sealed partial class GameSession
             bool learned = progress?.Learned ?? previous?.Learned ?? false;
             bool forgotten = progress?.Forgotten ?? false;
             int points = progress?.EarnedPoints ?? previous?.Progress ?? 0;
-            consequences.Add($"GF {reset.GuardianForce}, ability {reset.Ability}: explicit reset Learned={learned}, Forgotten={forgotten}, AP={points} -> Learned={reset.Learned}, Forgotten=False, AP=0.");
+            consequences.Add(GuardianForceAbilityText.Create("guardian.editor.preview.reset", reset.GuardianForce, reset.Ability, GuardianForceAbilityText.Boolean(learned), GuardianForceAbilityText.Boolean(forgotten), points, GuardianForceAbilityText.Boolean(reset.Learned), GuardianForceAbilityText.Boolean(false)));
         }
         result.Validate();
-        return new(source.DeepCopy(), result, sourceRevision, modGeneration, consequences.ToImmutableArray());
+        return new(source.DeepCopy(), result, sourceRevision, modGeneration, consequences.Select(text => text.Format()).ToImmutableArray()) { ConsequenceTexts = consequences.ToImmutableArray() };
     }
 
-    public bool CanApplyGuardianForceAbilities(out string? reason)
+    public bool CanApplyGuardianForceAbilities(out string? reason, Func<string, string, string>? localize = null)
     {
         if (State.Battle is not null || State.PendingBattleEncounter is not null)
         {
-            reason = "GF changes must wait until the active or pending battle has ended.";
+            reason = GuardianForceAbilityText.Create("guardian.editor.boundary.battle").Format(localize);
             return false;
         }
         if (ActiveFieldMutationBoundary != FieldMutationBoundary.None)
         {
-            reason = "GF abilities cannot change during a tutorial or scripted field/party transition.";
+            reason = GuardianForceAbilityText.Create("guardian.editor.boundary.transition").Format(localize);
             return false;
         }
         reason = null;

@@ -15,9 +15,20 @@ public enum ModelAssetDiscoveryKind
     Coverage
 }
 
+public enum ModelAssetProgressKind
+{
+    Discovering,
+    FieldReferences,
+    Incomplete,
+    Complete
+}
+
+public sealed record ModelAssetProgress(ModelAssetProgressKind Kind, string? Subject = null);
+
 /// <summary>A supported native binding. Load retains the complete owner rig; ClipIndex selects one finite clip.</summary>
 public sealed record ModelAssetDiscoveryItem(string Id, string Name, ModelAssetDiscoveryKind Kind, string OwnerId, string ResourcePath, string Bank, int ClipIndex, string Provenance, Func<EditableModel>? Load = null)
 {
+    public ModelAssetProgress? Progress { get; init; }
     public string? Error { get; init; }
     public bool UsesOwnerSkeleton { get; init; }
     public string? ReplacementPart { get; init; }
@@ -100,7 +111,7 @@ public sealed partial class GameAssets
     public IEnumerable<ModelAssetDiscoveryItem> DiscoverModelAssets(ModelCatalogEntry entry, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        yield return new(entry.Id + "/discovering", "Discovering", ModelAssetDiscoveryKind.Progress, entry.Id, entry.ResourcePath, "", -1, "selected resource");
+        yield return new(entry.Id + "/discovering", "Discovering", ModelAssetDiscoveryKind.Progress, entry.Id, entry.ResourcePath, "", -1, "selected resource") { Progress = new(ModelAssetProgressKind.Discovering) };
         bool incomplete = false;
         EditableModel? selected = null;
         string? error = null;
@@ -185,7 +196,7 @@ public sealed partial class GameAssets
     }
 
     private static ModelAssetDiscoveryItem DiscoveryDiagnostic(ModelCatalogEntry entry, string key, string message) => new(entry.Id + "/diagnostic/" + key, message, ModelAssetDiscoveryKind.Diagnostic, entry.Id, entry.ResourcePath, "", -1, "unsupported or unavailable source") { Error = message };
-    private static ModelAssetDiscoveryItem DiscoveryCoverage(ModelCatalogEntry entry, bool incomplete) => new(entry.Id + "/coverage", incomplete ? "Incomplete: see source diagnostics" : "Complete for supported sources", ModelAssetDiscoveryKind.Coverage, entry.Id, entry.ResourcePath, "", -1, "discovery scope") { Error = incomplete ? "Some sources are unsupported or unavailable." : null };
+    private static ModelAssetDiscoveryItem DiscoveryCoverage(ModelCatalogEntry entry, bool incomplete) => new(entry.Id + "/coverage", incomplete ? "Incomplete: see source diagnostics" : "Complete for supported sources", ModelAssetDiscoveryKind.Coverage, entry.Id, entry.ResourcePath, "", -1, "discovery scope") { Error = incomplete ? "Some sources are unsupported or unavailable." : null, Progress = new(incomplete ? ModelAssetProgressKind.Incomplete : ModelAssetProgressKind.Complete) };
 }
 
 internal static partial class BattleResourceReader

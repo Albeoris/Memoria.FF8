@@ -7,7 +7,7 @@ internal static class ModelBrowserDialogs
 {
     public static string? Export(nint owner, string name, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         using DpiScope dpi = new();
         SaveFileDialog dialog = new()
         {
@@ -23,7 +23,7 @@ internal static class ModelBrowserDialogs
 
     public static string? Import(nint owner, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         using DpiScope dpi = new();
         OpenFileDialog dialog = new()
         {
@@ -38,7 +38,7 @@ internal static class ModelBrowserDialogs
     public static string? Destination(nint owner, string root, Func<string, string, string>? localizeText = null)
     {
         Directory.CreateDirectory(root);
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         using DpiScope dpi = new();
         OpenFolderDialog dialog = new()
         {
@@ -51,7 +51,7 @@ internal static class ModelBrowserDialogs
 
     public static bool Confirm(nint owner, string warning, string? title = null, string? question = null, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         using DpiScope dpi = new();
         return MessageBoxW(owner, warning + "\n\n" + (question ?? SystemText("model.dialog.import.question", "Import this model anyway?")), title ?? SystemText("model.dialog.import.warning-title", "Model import warning"), 0x134) == 6;
     }

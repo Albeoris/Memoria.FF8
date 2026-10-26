@@ -76,6 +76,8 @@ public sealed class MenuCharacter
     public Dictionary<string, string> Junctions { get; } = new(StringComparer.Ordinal);
     public List<MenuLimitMove> LimitMoves { get; } = [];
     public Dictionary<string, string> LimitSettings { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, bool> LimitToggles { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, bool> LimitAvailability { get; } = new(StringComparer.Ordinal);
     public List<string> SlotPreview { get; } = [];
 }
 

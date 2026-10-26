@@ -242,7 +242,7 @@ public sealed partial class MenuController
     {
         if (!GameNames.IsValidDraft(text))
         {
-            throw new ArgumentException("Use at most 20 characters without control characters.", nameof(text));
+            throw new ArgumentException(SystemText("name.validation.character-limit", "Use at most 20 characters without control characters."), nameof(text));
         }
         _nameDraft = text;
         _nameHighSurrogate = null;

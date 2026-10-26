@@ -13,12 +13,14 @@ public static class NativeChocoboWorldReader
         string hash = Convert.ToHexString(SHA256.HashData(file));
         byte[] world;
         string format;
+        string formatId;
         int first;
         bool dual;
         if (file.Length == 514 && BinaryPrimitives.ReadUInt16LittleEndian(file) == 0x08FF)
         {
             world = file[2..].ToArray();
             format = "PC uncompressed";
+            formatId = "chocobo.format.pc-uncompressed";
             first = 0;
             dual = false;
         }
@@ -27,10 +29,11 @@ public static class NativeChocoboWorldReader
             byte[] decoded = Expand(file);
             if (BinaryPrimitives.ReadUInt16LittleEndian(decoded) != 0x08FF)
             {
-                throw new InvalidDataException("Chocobo World save header is invalid or its write was interrupted.");
+                throw ChocoboText.Create("chocobo.error.save-header").InvalidData();
             }
             world = decoded.AsSpan(2).ToArray();
             format = "PC LZSS";
+            formatId = "chocobo.format.pc-lzss";
             first = 0;
             dual = false;
         }
@@ -38,6 +41,7 @@ public static class NativeChocoboWorldReader
         {
             world = file[128..].ToArray();
             format = "PlayStation MCS";
+            formatId = "chocobo.format.mcs";
             first = 0x200;
             dual = true;
         }
@@ -45,28 +49,30 @@ public static class NativeChocoboWorldReader
         {
             world = file.ToArray();
             format = "PocketStation raw application";
+            formatId = "chocobo.format.raw";
             first = 0x200;
             dual = true;
         }
         else
         {
-            throw new NotSupportedException("This Chocobo World container has not been identified. Use a native PC save or a Chocobo World MCS export.");
+            throw ChocoboText.Create("chocobo.error.container").NotSupported();
         }
         if (dual && (world[0] != (byte)'S' || world[1] != (byte)'C' || world[3] != 7))
         {
-            throw new InvalidDataException("Chocobo World MCS application header is invalid.");
+            throw ChocoboText.Create("chocobo.error.application-header").InvalidData();
         }
         bool primaryValid = ValidState(world.AsSpan(first, 64));
         bool backupValid = dual && ValidState(world.AsSpan(first + 256, 64));
         if (!primaryValid && !backupValid)
         {
-            throw new InvalidDataException("No structurally valid Chocobo World save bank is available.");
+            throw ChocoboText.Create("chocobo.error.no-valid-bank").InvalidData();
         }
         int bank = !primaryValid || (backupValid && BinaryPrimitives.ReadUInt32LittleEndian(world.AsSpan(first + 264)) > BinaryPrimitives.ReadUInt32LittleEndian(world.AsSpan(first + 8))) ? 1 : 0;
         ReadOnlySpan<byte> state = world.AsSpan(first + bank * 256, 64);
         int level = Bcd(state[1]);
         return new(format, hash, bank, BinaryPrimitives.ReadUInt32LittleEndian(state[8..]), BinaryPrimitives.ReadUInt32LittleEndian(state[0x28..]), Bcd(state[0x0D]) * 100 + Bcd(state[0x0C]), level == 0 ? 100 : level, Bcd(state[2]), Bcd(state[3]), state[0x2D], state[0], ImmutableArray.Create(Bcd(state[0x14]), Bcd(state[0x15]), Bcd(state[0x16]), Bcd(state[0x17])), ImmutableArray.CreateRange(state.ToArray()), ImmutableArray.CreateRange(world))
         {
+            FormatText = ChocoboText.Create(formatId),
             BackupRevision = dual ? BinaryPrimitives.ReadUInt32LittleEndian(world.AsSpan(first + (1 - bank) * 256 + 8)) : null,
             BackupStructurallyValid = dual && (bank == 0 ? backupValid : primaryValid)
         };
@@ -115,7 +121,7 @@ public static class NativeChocoboWorldReader
                 {
                     if (input == file.Length)
                     {
-                        throw new InvalidDataException("Chocobo World LZSS literal is truncated.");
+                        throw ChocoboText.Create("chocobo.error.literal-truncated").InvalidData();
                     }
                     byte value = file[input++];
                     output[position++] = value;
@@ -126,14 +132,14 @@ public static class NativeChocoboWorldReader
                 {
                     if (input + 2 > file.Length)
                     {
-                        throw new InvalidDataException("Chocobo World LZSS reference is truncated.");
+                        throw ChocoboText.Create("chocobo.error.reference-truncated").InvalidData();
                     }
                     int offset = file[input] | ((file[input + 1] & 0xF0) << 4);
                     int length = (file[input + 1] & 15) + 3;
                     input += 2;
                     if (position + length > output.Length)
                     {
-                        throw new InvalidDataException("Chocobo World LZSS reference exceeds the world image.");
+                        throw ChocoboText.Create("chocobo.error.reference-exceeds").InvalidData();
                     }
                     for (int index = 0; index < length; index++)
                     {
@@ -147,7 +153,7 @@ public static class NativeChocoboWorldReader
         }
         if (input != file.Length || position != output.Length)
         {
-            throw new InvalidDataException("Chocobo World LZSS must contain exactly one complete world image.");
+            throw ChocoboText.Create("chocobo.error.decoded-size").InvalidData();
         }
         return output;
     }

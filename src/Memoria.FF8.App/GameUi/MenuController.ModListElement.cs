@@ -19,7 +19,8 @@ public sealed partial class MenuController
         private float rowHeight;
         private int first;
         private int selected;
-        private string? notice;
+        private readonly Func<string?> readNotice;
+        private string? notice => readNotice();
 
         public ModListElement(MenuController menus)
         {
@@ -35,49 +36,49 @@ public sealed partial class MenuController
             {
                 menus.SelectMod(packages[selected].Package.Id);
             }
-            Button("installed-tab", "Installed Mods", () => { });
-            Button("create-tab", "Create Mods", () => menus.Push("mods-create"));
-            Button("mod-refresh", "Refresh", () => menus.Execute(new("mod-refresh")));
+            Button("installed-tab", menus.SystemText("mods.list.installed.mods", "Installed Mods"), () => { });
+            Button("create-tab", menus.SystemText("mods.list.create.mods", "Create Mods"), () => menus.Push("mods-create"));
+            Button("mod-refresh", menus.SystemText("mods.list.refresh", "Refresh"), () => menus.Execute(new("mod-refresh")));
             controls["mod-refresh"].Enabled = snapshot.Outcome != ModUpdateOutcome.Updating;
-            Button("mod-actions", "Actions", () => menus.Push("mods-actions"));
-            Button("mod-search", menus.modSearch.Length == 0 ? "Search mods…" : menus.modSearch, () => menus.Push("mods-search"));
-            Choice("mod-filter", ModFilters, menus.modFilter, value =>
+            Button("mod-actions", menus.SystemText("mods.list.actions", "Actions"), () => menus.Push("mods-actions"));
+            Button("mod-search", menus.modSearch.Length == 0 ? menus.SystemText("mods.list.search.mods", "Search mods…") : menus.modSearch, () => menus.Push("mods-search"));
+            Choice("mod-filter", menus.ModFilterLabels(), menus.modFilter, value =>
             {
                 menus.modFilter = value;
                 menus.RestoreModSelection(true);
             });
-            Choice("mod-format", ModFormats, menus.modFormat, value =>
+            Choice("mod-format", menus.ModFormatLabels(), menus.modFormat, value =>
             {
                 menus.modFormat = value;
                 menus.RestoreModSelection(true);
             });
-            Button("mod-clear", "Clear", () => menus.Execute(new("mod-clear")));
+            Button("mod-clear", menus.SystemText("mods.list.clear", "Clear"), () => menus.Execute(new("mod-clear")));
             controls["mod-clear"].Visible = menus.modSearch.Length != 0 || menus.modFilter != 0 || menus.modFormat != 0;
-            notice = snapshot.Outcome switch
+            readNotice = () => snapshot.Outcome switch
             {
-                ModUpdateOutcome.Updating => "Updating mods…",
-                ModUpdateOutcome.ReviewRequired => "GF changes require review. Current resources remain in use.",
-                ModUpdateOutcome.Blocked => "Changes blocked. Current resources remain in use.",
-                ModUpdateOutcome.Failed => "Changes could not be applied. Current resources remain in use.",
-                ModUpdateOutcome.PublishedWithWarnings => snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == "resource-rejected") ? "Mods applied. Some replacement resources were rejected." : "Mods applied. A follow-up action reported a problem.",
-                _ => snapshot.Diagnostics.Count > 0 ? "Mod diagnostics are available." : null
+                ModUpdateOutcome.Updating => menus.SystemText("mods.list.updating.mods", "Updating mods…"),
+                ModUpdateOutcome.ReviewRequired => menus.SystemText("mods.list.gf.changes.require.review.current.resources.remain.in.use", "GF changes require review. Current resources remain in use."),
+                ModUpdateOutcome.Blocked => menus.SystemText("mods.list.changes.blocked.current.resources.remain.in.use", "Changes blocked. Current resources remain in use."),
+                ModUpdateOutcome.Failed => menus.SystemText("mods.list.changes.could.not.be.applied.current.resources.remain.in.use", "Changes could not be applied. Current resources remain in use."),
+                ModUpdateOutcome.PublishedWithWarnings => snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == "resource-rejected") ? menus.SystemText("mods.list.mods.applied.some.replacement.resources.were.rejected", "Mods applied. Some replacement resources were rejected.") : menus.SystemText("mods.list.mods.applied.a.follow.up.action.reported.a.problem", "Mods applied. A follow-up action reported a problem."),
+                _ => snapshot.Diagnostics.Count > 0 ? menus.SystemText("mods.list.mod.diagnostics.are.available", "Mod diagnostics are available.") : null
             };
-            Button("mod-review", menus.HasModReview ? "Review changes" : "Review details", () => menus.Push(menus.HasModReview ? "gf-mod-review" : "mods-diagnostics"));
+            Button("mod-review", menus.HasModReview ? menus.SystemText("mods.list.review.changes", "Review changes") : menus.SystemText("mods.list.review.details", "Review details"), () => menus.Push(menus.HasModReview ? "gf-mod-review" : "mods-diagnostics"));
             controls["mod-review"].Visible = notice is not null;
             table = new ModTable(this) { Id = "commands", Focusable = true };
             TrackFocus(table);
             controls.Add("commands", table);
             Children.Add(table);
-            Button("mod-inspector", "Details", () =>
+            Button("mod-inspector", menus.SystemText("mods.list.details", "Details"), () =>
             {
                 menus.modInspectorOpen = !menus.modInspectorOpen;
                 menus._view = null;
             });
-            Button("mod-selected-toggle", "Enable / Disable", () => menus.Execute(new("mod-selected-toggle")));
-            Button("mod-diagnostics", "View diagnostics", () => menus.Push("mods-diagnostics"));
-            Button("mod-prev", "← Previous", () => menus.MoveModSelection(-1, true));
-            Button("mod-next", "Next →", () => menus.MoveModSelection(1, true));
-            Button("mod-auto", (snapshot.AutoEnableNewMods ? "☑ " : "☐ ") + "Automatically enable new mods", () => menus.Execute(new("mod-auto")));
+            Button("mod-selected-toggle", menus.SystemText("mods.list.enable.disable", "Enable / Disable"), () => menus.Execute(new("mod-selected-toggle")));
+            Button("mod-diagnostics", menus.SystemText("mods.list.view.diagnostics", "View diagnostics"), () => menus.Push("mods-diagnostics"));
+            Button("mod-prev", menus.SystemText("mods.list.previous", "← Previous"), () => menus.MoveModSelection(-1, true));
+            Button("mod-next", menus.SystemText("mods.list.next", "Next →"), () => menus.MoveModSelection(1, true));
+            Button("mod-auto", (snapshot.AutoEnableNewMods ? "☑ " : "☐ ") + menus.SystemText("mods.list.automatically.enable.new.mods", "Automatically enable new mods"), () => menus.Execute(new("mod-auto")));
         }
 
         private void TrackFocus(UiElement element)
@@ -269,7 +270,7 @@ public sealed partial class MenuController
                     {
                         Text(view.Package.Format.ToString(), Bounds.Right - statusWidth - formatWidth, row.Y, formatWidth - 8, row.Height, theme.Muted, 14);
                     }
-                    Text(view.StatusText, Bounds.Right - statusWidth, row.Y, statusWidth - 6, row.Height, view.NeedsAttention ? new UiColor(239, 204, 144) : theme.Foreground, 14);
+                    Text(owner.menus.ModStatusText(view), Bounds.Right - statusWidth, row.Y, statusWidth - 6, row.Height, view.NeedsAttention ? new UiColor(239, 204, 144) : theme.Foreground, 14);
                 }
                 if (owner.packages.Length == 0)
                 {

@@ -52,6 +52,7 @@ public sealed partial class MenuController
             Id = "junction-gf-confirm",
             Title = "Transfer GF",
             Help = question,
+            HelpText = c => c.FormatSystemText("junction.transfer.question", "Remove {0} from {1} and junction it to {2}?", force.Name, owner.Name, destination.Name),
             Entries = _ =>
             [
                 new MenuEntry("no", SystemText("ui.executeguardianforcetransfer.entry.label.no", "No"), SystemText("ui.executeguardianforcetransfer.entry.help.keep.the.current.junction", "Keep the current junction."), Action: new MenuAction("menu-back")),

@@ -26,31 +26,32 @@ public sealed partial class MenuController
         {
             return false;
         }
-        string warning = SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
-        string[] rules = GameplayPreferences.NewGameOptions.Select(option => MagicUiText.SettingLabel(option.Label)).ToArray();
+        string Warning() => SystemText("ui.executehardcoreconfirmation.warning.are.you.sure.this.change.is.permanent.hardcore", "Are you sure? This change is permanent. Hardcore cannot be disabled, and these rules will be enabled and locked On:");
+        string[] Rules() => GameplayPreferences.NewGameOptions.Select(option => LocalizeSettingLabel(option.Label, MagicUiText.SettingLabel(option.Label))).ToArray();
         Register(new MenuScreenDefinition
         {
             Id = "hardcore-confirm",
             Title = "Enable Hardcore?",
-            Help = warning,
+            Help = Warning(),
+            HelpText = _ => Warning(),
             Entries = _ =>
             [
                 new MenuEntry("no", SystemText("ui.executehardcoreconfirmation.entry.label.no", "No"), SystemText("ui.executehardcoreconfirmation.entry.help.keep.the.current.difficulty.and.rules", "Keep the current difficulty and rules."), Action: new MenuAction("menu-back")),
-                new MenuEntry("yes", SystemText("ui.executehardcoreconfirmation.entry.label.yes.enable.hardcore", "Yes, enable Hardcore"), warning, Action: new MenuAction("hardcore-confirm"))
+                new MenuEntry("yes", SystemText("ui.executehardcoreconfirmation.entry.label.yes.enable.hardcore", "Yes, enable Hardcore"), Warning(), Action: new MenuAction("hardcore-confirm"))
             ],
-            Details = _ => [warning, .. rules],
+            Details = _ => [Warning(), .. Rules()],
             BuildContent = (menus, root) =>
             {
                 var anchor = new UiAnchorPanel();
                 var content = Grid([3, 5, 3], [1], 8);
-                UiLabel prompt = menus.Label(warning, 20);
+                UiLabel prompt = menus.Label(Warning(), 20);
                 prompt.TextFlow = UiTextFlow.Wrap;
                 Place(content, prompt, 0);
-                int rowCount = (rules.Length + 1) / 2;
+                int rowCount = (Rules().Length + 1) / 2;
                 var options = Grid(Enumerable.Repeat(1f, rowCount).ToArray(), [1, 1], 6);
-                for (int index = 0; index < rules.Length; index++)
+                for (int index = 0; index < Rules().Length; index++)
                 {
-                    Place(options, menus.Label(rules[index], 15, UiTextFlow.Wrap), index % rowCount, index / rowCount);
+                    Place(options, menus.Label(Rules()[index], 15, UiTextFlow.Wrap), index % rowCount, index / rowCount);
                 }
                 Place(content, options, 1);
                 Place(content, menus.Commands(30, 22), 2);

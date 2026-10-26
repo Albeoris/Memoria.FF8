@@ -103,7 +103,7 @@ internal sealed partial class RecreateGame
             modelPreviewIdentity = null;
         }
         modelBrowser.Refresh(modelCatalog.Values.Select(entry => new ModelBrowserEntry(entry.Id, entry.Name, entry.Category, entry.SearchText,
-            new[] { new ModelBrowserVariant("original", "Original"), new ModelBrowserVariant("resolved", "Resolved") }.Concat(browserInstalledModelMods.Variants.Select(item => item.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).Select(id => new ModelBrowserVariant(id, id + (resourceHost.Mods.Catalog.Packages.Any(package => package.Id == id && package.Status == ModEffectiveStatus.Disabled) ? " (disabled)" : "")))).ToArray(),
+            new[] { new ModelBrowserVariant("original", "Original") { ReadName = () => LocalizeAuthored("model.variant.original", "Original") }, new ModelBrowserVariant("resolved", "Resolved") { ReadName = () => LocalizeAuthored("model.variant.resolved", "Resolved") } }.Concat(browserInstalledModelMods.Variants.Select(item => item.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).Select(id => new ModelBrowserVariant(id, id + (resourceHost.Mods.Catalog.Packages.Any(package => package.Id == id && package.Status == ModEffectiveStatus.Disabled) ? " (disabled)" : "")) { ReadName = () => resourceHost.Mods.Catalog.Packages.Any(package => package.Id == id && package.Status == ModEffectiveStatus.Disabled) ? FormatAuthored("model.variant.disabled", "{0} (disabled)", id) : id })).ToArray(),
             [entry.ResourcePath, entry.LoadError ?? entry.Id])));
     }
 
@@ -134,7 +134,7 @@ internal sealed partial class RecreateGame
         {
             modelCatalogReader?.Dispose();
             modelCatalogReader = null;
-            modelBrowser.SetMessage("Catalog discovery: " + exception.Message);
+            modelBrowser.SetMessage(() => FormatAuthored("model-browser.discovery.failed", "Catalog discovery: {0}", exception.Message));
         }
     }
 
@@ -145,9 +145,9 @@ internal sealed partial class RecreateGame
             return;
         }
         string directions = $"{keyboard.BindingPrompt(ControlAction.MoveUp)} / {keyboard.BindingPrompt(ControlAction.MoveDown)} / {keyboard.BindingPrompt(ControlAction.MoveLeft)} / {keyboard.BindingPrompt(ControlAction.MoveRight)}";
-        modelBrowser.SetHints(modelBrowser.AssetsOpen
-            ? $"{keyboard.BindingPrompt(ControlAction.UiTab)}: preview / list · {directions}: navigate · {keyboard.BindingPrompt(ControlAction.Confirm)} / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · {keyboard.BindingPrompt(ControlAction.Cancel)}: cancel selection"
-            : $"{directions}: select / rotate · {keyboard.BindingPrompt(ControlAction.Confirm)}: view / commands · {keyboard.BindingPrompt(ControlAction.Cancel)}: back\n{keyboard.BindingPrompt(ControlAction.CameraLeft)} / {keyboard.BindingPrompt(ControlAction.CameraRight)}: model · {keyboard.BindingPrompt(ControlAction.RotateLeft)} / {keyboard.BindingPrompt(ControlAction.RotateRight)}: zoom · {keyboard.BindingPrompt(ControlAction.Card)}: variant · {keyboard.BindingPrompt(ControlAction.UiTab)}: search");
+        modelBrowser.SetHints(() => modelBrowser.AssetsOpen
+            ? FormatAuthored("model-browser.assets.hints", "{0}: preview / list · {1}: navigate · {2} / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · {3}: cancel selection", keyboard.BindingPrompt(ControlAction.UiTab), directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel))
+            : FormatAuthored("model-browser.preview.hints", "{0}: select / rotate · {1}: view / commands · {2}: back\n{3} / {4}: model · {5} / {6}: zoom · {7}: variant · {8}: search", directions, keyboard.BindingPrompt(ControlAction.Confirm), keyboard.BindingPrompt(ControlAction.Cancel), keyboard.BindingPrompt(ControlAction.CameraLeft), keyboard.BindingPrompt(ControlAction.CameraRight), keyboard.BindingPrompt(ControlAction.RotateLeft), keyboard.BindingPrompt(ControlAction.RotateRight), keyboard.BindingPrompt(ControlAction.Card), keyboard.BindingPrompt(ControlAction.UiTab)));
     }
 
     private bool UpdateModelBrowserUi(InputFrame input, TimeSpan elapsed)
@@ -280,7 +280,10 @@ internal sealed partial class RecreateGame
                 modelPreview = null;
                 modelPreview = ReadBrowserModel(entry, variant);
                 ResetBrowserAssets(entry, variant);
-                modelBrowser.SetMessage($"{modelPreview.Bones.Count(bone => bone.IsJoint)} bones · {modelPreview.Meshes.Count} meshes · {modelPreview.Animations.Count} animations");
+                int jointCount = modelPreview.Bones.Count(bone => bone.IsJoint);
+                int meshCount = modelPreview.Meshes.Count;
+                int animationCount = modelPreview.Animations.Count;
+                modelBrowser.SetMessage(() => FormatAuthored("model-browser.preview.summary", "{0} bones · {1} meshes · {2} animations", jointCount, meshCount, animationCount));
             }
             if (modelPreview is null)
             {
@@ -331,7 +334,7 @@ internal sealed partial class RecreateGame
             ResetBrowserAssets(entry, variant);
         }
         modelBrowser!.OpenAssetPanel(CompleteBrowserExport);
-        modelBrowser.SetHints("Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · Back: cancel selection");
+        modelBrowser.SetHints(() => LocalizeAuthored("model-browser.selection.hints", "Tab: preview / list · Arrows: navigate · Confirm / Space: checkbox · Click label: preview\nObjects / Clips: switch list · Select all includes hidden rows · Back: cancel selection"));
     }
 
     private void ImportBrowserModel(ModelBrowserEntry entry, ModelBrowserVariant variant)

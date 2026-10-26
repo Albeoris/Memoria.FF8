@@ -15,7 +15,7 @@ internal sealed class PlayerSaveMenu
 {
     internal Func<string, string, string>? LocalizeText { get; set; }
 
-    internal string SystemText(string id, string original) => LocalizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+    internal string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(LocalizeText, id, original);
 
     internal string FormatSystemText(string id, string original, params object?[] arguments) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Format(SystemText(id, original), original, arguments);
 
@@ -285,7 +285,7 @@ internal sealed class PlayerSaveMenu
             }
             catch (Exception exception)
             {
-                ReportFailure(input.QuickLoad ? SystemText("save.update.quick.load", "Quick load") : SystemText("save.update.quick.save", "Quick save"), exception);
+                ReportFailure(() => input.QuickLoad ? SystemText("save.update.quick.load", "Quick load") : SystemText("save.update.quick.save", "Quick save"), exception);
             }
             return;
         }
@@ -385,7 +385,7 @@ internal sealed class PlayerSaveMenu
         }
         catch (Exception exception)
         {
-            ReportFailure(IsTransferring ? SystemText("save.update.copy", "Copy") : Mode.ToString(), exception);
+            ReportFailure(() => IsTransferring ? SystemText("save.update.copy", "Copy") : ModeLabel(), exception);
             RefreshEntries();
         }
     }
@@ -464,7 +464,7 @@ internal sealed class PlayerSaveMenu
         }
         catch (Exception exception)
         {
-            ReportFailure(SystemText("save.changebank.bank.selection", "Bank selection"), exception);
+            ReportFailure(() => SystemText("save.changebank.bank.selection", "Bank selection"), exception);
             return false;
         }
     }
@@ -487,14 +487,23 @@ internal sealed class PlayerSaveMenu
 
     private void RejectSource(PlayerSaveEntry entry)
     {
-        SetSystemMessage(() => entry.Details == "Empty" ? SystemText("save.rejectsource.this.slot.is.empty", "This slot is empty.") : entry.Details);
+        SetSystemMessage(() => entry.DetailsSystemId == "save.slot.empty" ? SystemText("save.rejectsource.this.slot.is.empty", "This slot is empty.") : LocalizeEntry(entry).Details);
         SoundRequested?.Invoke(MenuSound.Cancel);
     }
 
-    private void ReportFailure(string action, Exception exception)
+    private string ModeLabel() => Mode switch
+    {
+        PlayerSaveMenuMode.Save => SystemText("save.operation.save", "Save"),
+        PlayerSaveMenuMode.Load => SystemText("save.operation.load", "Load"),
+        PlayerSaveMenuMode.QuickSave => SystemText("save.operation.quick-save", "Quick save"),
+        PlayerSaveMenuMode.QuickLoad => SystemText("save.operation.quick-load", "Quick load"),
+        _ => throw new InvalidOperationException("Unknown save operation.")
+    };
+
+    private void ReportFailure(Func<string> readAction, Exception exception)
     {
         ConfirmOverwrite = false;
-        SetSystemMessage(() => FormatSystemText("save.reportfailure.failed", "{0} failed: {1}", action, exception.Message));
+        SetSystemMessage(() => FormatSystemText("save.reportfailure.failed", "{0} failed: {1}", readAction(), exception.Message));
         Console.Error.WriteLine(exception);
         SoundRequested?.Invoke(MenuSound.Cancel);
     }

@@ -1,6 +1,7 @@
-﻿using Memoria.FF8.Assets;
+using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Resources.Localization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -40,7 +41,8 @@ internal static class ChocoboWorldSettings
 internal sealed partial class RecreateGame
 {
     private ChocoboWorldMode DefaultChocoboWorldMode => ChocoboWorldSettings.DefaultMode(resourceHost!.Resources.Source.Edition);
-    private string? ChocoboWorldBoundaryUnavailableReason => ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null ? "Chocobo World changes are unavailable until the active or pending battle ends." : saveMenu.IsOpen ? "Close the save screen before changing Chocobo World mode." : session.State.PendingMagicModeReview ? "Resolve the pending gameplay settings review before changing Chocobo World mode." : null;
+    private ChocoboPresentationText? ChocoboWorldBoundaryUnavailableText => ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null ? ChocoboText.Create("chocobo.boundary.battle") : saveMenu.IsOpen ? ChocoboText.Create("chocobo.boundary.save") : session.State.PendingMagicModeReview ? ChocoboText.Create("chocobo.boundary.settings") : null;
+    private string? ChocoboWorldBoundaryUnavailableReason => ChocoboWorldBoundaryUnavailableText?.Fallback;
 
     private bool ApplyChocoboWorldMenuAction(MenuAction action)
     {
@@ -54,9 +56,9 @@ internal sealed partial class RecreateGame
             newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = mode };
             return true;
         }
-        if (ChocoboWorldBoundaryUnavailableReason is { } reason)
+        if (ChocoboWorldBoundaryUnavailableText is { } reason)
         {
-            ShowSaveNotice(reason);
+            ShowSaveNotice(() => reason.Format((id, fallback) => resourceHost is null ? fallback : SystemTextCatalog.Translate(resourceHost.Resources.Localize, id, fallback)));
             return true;
         }
         session.SetGameplayPreferences((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { ChocoboWorldMode = mode });

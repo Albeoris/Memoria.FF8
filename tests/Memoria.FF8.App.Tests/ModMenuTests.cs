@@ -1,3 +1,5 @@
+using Memoria.FF8.Resources.Localization;
+using Memoria.FF8.Ui;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 
@@ -6,6 +8,36 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModMenuTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-mod-menu-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public void TypedPackageStateAndConstructorLabelsUseCurrentSemanticCatalog()
+    {
+        Write("Demaster/example/test.png", "metadata only");
+        using ModRuntime runtime = Runtime();
+        Publish(runtime);
+        MenuController menu = Menu(runtime);
+        string active = "有効";
+        menu.ConnectLocalizationText((key, original) => key == SystemTextCatalog.Key("mods.state.active") ? active : key == SystemTextCatalog.Key("mods.installed") ? "インストール済み" : original);
+        menu.Open("mods");
+        Assert.Equal("有効", Assert.Single(menu.Entries, row => row.Id == "Demaster/example").Help);
+        UiView view = menu.BuildView()!;
+        IEnumerable<UiElement> Descendants(UiElement element)
+        {
+            yield return element;
+            foreach (UiElement child in element.Children)
+            {
+                foreach (UiElement descendant in Descendants(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+        Assert.Contains(Descendants(view.Root).OfType<UiButton>(), button => button.Id == "installed-tab" && button.Text == "インストール済み");
+        active = "Активен";
+        Assert.Equal("Активен", Assert.Single(menu.Entries, row => row.Id == "Demaster/example").Help);
+        Assert.Equal(ModEffectiveStatus.Active, Assert.Single(runtime.Catalog.Packages).Status);
+        Assert.True(Assert.Single(runtime.Catalog.Packages).RequestedEnabled);
+    }
 
     [Fact]
     public void ModsEntryIsAvailableInMainMenuAndShowsPackageState()

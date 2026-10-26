@@ -11,7 +11,7 @@ internal static class MovieSkipHint
         {
             return;
         }
-        string SystemText(string id, string original) => localizeText?.Invoke(Memoria.FF8.Resources.Localization.SystemTextCatalog.Key(id), original) ?? original;
+        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
         string label = SystemText("movie.skip.hold", "Hold to skip");
         float scale = Math.Min(viewport.Width / 960, viewport.Height / 720);
         float fontSize = 16 * scale;

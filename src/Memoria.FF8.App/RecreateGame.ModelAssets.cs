@@ -83,7 +83,7 @@ internal sealed partial class RecreateGame
             }
             if (item.Kind is ModelAssetDiscoveryKind.Progress or ModelAssetDiscoveryKind.Coverage)
             {
-                modelBrowser.SetDiscoveryStatus(item.Name);
+                modelBrowser.SetDiscoveryStatus(() => ModelDiscoveryText(item));
                 browserAssetsComplete = item.Kind == ModelAssetDiscoveryKind.Coverage;
                 if (browserAssetsComplete && browserDiscoveryKey is not null)
                 {
@@ -102,10 +102,10 @@ internal sealed partial class RecreateGame
             string actualSource = BrowserAssetSource(item);
             string label = clip && item.ResourcePath.StartsWith("battle/", StringComparison.OrdinalIgnoreCase) ? (browserAssets.GetValueOrDefault(ClipModelTarget(item.Id))?.Name ?? Path.GetFileName(ClipModelTarget(item.Id))) + " · " + item.Name : item.Name;
             bool selected = clip ? item.OwnerId == modelBrowser.Selected?.Id || ClipModelTarget(item.Id) == modelBrowser.Selected?.Id || modelBrowser.SelectedAssets.Contains(ClipModelTarget(item.Id)) || browserAssets.GetValueOrDefault(modelBrowser.Selected?.Id ?? "") is { UsesOwnerSkeleton: true } selectedWeapon && selectedWeapon.RigOwnerId == ClipModelTarget(item.Id) : item.Id == modelBrowser.Selected?.Id || item.AlternativeGroup is not null && !browserAssets.Values.Any(other => other.Id != item.Id && other.AlternativeGroup == item.AlternativeGroup);
-            modelBrowser.AddAsset(new(item.Id, label, group, clip, item.Kind != ModelAssetDiscoveryKind.Diagnostic && item.Error is null, item.Error ?? item.Provenance + " · Source: " + actualSource + " · Locked dependency: rig, materials, textures", selected) { RigId = item.RigOwnerId ?? (item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) : item.Id) });
+            modelBrowser.AddAsset(new(item.Id, label, group, clip, item.Kind != ModelAssetDiscoveryKind.Diagnostic && item.Error is null, item.Error ?? item.Provenance + " · Source: " + actualSource + " · Locked dependency: rig, materials, textures", selected) { RigId = item.RigOwnerId ?? (item.Kind == ModelAssetDiscoveryKind.Clip ? ClipModelTarget(item.Id) : item.Id), ReadGroup = () => clip ? item.GroupId ?? item.Bank : item.AlternativeGroup ?? LocalizeAuthored("model.group.objects", "Objects"), ReadDetail = () => item.Error ?? FormatAuthored("model.asset.detail", "{0} · Source: {1} · Locked dependency: rig, materials, textures", item.Provenance, actualSource) });
             if (item.Kind == ModelAssetDiscoveryKind.Diagnostic)
             {
-                modelBrowser.SetDiscoveryStatus("Incomplete: " + item.Name);
+                modelBrowser.SetDiscoveryStatus(() => FormatAuthored("model-browser.discovery.incomplete", "Incomplete: {0}", item.Name));
             }
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
@@ -113,9 +113,18 @@ internal sealed partial class RecreateGame
             browserAssetReader?.Dispose();
             browserAssetReader = null;
             browserAssetsComplete = false;
-            modelBrowser.SetDiscoveryStatus("Incomplete: " + exception.Message);
+            modelBrowser.SetDiscoveryStatus(() => FormatAuthored("model-browser.discovery.incomplete", "Incomplete: {0}", exception.Message));
         }
     }
+
+    private string ModelDiscoveryText(ModelAssetDiscoveryItem item) => item.Progress?.Kind switch
+    {
+        ModelAssetProgressKind.Discovering => LocalizeAuthored("model.discovery.initial", "Discovering"),
+        ModelAssetProgressKind.FieldReferences => FormatAuthored("model.discovery.field-references", "Discovering field references: {0}", item.Progress?.Subject),
+        ModelAssetProgressKind.Incomplete => LocalizeAuthored("model.discovery.incomplete", "Incomplete: see source diagnostics"),
+        ModelAssetProgressKind.Complete => LocalizeAuthored("model.discovery.complete", "Complete for supported sources"),
+        _ => item.Name
+    };
 
     private static string ClipModelTarget(string address)
     {
@@ -208,7 +217,7 @@ internal sealed partial class RecreateGame
         }
         if (preview && activeClip is not null && objects.Values.Where(item => item.GeometrySelected && item.Model.Bones.Any(bone => bone.IsJoint)).Select(item => item.RigId).Distinct().Any(rig => !clips.Any(clip => clip.RigId == rig)))
         {
-            browser.SetMessage("Missing paired clip component. Its rig remains in the base pose.");
+            browser.SetMessage(() => LocalizeAuthored("model-browser.clip.missing-pair", "Missing paired clip component. Its rig remains in the base pose."));
         }
         return new(objects.Values.ToArray(), clips) { Edition = resourceHost!.Resources.Source.Edition.ToString() };
 
@@ -239,7 +248,7 @@ internal sealed partial class RecreateGame
                 return;
             }
             ModelAssetExchange.ExportGlbAtomic(path, selection);
-            modelBrowser.SetMessage("Selection exported to one self-contained GLB.");
+            modelBrowser.SetMessage(() => LocalizeAuthored("model-browser.export.completed", "Selection exported to one self-contained GLB."));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {

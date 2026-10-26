@@ -127,9 +127,12 @@ public static class MenuDemoData
     {
         var squall = data.Characters[0];
         squall.LimitSettings["Auto"] = "Off";
+        squall.LimitToggles["Auto"] = false;
         squall.LimitSettings["Indicator"] = "On";
+        squall.LimitToggles["Indicator"] = true;
         AddMoves(squall, ["Rough Divide", "Fated Circle", "Blasting Zone", "Lion Heart"]);
         var rinoa = data.Characters[1];
+        rinoa.LimitToggles["Angel Wing"] = false;
         AddMoves(rinoa, ["Angelo Cannon", "Angelo Strike", "Angelo Rush", "Angelo Recover", "Angelo Reverse", "Angelo Search", "Invincible Moon", "Wishing Star"]);
         for (var i = 0; i < rinoa.LimitMoves.Count; i++)
         {

@@ -62,7 +62,7 @@ internal sealed partial class RecreateGame : Game
     private ControlQueue? updateControls;
     private string? pendingCapture;
     private readonly GameLoopMetrics metrics = new();
-    private string? saveNotice;
+    private Func<string>? saveNotice;
     private double saveNoticeSeconds;
     private bool userPaused;
     private readonly UpdateSaveHandoff updateSave;
@@ -908,6 +908,11 @@ internal sealed partial class RecreateGame : Game
 
     private void ShowSaveNotice(string message, double durationSeconds = 5)
     {
+        ShowSaveNotice(() => message, durationSeconds);
+    }
+
+    private void ShowSaveNotice(Func<string> message, double durationSeconds = 5)
+    {
         saveNotice = message;
         saveNoticeSeconds = durationSeconds;
     }
@@ -1345,7 +1350,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (saveNoticeSeconds > 0 && saveNotice is not null)
         {
-            DrawNoticeUi(bounds, saveNotice, false);
+            DrawNoticeUi(bounds, saveNotice(), false);
         }
         DrawAutoPlayStatus(bounds);
         if (userPaused && sceneInspector is null)

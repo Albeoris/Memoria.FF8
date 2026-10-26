@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Assets.Localization;
 using Memoria.FF8.Mods.Localization;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Resources.Localization;

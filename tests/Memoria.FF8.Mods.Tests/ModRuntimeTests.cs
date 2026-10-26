@@ -4,6 +4,39 @@ public sealed class ModRuntimeTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-mod-runtime-" + Guid.NewGuid().ToString("N"));
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeferredPreparationReusesDiscoveryUntilAnExplicitRefreshInvalidatesIt(bool refresh)
+    {
+        Write("Memoria/Deferred/mod.ini", "enabled=1\n");
+        Write("Memoria/Deferred/data.txt", "first");
+        List<ModCatalogSnapshot> candidates = [];
+        using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero, prepare: candidate =>
+        {
+            candidates.Add(candidate);
+            return candidates.Count == 1 ? new(false) { Deferred = true } : ModPreparationResult.Accepted;
+        });
+        Assert.False(runtime.PreparePending(force: true));
+        if (refresh)
+        {
+            Write("Memoria/Deferred/data.txt", "changed contents");
+            runtime.RequestRefresh();
+        }
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        Assert.Equal(2, candidates.Count);
+        if (refresh)
+        {
+            Assert.NotSame(candidates[0], candidates[1]);
+            Assert.Equal("changed contents", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        }
+        else
+        {
+            Assert.Same(candidates[0], candidates[1]);
+        }
+    }
+
     [Fact]
     public void ExplicitModsDirectoryUsesItsOwnPolicyAndRetainsGameDirectoryPriority()
     {

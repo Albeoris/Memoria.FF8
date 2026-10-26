@@ -192,6 +192,22 @@ public sealed class LocalizationAuthoringTests
         Assert.DoesNotContain(menus.Entries, entry => entry.Id is "source" or "base" or "target");
     }
 
+    [Fact]
+    public void PatchAuthoringRequiresBasePackageWithoutProbingInstalledLanguagesOrIndependentTargetIds()
+    {
+        MenuController menus = new();
+        menus.ConnectLocalizationAuthoring(new(Path.GetTempPath(), () => throw new InvalidOperationException("A patch must not probe installed resources."), (_, _, _) => throw new InvalidOperationException("A patch must preserve the base project's source snapshot."), ReadTargetIds: () => throw new InvalidOperationException("A patch inherits its Target identity.")));
+        menus.Open("mods-create");
+        Assert.Contains(menus.Entries, entry => entry.Action?.Kind == "localization-patch");
+        menus.Execute(new("localization-patch"));
+        Assert.Contains(menus.Entries, entry => entry.Id == "input");
+        Assert.Contains(menus.Entries, entry => entry.Id == "package");
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id is "source" or "base" or "target" or "references");
+        menus.Execute(new("localization-format"));
+        Assert.Contains(menus.Entries, entry => entry.Id == "input");
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id is "source" or "base" or "target");
+    }
+
     private static MenuController CreateMenus()
     {
         MenuController menus = new();
