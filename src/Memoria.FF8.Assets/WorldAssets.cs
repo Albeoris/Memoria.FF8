@@ -203,13 +203,13 @@ public sealed partial class WorldAssets : IDisposable
         WorldGround? selected = null;
         foreach (WorldTriangle triangle in GetSegment(mapId, replacements).Triangles)
         {
-            byte permission = entityType is 0 or 1 or 2 or 32 or 33 ? Memoria.FF8.Runtime.NativeWorldTerrain.PermissionMask(entityType) : throw new NotSupportedException("Original advisory world terrain selection for this entity is unrepresented.");
+            byte permission = entityType is 0 or 1 or 2 or 32 or 33 or 35 ? Memoria.FF8.Runtime.NativeWorldTerrain.PermissionMask(entityType) : throw new NotSupportedException("Original advisory world terrain selection for this entity is unrepresented.");
             if ((triangle.VertexFlags & permission) == 0 || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && !triangle.Forest && previousGroundType is not <= 5 && Math.Abs(height - previousHeight.Value) >= 200)
             {
                 continue;
             }
             WorldGround next = new(height, triangle, mapId);
-            if (entityType is not (32 or 33))
+            if (entityType is not (32 or 33 or 35))
             {
                 return next;
             }

@@ -166,7 +166,7 @@ public sealed partial record NativeWorldSalaryState
 
     public NativeWorldSalaryState PrepareCarFuel(byte entityType, byte groundType, int rawMagnitude)
     {
-        if (entityType is not (32 or 33) || rawMagnitude is < 0 or > 64)
+        if (entityType is not (32 or 33 or 35) || rawMagnitude is < 0 or > 64)
         {
             throw new NotSupportedException("Native car fuel requires the supported entity and actual raw car velocity magnitude.");
         }

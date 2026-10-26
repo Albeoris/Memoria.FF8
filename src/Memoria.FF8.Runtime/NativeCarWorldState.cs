@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Native ordinary car entity33 state from548080/557A90, independent of normal foot animation.</summary>
+/// <summary>Native ordinary car state from548080/557A90, independent of normal foot animation.</summary>
 public sealed record NativeCarWorldRuntimeState
 {
     public const string LoadRule = "ff8-en-ordinary-car-544860-548080-v4";
@@ -39,20 +39,31 @@ public sealed record NativeCarWorldRuntimeState
         saved.Validate();
         cache.Validate();
         process.Validate();
-        byte shape = entityType switch { 32 => 74, 33 => 73, _ => throw new NotSupportedException("Native ordinary car initialization requires its actual supported entity type.") };
+        byte shape = ShapeForEntity(entityType);
         var result = new NativeCarWorldRuntimeState { Version = 4, Rule = LoadRule, EntityType = entityType, ShapeId = shape, Speed = 0, CameraFollowSpeed = process.CarCameraFollowSpeed, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), GroundCache = cache, GroundYaw = 0, MovementMagnitude20409F4 = 0, Allocation = allocation, ProjectionCamera = projectionCamera };
         result.Validate();
         return result;
     }
 
+    public static byte ShapeForEntity(byte entityType)
+    {
+        return entityType switch
+        {
+            32 => 74,
+            33 => 73,
+            35 => 82,
+            _ => throw new NotSupportedException("Native ordinary car requires its actual supported entity type.")
+        };
+    }
+
     public void Validate()
     {
-        if (Version != 4 || Rule != LoadRule || EntityType is not (32 or 33) || ShapeId != (EntityType == 32 ? 74 : 73) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
+        if (Version != 4 || Rule != LoadRule || EntityType is not (32 or 33 or 35) || ShapeId != ShapeForEntity(EntityType) || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode > 3 || GroundCache is null || GroundYaw is null or < -1120 or > 1120 || MovementMagnitude20409F4 is null or < 0 or > 64)
         {
             throw new InvalidDataException("Unsupported native ordinary car runtime state.");
         }
         GroundCache.Validate();
-        if (EntityType == 32 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null))
+        if (EntityType is 32 or 35 && (Allocation is null || ProjectionCamera is null) || EntityType == 33 && (Allocation is not null || ProjectionCamera is not null))
         {
             throw new InvalidDataException("Native car object allocation differs from its executed loader contract.");
         }
@@ -106,7 +117,7 @@ public sealed record NativeSavedWorldCarReturn
 
     public void Validate()
     {
-        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33 or 35) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 > 2 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }

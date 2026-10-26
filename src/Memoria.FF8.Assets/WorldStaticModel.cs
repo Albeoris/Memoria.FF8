@@ -15,12 +15,7 @@ public sealed partial class WorldAssets
 
     public WorldStaticModel GetCarModel(byte entityType)
     {
-        byte shape = entityType switch
-        {
-            32 => 74,
-            33 => 73,
-            _ => throw new NotSupportedException("Original car model requires its actual supported native entity type.")
-        };
+        byte shape = Memoria.FF8.Runtime.NativeCarWorldRuntimeState.ShapeForEntity(entityType);
         return ReadScriptedStaticModel(shape);
     }
 }

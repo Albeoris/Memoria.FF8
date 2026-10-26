@@ -225,9 +225,9 @@ public sealed partial record NativeSavedWorldState
     {
         Validate();
         receipt.Validate();
-        if (Slot4.ShapeId != (receipt.EntityType105 == 32 ? 74 : 73))
+        if (Slot4.ShapeId != NativeCarWorldRuntimeState.ShapeForEntity(receipt.EntityType105))
         {
-            throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
+            throw new InvalidDataException("The native car save requires its active selected vehicle slot.");
         }
         return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
@@ -253,7 +253,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
         }
-        byte shape = entityType switch { 32 => 74, 33 => 73, _ => throw new NotSupportedException("Native ordinary car entry requires its supported actual entity type.") };
+        byte shape = NativeCarWorldRuntimeState.ShapeForEntity(entityType);
         return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
 

@@ -38,7 +38,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         bool battleMode2 = battleReload is not null || session.State.World?.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.BattleReloadRule;
         battleReload ??= battleMode2 ? session.State.World?.NativeFootRuntime is { Rule: NativeFootWorldRuntimeState.BattleReloadRule } ? session.State.SavedWorld?.FootReturn : null : null;
-        bool car = !battleMode2 && unchecked((byte)arrival.Mode) is 32 or 33;
+        bool car = !battleMode2 && unchecked((byte)arrival.Mode) is 32 or 33 or 35;
         bool garden = !battleMode2 && (unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null });
         bool ragnarok = !battleMode2 && unchecked((byte)arrival.Mode) == 50;
         bool stationFoot = !battleMode2 && session.State.World?.NativeFootRuntime?.StationTrains is not null;
@@ -194,8 +194,8 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeWorldProcess carProcess = session.State.WorldProcess ?? throw new NotSupportedException("Native car loader requires its executed process camera-follow owner.");
                     carProcess.Validate();
                     byte carType = unchecked((byte)arrival.Mode);
-                    NativeWorldFootCameraState? carProjection = carType == 32 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
-                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carType, carType == 32 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
+                    NativeWorldFootCameraState? carProjection = carType is 32 or 35 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
+                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, CreateFreshGroundCache(initialGround.Identity), carProcess, carType, carType is 32 or 35 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
                     ground = initialGround.Ground;
                 }
                 else

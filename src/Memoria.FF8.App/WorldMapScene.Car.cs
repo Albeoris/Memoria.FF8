@@ -12,7 +12,7 @@ internal sealed partial class WorldMapScene
         state.NativeCarRuntime!.Validate();
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeSavedWorldState saved = session.State.SavedWorld!;
-        if (state.NativeCarRuntime.EntityType == 32)
+        if (state.NativeCarRuntime.EntityType is 32 or 35)
         {
             EnsureDenseCarContacts(state, inputs, saved);
             return;
@@ -33,7 +33,7 @@ internal sealed partial class WorldMapScene
 
     private static NativeWorldPathProjectionCertificate CarProjection(WorldState world)
     {
-        //557250/558C20 write the same ordinary camera words for32/33 as for
+        //557250/558C20 write the same ordinary camera words for the supported cars as for
         //normal foot. Without an admitted collision,557A90 retains this pitch.
         NativeWorldFootCameraState camera = world.NativeCarRuntime?.ProjectionCamera ?? throw new InvalidDataException("Native car projection requires its executed pre-terrain camera words.");
         if (camera.TargetX != world.CameraTargetX || camera.TargetRawZ != world.CameraTargetZ || camera.TargetNativeHeight != world.CameraTargetNativeHeight || camera.Yaw != world.CameraYaw || camera.Pitch != -112 || camera.OffsetY != -341 || camera.OffsetZ != -7168)
@@ -49,12 +49,12 @@ internal sealed partial class WorldMapScene
         NativeTrainWorldAllocation allocation = car.Allocation!;
         if (saved.Slot4.ShapeId != car.ShapeId || saved.Slot5.ShapeId != 0 || (inputs.ReplacementFlags & 7) != 0 || (inputs.EventFlags265 & 1) == 0)
         {
-            throw new NotSupportedException("Native car32 requires its actual selected vehicle, inactive auxiliary slots and disabled rail allocation; disembark actions remain unsupported.");
+            throw new NotSupportedException("Native fuel-using car requires its actual selected vehicle, inactive auxiliary slots and disabled rail allocation; disembark actions remain unsupported.");
         }
         NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         if (actual.EventFlags103 != allocation.EventFlags103 || actual.Story != allocation.Story || actual.ProgramHash != allocation.ProgramHash || actual.CoordinateHash != allocation.CoordinateHash || !actual.ClauseWords.SequenceEqual(allocation.ClauseWords) || actual.Objects.Length != allocation.Objects.Length || actual.Objects.Where((item, index) => !item.CoordinateBytes.SequenceEqual(allocation.Objects[index].CoordinateBytes)).Any())
         {
-            throw new InvalidDataException("Native car32 retained allocation differs from its actual original clause and coordinate records.");
+            throw new InvalidDataException("Native fuel-using car retained allocation differs from its actual original clause and coordinate records.");
         }
         NativeWorldPathProjectionCertificate context = CarProjection(state);
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(state.X, state.NativeHeight, -state.Z));
@@ -64,7 +64,7 @@ internal sealed partial class WorldMapScene
             WorldStationContactResult contact = WorldStationContactCertificate.Evaluate(assets, allocation, [], player, state.NativeHeight, position => context.ProjectNode(position) ?? throw new NotSupportedException(context.UnsupportedReason), context.IsNear, padding, NativeWorldTerrain.ProbeRadius(car.EntityType), selected.Height);
             if (contact.Hit)
             {
-                throw new NotSupportedException("Native car32 reached an original object collision/proximity response whose body/camera effects are unsupported.");
+                throw new NotSupportedException("Native fuel-using car reached an original object collision/proximity response whose body/camera effects are unsupported.");
             }
         }
     }
@@ -106,9 +106,9 @@ internal sealed partial class WorldMapScene
         int bodyYaw = WrapYaw(before.BodyYaw + (-steering >> turnShift));
         int throttle = ReadSignedMovementComponent(-vertical);
         int maximumSpeed = 64;
-        if (car.EntityType == 32 && throttle != 0)
+        if (car.EntityType is 32 or 35 && throttle != 0)
         {
-            NativeEconomy economy = session.State.Economy ?? throw new NotSupportedException("Native car32 throttle requires its actual fuel inventory.");
+            NativeEconomy economy = session.State.Economy ?? throw new NotSupportedException("Native fuel-using car throttle requires its actual fuel inventory.");
             economy.Validate();
             if (!economy.Items.Any(item => item.ItemId == 162 && item.Count != 0) && car.MovementMagnitude20409F4 != 0)
             {
@@ -134,7 +134,7 @@ internal sealed partial class WorldMapScene
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
-        if (car.EntityType == 32)
+        if (car.EntityType is 32 or 35)
         {
             car = car with { ProjectionCamera = new NativeWorldFootCameraState(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, cameraYaw, -112, -341, -7168) };
         }
@@ -163,7 +163,8 @@ internal sealed partial class WorldMapScene
 
     private (int Tilt, int Blend) CarModelTilt(WorldState before, int bodyYaw, NativeCarWorldRuntimeState car)
     {
-        (int aheadX, int aheadGraphicsZ) = Rotate(200, 0, bodyYaw - 1024);
+        int lookahead = assets.ReadNativeContactShape(car.ShapeId).Length >> 1;
+        (int aheadX, int aheadGraphicsZ) = Rotate(lookahead, 0, bodyYaw - 1024);
         (int Tilt, int Blend)? result = null;
         foreach (NativeWorldGroundAlternative alternative in car.GroundCache!.Alternatives)
         {
@@ -171,7 +172,7 @@ internal sealed partial class WorldMapScene
             byte previousType = assets.ResolveNativeGroundIdentity(alternative.PreviousGround, replacements).GroundType;
             int blend = Math.Max(0, (currentType == previousType ? car.TerrainTiltBlend : 64) - 16);
             WorldGroundSelection? ahead = assets.LookupNativeGround(before.X + aheadX, before.Z - aheadGraphicsZ, replacements, alternative.Entries);
-            int tilt = ahead is not null && (ahead.Ground.Triangle.VertexFlags & 0x40) != 0 && Math.Abs(before.NativeHeight + ahead.Ground.Height) < 200 ? Math.Clamp(NativeRound(Math.Atan2(-before.NativeHeight - ahead.Ground.Height, 200) * NativeAtanScale) >> 1, -128, 128) : 0;
+            int tilt = ahead is not null && (ahead.Ground.Triangle.VertexFlags & 0x40) != 0 && Math.Abs(before.NativeHeight + ahead.Ground.Height) < 200 ? Math.Clamp(NativeRound(Math.Atan2(-before.NativeHeight - ahead.Ground.Height, lookahead) * NativeAtanScale) >> 1, -128, 128) : 0;
             if (result is not null && result.Value != (tilt, blend))
             {
                 throw new NotSupportedException("Retained native car cache alternatives disagree on model ground tilt.");
