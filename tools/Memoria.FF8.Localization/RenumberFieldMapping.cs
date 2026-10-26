@@ -109,9 +109,9 @@ internal static class RenumberFieldMapping
                 if (languageOnly)
                 {
                     string basis = columns.TryGetValue(language + " Correspondence Basis", out int basisColumn) ? row[basisColumn] : string.Empty;
-                    if (basis is not ("NativeUnmatchedCall" or "UnmatchedBankSlot" or "UnmatchedBankBlock") && !basis.StartsWith("NoEnglishBankSlot", StringComparison.Ordinal))
+                    if (basis is not ("NativeUnmatchedCall" or "UnmatchedBankSlot" or "UnmatchedBankBlock" or "UserAcceptedUnique") && !basis.StartsWith("NoEnglishBankSlot", StringComparison.Ordinal))
                     {
-                        throw new InvalidDataException("An unmatched inventory slot requires structural correspondence evidence; different wording or a missing semantic translation is insufficient.");
+                        throw new InvalidDataException("An unmatched inventory slot requires structural correspondence evidence or an explicit UserAcceptedUnique review decision; different wording or a missing semantic translation is insufficient.");
                     }
                 }
                 string[] englishReferences;
