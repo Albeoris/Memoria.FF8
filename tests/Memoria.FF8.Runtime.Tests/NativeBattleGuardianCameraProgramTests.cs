@@ -114,13 +114,22 @@ public sealed class NativeBattleGuardianCameraProgramTests
         Assert.Equal(new NativeBattleCameraPoint(4, 0, 0), second.Pose.Target);
     }
 
-    [Theory]
-    [InlineData(7)]
-    [InlineData(9)]
-    public void UnimplementedKnownOpcodesFailInsteadOfProducingAGenericCamera(int opcode)
+    [Fact]
+    public void UnimplementedKnownOpcodeFailsInsteadOfProducingAGenericCamera()
     {
-        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(opcode), 0);
+        NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(7), 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity, Pose, false));
+    }
+
+    [Theory]
+    [InlineData(0x09)]
+    [InlineData(0x49)]
+    public void RollInterpolationRequiresBothDurationAndTargetOperands(int command)
+    {
+        NativeBattleGuardianCameraTask missingDuration = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(command), 0);
+        Assert.Throws<InvalidDataException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(missingDuration, Identity, Pose, false));
+        NativeBattleGuardianCameraTask missingTarget = NativeBattleGuardianCameraProgram.Begin63E960(Process(), Words(command, 3), 0);
+        Assert.Throws<InvalidDataException>(() => NativeBattleGuardianCameraProgram.Advance63E9C0(missingTarget, Identity, Pose, false));
     }
 
     [Fact]

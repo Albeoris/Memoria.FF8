@@ -13,7 +13,10 @@ public sealed class NativeBattleCinematicBreakupAuxiliaryTests
     private const uint Output = Basis + 0x50000;
 
     [Theory]
+    [InlineData(1)]
     [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(6)]
     [InlineData(7)]
     public void Initialization_clears_only_active_bytes_and_ring_in_the_actual_allocator_bank(ushort mode)
     {
@@ -28,9 +31,18 @@ public sealed class NativeBattleCinematicBreakupAuxiliaryTests
     }
 
     [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(65535, 1)]
     [InlineData(0, 2)]
     [InlineData(1, 2)]
     [InlineData(65535, 2)]
+    [InlineData(0, 5)]
+    [InlineData(1, 5)]
+    [InlineData(65535, 5)]
+    [InlineData(0, 6)]
+    [InlineData(1, 6)]
+    [InlineData(65535, 6)]
     [InlineData(0, 7)]
     [InlineData(1, 7)]
     [InlineData(65535, 7)]
@@ -133,11 +145,20 @@ public sealed class NativeBattleCinematicBreakupAuxiliaryTests
         Assert.Equal(Output, WaterSchedulerFixture.ReadCoreDword(result, 0x2797768));
     }
 
-    [Fact]
-    public void Unsupported_mode_fails_before_mutating_the_pool()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(8)]
+    [InlineData(65535)]
+    public void Unsupported_mode_is_rejected_by_each_auxiliary_entry_point(ushort mode)
     {
-        NativeBattleWaterExecutionFrame frame = PutWord(Fixture(), Payload + 8, 6);
+        NativeBattleWaterExecutionFrame frame = Fixture(mode);
+        NativeBattleCinematicBreakupAuxiliaryServices services = new((_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException());
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicBreakupAuxiliary.Initialize(frame, State, Payload));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicBreakupAuxiliary.Emit(frame, Fragment));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicBreakupAuxiliary.Emit(frame, 256, 512, 768));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicBreakupAuxiliary.AdvanceDraw(frame, services));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort mode = 7)
