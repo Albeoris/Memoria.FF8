@@ -97,7 +97,7 @@ if ((HashFile $templatePath) -ne $templateSha) {
 $manifest = Get-Content -LiteralPath $templatePath -Raw | ConvertFrom-Json
 $token = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [Guid]::NewGuid().ToString('N')
 if ($Recalculate) {
-    $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot($null)
+    $measurement = [Memoria.FF8.BattleEffects.PilotRunner]::AcquireMeasurementSlot([NullString]::Value)
     try {
         $reportPath = Join-Path $validationRoot ("fps-recalculation-$token.json")
         $slowPath = Join-Path $validationRoot ("slow-effects-recalculated-$token.json")
