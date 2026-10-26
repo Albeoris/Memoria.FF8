@@ -5,7 +5,7 @@ namespace Memoria.FF8.Mods;
 
 public sealed partial class FfnxTextureResolver
 {
-    private static bool IsSupportedMenuArtworkTarget(string stem) => System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/hires/((face_b|gf_big)0[01]_00|iconfl0[0-3]_(0[0-9]|1[0-5]))$");
+    private static bool IsSupportedMenuArtworkTarget(string stem) => System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/(hires/((face_b|gf_big)0[01]_00|iconfl0[0-3]_(0[0-9]|1[0-5]))|icon_(0[0-9]|1[0-5]))$");
 
     private TextureReplacement? ResolveArtwork(TextureBuildContext context)
     {
@@ -81,7 +81,7 @@ public sealed partial class FfnxTextureResolver
         }
         if (pages.Count == 0)
         {
-            return null;
+            return ReadRegion(context, "data/eng/menu/icon", context.Key.Palette, 0, 0, 256, 256, 256, 256, paletteFallback: false);
         }
         PixelImage original = context.Original;
         PixelImage atlas = new(256 * scale, 256 * scale);

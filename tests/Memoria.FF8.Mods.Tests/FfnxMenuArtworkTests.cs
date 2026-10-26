@@ -51,6 +51,33 @@ public sealed class FfnxMenuArtworkTests
         Assert.Empty(FfnxTextureResolver.Inspect(Source(), new(1, [], [invalid])).UsablePackageIds);
     }
 
+    [Fact]
+    public void Complete_icon_atlas_is_used_when_no_split_page_matches_the_requested_palette()
+    {
+        using MagickImage image = new(new MagickColor(40, 50, 60, 70), 512, 512);
+        byte[] png = image.ToByteArray(MagickFormat.Png);
+        ModFile full = new("full", ModFormat.Junction, "mods/textures/data/eng/menu/icon_04.png", 1, () => png);
+        FfnxTextureResolver resolver = new(new(1, [], [full]));
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("menu/icon.tex", 4)));
+        Assert.Equal(512, replacement.Image.Width);
+        Assert.Equal(256, replacement.LogicalWidth);
+        Assert.Equal(new Rgba32(40, 50, 60, 70), replacement.Image[0, 0]);
+        Assert.Contains("full", FfnxTextureResolver.Inspect(Source(), new(1, [], [full])).UsablePackageIds);
+        Assert.Null(resolver.Resolve(Context("menu/icon.tex", 5)));
+    }
+
+    [Fact]
+    public void Split_pages_keep_their_existing_precedence_over_the_complete_atlas()
+    {
+        using MagickImage image = new(new MagickColor(100, 100, 100, 255), 256, 256);
+        byte[] png = image.ToByteArray(MagickFormat.Png);
+        ModFile full = new("full", ModFormat.Junction, "mods/textures/data/eng/menu/icon_04.png", 1, () => png);
+        FfnxTextureResolver resolver = new(new(1, [], [full, Page("iconfl01", 4, 128, new(20, 30, 40, 50))]));
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(Context("menu/icon.tex", 4)));
+        Assert.Equal(new Rgba32(1, 2, 3, 255), replacement.Image[0, 0]);
+        Assert.Equal(new Rgba32(20, 30, 40, 50), replacement.Image[128, 0]);
+    }
+
     private static TextureBuildContext Context(string owner, int palette) => new(new(new(owner), "atlas", palette), Source(), 1, "native-artwork", 256, 256, () =>
     {
         PixelImage image = new(256, 256);

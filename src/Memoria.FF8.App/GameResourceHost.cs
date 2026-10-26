@@ -164,6 +164,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
         }
+        List<ModDiagnostic> staticFileDiagnostics = [];
         foreach (EncodedResource resource in encodedResources)
         {
             ModFile owner = catalog.Files.First(file => file.Format == ModFormat.Junction && $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance);
@@ -174,7 +175,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                     continue;
                 }
                 ResourceContent original = source.Find(resource.Key) ?? throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
-                if (resource.Content.Format == JunctionEncodedResources.MainCharacterFormat)
+                if (JunctionEncodedResources.IsStaticFileResource(resource.Key))
+                {
+                    if (!original.Format.Equals(resource.Content.Format, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new NotSupportedException($"The selected game source does not provide the registered file format for {resource.Key}.");
+                    }
+                    staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was published, but the current renderer has no consumer for this file format.", owner.PackageId, owner.RelativePath));
+                }
+                else if (resource.Content.Format == JunctionEncodedResources.MainCharacterFormat)
                 {
                     GameAssets.ValidateMainCharacterResource(resource.Content);
                 }
@@ -249,7 +258,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);

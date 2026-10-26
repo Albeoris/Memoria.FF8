@@ -261,6 +261,7 @@ public sealed partial class GameAssets : IDisposable
         byte[] mimBytes = Read(nested, name + ".mim");
         MapFile map = MapFile.Read(mapBytes);
         MimFile mim = MimFile.Read(mimBytes);
+        IReadOnlyList<TextureSourceAddress> backgroundAtlas = FieldBackgroundTileDecoder.AtlasAddresses(new ResourceKey($"field/{name}/{name}.mim"), map.Tiles);
         BackgroundTile[] tiles = map.Tiles.Select(tile => new BackgroundTile(tile.X, tile.Y, unchecked((ushort)tile.Z), tile.Parameter, tile.State, tile.PackedLayer >> 1, tile.BlendMode, ((tile.PackedTexture >> 5) & 3) != 0, (tile.PackedTexture & 0x10) != 0, FieldBackgroundTileDecoder.Decode(mim, tile)) { PackedPalette = tile.PackedPalette }).ToArray();
         for (int index = 0; index < tiles.Length; index++)
         {
@@ -268,7 +269,7 @@ public sealed partial class GameAssets : IDisposable
             ResourceKey owner = new($"field/{name}/{name}.mim");
             MapTile original = map.Tiles[index];
             TextureSourceRegion region = new(original.TextureId * 64, 256, original.Uses8BitIndices ? 8 : 4, 256, 256);
-            tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(owner, $"tile/{index}", original.PaletteId), tile.Image, "classic-field-tile", region, nativeAlias: FieldBackgroundTileDecoder.Address(owner, original)) };
+            tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(owner, $"tile/{index}", original.PaletteId), tile.Image, "classic-field-tile", region, nativeAlias: FieldBackgroundTileDecoder.Address(owner, original), nativeSheet: backgroundAtlas[index]) };
         }
         byte[] one = Read(nested, "chara.one");
         List<NativeFieldOneModelEntry> nativeDirectory = [];

@@ -14,6 +14,7 @@ public sealed record JunctionManifestMetadata
     public bool? EnableFfmpegVideos { get; init; }
     public string? VideoExtension { get; init; }
     public bool? UseExternalMusic { get; init; }
+    public IReadOnlyDictionary<string, string> PresentationHints { get; init; } = new Dictionary<string, string>();
     public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
     public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
     public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();
@@ -134,11 +135,14 @@ public static partial class JunctionModImporter
 
     private static JunctionManifestMetadata ReadResourceSettings(XElement root, IReadOnlyDictionary<string, int> options, JunctionManifestMetadata metadata, List<string> diagnostics)
     {
-        HashSet<string> selected = new(StringComparer.Ordinal);
+        Dictionary<string, string> selected = new(StringComparer.Ordinal);
+        Dictionary<string, string> hints = new(StringComparer.Ordinal);
         foreach (XElement setting in root.Elements("FFNxConfig").Elements())
         {
             RequireLeaf(setting);
-            if (setting.Name != "enable_ffmpeg_videos" && setting.Name != "ffmpeg_video_ext" && setting.Name != "use_external_music")
+            string name = setting.Name.LocalName;
+            bool hint = name is "ff8_use_gamepad_icons" or "internal_resolution_scale" or "enable_bilinear";
+            if (setting.Name.Namespace != XNamespace.None || !hint && name is not ("enable_ffmpeg_videos" or "ffmpeg_video_ext" or "use_external_music"))
             {
                 throw new NotSupportedException($"Unsupported Junction FFNx setting: {setting.Name}.");
             }
@@ -153,30 +157,50 @@ public static partial class JunctionModImporter
             }
             string value = setting.Value.Trim();
             bool? flag = null;
-            if (setting.Name == "ffmpeg_video_ext")
+            if (name == "ffmpeg_video_ext")
             {
                 if (value.Length == 0 || value.Any(character => !char.IsAsciiLetterOrDigit(character)))
                 {
                     throw new InvalidDataException("Junction movie extension must contain only ASCII letters and digits.");
                 }
+                value = value.ToLowerInvariant();
+            }
+            else if (name == "internal_resolution_scale")
+            {
+                if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int scale) || scale < 0)
+                {
+                    throw new InvalidDataException("Junction internal resolution scale requires a nonnegative integer.");
+                }
+                value = scale.ToString(CultureInfo.InvariantCulture);
             }
             else
             {
                 flag = ParseFlag(value);
+                value = flag.Value ? "true" : "false";
             }
             if (!active)
             {
                 continue;
             }
-            if (!selected.Add(setting.Name.LocalName))
+            if (selected.TryGetValue(name, out string? previous))
             {
-                throw new InvalidDataException($"Duplicate active Junction FFNx setting: {setting.Name}.");
+                if (previous != value)
+                {
+                    throw new InvalidDataException($"Conflicting active Junction FFNx setting: {name}.");
+                }
+                continue;
             }
-            if (setting.Name == "ffmpeg_video_ext")
+            selected.Add(name, value);
+            if (hint)
             {
-                metadata = metadata with { VideoExtension = value.ToLowerInvariant() };
+                hints.Add(name, value);
+                diagnostics.Add($"Junction FFNx setting {name}={value} is retained as a driver presentation hint. The engine uses its own renderer and input presentation; this setting does not override user preferences.");
             }
-            else if (setting.Name == "use_external_music")
+            else if (name == "ffmpeg_video_ext")
+            {
+                metadata = metadata with { VideoExtension = value };
+            }
+            else if (name == "use_external_music")
             {
                 metadata = metadata with { UseExternalMusic = flag };
             }
@@ -189,7 +213,7 @@ public static partial class JunctionModImporter
                 }
             }
         }
-        return metadata;
+        return metadata with { PresentationHints = hints };
     }
 
     private static Guid ParseModId(string value)

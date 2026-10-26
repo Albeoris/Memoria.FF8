@@ -69,7 +69,7 @@ public static partial class JunctionEncodedResources
                     continue;
                 }
                 byte[] bytes = file.ReadBytes();
-                if (field is null && bytes.Length < 16)
+                if (bytes.Length == 0 || !IsStaticFileResource(key) && bytes.Length < 16)
                 {
                     throw new InvalidDataException("An encoded resource replacement is empty or truncated.");
                 }
@@ -89,6 +89,10 @@ public static partial class JunctionEncodedResources
     {
         string[] parts = relativePath.Replace('\\', '/').ToLowerInvariant().Split('/');
         int start = parts[0] == "direct" ? 1 : 0;
+        if (StaticFileAddress(parts, start) is ResourceKey staticFile)
+        {
+            return staticFile;
+        }
         if (parts.Length - start == 4 && parts[start] == "field" && parts[start + 1] == "mapdata")
         {
             string archive = parts[start + 3];

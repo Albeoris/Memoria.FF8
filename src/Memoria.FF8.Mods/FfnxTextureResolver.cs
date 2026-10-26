@@ -15,6 +15,10 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             return null;
         }
+        if (context.Layout == "classic-field-tile")
+        {
+            return ResolveFieldBackground(context);
+        }
         if (context.Layout == "native-artwork")
         {
             return ResolveArtwork(context);
@@ -54,6 +58,8 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         List<ModDiagnostic> diagnostics = [];
         Dictionary<int, int?> nativeCounts = [];
         Dictionary<ResourceKey, int?> battleCounts = [];
+        Dictionary<ResourceKey, int?> menuPalettes = [];
+        Dictionary<ResourceKey, string?> fieldBackgrounds = [];
         foreach (ModFile file in catalog.Files.Where(file => file.Format == ModFormat.Junction && file.RelativePath.StartsWith("mods/textures/", StringComparison.OrdinalIgnoreCase)))
         {
             string extension = Path.GetExtension(file.RelativePath);
@@ -62,13 +68,21 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
                 continue;
             }
             string target = file.RelativePath[14..^extension.Length];
-            if (IsNeverGeneratedBattlePaletteTarget(target) || nativeSource is not null && (IsImpossibleFieldModelTarget(target) || IsAbsentNativeBattleMember(nativeSource, target, battleCounts) || IsAbsentNativeWorldMember(nativeSource, target, nativeCounts)))
+            if (nativeSource is not null && UnusedMenuTarget(nativeSource, target, menuPalettes) is string unusedMenu)
+            {
+                diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' remains unused. {unusedMenu}", file.PackageId, file.RelativePath));
+            }
+            else if (IsNeverGeneratedBattlePaletteTarget(target) || nativeSource is not null && (IsImpossibleFieldModelTarget(target) || IsAbsentNativeBattleMember(nativeSource, target, battleCounts) || IsAbsentNativeWorldMember(nativeSource, target, nativeCounts)))
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' has no corresponding member in the selected original source and remains unused.", file.PackageId, file.RelativePath));
             }
             else if (nativeSource is not null && IsDormantNativeWorldMember(nativeSource, target, nativeMemorySource))
             {
                 diagnostics.Add(new("ffnx-unused-native-target", $"Texture '{file.RelativePath}' addresses a dormant original texture with no producer in the selected native world profile.", file.PackageId, file.RelativePath));
+            }
+            else if (nativeSource is not null && InspectFieldBackgroundTarget(nativeSource, target, fieldBackgrounds) is string unsupportedBackground)
+            {
+                diagnostics.Add(new("ffnx-unsupported-native-target", $"Texture '{file.RelativePath}': {unsupportedBackground}", file.PackageId, file.RelativePath));
             }
             else if (source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && IsSupportedTarget(target))
             {
@@ -89,7 +103,7 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         {
             stem = stem[4..];
         }
-        return IsSupportedFieldPageTarget(stem) || IsSupportedBattleTarget(stem) || IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
+        return IsSupportedFieldBackgroundTarget(stem) || IsSupportedFieldPageTarget(stem) || IsSupportedBattleTarget(stem) || IsSupportedMenuArtworkTarget(stem) || IsSupportedVramTarget(stem) || stem.StartsWith("cardgame/", StringComparison.Ordinal) && new[] { "cards_00", "icons_00", "intro_00", "game_00" }.Contains(stem[9..])
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^data/eng/menu/mc0[0-9]_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^field/model/(main|second)_chr/[a-z0-9]+-[0-9]+_00$")
             || System.Text.RegularExpressions.Regex.IsMatch(stem, @"^world/esk/chara_one/model[0-9]+-[0-9]+_00$")
@@ -135,11 +149,14 @@ public sealed partial class FfnxTextureResolver(ModCatalogSnapshot catalog) : IT
         return null;
     }
 
-    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth = 0, int verticalPageHeight = 0, bool normalizedMaterial = false)
+    private TextureReplacement? ReadRegion(TextureBuildContext context, string name, int palette, int x, int y, int width, int height, int canvasWidth, int canvasHeight, int horizontalPageWidth = 0, int verticalPageHeight = 0, bool normalizedMaterial = false, bool paletteFallback = true)
     {
         string[] languageRoots = context.Source.Language is null or "en" ? ["mods/textures/eng/", "mods/textures/"] : ["mods/textures/"];
         ModFile? file = new[] { ".dds", ".png" }.SelectMany(extension => languageRoots.SelectMany(root => catalog.FindAll(ModFormat.Junction, $"{root}{name}_{palette:00}{extension}"))).FirstOrDefault();
-        file ??= catalog.Files.Where(candidate => candidate.Format == ModFormat.Junction).Select(candidate => (File: candidate, Palette: ExternalPalette(candidate.RelativePath, languageRoots, name))).Where(candidate => candidate.Palette >= 0).OrderBy(candidate => candidate.Palette).ThenBy(candidate => Path.GetExtension(candidate.File.RelativePath).Equals(".dds", StringComparison.OrdinalIgnoreCase) ? 0 : 1).Select(candidate => candidate.File).FirstOrDefault();
+        if (file is null && paletteFallback)
+        {
+            file = catalog.Files.Where(candidate => candidate.Format == ModFormat.Junction).Select(candidate => (File: candidate, Palette: ExternalPalette(candidate.RelativePath, languageRoots, name))).Where(candidate => candidate.Palette >= 0).OrderBy(candidate => candidate.Palette).ThenBy(candidate => Path.GetExtension(candidate.File.RelativePath).Equals(".dds", StringComparison.OrdinalIgnoreCase) ? 0 : 1).Select(candidate => candidate.File).FirstOrDefault();
+        }
         if (file is null)
         {
             return null;
