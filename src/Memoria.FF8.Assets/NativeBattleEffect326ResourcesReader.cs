@@ -29,7 +29,7 @@ public static class NativeBattleEffect326ResourcesReader
         ImmutableDictionary<uint, NativeBattleStaticMeshResource> meshes = MeshAddresses.ToImmutableDictionary(address => address, address => NativeBattleEffectStaticResourcesReader.ReadMesh(memory, address));
         ImmutableDictionary<uint, NativeBattleModuleResource> sprites = SpriteAddresses.ToImmutableDictionary(address => address, address => new NativeBattleModuleResource(0, address, 0, 0, NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, address)));
         ImmutableArray<NativeBattleEffectFileAsset> loadedFiles = files.MoveToImmutable();
-        NativeBattleEffect326Resources result = new(new("effect187-texture", Bytes(TextureAddress, TextureLength)), new("effect187-camera", Bytes(CameraAddress, CameraLength)), new("effect187-vibration", Bytes(VibrationAddress, VibrationLength)), loadedFiles, meshes, sprites, Enumerable.Range(0, 6).Select(index => Dword(SoundAddress + (uint)(index * 4))).ToImmutableArray(), Dword(StreamAddress))
+        NativeBattleEffect326Resources result = new(new("effect326-texture", Bytes(TextureAddress, TextureLength)), new("effect326-camera", Bytes(CameraAddress, CameraLength)), new("effect326-vibration", Bytes(VibrationAddress, VibrationLength)), loadedFiles, meshes, sprites, Enumerable.Range(0, 6).Select(index => Dword(SoundAddress + (uint)(index * 4))).ToImmutableArray(), Dword(StreamAddress))
         {
             MainModel = ReadModel(ArenaAddress, loadedFiles[1].Data),
             EmbeddedModel = ReadModel(EmbeddedModelAddress, Bytes(EmbeddedModelAddress, EmbeddedModelLength)),

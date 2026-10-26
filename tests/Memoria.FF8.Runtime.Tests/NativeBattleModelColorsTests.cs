@@ -119,10 +119,20 @@ public sealed class NativeBattleModelColorsTests
     }
 
     [Theory]
-    [InlineData(0x80000u, 0u, 0, "50A410")]
-    public void Unowned_status_motion_or_icon_callback_is_named_at_its_actual_guard(uint statuses, uint graphicsFlags, ushort flags2, string function)
+    [InlineData(0x80000u, 0u, 0, 0, true)]
+    [InlineData(0x2000u, 0u, 0, 0, true)]
+    [InlineData(0x82000u, 1u, 0, 0, true)]
+    [InlineData(0x80000u, 0u, 8, 0, true)]
+    [InlineData(0u, 0u, 0, 0, false)]
+    [InlineData(0x80000u, 0x10u, 0, 0, false)]
+    [InlineData(0x2000u, 0x400u, 0, 0, false)]
+    [InlineData(0x82000u, 0u, 0, 4, false)]
+    [InlineData(0x82000u, 0u, 0, 0x4000, false)]
+    [InlineData(0x82000u, 0u, 4, 0, false)]
+    public void Countdown_service_is_requested_only_at_its_actual_status_and_graphics_gates(uint statuses, uint graphicsFlags, ushort flags2, ushort additionalModelFlags, bool expected)
     {
-        NativeBattleGraphicsModel model = Model with { Flags8 = statuses, Flags2 = flags2 };
-        Assert.Contains(function, Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(model, graphicsFlags, Colors, Inactive)).Message);
+        NativeBattleGraphicsModel model = Model with { Flags8 = statuses, Flags2 = flags2, Flags0 = (ushort)(Model.Flags0 | additionalModelFlags) };
+        NativeBattleModelColorStep step = NativeBattleModelColors.Advance50A0A0(model, graphicsFlags, Colors, Inactive);
+        Assert.Equal(expected, step.CountdownRequired);
     }
 }

@@ -29,6 +29,7 @@ internal sealed partial class BattleScenePresentation
     private BattleRenderer? renderer;
     private NativeBattlePrimitiveFrame? renderedPrimitiveFrame;
     private NativeBattlePcRenderTailReceipt? renderedPcRenderTail;
+    private NativeBattlePcUiFrame? renderedPcUiFrame;
     private NativeBattleEffectTextureState? renderedTextures;
     private NativeBattlePcTextureWindowCache? renderedTextureWindows;
     private byte[]? renderedPixels;
@@ -142,9 +143,10 @@ internal sealed partial class BattleScenePresentation
             }
             NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
             NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
+            NativeBattlePcUiFrame? uiFrame = session.NativeEffectMemory?.UiImmediateFrame;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
             IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(session, rawGraphics);
-            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements);
+            bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements);
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
                 return renderedPixels;
@@ -156,9 +158,10 @@ internal sealed partial class BattleScenePresentation
             if (triangleRenderer is not null)
             {
                 renderedPixels = null;
-                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements);
+                byte[] result = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve);
                 renderedPrimitiveFrame = frame;
                 renderedPcRenderTail = frame.LastPcRenderTail;
+                renderedPcUiFrame = uiFrame;
                 renderedTextures = textures;
                 renderedTextureWindows = windows;
                 renderedModelReplacements = replacements;
@@ -168,9 +171,10 @@ internal sealed partial class BattleScenePresentation
                 return result;
             }
             renderedGpu = null;
-            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements);
+            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows, replacements.Count == 0 ? null : replacements, uiFrame, uiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve);
             renderedPrimitiveFrame = frame;
             renderedPcRenderTail = frame.LastPcRenderTail;
+            renderedPcUiFrame = uiFrame;
             renderedTextures = textures;
             renderedTextureWindows = windows;
             renderedModelReplacements = replacements;

@@ -37,7 +37,7 @@ public sealed record NativeBattleModelColorOverrides([property: JsonRequired] Im
     }
 }
 
-public sealed record NativeBattleModelColorStep(NativeBattleGraphicsModel Model, NativeBattleModelColorOverrides? Overrides);
+public sealed record NativeBattleModelColorStep(NativeBattleGraphicsModel Model, NativeBattleModelColorOverrides? Overrides, bool CountdownRequired = false);
 
 /// <summary>502AB0 calls50A0A0 before50C110 and before body packets. Stage and one-shot colors are physical writers, not fade completion defaults.</summary>
 public static class NativeBattleModelColors
@@ -66,15 +66,16 @@ public static class NativeBattleModelColors
         {
             model = NativeBattleModelStatusMotion.Advance50A5F0(model);
         }
+        bool countdownRequired = false;
         if ((graphicsFlags & 0x410) == 0)
         {
             if ((model.Flags0 & 0x4004) == 0 && (statuses & 0x82000) != 0)
             {
-                throw new NotSupportedException("Native50A0A0 reached50A410 Doom/Petrify countdown text; its retained PC UI texture, depth and draw-batch owners are not implemented.");
+                countdownRequired = true;
             }
             //5711C0 draws into the current common packet heap; the Session invokes it here before50C110/body submission.
         }
-        return new(model, pending);
+        return new(model, pending, countdownRequired);
     }
 }
 

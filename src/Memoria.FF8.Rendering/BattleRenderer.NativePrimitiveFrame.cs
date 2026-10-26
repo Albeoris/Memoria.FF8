@@ -19,7 +19,7 @@ public sealed partial class BattleRenderer
     private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom, bool Line = false);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null)
     {
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         sceneProjectionReady = false;
@@ -46,6 +46,7 @@ public sealed partial class BattleRenderer
         }
         nativeTextureOwner = textures;
         nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
+        DrawNativePcUi(uiFrame, uiTexture, false);
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
             if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6)
@@ -155,6 +156,7 @@ public sealed partial class BattleRenderer
         if (TriangleRenderer is not null)
         {
             DrawNativePcRenderTail(frame.LastPcRenderTail, capabilities);
+            DrawNativePcUi(uiFrame, uiTexture, true, true);
             TriangleRenderer.End();
             return pixels;
         }
@@ -168,6 +170,7 @@ public sealed partial class BattleRenderer
             Parallel.For(0, stripes, new ParallelOptions { MaxDegreeOfParallelism = stripes }, RasterStripe);
         }
         DrawNativePcRenderTail(frame.LastPcRenderTail, capabilities);
+        DrawNativePcUi(uiFrame, uiTexture, true, true);
         return pixels;
 
         void RasterStripe(int stripe)

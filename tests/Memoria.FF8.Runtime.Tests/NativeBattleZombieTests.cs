@@ -37,7 +37,7 @@ public sealed class NativeBattleZombieTests
         NativeBattleModuleDepthCueVertex source = new(new(1000u | 800u << 16, 4096, 0), 0) { Ir2 = -1 };
         NativeBattleProjectedVertex result = NativeBattleZombieOverlay.Project(source, -1048, wave.ToImmutableArray(), 0, 256);
         Assert.Equal(1256u | 800u << 16, result.Screen);
-        Assert.Equal(4096u, result.DepthAndClip);
+        Assert.Equal(1024u, result.DepthAndClip);
     }
 
     [Theory]
@@ -49,13 +49,26 @@ public sealed class NativeBattleZombieTests
     {
         NativeBattleModuleDepthCueVertex source = new(new(unchecked((ushort)x) | unchecked((uint)y << 16), 4096, 0), 0);
         NativeBattleProjectedVertex result = NativeBattleZombieOverlay.Project(source, 0, new short[4096].ToImmutableArray(), 0, 0);
-        Assert.Equal(4096u | clip << 16, result.DepthAndClip);
+        Assert.Equal(1024u | clip << 16, result.DepthAndClip);
     }
 
-    [Fact]
-    public void Zero_depth_requires_only_the_native_rejection_word()
+    [Theory]
+    [InlineData(4, 1)]
+    [InlineData(65535, 16383)]
+    public void Projected_depth_uses_the_native_45E250_quarter_WORD_without_a_bucket_clamp(ushort sourceDepth, uint expected)
     {
-        NativeBattleModuleDepthCueVertex source = new(new(0x12345678, 0, 0), 0) { Ir2 = short.MinValue };
+        NativeBattleModuleDepthCueVertex source = new(new(1000u | 800u << 16, sourceDepth, 0), 0);
+        Assert.Equal(expected, NativeBattleZombieOverlay.Project(source, 0, new short[4096].ToImmutableArray(), 0, 0).DepthAndClip);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Zero_quarter_depth_requires_only_the_native_rejection_word(ushort depth)
+    {
+        NativeBattleModuleDepthCueVertex source = new(new(0x12345678, depth, 0), 0) { Ir2 = short.MinValue };
         Assert.Equal(0x100000u, NativeBattleZombieOverlay.Project(source, 0, new short[4096].ToImmutableArray(), 0, 0).DepthAndClip);
     }
 }

@@ -13,7 +13,8 @@ public static class NativeBattleZombieOverlay
         {
             throw new InvalidDataException("Native Zombie requires its original4096-WORD wave table.");
         }
-        if (vertex.Projected.Depth == 0)
+        ushort depth = vertex.Projected.ReadDepth45E250();
+        if (depth == 0)
         {
             return new(0, 0x100000);
         }
@@ -25,7 +26,7 @@ public static class NativeBattleZombieOverlay
         short shifted = unchecked((short)(x + displacement));
         uint flags = shifted < 0 ? 1u : shifted >= 320 * 8 ? 2u : 0u;
         flags |= y < 0 ? 4u : y >= 216 * 8 ? 8u : 0u;
-        return new(unchecked((ushort)shifted) | unchecked((uint)y << 16), vertex.Projected.Depth | flags << 16);
+        return new(unchecked((ushort)shifted) | unchecked((uint)y << 16), depth | flags << 16);
     }
 
     public static NativeBattleZombieOverlayDraw Draw(ImmutableArray<NativeBattleRawMesh> meshes, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleCameraProjection projection, uint color, uint mask, NativeBattleModelTextureBinding? binding, uint workspace, int capacity, NativeBattleFileStaging staging, ImmutableArray<short> wave, short originX, short phase, short amplitude, short dqa, int dqb)
@@ -54,7 +55,7 @@ public static class NativeBattleZombieOverlay
                 NativeBattleModuleDepthCueVertex native = NativeBattleModuleProjection.ProjectWithCue45FAA0(bone, vertex.Position, projection, dqa, dqb);
                 vertices[index] = Project(native, originX, wave, phase, amplitude);
                 int offset = index * 8;
-                if (native.Projected.Depth == 0)
+                if (native.Projected.ReadDepth45E250() == 0)
                 {
                     // Rejected vertices only write their clip WORD; retain all six untouched bytes.
                     Flush(offset);

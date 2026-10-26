@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect218StateTests
     [Fact]
     public void Missing_actual_previous_camera_eye_is_unknown_even_when_effect_storage_is_cold()
     {
-        NativeBattleEffect218Frame frame = Frame(NativeBattleEffectMemory.FromColdProcess());
+        NativeBattleEffect218Frame frame = Frame(NativeBattleEffectMemory.FromColdProcess() with { GuardianCameraProcess = null });
         Assert.Throws<NotSupportedException>(() => PreviousCameraEye6338B0(frame));
         frame = frame with { Memory = frame.Memory with { GuardianCameraProcess = NativeBattleGuardianCameraProgram.FromColdProcess() with { PreviousPose = null } } };
         Assert.Throws<NotSupportedException>(() => PreviousCameraEye6338B0(frame));

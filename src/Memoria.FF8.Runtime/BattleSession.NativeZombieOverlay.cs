@@ -31,9 +31,10 @@ public sealed partial class BattleSession
         Word(0x86, unchecked((short)(parameters.Amplitude >> 2)));
         Word(0x84, parameters.Phase);
         Dword(0x7C, origin.Screen);
-        Dword(0x88, origin.Depth);
+        ushort originDepth = origin.ReadDepth45E250();
+        Dword(0x88, originDepth);
         NativeFileStaging = staging;
-        if (origin.Depth > 0)
+        if (originDepth > 0)
         {
             ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Zombie overlay requires its actual loaded CPU workspace maximum.");
             int capacity = checked(maximum * 8);

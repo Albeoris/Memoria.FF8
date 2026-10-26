@@ -16,6 +16,7 @@ public sealed partial class BattleSession
         nativeUiBecameReady = ready;
         try
         {
+            BeginNativePcUiFrame();
             AdvanceNativeHostTime();
             BeginNativeFrameStack();
             if (NativeGraphics.UiServices is { } initial)
@@ -47,6 +48,7 @@ public sealed partial class BattleSession
                 }
                 if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
                 {
+                    PublishNativePcUiFrame();
                     return ready;
                 }
                 //47CCB0 calls48D0C0 once after outer action/AI producers and immediately before500900.
@@ -68,6 +70,7 @@ public sealed partial class BattleSession
                 bool retained = NativeEffectMemory?.PrimitiveProcess?.DisableTableReset ?? throw new NotSupportedException("Native47CF60 pause completion requires its actual1CFF834 owner.");
                 NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = retained } };
             }
+            PublishNativePcUiFrame();
             return ready;
         }
         finally

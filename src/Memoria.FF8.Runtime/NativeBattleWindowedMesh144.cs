@@ -49,8 +49,9 @@ public static class NativeBattleWindowedMesh144
             context = Put(context, 0x28, checked(mesh.Address + (uint)cursor));
             for (int faceIndex = 0; faceIndex < count; faceIndex++)
             {
-                bool gouraud = group == 7;
-                bool triangle = group == 2;
+                bool gouraud = group is 6 or 7;
+                bool triangle = group is 2 or 6;
+                int colorCount = triangle ? 3 : 4;
                 byte[] face = mesh.Bytes.AsSpan(cursor, strides[group]).ToArray();
                 for (int corner = 0; corner < 3; corner++)
                 {
@@ -77,9 +78,9 @@ public static class NativeBattleWindowedMesh144
                 if (gouraud)
                 {
                     context = Put(context, 0x60, firstColor);
-                    for (int color = 1; color < 4; color++)
+                    for (int color = 1; color < colorCount; color++)
                     {
-                        context = Put(context, 0x60 + color * 4, BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan(20 + color * 4)));
+                        context = Put(context, 0x60 + color * 4, BinaryPrimitives.ReadUInt32LittleEndian(face.AsSpan((triangle ? 16 : 20) + color * 4)));
                     }
                 }
                 if ((firstFlags & 0x60000) == 0)
@@ -89,13 +90,13 @@ public static class NativeBattleWindowedMesh144
                     AdjustScratch(face, v, 1, height, triangle);
                     context = Put(context, 0x2C, registers.Geometry.Mac0!.Value);
                     int area = unchecked((int)registers.Geometry.Mac0.Value);
-                    if (triangle && area != 0 && (area > 0 || (flags & 0x10) != 0))
+                    if (triangle && area != 0 && (area > 0 || (flags & (gouraud ? 0x20u : 0x10u)) != 0))
                     {
                         registers = NativeBattleGeometry.Average45E5C0(registers, controls.Zsf3 ?? throw new NotSupportedException("Windowed triangles require current ZSF3."));
                     }
                 }
                 NativeBattleHoly175WindowedMeshContext operands = new(flags, farColor, (flags & 0xC0) != 0 ? OptionalInt(context, 12) : null, palette, unchecked((int)U(context, 0x10)), unchecked((int)U(context, 0x14)), window, tableBaseBucket, depthShift);
-                NativeBattleGfGeometryBatch leaf = triangle ? NativeBattleHoly175WindowedMeshPackets.EmitTriangle(face, Project, false, operands, colors, allocated) : NativeBattleHoly175WindowedMeshPackets.EmitQuad(face, Project, gouraud, operands, colors, allocated);
+                NativeBattleGfGeometryBatch leaf = triangle ? NativeBattleHoly175WindowedMeshPackets.EmitTriangle(face, Project, gouraud, operands, colors, allocated) : NativeBattleHoly175WindowedMeshPackets.EmitQuad(face, Project, gouraud, operands, colors, allocated);
                 if (leaf.Attempts.Any(attempt => attempt.Primitive is not null))
                 {
                     context = Put(context, 0x34, registers.Geometry.Otz!.Value);
@@ -103,7 +104,7 @@ public static class NativeBattleWindowedMesh144
                     {
                         palette = U(context, 0x24);
                         context = Put(context, 0x5C, palette);
-                        for (int color = 0; color < 4; color++)
+                        for (int color = 0; color < colorCount; color++)
                         {
                             uint value = U(context, 0x60 + color * 4);
                             for (int lane = 0; lane < 3; lane++)
@@ -112,18 +113,25 @@ public static class NativeBattleWindowedMesh144
                                 context = context.Write(0x60 + color * 4 + lane, [tinted]);
                             }
                         }
-                        uint[] values = Enumerable.Range(0, 4).Select(index => U(context, 0x60 + index * 4)).ToArray();
+                        uint[] values = Enumerable.Range(0, colorCount).Select(index => U(context, 0x60 + index * 4)).ToArray();
                         if ((flags & 0x80) != 0)
                         {
-                            NativeBattleScriptedColorRegisters loaded = NativeBattleScriptedDpct.LoadColors45E120(registers.Colors, values[1], values[2], values[3]) with { Ir0 = U(context, 12) };
+                            NativeBattleScriptedColorRegisters loaded = NativeBattleScriptedDpct.LoadColors45E120(registers.Colors, values[1], values[2], values[triangle ? 0 : 3]) with { Ir0 = U(context, 12) };
                             registers = registers with { Colors = NativeBattleScriptedDpct.Transform45F4C0(loaded, far, colors) };
-                            for (int index = 1; index < 4; index++)
+                            for (int index = 1; index < colorCount; index++)
                             {
                                 values[index] = registers.Colors.Rgb[index - 1] ?? throw new InvalidDataException("Windowed DPCT did not publish its actual color FIFO.");
                             }
-                            NativeBattleScriptedDpcsResult first = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, values[0], U(context, 12), far, colors);
-                            registers = registers with { Colors = first.Registers };
-                            values[0] = first.PackedRgb;
+                            if (triangle)
+                            {
+                                values[0] = registers.Colors.Rgb[2] ?? throw new InvalidDataException("Windowed GT3 DPCT did not publish its actual first color.");
+                            }
+                            else
+                            {
+                                NativeBattleScriptedDpcsResult first = NativeBattleScriptedDpcs.Transform45F270(registers.Colors, values[0], U(context, 12), far, colors);
+                                registers = registers with { Colors = first.Registers };
+                                values[0] = first.PackedRgb;
+                            }
                         }
                         leaf = ReplaceColors(leaf, values);
                     }
@@ -189,7 +197,7 @@ public static class NativeBattleWindowedMesh144
         return batch with { Attempts = batch.Attempts.Select(attempt =>
         {
             byte[] bytes = attempt.Data.ToArray();
-            for (int index = 0; index < 4; index++)
+            for (int index = 0; index < colors.Length; index++)
             {
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8 + index * 12), colors[index]);
             }

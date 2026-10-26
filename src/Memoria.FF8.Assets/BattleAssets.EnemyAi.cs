@@ -77,7 +77,8 @@ public sealed partial class BattleAssets
             }
             scripts[index] = bytes.AsSpan(start, finish - start).ToArray();
         }
-        (string[] texts, byte[][] nameBuffers, string[] displayNames) = DecodeEnemyTextBank(bytes, textIndices, text, end);
+        int loadedEnd = sections == 11 ? BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(40)) : end;
+        (string[] texts, byte[][] nameBuffers, string[] displayNames) = DecodeEnemyTextBank(bytes, textIndices, text, end, loadedEnd);
         NativeBattleAiAbility[] abilities = new NativeBattleAiAbility[48];
         for (int index = 0; index < abilities.Length; index++)
         {
@@ -134,8 +135,13 @@ public sealed partial class BattleAssets
         return System.Collections.Immutable.ImmutableArray.CreateRange(texts);
     }
 
-    private static (string[] Texts, byte[][] NameBuffers, string[] DisplayNames) DecodeEnemyTextBank(byte[] bytes, int textIndices, int text, int end)
+    private static (string[] Texts, byte[][] NameBuffers, string[] DisplayNames) DecodeEnemyTextBank(byte[] bytes, int textIndices, int text, int end, int? loadedEnd = null)
     {
+        int copyEnd = loadedEnd ?? end;
+        if (copyEnd < end || copyEnd > bytes.Length)
+        {
+            throw new InvalidDataException("Enemy AI name source leaves its original loaded resource extent.");
+        }
         string[] texts = new string[(text - textIndices) / 2];
         byte[][] nameBuffers = new byte[texts.Length][];
         string[] displayNames = new string[texts.Length];
@@ -160,8 +166,8 @@ public sealed partial class BattleAssets
                 throw new InvalidDataException("Enemy AI text has no original terminator.");
             }
             texts[index] = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, terminator));
-            //37 copies24 encoded bytes, before interpreting the copied display buffer as FF8 text.
-            nameBuffers[index] = start <= end - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
+            //37 copies24 encoded bytes from the contiguous loaded resource, across text-section boundaries.
+            nameBuffers[index] = start <= copyEnd - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
             displayNames[index] = DecodeNativeNamePrefix(bytes.AsSpan(start, Math.Min(24, terminator)));
         }
         return (texts, nameBuffers, displayNames);

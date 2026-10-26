@@ -140,6 +140,10 @@ public sealed partial class BattleSession
                     NativeBattleModelColorStep colorStep = NativeBattleModelColors.Advance50A0A0(model, flags, colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 }, colorMemory.ModelColorOverrides);
                     model = colorStep.Model;
                     NativeEffectMemory = colorMemory with { ModelColorOverrides = colorStep.Overrides };
+                    if (colorStep.CountdownRequired)
+                    {
+                        AdvanceNativeStatusCountdowns(graphics, model);
+                    }
                     (graphics, model) = AdvanceNativeStatusIcons(graphics, model);
                     byte? dispatchedKind = model.Kind5;
                     NativeBattleSummonColors lifecycleColors = colorRules with { Transition = modelColors.Color40, Normal = modelColors.Color44 };
