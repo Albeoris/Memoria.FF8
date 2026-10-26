@@ -113,7 +113,7 @@ internal sealed partial class RecreateGame
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
         active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
-        active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
         active.AdvanceNativeGraphicsPresentation(elapsed);
         if (ReferenceEquals(active, world?.Battle))
         {

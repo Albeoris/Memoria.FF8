@@ -17,7 +17,7 @@ public sealed class NativeBattleEffect326ResourcesTests
         Assert.Equal(60, resources.MainModel.PoseSource.BoneCount);
         Assert.Equal(2, resources.EmbeddedModel.PoseSource.BoneCount);
         Assert.Equal(23, resources.LateModel.PoseSource.BoneCount);
-        Assert.Equal(13, resources.Meshes.Count);
+        Assert.Equal(14, resources.Meshes.Count);
         Assert.Equal(5, resources.Sprites.Count);
         Assert.Equal(438, resources.Camera.Data.Length);
         Assert.Equal((ushort)0x81, BinaryPrimitives.ReadUInt16LittleEndian(resources.Camera.Data.AsSpan()));

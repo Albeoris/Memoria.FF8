@@ -225,7 +225,18 @@ public static partial class ScenarioDiscovery
                 {
                     string path = Path.Combine(output, "recipes", caseId + ".json");
                     File.WriteAllText(path, turnRecipe!.ToJsonString(RecordJson.Options));
-                    scenarios[^1] = scenarios[^1] with { Status = "RUNNABLE", Disposition = "scheduled", DiagnosticRecipe = path, FormationId = turnContext!.FormationId, StageId = turnContext.StageId, ExecutionBlockers = [], TargetPolicy = $"The original complete turn callback owns target selection; observed selector {turnProof!.TargetSelector}, callback1 offset{turnProof.Offset}. Actual targets and branch dispatch must be verified in each execution.", Invocation = ["Queue the existing normal stage1 callback producer twice on the original owner. Do not directly invoke the effect or force the conditional/random branch."], AcceptanceBlockers = ["A valid native turn attempt is not proof the seeded branch reaches the focal effect twice; unreached/wrong branch produces ERROR."] };
+                    scenarios[^1] = scenarios[^1] with
+                    {
+                        Status = "PLANNED_BLOCKED",
+                        Disposition = "unresolved",
+                        DiagnosticRecipe = path,
+                        FormationId = turnContext!.FormationId,
+                        StageId = turnContext.StageId,
+                        ExecutionBlockers = ["SCRIPTED_BRANCH_PRECONDITION: the prepared original owner and turn callback do not prove the conditional/random branch reaches this focal effect twice. Establish genuine branch prerequisites and repeated dispatch while preserving the same battle/process owners; do not force AI selection."],
+                        TargetPolicy = $"The original complete turn callback owns target selection; observed selector {turnProof!.TargetSelector}, callback1 offset{turnProof.Offset}. Actual targets and branch dispatch must be verified in each execution.",
+                        Invocation = ["Queue the existing normal stage1 callback producer twice on the original owner. Do not directly invoke the effect or force the conditional/random branch."],
+                        AcceptanceBlockers = ["Prepared recipe metadata remains available for bounded branch investigation. Actual dispatch or engine failures retain their evidence and must be assessed independently."]
+                    };
                 }
                 else
                 {

@@ -18,6 +18,12 @@ public sealed record NativeBattleEffect218State([property: JsonRequired] NativeB
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectArena? EmbeddedSkeleton { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CommonPacketStart { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CommonPacketEnd { get; init; }
+
     public bool ColdSourcePending { get; init; }
 
     public static NativeBattleEffect218State FromColdProcess() => new(NativeBattleEffectArena.Clear(), NativeBattleEffectArena.Clear().MarkUnknown(0, 12)) { ColdSourcePending = true };

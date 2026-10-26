@@ -1004,6 +1004,15 @@ public sealed partial class GameAssets
                 binding = binding with { Effect218Resources = ReadNativeEffect218Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Effect == 326)
+            {
+                if (binding.Entry != NativeBattleEffect326Profile.Entry || binding.Initializer != NativeBattleEffect326Profile.Initializer || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)
+                {
+                    throw new InvalidDataException("Effect326 requires its original entry and empty initializer contract.");
+                }
+                binding = binding with { Effect326Resources = ReadNativeEffect326Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Effect == 187)
             {
                 if (binding.Entry != NativeBattleEffect187Profile.Entry || binding.Initializer != NativeBattleEffect187Profile.Initializer || binding.InitializerIsRet != true || binding.InitializerResource is not null || binding.InitializerResources is not null)

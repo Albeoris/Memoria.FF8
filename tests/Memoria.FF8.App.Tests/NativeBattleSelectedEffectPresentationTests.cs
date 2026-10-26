@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -35,10 +35,21 @@ public sealed class NativeBattleSelectedEffectPresentationTests
             source = QueueFollowing(source, NativeBattleEffectFamilyRunner.LoadSnapshot(invocation), effect);
         }
         NativeBattleGraphicsState graphics = source.NativeGraphics!;
-        int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
-        uint argument = graphics.Descriptors.Packets[descriptor].Argument;
-        Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
-        int headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
+        int headerIndex;
+        if (graphics.OriginalEffect is { ReturnedDescriptor: null } admitted)
+        {
+            Assert.Equal(effect, admitted.RequestedEffect);
+            Assert.Null(admitted.ReturnedDescriptor);
+            Assert.Empty(admitted.Pools);
+            headerIndex = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters).HeaderIndex7C;
+        }
+        else
+        {
+            int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
+            uint argument = graphics.Descriptors.Packets[descriptor].Argument;
+            Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
+            headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
+        }
         Assert.Equal(effect, NativeBattleActionGraphics.Word(source.NativeActionPackets!.Headers[headerIndex], 6));
         NativeBattleActionHeaderSlot selectedHeader = source.NativeActionPackets.Headers[headerIndex];
         Assert.NotNull(selectedHeader.FirstContactIndex);
@@ -114,6 +125,14 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 187)
                 {
                     ownedCommands = NativeBattleSelectedEffect187Packets.CurrentCommands(current);
+                }
+                else if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 326)
+                {
+                    ownedCommands = NativeBattleSelectedEffect326Packets.CurrentCommands(current);
+                }
+                else if (currentEffect is { ReturnedDescriptor: > 0 } && effect == 218)
+                {
+                    ownedCommands = NativeBattleSelectedEffect218Packets.CurrentCommands(current);
                 }
                 else if (currentEffect is { ReturnedDescriptor: > 0 } && NativeBattleCinematicProfile.IsSupported(effect))
                 {
@@ -245,17 +264,28 @@ public sealed class NativeBattleSelectedEffectPresentationTests
     {
         Assert.True(current.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
         NativeBattleGraphicsState graphics = invocation.NativeGraphics!;
-        int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
-        uint offset = graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
-        Assert.Equal(0u, offset % 20);
+        int originalHeader;
+        if (graphics.OriginalEffect is { ReturnedDescriptor: null, Parameters: { } parameters } admitted)
+        {
+            Assert.Equal(effect, admitted.RequestedEffect);
+            Assert.Empty(admitted.Pools);
+            originalHeader = parameters.HeaderIndex7C;
+        }
+        else
+        {
+            int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
+            uint offset = graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+            Assert.Equal(0u, offset % 20);
+            originalHeader = checked((int)(offset / 20));
+        }
         NativeBattleActionPacketsState original = invocation.NativeActionPackets!;
-        NativeBattleActionHeaderSlot header = original.Headers[checked((int)(offset / 20))];
+        NativeBattleActionHeaderSlot header = original.Headers[originalHeader];
         Assert.Equal(effect, NativeBattleActionGraphics.Word(header, 6));
         Assert.Equal(1, header.ReadByte(0x10));
         Assert.Equal(0, header.ReadByte(0x11));
         Assert.Equal(graphics.ActorIds.ToArray(), current.NativeGraphics!.ActorIds.ToArray());
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
-        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), effect, null));
+        (packets, int nextHeader) = packets.Prepare(new(header.ReadByte(0), header.ReadByte(1), header.ReadByte(2), unchecked((sbyte)header.ReadByte(3)), NativeBattleActionGraphics.Word(header, 4), effect, header.Data));
         Assert.NotNull(header.FirstContactIndex);
         (packets, _) = packets.AppendContact(Assert.IsType<NativeBattleContactPacket>(original.Contacts[header.FirstContactIndex.Value]));
         (packets, _) = packets.Publish(1);

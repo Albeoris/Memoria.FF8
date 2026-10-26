@@ -418,6 +418,10 @@ public sealed partial class BattleSession
                 {
                     graphics = effect218Completed;
                 }
+                else if (TryWriteNativeEffect326Completion(graphics, address, value, out NativeBattleGraphicsState effect326Completed))
+                {
+                    graphics = effect326Completed;
+                }
                 else
                 {
                     WriteNativeAuxiliaryCompletionByte(address, value);
