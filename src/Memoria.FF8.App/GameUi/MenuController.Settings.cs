@@ -39,7 +39,7 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
         return [new MenuEntry("battle-laboratory", "Battle laboratory…", "Edit an isolated scenario; Start launches it explicitly.", Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
-            .. HostSettingsEntries("Battle policy")];
+            .. HostSettingsEntries("Battle policy", "Random encounters")];
     }
 
     internal IReadOnlyList<string> BattleSettingsDetails() => [battleSource?.Invoke() ?? (_hasActiveBattle?.Invoke() == true ? "Active battle" : "No active battle"), "Encounter execution: " + (HostSettingValue("Battle policy") == "Instant victory" ? "Automatic victory" : "Full combat"), "Applies to the current game; at Title it is the new-game default.", "Save normally to retain current-game changes.", SelectedEntry?.Help ?? ""];
@@ -143,12 +143,12 @@ public sealed partial class MenuController
             Message = "Local settings are not connected to this menu host.";
             return true;
         }
-        if (action.SubjectId != "Battle policy")
+        if (action.SubjectId is not ("Battle policy" or "Random encounters"))
         {
             Message = "This preference has its canonical editor in Config.";
             return true;
         }
-        if (action.Value == "Instant victory" && (encounterPolicyHasConsequence?.Invoke() ?? (_hasActiveBattle?.Invoke() == true || hasPendingEncounter?.Invoke() == true)))
+        if (action.SubjectId == "Battle policy" && action.Value == "Instant victory" && (encounterPolicyHasConsequence?.Invoke() ?? (_hasActiveBattle?.Invoke() == true || hasPendingEncounter?.Invoke() == true)))
         {
             pendingEncounterPolicy = true;
             Push("debug-policy-confirm");

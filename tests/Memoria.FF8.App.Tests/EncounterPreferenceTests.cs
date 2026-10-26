@@ -73,14 +73,15 @@ public sealed class EncounterPreferenceTests
         menus.Navigate(MenuInput.Confirm);
         Assert.True(session.State.FullBattlePlaythrough);
         Assert.Equal("Full combat", preferences.BattlePolicyLabel);
-        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "Random encounters");
         menus.Open("config-exploration");
-        menus.SelectEntry("config-exploration", "Random encounters");
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "Random encounters");
+        menus.Open("debug-battle", true);
+        menus.SelectEntry("debug-battle", "Random encounters");
         menus.Navigate(MenuInput.Confirm);
         Assert.False(session.State.RandomEncounters!.Enabled);
         Assert.False(preferences.RandomEncounters);
         Assert.True(session.State.FullBattlePlaythrough);
-        Assert.Equal("config-exploration", menus.ScreenId);
+        Assert.Equal("debug-battle", menus.ScreenId);
         menus.Open("debug-battle", true);
         menus.SelectEntry("debug-battle", "Battle policy");
         menus.Navigate(MenuInput.Confirm);

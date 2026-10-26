@@ -14,7 +14,7 @@ public sealed class SettingsOwnershipTests
         Assert.Equal(45, SettingsPlacement.All.Select(placement => placement.Identity).Distinct().Count());
         Assert.Equal(new[] { "Controller", "Sound" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Excluded).Select(placement => placement.LegacyKey).Order());
         Assert.Equal(new[] { "ATB", "Battle control", "Battle message", "Battle speed", "Camera movement", "Scan" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Fixture).Select(placement => placement.LegacyKey).Order());
-        Assert.Equal("Battle policy", Assert.Single(SettingsPlacement.All, placement => placement.Audience == SettingsAudience.Developer).LegacyKey);
+        Assert.Equal(new[] { "Battle policy", "Random encounters" }, SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Developer).Select(placement => placement.LegacyKey).Order());
         Assert.All(SettingsPlacement.All.Where(placement => placement.Audience == SettingsAudience.Player), placement =>
         {
             Assert.StartsWith("config-", placement.Page);
@@ -53,13 +53,22 @@ public sealed class SettingsOwnershipTests
             }
         }
         Assert.Equal(player.Count, player.Distinct().Count());
-        Assert.Equal(36, player.Count);
+        Assert.Equal(35, player.Count);
         menus.Open("debug-battle", true);
         List<string> developer = menus.Entries.Where(entry => SettingsPlacement.All.Any(placement => placement.LegacyKey == entry.Id)).Select(entry => SettingsPlacement.All.Single(placement => placement.LegacyKey == entry.Id)).Select(placement => placement.Target + "/" + placement.Scope).ToList();
-        Assert.Single(developer);
+        Assert.Equal(2, developer.Count);
         Assert.Empty(player.Intersect(developer));
-        Assert.DoesNotContain(menus.Entries, entry => entry.Action?.SubjectId is "Limit once per turn" or "Difficulty" or "Random encounters" or "Battle ATB mode" or "Gunblade trigger");
+        Assert.Contains(menus.Entries, entry => entry.Action?.SubjectId == "Random encounters");
+        Assert.DoesNotContain(menus.Entries, entry => entry.Action?.SubjectId is "Limit once per turn" or "Difficulty" or "Battle ATB mode" or "Gunblade trigger");
         Assert.Single(player, target => target.StartsWith("ControlsProfile.Controller.VibrationEnabled/", StringComparison.Ordinal));
+        UiPreferences preferences = new() { RandomEncounters = true };
+        menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
+        menus.SelectEntry("debug-battle", "Random encounters");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.False(preferences.RandomEncounters);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.True(preferences.RandomEncounters);
+        Assert.Equal("debug-battle", menus.ScreenId);
     }
 
     [Fact]

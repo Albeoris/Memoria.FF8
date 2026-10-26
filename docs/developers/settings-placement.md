@@ -8,7 +8,7 @@ Global means the existing per-user preferences shared across saves. Game means c
 
 ## Registry coverage
 
-These are all 37 legacy registry identities. Player rows have one canonical Config editor; the developer row has one Debug editor. Display labels may be clearer than the legacy command key shown here.
+Player rows have one canonical Config editor; developer rows have one Debug editor. Display labels may be clearer than the legacy command key shown here.
 
 | Legacy key | Old location | Kind | Audience and canonical home | Owner / scope |
 | --- | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ These are all 37 legacy registry identities. Player rows have one canonical Conf
 | Gunblade trigger | Config / Gameplay; Debug / Battle | Scalar | Player · Gameplay / Combat | Gameplay preferences / Game, Title default |
 | Battle policy | Config / Gameplay; Debug / Battle | Scalar | Developer · Battle / Encounter execution | Encounter policy / Game, Title default |
 | Rare card markers | Config / Interface; Debug / UI; New Game | Scalar | Player · Gameplay / Exploration and saving | UI preferences / Global, including New Game |
-| Random encounters | Config / Gameplay; Debug / Battle | Scalar | Player · Gameplay / Exploration and saving | Encounter owner / Game, Title default |
+| Random encounters | Config / Gameplay; Debug / Battle | Scalar | Developer · Battle | Encounter owner / Game, Title default |
 | Battle speed | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |
 | Battle message | Fixture Config / Gameplay | Placeholder | Fixture only | Unsupported native placeholder |
 | Field message | Config / Interface | Scalar | Player · Interface / Text and fonts | UI dialogue reveal preference / Global |

@@ -40,8 +40,8 @@ internal static class SettingsPlacement
             ["Difficulty", "Battle ATB mode", "Limit once per turn", "Selphie card Slots", "Gunblade trigger"]),
         ["config-magic"] = new("Magic and Guardian Forces", "Changes can require review or remain pending until a safe boundary. Save the game to retain game rules.",
             ["Draw once per spell", "Shared magic stock", "Infinite magic", "Smart Attack", "GF Transformations"]),
-        ["config-exploration"] = new("Exploration and saving", "Exploration: encounter rules and rare-card markers. Saving: rotating quick-save retention.",
-            ["Random encounters", "Rare card markers", "Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
+        ["config-exploration"] = new("Exploration and saving", "Exploration: rare-card markers and item rules. Saving: rotating quick-save retention.",
+            ["Rare card markers", "Card Mod once", "Weapon magazine required", "Weapon upgrade order", "Quick saves"])
     };
 
     internal static readonly IReadOnlyList<SettingPlacement> All = Create();
@@ -108,7 +108,7 @@ internal static class SettingsPlacement
             {
                 "Sound" or "Controller" => SettingsAudience.Excluded,
                 "ATB" or "Battle speed" or "Battle message" or "Scan" or "Camera movement" or "Battle control" => SettingsAudience.Fixture,
-                "Battle policy" => SettingsAudience.Developer,
+                "Battle policy" or "Random encounters" => SettingsAudience.Developer,
                 _ => SettingsAudience.Player
             };
             string page = placement.Key ?? (setting.Id == "Vibration" ? "config-controller-settings" : audience == SettingsAudience.Developer ? "debug-battle" : "");
