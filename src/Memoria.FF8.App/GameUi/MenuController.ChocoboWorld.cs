@@ -25,7 +25,7 @@ public sealed record ChocoboClaimReview(IReadOnlyList<ChocoboRewardRow> Items, b
 public sealed partial class MenuController
 {
     private Func<IReadOnlyList<ChocoboImportSource>>? discoverChocoboSaves;
-    private Func<string?>? browseChocoboSave;
+    private Func<Task<string?>>? browseChocoboSave;
     private Func<string, ChocoboImportReview>? previewChocoboImport;
     private Func<string>? commitChocoboImport;
     private Func<ChocoboClaimReview>? previewChocoboClaim;
@@ -37,6 +37,11 @@ public sealed partial class MenuController
     private Func<ChocoboPresentationText?>? readChocoboResultText;
 
     public void ConnectChocoboWorld(Func<IReadOnlyList<ChocoboImportSource>> discover, Func<string?> browse, Func<string, ChocoboImportReview> preview, Func<string> commit, Func<ChocoboClaimReview> claimPreview, Func<string> claim, Func<ChocoboImportReview>? reviewAssociation = null, Func<ChocoboPresentationText?>? lastResultText = null)
+    {
+        ConnectChocoboWorldAsync(discover, () => Task.FromResult(browse()), preview, commit, claimPreview, claim, reviewAssociation, lastResultText);
+    }
+
+    public void ConnectChocoboWorldAsync(Func<IReadOnlyList<ChocoboImportSource>> discover, Func<Task<string?>> browse, Func<string, ChocoboImportReview> preview, Func<string> commit, Func<ChocoboClaimReview> claimPreview, Func<string> claim, Func<ChocoboImportReview>? reviewAssociation = null, Func<ChocoboPresentationText?>? lastResultText = null)
     {
         discoverChocoboSaves = discover;
         browseChocoboSave = browse;
@@ -197,6 +202,22 @@ public sealed partial class MenuController
         Select(0, Entries.Count);
     }
 
+    private async void BrowseChocoboSaveAsync()
+    {
+        try
+        {
+            if (browseChocoboSave is not null && await browseChocoboSave() is { } path)
+            {
+                Execute(new("chocobo-import-preview", path));
+            }
+        }
+        catch (Exception error) when (error is IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            Message = error.Message;
+        }
+        _view = null;
+    }
+
     private bool ExecuteChocoboWorldAction(MenuAction action)
     {
         if (!action.Kind.StartsWith("chocobo-", StringComparison.Ordinal))
@@ -212,10 +233,7 @@ public sealed partial class MenuController
                     Push("chocobo-sources");
                     break;
                 case "chocobo-import-browse":
-                    if (browseChocoboSave?.Invoke() is { } path)
-                    {
-                        Execute(new("chocobo-import-preview", path));
-                    }
+                    BrowseChocoboSaveAsync();
                     break;
                 case "chocobo-import-preview":
                     chocoboImport = previewChocoboImport?.Invoke(action.SubjectId);

@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -100,7 +101,7 @@ public sealed class RefinementListTests
         if (!string.IsNullOrEmpty(output))
         {
             Directory.CreateDirectory(output);
-            bitmap.Save(Path.Combine(output, $"refinement-{width}x{height}-{scale}.png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, $"refinement-{width}x{height}-{scale}.png"));
         }
     }
 

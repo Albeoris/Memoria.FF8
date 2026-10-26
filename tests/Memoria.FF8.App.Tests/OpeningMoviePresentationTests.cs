@@ -57,14 +57,14 @@ public sealed class OpeningMoviePresentationTests
             Assert.Equal(JsonValueKind.Null, state.GetProperty("Error").ValueKind);
             Assert.Equal("Movie", state.GetProperty("Scene").GetString());
             Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 100);
-            using System.Drawing.Bitmap image = new(capture);
+            using SkiaSharp.SKBitmap image = SkiaSharp.SKBitmap.Decode(capture);
             int visible = 0;
             //Exclude letterboxing and the host's skip hint: only actual movie pixels count.
             for (int y = 40; y < 180; y++)
             {
                 for (int x = 20; x < 300; x++)
                 {
-                    System.Drawing.Color pixel = image.GetPixel(x, y);
+                    SkiaSharp.SKColor pixel = image.GetPixel(x, y);
                     if (pixel.R > 16 || pixel.G > 16 || pixel.B > 16)
                     {
                         visible++;

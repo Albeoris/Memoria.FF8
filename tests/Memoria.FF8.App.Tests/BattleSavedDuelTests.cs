@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -50,12 +51,12 @@ public sealed class BattleSavedDuelTests
                     BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { });
                     UiView view = hud.BuildView();
                     view.Resize(960, 672);
-                    using Bitmap bitmap = new(960, 672, PixelFormat.Format32bppArgb);
+                    using Bitmap bitmap = new(960, 672, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                     using (BattlePreviewCanvas canvas = new(bitmap, game.GameDirectory))
                     {
                         view.Draw(canvas, new UiTheme());
                     }
-                    bitmap.Save(Path.Combine(directory, "ready.png"), ImageFormat.Png);
+                    bitmap.SavePng(Path.Combine(directory, "ready.png"));
                     BattleSession cold = Restore(GameSession.Load(Path.Combine(directory, "ready.json")).Battle!);
                     battle.AdvanceNativeDuelPresentation(elapsed, 0);
                     cold.AdvanceNativeDuelPresentation(elapsed, 0);

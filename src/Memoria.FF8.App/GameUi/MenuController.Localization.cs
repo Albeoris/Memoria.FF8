@@ -1,6 +1,5 @@
 using Memoria.FF8.Mods.Localization;
 using Memoria.FF8.Resources.Localization;
-using Microsoft.Win32;
 
 namespace Memoria.FF8.GameUi;
 
@@ -222,18 +221,7 @@ public sealed partial class MenuController
                 break;
             case "localization-input":
             case "localization-destination":
-                OpenFolderDialog picker = new() { Title = action.Kind == "localization-input" ? SystemText("ui.handlelocalizationaction.title.choose.the.existing.localization.package", "Choose the existing localization package") : SystemText("ui.handlelocalizationaction.title.choose.a.parent.folder.for.the.new.localization", "Choose a parent folder for the new localization package"), InitialDirectory = localizationAuthoring!.MemoriaRoot, Multiselect = false };
-                if (picker.ShowDialog() == true)
-                {
-                    if (action.Kind == "localization-input")
-                    {
-                        localizationInput = picker.FolderName;
-                    }
-                    else
-                    {
-                        localizationDestination = Path.Combine(picker.FolderName, "Localization-" + Guid.NewGuid().ToString("N")[..8]);
-                    }
-                }
+                BrowseLocalizationFolderAsync(action.Kind);
                 break;
             case "localization-preview":
                 BeginLocalizationPreview();
@@ -254,6 +242,31 @@ public sealed partial class MenuController
                 localizationProgress = "Cancelling…";
                 break;
         }
+    }
+
+    private async void BrowseLocalizationFolderAsync(string kind)
+    {
+        try
+        {
+            string title = kind == "localization-input" ? SystemText("ui.handlelocalizationaction.title.choose.the.existing.localization.package", "Choose the existing localization package") : SystemText("ui.handlelocalizationaction.title.choose.a.parent.folder.for.the.new.localization", "Choose a parent folder for the new localization package");
+            string? path = await ModelBrowserDialogs.PathAsync(ModelBrowserDialogs.Desktop.SelectFolderAsync(new(title, localizationAuthoring!.MemoriaRoot)));
+            if (path is not null)
+            {
+                if (kind == "localization-input")
+                {
+                    localizationInput = path;
+                }
+                else
+                {
+                    localizationDestination = Path.Combine(path, "Localization-" + Guid.NewGuid().ToString("N")[..8]);
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            Message = error.Message;
+        }
+        _view = null;
     }
 
     private void BeginLocalizationPreview()

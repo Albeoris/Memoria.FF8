@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
@@ -36,7 +37,7 @@ public sealed class TutorialTextRegressionTests
         NativeTutorialDocumentElement document = new(page.Text, 48, "Arial");
         document.Arrange(new UiRect(0, 0, 1400, 680));
         using Bitmap bitmap = new(1400, 680);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
+        using (SkiaSharp.SKCanvas graphics = new(bitmap))
         {
             graphics.Clear(Color.FromArgb(88, 88, 88));
         }
@@ -44,6 +45,6 @@ public sealed class TutorialTextRegressionTests
         {
             document.Draw(canvas, new UiTheme());
         }
-        bitmap.Save(Path.Combine(output, "information-color-and-quotes.png"), ImageFormat.Png);
+        bitmap.SavePng(Path.Combine(output, "information-color-and-quotes.png"));
     }
 }

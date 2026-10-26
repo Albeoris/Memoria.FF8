@@ -5,7 +5,18 @@ internal sealed class GlobalSettingsPaths
 {
     public GlobalSettingsPaths(string? localApplicationData = null, string? isolatedDirectory = null)
     {
-        DirectoryPath = isolatedDirectory is null ? Path.Combine(localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria", "FF8") : Path.GetFullPath(isolatedDirectory);
+        if (isolatedDirectory is not null)
+        {
+            DirectoryPath = Path.GetFullPath(isolatedDirectory);
+        }
+        else if (localApplicationData is not null)
+        {
+            DirectoryPath = Path.Combine(localApplicationData, "Memoria", "FF8");
+        }
+        else
+        {
+            DirectoryPath = Memoria.FF8.Platform.ApplicationPaths.Current.Configuration;
+        }
     }
 
     public string DirectoryPath { get; }

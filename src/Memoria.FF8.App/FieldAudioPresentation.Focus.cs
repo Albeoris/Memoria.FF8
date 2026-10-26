@@ -12,7 +12,7 @@ internal sealed partial class FieldAudioPresentation
             return;
         }
         focusPaused = paused;
-        foreach (DirectSoundOutput.Buffer buffer in dialogueVoices.Values)
+        foreach (PcmAudioOutput.Buffer buffer in dialogueVoices.Values)
         {
             TryOutput(() => SetBufferPaused(buffer, paused || voiceUiPaused));
         }
@@ -58,7 +58,7 @@ internal sealed partial class FieldAudioPresentation
         }
     }
 
-    private static void SetBufferPaused(DirectSoundOutput.Buffer buffer, bool paused)
+    private static void SetBufferPaused(PcmAudioOutput.Buffer buffer, bool paused)
     {
         if (paused)
         {

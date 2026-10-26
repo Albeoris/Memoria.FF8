@@ -1,5 +1,4 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Events;
@@ -259,7 +258,7 @@ internal static class MenuPreview
             view = menus.BuildView();
             theme = menus.CreateTheme();
         }
-        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+        using SKBitmap bitmap = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
         {
             view.Resize(width, height);
@@ -273,7 +272,7 @@ internal static class MenuPreview
             }
         }
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        bitmap.Save(output, ImageFormat.Png);
+        bitmap.SavePng(output);
         Console.WriteLine($"Menu {(statePath is null ? "fixture" : "standalone-save")} preview {screen}, {width}x{height}: {output}");
         return 0;
     }

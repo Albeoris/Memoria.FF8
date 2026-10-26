@@ -130,13 +130,13 @@ public sealed class StatusLimitMenuTests
                 string[] text = elements.OfType<UiLabel>().Select(label => label.Text).Concat(elements.OfType<UiList>().SelectMany(list => list.Items)).ToArray();
                 Assert.DoesNotContain(text, line => line.Contains("Limit: Unavailable", StringComparison.Ordinal));
                 Assert.Contains(text, line => line.Contains(menus.Character.LimitMoves[0].Name, StringComparison.Ordinal));
-                using System.Drawing.Bitmap bitmap = new(1280, 896);
+                using SkiaSharp.SKBitmap bitmap = new(1280, 896);
                 using BattlePreviewCanvas canvas = new(bitmap, directory);
                 view.Draw(canvas, menus.CreateTheme());
                 if (Environment.GetEnvironmentVariable("MEMORIA_FF8_STATUS_LIMIT_OUTPUT") is string output)
                 {
                     Directory.CreateDirectory(output);
-                    bitmap.Save(Path.Combine(output, $"{presentation.ToString().ToLowerInvariant()}-{screen}.png"), System.Drawing.Imaging.ImageFormat.Png);
+                    bitmap.SavePng(Path.Combine(output, $"{presentation.ToString().ToLowerInvariant()}-{screen}.png"));
                 }
             }
         }

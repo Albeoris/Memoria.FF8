@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -76,7 +77,7 @@ public sealed class BattleDamageFeedbackTests
                 canvas.DrawRgba(scene.Render(battle, 960, 720), 960, 720, viewport);
                 scene.DrawEffects(battle, canvas, viewport);
             }
-            output.Save(Path.Combine(evidence!, "hit.png"), ImageFormat.Png);
+            output.SavePng(Path.Combine(evidence!, "hit.png"));
             File.WriteAllText(Path.Combine(evidence!, "hit-text.json"), JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, battle.NativeGraphics.Effects.TextDraws }));
             battle.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             restored.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);

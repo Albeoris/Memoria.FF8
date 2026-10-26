@@ -121,13 +121,13 @@ public sealed class BattleHudNativeCommandTests
         if (output is not null)
         {
             Directory.CreateDirectory(output);
-            using System.Drawing.Bitmap bitmap = new(1920, 1080);
+            using SkiaSharp.SKBitmap bitmap = new(1920, 1080);
             using (BattlePreviewCanvas preview = new(bitmap, game.GameDirectory))
             {
                 view.Resize(bitmap.Width, bitmap.Height);
                 view.Draw(preview, theme);
             }
-            bitmap.Save(Path.Combine(output, $"duel-{(vector ? "vector" : "classic")}-{hiddenCommands}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, $"duel-{(vector ? "vector" : "classic")}-{hiddenCommands}.png"));
         }
         view.Resize(960, 672);
         session.AdvanceNativeDuelUi();

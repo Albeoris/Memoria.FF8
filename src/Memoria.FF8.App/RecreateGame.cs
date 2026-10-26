@@ -142,13 +142,35 @@ internal sealed partial class RecreateGame : Game
         Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} scene-renderer={(options.SoftwareRenderer ? "software-diagnostic" : "gpu")} cwd={Environment.CurrentDirectory}");
     }
 
+    private readonly GameDialogContext dialogContext = new();
+    private readonly SdlDesktopDialogs desktopDialogs = new();
+    private SynchronizationContext? previousDialogContext;
+    private bool dialogInputBlocked;
+
     protected override void Update(GameTime gameTime)
     {
+        SynchronizationContext.SetSynchronizationContext(dialogContext);
+        dialogContext.Drain();
+        desktopDialogs.PumpPendingEvents();
+        // Keep launcher handoff and recovery responsive during native pickers.
+        updateControls?.Poll();
+        if (dialogContext.IsBusy)
+        {
+            dialogInputBlocked = true;
+            UpdateGameConfirmation();
+            controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
+            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
+            return;
+        }
+        if (dialogInputBlocked)
+        {
+            keyboard.SuppressHeldUiInput();
+            drainUiButtons = true;
+            dialogInputBlocked = false;
+        }
         UpdateWindowModeHotkey();
         ShowPendingNewGameChocoboClaim();
         UpdateAchievements();
-        // Keep launcher handoff and recovery commands responsive while gameplay is paused or inactive.
-        updateControls?.Poll();
         if (UpdateFocusPause())
         {
             return;
@@ -742,7 +764,7 @@ internal sealed partial class RecreateGame : Game
         if (saveMenu.IsOpen)
         {
             UpdatePlayerSavePointer();
-            saveMenu.Update(input, SavePlayerSlot, LoadPlayerSlot, TransferPlayerSave);
+            UpdatePlayerSaveMenuAsync(input);
             return true;
         }
         if (input.Save || input.QuickLoad)
@@ -781,7 +803,7 @@ internal sealed partial class RecreateGame : Game
         saveMenu.Open(mode);
     }
 
-    private void SavePlayerSlot(int slot)
+    private void PreparePlayerSlotSave()
     {
         if (fieldFaulted)
         {
@@ -793,14 +815,12 @@ internal sealed partial class RecreateGame : Game
             session.SetMoviePlayback(movie.Playback);
         }
         CaptureSession();
-        if (slot > PlayerSaveStore.MemoriaSlotCount)
-        {
-            SaveOriginalPlayerSlotWithGuardianForceReview(slot);
-        }
-        else
-        {
-            playerSaves.Save(slot, session, ValidatePlayerState);
-        }
+    }
+
+    private void SavePlayerSlot(int slot)
+    {
+        PreparePlayerSlotSave();
+        playerSaves.Save(slot, session, ValidatePlayerState);
         saveNotice = null;
         saveNoticeSeconds = 0;
     }
@@ -1132,7 +1152,7 @@ internal sealed partial class RecreateGame : Game
             Names = events?.Scene.Names,
             Party = events?.Scene.Party,
             Music = new { Loaded = events?.Scene.LoadedMusic, Playing = events?.Scene.MusicPlaying, Volume = events?.Scene.MusicVolume },
-            FieldAudio = new { Effects = options.AudioEnabled ? "DirectSound" : "Muted", Music = options.AudioEnabled ? "DirectMusic/PCM" : "Muted", Error = fieldAudio?.Error, Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundLatestAttempts },
+            FieldAudio = new { Effects = options.AudioEnabled ? "SDL3 PCM" : "Muted", Music = options.AudioEnabled ? "SGT/DLS + PCM" : "Muted", Error = fieldAudio?.Error, Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundLatestAttempts },
             Coverage = compact ? null : events?.Coverage,
             Decisions = compact ? null : events?.Decisions,
             DialogueOutcomes = compact ? null : events?.DialogueOutcomes,
@@ -1195,6 +1215,7 @@ internal sealed partial class RecreateGame : Game
             batch.Begin(samplerState: SamplerState.LinearClamp);
             DrawModelBrowserUi(GraphicsDevice.Viewport.Bounds);
             DrawFps(GraphicsDevice.Viewport.Bounds);
+            DrawGameConfirmation(GraphicsDevice.Viewport.Bounds);
             batch.End();
             CapturePresentedFrame(gameTime);
             base.Draw(gameTime);
@@ -1361,6 +1382,7 @@ internal sealed partial class RecreateGame : Game
         DrawSceneInspectorUi(bounds);
         DrawModelBrowserUi(bounds);
         DrawFps(bounds);
+        DrawGameConfirmation(bounds);
         batch.End();
         CapturePresentedFrame(gameTime);
         base.Draw(gameTime);
@@ -1400,6 +1422,17 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            confirmationOverlay.Dispose();
+            if (ModelBrowserDialogs.Confirmation?.Target == this)
+            {
+                ModelBrowserDialogs.Confirmation = null;
+            }
+            desktopDialogs.Dispose();
+            dialogContext.Dispose();
+            if (ReferenceEquals(SynchronizationContext.Current, dialogContext))
+            {
+                SynchronizationContext.SetSynchronizationContext(previousDialogContext);
+            }
             focusDisposed = true;
             DisposeBattleEntry();
             DisposeStartup();

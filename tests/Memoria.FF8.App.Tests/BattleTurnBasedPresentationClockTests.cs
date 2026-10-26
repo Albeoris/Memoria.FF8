@@ -1,4 +1,4 @@
-using System.Drawing.Imaging;
+
 using System.Numerics;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -55,9 +55,9 @@ public sealed class BattleTurnBasedPresentationClockTests
         {
             Directory.CreateDirectory(evidence);
             using var initial = BattlePreviewCanvas.BitmapFromRgba(firstPixels, 640, 448);
-            initial.Save(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.1.png"), ImageFormat.Png);
+            initial.SavePng(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.1.png"));
             using var advanced = BattlePreviewCanvas.BitmapFromRgba(advancedPixels, 640, 448);
-            advanced.Save(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.2.png"), ImageFormat.Png);
+            advanced.SavePng(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.2.png"));
         }
 
         session.QueueAttack(party.Id, "ifrit");

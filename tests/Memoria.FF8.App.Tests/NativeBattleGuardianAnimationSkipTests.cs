@@ -1,7 +1,8 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -259,7 +260,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
                 bitmap.SetPixel(x, y, Color.FromArgb(pixels[offset + 3], pixels[offset], pixels[offset + 1], pixels[offset + 2]));
             }
         }
-        bitmap.Save(Path.Combine(directory, name + ".png"), ImageFormat.Png);
+        bitmap.SavePng(Path.Combine(directory, name + ".png"));
     }
 
     private static BattleSession RoundTrip(BattleSession battle)

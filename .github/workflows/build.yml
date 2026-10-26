@@ -48,7 +48,9 @@ jobs:
       - name: Build and test with the installed .NET 10 SDK
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
-        run: ./Build.ps1 -Test
+        run: |
+          ./Build.ps1
+          ./Build.ps1 -Scope Portable -RuntimeIdentifier win-x64 -Test
       - uses: actions/upload-artifact@v7
         if: steps.distribution.outputs.reuse != 'true'
         with:

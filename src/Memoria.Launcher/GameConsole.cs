@@ -25,10 +25,12 @@ internal static class GameConsole
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllocConsole();
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetConsoleOutputCP(uint codePage);

@@ -10,6 +10,36 @@ public sealed class PlayerSaveMenuTests : IDisposable
     private readonly List<MenuSound> sounds = [];
 
     [Fact]
+    public async Task Save_waits_for_asynchronous_review_before_closing_or_reporting_success()
+    {
+        PlayerSaveMenu menu = CreateMenu(out _);
+        menu.Open(PlayerSaveMenuMode.Save);
+        TaskCompletionSource review = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task pending = menu.UpdateAsync(Confirm(), _ => review.Task, _ => Assert.Fail("Unexpected load."));
+        Assert.False(pending.IsCompleted);
+        Assert.True(menu.IsOpen);
+        Assert.Empty(sounds);
+        review.SetResult();
+        await pending;
+        Assert.False(menu.IsOpen);
+        Assert.Equal(new[] { MenuSound.Confirm }, sounds);
+    }
+
+    [Fact]
+    public async Task Cancelled_asynchronous_review_preserves_the_open_menu_without_success()
+    {
+        PlayerSaveMenu menu = CreateMenu(out _);
+        menu.Open(PlayerSaveMenuMode.Save);
+        TaskCompletionSource review = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task pending = menu.UpdateAsync(Confirm(), _ => review.Task, _ => Assert.Fail("Unexpected load."));
+        review.SetCanceled(TestContext.Current.CancellationToken);
+        await pending;
+        Assert.True(menu.IsOpen);
+        Assert.Null(menu.Message);
+        Assert.Equal(new[] { MenuSound.Cancel }, sounds);
+    }
+
+    [Fact]
     public void CancelledNativeExportReviewKeepsSaveMenuOpenWithoutSuccess()
     {
         PlayerSaveMenu menu = CreateMenu(out _);

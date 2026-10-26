@@ -44,8 +44,8 @@ internal sealed partial class FieldAudioPresentation
         {
             throw new InvalidDataException("External music offset exceeds its loop end.");
         }
-        DirectSoundOutput.Buffer buffer = Sound.Create(pcm.Bytes.AsSpan(0, loop.EndByte).ToArray(), pcm.SampleRate, pcm.Channels);
-        DirectSoundOutput.Buffer? repeat = null;
+        PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes.AsSpan(0, loop.EndByte).ToArray(), pcm.SampleRate, pcm.Channels);
+        PcmAudioOutput.Buffer? repeat = null;
         ExternalMusicOutput output;
         try
         {
@@ -123,7 +123,7 @@ internal sealed partial class FieldAudioPresentation
         }
     }
 
-    private sealed class ExternalMusicOutput(DirectSoundOutput.Buffer primary, DirectSoundOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes) : IDisposable
+    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes) : IDisposable
     {
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private bool loopStarted;

@@ -1,6 +1,5 @@
 using System.Globalization;
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Runtime.InteropServices;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -185,30 +184,13 @@ internal sealed partial class GameWorld
     private byte[] RenderTripleTriad()
     {
         UiView view = EnsureTripleTriad()!.BuildView();
-        using Bitmap bitmap = new(renderWidth, renderHeight, PixelFormat.Format32bppArgb);
+        using SKBitmap bitmap = new(renderWidth, renderHeight, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory, resources))
         {
             view.Resize(renderWidth, renderHeight);
             view.Draw(canvas, new UiTheme());
         }
-        BitmapData locked = bitmap.LockBits(new Rectangle(0, 0, renderWidth, renderHeight), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            byte[] rgba = new byte[renderWidth * renderHeight * 4];
-            for (int y = 0; y < renderHeight; y++)
-            {
-                Marshal.Copy(locked.Scan0 + y * locked.Stride, rgba, y * renderWidth * 4, renderWidth * 4);
-            }
-            for (int index = 0; index < rgba.Length; index += 4)
-            {
-                (rgba[index], rgba[index + 2]) = (rgba[index + 2], rgba[index]);
-            }
-            return rgba;
-        }
-        finally
-        {
-            bitmap.UnlockBits(locked);
-        }
+        return PortableRaster.Rgba(bitmap);
     }
 
     private void ValidateTripleTriadDeal(NativeTripleTriadRequest request, NativeCardInventory cards, NativeTripleTriadPlayState play)

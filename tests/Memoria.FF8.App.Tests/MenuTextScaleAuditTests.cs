@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
@@ -69,7 +70,7 @@ public sealed class MenuTextScaleAuditTests
                 {
                     string directory = Path.Combine(output, $"font{fontSize}-scale{textScale}-time{seconds}");
                     Directory.CreateDirectory(directory);
-                    bitmap.Save(Path.Combine(directory, screen + ".png"), ImageFormat.Png);
+                    bitmap.SavePng(Path.Combine(directory, screen + ".png"));
                 }
             }
         }

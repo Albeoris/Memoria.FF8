@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class FieldAudioPresentation
 {
-    private readonly Dictionary<int, DirectSoundOutput.Buffer> dialogueVoices = [];
+    private readonly Dictionary<int, PcmAudioOutput.Buffer> dialogueVoices = [];
     private FieldVoicePresentation? voicePresentation;
     private int voicePreference = 100;
     private bool voiceUiPaused;
@@ -18,7 +18,7 @@ internal sealed partial class FieldAudioPresentation
         {
             return;
         }
-        voicePresentation ??= new FieldVoicePresentation((name, channel, message, page, choice) => currentVoiceResolver?.Resolve(name, channel, message, page, choice, currentVoiceGameMoment), (channel, key, gain) => PlayDialogueVoice(channel, resources.Get(key), gain), StopDialogueVoice, channel => dialogueVoices.TryGetValue(channel, out DirectSoundOutput.Buffer? buffer) && buffer.IsPlaying);
+        voicePresentation ??= new FieldVoicePresentation((name, channel, message, page, choice) => currentVoiceResolver?.Resolve(name, channel, message, page, choice, currentVoiceGameMoment), (channel, key, gain) => PlayDialogueVoice(channel, resources.Get(key), gain), StopDialogueVoice, channel => dialogueVoices.TryGetValue(channel, out PcmAudioOutput.Buffer? buffer) && buffer.IsPlaying);
         currentVoiceResolver = resolver;
         currentVoiceGameMoment = gameMoment;
         TryOutput(() => voicePresentation.Synchronize(field, owner, dialogues));
@@ -31,14 +31,14 @@ internal sealed partial class FieldAudioPresentation
             return;
         }
         voiceUiPaused = paused;
-        foreach (DirectSoundOutput.Buffer buffer in dialogueVoices.Values)
+        foreach (PcmAudioOutput.Buffer buffer in dialogueVoices.Values)
         {
             TryOutput(() => SetBufferPaused(buffer, focusPaused || voiceUiPaused));
         }
     }
 
     internal int DialogueVoiceCount => dialogueVoices.Count;
-    internal bool IsDialogueVoicePlaying(int channel) => dialogueVoices.TryGetValue(channel, out DirectSoundOutput.Buffer? buffer) && buffer.IsPlaying;
+    internal bool IsDialogueVoicePlaying(int channel) => dialogueVoices.TryGetValue(channel, out PcmAudioOutput.Buffer? buffer) && buffer.IsPlaying;
 
     private ExternalVoiceResolver? currentVoiceResolver;
     private int? currentVoiceGameMoment;
@@ -52,7 +52,7 @@ internal sealed partial class FieldAudioPresentation
         input.CopyTo(encoded);
         byte[] pcm = PcmAudioDecoder.Decode(toolsDirectory, "pipe:0", encoded.ToArray(), 44100, 2);
         ApplyVoiceGain(pcm, gain);
-        DirectSoundOutput.Buffer next = Sound.Create(pcm, 44100, 2);
+        PcmAudioOutput.Buffer next = Sound.Create(pcm, 44100, 2);
         try
         {
             next.Volume(OutputGain(0, voicePreference));
@@ -89,7 +89,7 @@ internal sealed partial class FieldAudioPresentation
 
     private void StopDialogueVoice(int channel)
     {
-        if (dialogueVoices.Remove(channel, out DirectSoundOutput.Buffer? buffer))
+        if (dialogueVoices.Remove(channel, out PcmAudioOutput.Buffer? buffer))
         {
             buffer.Dispose();
         }

@@ -1,77 +1,58 @@
-using System.Runtime.InteropServices;
-using Microsoft.Win32;
+using Memoria.FF8.Platform;
+using Memoria.FF8.Resources.Localization;
 
 namespace Memoria.FF8;
 
 internal static class ModelBrowserDialogs
 {
-    public static string? Export(nint owner, string name, Func<string, string, string>? localizeText = null)
+    internal static IDesktopDialogs Desktop { get; set; } = new SdlDesktopDialogs();
+    internal static Func<GameConfirmationRequest, Task<bool>>? Confirmation { get; set; }
+
+    private static FileDialogFilter[] ModelFilters(Func<string, string, string>? localizeText)
     {
-        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
-        using DpiScope dpi = new();
-        SaveFileDialog dialog = new()
-        {
-            Title = SystemText("model.dialog.export.title", "Export to Blender"),
-            Filter = SystemText("model.dialog.filter.glb", "glTF binary model (*.glb)") + "|*.glb",
-            DefaultExt = ".glb",
-            AddExtension = true,
-            OverwritePrompt = true,
-            FileName = string.Concat(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)) + ".glb"
-        };
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
+        return [new(SystemTextCatalog.Translate(localizeText, "model.dialog.filter.glb", "glTF binary model (*.glb)"), ["glb"])];
     }
 
-    public static string? Import(nint owner, Func<string, string, string>? localizeText = null)
+    public static async Task<string?> ExportAsync(nint owner, string name, Func<string, string, string>? localizeText = null)
     {
-        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
-        using DpiScope dpi = new();
-        OpenFileDialog dialog = new()
-        {
-            Title = SystemText("model.dialog.import.title", "Import from Blender (as mod)"),
-            Filter = SystemText("model.dialog.filter.glb", "glTF binary model (*.glb)") + "|*.glb",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
+        string title = SystemTextCatalog.Translate(localizeText, "model.dialog.export.title", "Export to Blender");
+        string filename = string.Concat(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character)) + ".glb";
+        string? result = await PathAsync(Desktop.SaveFileAsync(new(title, filename, ModelFilters(localizeText))));
+        return result is null || Path.HasExtension(result) ? result : result + ".glb";
     }
 
-    public static string? Destination(nint owner, string root, Func<string, string, string>? localizeText = null)
+    public static Task<string?> ImportAsync(nint owner, Func<string, string, string>? localizeText = null)
+    {
+        string title = SystemTextCatalog.Translate(localizeText, "model.dialog.import.title", "Import from Blender (as mod)");
+        return PathAsync(Desktop.OpenFileAsync(new(title, Filters: ModelFilters(localizeText))));
+    }
+
+    public static Task<string?> DestinationAsync(nint owner, string root, Func<string, string, string>? localizeText = null)
     {
         Directory.CreateDirectory(root);
-        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
-        using DpiScope dpi = new();
-        OpenFolderDialog dialog = new()
+        string title = SystemTextCatalog.Translate(localizeText, "model.dialog.destination.title", "Choose a mod package folder (or create one)");
+        return PathAsync(Desktop.SelectFolderAsync(new(title, root)));
+    }
+
+    internal static async Task<string?> PathAsync(Task<DialogResult> operation)
+    {
+        DialogResult result = await operation;
+        return result.Status switch
         {
-            Title = SystemText("model.dialog.destination.title", "Choose a mod package folder (or create one)"),
-            InitialDirectory = root,
-            Multiselect = false
+            DialogStatus.Selected => Path.GetFullPath(result.Path ?? throw new InvalidDataException("The desktop dialog returned an empty path.")),
+            DialogStatus.Cancelled => null,
+            _ => throw new IOException(result.Error ?? "The desktop dialog failed.")
         };
-        return dialog.ShowDialog() == true ? Path.GetFullPath(dialog.FolderName) : null;
     }
 
-    public static bool Confirm(nint owner, string warning, string? title = null, string? question = null, Func<string, string, string>? localizeText = null)
+    internal static Task<bool> ShowConfirmationAsync(GameConfirmationRequest request)
     {
-        string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
-        using DpiScope dpi = new();
-        return MessageBoxW(owner, warning + "\n\n" + (question ?? SystemText("model.dialog.import.question", "Import this model anyway?")), title ?? SystemText("model.dialog.import.warning-title", "Model import warning"), 0x134) == 6;
+        return (Confirmation ?? throw new InvalidOperationException("The game confirmation host is unavailable."))(request);
     }
 
-    private sealed class DpiScope : IDisposable
+    public static Task<bool> ConfirmAsync(nint owner, string warning, string? title = null, string? question = null, Func<string, string, string>? localizeText = null)
     {
-        private readonly nint previous = SetThreadDpiAwarenessContext(new nint(-4));
-
-        public void Dispose()
-        {
-            if (previous != 0)
-            {
-                SetThreadDpiAwarenessContext(previous);
-            }
-        }
+        string SystemText(string id, string original) => SystemTextCatalog.Translate(localizeText, id, original);
+        return ShowConfirmationAsync(new GameConfirmationRequest(warning + "\n\n" + (question ?? SystemText("model.dialog.import.question", "Import this model anyway?")), title ?? SystemText("model.dialog.import.warning-title", "Model import warning"), SystemText("common.cancel", "Cancel"), SystemText("model.dialog.continue", "Continue"), SystemText("model.dialog.scroll-review", "Up / Down: scroll review")));
     }
-
-    [DllImport("user32.dll")]
-    private static extern nint SetThreadDpiAwarenessContext(nint context);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int MessageBoxW(nint owner, string text, string caption, uint type);
 }

@@ -1,8 +1,9 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -238,7 +239,7 @@ public sealed class NativeMovieMaskRenderTests
                 bitmap.SetPixel(x, y, Color.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]));
             }
         }
-        bitmap.Save(path, ImageFormat.Png);
+        bitmap.SavePng(path);
     }
 
     private static string GameDirectory()

@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -87,7 +88,7 @@ public sealed class BattleResultsRenderTests
                 }
                 foreach (UiTheme theme in new UiTheme[] { new UiTheme(), new VectorUiTheme() })
                 {
-                    using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                    using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                     using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
                     {
                         UiView view = controller.BuildView();
@@ -97,7 +98,7 @@ public sealed class BattleResultsRenderTests
                     Assert.Equal(Color.FromArgb(255, 0, 0, 0).ToArgb(), bitmap.GetPixel(0, 0).ToArgb());
                     if (output is not null)
                     {
-                        bitmap.Save(Path.Combine(output, $"{(theme is VectorUiTheme ? "vector" : "classic")}-{name}-{width}.png"), ImageFormat.Png);
+                        bitmap.SavePng(Path.Combine(output, $"{(theme is VectorUiTheme ? "vector" : "classic")}-{name}-{width}.png"));
                     }
                 }
             }

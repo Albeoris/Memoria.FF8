@@ -13,9 +13,9 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     private readonly Dictionary<int, PcmAudio> samples = [];
     private readonly Dictionary<int, Voice> voices = [];
     private NativeMusicCatalog? catalog;
-    private DirectSoundOutput? sound;
-    private DirectMusicOutput? music;
-    private DirectSoundOutput.Buffer? streamedMusic;
+    private PcmAudioOutput? sound;
+    private MusicWorkerOutput? music;
+    private PcmAudioOutput.Buffer? streamedMusic;
     private bool streamedMusicPaused;
     private EventEngine? engine;
     private readonly int[] musicIds = [-1, -1];
@@ -45,7 +45,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         soundPreference = soundVolume;
         TryOutput(() =>
         {
-            foreach (DirectSoundOutput.Buffer buffer in dialogueVoices.Values)
+            foreach (PcmAudioOutput.Buffer buffer in dialogueVoices.Values)
             {
                 buffer.Volume(OutputGain(0, voicePreference));
             }
@@ -74,8 +74,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     internal int SoundVoiceCount => voices.Count;
     internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameFiles.Resources);
-    private DirectSoundOutput Sound => sound ??= new DirectSoundOutput(window);
-    private DirectMusicOutput Music => music ??= new DirectMusicOutput(window, Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
+    private PcmAudioOutput Sound => sound ??= new PcmAudioOutput(window);
+    private MusicWorkerOutput Music => music ??= new MusicWorkerOutput(window, Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
 
     public void Attach(EventEngine next)
     {
@@ -223,8 +223,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             pcm = PcmAudioDecoder.ReadSample(gameFiles.Resources, index);
             samples.Add(index, pcm);
         }
-        DirectSoundOutput.Buffer primary = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
-        DirectSoundOutput.Buffer? loop = null;
+        PcmAudioOutput.Buffer primary = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+        PcmAudioOutput.Buffer? loop = null;
         try
         {
             if (policy.LoopStartPcmByte != 0)
@@ -479,6 +479,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         }
         TryOutput(() =>
         {
+            sound?.ThrowIfFailed();
             foreach (ExternalMusicOutput? output in externalMusic)
             {
                 output?.Update();
@@ -650,10 +651,10 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         gameFiles.Dispose();
     }
 
-    private sealed class Voice(DirectSoundOutput.Buffer primary, DirectSoundOutput.Buffer? loop, float volume, float pan, int? loopDelay)
+    private sealed class Voice(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, float volume, float pan, int? loopDelay)
     {
-        public DirectSoundOutput.Buffer Primary { get; } = primary;
-        public DirectSoundOutput.Buffer? Loop { get; } = loop;
+        public PcmAudioOutput.Buffer Primary { get; } = primary;
+        public PcmAudioOutput.Buffer? Loop { get; } = loop;
         public Stopwatch Clock { get; } = Stopwatch.StartNew();
         public int LoopDelay { get; } = loopDelay ?? 0;
         public bool LoopStarted { get; set; }

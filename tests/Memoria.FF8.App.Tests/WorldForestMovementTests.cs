@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Runtime.InteropServices;
 using System.Numerics;
 using System.Text.Json;
@@ -39,15 +40,7 @@ public sealed class WorldForestMovementTests
         session.SetWorldState(scene.State with { NativeFootRuntime = scene.State.NativeFootRuntime with { Forest = visible with { Particles = [] } } });
         Assert.NotEqual(pixels, scene.Render(640, 448));
         string output = TestResources.ArtifactFile("App.Tests.WorldForestMovementTests.1.png");
-        using Bitmap bitmap = new(640, 448, PixelFormat.Format32bppArgb);
-        BitmapData data = bitmap.LockBits(new Rectangle(0, 0, 640, 448), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        byte[] bgra = pixels.ToArray();
-        for (int index = 0; index < bgra.Length; index += 4)
-        {
-            (bgra[index], bgra[index + 2]) = (bgra[index + 2], bgra[index]);
-        }
-        Marshal.Copy(bgra, 0, data.Scan0, bgra.Length);
-        bitmap.UnlockBits(data);
+        using Bitmap bitmap = PortableRaster.FromRgba(pixels, 640, 448);
         bitmap.Save(output);
     }
 

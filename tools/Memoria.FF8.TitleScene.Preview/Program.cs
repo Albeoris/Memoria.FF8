@@ -4,8 +4,11 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.TitleScene;
+using SkiaSharp;
+#if WINDOWS
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+#endif
 
 namespace Memoria.FF8.TitleScene.Preview;
 
@@ -17,9 +20,21 @@ internal static class Program
         try
         {
             PreviewOptions options = PreviewOptions.Parse(args);
+            if (options.CrestOnly)
+            {
+                using SKBitmap crest = TitleArtworkRenderer.CreateSilverCrestImage(Math.Clamp(options.Height, 3, 2048));
+                Directory.CreateDirectory(Path.GetDirectoryName(options.Output)!);
+                using Stream output = File.Create(options.Output);
+                crest.Encode(output, SKEncodedImageFormat.Png, 100);
+                return 0;
+            }
+#if WINDOWS
             using PreviewGame game = new(options);
             game.Run();
             return 0;
+#else
+            throw new PlatformNotSupportedException("The GPU title preview requires the Windows DX11 host. Use --crest for the portable vector raster preview.");
+#endif
         }
         catch (Exception exception)
         {
@@ -31,6 +46,7 @@ internal static class Program
 
 internal sealed record PreviewOptions(int Width, int Height, double Time, string Output, bool Benchmark, bool BackgroundOnly)
 {
+    public bool CrestOnly { get; init; }
     public int SequenceFrames { get; init; }
     public double SequenceStep { get; init; } = 0.25;
 
@@ -51,6 +67,9 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
 
             switch (argument)
             {
+                case "--crest":
+                    options = options with { CrestOnly = true };
+                    break;
                 case "--resolution":
                     string[] size = Value().Split('x');
                     if (size.Length != 2 || !int.TryParse(size[0], out int width) || !int.TryParse(size[1], out int height) || width < 64 || height < 64 || width > 7680 || height > 4320)
@@ -100,6 +119,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
     }
 }
 
+#if WINDOWS
 /// <summary>Independent capture and fenced throughput probe; no game installation or save files required.</summary>
 internal sealed class PreviewGame : Game
 {
@@ -273,3 +293,5 @@ internal sealed class PreviewGame : Game
         base.Dispose(disposing);
     }
 }
+
+#endif

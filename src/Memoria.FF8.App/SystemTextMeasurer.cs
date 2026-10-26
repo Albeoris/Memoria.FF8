@@ -1,50 +1,12 @@
-using System.Globalization;
-using System.Windows;
-using System.Windows.Media;
-
 namespace Memoria.FF8;
 
-/// <summary>Retains the WPF shaping typeface and candidate advances for one layout operation.</summary>
-internal sealed class SystemTextMeasurer : IDisposable
+/// <summary>Adds game button-run advances to the shared portable text shaper.</summary>
+internal sealed class SystemTextMeasurer(float size, string? fontFamily) : PortableTextShaper(size, fontFamily)
 {
-    private readonly Typeface typeface;
-    private readonly double rasterSize;
-    private readonly Dictionary<string, float> advances = new(StringComparer.Ordinal);
-
-    internal SystemTextMeasurer(float size, string? fontFamily)
+    public override float Measure(string value)
     {
-        rasterSize = size * SystemTextLayout.RasterScale;
-        // The composite fallback supplies script and supplementary-plane fonts while
-        // keeping the selected installed family first for the glyphs it provides.
-        var family = new FontFamily((fontFamily ?? SystemFontCatalog.DefaultFamily) + ", Global User Interface");
-        typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        FormattedText metrics = Format("Mg");
-        LineHeight = (float)metrics.Height / SystemTextLayout.RasterScale;
-        Baseline = (float)metrics.Baseline / SystemTextLayout.RasterScale;
-    }
-
-    public float LineHeight { get; }
-    internal float Baseline { get; }
-
-    internal FormattedText Format(string value)
-    {
-        return new FormattedText(value, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, rasterSize, Brushes.White, 1);
-    }
-
-    public float Measure(string value)
-    {
-        if (!advances.TryGetValue(value, out float width))
-        {
-            width = ButtonPromptText.Contains(value)
-                ? ButtonPromptText.Runs(value).Sum(run => run.IsButton ? ButtonPrompt.Advance(Measure(run.Text), LineHeight) : Measure(run.Text))
-                : (float)Format(value).WidthIncludingTrailingWhitespace / SystemTextLayout.RasterScale;
-            advances.Add(value, width);
-        }
-        return width;
-    }
-
-    public void Dispose()
-    {
-        advances.Clear();
+        return ButtonPromptText.Contains(value)
+            ? ButtonPromptText.Runs(value).Sum(run => run.IsButton ? ButtonPrompt.Advance(Measure(run.Text), LineHeight) : Measure(run.Text))
+            : base.Measure(value);
     }
 }

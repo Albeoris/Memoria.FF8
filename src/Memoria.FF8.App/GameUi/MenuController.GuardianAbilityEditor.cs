@@ -20,7 +20,7 @@ public sealed partial class MenuController
     private Func<ControlAction, string>? guardianBinding;
     private Func<GuardianForceAbilityPatchDocument, bool, System.Collections.Immutable.ImmutableArray<GuardianForceAbilityReset>, GuardianForceEditorReview>? reviewGuardianEditor;
     private Func<GuardianForceEditorReview, string>? applyGuardianEditor;
-    private Func<GuardianForceAbilityPatchDocument, GuardianForceAbilityPackageDocument?, bool, GuardianForceAbilityPackageDocument?>? saveGuardianEditor;
+    private Func<GuardianForceAbilityPatchDocument, GuardianForceAbilityPackageDocument?, bool, Task<GuardianForceAbilityPackageDocument?>>? saveGuardianEditor;
     private GuardianForceAbilityDraft? guardianDraft;
     private GuardianForceAbilityPackageDocument? guardianPackage;
     private GuardianForceEditorReview? guardianReview;
@@ -68,6 +68,11 @@ public sealed partial class MenuController
     internal bool IsGuardianAbilityEditor => ScreenId == "gf-ability-editor";
 
     internal void ConnectGuardianForceEditor(Func<GuardianForceEditorContext> read, Func<int, string> gfName, Func<int, string> abilityName, Func<int, string> description, Func<ControlAction, string> binding, Func<GuardianForceAbilityPatchDocument, bool, System.Collections.Immutable.ImmutableArray<GuardianForceAbilityReset>, GuardianForceEditorReview> review, Func<GuardianForceEditorReview, string> apply, Func<GuardianForceAbilityPatchDocument, GuardianForceAbilityPackageDocument?, bool, GuardianForceAbilityPackageDocument?> save)
+    {
+        ConnectGuardianForceEditorAsync(read, gfName, abilityName, description, binding, review, apply, (document, original, saveAs) => Task.FromResult(save(document, original, saveAs)));
+    }
+
+    internal void ConnectGuardianForceEditorAsync(Func<GuardianForceEditorContext> read, Func<int, string> gfName, Func<int, string> abilityName, Func<int, string> description, Func<ControlAction, string> binding, Func<GuardianForceAbilityPatchDocument, bool, System.Collections.Immutable.ImmutableArray<GuardianForceAbilityReset>, GuardianForceEditorReview> review, Func<GuardianForceEditorReview, string> apply, Func<GuardianForceAbilityPatchDocument, GuardianForceAbilityPackageDocument?, bool, Task<GuardianForceAbilityPackageDocument?>> save)
     {
         readGuardianEditor = read;
         guardianEditorName = gfName;
@@ -386,11 +391,11 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private void GuardianTool(int index)
+    private async void GuardianTool(int index)
     {
         try
         {
-            GuardianToolCore(index);
+            await GuardianToolCore(index);
         }
         catch (Exception exception) when (exception is InvalidOperationException or InvalidDataException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
@@ -399,7 +404,7 @@ public sealed partial class MenuController
         _view = null;
     }
 
-    private void GuardianToolCore(int index)
+    private async Task GuardianToolCore(int index)
     {
         if (guardianDraft is null)
         {
@@ -479,7 +484,7 @@ public sealed partial class MenuController
                 break;
             case 11:
             case 12:
-                GuardianForceAbilityPackageDocument? saved = saveGuardianEditor!(guardianDraft.ExportDocument, guardianPackage, index == 12);
+                GuardianForceAbilityPackageDocument? saved = await saveGuardianEditor!(guardianDraft.ExportDocument, guardianPackage, index == 12);
                 if (saved is not null)
                 {
                     guardianPackage = saved;

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -130,7 +131,7 @@ public sealed class NativeTutorialTextRenderTests
                 {
                     view.Draw(canvas, new UiTheme());
                 }
-                bitmap.Save(Path.Combine(output!, $"tutorial-{id}-{width}x{height}.png"), ImageFormat.Png);
+                bitmap.SavePng(Path.Combine(output!, $"tutorial-{id}-{width}x{height}.png"));
             }
         }
     }

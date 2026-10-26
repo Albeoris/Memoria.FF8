@@ -37,6 +37,7 @@ internal readonly record struct LocalizationSnapshotIdentity(uint Volume, ulong 
         public uint FileIndexLow;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandle(SafeFileHandle file, out FileInformation information);

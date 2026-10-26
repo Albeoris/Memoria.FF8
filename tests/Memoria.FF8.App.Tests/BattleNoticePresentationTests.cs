@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -14,7 +15,7 @@ public sealed class BattleNoticePresentationTests
     [InlineData(1920, 1344, "Arial")]
     public void System_notice_is_half_width_and_centers_text_at_both_scales(int width, int height, string? fontFamily)
     {
-        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap))
         {
             UiView view = new(new NoticeElement("Quick saved."));
@@ -22,9 +23,9 @@ public sealed class BattleNoticePresentationTests
             view.Draw(canvas, new UiTheme { FontFamily = fontFamily });
         }
         int scale = width / 960;
-        Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(200 * scale, 40 * scale).ToArgb());
-        Assert.NotEqual(Color.Black.ToArgb(), bitmap.GetPixel(241 * scale, 40 * scale).ToArgb());
-        Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(740 * scale, 40 * scale).ToArgb());
+        Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(200 * scale, 40 * scale).ToArgb());
+        Assert.NotEqual(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(241 * scale, 40 * scale).ToArgb());
+        Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(740 * scale, 40 * scale).ToArgb());
         int left = width;
         int right = 0;
         for (int y = 30 * scale; y < 80 * scale; y++)

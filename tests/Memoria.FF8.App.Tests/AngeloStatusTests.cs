@@ -86,7 +86,7 @@ public sealed class AngeloStatusTests
             menus.Presentation = presentation;
             UiView view = menus.BuildView();
             view.Resize(1280, 896);
-            using System.Drawing.Bitmap bitmap = new(1280, 896);
+            using SkiaSharp.SKBitmap bitmap = new(1280, 896);
             using BattlePreviewCanvas canvas = new(bitmap, directory);
             view.Draw(canvas, menus.CreateTheme());
             if (Environment.GetEnvironmentVariable("MEMORIA_FF8_STATUS_LIMIT_OUTPUT") is string output)

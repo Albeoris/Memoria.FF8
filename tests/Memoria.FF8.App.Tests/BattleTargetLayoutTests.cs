@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -79,12 +80,12 @@ public sealed class BattleTargetLayoutTests
             {
                 BattleHudController hud = Create(count, [], shiva);
                 hud.TextScale = 1.5f;
-                using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                 using BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory);
                 UiView view = hud.BuildView();
                 view.Resize(width, height);
                 view.Draw(canvas, new UiTheme());
-                bitmap.Save(Path.Combine(output, $"shiva-targets-{count}-scale150-{width}x{height}.png"), ImageFormat.Png);
+                bitmap.SavePng(Path.Combine(output, $"shiva-targets-{count}-scale150-{width}x{height}.png"));
             }
         }
     }

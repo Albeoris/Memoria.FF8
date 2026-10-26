@@ -4,12 +4,19 @@ namespace Memoria.FF8;
 
 internal static class MusicProgram
 {
-    [STAThread]
     private static int Main(string[] args)
     {
         try
         {
-            using var output = new DirectMusicOutput(new nint(long.Parse(args[0], System.Globalization.CultureInfo.InvariantCulture)), args[1]);
+            if (args.Length > 0 && args[0] is "--render" or "--play")
+            {
+                return AudioHarness.Run(args);
+            }
+            if (args.Length != 2)
+            {
+                throw new ArgumentException("The music worker requires its compatibility window token and music directory.");
+            }
+            using var output = new PortableMusicOutput(args[1]);
             Reply(true);
             while (Console.ReadLine() is string line)
             {
@@ -59,5 +66,8 @@ internal static class MusicProgram
         }
     }
 
-    private static void Reply(bool value) => Console.WriteLine(JsonSerializer.Serialize(new { Result = value }));
+    private static void Reply(bool value)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(new { Result = value }));
+    }
 }

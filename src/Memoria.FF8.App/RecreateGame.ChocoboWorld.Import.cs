@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -14,7 +14,7 @@ internal sealed partial class RecreateGame
 
     private void InitializeChocoboWorldIntegration()
     {
-        gameMenus!.ConnectChocoboWorld(DiscoverChocoboWorldSaves, BrowseChocoboWorldSave, path => PreviewChocoboWorldFile(path, false), CommitChocoboWorldFile, PreviewChocoboWorldClaim, CommitChocoboWorldClaim, () => PreviewChocoboWorldFile(chocoboTransferPath!, true), () => lastChocoboResultText);
+        gameMenus!.ConnectChocoboWorldAsync(DiscoverChocoboWorldSaves, BrowseChocoboWorldSave, path => PreviewChocoboWorldFile(path, false), CommitChocoboWorldFile, PreviewChocoboWorldClaim, CommitChocoboWorldClaim, () => PreviewChocoboWorldFile(chocoboTransferPath!, true), () => lastChocoboResultText);
     }
 
     private IReadOnlyList<ChocoboImportSource> DiscoverChocoboWorldSaves()

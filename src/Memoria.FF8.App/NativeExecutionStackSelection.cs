@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 /// <summary>A user-selected external execution environment for fresh processes; existing saves keep their own owners.</summary>
 internal static class NativeExecutionStackSelection
 {
-    internal static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "native-execution-stack.json");
+    internal static string DefaultPath => Path.Combine(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, "native-execution-stack.json");
 
     internal static string? ConfiguredPath
     {

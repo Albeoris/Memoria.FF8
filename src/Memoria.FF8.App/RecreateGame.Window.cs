@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
@@ -10,11 +8,15 @@ internal sealed partial class RecreateGame
     protected override void Initialize()
     {
         base.Initialize();
+        previousDialogContext = SynchronizationContext.Current;
+        ModelBrowserDialogs.Desktop = desktopDialogs;
+        ModelBrowserDialogs.Confirmation = ShowGameConfirmationAsync;
+        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window);
         if (options.BattleTestPath is null)
         {
-            ShowWindow(Window.Handle, ShowMaximized);
+            platform.Maximize();
         }
-        windowMode = new WindowModeController(Window);
+        windowMode = new WindowModeController(platform);
         windowMode.Apply(uiPreferences.BorderlessWindow);
     }
 
@@ -31,9 +33,4 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private const int ShowMaximized = 3;
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindow(nint window, int command);
 }

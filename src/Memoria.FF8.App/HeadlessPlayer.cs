@@ -1,5 +1,4 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -254,29 +253,7 @@ internal static class HeadlessPlayer
 
     private static void WritePng(string path, byte[] rgba, int width, int height)
     {
-        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
-        BitmapData locked = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            byte[] row = new byte[width * 4];
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int source = (y * width + x) * 4;
-                    int target = x * 4;
-                    row[target] = rgba[source + 2];
-                    row[target + 1] = rgba[source + 1];
-                    row[target + 2] = rgba[source];
-                    row[target + 3] = rgba[source + 3];
-                }
-                Marshal.Copy(row, 0, IntPtr.Add(locked.Scan0, y * locked.Stride), row.Length);
-            }
-        }
-        finally
-        {
-            bitmap.UnlockBits(locked);
-        }
-        bitmap.Save(path, ImageFormat.Png);
+        using SKBitmap bitmap = PortableRaster.FromRgba(rgba, width, height);
+        bitmap.SavePng(path);
     }
 }

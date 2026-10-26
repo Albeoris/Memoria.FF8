@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -115,17 +116,17 @@ public sealed class BattleSkinLayoutTests
                     {
                         hud.Navigate(MenuInput.Confirm);
                     }
-                    using Bitmap bitmap = new(1920, 1080, PixelFormat.Format32bppArgb);
+                    using Bitmap bitmap = new(1920, 1080, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                     using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
                     {
                         UiView view = hud.BuildView();
                         view.Resize(bitmap.Width, bitmap.Height);
                         view.Draw(canvas, vector ? new VectorUiTheme() : new UiTheme());
                     }
-                    Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(0, 0).ToArgb());
+                    Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(0, 0).ToArgb());
                     if (output is not null)
                     {
-                        bitmap.Save(Path.Combine(output, $"hud-{(vector ? "vector" : "classic")}-{screen}-{textScale:0.00}.png"), ImageFormat.Png);
+                        bitmap.SavePng(Path.Combine(output, $"hud-{(vector ? "vector" : "classic")}-{screen}-{textScale:0.00}.png"));
                     }
                 }
             }

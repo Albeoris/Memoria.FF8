@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class DirectMusicOutputTests
+public sealed class MusicWorkerOutputTests
 {
     [Theory]
     [InlineData(false)]
@@ -12,7 +12,7 @@ public sealed class DirectMusicOutputTests
     public void FocusResumePreservesAnExistingNativeMusicPause(bool nativePaused)
     {
         using HelperFixture fixture = new("normal");
-        using DirectMusicOutput music = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using MusicWorkerOutput music = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
         using FieldAudioPresentation presentation = new(0, "", "");
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
         typeof(FieldAudioPresentation).GetField("music", flags)!.SetValue(presentation, music);
@@ -36,7 +36,7 @@ public sealed class DirectMusicOutputTests
     public async Task FailedBattleMusicCannotEscapePresentationAndStoppingReleasesTheBackend(bool selectedSlot, bool battleStop)
     {
         using HelperFixture failedFixture = new("error");
-        using DirectMusicOutput failed = new(failedFixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using MusicWorkerOutput failed = new(failedFixture.StartInfo(), TimeSpan.FromSeconds(5));
         failed.Play("segment.sgt", -10000);
         await WaitUntil(() => failed.Error is not null);
         using FieldAudioPresentation presentation = new(0, "", "");
@@ -73,7 +73,7 @@ public sealed class DirectMusicOutputTests
         await failedFixture.WaitExited();
 
         using HelperFixture healthyFixture = new("normal");
-        using DirectMusicOutput healthy = new(healthyFixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using MusicWorkerOutput healthy = new(healthyFixture.StartInfo(), TimeSpan.FromSeconds(5));
         musicField.SetValue(presentation, healthy);
         presentation.PlayBattleMusicCommand(resume);
         Assert.True(healthy.IsPlaying);
@@ -86,7 +86,7 @@ public sealed class DirectMusicOutputTests
     {
         using HelperFixture fixture = new("startup");
         Stopwatch elapsed = Stopwatch.StartNew();
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
         output.Play("segment.sgt", -10000);
         Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(1), "Music startup blocked the caller.");
         await fixture.WaitStarted();
@@ -101,7 +101,7 @@ public sealed class DirectMusicOutputTests
     public async Task FullInputPipeTimesOutWithoutBlockingGameplay()
     {
         using HelperFixture fixture = new("write");
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
         await fixture.WaitStarted();
         Stopwatch elapsed = Stopwatch.StartNew();
         output.Play(new string('x', 4 * 1024 * 1024), -10000);
@@ -116,7 +116,7 @@ public sealed class DirectMusicOutputTests
     public async Task MissingCommandReplyTimesOutAndStopsHelper()
     {
         using HelperFixture fixture = new("reply");
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(3));
         await fixture.WaitStarted();
         output.Play("segment.sgt", -10000);
         await WaitUntil(() => File.Exists(fixture.Commands));
@@ -130,7 +130,7 @@ public sealed class DirectMusicOutputTests
     public async Task CommandsPreserveProtocolOrderAndDisposeStopsHelper()
     {
         using HelperFixture fixture = new("normal");
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
         output.Play("segment.sgt", -10000, 17);
         output.Volume(-5000);
         output.Pause();
@@ -155,7 +155,7 @@ public sealed class DirectMusicOutputTests
     public async Task BoundedQueueFailsPromptlyAndDisposeInterruptsStartup()
     {
         using HelperFixture fixture = new("startup");
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(30), capacity: 1);
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(30), capacity: 1);
         await fixture.WaitStarted();
         output.Play("segment.sgt", -10000);
         Stopwatch elapsed = Stopwatch.StartNew();
@@ -171,7 +171,7 @@ public sealed class DirectMusicOutputTests
     public async Task DisposeInterruptsBlockedStartupBeforeItsDeadline()
     {
         using HelperFixture fixture = new("startup");
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(30));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(30));
         await fixture.WaitStarted();
         output.Play("segment.sgt", -10000);
         Stopwatch elapsed = Stopwatch.StartNew();
@@ -189,7 +189,7 @@ public sealed class DirectMusicOutputTests
     public async Task InvalidRepliesRetainOneFailureAndStopHelper(string mode, Type exceptionType)
     {
         using HelperFixture fixture = new(mode);
-        using DirectMusicOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
+        using MusicWorkerOutput output = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
         await fixture.WaitStarted();
         output.Play("segment.sgt", -10000);
         await WaitUntil(() => output.Error is not null);
@@ -204,7 +204,7 @@ public sealed class DirectMusicOutputTests
     {
         ProcessStartInfo start = new(Path.Combine(Path.GetTempPath(), "Memoria-missing-" + Guid.NewGuid().ToString("N"), "helper.exe")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
         Stopwatch elapsed = Stopwatch.StartNew();
-        using DirectMusicOutput output = new(start, TimeSpan.FromSeconds(3));
+        using MusicWorkerOutput output = new(start, TimeSpan.FromSeconds(3));
         Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(1), "Starting the helper blocked the caller.");
         await WaitUntil(() => output.Error is not null);
         Assert.IsType<System.ComponentModel.Win32Exception>(output.Error);

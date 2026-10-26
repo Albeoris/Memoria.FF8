@@ -58,7 +58,7 @@ public sealed class ControllerArtworkPromptTests
     [Fact]
     public void ControllerPromptsUseOriginalVectorsWithoutAnActiveResourceSource()
     {
-        using System.Drawing.Bitmap bitmap = new(200, 70);
+        using SkiaSharp.SKBitmap bitmap = new(200, 70);
         using GameUi.BattlePreviewCanvas canvas = new(bitmap, gameDirectory: "");
         string prompt = new InputChord([], [Buttons.A]).FormatPrompt(ControllerPresentation.Xbox);
         canvas.Text(prompt, 20, new UiRect(0, 0, 200, 70), new UiColor(255, 255, 255));
@@ -75,8 +75,8 @@ public sealed class ControllerArtworkPromptTests
             Assert.Equal(presentation, ButtonPrompt.Presentation(run.Text));
             int icon = Assert.IsType<int>(ButtonPrompt.ControllerIcon(run.Text));
             Assert.True(ControllerVectorArtwork.Supports(icon, presentation));
-            using System.Drawing.Bitmap small = ControllerVectorArtwork.Render(icon, presentation, 24);
-            using System.Drawing.Bitmap large = ControllerVectorArtwork.Render(icon, presentation, 192);
+            using SkiaSharp.SKBitmap small = ControllerVectorArtwork.Render(icon, presentation, 24);
+            using SkiaSharp.SKBitmap large = ControllerVectorArtwork.Render(icon, presentation, 192);
             Assert.Equal(24, small.Width);
             Assert.Equal(192, large.Width);
             Assert.Equal(0, large.GetPixel(0, 0).A);
@@ -113,7 +113,7 @@ public sealed class ControllerArtworkPromptTests
     public void FaceButtonsKeepTheirTraditionalColors(ControllerPresentation presentation, Buttons button, int red, int green, int blue)
     {
         string label = Assert.Single(ButtonPromptText.Runs(new InputChord([], [button]).FormatPrompt(presentation))).Text;
-        using System.Drawing.Bitmap bitmap = ControllerVectorArtwork.Render(ButtonPrompt.ControllerIcon(label)!.Value, presentation, 192);
+        using SkiaSharp.SKBitmap bitmap = ControllerVectorArtwork.Render(ButtonPrompt.ControllerIcon(label)!.Value, presentation, 192);
         Assert.Contains(Enumerable.Range(0, bitmap.Width).SelectMany(x => Enumerable.Range(0, bitmap.Height).Select(y => bitmap.GetPixel(x, y))), color =>
             color.R == red && color.G == green && color.B == blue && color.A == 255);
     }
@@ -129,7 +129,7 @@ public sealed class ControllerArtworkPromptTests
         Directory.CreateDirectory(directory);
         foreach (ControllerPresentation presentation in new[] { ControllerPresentation.PlayStation, ControllerPresentation.Xbox })
         {
-            using System.Drawing.Bitmap bitmap = new(960, 640);
+            using SkiaSharp.SKBitmap bitmap = new(960, 640);
             using GameUi.BattlePreviewCanvas canvas = new(bitmap, gameDirectory: "");
             canvas.Fill(new UiRect(0, 0, 960, 640), new UiColor(17, 22, 30));
             canvas.Text($"{presentation} - original vector controller prompts", 27, new UiRect(32, 18, 900, 48), new UiColor(235, 240, 250));
@@ -145,7 +145,7 @@ public sealed class ControllerArtworkPromptTests
             }
             string mixed = new InputChord([Keys.LeftControl], [Buttons.LeftShoulder, Buttons.A]).FormatPrompt(presentation);
             canvas.Text("Mixed binding: " + mixed, 25, new UiRect(32, 548, 896, 60), new UiColor(235, 240, 250));
-            bitmap.Save(Path.Combine(directory, presentation == ControllerPresentation.PlayStation ? "sony-controller-atlas.png" : "xbox-controller-atlas.png"), System.Drawing.Imaging.ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, presentation == ControllerPresentation.PlayStation ? "sony-controller-atlas.png" : "xbox-controller-atlas.png"));
         }
     }
 }

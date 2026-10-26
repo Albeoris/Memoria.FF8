@@ -66,6 +66,20 @@ public sealed class PlatformTests
         Assert.Throws<BadImageFormatException>(() => NativeImage.RequireX64(new MemoryStream(image), "osx-x64"));
     }
 
+    [Fact]
+    public void ManagedPortablePeIsNotANativeX86OrX64Dependency()
+    {
+        using FileStream assembly = File.OpenRead(typeof(PlatformTests).Assembly.Location);
+        Assert.Throws<BadImageFormatException>(() => NativeImage.RequireX64(assembly, "win-x64"));
+    }
+
+    [Fact]
+    public void CurrentX64AppHostHasTheExpectedOperatingSystemAbi()
+    {
+        using FileStream host = File.OpenRead(Environment.ProcessPath!);
+        NativeImage.RequireX64(host, HostPlatforms.Current.RuntimeIdentifier());
+    }
+
     [Theory]
     [InlineData("../outside")]
     [InlineData("sub/../../outside")]

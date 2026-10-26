@@ -1,10 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
   </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="TitleSceneRenderer.cs;Artwork/TitleArtworkRenderer.cs" />
+  </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Condition="$(TargetFramework.Contains('-windows'))" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
     <EmbeddedResource Include="Shaders/TitleScene.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" />
     <EmbeddedResource Include="Artwork/SilverCrest.contours.json" LogicalName="Memoria.FF8.TitleScene.SilverCrest.contours.json" />
   </ItemGroup>

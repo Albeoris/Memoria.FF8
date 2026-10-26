@@ -35,12 +35,12 @@ public sealed class OpeningMovieCompletionTests(ITestOutputHelper output)
             Assert.True(File.Exists(capture), await stdout);
             using JsonDocument response = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "responses", "001.json")));
             Assert.True(response.RootElement.GetProperty("Ok").GetBoolean());
-            using System.Drawing.Bitmap image = new(capture);
+            using SkiaSharp.SKBitmap image = SkiaSharp.SKBitmap.Decode(capture);
             for (int y = 20; y < 220; y++)
             {
                 for (int x = 20; x < 300; x++)
                 {
-                    System.Drawing.Color pixel = image.GetPixel(x, y);
+                    SkiaSharp.SKColor pixel = image.GetPixel(x, y);
                     Assert.True(pixel.R >= 240 && pixel.G >= 240 && pixel.B >= 240, $"Host retained a nonwhite pixel at {x},{y}: {pixel}.");
                 }
             }

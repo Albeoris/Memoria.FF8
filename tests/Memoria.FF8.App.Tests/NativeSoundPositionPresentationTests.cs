@@ -32,8 +32,8 @@ public sealed class NativeSoundPositionPresentationTests
                 Assert.Null(presentation.Error);
                 IDictionary voices = (IDictionary)typeof(FieldAudioPresentation).GetField("voices", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(presentation)!;
                 object voice = voices[3]!;
-                DirectSoundOutput.Buffer primary = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Primary")!.GetValue(voice)!;
-                DirectSoundOutput.Buffer loop = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Loop")!.GetValue(voice)!;
+                PcmAudioOutput.Buffer primary = (PcmAudioOutput.Buffer)voice.GetType().GetProperty("Primary")!.GetValue(voice)!;
+                PcmAudioOutput.Buffer loop = (PcmAudioOutput.Buffer)voice.GetType().GetProperty("Loop")!.GetValue(voice)!;
                 NativeMusicCatalog catalog = new(directory);
                 Assert.Equal(catalog.SoundPan(0), ReadPan(primary));
                 Assert.Equal(catalog.SoundPan(0), ReadPan(loop));
@@ -64,11 +64,9 @@ public sealed class NativeSoundPositionPresentationTests
         Assert.Null(failure);
     }
 
-    private static int ReadPan(DirectSoundOutput.Buffer buffer)
+    private static int ReadPan(PcmAudioOutput.Buffer buffer)
     {
-        nint handle = (nint)typeof(DirectSoundOutput.Buffer).GetField("handle", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(buffer)!;
-        WindowsAudioCom.Check(WindowsAudioCom.Method<GetValue>(handle, 7)(handle, out int pan));
-        return pan;
+        return buffer.PanValue;
     }
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] operations)
@@ -87,8 +85,6 @@ public sealed class NativeSoundPositionPresentationTests
         return bytes;
     }
 
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int GetValue(nint self, out int value);
     [DllImport("user32.dll")]
     private static extern nint GetDesktopWindow();
 }

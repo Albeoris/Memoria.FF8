@@ -361,6 +361,7 @@ public static class OwnedChildSupervisor
         return PrivateEvidencePath.Validate(path);
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private sealed class NativeChild : IDisposable
     {
         private readonly SafeFileHandle job;
@@ -547,6 +548,7 @@ public static class OwnedChildSupervisor
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static class Native
     {
         [StructLayout(LayoutKind.Sequential)]

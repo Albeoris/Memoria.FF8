@@ -1,4 +1,5 @@
-using System.Drawing;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
 
 namespace Memoria.FF8.App.Tests;
 

@@ -86,15 +86,15 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         var key = (nativeIconId, presentation, size);
         if (!controllerButtons.TryGetValue(key, out Texture2D? texture))
         {
-            using System.Drawing.Bitmap bitmap = ControllerVectorArtwork.Render(nativeIconId, presentation, size);
+            using SkiaSharp.SKBitmap bitmap = ControllerVectorArtwork.Render(nativeIconId, presentation, size);
             texture = new Texture2D(device, size, size);
             Color[] colors = new Color[size * size];
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    System.Drawing.Color color = bitmap.GetPixel(x, y);
-                    colors[y * size + x] = Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
+                    SkiaSharp.SKColor color = bitmap.GetPixel(x, y);
+                    colors[y * size + x] = Color.FromNonPremultiplied(color.Red, color.Green, color.Blue, color.Alpha);
                 }
             }
             texture.SetData(colors);

@@ -2,14 +2,18 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
+    [ValidateSet('Distribution', 'Portable', 'Launcher')]
+    [string]$Scope = 'Distribution',
+    [ValidateSet('', 'win-x64', 'linux-x64', 'osx-x64')]
+    [string]$RuntimeIdentifier = '',
     [switch]$Test
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-if (![OperatingSystem]::IsWindows()) {
-    throw 'Memoria FF8 requires Windows to build and run.'
+if (!$RuntimeIdentifier) {
+    $RuntimeIdentifier = if ([OperatingSystem]::IsWindows()) { 'win-x64' } elseif ([OperatingSystem]::IsLinux()) { 'linux-x64' } elseif ([OperatingSystem]::IsMacOS()) { 'osx-x64' } else { throw 'Unsupported desktop host.' }
 }
 
 function Invoke-DotNet {
@@ -22,6 +26,35 @@ function Invoke-DotNet {
 }
 
 $root = $PSScriptRoot
+if ($Scope -ne 'Distribution') {
+    Push-Location $root
+    try {
+        if ($Scope -eq 'Portable') {
+            Invoke-DotNet @('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-p:TargetFramework=net10.0', '-m:1')
+            if ($Test) {
+                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests')) {
+                    Invoke-DotNet @('run', '--project', "tests/$project", '-c', $Configuration)
+                }
+                Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--', '--filter-class', '*SteamAchievementBackendTests')
+            }
+        }
+        else {
+            $destination = Join-Path $root "artifacts/launcher/$RuntimeIdentifier"
+            Invoke-DotNet @('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $destination)
+            if ($Test) {
+                Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
+            }
+            Write-Host "Launcher-only payload (game host supplied separately): $destination"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    return
+}
+if (![OperatingSystem]::IsWindows() -or $RuntimeIdentifier -ne 'win-x64') {
+    throw 'The complete game distribution currently requires Windows x64. Use -Scope Portable or -Scope Launcher for the other desktop targets until their game hosts are available.'
+}
 $artifacts = Join-Path $root 'artifacts'
 $package = Join-Path $artifacts 'package'
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
@@ -48,8 +81,8 @@ Push-Location $root
 try {
     $publishArguments = @('-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
     Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $data, '-p:PublishSingleFile=false') + $publishArguments)
-    # DirectMusic is a separate x86 process and needs its own complete runtime.
-    Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', 'win-x86', '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
+    # Keep the released worker path with the common x64 music implementation and its complete runtime.
+    Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
     Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
     Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $data)
 
@@ -78,6 +111,7 @@ try {
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw 'The launcher publish did not produce Memoria.Launcher.exe.'
     }
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', 'win-x64', $launcherExecutable)
     Move-Item -LiteralPath $launcherExecutable -Destination $staging
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($launcher)) -ne [IO.Path]::GetFullPath($staging)) {
         throw 'The launcher staging path is outside the generated staging directory.'
@@ -85,6 +119,9 @@ try {
     Remove-Item -LiteralPath $launcher -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD-PARTY.md') -Destination $data
     Copy-Item -LiteralPath (Join-Path $root 'vendor/Albeoris.Frameworks/LICENSE') -Destination (Join-Path $data 'Albeoris.Frameworks.LICENSE')
+    Copy-Item -LiteralPath (Join-Path $root 'vendor/Topten.RichTextKit.Bidi/LICENSE.txt') -Destination (Join-Path $data 'Text.Unicode.LICENSE')
+    Copy-Item -LiteralPath (Join-Path $root 'vendor/Topten.RichTextKit.Bidi/UNICODE-LICENSE.txt') -Destination (Join-Path $data 'Text.Unicode.Data.LICENSE')
+    Copy-Item -LiteralPath (Join-Path $root 'vendor/Topten.RichTextKit.Bidi/UNICODE-TRIE-LICENSE.txt') -Destination (Join-Path $data 'Text.Unicode.Trie.LICENSE')
 
     $licenses = Join-Path $data 'licenses'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null

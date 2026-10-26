@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Formats.Tar;
 using System.Runtime.InteropServices;
-using System.Buffers.Binary;
+using Memoria.FF8.Platform;
 using SharpCompress.Compressors.Xz;
 using System.IO.Compression;
 using System.Net.Http;
@@ -343,36 +343,13 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         try
         {
             using FileStream stream = File.OpenRead(path);
-            Span<byte> header = stackalloc byte[64];
-            if (stream.Read(header) != header.Length)
-            {
-                return false;
-            }
-            if (OperatingSystem.IsLinux())
-            {
-                return header[..4].SequenceEqual(new byte[] { 0x7f, 0x45, 0x4c, 0x46 }) && header[4] == 2 && header[5] == 1 && BinaryPrimitives.ReadUInt16LittleEndian(header[18..]) == 62;
-            }
-            if (OperatingSystem.IsMacOS())
-            {
-                return BinaryPrimitives.ReadUInt32LittleEndian(header) == 0xfeedfacf && BinaryPrimitives.ReadUInt32LittleEndian(header[4..]) == 0x01000007;
-            }
-            if (OperatingSystem.IsWindows() && header[0] == 'M' && header[1] == 'Z')
-            {
-                int offset = BinaryPrimitives.ReadInt32LittleEndian(header[60..]);
-                if (offset < 64 || offset > stream.Length - 6)
-                {
-                    return false;
-                }
-                stream.Position = offset;
-                Span<byte> pe = stackalloc byte[6];
-                return stream.Read(pe) == pe.Length && pe[..4].SequenceEqual(new byte[] { 0x50, 0x45, 0, 0 }) && BinaryPrimitives.ReadUInt16LittleEndian(pe[4..]) == 0x8664;
-            }
+            NativeImage.RequireX64(stream, HostPlatforms.Current.RuntimeIdentifier());
+            return true;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or BadImageFormatException)
         {
             return false;
         }
-        return false;
     }
 
     public static async Task<bool> ValidateAsync(string directory)

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="SDL3-CS" />
+    <ProjectReference Include="../../vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF8.Ui/Memoria.FF8.Ui.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
+    <ProjectReference Include="../../src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
+    <Compile Include="../../src/Memoria.FF8.App/SystemFontCatalog.cs" Link="Presentation/SystemFontCatalog.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PortableTextShaper.cs" Link="Presentation/PortableTextShaper.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PortableTextRasterizer.cs" Link="Presentation/PortableTextRasterizer.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PortableRaster.cs" Link="Presentation/PortableRaster.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/ControllerVectorAtlas.cs" Link="Presentation/ControllerVectorAtlas.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/PresentationPacer.cs" Link="Presentation/PresentationPacer.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/GameConfirmationOverlay.cs" Link="Presentation/GameConfirmationOverlay.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/GameDialogContext.cs" Link="Presentation/GameDialogContext.cs" />
+    <Compile Include="../../src/Memoria.FF8.App/SdlDesktopDialogs.cs" Link="Presentation/SdlDesktopDialogs.cs" />
+    <EmbeddedResource Include="../../src/Memoria.FF8.App/Artwork/Controller/*.svg" LogicalName="Memoria.FF8.Artwork.Controller.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="BidiConformanceCases.txt" />
+  </ItemGroup>
+</Project>

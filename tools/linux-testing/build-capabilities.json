@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "runtimeIdentifier": "linux-x64",
+  "gameHost": false,
+  "scope": "Launcher",
+  "launcherOutput": "artifacts/launcher/linux-x64",
+  "gameOutput": null,
+  "gameExecutable": null
+}

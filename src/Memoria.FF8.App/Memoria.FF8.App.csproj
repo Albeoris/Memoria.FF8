@@ -2,13 +2,16 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
+
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
+    <ProjectReference Include="../../vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
     <ProjectReference Include="../Memoria.FF8.Diagnostics/Memoria.FF8.Diagnostics.csproj" />
     <Content Include="../../vendor/Steamworks/redistributable_bin/win64/steam_api64.dll" Link="Steam/steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../vendor/Steamworks/README.md" Link="Steam/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -18,6 +21,9 @@
     <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <Using Include="System.IO" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
     <PackageReference Include="SDL3-CS" />
     <PackageReference Include="SDL3-CS.Windows" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
@@ -30,10 +36,10 @@
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
-    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" AdditionalProperties="RuntimeIdentifier=win-x86;SelfContained=true" />
+    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" AdditionalProperties="RuntimeIdentifier=win-x64;SelfContained=true" />
   </ItemGroup>
   <Target Name="CopyMusicHost" AfterTargets="Build">
-    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x86;SelfContained=true">
+    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true">
       <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
     </MSBuild>
     <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />

@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using System.Drawing.Imaging;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -65,9 +65,9 @@ public sealed class NativeRenzokukenPresentationTests
         {
             Directory.CreateDirectory(evidence);
             using var initial = BattlePreviewCanvas.BitmapFromRgba(before, 640, 448);
-            initial.Save(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.1.png"), ImageFormat.Png);
+            initial.SavePng(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.1.png"));
             using var active = BattlePreviewCanvas.BitmapFromRgba(during, 640, 448);
-            active.Save(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.2.png"), ImageFormat.Png);
+            active.SavePng(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.2.png"));
         }
     }
 }

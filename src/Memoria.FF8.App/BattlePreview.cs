@@ -1,5 +1,4 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Assets;
@@ -111,7 +110,7 @@ internal static class BattlePreview
         BattleDefinition definition = session.Capture().Definition;
         using BattleAssets assets = new(gameDirectory);
         BattleScenePresentation scene = new(assets, definition, scenario?.UseEncounter ?? (definition.EncounterId is not null));
-        using Bitmap output = new(width, height, PixelFormat.Format32bppArgb);
+        using SKBitmap output = new(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(output, gameDirectory))
         {
             PixelBounds viewport = new(0, 0, width, height);
@@ -134,7 +133,7 @@ internal static class BattlePreview
             view.Draw(canvas, new UiTheme());
         }
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        output.Save(outputPath, ImageFormat.Png);
+        output.SavePng(outputPath);
         Console.WriteLine($"Battle preview {width}x{height}, frame {session.Frame}, {session.Mode}, {session.Outcome}: {outputPath}");
         return 0;
     }

@@ -17,7 +17,7 @@ public sealed class ButtonPromptTests
     public void Key_label_ink_is_centered_inside_the_keycap(string label, float size)
     {
         float lineHeight = SystemTextLayout.LineHeight(size);
-        using var bitmap = new System.Drawing.Bitmap(320, 120);
+        using var bitmap = new SkiaSharp.SKBitmap(320, 120);
         using BattlePreviewCanvas canvas = new(bitmap);
         ButtonPrompt.DrawCanvas(canvas, label, size, new UiRect(10, 10, 300, lineHeight), 1, null);
         int first = bitmap.Height;
@@ -46,7 +46,7 @@ public sealed class ButtonPromptTests
     [Fact]
     public void Prompt_raster_has_white_label_graphite_face_and_respects_canvas_clip()
     {
-        using var bitmap = new System.Drawing.Bitmap(160, 60);
+        using var bitmap = new SkiaSharp.SKBitmap(160, 60);
         using BattlePreviewCanvas canvas = new(bitmap);
         canvas.PushClip(new UiRect(10, 10, 45, 35));
         ButtonPrompt.DrawCanvas(canvas, "N5", 22, new UiRect(10, 10, 80, 32), 1, null);
@@ -62,7 +62,7 @@ public sealed class ButtonPromptTests
                 graphite |= color.R is >= 35 and <= 65 && color.G is >= 35 and <= 65 && color.B is >= 40 and <= 70;
                 if (x >= 55 || y >= 45 || x < 10 || y < 10)
                 {
-                    Assert.Equal(System.Drawing.Color.Black.ToArgb(), color.ToArgb());
+                    Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), color.ToArgb());
                 }
             }
         }
@@ -117,7 +117,7 @@ public sealed class ButtonPromptTests
         remaining = 1;
         Assert.Equal("N5", ButtonPrompt.VisibleText(button, ref remaining));
         Assert.Equal(0, remaining);
-        Assert.Equal("", ButtonPrompt.VisibleText(new DialogueRun("4", Color.White), ref remaining));
+        Assert.Equal("", ButtonPrompt.VisibleText(new DialogueRun("4", Microsoft.Xna.Framework.Color.White), ref remaining));
         var page = DialogueLayout.Create(document, new DialogueState(0, 1, "", 0, 0), null, 10, value => value.Length)[0];
         DialoguePager pager = new();
         pager.RevealCurrentPage(page);

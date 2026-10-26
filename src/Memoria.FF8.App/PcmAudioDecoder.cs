@@ -23,7 +23,7 @@ internal static class PcmAudioDecoder
             data.Position = sample.CompressedOffset;
             data.ReadExactly(compressed);
         }
-        byte[] pcm = WindowsAcmDecoder.Decode(sample.WaveFormat, compressed);
+        byte[] pcm = PortableWaveDecoder.Decode(sample.WaveFormat, compressed);
         if (sample.LoopStartPcmByte != 0 && sample.LoopEndPcmByte > pcm.Length)
         {
             throw new InvalidDataException($"Sample {sampleIndex} decoded shorter than its original PCM loop range.");
@@ -66,7 +66,7 @@ internal static class PcmAudioDecoder
 
     internal static byte[] Decode(string toolsDirectory, string path, byte[]? input, int rate, int channels)
     {
-        var start = new ProcessStartInfo(Path.Combine(toolsDirectory, "ffmpeg.exe")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = input is not null, RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = new ProcessStartInfo(MediaToolsInstallation.ResolveExecutable(toolsDirectory, "ffmpeg")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = input is not null, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string argument in new[] { "-v", "error", "-i", path, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", rate.ToString(System.Globalization.CultureInfo.InvariantCulture), "-ac", channels.ToString(System.Globalization.CultureInfo.InvariantCulture), "pipe:1" })
         {
             start.ArgumentList.Add(argument);

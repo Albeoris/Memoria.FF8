@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Microsoft.Xna.Framework.Input;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
@@ -111,7 +112,7 @@ public sealed class ButtonPromptTextTests
                 Color pixel = marked.GetPixel(x, y);
                 if (x < 20 || x >= 60 || y < 14 || y >= 54)
                 {
-                    Assert.Equal(Color.Black.ToArgb(), pixel.ToArgb());
+                    Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), pixel.ToArgb());
                 }
                 keycapPixels += IsFace(pixel) ? 1 : 0;
                 plainFacePixels += IsFace(plain.GetPixel(x, y)) ? 1 : 0;
@@ -144,8 +145,8 @@ public sealed class ButtonPromptTextTests
         {
             for (int x = 10; x < 230; x++)
             {
-                wrappedLowerPixels += wrapped.GetPixel(x, y).ToArgb() != Color.Black.ToArgb() ? 1 : 0;
-                singleLowerPixels += singleLine.GetPixel(x, y).ToArgb() != Color.Black.ToArgb() ? 1 : 0;
+                wrappedLowerPixels += wrapped.GetPixel(x, y).ToArgb() != SkiaSharp.SKColors.Black.ToArgb() ? 1 : 0;
+                singleLowerPixels += singleLine.GetPixel(x, y).ToArgb() != SkiaSharp.SKColors.Black.ToArgb() ? 1 : 0;
             }
         }
         Assert.True(wrappedLowerPixels > 100);
@@ -185,7 +186,7 @@ public sealed class ButtonPromptTextTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_CONTROL_PROMPT_OUTPUT") is string directory && !string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
-            bitmap.Save(Path.Combine(directory, $"control-prompts-{width}.png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, $"control-prompts-{width}.png"));
         }
 
         UiRect Rect(float x, float y, float w, float h)

@@ -179,7 +179,7 @@ public sealed class ControlsMenuTests
         MenuController menus = Connected(() => profile, next => profile = next);
         void Render(string name)
         {
-            using System.Drawing.Bitmap bitmap = new(960, 672);
+            using SkiaSharp.SKBitmap bitmap = new(960, 672);
             using BattlePreviewCanvas canvas = new(bitmap, gameDirectory);
             UiView view = menus.BuildView();
             view.Resize(960, 672);
@@ -187,9 +187,9 @@ public sealed class ControlsMenuTests
             if (Environment.GetEnvironmentVariable("MEMORIA_CONTROLS_EVIDENCE") is string directory)
             {
                 Directory.CreateDirectory(directory);
-                bitmap.Save(Path.Combine(directory, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+                bitmap.SavePng(Path.Combine(directory, name + ".png"));
             }
-            Assert.True(Enumerable.Range(1, 9).Any(x => Enumerable.Range(1, 6).Any(y => bitmap.GetPixel(x * bitmap.Width / 10, y * bitmap.Height / 7).ToArgb() != System.Drawing.Color.Black.ToArgb())), "The anchored controls view must paint visible content.");
+            Assert.True(Enumerable.Range(1, 9).Any(x => Enumerable.Range(1, 6).Any(y => bitmap.GetPixel(x * bitmap.Width / 10, y * bitmap.Height / 7).ToArgb() != SkiaSharp.SKColors.Black.ToArgb())), "The anchored controls view must paint visible content.");
         }
         menus.Open("config-keyboard");
         Render("keyboard");

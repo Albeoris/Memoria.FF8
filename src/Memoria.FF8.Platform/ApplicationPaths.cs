@@ -40,4 +40,3 @@ public sealed record ApplicationPaths(string Configuration, string Saves, string
         }
     }
 }
-

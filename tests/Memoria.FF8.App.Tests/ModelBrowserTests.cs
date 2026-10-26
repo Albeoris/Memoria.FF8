@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -169,7 +170,7 @@ public sealed class ModelBrowserTests
             {
                 browser.OpenCommands();
             }
-            using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+            using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap))
             {
                 UiView view = browser.BuildView();
@@ -187,7 +188,7 @@ public sealed class ModelBrowserTests
             if (!string.IsNullOrWhiteSpace(output))
             {
                 Directory.CreateDirectory(output);
-                bitmap.Save(Path.Combine(output, $"{mode.ToString().ToLowerInvariant()}-{width}.png"), ImageFormat.Png);
+                bitmap.SavePng(Path.Combine(output, $"{mode.ToString().ToLowerInvariant()}-{width}.png"));
             }
         }
     }

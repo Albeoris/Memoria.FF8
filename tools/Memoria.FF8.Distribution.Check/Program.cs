@@ -2,6 +2,19 @@ using System.Buffers.Binary;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
+using System.Reflection.PortableExecutable;
+using Memoria.FF8.Platform;
+
+if (args.Length >= 3 && args[0] == "--native-image")
+{
+    foreach (string path in args.Skip(2))
+    {
+        using FileStream stream = File.OpenRead(path);
+        NativeImage.RequireX64(stream, args[1]);
+        Console.WriteLine($"Native x64 ABI verified: {Path.GetFileName(path)} ({args[1]}).");
+    }
+    return;
+}
 
 if (args.Length != 1)
 {
@@ -9,6 +22,23 @@ if (args.Length != 1)
 }
 
 string dataDirectory = Path.GetFullPath(args[0]);
+foreach (string path in Directory.EnumerateFiles(dataDirectory, "*", SearchOption.AllDirectories).Where(path => Path.GetExtension(path) is ".exe" or ".dll"))
+{
+    using FileStream stream = File.OpenRead(path);
+    using (PEReader image = new(stream, PEStreamOptions.LeaveOpen))
+    {
+        if (image.PEHeaders.CorHeader is not null)
+        {
+            if ((image.PEHeaders.CorHeader.Flags & CorFlags.Requires32Bit) != 0)
+            {
+                throw new BadImageFormatException($"The x64 distribution contains a required x86 managed image: {Path.GetFileName(path)}.");
+            }
+            continue;
+        }
+    }
+    stream.Position = 0;
+    NativeImage.RequireX64(stream, "win-x64");
+}
 using DistributionAssemblies assemblies = new(dataDirectory);
 Assembly textAssembly = assemblies.LoadFromAssemblyName(new AssemblyName("Albeoris.Games.FF8.TextEncoding"));
 Type encodingType = textAssembly.GetType("Albeoris.Games.FF8.TextEncoding.FF8Encoding", throwOnError: true)!;

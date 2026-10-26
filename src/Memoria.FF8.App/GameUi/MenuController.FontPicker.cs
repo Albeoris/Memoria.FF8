@@ -15,10 +15,16 @@ public sealed partial class MenuController
         UiPreferences preferences = FontPreferences;
         if (key == "Dialogue font")
         {
-            return IsFixtureContext || _readPreferences is not null ? preferences.DialogueFontFamily : ConfigValue(key);
+            return ResolvedFontDisplay(IsFixtureContext || _readPreferences is not null ? preferences.DialogueFontFamily : ConfigValue(key));
         }
         bool themeDefault = (Presentation == MenuPresentation.Vector ? preferences.VectorUiFontFamily : preferences.ClassicUiFontFamily) is null && preferences.LegacyUiFontFamily == SystemFontCatalog.DefaultFamily;
-        return FormatSystemText("ui.fontdisplayvalue.details.theme.default.template", "{0}{1}", (themeDefault ? SystemText("ui.fontdisplayvalue.details.theme.default", "Theme default — ") : ""), preferences.GetUiFontFamily(Presentation));
+        return FormatSystemText("ui.fontdisplayvalue.details.theme.default.template", "{0}{1}", (themeDefault ? SystemText("ui.fontdisplayvalue.details.theme.default", "Theme default — ") : ""), ResolvedFontDisplay(preferences.GetUiFontFamily(Presentation)));
+    }
+
+    private string ResolvedFontDisplay(string requestedFamily)
+    {
+        string resolved = SystemFontCatalog.ResolveFamily(requestedFamily);
+        return string.Equals(requestedFamily, resolved, StringComparison.OrdinalIgnoreCase) ? requestedFamily : FormatSystemText("font.missing-fallback", "{0} — unavailable; using {1}", requestedFamily, resolved);
     }
 
     private void RegisterFontPickerScreen()

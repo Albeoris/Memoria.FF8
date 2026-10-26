@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Drawing;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -140,7 +141,7 @@ public sealed class Holy175CapturePresentationTests
                 bitmap.SetPixel(x, y, Color.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]));
             }
         }
-        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        bitmap.SavePng(path);
     }
 
     private static byte[] Render(Executed executed) => new BattleRenderer(320, 216).RenderNativePrimitiveFrame(executed.Frame, executed.State.Textures, capabilities: executed.State.Capabilities, textureWindowCache: executed.State.Process.TextureWindowCache).ToArray();

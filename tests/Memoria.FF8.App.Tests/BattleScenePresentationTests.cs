@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Numerics;
 using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
@@ -134,7 +135,7 @@ public sealed class BattleScenePresentationTests
         using BattleAssets assets = new(directory);
         BattleScenePresentation scene = new(assets, session.Capture().Definition, false);
         byte[] pixels = scene.Render(session, 640, 448).ToArray();
-        using Bitmap bitmap = new(640, 448, PixelFormat.Format32bppArgb);
+        using Bitmap bitmap = new(640, 448, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap))
         {
             canvas.DrawRgba(pixels, 640, 448, new UiRect(0, 0, 640, 448));

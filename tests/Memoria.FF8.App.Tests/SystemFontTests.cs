@@ -42,7 +42,7 @@ public sealed class SystemFontTests
         Assert.NotEqual(Signature(joined), Signature(squares));
     }
 
-    private static string Signature(System.Drawing.Bitmap bitmap)
+    private static string Signature(SkiaSharp.SKBitmap bitmap)
     {
         byte[] alpha = SystemTextLayout.PremultipliedPixels(bitmap).Select(pixel => pixel.A).ToArray();
         return $"{bitmap.Width}x{bitmap.Height}:" + Convert.ToHexString(SHA256.HashData(alpha));

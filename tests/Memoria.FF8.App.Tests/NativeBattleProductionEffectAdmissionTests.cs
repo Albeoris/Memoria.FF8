@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -537,7 +538,7 @@ public sealed class NativeBattleProductionEffectAdmissionTests
             }
         }
         using FileStream stream = new(Path.Combine(directory, name + ".png"), FileMode.CreateNew);
-        bitmap.Save(stream, ImageFormat.Png);
+        bitmap.SavePng(stream);
     }
 
     private static byte[] Program(bool initializeBattleMode = false)

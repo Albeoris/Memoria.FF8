@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -157,6 +158,6 @@ public sealed class WorldMapControlPresentationTests
                 bitmap.SetPixel(x, y, Color.FromArgb(rgba[pixel + 3], rgba[pixel], rgba[pixel + 1], rgba[pixel + 2]));
             }
         }
-        bitmap.Save(path, ImageFormat.Png);
+        bitmap.SavePng(path);
     }
 }

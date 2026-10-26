@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -148,11 +149,11 @@ public sealed class SlotsCardPresentationTests
                 {
                     SlotsCardController cards = new(count, mask);
                     cards.Advance(TimeSpan.FromSeconds(1), false, false);
-                    using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                    using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                     using BattlePreviewCanvas canvas = new(bitmap, directory);
                     UiRect bounds = new(0, 0, width, height);
                     SlotsCardView.Draw(canvas, new UiTheme(), bounds, cards, _ => "Full-cure", _ => 3, 1.5f, "↑ ↓ ← →", "Enter");
-                    bitmap.Save(Path.Combine(output, $"slots-{width}x{height}-{count}-{mask}.png"), ImageFormat.Png);
+                    bitmap.SavePng(Path.Combine(output, $"slots-{width}x{height}-{count}-{mask}.png"));
                     UiRect center = SlotsCardView.CardBounds(bounds, 0, 1);
                     Assert.Equal(width / 2f, center.X + center.Width / 2, 3);
                     Assert.Equal(height / 2f, center.Y + center.Height / 2, 3);

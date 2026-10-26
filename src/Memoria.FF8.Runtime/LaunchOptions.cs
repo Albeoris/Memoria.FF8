@@ -144,4 +144,3 @@ public sealed record LaunchOptions
         return options with { Width = width, Height = height, ResolutionSpecified = true };
     }
 }
-

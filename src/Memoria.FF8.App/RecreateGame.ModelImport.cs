@@ -9,11 +9,11 @@ internal sealed partial class RecreateGame
     private readonly Dictionary<string, EditableModel> browserImportOriginals = new(StringComparer.Ordinal);
     private readonly List<Func<string>> browserImportWarnings = [];
 
-    private void OpenBrowserImport(ModelBrowserEntry entry, ModelBrowserVariant variant)
+    private async void OpenBrowserImport(ModelBrowserEntry entry, ModelBrowserVariant variant)
     {
         try
         {
-            string? path = ModelBrowserDialogs.Import(Window.Handle, LocalizeUiText);
+            string? path = await ModelBrowserDialogs.ImportAsync(Window.Handle, LocalizeUiText);
             if (path is null)
             {
                 return;
@@ -32,7 +32,7 @@ internal sealed partial class RecreateGame
             if (inventory.Objects.Count == 0)
             {
                 ValidateSingleUnidentifiedModelMapping(bytes);
-                if (!ModelBrowserDialogs.Confirm(Window.Handle, FormatAuthored("model.import.map-identity", "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to {0}?", entry.Id), LocalizeAuthored("model.import.map-target", "Map GLB target"), LocalizeAuthored("model.import.use-target-question", "Use this target?"), LocalizeUiText))
+                if (!await ModelBrowserDialogs.ConfirmAsync(Window.Handle, FormatAuthored("model.import.map-identity", "The GLB has no preserved logical model identity. Explicitly map its single model and clip slots to {0}?", entry.Id), LocalizeAuthored("model.import.map-target", "Map GLB target"), LocalizeAuthored("model.import.use-target-question", "Use this target?"), LocalizeUiText))
                 {
                     return;
                 }
@@ -263,7 +263,7 @@ internal sealed partial class RecreateGame
         return objects.Where(item => item.Target != owner.Target && item.RigId == owner.RigId && item.GeometrySelected && modelBrowser!.SelectedAssets.Contains("object:" + item.Target) && item.ReplacedPart?.StartsWith("mesh/", StringComparison.Ordinal) == true).Select(item => int.TryParse(item.ReplacedPart![5..], out int part) && part is >= 0 and < 256 ? part : throw new InvalidDataException("Invalid native replacement part.")).Distinct().ToArray();
     }
 
-    private void CompleteBrowserImport()
+    private async void CompleteBrowserImport()
     {
         try
         {
@@ -303,18 +303,18 @@ internal sealed partial class RecreateGame
                 throw new InvalidDataException(LocalizeAuthored("model.import.selection-required", "Select at least one matched object or clip component."));
             }
             ModelModInstallPlan plan = ModelModInstaller.Plan(replacements);
-            if (warnings.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, string.Join("\n", warnings.Distinct()), localizeText: LocalizeUiText))
+            if (warnings.Count != 0 && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, string.Join("\n", warnings.Distinct()), localizeText: LocalizeUiText))
             {
                 return;
             }
             string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
-            string? destination = ModelBrowserDialogs.Destination(Window.Handle, root, LocalizeUiText);
+            string? destination = await ModelBrowserDialogs.DestinationAsync(Window.Handle, root, LocalizeUiText);
             if (destination is null)
             {
                 return;
             }
             IReadOnlyList<string> conflicts = plan.GetConflicts(root, destination);
-            if (conflicts.Count != 0 && !ModelBrowserDialogs.Confirm(Window.Handle, FormatAuthored("model.import.existing-replacements", "{0} selected replacement files already exist. Unselected files and package settings will be retained.", conflicts.Count), LocalizeAuthored("model.import.replace-content", "Replace selected mod content"), LocalizeAuthored("model.import.replace-question", "Replace these files?"), LocalizeUiText))
+            if (conflicts.Count != 0 && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, FormatAuthored("model.import.existing-replacements", "{0} selected replacement files already exist. Unselected files and package settings will be retained.", conflicts.Count), LocalizeAuthored("model.import.replace-content", "Replace selected mod content"), LocalizeAuthored("model.import.replace-question", "Replace these files?"), LocalizeUiText))
             {
                 return;
             }

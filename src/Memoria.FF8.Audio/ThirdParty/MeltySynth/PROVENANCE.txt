@@ -1,0 +1,5 @@
+Source: https://github.com/sinshu/meltysynth
+Revision: 4ba079c9ee1453b03be7e164d254f48426f0aac3
+Files: MeltySynth/src/Reverb.cs, LICENSE.txt
+License: MIT. The reverb algorithm derives from public-domain Freeverb by Jezar at Dreampoint.
+Changes: added sample-at-a-time processing adapters; retained upstream filter tuning and defaults.

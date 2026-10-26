@@ -32,7 +32,7 @@ internal sealed partial class RecreateGame
     private void ConnectGuardianAbilityEditor()
     {
         resourceHost!.PrepareGuardianForcePublication = PrepareGuardianModPublication;
-        gameMenus!.ConnectGuardianForceEditor(ReadGuardianEditorContext, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}"; }, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.AbilityName(id) ?? ""; }, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.AbilityDescription(id) ?? ""; }, keyboard.BindingPrompt, ReviewGuardianDraft, ApplyGuardianDraft, SaveGuardianDraft);
+        gameMenus!.ConnectGuardianForceEditorAsync(ReadGuardianEditorContext, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}"; }, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.AbilityName(id) ?? ""; }, id => { EnsureLiveMenuCatalog(); return liveMenuCatalog!.AbilityDescription(id) ?? ""; }, keyboard.BindingPrompt, ReviewGuardianDraft, ApplyGuardianDraft, SaveGuardianDraft);
         gameMenus!.GuardianEditorEditionSupported = resourceHost.NativeGameplayModsSupported;
         gameMenus.ConnectGuardianPackageOwnership(ReviewGuardianPackageOwnership, ReviewRemoveMissingGuardianLayer);
         gameMenus.ConnectGuardianRecovery(ReviewRecoveredGuardianLayers);
@@ -213,7 +213,7 @@ internal sealed partial class RecreateGame
         return review.PackageOwnership ? "Reviewed contribution ownership updated. Save the game to retain it." : "Applied to this playthrough. Save the game to keep it. Package enablement is unchanged.";
     }
 
-    private GuardianForceAbilityPackageDocument? SaveGuardianDraft(GuardianForceAbilityPatchDocument document, GuardianForceAbilityPackageDocument? original, bool saveAs)
+    private async Task<GuardianForceAbilityPackageDocument?> SaveGuardianDraft(GuardianForceAbilityPatchDocument document, GuardianForceAbilityPackageDocument? original, bool saveAs)
     {
         EnsureGuardianSource();
         string primary = resourceHost!.Mods.PrimaryModsDirectory;
@@ -226,7 +226,7 @@ internal sealed partial class RecreateGame
         {
             try
             {
-                destination = ModelBrowserDialogs.Destination(Window.Handle, root, LocalizeUiText);
+                destination = await ModelBrowserDialogs.DestinationAsync(Window.Handle, root, LocalizeUiText);
             }
             finally
             {

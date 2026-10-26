@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -124,12 +125,12 @@ public sealed class TripleTriadPresentationTests
 
         void Render(string name)
         {
-            using Bitmap bitmap = new(960, 672, PixelFormat.Format32bppArgb);
+            using Bitmap bitmap = new(960, 672, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using BattlePreviewCanvas canvas = new(bitmap, directory);
             UiView view = controller.BuildView();
             view.Resize(960, 672);
             view.Draw(canvas, new UiTheme());
-            bitmap.Save(Path.Combine(output, name + ".png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, name + ".png"));
         }
     }
 

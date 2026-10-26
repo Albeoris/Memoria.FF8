@@ -229,11 +229,11 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void CompleteBrowserExport()
+    private async void CompleteBrowserExport()
     {
         try
         {
-            if (!browserAssetsComplete && !ModelBrowserDialogs.Confirm(Window.Handle, LocalizeAuthored("model.export.incomplete-discovery", "Discovery has not finished. Export only the currently discovered selection?"), LocalizeAuthored("model.export.selection", "Export selection"), LocalizeAuthored("common.continue-question", "Continue?"), LocalizeUiText))
+            if (!browserAssetsComplete && !await ModelBrowserDialogs.ConfirmAsync(Window.Handle, LocalizeAuthored("model.export.incomplete-discovery", "Discovery has not finished. Export only the currently discovered selection?"), LocalizeAuthored("model.export.selection", "Export selection"), LocalizeAuthored("common.continue-question", "Continue?"), LocalizeUiText))
             {
                 return;
             }
@@ -242,7 +242,7 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Select geometry or at least one clip component.");
             }
-            string? path = ModelBrowserDialogs.Export(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), LocalizeUiText);
+            string? path = await ModelBrowserDialogs.ExportAsync(Window.Handle, modelBrowser!.Selected!.Id.Replace('/', '_'), LocalizeUiText);
             if (path is null)
             {
                 return;

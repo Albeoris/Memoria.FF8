@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -115,7 +116,7 @@ public sealed class ModelBrowserAssetSelectionTests
         browser.SetDiscoveryStatus("Complete for supported sources");
         UiView view = browser.BuildView();
         view.Resize(width, height);
-        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap))
         {
             float scale = width / 960f;
@@ -131,7 +132,7 @@ public sealed class ModelBrowserAssetSelectionTests
         if (!string.IsNullOrWhiteSpace(output))
         {
             Directory.CreateDirectory(output);
-            bitmap.Save(Path.Combine(output, $"asset-selection-{width}.png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, $"asset-selection-{width}.png"));
         }
     }
 

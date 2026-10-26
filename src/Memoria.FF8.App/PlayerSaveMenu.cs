@@ -250,6 +250,26 @@ internal sealed class PlayerSaveMenu
 
     public void Update(InputFrame input, Action<int> save, Action<int> load, Action<int, int>? transfer = null)
     {
+        Task Save(int slot)
+        {
+            save(slot);
+            return Task.CompletedTask;
+        }
+        Task Transfer(int source, int destination)
+        {
+            transfer!(source, destination);
+            return Task.CompletedTask;
+        }
+        Task operation = UpdateAsync(input, Save, load, transfer is null ? null : Transfer);
+        if (!operation.IsCompleted)
+        {
+            throw new InvalidOperationException("Asynchronous save operations require UpdateAsync.");
+        }
+        operation.GetAwaiter().GetResult();
+    }
+
+    public async Task UpdateAsync(InputFrame input, Func<int, Task> save, Action<int> load, Func<int, int, Task>? transfer = null)
+    {
         if (!IsOpen)
         {
             return;
@@ -275,7 +295,7 @@ internal sealed class PlayerSaveMenu
                 }
                 else
                 {
-                    save(0);
+                    await save(0);
                     Message = null;
                     int selected = SelectedSlot;
                     RefreshEntries();
@@ -358,7 +378,7 @@ internal sealed class PlayerSaveMenu
                 }
                 else
                 {
-                    transfer(source, entry.Slot);
+                    await transfer(source, entry.Slot);
                 }
                 RestoreTransferSource();
                 Message = null;
@@ -367,7 +387,7 @@ internal sealed class PlayerSaveMenu
             {
                 if (IsSaving)
                 {
-                    save(entry.Slot);
+                    await save(entry.Slot);
                 }
                 else
                 {

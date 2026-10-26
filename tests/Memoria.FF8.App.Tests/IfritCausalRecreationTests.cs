@@ -1,6 +1,7 @@
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -209,7 +210,7 @@ public sealed class IfritCausalRecreationTests
                 bitmap.SetPixel(x, y, Color.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]));
             }
         }
-        bitmap.Save(path, ImageFormat.Png);
+        bitmap.SavePng(path);
     }
 
     private static IReadOnlySet<int> ReachableTriangles(FieldAssets field, int source, IReadOnlySet<int> locked)

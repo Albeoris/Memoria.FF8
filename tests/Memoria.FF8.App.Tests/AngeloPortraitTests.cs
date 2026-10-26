@@ -33,13 +33,13 @@ public sealed class AngeloPortraitTests
         view.Resize(640, 448);
         UiImage image = Assert.Single(Descendants(view.Root).OfType<UiImage>());
         Assert.Equal(source, image.Source);
-        using System.Drawing.Bitmap bitmap = new(640, 448);
+        using SkiaSharp.SKBitmap bitmap = new(640, 448);
         using BattlePreviewCanvas canvas = new(bitmap, game);
         view.Draw(canvas, new UiTheme());
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_NAMING_EVIDENCE") is string directory)
         {
             Directory.CreateDirectory(directory);
-            bitmap.Save(Path.Combine(directory, "angelo-name-input.png"), System.Drawing.Imaging.ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, "angelo-name-input.png"));
         }
     }
 

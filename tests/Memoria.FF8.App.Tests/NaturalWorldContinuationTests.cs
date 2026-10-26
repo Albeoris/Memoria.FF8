@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Memoria.FF8.Events;
@@ -60,25 +61,8 @@ public sealed class NaturalWorldContinuationTests
 
     private static byte[] ReadPixels(string path)
     {
-        using Bitmap image = new(path);
+        using Bitmap image = Bitmap.Decode(path);
         Assert.Equal((1280, 896), (image.Width, image.Height));
-        BitmapData locked = image.LockBits(new Rectangle(0, 0, image.Width, image.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            byte[] pixels = new byte[image.Width * image.Height * 4];
-            for (int row = 0; row < image.Height; row++)
-            {
-                Marshal.Copy(IntPtr.Add(locked.Scan0, row * locked.Stride), pixels, row * image.Width * 4, image.Width * 4);
-            }
-            for (int offset = 0; offset < pixels.Length; offset += 4)
-            {
-                (pixels[offset], pixels[offset + 2]) = (pixels[offset + 2], pixels[offset]);
-            }
-            return pixels;
-        }
-        finally
-        {
-            image.UnlockBits(locked);
-        }
+        return PortableRaster.Rgba(image);
     }
 }

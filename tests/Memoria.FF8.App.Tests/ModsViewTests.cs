@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Ui;
@@ -166,7 +167,7 @@ public sealed class ModsViewTests : IDisposable
         }
         Assert.True(table.Bounds.Height >= 62);
         Assert.DoesNotContain(table.Children, child => child.Id is "mod-search" or "mod-refresh" or "create-tab");
-        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap, root))
         {
             view.Draw(canvas, new PreviewTheme());
@@ -175,7 +176,7 @@ public sealed class ModsViewTests : IDisposable
         if (!string.IsNullOrWhiteSpace(output))
         {
             Directory.CreateDirectory(output);
-            bitmap.Save(Path.Combine(output, $"mods-{width}x{height}.png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, $"mods-{width}x{height}.png"));
         }
         view.Resize(960, 672);
         Assert.Equal(selected, menu.SelectedEntry?.Id);
@@ -240,12 +241,12 @@ public sealed class ModsViewTests : IDisposable
                             }
                             view = Arrange(menu, width, height);
                         }
-                        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                         using (PreviewCanvas canvas = new(bitmap, scenarioRoot))
                         {
                             view.Draw(canvas, vector ? new VectorUiTheme() : new UiTheme());
                         }
-                        bitmap.Save(Path.Combine(output, $"{scenario}-{(vector ? "vector" : "classic")}-{width}x{height}-{scale.TrimEnd('%')}.png"), ImageFormat.Png);
+                        bitmap.SavePng(Path.Combine(output, $"{scenario}-{(vector ? "vector" : "classic")}-{width}x{height}-{scale.TrimEnd('%')}.png"));
                     }
                 }
             }

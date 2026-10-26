@@ -75,15 +75,15 @@ public sealed class MoveFindFieldContinuationTests
 
     private static void SaveImage(string path, byte[] rgba)
     {
-        using System.Drawing.Bitmap bitmap = new(320, 240);
+        using SkiaSharp.SKBitmap bitmap = new(320, 240);
         for (int y = 0; y < 240; y++)
         {
             for (int x = 0; x < 320; x++)
             {
                 int offset = (y * 320 + x) * 4;
-                bitmap.SetPixel(x, y, System.Drawing.Color.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]));
+                bitmap.SetPixel(x, y, SkiaSharp.SKColor.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]));
             }
         }
-        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        bitmap.SavePng(path);
     }
 }

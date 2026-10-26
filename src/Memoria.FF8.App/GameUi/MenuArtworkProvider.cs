@@ -39,10 +39,10 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
         return portraits.HasControllerArtwork ? portraits.GetControllerButtonIcon(nativeIconId) : null;
     }
 
-    public PixelImage Read(UiImageSource source, string fontFamily = SystemFontCatalog.DefaultFamily)
+    public PixelImage Read(UiImageSource source, string? fontFamily = null)
     {
         Refresh();
-        return ReadCurrent(source, fontFamily);
+        return ReadCurrent(source, fontFamily ?? SystemFontCatalog.DefaultFamily);
     }
 
     private void Refresh()
@@ -86,16 +86,15 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     private static PixelImage ReadSilverCrest()
     {
-        var source = TitleScene.TitleArtworkRenderer.CreateSilverCrestImage();
-        byte[] pixels = new byte[checked(source.PixelWidth * source.PixelHeight * 4)];
-        source.CopyPixels(pixels, source.PixelWidth * 4, 0);
-        PixelImage image = new(source.PixelWidth, source.PixelHeight);
+        using var source = TitleScene.TitleArtworkRenderer.CreateSilverCrestImage();
+        byte[] pixels = PortableRaster.Rgba(source);
+        PixelImage image = new(source.Width, source.Height);
         for (int y = 0; y < image.Height; y++)
         {
             for (int x = 0; x < image.Width; x++)
             {
                 int index = (y * image.Width + x) * 4;
-                image[x, y] = new Rgba32(pixels[index + 2], pixels[index + 1], pixels[index], pixels[index + 3]);
+                image[x, y] = new Rgba32(pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]);
             }
         }
         return image;

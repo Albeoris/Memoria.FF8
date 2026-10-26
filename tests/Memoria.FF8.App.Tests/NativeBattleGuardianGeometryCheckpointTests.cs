@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -66,6 +67,6 @@ public sealed class NativeBattleGuardianGeometryCheckpointTests
             }
         }
         using FileStream image = new(Path.Combine(evidence, name + ".png"), FileMode.CreateNew, FileAccess.Write);
-        bitmap.Save(image, ImageFormat.Png);
+        bitmap.SavePng(image);
     }
 }

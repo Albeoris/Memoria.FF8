@@ -6,8 +6,8 @@ using System.Threading.Channels;
 
 namespace Memoria.FF8;
 
-/// <summary>Windows DirectMusic performance is x86-only; its isolated output process owns no game state.</summary>
-internal sealed class DirectMusicOutput : IDisposable
+/// <summary>The shared portable music worker owns synthesis and device timing, without owning game state.</summary>
+internal sealed class MusicWorkerOutput : IDisposable
 {
     private readonly Channel<PendingCommand> commands;
     private readonly CancellationTokenSource stopping = new();
@@ -17,11 +17,11 @@ internal sealed class DirectMusicOutput : IDisposable
     private Exception? error;
     private int disposed;
 
-    public DirectMusicOutput(nint window, string directory) : this(CreateStartInfo(window, directory), TimeSpan.FromSeconds(10))
+    public MusicWorkerOutput(nint window, string directory) : this(CreateStartInfo(window, directory), TimeSpan.FromSeconds(10))
     {
     }
 
-    internal DirectMusicOutput(ProcessStartInfo start, TimeSpan timeout, int capacity = 128)
+    internal MusicWorkerOutput(ProcessStartInfo start, TimeSpan timeout, int capacity = 128)
     {
         if (timeout <= TimeSpan.Zero)
         {
@@ -53,7 +53,7 @@ internal sealed class DirectMusicOutput : IDisposable
 
     private static ProcessStartInfo CreateStartInfo(nint window, string directory)
     {
-        string helper = Path.Combine(AppContext.BaseDirectory, "audio-host", "Memoria.FF8.Music.exe");
+        string helper = Path.Combine(AppContext.BaseDirectory, "audio-host", OperatingSystem.IsWindows() ? "Memoria.FF8.Music.exe" : "Memoria.FF8.Music");
         var start = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
         start.ArgumentList.Add(window.ToInt64().ToString(CultureInfo.InvariantCulture));
         start.ArgumentList.Add(directory);
@@ -69,9 +69,9 @@ internal sealed class DirectMusicOutput : IDisposable
         }
         if (!commands.Writer.TryWrite(new PendingCommand(JsonSerializer.Serialize(command), reply)))
         {
-            InvalidOperationException queueFailure = new("DirectMusic output command queue is full or closed.");
+            InvalidOperationException queueFailure = new("Music output command queue is full or closed.");
             Fail(queueFailure);
-            throw queueFailure;
+                ExceptionDispatchInfo.Capture(Error ?? queueFailure).Throw();
         }
     }
 
@@ -82,7 +82,7 @@ internal sealed class DirectMusicOutput : IDisposable
         try
         {
             stopping.Token.ThrowIfCancellationRequested();
-            helper = Process.Start(start) ?? throw new InvalidOperationException("Could not start the DirectMusic output process.");
+            helper = Process.Start(start) ?? throw new InvalidOperationException("Could not start the Music output process.");
             Volatile.Write(ref process, helper);
             stopping.Token.ThrowIfCancellationRequested();
             await ReadResult(helper);
@@ -106,7 +106,7 @@ internal sealed class DirectMusicOutput : IDisposable
         finally
         {
             commands.Writer.TryComplete();
-            Exception failure = Error ?? new ObjectDisposedException(nameof(DirectMusicOutput));
+            Exception failure = Error ?? new ObjectDisposedException(nameof(MusicWorkerOutput));
             current?.Reply?.TrySetException(failure);
             while (commands.Reader.TryRead(out PendingCommand? command))
             {
@@ -125,12 +125,12 @@ internal sealed class DirectMusicOutput : IDisposable
         string? response = await helper.StandardOutput.ReadLineAsync(stopping.Token).AsTask().WaitAsync(timeout, stopping.Token);
         if (response is null)
         {
-            throw new IOException("DirectMusic output process closed its command channel.");
+            throw new IOException("Music output process closed its command channel.");
         }
         using JsonDocument document = JsonDocument.Parse(response);
         if (document.RootElement.TryGetProperty("Error", out JsonElement failure))
         {
-            throw new InvalidOperationException($"DirectMusic output: {failure.GetString()}");
+            throw new InvalidOperationException($"Music output: {failure.GetString()}");
         }
         return document.RootElement.GetProperty("Result").GetBoolean();
     }

@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.GameUi;
@@ -78,7 +79,7 @@ public sealed class BattleHudSavedStatusPresentationTests
 
     private static void SavePreview(UiView view, string game, string name)
     {
-        using Bitmap bitmap = new(960, 672, PixelFormat.Format32bppArgb);
+        using Bitmap bitmap = new(960, 672, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
         using (BattlePreviewCanvas canvas = new(bitmap, game))
         {
             view.Draw(canvas, new UiTheme());
@@ -86,7 +87,7 @@ public sealed class BattleHudSavedStatusPresentationTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_STATUS_EVIDENCE") is string directory)
         {
             Directory.CreateDirectory(directory);
-            bitmap.Save(Path.Combine(directory, name), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, name));
         }
     }
 }

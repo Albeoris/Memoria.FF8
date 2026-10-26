@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
@@ -186,7 +186,7 @@ public sealed class ChocoboWorldUiTests
         menus.ShowChocoboClaim();
         UiView view = menus.BuildView();
         Assert.Equal(4, Descendants(view.Root).OfType<UiImage>().Count());
-        using System.Drawing.Bitmap bitmap = new(1280, 896);
+        using SkiaSharp.SKBitmap bitmap = new(1280, 896);
         using BattlePreviewCanvas canvas = new(bitmap);
         foreach (UiLabel label in Descendants(view.Root).OfType<UiLabel>())
         {

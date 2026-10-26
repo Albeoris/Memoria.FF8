@@ -1,0 +1,18 @@
+{
+  "Distro": "Ubuntu-24.04",
+  "GameDirectory": null,
+  "DlsPath": null,
+  "SgtPath": null,
+  "Targets": {
+    "SteamDeck": {
+      "SshHost": "steamdeck",
+      "TargetDirectory": ".local/share/memoria-linux-test",
+      "HardwareGameDirectory": null,
+      "HardwareDlsPath": null,
+      "HardwareSgtPath": null,
+      "GraphicalEnvironment": {},
+      "StreamCommand": [],
+      "ScreenshotCommand": []
+    }
+  }
+}

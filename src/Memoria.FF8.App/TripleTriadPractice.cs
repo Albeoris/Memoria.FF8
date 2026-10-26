@@ -1,5 +1,4 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Assets;
@@ -31,7 +30,7 @@ internal static class TripleTriadPractice
     public static int Run(string[] args)
     {
         string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
-        string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "triple-triad-practice.json");
+        string savePath = Path.Combine(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, "triple-triad-practice.json");
         string? source = null;
         string? load = null;
         string? preview = null;
@@ -182,7 +181,7 @@ internal static class TripleTriadPractice
         using GameResourceHost? resourceHost = preview is not null || !autoPlay ? new GameResourceHost(gameDirectory) : null;
         if (preview is not null)
         {
-            using Bitmap bitmap = new(960, 672, PixelFormat.Format32bppArgb);
+            using SKBitmap bitmap = new(960, 672, SKColorType.Rgba8888, SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory, resourceHost?.Resources))
             {
                 UiView view = controller.BuildView();
@@ -190,7 +189,7 @@ internal static class TripleTriadPractice
                 view.Draw(canvas, new UiTheme());
             }
             Directory.CreateDirectory(Path.GetDirectoryName(preview)!);
-            bitmap.Save(preview, ImageFormat.Png);
+            bitmap.SavePng(preview);
             Save();
             Console.WriteLine($"Triple Triad preview: {preview}");
         }

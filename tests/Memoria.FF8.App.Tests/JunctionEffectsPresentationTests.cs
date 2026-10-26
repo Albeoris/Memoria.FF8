@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -71,7 +72,7 @@ public sealed class JunctionEffectsPresentationTests
                     using Bitmap bitmap = new(width, height);
                     using BattlePreviewCanvas canvas = new(bitmap);
                     view.Draw(canvas, menu.CreateTheme());
-                    bitmap.Save(Path.Combine(output, $"{presentation}-{prefix}-{preview}-{width}.png"), ImageFormat.Png);
+                    bitmap.SavePng(Path.Combine(output, $"{presentation}-{prefix}-{preview}-{width}.png"));
                 }
             }
         }

@@ -31,7 +31,7 @@ public sealed record LocalizationFileAccessDiagnostic(bool IsSharingViolation, s
         {
             return contextual.Diagnostic;
         }
-        bool sharing = exception is IOException && (exception.HResult & 0xffff) == 32;
+        bool sharing = OperatingSystem.IsWindows() && exception is IOException && (exception.HResult & 0xffff) == 32;
         IReadOnlyList<LocalizationFileApplication> applications = sharing ? FindApplications(path) : [];
         string owners = applications.Count > 0 ? string.Join(", ", applications.Select(application => $"{application.DisplayName} (PID {application.ProcessId})")) : "an application whose identity could not be determined";
         string message = sharing
@@ -113,12 +113,16 @@ public sealed record LocalizationFileAccessDiagnostic(bool IsSharingViolation, s
         public bool Restartable;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
     private static extern int RmStartSession(out uint sessionHandle, uint flags, string sessionKey);
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
     private static extern int RmRegisterResources(uint sessionHandle, uint fileCount, string[] filenames, uint applicationCount, IntPtr applications, uint serviceCount, IntPtr serviceNames);
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
     private static extern int RmGetList(uint sessionHandle, out uint needed, ref uint count, [In, Out] ProcessInfo[]? applications, ref uint rebootReasons);
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [DllImport("rstrtmgr.dll")]
     private static extern int RmEndSession(uint sessionHandle);
 }

@@ -70,18 +70,11 @@ internal sealed partial class RecreateGame
         return true;
     }
 
-    private string? BrowseChocoboWorldSave()
+    private async Task<string?> BrowseChocoboWorldSave()
     {
-        Microsoft.Win32.OpenFileDialog dialog = new()
-        {
-            Title = LocalizeAuthored("chocobo.import.title", "Import Chocobo World"),
-            Filter = LocalizeAuthored("chocobo.import.filter", "Native Chocobo World saves") + "|chocorpg;*.ff8;*.mcs;*.bin;*.dat|" + LocalizeAuthored("common.all-files", "All files") + "|*.*",
-            CheckFileExists = true,
-            Multiselect = false
-        };
         try
         {
-            return dialog.ShowDialog() == true ? dialog.FileName : null;
+            return await ModelBrowserDialogs.PathAsync(ModelBrowserDialogs.Desktop.OpenFileAsync(new(LocalizeAuthored("chocobo.import.title", "Import Chocobo World"), Filters: [new(LocalizeAuthored("chocobo.import.filter", "Native Chocobo World saves"), ["ff8", "mcs", "bin", "dat"]), new(LocalizeAuthored("common.all-files", "All files"), ["*"])])));
         }
         finally
         {

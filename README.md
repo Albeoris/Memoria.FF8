@@ -58,6 +58,8 @@ From a source checkout, use Windows, PowerShell 7 and the .NET 10 SDK:
 
 This validates and packages the distribution. Run focused tests for the changed contract separately; see [Build and test](docs/developers/building-and-testing.md). The optional `-Test` switch runs broader checks, including the entire Runtime.Tests project and its battle-effect tests.
 
+The [cross-platform migration](docs/developers/cross-platform.md) adds portable core and self-contained launcher builds for Windows, Linux and Intel macOS. The complete playable distribution remains Windows DX11 at this stage. Windows developers can use [one-command Linux testing](docs/developers/linux-testing.md) through WSL2 or a configured SSH hardware target; real Linux GPU acceptance remains separate.
+
 GitHub Actions serializes packaging by commit SHA. Main pushes, version tags and manual reruns reuse the same tested distribution, including when a tag is pushed after its main build finishes. Release and nightly publication both use that ZIP. Failed builds can be retried; a successful build is not repeated after an upload or publication failure.
 
 Distribution artifacts are retained for 90 days. Keep workflow run records: if the original ZIP expires or is deleted, publication fails instead of rebuilding the commit. Use the original ZIP from an existing release for manual publication in that case. NuGet packages are cached between commits; the already compressed distribution ZIP is uploaded without another compression pass.

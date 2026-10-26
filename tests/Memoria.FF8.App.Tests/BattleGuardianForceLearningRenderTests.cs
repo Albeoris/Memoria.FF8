@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Globalization;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -65,7 +66,7 @@ public sealed class BattleGuardianForceLearningRenderTests
                     Assert.InRange(readable.B, (byte)160, byte.MaxValue);
                 }
             });
-            using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+            using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, directory))
             {
                 canvas.BeginFrame(TimeSpan.Zero);
@@ -75,7 +76,7 @@ public sealed class BattleGuardianForceLearningRenderTests
             if (!string.IsNullOrEmpty(output))
             {
                 Directory.CreateDirectory(output);
-                bitmap.Save(Path.Combine(output, $"{presentation.ToString().ToLowerInvariant()}-gf-learning-{state}-{width}.png"), ImageFormat.Png);
+                bitmap.SavePng(Path.Combine(output, $"{presentation.ToString().ToLowerInvariant()}-gf-learning-{state}-{width}.png"));
             }
         }
     }

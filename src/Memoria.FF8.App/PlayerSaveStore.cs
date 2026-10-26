@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -31,7 +31,7 @@ internal sealed partial class PlayerSaveStore
     public const int SlotCount = MemoriaSlotCount;
     public const int TotalSlotCount = MemoriaSlotCount + 2 * OriginalSlotsPerBank;
     public const int DefaultQuickSaveCount = 9;
-    public static string DefaultDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "player-saves");
+    public static string DefaultDirectory => Memoria.FF8.Platform.ApplicationPaths.Current.Saves;
     private readonly string directory;
     private readonly string researchCheckpoint;
     private readonly Func<GameState, string?>? locationName;

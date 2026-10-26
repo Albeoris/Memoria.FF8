@@ -1,4 +1,4 @@
-using System.Drawing;
+using SkiaSharp;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
 
@@ -58,7 +58,7 @@ internal sealed class CardFaceComposer(string fontFamily)
 
     private PixelImage RasterizeRank(int value, int scale)
     {
-        using Bitmap mask = SystemTextLayout.Rasterize(value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture), 8 * scale, float.PositiveInfinity, fontFamily);
+        using SKBitmap mask = SystemTextLayout.Rasterize(value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture), 8 * scale, float.PositiveInfinity, fontFamily);
         PixelImage rank = new(12 * scale, 12 * scale);
         int height = 9 * scale;
         int width = Math.Min(8 * scale, Math.Max(1, (int)MathF.Round(mask.Width * height / (float)mask.Height)));
@@ -68,7 +68,7 @@ internal sealed class CardFaceComposer(string fontFamily)
         {
             for (int x = 0; x < width; x++)
             {
-                byte alpha = mask.GetPixel(x * mask.Width / width, y * mask.Height / height).A;
+                byte alpha = mask.GetPixel(x * mask.Width / width, y * mask.Height / height).Alpha;
                 if (alpha == 0)
                 {
                     continue;
@@ -88,7 +88,7 @@ internal sealed class CardFaceComposer(string fontFamily)
             Rgba32 color = new((byte)(255 - 24 * amount), (byte)(251 - 77 * amount), (byte)(220 - 128 * amount));
             for (int x = 0; x < width; x++)
             {
-                byte alpha = mask.GetPixel(x * mask.Width / width, y * mask.Height / height).A;
+                byte alpha = mask.GetPixel(x * mask.Width / width, y * mask.Height / height).Alpha;
                 Blend(rank, left + x, top + y, color with { A = alpha });
             }
         }

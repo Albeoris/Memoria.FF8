@@ -20,6 +20,7 @@ internal static class Program
             {
                 return SaveTransferCommand.Run(args[1..], import: args[0] == "--import-save");
             }
+            SystemFontCatalog.PrepareAsync().GetAwaiter().GetResult();
             if (args.Length > 0 && args[0] == "--auto-play")
             {
                 return AutoPlayCommand.Run(args[1..]);
@@ -58,7 +59,7 @@ internal static class Program
             }
             string mediaTools = MediaToolsInstallation.ResolveDirectory(options.MediaToolsDirectory);
             options = options with { MediaToolsDirectory = mediaTools };
-            MediaToolsInstallation.PrepareForStartup(mediaTools, message => System.Windows.MessageBox.Show(message, "Memoria — optional FFmpeg installation", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.No) == System.Windows.MessageBoxResult.Yes, Console.Error.WriteLine);
+            MediaToolsInstallation.PrepareForStartup(mediaTools, message => PortableMessageBox.Confirm(message, "Memoria — optional FFmpeg installation"), Console.Error.WriteLine);
             using var game = new RecreateGame(options, session, playerSession: true);
             game.Run();
             return 0;

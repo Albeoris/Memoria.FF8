@@ -7,8 +7,8 @@ namespace Memoria.FF8;
 /// <summary>Presentation of a resolved music cue; it owns no original CD device or simulation clock.</summary>
 internal sealed class SpuWaveAudioOutput(string gameDirectory, string toolsDirectory, MusicCueResource resource, nint window, bool audioEnabled) : IDisposable
 {
-    private DirectSoundOutput? output;
-    private DirectSoundOutput.Buffer? buffer;
+    private PcmAudioOutput? output;
+    private PcmAudioOutput.Buffer? buffer;
 
     public bool HasLiveAudio => buffer is not null;
 
@@ -28,7 +28,7 @@ internal sealed class SpuWaveAudioOutput(string gameDirectory, string toolsDirec
         {
             try
             {
-                output = new DirectSoundOutput(window);
+                output = new PcmAudioOutput(window);
                 buffer = output.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
                 buffer.Play(false);
             }

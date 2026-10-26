@@ -1,16 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <PlatformTarget>x86</PlatformTarget>
-    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
-    <RuntimeIdentifiers>win-x86</RuntimeIdentifiers>
-    <SelfContained>true</SelfContained>
+    <TargetFramework>net10.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64</RuntimeIdentifiers>
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
     <ShouldBeValidatedAsExecutableReference>false</ShouldBeValidatedAsExecutableReference>
     <AssemblyName>Memoria.FF8.Music</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Memoria.FF8.App/WindowsAudioCom.cs" Link="WindowsAudioCom.cs" />
+    <ProjectReference Include="../Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
+    <PackageReference Include="SDL3-CS.Windows" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'win-x64'" />
+    <PackageReference Include="SDL3-CS.Linux" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'linux-x64'" />
+    <PackageReference Include="SDL3-CS.macOS" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'osx-x64'" />
   </ItemGroup>
   <Target Name="GetMusicHostFiles" Returns="@(MusicHostFile)">
     <ItemGroup>

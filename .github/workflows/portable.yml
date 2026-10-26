@@ -1,0 +1,57 @@
+name: Portable desktop foundation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: macos-15-intel
+            rid: osx-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install portable text test fonts
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk
+      - name: Validate Linux testing orchestration
+        shell: pwsh
+        run: |
+          ./tools/linux-testing/tests/Orchestration.Tests.ps1
+          python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py
+          if ($LASTEXITCODE -ne 0) { throw 'Linux target orchestration tests failed.' }
+      - name: Check portable project coverage
+        shell: pwsh
+        run: ./tools/Get-PlatformInventory.ps1 -Check
+      - name: Build portable graph and run focused tests
+        shell: pwsh
+        run: ./Build.ps1 -Scope Portable -RuntimeIdentifier ${{ matrix.rid }} -Test
+      - name: Publish self-contained x64 launcher
+        shell: pwsh
+        run: ./Build.ps1 -Scope Launcher -RuntimeIdentifier ${{ matrix.rid }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: launcher-foundation-${{ matrix.rid }}
+          path: artifacts/launcher/${{ matrix.rid }}/
+          if-no-files-found: error
+      # These payloads intentionally have no release privileges: Unix game hosts and
+      # real desktop/audio acceptance are tracked separately from portable CI.

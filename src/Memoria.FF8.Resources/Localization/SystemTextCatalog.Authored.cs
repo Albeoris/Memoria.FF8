@@ -4,6 +4,7 @@ public static partial class SystemTextCatalog
 {
     private static void AddAuthoredDefaults(Dictionary<string, string> defaults)
     {
+        defaults["font.missing-fallback"] = "{0} — unavailable; using {1}";
         defaults["battle.hud.command"] = "COMMAND";
         defaults["battle.hud.continue"] = "Continue";
         defaults["battle.hud.draw"] = "DRAW";
@@ -503,12 +504,14 @@ public static partial class SystemTextCatalog
         defaults["model-browser.preview.summary"] = "{0} bones \u00B7 {1} meshes \u00B7 {2} animations";
         defaults["model-browser.selection.hints"] = "Tab: preview / list \u00B7 Arrows: navigate \u00B7 Confirm / Space: checkbox \u00B7 Click label: preview\nObjects / Clips: switch list \u00B7 Select all includes hidden rows \u00B7 Back: cancel selection";
         defaults["model.asset.detail"] = "{0} \u00B7 Source: {1} \u00B7 Locked dependency: rig, materials, textures";
+        defaults["model.dialog.continue"] = "Continue";
         defaults["model.dialog.destination.title"] = "Choose a mod package folder (or create one)";
         defaults["model.dialog.export.title"] = "Export to Blender";
         defaults["model.dialog.filter.glb"] = "glTF binary model (*.glb)";
         defaults["model.dialog.import.question"] = "Import this model anyway?";
         defaults["model.dialog.import.title"] = "Import from Blender (as mod)";
         defaults["model.dialog.import.warning-title"] = "Model import warning";
+        defaults["model.dialog.scroll-review"] = "Up / Down: scroll review";
         defaults["model.discovery.complete"] = "Complete for supported sources";
         defaults["model.discovery.field-references"] = "Discovering field references: {0}";
         defaults["model.discovery.incomplete"] = "Incomplete: see source diagnostics";

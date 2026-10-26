@@ -86,7 +86,8 @@ internal static class ButtonPrompt
         DrawShape(bounds.X, top, width, height, inset, (x, y, w, h, color) => canvas.Fill(new UiRect(x, y, w, h), new UiColor(color.R, color.G, color.B, (byte)(255 * opacity))));
         float labelSize = size * 0.82f;
         using SystemTextMeasurer measurer = SystemTextLayout.CreateMeasurer(labelSize, family);
-        float labelHeight = (float)measurer.Format(label).Extent / SystemTextLayout.RasterScale;
+        using var labelRaster = SystemTextLayout.Rasterize(label, labelSize, float.PositiveInfinity, family);
+        float labelHeight = labelRaster.Height / (float)SystemTextLayout.RasterScale;
         canvas.Text(label, labelSize, new UiRect(bounds.X + (width - textWidth * 0.82f) / 2, top + (height - labelHeight) / 2, width, measurer.LineHeight), new UiColor(255, 255, 255, (byte)(255 * opacity)), family);
     }
 

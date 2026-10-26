@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Mods;
@@ -62,7 +63,7 @@ public sealed class SettingsLayoutTests
                         {
                             menus.SelectEntry(screen, menus.Entries[^1].Id, allowDisabled: true);
                         }
-                        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+                        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
                         UiView view = menus.BuildView();
                         view.Resize(width, height);
                         using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
@@ -70,7 +71,7 @@ public sealed class SettingsLayoutTests
                             view.Draw(canvas, menus.CreateTheme());
                         }
                         string name = $"scale{percent}-font{size}-{presentation.ToString().ToLowerInvariant()}-{screen}-{(last ? "last" : "first")}-{width}x{height}.png";
-                        bitmap.Save(Path.Combine(output, name), ImageFormat.Png);
+                        bitmap.SavePng(Path.Combine(output, name));
                         manifest.Add(new { name, screen, width, height, family, preferences.UiFontSize, preferences.TextScale, menus.SelectedIndex });
                     }
                 }

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -45,7 +46,7 @@ public sealed class GuardianForceAbilityEditorRenderTests
             Assert.Contains(canvas.Texts, text => text.Value == "Save mod");
             Assert.All(canvas.Texts, text => Assert.True(text.Bounds.Width >= 0 && text.Bounds.Height >= 0));
             string prefix = Path.Combine(directory, $"gf-editor-{width}x{height}{(scrolled ? "-scrolled" : "")}");
-            bitmap.Save(prefix + ".png", ImageFormat.Png);
+            bitmap.SavePng(prefix + ".png");
             File.WriteAllLines(prefix + ".txt", canvas.Texts.Select(text => $"{text.Bounds.X:0.0},{text.Bounds.Y:0.0},{text.Bounds.Width:0.0},{text.Bounds.Height:0.0}\t{text.Value.Replace("\n", " | ", StringComparison.Ordinal)}"));
             Console.WriteLine("Synthetic GF editor preview: " + Path.GetFullPath(prefix + ".png"));
         }
@@ -76,7 +77,7 @@ public sealed class GuardianForceAbilityEditorRenderTests
         }
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_EDITOR_RENDER_DIR") ?? Path.Combine(Path.GetTempPath(), "Memoria.FF8.GfEditorPreviews");
         Directory.CreateDirectory(directory);
-        bitmap.Save(Path.Combine(directory, $"gf-editor-23-{presentation}-2048x797.png"), ImageFormat.Png);
+        bitmap.SavePng(Path.Combine(directory, $"gf-editor-23-{presentation}-2048x797.png"));
         Assert.All(canvas.Texts.Where(text => text.Value is "Save mod" or "Preview" or "Actions" or "Details"), text =>
         {
             Assert.True(text.Bounds.X >= 0 && text.Bounds.Y >= 0);
@@ -110,7 +111,7 @@ public sealed class GuardianForceAbilityEditorRenderTests
         });
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_EDITOR_RENDER_DIR") ?? Path.Combine(Path.GetTempPath(), "Memoria.FF8.GfEditorPreviews");
         Directory.CreateDirectory(directory);
-        bitmap.Save(Path.Combine(directory, $"gf-editor-resized-{width}x{height}-{textScale}.png"), ImageFormat.Png);
+        bitmap.SavePng(Path.Combine(directory, $"gf-editor-resized-{width}x{height}-{textScale}.png"));
     }
 
     [Fact]
@@ -145,7 +146,7 @@ public sealed class GuardianForceAbilityEditorRenderTests
             view.Resize(2048, 797);
             view.Draw(canvas, new UiTheme());
             assertions(canvas);
-            bitmap.Save(Path.Combine(directory, $"gf-editor-{suffix}-2048x797.png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, $"gf-editor-{suffix}-2048x797.png"));
         }
     }
 

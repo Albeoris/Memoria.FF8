@@ -1,7 +1,8 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -268,6 +269,6 @@ public sealed class NativeBattleBlizzardPresentationTests
             }
         }
         using FileStream stream = new(Path.Combine(directory, name + ".png"), FileMode.CreateNew);
-        bitmap.Save(stream, ImageFormat.Png);
+        bitmap.SavePng(stream);
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -65,7 +66,7 @@ public sealed class BattleRewardPreviewTests
             using BattleAssets battles = new(assets.GameDirectory);
             BattleDefinition display = active.Capture().Definition;
             BattleScenePresentation scene = new(battles, display, true);
-            using Bitmap bitmap = new(1280, 896, PixelFormat.Format32bppArgb);
+            using Bitmap bitmap = new(1280, 896, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
             {
                 canvas.DrawRgba(scene.Render(active, 1280, 896), 1280, 896, new UiRect(0, 0, 1280, 896));
@@ -76,7 +77,7 @@ public sealed class BattleRewardPreviewTests
                 view.Resize(1280, 896);
                 view.Draw(canvas, new UiTheme());
             }
-            bitmap.Save(TestResources.ArtifactFile("App.Tests.BattleRewardPreviewTests.2.png"), ImageFormat.Png);
+            bitmap.SavePng(TestResources.ArtifactFile("App.Tests.BattleRewardPreviewTests.2.png"));
         }
         BattleResult result = world.CaptureBattleOutcome(world.Battle!, occurrence);
         world.ApplyBattleResult(occurrence, result);

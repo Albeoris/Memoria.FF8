@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
@@ -58,7 +59,7 @@ public sealed class OriginalIfritBattleMessageTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PRESENTATION_EVIDENCE") is string evidence)
         {
             Directory.CreateDirectory(evidence);
-            using Bitmap bitmap = new(960, 720, PixelFormat.Format32bppArgb);
+            using Bitmap bitmap = new(960, 720, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
             using (BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory))
             {
                 BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
@@ -67,7 +68,7 @@ public sealed class OriginalIfritBattleMessageTests
                 view.Resize(960, 720);
                 view.Draw(canvas, new UiTheme());
             }
-            bitmap.Save(TestResources.ArtifactFile("App.Tests.OriginalIfritBattleMessageTests.1.png"), ImageFormat.Png);
+            bitmap.SavePng(TestResources.ArtifactFile("App.Tests.OriginalIfritBattleMessageTests.1.png"));
             using FileStream stream = new(Path.Combine(evidence, $"ifrit-native-shiva-message-frame{battle.Frame}.json"), FileMode.CreateNew, FileAccess.Write);
             JsonSerializer.Serialize(stream, battle.Capture());
         }

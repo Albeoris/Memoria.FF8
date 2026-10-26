@@ -4,13 +4,13 @@
 
 ## A clean checkout
 
-Use Windows x64, PowerShell 7 and the .NET 10 SDK. Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
+Use Windows x64, PowerShell 7 and the .NET 10 SDK for the complete current game distribution. Portable core and launcher builds also target Linux and Intel macOS; see [Cross-platform desktop migration](cross-platform.md) and [Linux testing from Windows](linux-testing.md). Run commands from the directory containing `Build.ps1` and `Memoria.FF8.slnx`. Package restore needs access to the configured public NuGet feeds.
 
 ```powershell
 ./Build.ps1
 ```
 
-The script publishes a self-contained x64 launcher and engine, plus the x86 DirectMusic audio host and its runtime. It checks the actual published dependency assemblies before packaging, including their embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled.
+The script publishes a self-contained x64 launcher and engine, plus the common x64 music worker and its runtime. It checks the actual published dependency assemblies and native ABI before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled.
 
 | Output | Purpose |
 | --- | --- |
@@ -48,7 +48,7 @@ This validates published resources and the completed distribution before creatin
 
 The optional `-Test` switch adds Remastered, launcher, selected App, UI, field pose/render interpolation and the entire Runtime.Tests project. The App selection includes portable actor sampling regressions and the optional installed-resource opening presentation check at 30 and 60 FPS. Runtime.Tests includes battle-effect tests, so this switch is a broad test run rather than the default check for a focused change. Run focused tests separately when only part of that selection is relevant or authorized. It does not run every optional integration or gameplay acceptance check.
 
-GitHub Actions runs this build on pushes to `main` and on `v*` tags. A successful `main` build updates the `nightly` prerelease; a version tag publishes its corresponding release. The Windows runner supplies the SDK.
+GitHub Actions builds the Windows package on pushes to `main` and on `v*` tags. A successful `main` build updates the `nightly` prerelease; a version tag publishes its corresponding release. Portable PR/main jobs install the configured SDK on all three desktop hosts and run the explicit portable test selection. They do not publish complete Unix game distributions or execute unrelated battle-effect tests.
 
 ## Focused tests
 

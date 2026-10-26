@@ -6,7 +6,7 @@ Memoria runs its own game session, event interpreter, simulation and presentatio
 
 | Project | Responsibility |
 | --- | --- |
-| `Memoria.Launcher` | Windows WPF launcher, installation selection and application startup. |
+| `Memoria.Launcher` | Avalonia desktop launcher, installation selection and application startup. |
 | `Memoria.FF8.App` | MonoGame host, input, scene coordination, menus, resource lifetime, control queue and diagnostics. `RecreateGame` owns the window; `GameWorld` connects the engine components. |
 | `Memoria.FF8.Runtime` | Renderer-independent session/state contracts, save validation, world state, battles, cards and shared game rules. `GameSession` owns persistent `GameState` and implements `IEventServices`. |
 | `Memoria.FF8.Events` | Field event execution, actors, script scheduling, movement, dialogue and ordinary `PlayerAction` dispatch. `EventEngine` captures and restores its current VM state. |
@@ -15,11 +15,13 @@ Memoria runs its own game session, event interpreter, simulation and presentatio
 | `Memoria.FF8.Rendering` | CPU scene rasterization and field/world/battle presentation support. It consumes decoded resources and current state. |
 | `Memoria.FF8.Ui` | Renderer-independent retained UI elements, layout, focus and input. |
 | `Memoria.FF8.Media` | Movie/media tool integration. |
-| `Memoria.FF8.Music` | Windows music playback helper. The app builds and distributes the helper separately. |
+| `Memoria.FF8.Platform` | Host OS, user paths, asynchronous desktop contracts and native dependency validation. |
+| `Memoria.FF8.Audio` | Shared SGT/DLS parsing, sequencing, synthesis, PCM decoding/mixing and SDL3 device output. |
+| `Memoria.FF8.Music` | Portable x64 music worker. The app builds and distributes the helper separately. |
 | `Memoria.FF8.TitleScene` | Procedural title scene and its presentation resources. |
 | `Memoria.FF8.Mods` | Mod discovery, manifests, selection and resource overlays. |
 
-Most engine libraries target .NET 10. The application, launcher, title scene and music helper use Windows targets. The vendored `Albeoris.Frameworks` projects supply format readers and related dependencies; project references resolve inside the product tree. They do not require another checkout.
+Engine libraries, launcher and music helper target plain .NET 10. The current DX11 application and its GPU title renderer retain Windows targets; the title vector/raster helpers also have a portable target. The vendored `Albeoris.Frameworks` projects supply format readers and related dependencies; project references resolve inside the product tree. They do not require another checkout. See [Cross-platform desktop migration](cross-platform.md) for complete project coverage and remaining host boundaries.
 
 ## Session and frame flow
 

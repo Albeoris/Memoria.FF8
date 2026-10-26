@@ -25,7 +25,7 @@ public sealed class DirectMusicPlaybackTests
             source = TestResources.ArtifactFile("finite-segment.sgt");
             File.WriteAllBytes(source, bytes);
         }
-        using DirectMusicOutput output = new(0, directory);
+        using MusicWorkerOutput output = new(0, directory);
         output.Play(source, -10000, finite ? length - 1024 : loopEnd - 64);
         WaitPlaying(output, true);
         // Cross the original end as well as the loop boundary before focus is lost.
@@ -45,7 +45,7 @@ public sealed class DirectMusicPlaybackTests
         WaitPlaying(output, false);
     }
 
-    private static void WaitPlaying(DirectMusicOutput output, bool expected)
+    private static void WaitPlaying(MusicWorkerOutput output, bool expected)
     {
         Stopwatch deadline = Stopwatch.StartNew();
         while (output.IsPlaying != expected && deadline.Elapsed < TimeSpan.FromSeconds(3))

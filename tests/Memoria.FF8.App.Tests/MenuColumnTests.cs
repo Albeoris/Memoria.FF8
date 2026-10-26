@@ -180,12 +180,12 @@ public sealed class MenuColumnTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_MENU_COLUMN_OUTPUT") is { Length: > 0 } output)
         {
             Directory.CreateDirectory(output);
-            using System.Drawing.Bitmap bitmap = new(960, 672);
+            using SkiaSharp.SKBitmap bitmap = new(960, 672);
             using (BattlePreviewCanvas preview = new(bitmap, TestResources.GameDirectory))
             {
                 hud.BuildView().Draw(preview, theme);
             }
-            bitmap.Save(Path.Combine(output, $"magic-shared-{shared}-bound-{bound}-exhausted-{exhausted}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(output, $"magic-shared-{shared}-bound-{bound}-exhausted-{exhausted}.png"));
         }
     }
 

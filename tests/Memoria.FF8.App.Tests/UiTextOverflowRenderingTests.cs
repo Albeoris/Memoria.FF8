@@ -1,5 +1,6 @@
-using System.Drawing;
-using System.Drawing.Imaging;
+using Bitmap = SkiaSharp.SKBitmap;
+using Color = SkiaSharp.SKColor;
+
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -83,7 +84,7 @@ public sealed class UiTextOverflowRenderingTests
             {
                 if (x < visible.X || x >= visible.Right || y < visible.Y || y >= visible.Bottom)
                 {
-                    Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(x, y).ToArgb());
+                    Assert.Equal(SkiaSharp.SKColors.Black.ToArgb(), bitmap.GetPixel(x, y).ToArgb());
                 }
             }
         }
@@ -194,7 +195,7 @@ public sealed class UiTextOverflowRenderingTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_TEXT_OVERFLOW_OUTPUT") is { Length: > 0 } directory)
         {
             Directory.CreateDirectory(directory);
-            bitmap.Save(Path.Combine(directory, name + ".png"), ImageFormat.Png);
+            bitmap.SavePng(Path.Combine(directory, name + ".png"));
         }
     }
 }

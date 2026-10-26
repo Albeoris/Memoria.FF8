@@ -5,14 +5,14 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private void SaveOriginalPlayerSlotWithGuardianForceReview(int slot)
+    private async Task SaveOriginalPlayerSlotWithGuardianForceReviewAsync(int slot)
     {
         GameState snapshot = session.PrepareSnapshot();
-        NativeCharacterVitals targetSource = ReviewOriginalGuardianForceExport(snapshot);
+        NativeCharacterVitals targetSource = await ReviewOriginalGuardianForceExportAsync(snapshot);
         playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true);
     }
 
-    private NativeCharacterVitals ReviewOriginalGuardianForceExport(GameState snapshot)
+    private async Task<NativeCharacterVitals> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
     {
         if (PlayerSaveStore.RequiresMemoriaFormat(snapshot, allowGuardianForceProjection: true))
         {
@@ -26,7 +26,7 @@ internal sealed partial class RecreateGame
             bool confirmed;
             try
             {
-                confirmed = GuardianForceLegacyExportReview.Confirm(Window.Handle, plan, LocalizeUiText);
+                confirmed = await GuardianForceLegacyExportReview.ConfirmAsync(Window.Handle, plan, LocalizeUiText);
             }
             finally
             {
@@ -68,69 +68,10 @@ internal static class GuardianForceLegacyExportReview
         };
     }
 
-    public static bool Confirm(nint owner, NativeGuardianForceLegacyExportPlan plan, Func<string, string, string>? localizeText = null)
+    public static Task<bool> ConfirmAsync(nint owner, NativeGuardianForceLegacyExportPlan plan, Func<string, string, string>? localizeText = null)
     {
         string SystemText(string id, string original) => Memoria.FF8.Resources.Localization.SystemTextCatalog.Translate(localizeText, id, original);
-        System.Windows.Window dialog = new()
-        {
-            Title = SystemText("save.gf-export.title", "Original FFVIII GF conversion"),
-            Width = 760,
-            Height = 560,
-            MinWidth = 420,
-            MinHeight = 300,
-            MaxWidth = System.Windows.SystemParameters.WorkArea.Width,
-            MaxHeight = System.Windows.SystemParameters.WorkArea.Height,
-            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
-            ShowInTaskbar = false
-        };
-        _ = new System.Windows.Interop.WindowInteropHelper(dialog) { Owner = owner };
-        System.Windows.Controls.DockPanel panel = new()
-        {
-            Margin = new System.Windows.Thickness(16)
-        };
-        System.Windows.Controls.TextBlock explanation = new()
-        {
-            Text = SystemText("save.gf-export.explanation", "Original FFVIII saves use the target game's GF definitions. Review every change below. The active Memoria game keeps its full GF configuration and progression."),
-            TextWrapping = System.Windows.TextWrapping.Wrap,
-            Margin = new System.Windows.Thickness(0, 0, 0, 12)
-        };
-        System.Windows.Controls.DockPanel.SetDock(explanation, System.Windows.Controls.Dock.Top);
-        panel.Children.Add(explanation);
-        System.Windows.Controls.StackPanel buttons = new()
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-            Margin = new System.Windows.Thickness(0, 12, 0, 0)
-        };
-        System.Windows.Controls.Button cancel = new()
-        {
-            Content = SystemText("save.gf-export.cancel", "Cancel"),
-            IsCancel = true,
-            MinWidth = 100,
-            Padding = new System.Windows.Thickness(12, 6, 12, 6)
-        };
-        System.Windows.Controls.Button export = new()
-        {
-            Content = SystemText("save.gf-export.export", "Export this copy"),
-            MinWidth = 140,
-            Margin = new System.Windows.Thickness(12, 0, 0, 0),
-            Padding = new System.Windows.Thickness(12, 6, 12, 6)
-        };
-        export.Click += (_, _) => dialog.DialogResult = true;
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(export);
-        System.Windows.Controls.DockPanel.SetDock(buttons, System.Windows.Controls.Dock.Bottom);
-        panel.Children.Add(buttons);
-        panel.Children.Add(new System.Windows.Controls.TextBox
-        {
-            Text = string.Join(Environment.NewLine + Environment.NewLine, plan.Losses.Select(loss => LossText(loss, localizeText))),
-            IsReadOnly = true,
-            TextWrapping = System.Windows.TextWrapping.Wrap,
-            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
-            Padding = new System.Windows.Thickness(8)
-        });
-        dialog.Content = panel;
-        return dialog.ShowDialog() == true;
+        string explanation = SystemText("save.gf-export.explanation", "Original FFVIII saves use the target game's GF definitions. Review every change below. The active Memoria game keeps its full GF configuration and progression.");
+        return ModelBrowserDialogs.ShowConfirmationAsync(new GameConfirmationRequest(explanation + "\n\n" + string.Join("\n\n", plan.Losses.Select(loss => LossText(loss, localizeText))), SystemText("save.gf-export.title", "Original FFVIII GF conversion"), SystemText("save.gf-export.cancel", "Cancel"), SystemText("save.gf-export.export", "Export this copy"), SystemText("model.dialog.scroll-review", "Up / Down: scroll review")));
     }
 }

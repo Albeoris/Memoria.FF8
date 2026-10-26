@@ -10,15 +10,17 @@ internal sealed class PresentationPacer : IDisposable
 {
     private const uint HighResolution = 2;
     private const uint TimerAccess = 0x00100002;
-    private const uint Infinite = uint.MaxValue;
+    private const uint WaitTimeout = 258;
+    private const uint MaximumWaitMilliseconds = 50;
     private SafeWaitHandle? timer;
     private double nextDeadline;
     private int activeFrameLimit;
     private bool disposed;
 
-    public void WaitForNextFrame(int frameLimit)
+    public void WaitForNextFrame(int frameLimit, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
         if (frameLimit <= 0)
         {
             Reset();
@@ -36,26 +38,56 @@ internal sealed class PresentationPacer : IDisposable
             nextDeadline = AdvanceDeadline(nextDeadline, now, period);
             return;
         }
+        if (OperatingSystem.IsWindows())
+        {
+            now = WaitWindows(nextDeadline, now, cancellationToken);
+        }
+        else
+        {
+            while (now < nextDeadline)
+            {
+                double milliseconds = (nextDeadline - now) * 1000 / Stopwatch.Frequency;
+                TimeSpan delay = TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 1, MaximumWaitMilliseconds));
+                if (cancellationToken.CanBeCanceled)
+                {
+                    cancellationToken.WaitHandle.WaitOne(delay);
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                else
+                {
+                    Thread.Sleep(delay);
+                }
+                now = Stopwatch.GetTimestamp();
+            }
+        }
+        nextDeadline = AdvanceDeadline(nextDeadline, now, period);
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private long WaitWindows(double nextDeadline, long now, CancellationToken cancellationToken)
+    {
         SafeWaitHandle handle = Timer();
         while (now < nextDeadline)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             long dueTime = -Math.Max(1, checked((long)Math.Ceiling((nextDeadline - now) * TimeSpan.TicksPerSecond / Stopwatch.Frequency)));
             if (!SetWaitableTimerEx(handle, in dueTime, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0))
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
-            uint result = WaitForSingleObject(handle, Infinite);
+            uint result = WaitForSingleObject(handle, MaximumWaitMilliseconds);
             if (result == uint.MaxValue)
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
-            if (result != 0)
+            if (result != 0 && result != WaitTimeout)
             {
                 throw new InvalidOperationException($"The presentation timer returned unexpected wait result 0x{result:X8}.");
             }
             now = Stopwatch.GetTimestamp();
         }
-        nextDeadline = AdvanceDeadline(nextDeadline, now, period);
+        cancellationToken.ThrowIfCancellationRequested();
+        return now;
     }
 
     internal static double AdvanceDeadline(double deadline, double now, double period)
@@ -82,6 +114,7 @@ internal sealed class PresentationPacer : IDisposable
         disposed = true;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private SafeWaitHandle Timer()
     {
         if (timer is not null)

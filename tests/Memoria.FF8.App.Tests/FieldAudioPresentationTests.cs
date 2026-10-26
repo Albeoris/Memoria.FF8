@@ -25,8 +25,8 @@ public sealed class FieldAudioPresentationTests
         Assert.Equal(1, presentation.SoundVoiceCount);
         var voices = (System.Collections.IDictionary)typeof(FieldAudioPresentation).GetField("voices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(presentation)!;
         object voice = voices[1]!;
-        DirectSoundOutput.Buffer primary = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Primary")!.GetValue(voice)!;
-        DirectSoundOutput.Buffer loop = (DirectSoundOutput.Buffer)voice.GetType().GetProperty("Loop")!.GetValue(voice)!;
+        PcmAudioOutput.Buffer primary = (PcmAudioOutput.Buffer)voice.GetType().GetProperty("Primary")!.GetValue(voice)!;
+        PcmAudioOutput.Buffer loop = (PcmAudioOutput.Buffer)voice.GetType().GetProperty("Loop")!.GetValue(voice)!;
         if (startLoop)
         {
             Thread.Sleep(resource.LoopPolicy.LoopTransitionDelayMilliseconds!.Value + 30);
@@ -37,9 +37,8 @@ public sealed class FieldAudioPresentationTests
         presentation.Update();
         Assert.Null(presentation.Error);
         Assert.Equal(0, presentation.SoundVoiceCount);
-        var handle = typeof(DirectSoundOutput.Buffer).GetField("handle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        Assert.Equal((nint)0, (nint)handle.GetValue(primary)!);
-        Assert.Equal((nint)0, (nint)handle.GetValue(loop)!);
+        Assert.True(primary.IsDisposed);
+        Assert.True(loop.IsDisposed);
     }
 
     [Fact]
@@ -126,14 +125,14 @@ public sealed class FieldAudioPresentationTests
             try
             {
                 nint window = GetDesktopWindow();
-                using var sound = new DirectSoundOutput(window);
+                using var sound = new PcmAudioOutput(window);
                 PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, 69);
-                using DirectSoundOutput.Buffer buffer = sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+                using PcmAudioOutput.Buffer buffer = sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
                 buffer.Volume(-10000);
                 buffer.Pan(0);
                 buffer.Play(false);
                 buffer.Stop();
-                using var music = new DirectMusicOutput(window, Path.Combine(directory, "Data", "Music", "dmusic"));
+                using var music = new MusicWorkerOutput(window, Path.Combine(directory, "Data", "Music", "dmusic"));
                 music.Play(Path.Combine(directory, "Data", "Music", "dmusic", "026s-garden.sgt"), -10000);
                 var deadline = Stopwatch.StartNew();
                 while (!music.IsPlaying && deadline.ElapsedMilliseconds < 3000)

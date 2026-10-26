@@ -1,7 +1,4 @@
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
+using SkiaSharp;
 using Memoria.FF8.Ui;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
@@ -12,32 +9,27 @@ namespace Memoria.FF8.GameUi;
 /// <summary>GPU-independent canvas for the same retained controls and text rasterizer used by the live host.</summary>
 internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
 {
-    private readonly Graphics graphics;
-    private readonly Stack<GraphicsState> clips = [];
+    private readonly SKCanvas graphics;
+    private readonly Stack<int> clips = [];
     private readonly string gameDirectory;
-    private Bitmap? menuPointer;
+    private SKBitmap? menuPointer;
     private readonly MenuArtworkProvider artwork;
-    private readonly Dictionary<UiImageSource, Bitmap> images = [];
+    private readonly Dictionary<UiImageSource, SKBitmap> images = [];
     private readonly UiTextOverflow textOverflow = new();
     private long artworkGeneration = -1;
-    private readonly Dictionary<(int Icon, ControllerPresentation Presentation, int Size), Bitmap> controllerButtons = [];
+    private readonly Dictionary<(int Icon, ControllerPresentation Presentation, int Size), SKBitmap> controllerButtons = [];
 
     public void BeginFrame(TimeSpan time)
     {
         textOverflow.BeginFrame(time);
     }
 
-    public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null, ResourceService? resources = null)
+    public BattlePreviewCanvas(SKBitmap bitmap, string? gameDirectory = null, ResourceService? resources = null)
     {
         this.gameDirectory = gameDirectory ?? LaunchOptions.ConfiguredGameDirectory;
         artwork = new MenuArtworkProvider(this.gameDirectory, resources);
-        graphics = Graphics.FromImage(bitmap);
-        graphics.CompositingMode = CompositingMode.SourceOver;
-        graphics.CompositingQuality = CompositingQuality.HighQuality;
-        graphics.InterpolationMode = InterpolationMode.HighQualityBilinear;
-        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        graphics.SmoothingMode = SmoothingMode.None;
-        graphics.Clear(Color.Black);
+        graphics = new SKCanvas(bitmap);
+        graphics.Clear(SKColors.Black);
     }
 
     public void MenuPointer(UiRect bounds)
@@ -53,7 +45,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);
         UiRect destination = new(bounds.X + (bounds.Width - menuPointer.Width * scale) / 2, bounds.Y + (bounds.Height - menuPointer.Height * scale) / 2, menuPointer.Width * scale, menuPointer.Height * scale);
-        graphics.DrawImage(menuPointer, RectFor(destination));
+        graphics.DrawBitmap(menuPointer, RectFor(destination));
     }
 
     public void Paper(UiRect bounds, UiColor color)
@@ -73,8 +65,8 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
             rgba[index * 4 + 2] = pixels[index].B;
             rgba[index * 4 + 3] = pixels[index].A;
         }
-        using Bitmap paper = BitmapFromRgba(rgba, width, height);
-        graphics.DrawImageUnscaled(paper, (int)MathF.Round(bounds.X), (int)MathF.Round(bounds.Y));
+        using SKBitmap paper = BitmapFromRgba(rgba, width, height);
+        graphics.DrawBitmap(paper, MathF.Round(bounds.X), MathF.Round(bounds.Y));
     }
 
     public bool TryDrawControllerButton(int nativeIconId, ControllerPresentation presentation, UiRect bounds, float opacity)
@@ -89,16 +81,14 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         int size = Math.Clamp((int)MathF.Ceiling(Math.Min(bounds.Width, bounds.Height)), 1, 2048);
         var key = (nativeIconId, presentation, size);
-        if (!controllerButtons.TryGetValue(key, out Bitmap? bitmap))
+        if (!controllerButtons.TryGetValue(key, out SKBitmap? bitmap))
         {
             bitmap = ControllerVectorArtwork.Render(nativeIconId, presentation, size);
             controllerButtons[key] = bitmap;
         }
         UiRect destination = UiImage.Fit(bounds, size, size);
-        using ImageAttributes attributes = new();
-        attributes.SetColorMatrix(new ColorMatrix { Matrix00 = 1, Matrix11 = 1, Matrix22 = 1, Matrix33 = opacity, Matrix44 = 1 });
-        PointF[] corners = [new(destination.X, destination.Y), new(destination.Right, destination.Y), new(destination.X, destination.Bottom)];
-        graphics.DrawImage(bitmap, corners, new RectangleF(0, 0, bitmap.Width, bitmap.Height), GraphicsUnit.Pixel, attributes);
+        using SKPaint paint = new() { Color = SKColors.White.WithAlpha((byte)(Math.Clamp(opacity, 0, 1) * 255)), IsAntialias = true };
+        graphics.DrawBitmap(bitmap, RectFor(destination), paint);
         return true;
     }
 
@@ -127,25 +117,23 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         {
             return;
         }
-        if (!images.TryGetValue(source, out Bitmap? bitmap))
+        if (!images.TryGetValue(source, out SKBitmap? bitmap))
         {
             var image = artwork.Read(source);
             bitmap = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
             images.Add(source, bitmap);
         }
         UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
-        GraphicsState previous = graphics.Save();
+        int previous = graphics.Save();
         try
         {
-            graphics.SetClip(RectFor(bounds), CombineMode.Intersect);
-            using ImageAttributes attributes = new();
-            attributes.SetColorMatrix(new ColorMatrix { Matrix00 = 1, Matrix11 = 1, Matrix22 = 1, Matrix33 = opacity, Matrix44 = 1 });
-            PointF[] corners = [new(destination.X, destination.Y), new(destination.Right, destination.Y), new(destination.X, destination.Bottom)];
-            graphics.DrawImage(bitmap, corners, new RectangleF(0, 0, bitmap.Width, bitmap.Height), GraphicsUnit.Pixel, attributes);
+            graphics.ClipRect(RectFor(bounds), SKClipOperation.Intersect);
+            using SKPaint paint = new() { Color = SKColors.White.WithAlpha((byte)(Math.Clamp(opacity, 0, 1) * 255)), IsAntialias = true };
+            graphics.DrawBitmap(bitmap, RectFor(destination), paint);
         }
         finally
         {
-            graphics.Restore(previous);
+            graphics.RestoreToCount(previous);
         }
     }
 
@@ -155,8 +143,8 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         {
             return;
         }
-        using SolidBrush brush = new(ColorFor(color));
-        graphics.FillRectangle(brush, RectFor(bounds));
+        using SKPaint brush = new() { Color = ColorFor(color) };
+        graphics.DrawRect(RectFor(bounds), brush);
     }
 
     public void Text(string text, float fontSize, UiRect bounds, UiColor color)
@@ -221,10 +209,10 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         fontSize = UiTextOverflow.FitFontSize(fontSize, bounds.Height, SystemTextLayout.LineHeight(fontSize));
         UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, null, width =>
         {
-            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
+            using SKBitmap measured = SystemTextLayout.Rasterize(text, fontSize, width);
             return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
         }, UiTextFlow.SingleLine);
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
+        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth);
         float y = bounds.Y + (bounds.Height - glyphs.Height / (float)SystemTextLayout.RasterScale) / 2;
         PushClip(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2));
         try
@@ -276,10 +264,10 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         UiTextViewport layout = textOverflow.Layout(text, fontSize, bounds, fontFamily, width =>
         {
-            using Bitmap measured = SystemTextLayout.Rasterize(text, fontSize, width, fontFamily);
+            using SKBitmap measured = SystemTextLayout.Rasterize(text, fontSize, width, fontFamily);
             return new UiSize(measured.Width / (float)SystemTextLayout.RasterScale, measured.Height / (float)SystemTextLayout.RasterScale);
         }, flow);
-        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily);
+        using SKBitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, layout.WrapWidth, fontFamily);
         float y = bounds.Y - layout.OffsetY;
         if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
         {
@@ -298,21 +286,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
     }
 
-    private void DrawTinted(Bitmap glyphs, float x, float y, UiColor color)
+    private void DrawTinted(SKBitmap glyphs, float x, float y, UiColor color)
     {
-        using ImageAttributes attributes = new();
-        attributes.SetColorMatrix(new ColorMatrix
-        {
-            Matrix00 = color.R / 255f,
-            Matrix11 = color.G / 255f,
-            Matrix22 = color.B / 255f,
-            Matrix33 = color.A / 255f,
-            Matrix44 = 1
-        });
-        float width = glyphs.Width / (float)SystemTextLayout.RasterScale;
-        float height = glyphs.Height / (float)SystemTextLayout.RasterScale;
-        PointF[] destination = [new(x, y), new(x + width, y), new(x, y + height)];
-        graphics.DrawImage(glyphs, destination, new RectangleF(0, 0, glyphs.Width, glyphs.Height), GraphicsUnit.Pixel, attributes);
+        using SKColorFilter filter = SKColorFilter.CreateBlendMode(ColorFor(color), SKBlendMode.SrcIn);
+        using SKPaint paint = new() { ColorFilter = filter, IsAntialias = true };
+        graphics.DrawBitmap(glyphs, SKRect.Create(x, y, glyphs.Width / (float)SystemTextLayout.RasterScale, glyphs.Height / (float)SystemTextLayout.RasterScale), paint);
     }
 
     public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
@@ -331,15 +309,15 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         }
         else
         {
-            using Pen pen = new(ColorFor(color), thickness);
-            graphics.DrawLine(pen, x1, y1, x2, y2);
+            using SKPaint pen = new() { Color = ColorFor(color), StrokeWidth = thickness, Style = SKPaintStyle.Stroke };
+            graphics.DrawLine(x1, y1, x2, y2, pen);
         }
     }
 
     public void PushClip(UiRect bounds)
     {
         clips.Push(graphics.Save());
-        graphics.SetClip(RectFor(bounds), CombineMode.Intersect);
+        graphics.ClipRect(RectFor(bounds), SKClipOperation.Intersect);
     }
 
     public void PopClip()
@@ -348,66 +326,39 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         {
             throw new InvalidOperationException("Unbalanced battle preview clipping.");
         }
-        graphics.Restore(clips.Pop());
+        graphics.RestoreToCount(clips.Pop());
     }
 
     public void DrawRgba(byte[] rgba, int width, int height, UiRect bounds)
     {
-        using Bitmap image = BitmapFromRgba(rgba, width, height);
-        graphics.DrawImage(image, RectFor(bounds));
+        using SKBitmap image = BitmapFromRgba(rgba, width, height);
+        graphics.DrawBitmap(image, RectFor(bounds));
     }
 
-    internal static Bitmap BitmapFromRgba(byte[] rgba, int width, int height)
+    internal static SKBitmap BitmapFromRgba(byte[] rgba, int width, int height)
     {
-        if (rgba.Length != checked(width * height * 4))
-        {
-            throw new ArgumentException("RGBA buffer dimensions do not match.", nameof(rgba));
-        }
-        Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
-        BitmapData locked = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            byte[] row = new byte[checked(width * 4)];
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int source = (y * width + x) * 4;
-                    int target = x * 4;
-                    row[target] = rgba[source + 2];
-                    row[target + 1] = rgba[source + 1];
-                    row[target + 2] = rgba[source];
-                    row[target + 3] = rgba[source + 3];
-                }
-                Marshal.Copy(row, 0, IntPtr.Add(locked.Scan0, y * locked.Stride), row.Length);
-            }
-        }
-        finally
-        {
-            bitmap.UnlockBits(locked);
-        }
-        return bitmap;
+        return PortableRaster.FromRgba(rgba, width, height);
     }
 
-    private static RectangleF RectFor(UiRect bounds)
+    private static SKRect RectFor(UiRect bounds)
     {
-        return new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        return SKRect.Create(bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
-    private static Color ColorFor(UiColor color)
+    private static SKColor ColorFor(UiColor color)
     {
-        return Color.FromArgb(color.A, color.R, color.G, color.B);
+        return new SKColor(color.R, color.G, color.B, color.A);
     }
 
     public void Dispose()
     {
         menuPointer?.Dispose();
-        foreach (Bitmap button in controllerButtons.Values)
+        foreach (SKBitmap button in controllerButtons.Values)
         {
             button.Dispose();
         }
         controllerButtons.Clear();
-        foreach (Bitmap image in images.Values)
+        foreach (SKBitmap image in images.Values)
         {
             image.Dispose();
         }

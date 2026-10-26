@@ -62,7 +62,7 @@ public sealed class HardcoreSettingsTests
         menus.Execute(new("config", "UI font size", Value: fontSize.ToString()));
         menus.Execute(new("config", "Difficulty", Value: "Hardcore"));
         UiView view = menus.BuildView();
-        using System.Drawing.Bitmap bitmap = new(1280, 896);
+        using SkiaSharp.SKBitmap bitmap = new(1280, 896);
         using BattlePreviewCanvas canvas = new(bitmap);
         UiLabel[] labels = Descendants(view.Root).OfType<UiLabel>().ToArray();
         Assert.Equal(GameplayPreferences.NewGameOptions.Count + 1, labels.Length);
