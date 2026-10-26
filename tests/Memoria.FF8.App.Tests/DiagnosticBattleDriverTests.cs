@@ -92,6 +92,95 @@ public sealed class DiagnosticBattleDriverTests
         driver.Advance(Observation(0, 0));
         driver.Advance(Observation(0.1, 1));
         driver.Advance(Observation(6, 2));
+        Assert.Equal("EXPECTED_EFFECT_DISPATCH_TIMEOUT", driver.Blocker);
+    }
+
+    [Theory]
+    [InlineData(5, 5)]
+    [InlineData(60, 10)]
+    public void Dispatch_wait_expires_at_its_independent_deadline(double actionTimeout, double dispatchTimeout)
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { ActionTimeoutSeconds = actionTimeout }, 0);
+        driver.Advance(Observation(0, 0));
+        Assert.True(driver.Advance(Observation(0, 1)));
+        driver.Advance(Observation(dispatchTimeout - 0.01, 2));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        driver.Advance(Observation(dispatchTimeout, 3));
+        Assert.Equal("EXPECTED_EFFECT_DISPATCH_TIMEOUT", driver.Blocker);
+        Assert.Equal("action_one", driver.CampaignStage);
+        Assert.Empty(driver.Dispatches);
+    }
+
+    [Fact]
+    public void Callback_and_supporting_dispatch_progress_cannot_extend_the_focal_dispatch_deadline()
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { ActionTimeoutSeconds = 60, SupportingEffects = [3] }, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0, 1));
+        for (int second = 1; second <= 10; second++)
+        {
+            driver.ObserveDispatch(new(second, second, "party-0", BattleAbility.Magic, 99, 3, 3));
+            driver.Advance(Observation(second, second * 1000));
+        }
+        Assert.Equal("EXPECTED_EFFECT_DISPATCH_TIMEOUT", driver.Blocker);
+        Assert.Empty(driver.Dispatches);
+    }
+
+    [Fact]
+    public void The_second_submission_gets_its_own_dispatch_deadline()
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { ActionTimeoutSeconds = 60 }, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0, 1));
+        driver.ObserveDispatch(Dispatch(1));
+        driver.Advance(Observation(1, 2));
+        driver.Advance(Observation(2, 3));
+        driver.Advance(Observation(3, 4));
+        Assert.Equal(DiagnosticDriverStage.Readiness, driver.Stage);
+        Assert.True(driver.Advance(Observation(4, 5)));
+        driver.Advance(Observation(13.99, 6));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        driver.Advance(Observation(14, 7));
+        Assert.Equal("EXPECTED_EFFECT_DISPATCH_TIMEOUT", driver.Blocker);
+        Assert.Equal("action_two", driver.CampaignStage);
+        Assert.Single(driver.Dispatches);
+    }
+
+    [Fact]
+    public void Dispatched_effects_keep_the_original_long_drain_and_tail_deadline()
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { ActionTimeoutSeconds = 60, OverallTimeoutSeconds = 200 }, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0, 1));
+        driver.ObserveDispatch(Dispatch(1));
+        driver.Advance(Observation(11, 2, drained: false));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        driver.Advance(Observation(12, 3));
+        driver.Advance(Observation(23, 4));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
+        driver.Advance(Observation(24, 5));
+        Assert.Equal(DiagnosticDriverStage.Readiness, driver.Stage);
+        Assert.True(driver.Advance(Observation(25, 6)));
+        driver.ObserveDispatch(Dispatch(2));
+        driver.Advance(Observation(36, 7, drained: false));
+        Assert.Equal(DiagnosticDriverStage.Drain, driver.Stage);
+        driver.Advance(Observation(37, 8));
+        driver.Advance(Observation(48, 9));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
+        driver.Advance(Observation(49, 10));
+        Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
+        Assert.Null(driver.Blocker);
+        Assert.Equal(2, driver.Dispatches.Count);
+    }
+
+    [Fact]
+    public void Dispatched_effects_still_fail_at_the_original_action_deadline()
+    {
+        DiagnosticBattleDriver driver = new(Recipe with { ActionTimeoutSeconds = 15 }, 0);
+        driver.Advance(Observation(0, 0));
+        driver.Advance(Observation(0, 1));
+        driver.ObserveDispatch(Dispatch(1));
+        driver.Advance(Observation(16, 2, drained: false));
         Assert.Equal("ACTION_OR_DRAIN_TIMEOUT", driver.Blocker);
     }
 

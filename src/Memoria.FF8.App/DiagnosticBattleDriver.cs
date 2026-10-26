@@ -69,6 +69,7 @@ internal sealed record DiagnosticDriverObservation(double Seconds, long Callback
 /// <summary>Two submissions on one uninterrupted host; completion is a preparation candidate, never an acceptance verdict.</summary>
 internal sealed class DiagnosticBattleDriver
 {
+    private const double MaximumDispatchWaitSeconds = 10;
     private readonly DiagnosticBattleDriverRecipe recipe;
     private readonly double started;
     private double stageStarted;
@@ -154,7 +155,12 @@ internal sealed class DiagnosticBattleDriver
             Fail("OVERALL_TIMEOUT");
             return false;
         }
-        if (Stage is DiagnosticDriverStage.AwaitDispatch or DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail && observation.Seconds - executionStarted > recipe.ActionTimeoutSeconds)
+        if (Stage == DiagnosticDriverStage.AwaitDispatch && observation.Seconds - executionStarted >= Math.Min(MaximumDispatchWaitSeconds, recipe.ActionTimeoutSeconds))
+        {
+            Fail("EXPECTED_EFFECT_DISPATCH_TIMEOUT");
+            return false;
+        }
+        if (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail && observation.Seconds - executionStarted > recipe.ActionTimeoutSeconds)
         {
             Fail("ACTION_OR_DRAIN_TIMEOUT");
             return false;

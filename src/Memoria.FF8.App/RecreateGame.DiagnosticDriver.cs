@@ -17,6 +17,7 @@ internal sealed partial class RecreateGame
     private long diagnosticPresentedFrames;
     private int diagnosticProgressSequence;
     private string? diagnosticLastStage;
+    private DiagnosticDriverStage? diagnosticLastDriverStage;
     private long diagnosticProgressTimestamp;
     private long diagnosticProgressCallback = -1;
     private readonly List<string> diagnosticCompletedStages = [];
@@ -146,7 +147,8 @@ internal sealed partial class RecreateGame
         long callback = diagnosticDriverBattle?.NativeHostCallbacks ?? -1;
         long timestamp = Stopwatch.GetTimestamp();
         bool progressHeartbeat = callback > diagnosticProgressCallback && Stopwatch.GetElapsedTime(diagnosticProgressTimestamp).TotalSeconds >= 1;
-        if (stage == diagnosticLastStage && !driver.Finished && !progressHeartbeat)
+        bool driverStageChanged = diagnosticLastDriverStage != driver.Stage;
+        if (stage == diagnosticLastStage && !driverStageChanged && !driver.Finished && !progressHeartbeat)
         {
             return;
         }
@@ -154,23 +156,26 @@ internal sealed partial class RecreateGame
         diagnosticCompletedStages.Clear();
         diagnosticCompletedStages.AddRange(DiagnosticCampaignStages.Take(position));
         diagnosticLastStage = stage;
+        diagnosticLastDriverStage = driver.Stage;
         diagnosticProgressTimestamp = timestamp;
         diagnosticProgressCallback = callback;
         diagnosticProgressSequence++;
         if (options.ControlDirectory is { } control)
         {
-            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray() });
+            WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution });
         }
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY");
         string? receipt = diagnosticDriverRecipe!.ProgressPath ?? (string.IsNullOrWhiteSpace(output) ? null : Path.Combine(output, "diagnostic-driver.json"));
-        if (receipt is not null && (stage != diagnosticLastReceiptStage || driver.Finished))
+        if (receipt is not null && (stage != diagnosticLastReceiptStage || driver.Stage != diagnosticLastReceiptDriverStage || driver.Finished))
         {
             diagnosticLastReceiptStage = stage;
+            diagnosticLastReceiptDriverStage = driver.Stage;
             WriteDiagnosticJson(receipt, new { Status = driver.Stage == DiagnosticDriverStage.Completed ? "CANDIDATE_COMPLETED" : driver.Finished ? "BLOCKED" : "RUNNING", Coverage = "LIVE_DIAGNOSTIC", Stage = driver.Stage.ToString(), driver.Execution, driver.Blocker, driver.LastDrainBlockers, Dispatches = driver.Dispatches, Initialization = world?.DiagnosticReceipt });
         }
     }
 
     private string? diagnosticLastReceiptStage;
+    private DiagnosticDriverStage? diagnosticLastReceiptDriverStage;
 
     internal static bool DiagnosticCommandReady(BattleSession active, DiagnosticBattleDriverRecipe recipe)
     {
