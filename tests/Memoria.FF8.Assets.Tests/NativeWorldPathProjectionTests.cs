@@ -42,6 +42,20 @@ public sealed class NativeWorldPathProjectionTests
         Assert.False(NativeWorldPathProjectionCertificate.CreateRagnarok(camera).IsNear(node));
     }
 
+    [Theory]
+    [InlineData(1055)]
+    [InlineData(1056)]
+    [InlineData(1057)]
+    public void StationNodeVisibilityUsesTheExecutedProjectionAtTheScreenBoundary(int yaw)
+    {
+        NativeWorldFootCameraState camera = new(-16377, -39789, -436, -16399, -39812, -714, yaw, -512, -341, -7168) { ProjectionDistance = 640 };
+        NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(camera);
+        NativeWorldPathNodeProjection projection = Assert.IsType<NativeWorldPathNodeProjection>(context.ProjectNode(new(-20735, -492, 42140)));
+        Assert.True(projection.Visible);
+        Assert.Equal(new NativeWorldPathWords(-4351, -492, 1180), projection.Words);
+        context.ValidateProjection(projection);
+    }
+
     [Fact]
     public void FootProjectionUsesTheRetainedFocalDistanceForScreenVisibility()
     {

@@ -6,10 +6,12 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeTrainStationChoiceTests
 {
-    [Fact]
-    public void FootMovementAcrossTrainProximityBoundaryRestoresTheNextCallback()
+    [Theory]
+    [InlineData("App.Tests.NativeTrainStationChoiceTests.ProximityBoundary")]
+    [InlineData("App.Tests.NativeTrainStationChoiceTests.VisibilityBoundary")]
+    public void FootMovementAcrossTrainCameraBoundariesRestoresTheNextCallback(string fixture)
     {
-        GameState source = GameSession.Load(TestResources.FixturePath("App.Tests.NativeTrainStationChoiceTests.ProximityBoundary"));
+        GameState source = GameSession.Load(TestResources.FixturePath(fixture));
         var session = new GameSession(source);
         using var world = new GameWorld(session, GameDirectory());
         Assert.True(world.EnsureField());
