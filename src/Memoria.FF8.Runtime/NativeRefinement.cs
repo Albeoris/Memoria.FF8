@@ -9,11 +9,24 @@ public sealed record NativeRefinementResult(NativeCharacterVitals Vitals, Native
 /// <summary>Original kernel menu-ability ranges and m000..m004 recipes consumed by4D7180/4D7410.</summary>
 public sealed record NativeRefinementDefinitions(string ExecutableHash, string KernelHash, ImmutableArray<NativeRefinementAbility> Abilities, ImmutableArray<ImmutableArray<NativeRefinementRecipe>> Tables)
 {
+    public ImmutableArray<string> TableHashes { get; init; } = [];
+
     public void Validate()
     {
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefault || table.Length != new[] { 102, 143, 10, 12, 110 }[kind] || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any() || Abilities.Where((ability, index) => ability is null || index >= 5 && (ability.Kind >= 5 || ability.First > ability.Last || ability.Last >= Tables[ability.Kind].Length)).Any())
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || KernelHash is not { Length: 64 } || KernelHash.Any(value => !Uri.IsHexDigit(value)) || TableHashes.IsDefault || TableHashes.Length != 0 && (TableHashes.Length != 5 || TableHashes.Any(hash => hash is not { Length: 64 } || hash.Any(value => !Uri.IsHexDigit(value)))) || Abilities.IsDefault || Abilities.Length != 24 || Tables.IsDefault || Tables.Length != 5 || Tables.Where((table, kind) => table.IsDefaultOrEmpty || table.Length > 256 || kind == 4 && table.Length != 110 || table.Any(recipe => recipe is null || recipe.IngredientCount == 0 || recipe.Output == 0 || recipe.OutputCount == 0)).Any() || Abilities.Where((ability, index) => ability is null || index >= 5 && (ability.Kind >= 5 || ability.First > ability.Last || ability.Last >= Tables[ability.Kind].Length)).Any())
         {
             throw new InvalidDataException("Native refinement requires the authenticated complete kernel ranges and five original recipe tables.");
+        }
+        foreach (NativeRefinementAbility ability in Abilities.Skip(5))
+        {
+            foreach (NativeRefinementRecipe recipe in Tables[ability.Kind].Skip(ability.First).Take(ability.Last - ability.First + 1))
+            {
+                bool validIngredient = ability.Kind == 4 ? recipe.Ingredient < 110 : recipe.Ingredient > 0 && recipe.Ingredient < (ability.Kind == 2 ? 57 : 199);
+                if (!validIngredient || recipe.Output >= (ability.Kind is 0 or 2 ? 57 : 199))
+                {
+                    throw new InvalidDataException("Native refinement ability refers to an invalid item, magic or card ID.");
+                }
+            }
         }
     }
 

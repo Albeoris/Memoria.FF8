@@ -2,9 +2,6 @@ using Memoria.FF8.Resources;
 using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Security.Cryptography;
-using Albeoris.Games.FF8.FlArchives;
-using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
 
 namespace Memoria.FF8.Assets;
@@ -57,15 +54,10 @@ public sealed class TripleTriadCatalog
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameDirectory);
         using IResourceSource provider = GameDataSourceFactory.Open(gameDirectory);
-        using IFlArchive archive = (provider as IGameArchiveSource ?? throw new NotSupportedException("The resource source does not support archive enumeration.")).OpenArchive("menu");
-        IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("m004.bin", StringComparison.OrdinalIgnoreCase));
-        using Stream input = entry.OpenForRead();
-        using MemoryStream data = new();
-        input.CopyTo(data);
         resources ??= new(provider);
         IGameNativeMemorySource memory = resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native card memory contract.");
         byte[] names = provider.Descriptor.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/card-names")) : memory.Read(NameTableAddress, NativeNameTableLength);
-        TripleTriadCatalog catalog = Read(memory, names, data.ToArray());
+        TripleTriadCatalog catalog = Read(memory, names, resources.Read(new ResourceKey("menu/m004.bin")));
         catalog.resources = resources;
         return catalog;
     }
@@ -150,10 +142,7 @@ public sealed class TripleTriadCatalog
     public static ImmutableArray<TripleTriadRefinement> ReadRefinements(byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        if (Convert.ToHexString(SHA256.HashData(data)) != "0DAD31178F36AF9EA4FDDF364B0FBBA2CA44C3B04C4581ED4F212D16DA503483")
-        {
-            throw new NotSupportedException("Triple Triad refinement requires the authenticated original m004.bin.");
-        }
+        NativeMenuDataReader.ValidateRefinementTable(data, 4);
         ImmutableArray<TripleTriadRefinement>.Builder result = ImmutableArray.CreateBuilder<TripleTriadRefinement>(CardCount);
         for (int id = 0; id < CardCount; id++)
         {

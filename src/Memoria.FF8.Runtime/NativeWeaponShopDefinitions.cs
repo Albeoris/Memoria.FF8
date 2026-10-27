@@ -18,7 +18,7 @@ public sealed record NativeWeaponShopDefinitions([property: JsonRequired] string
             NativeWeaponRecipe recipe = Recipes[row];
             for (int slot = 0; slot < 4; slot++)
             {
-                if (recipe.Materials[slot].ItemId != recipe.RecipeWords[4 + 2 * slot] || recipe.Materials[slot].Count != recipe.RecipeWords[5 + 2 * slot])
+                if (recipe.Materials[slot].ItemId >= 199 || recipe.Materials[slot].ItemId != recipe.RecipeWords[4 + 2 * slot] || recipe.Materials[slot].Count != recipe.RecipeWords[5 + 2 * slot])
                 {
                     throw new InvalidDataException("Native weapon materials disagree with their retained original recipe bytes.");
                 }

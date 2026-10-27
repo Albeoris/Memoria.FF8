@@ -28,10 +28,12 @@ public static class NativeShopDefinitionReader
     {
         string executableHash = memory.SourceHash;
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || shops.Length != 640 || prices.Length != 796)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash))
         {
             throw new NotSupportedException("Native shop definitions require the authenticated English executable and complete menu catalogs/prices.");
         }
+        NativeMenuDataReader.ValidateShopCatalogs(shops);
+        NativeMenuDataReader.ValidateShopPrices(prices);
         int[] sections = NativeKernelDirectory.Read(kernel);
         ImmutableArray<ImmutableArray<NativeShopCatalogEntry>>.Builder catalogs = ImmutableArray.CreateBuilder<ImmutableArray<NativeShopCatalogEntry>>(20);
         for (int row = 0; row < 20; row++)

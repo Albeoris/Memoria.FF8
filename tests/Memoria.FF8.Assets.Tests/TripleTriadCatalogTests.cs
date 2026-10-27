@@ -51,7 +51,7 @@ public sealed class TripleTriadCatalogTests
     public void ForeignOrTruncatedResourcesFailBeforeReadingAddressedTables()
     {
         Assert.Throws<NotSupportedException>(() => TripleTriadCatalog.ReadExecutable([]));
-        Assert.Throws<NotSupportedException>(() => TripleTriadCatalog.ReadRefinements(new byte[880]));
+        Assert.Throws<InvalidDataException>(() => TripleTriadCatalog.ReadRefinements(new byte[880]));
     }
 
     private static string GameDirectory()

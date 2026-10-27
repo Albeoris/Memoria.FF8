@@ -30,10 +30,12 @@ public static class NativeWeaponShopDefinitionReader
         string kernelHash = Convert.ToHexString(SHA256.HashData(kernel));
         string recipeHash = Convert.ToHexString(SHA256.HashData(recipes));
         string messageHash = Convert.ToHexString(SHA256.HashData(messages));
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || recipeHash != "BB9B499DDE640362F8A16A76534E3FFFD695B2F3C58A73CB65EDC16500BD3BA8" || messageHash != "3AA8E9833EA047A2B8E7E9F65CFE0CE26B9FCFDF83114F5B1DA992C980A99B41" || recipes.Length != 396 || messages.Length != 68)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash))
         {
             throw new NotSupportedException("Native weapon shop requires the authenticated original executable, recipes and message words.");
         }
+        NativeMenuDataReader.ValidateWeaponRecipes(recipes);
+        NativeMenuDataReader.ValidateWeaponMessages(messages);
         int[] sections = NativeKernelDirectory.Read(kernel);
         int weaponStart = sections[4];
         int weaponEnd = sections[5];

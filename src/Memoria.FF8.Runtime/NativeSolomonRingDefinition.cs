@@ -7,7 +7,7 @@ public sealed record NativeSolomonRingDefinition(string ExecutableHash, string R
 {
     public void Validate()
     {
-        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || ResourceHash != "CD2C7261EE28D2D6D13DB5922D447FA49D337B07A706BC042D3803E562F62BDD" || ItemId == 0 || Ingredients.IsDefault || Ingredients.Length != 3 || Ingredients.Any(stock => stock is null || stock.ItemId == 0 || stock.Count == 0) || Ingredients.Select(stock => stock.ItemId).Distinct().Count() != Ingredients.Length)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || ResourceHash is not { Length: 64 } || ResourceHash.Any(value => !Uri.IsHexDigit(value)) || ItemId is 0 or >= 199 || Ingredients.IsDefault || Ingredients.Length != 3 || Ingredients.Any(stock => stock is null || stock.ItemId is 0 or >= 199 || stock.ItemId == ItemId || stock.Count == 0) || Ingredients.Select(stock => stock.ItemId).Distinct().Count() != Ingredients.Length)
         {
             throw new InvalidDataException("Solomon Ring requires the original mthomas ingredient table and selected native item identity.");
         }
