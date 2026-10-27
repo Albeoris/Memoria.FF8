@@ -196,7 +196,7 @@ internal sealed partial class NativeBattleTaskOperation
 
     private static bool EligiblePublication(NativeBattleTaskOperation operation, NativeBattleWorkingMemory storage, NativeBattleRetainedStorageAuthority? authority, NativeBattleWorkingMemory? main, bool deferMain, ImmutableArray<NativeBattleEffectTaskPool> pools, bool includeRetained)
     {
-        if (deferMain && ReferenceEquals(storage, main))
+        if ((deferMain && ReferenceEquals(storage, main)) || NativeBattleEffectArenaTransaction.HasUnpublishedChanges(storage))
         {
             return false;
         }

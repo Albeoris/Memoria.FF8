@@ -417,7 +417,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeStatusResistances = partyStatus.Resistances.ToArray(), GuardianForceCompatibility = new ushort[16], EquipmentIds = [guardian], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999, NativeStatusResistances = assets.ReadEnemyNativeStatusData(61).Resistances.ToArray() }
+            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(61), NativeStatusResistances = assets.ReadEnemyNativeStatusData(61).Resistances.ToArray() }
         ];
         // Explicit independent installed-resource component: the ordinary command owns charge, headers, formula and contact production.
         BattleDefinition definition = new()
