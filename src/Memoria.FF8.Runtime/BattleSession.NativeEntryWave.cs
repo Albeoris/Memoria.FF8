@@ -15,6 +15,11 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Native500AC0 requires its actual fileA5 resource bytes.");
             }
             NativeFileStaging = (NativeFileStaging ?? NativeBattleFileStaging.Unknown()).Write(NativeBattleEntryWaveLoader.Destination, file.Bytes.AsSpan());
+            if (NativeEffectMemory is { } memory)
+            {
+                NativeBattleTextureFileIdentity? identity = file.Name.Equals("b0wave.dat", StringComparison.OrdinalIgnoreCase) ? NativeBattleSharedEffectTexture.File : null;
+                NativeEffectMemory = memory with { Textures = memory.Textures?.OpenTextureFile(identity) };
+            }
             NativeEffectIoResult = -1;
             QueueNativeFileIo482610(file.Bytes.Length, 0x508470);
         }
@@ -22,7 +27,8 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500AC0 requires its retained graphics memory.");
             NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native505E30 requires its retained texture queue.");
-            NativeEffectMemory = memory with { Textures = textures.EnqueueStagingTim505E30(NativeFileStaging!, tim).State };
+            NativeBattleTextureFileIdentity? identity = string.Equals(definition.NativeEntryWaveFile?.Name, "b0wave.dat", StringComparison.OrdinalIgnoreCase) ? NativeBattleSharedEffectTexture.File with { SourceOwner = "b0wave.dat", SourceOffset = checked((int)(tim - NativeBattleEntryWaveLoader.Destination)) } : null;
+            NativeEffectMemory = memory with { Textures = textures.EnqueueStagingTim505E30(NativeFileStaging!, tim, identity).State };
         }
         return step;
     }

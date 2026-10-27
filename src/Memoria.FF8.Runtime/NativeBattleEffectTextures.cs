@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -9,6 +10,18 @@ public sealed record NativeBattleEffectVramCopy(short SourceX, short SourceY, sh
 public sealed record NativeBattleEffectTextureRectangle(short X, short Y, short Width, short Height);
 public sealed record NativeBattleEffectTimUpload([property: JsonRequired] NativeBattleEffectHeapAllocation? Source, [property: JsonRequired] int Offset)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTextureOrigin? Origin { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginSourceSha256 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTextureFileIdentity? TimIdentity { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TimSourceSha256 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceOwner { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SourceOffset { get; init; }
     public byte Kind { get; init; } = 1;
     public NativeBattleEffectVramCopy? Copy { get; init; }
     public NativeBattleEffectTextureRectangle? Rectangle { get; init; }
@@ -21,6 +34,8 @@ public sealed record NativeBattleEffectTimUpload([property: JsonRequired] Native
 public sealed record NativeBattleEffectVramUpload(short X, short Y, short Width, short Height, ImmutableArray<byte> Bytes)
 {
     public bool Copied { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTextureOrigin? Origin { get; init; }
 }
 public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureState State, ImmutableArray<NativeBattleEffectVramUpload> Uploads)
 {
@@ -30,6 +45,12 @@ public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureSta
 /// <summary>505E30/505D20's32 physical16-byte slots and45BD30's retained1024x51216-bit VRAM.</summary>
 public sealed record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleTextureSourceRegion>? LiveTextureSources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTextureFileContext? TextureFileContext { get; init; }
     public const int PcPageReadTailLength = 384;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<byte>? VramReadTail { get; init; }
@@ -46,10 +67,19 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             memory = memory.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
         }
-        return this with { VramRegions = memory.Regions };
+        return this with { VramRegions = memory.Regions, LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
     }
 
     public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []) { VramReadTail = new byte[PcPageReadTailLength].ToImmutableArray() };
+
+    public NativeBattleEffectTextureState OpenTextureFile(NativeBattleTextureFileIdentity? identity)
+    {
+        if (identity is not null && (string.IsNullOrWhiteSpace(identity.Name) || !Enum.IsDefined(identity.Domain) || identity.SourceOffset < 0))
+        {
+            throw new InvalidDataException("Native texture file-open metadata requires its original file identity and loader namespace.");
+        }
+        return this with { TextureFileContext = identity is null ? null : new(identity, 0) };
+    }
 
     public NativeBattleEffectTextureState Initialize500400()
     {
@@ -69,8 +99,29 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             throw new InvalidDataException("Native texture upload state requires32 physical slots and its successful0..31 pending count.");
         }
         new NativeBattleEffectArena(VramRegions).Validate();
+        if (TextureFileContext is { } context && (string.IsNullOrWhiteSpace(context.Identity.Name) || !Enum.IsDefined(context.Identity.Domain) || context.Identity.SourceOffset < 0 || context.NextTimMember < 0))
+        {
+            throw new InvalidDataException("Native texture file context requires its observed open and nonnegative upload ordinal.");
+        }
+        NativeBattleTextureCopyHistory.Validate(TextureRegistrations);
+        if (LiveTextureSources is { } sources)
+        {
+            if (sources.IsDefault)
+            {
+                throw new InvalidDataException("Native live texture provenance requires explicit retained source regions.");
+            }
+            foreach (NativeBattleTextureSourceRegion source in sources)
+            {
+                source.Validate();
+            }
+        }
         foreach (NativeBattleEffectTimUpload? slot in Slots)
         {
+            slot?.Origin?.Validate();
+            if (slot?.Origin is not null && (slot.Kind != 0 || slot.OriginSourceSha256 is not { Length: 64 }))
+            {
+                throw new InvalidDataException("Native queued rectangle provenance requires its original submitted source fingerprint.");
+            }
             if (slot is { Kind: 1, ProcessAddress: uint processAddress })
             {
                 if (processAddress != 0x16146E8 || slot.StagingAddress is not null || slot.ArenaOffset is not null || slot.Source is not null || slot.Offset != 0)
@@ -160,7 +211,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState Register5099A0(NativeBattleEffectHeapAllocation source, int offset = 0) => Register509970(source, offset);
 
-    public (NativeBattleEffectTextureState State, int NextOffset) EnqueueTim505E30(NativeBattleEffectHeapAllocation source, int offset = 0)
+    public (NativeBattleEffectTextureState State, int NextOffset) EnqueueTim505E30(NativeBattleEffectHeapAllocation source, int offset = 0, NativeBattleTextureFileIdentity? identity = null)
     {
         Validate();
         if (Count == 31)
@@ -170,11 +221,13 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         RequireSource(source, offset, 12);
         int imageBlock = checked(offset + 8 + BlockLength(source, offset + 8));
         int next = checked(imageBlock + BlockLength(source, imageBlock));
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Source = source, Offset = offset, Kind = 1, ArenaOffset = null, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Source = source, Offset = offset, Kind = 1, ArenaOffset = null, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        NativeBattleTextureFileIdentity? fileIdentity = identity ?? source.TextureIdentity;
+        slot = slot with { TimIdentity = fileIdentity, TimSourceSha256 = Convert.ToHexString(SHA256.HashData(source.Data.AsSpan().Slice(offset, next - offset))), SourceOwner = fileIdentity is null ? null : fileIdentity.SourceOwner ?? source.Identity, SourceOffset = fileIdentity is null ? null : checked(fileIdentity.SourceOffset + offset) };
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, next);
     }
 
-    public (NativeBattleEffectTextureState State, int NextOffset) EnqueueArenaTim505E30(NativeBattleEffectArena arena, int offset)
+    public (NativeBattleEffectTextureState State, int NextOffset) EnqueueArenaTim505E30(NativeBattleEffectArena arena, int offset, NativeBattleTextureFileIdentity? identity = null)
     {
         Validate();
         if (Count == 31)
@@ -182,11 +235,20 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             throw new NotSupportedException("Native505E30 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
         NativeBattleEffectHeapAllocation current = MaterializeArenaTim(arena, offset);
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = offset, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = offset, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        slot = slot with { TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan())) };
+        if (arena.FindContainingTextureFile(offset, current.Data.Length) is { } file)
+        {
+            slot = slot with { TimIdentity = file.Identity, TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan())), SourceOwner = file.Identity.SourceOwner ?? file.Identity.Name, SourceOffset = checked(file.Identity.SourceOffset + offset - file.Offset) };
+        }
+        if (identity is not null)
+        {
+            slot = slot with { TimIdentity = identity, TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan())), SourceOwner = identity.SourceOwner ?? identity.Name, SourceOffset = identity.SourceOffset };
+        }
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, checked(offset + current.Data.Length));
     }
 
-    public (NativeBattleEffectTextureState State, uint NextAddress) EnqueueStagingTim505E30(NativeBattleFileStaging staging, uint address)
+    public (NativeBattleEffectTextureState State, uint NextAddress) EnqueueStagingTim505E30(NativeBattleFileStaging staging, uint address, NativeBattleTextureFileIdentity? identity = null)
     {
         Validate();
         if (Count == 31)
@@ -194,7 +256,12 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             throw new NotSupportedException("Native505E30 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
         NativeBattleEffectHeapAllocation current = MaterializeStagingTim(staging, address);
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = null, StagingAddress = address, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = null, StagingAddress = address, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        slot = slot with { TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan())) };
+        if (identity is not null)
+        {
+            slot = slot with { TimIdentity = identity, TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan())), SourceOwner = identity.SourceOwner ?? identity.Name, SourceOffset = identity.SourceOffset };
+        }
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, unchecked(address + (uint)current.Data.Length));
     }
 
@@ -212,7 +279,8 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         RequireSource(current, 0, 12);
         int imageBlock = checked(8 + BlockLength(current, 8));
         int next = checked(imageBlock + BlockLength(current, imageBlock));
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = null, StagingAddress = null, ProcessAddress = address };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = null, StagingAddress = null, ProcessAddress = address, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        slot = slot with { TimSourceSha256 = Convert.ToHexString(SHA256.HashData(current.Data.AsSpan().Slice(0, next))) };
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, checked(address + (uint)next));
     }
 
@@ -223,11 +291,11 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505EB0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), Source = null, Offset = 0, ArenaOffset = null, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), Source = null, Offset = 0, ArenaOffset = null, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
-    public NativeBattleEffectTextureState EnqueueArenaRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectArena arena, int offset)
+    public NativeBattleEffectTextureState EnqueueArenaRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectArena arena, int offset, NativeBattleTextureOrigin? origin = null)
     {
         Validate();
         RequireRectangle(rectangle);
@@ -237,11 +305,28 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = offset, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = offset, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        int length = checked(2 * rectangle.Width * rectangle.Height);
+        if (origin is null && arena.CurrentTextureFiles is { } files && files.Any(file => file.Offset == offset && file.Length >= length))
+        {
+            if (arena.FindContainingTextureFile(offset, length) is { } file && file.Offset == offset)
+            {
+                origin = NativeBattleSharedEffectTexture.RawFile(file.Identity, rectangle);
+            }
+        }
+        if (origin is not null)
+        {
+            origin.Validate();
+            (byte[] bytes, bool[] known) = arena.ReadSnapshot(offset, length);
+            if (known.All(value => value))
+            {
+                slot = slot with { Origin = origin, OriginSourceSha256 = Convert.ToHexString(SHA256.HashData(bytes)) };
+            }
+        }
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
-    public NativeBattleEffectTextureState EnqueueRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectHeapAllocation source, int offset = 0)
+    public NativeBattleEffectTextureState EnqueueRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectHeapAllocation source, int offset = 0, NativeBattleTextureOrigin? origin = null)
     {
         Validate();
         RequireRectangle(rectangle);
@@ -250,7 +335,16 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Kind = 0, Source = source, Offset = offset, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Kind = 0, Source = source, Offset = offset, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
+        if (origin is null && source.TextureIdentity is { } fileIdentity && offset == 0)
+        {
+            origin = NativeBattleSharedEffectTexture.RawFile(fileIdentity, rectangle);
+        }
+        if (origin is not null)
+        {
+            origin.Validate();
+            slot = slot with { Origin = origin, OriginSourceSha256 = Convert.ToHexString(SHA256.HashData(source.Data.AsSpan().Slice(offset, checked(2 * rectangle.Width * rectangle.Height)))) };
+        }
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
@@ -263,7 +357,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null, ProcessAddress = address };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 0, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null, ProcessAddress = address, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
@@ -276,7 +370,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505E70 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 2, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = destinationOffset, StagingAddress = null, ProcessAddress = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 2, Source = null, Offset = 0, Rectangle = rectangle, ArenaOffset = destinationOffset, StagingAddress = null, ProcessAddress = null, Origin = null, OriginSourceSha256 = null, TimIdentity = null, TimSourceSha256 = null, SourceOwner = null, SourceOffset = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
@@ -288,6 +382,9 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             return new(this, []);
         }
         NativeBattleEffectArena bank = new(VramRegions);
+        ImmutableArray<NativeBattleTextureSourceRegion>? liveSources = LiveTextureSources;
+        ImmutableArray<NativeBattleTextureRegistration>? registrations = TextureRegistrations;
+        NativeBattleTextureFileContext? fileContext = TextureFileContext;
         ImmutableArray<NativeBattleEffectVramUpload>.Builder uploads = ImmutableArray.CreateBuilder<NativeBattleEffectVramUpload>();
         for (int index = 0; index < Count; index++)
         {
@@ -313,29 +410,65 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             if (pending.Kind == 0)
             {
                 NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
+                if (pending.Origin is { Role: NativeBattleTextureRole.Pixels, Kind: NativeBattleTextureSourceKind.MagMember } pixelOrigin)
+                {
+                    NativeBattleEffectTextureRectangle? palette = FollowingPaletteRectangle(index);
+                    pending = pending with { Origin = pixelOrigin with { PaletteRectangle = palette } };
+                }
+                else if (pending.Origin is { Role: NativeBattleTextureRole.Clut } paletteOrigin)
+                {
+                    pending = pending with { Origin = paletteOrigin with { PaletteRectangle = rectangle } };
+                }
                 int length = checked(2 * rectangle.Width * rectangle.Height);
+                if (pending.Origin is null && rectangle.Width > 32 && rectangle.Height > 32 && fileContext is not null)
+                {
+                    fileContext = fileContext with { NextTimMember = null };
+                }
                 if (pending.ProcessAddress is uint rectangleAddress)
                 {
                     NativeBattleScriptedEffectMemory current = scriptedSource ?? throw new NotSupportedException("Native505D20 requires the latest scripted process memory for its retained mutable rectangle pointer.");
-                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleAddress, length));
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleAddress, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
                 }
                 else if (pending.ArenaOffset is int rectangleOffset)
                 {
                     NativeBattleEffectArena current = arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable rectangle pointer.");
-                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length));
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, current.Read(rectangleOffset, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
                 }
                 else
                 {
-                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, pending.Source!.Data.AsSpan().Slice(pending.Offset, length));
+                    Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, pending.Source!.Data.AsSpan().Slice(pending.Offset, length), pending.Origin, pending.Origin?.Role == NativeBattleTextureRole.Clut);
                 }
                 continue;
             }
             NativeBattleEffectHeapAllocation source = pending.ProcessAddress is uint processAddress ? (resolveProcessTim ?? throw new NotSupportedException("Native505D20 requires the current retained process TIM owner."))(processAddress) : pending.StagingAddress is uint stagingAddress ? MaterializeStagingTim(stagingSource ?? throw new NotSupportedException("Native505D20 requires the latest shared199B018 staging for its retained mutable TIM pointer."), stagingAddress) : pending.ArenaOffset is int arenaOffset ? MaterializeArenaTim(arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable TIM pointer."), arenaOffset) : pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
+            int currentImageBlock = checked(pending.Offset + 8 + BlockLength(source, pending.Offset + 8));
+            int currentTimEnd = checked(currentImageBlock + BlockLength(source, currentImageBlock));
+            bool payloadVerified = pending.TimSourceSha256 is not null && string.Equals(pending.TimSourceSha256, Convert.ToHexString(SHA256.HashData(source.Data.AsSpan().Slice(pending.Offset, currentTimEnd - pending.Offset))), StringComparison.Ordinal);
+            if ((pending.ArenaOffset is not null || pending.StagingAddress is not null) && pending.TimIdentity is not null && payloadVerified)
+            {
+                source = source with { Identity = pending.TimIdentity.Name };
+            }
             int first = pending.Offset + 8;
-            Upload(first);
-            Upload(checked(first + BlockLength(source, first)));
+            string? sourceOwner = NamedTimOwner(source, pending.Offset, pending.TimIdentity);
+            NativeBattleTextureFileIdentity? nativeFile = fileContext?.Identity;
+            int? nativeMember = fileContext?.NextTimMember;
+            if (fileContext is not null && !IsSharedFile(fileContext.Identity) && nativeMember is int member)
+            {
+                fileContext = fileContext with { NextTimMember = checked(member + 1) };
+            }
+            if (fileContext is null && sourceOwner is not null && IsCompleteStandaloneTim(source, pending.Offset))
+            {
+                nativeFile = pending.TimIdentity;
+                nativeMember = 0;
+            }
+            bool aliasVerified = IsTimHeader(source, pending.Offset) && (payloadVerified || pending.Source is not null && sourceOwner is not null);
+            string? timOwner = aliasVerified && nativeMember is not null ? nativeFile?.Name.ToLowerInvariant() : null;
+            int depth = timOwner is null ? 0 : 4 << (BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(pending.Offset + 4)) & 7);
+            NativeBattleEffectTextureRectangle? timPalette = timOwner is null ? null : new(BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(first + 4)), BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(first + 6)), BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(first + 8)), BinaryPrimitives.ReadInt16LittleEndian(source.Data.AsSpan().Slice(first + 10)));
+            Upload(first, NativeBattleTextureRole.Clut);
+            Upload(checked(first + BlockLength(source, first)), NativeBattleTextureRole.Pixels);
 
-            void Upload(int block)
+            void Upload(int block, NativeBattleTextureRole role)
             {
                 int length = BlockLength(source, block);
                 ReadOnlySpan<byte> data = source.Data.AsSpan().Slice(block, length);
@@ -347,11 +480,16 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 {
                     throw new InvalidDataException("Native45BD30 upload leaves its source block or1024x512 word VRAM.");
                 }
-                Write(x, y, width, height, data.Slice(12, checked(2 * width * height)));
+                NativeBattleTextureOrigin? origin = timOwner is not null && width > 0 && height > 0 ? new(timOwner, nativeMember!.Value, role, depth, width, height) { Domain = nativeFile!.Domain, Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = timPalette, SourceOwner = sourceOwner is null ? null : (pending.SourceOwner ?? sourceOwner).ToLowerInvariant(), SourceOffset = sourceOwner is null ? null : pending.SourceOffset ?? pending.Offset } : null;
+                Write(x, y, width, height, data.Slice(12, checked(2 * width * height)), origin, role == NativeBattleTextureRole.Clut);
             }
 
-            void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data)
+            void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data, NativeBattleTextureOrigin? origin, bool palette)
             {
+                if (pending.Kind == 0 && origin is not null && !string.Equals(Convert.ToHexString(SHA256.HashData(data)), pending.OriginSourceSha256, StringComparison.Ordinal))
+                {
+                    origin = null;
+                }
                 ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
                 NativeBattleEffectArenaWriter writer = new(bank);
                 for (int row = 0; row < height; row++)
@@ -359,10 +497,35 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                     writer.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
                 }
                 bank = writer.Freeze();
-                uploads.Add(new(x, y, width, height, bytes));
+                liveSources = NativeBattleTextureProvenance.Overwrite(liveSources, x, y, width, height, origin);
+                if (!palette)
+                {
+                    registrations = NativeBattleTextureCopyHistory.Upload(registrations, x, y, width, height, origin);
+                }
+                uploads.Add(new(x, y, width, height, bytes) { Origin = origin });
             }
         }
-        return new(this with { Count = 0, VramRegions = bank.Regions }, uploads.ToImmutable()) { Arena = arenaSource };
+        return new(this with { Count = 0, VramRegions = bank.Regions, LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
+
+        NativeBattleEffectTextureRectangle? FollowingPaletteRectangle(int imageIndex)
+        {
+            int left = 1024;
+            int top = 512;
+            int right = 0;
+            int bottom = 0;
+            for (int next = imageIndex + 1; next < Count; next++)
+            {
+                if (Slots[next] is not { Kind: 0, Origin.Role: NativeBattleTextureRole.Clut, Rectangle: { } palette })
+                {
+                    break;
+                }
+                left = Math.Min(left, palette.X);
+                top = Math.Min(top, palette.Y);
+                right = Math.Max(right, palette.X + palette.Width);
+                bottom = Math.Max(bottom, palette.Y + palette.Height);
+            }
+            return left < right && top < bottom ? new((short)left, (short)top, (short)(right - left), (short)(bottom - top)) : null;
+        }
 
         void Copy(NativeBattleEffectVramCopy copy)
         {
@@ -398,9 +561,49 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 bytes.CopyTo(changed.AsSpan(row * bytesPerRow));
             }
             bank = writer.Freeze();
+            liveSources = NativeBattleTextureProvenance.Copy(liveSources, copy);
+            registrations = NativeBattleTextureCopyHistory.Copy(registrations, copy);
             uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, changed.ToImmutableArray()) { Copied = true });
         }
     }
+
+    private static string? NamedTimOwner(NativeBattleEffectHeapAllocation source, int offset, NativeBattleTextureFileIdentity? identity)
+    {
+        string name = source.Identity;
+        if (identity is null || !Enum.IsDefined(identity.Domain) || !string.Equals(identity.Name, name, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(name) || name.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('_' or '.' or '-')) || !IsTimHeader(source, offset))
+        {
+            return null;
+        }
+        return name.ToLowerInvariant();
+    }
+
+    private static bool IsTimHeader(NativeBattleEffectHeapAllocation source, int offset)
+    {
+        ReadOnlySpan<byte> data = source.Data.AsSpan();
+        if (offset < 0 || offset > data.Length - 20 || BinaryPrimitives.ReadUInt32LittleEndian(data[offset..]) != 0x10)
+        {
+            return false;
+        }
+        uint flags = BinaryPrimitives.ReadUInt32LittleEndian(data[(offset + 4)..]);
+        int imageBlock = checked(offset + 8 + BlockLength(source, offset + 8));
+        if ((flags & 8) == 0 || (flags & 7) > 2 || imageBlock + (long)BlockLength(source, imageBlock) > data.Length)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static bool IsCompleteStandaloneTim(NativeBattleEffectHeapAllocation source, int offset)
+    {
+        if (offset != 0)
+        {
+            return false;
+        }
+        int imageBlock = checked(8 + BlockLength(source, 8));
+        return imageBlock + (long)BlockLength(source, imageBlock) == source.Data.Length;
+    }
+
+    private static bool IsSharedFile(NativeBattleTextureFileIdentity identity) => identity.Domain == NativeBattleTextureDomain.Battle && identity.Name.Equals("a8def.tim", StringComparison.OrdinalIgnoreCase);
 
     public byte[] ReadVram()
     {

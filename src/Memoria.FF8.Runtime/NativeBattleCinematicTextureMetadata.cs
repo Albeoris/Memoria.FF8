@@ -3,7 +3,10 @@ using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCinematicTextureSelection(uint RectangleAddress, NativeBattleEffectTextureRectangle Rectangle, uint SourceAddress, byte SourceMapByte, uint? TexturePage);
+public sealed record NativeBattleCinematicTextureSelection(uint RectangleAddress, NativeBattleEffectTextureRectangle Rectangle, uint SourceAddress, byte SourceMapByte, uint? TexturePage)
+{
+    public NativeBattleTextureOrigin? Origin { get; init; }
+}
 
 /// <summary>Shared texture helpers resolve actual current file pointers, including streamed aliases.</summary>
 public static class NativeBattleCinematicTextureMetadata
@@ -22,7 +25,7 @@ public static class NativeBattleCinematicTextureMetadata
 
     public static NativeBattleEffectTextureState Enqueue505DF0(NativeBattleEffectTextureState textures, NativeBattleWaterExecutionFrame frame, NativeBattleCinematicTextureSelection selection)
     {
-        return textures.EnqueueArenaRectangle505DF0(selection.Rectangle, frame.Arena, ArenaOffset(selection.SourceAddress, 0));
+        return textures.EnqueueArenaRectangle505DF0(selection.Rectangle, frame.Arena, ArenaOffset(selection.SourceAddress, 0), selection.Origin);
     }
 
     private static NativeBattleCinematicTextureSelection Resolve(NativeBattleWaterExecutionFrame frame, INativeBattleScriptedTextureProfile profile, int index, bool clut)
@@ -44,7 +47,8 @@ public static class NativeBattleCinematicTextureMetadata
         uint directory = unchecked(file + ArenaDword(unchecked(file + (clut ? 8u : 0x14u))));
         uint relative = ArenaDword(unchecked(directory + (uint)index * 4));
         uint source = unchecked(directory + (clut ? relative : relative & 0xFFFFFF));
-        return new(rectangleAddress, rectangle, source, map, null);
+        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{profile.Effect:000}_b.{sourceIndex:00}", index, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(index), rectangle.Width, rectangle.Height) : null;
+        return new(rectangleAddress, rectangle, source, map, null) { Origin = origin };
 
         uint Directory(uint managerOffset, int descriptorOffset)
         {

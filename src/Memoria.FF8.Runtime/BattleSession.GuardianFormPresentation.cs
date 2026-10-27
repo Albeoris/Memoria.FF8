@@ -269,7 +269,8 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectInitializerAsset common = definition.NativeCommonEffectTexture ?? throw new NotSupportedException("GF presentation cleanup requires the common battle texture resource.");
             NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("GF presentation cleanup requires the retained texture upload owner.");
-            (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data));
+            textures = textures.OpenTextureFile(NativeBattleSharedEffectTexture.File);
+            (textures, _) = textures.EnqueueTim505E30(new(common.Name, common.Data), identity: NativeBattleSharedEffectTexture.File);
             NativeEffectMemory = memory with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null, Active = 0, Cinematic = null, Textures = textures };
         }
         events.Add(new(Frame, "NativeSoundStopAll", null, null, 0, "GF presentation releases its sound voices.") { NativeStopAllSounds = true });

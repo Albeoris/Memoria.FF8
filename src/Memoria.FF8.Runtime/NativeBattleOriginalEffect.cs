@@ -140,7 +140,7 @@ public static class NativeBattleOriginalEffects
         for (int index = 0; index < resources.Length; index++)
         {
             int offset = memory.Cursor;
-            memory = memory.LoadIntoArena(assets[index].Data.AsSpan());
+            memory = memory.LoadIntoArena(assets[index].Data.AsSpan(), new(assets[index].Name, NativeBattleTextureDomain.Magic));
             pointers.Add(new(resources[index].GlobalAddress, offset));
         }
         if (pointers.Count > 0)
@@ -174,7 +174,7 @@ public static class NativeBattleOriginalEffects
         for (int index = 0; index < tims.Length; index++)
         {
             int offset = memory.Cursor;
-            memory = memory.LoadIntoArena(tims[index].Data.AsSpan());
+            memory = memory.LoadIntoArena(tims[index].Data.AsSpan(), new(tims[index].Name, NativeBattleTextureDomain.Magic));
             pointers.Add(new(publications[index], offset));
         }
         selected = selected with { ResourcePointers = pointers.MoveToImmutable() };

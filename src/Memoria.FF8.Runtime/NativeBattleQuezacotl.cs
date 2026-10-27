@@ -34,7 +34,7 @@ public static class NativeBattleQuezacotl
         memory = memory.BeginLoad(effect.SelectedIndex);
         NativeBattleEffectIoState io = memory.EffectIo ?? throw new NotSupportedException("Native6C3560 requires its retained original effect IO callback owner.");
         int start = memory.Cursor;
-        memory = memory.LoadIntoArena(resources.Initializer.Data.AsSpan());
+        memory = memory.LoadIntoArena(resources.Initializer.Data.AsSpan(), new(resources.Initializer.Name, NativeBattleTextureDomain.Magic));
         memory = memory with { EffectIo = io with { Callback = 0x6C3580 } };
         return (memory, effect with { ResourcePointers = [new(0x25216D8, start)] });
     }

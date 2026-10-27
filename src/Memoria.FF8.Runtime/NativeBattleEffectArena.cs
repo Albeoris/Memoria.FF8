@@ -53,6 +53,7 @@ public sealed partial record NativeBattleEffectArena([property: JsonRequired] Im
             end = region.Offset + region.Length;
         }
         ValidateResourcePointerStorage();
+        ValidateTextureFiles();
     }
 
     public byte[] Read(int offset, int count)

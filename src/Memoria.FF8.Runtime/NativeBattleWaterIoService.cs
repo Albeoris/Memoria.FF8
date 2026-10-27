@@ -29,7 +29,8 @@ public static class NativeBattleWaterIoService
             throw new NotSupportedException("Native Water delivery leaves its current allocated arena prefix.");
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Water delivery requires its actual current resource arena.");
-        NativeBattleEffectMemory delivered = memory with { Arena = arena.Write((int)offset, file.Bytes.AsSpan()) };
+        arena = arena.Write((int)offset, file.Bytes.AsSpan()).RememberTextureFile((int)offset, file.Bytes.AsSpan(), new(file.Name, NativeBattleTextureDomain.Battle));
+        NativeBattleEffectMemory delivered = memory with { Arena = arena, Textures = memory.Textures?.OpenTextureFile(new(file.Name, NativeBattleTextureDomain.Battle)) };
         return new(delivered, fileIo.Queue482610(file.Bytes.Length, request.CompletionCallback, outerBattlePhase));
     }
 }

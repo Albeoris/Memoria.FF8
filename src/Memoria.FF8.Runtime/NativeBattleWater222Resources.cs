@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleWater222Profile([property: JsonRequired] NativeBattleEffectHeapAllocation Tables, [property: JsonRequired] NativeBattleEffectHeapAllocation InitializationDirectory, [property: JsonRequired] NativeBattleEffectHeapAllocation OwnerDirectory) : INativeBattleScriptedTextureProfile
 {
+    int INativeBattleScriptedTextureProfile.Effect => 222;
     int INativeBattleScriptedTextureProfile.TextureCount => 5;
     uint INativeBattleScriptedTextureProfile.InitializationAddress => 0x186C84C;
     uint INativeBattleScriptedTextureProfile.OwnerDirectoryAddress => 0x186C944;
@@ -68,6 +69,12 @@ public sealed record NativeBattleWater222Profile([property: JsonRequired] Native
         return BinaryPrimitives.ReadUInt32LittleEndian(InitializationDirectory.Data.AsSpan().Slice(byteOffset));
     }
 
+    public int BitsPerPixel(int index)
+    {
+        Rectangle(index, false);
+        return (Tables.Data[80 + index] & 0x80) != 0 ? 8 : 4;
+    }
+
     public uint OwnerAddress(int index)
     {
         Validate();
@@ -96,7 +103,10 @@ public sealed record NativeBattleWater222Resources([property: JsonRequired] Immu
     }
 }
 
-public sealed record NativeBattleWater222UploadPlan(int SourceIndex, int Offset, NativeBattleEffectTextureRectangle Rectangle);
+public sealed record NativeBattleWater222UploadPlan(int SourceIndex, int Offset, NativeBattleEffectTextureRectangle Rectangle)
+{
+    public NativeBattleTextureOrigin? Origin { get; init; }
+}
 public sealed record NativeBattleWater222TextureStep(byte Count, uint InstructionPointer, bool Yield, ushort? Wait, ImmutableArray<NativeBattleWater222UploadPlan> Uploads);
 
 public static class NativeBattleWater222TexturePair
@@ -144,10 +154,11 @@ public static class NativeBattleWater222TexturePair
         {
             throw new InvalidDataException("Native Water transfer leaves its current source file.");
         }
-        return new(source, checked((int)offset), rectangle);
+        NativeBattleTextureOrigin? origin = rectangle.Width > 0 && rectangle.Height > 0 ? new($"mag{profile.Effect:000}_b.{source:00}", textureIndex, clut ? NativeBattleTextureRole.Clut : NativeBattleTextureRole.Pixels, profile.BitsPerPixel(textureIndex), rectangle.Width, rectangle.Height) : null;
+        return new(source, checked((int)offset), rectangle) { Origin = origin };
     }
 
-    public static NativeBattleEffectTextureState Enqueue505DF0(NativeBattleEffectTextureState textures, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWater222UploadPlan plan) => textures.EnqueueRectangle505DF0(plan.Rectangle, currentFiles[plan.SourceIndex], plan.Offset);
+    public static NativeBattleEffectTextureState Enqueue505DF0(NativeBattleEffectTextureState textures, ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles, NativeBattleWater222UploadPlan plan) => textures.EnqueueRectangle505DF0(plan.Rectangle, currentFiles[plan.SourceIndex], plan.Offset, plan.Origin);
 
     private static uint Dword(ImmutableArray<byte> bytes, int offset)
     {

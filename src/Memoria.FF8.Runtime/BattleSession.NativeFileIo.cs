@@ -194,9 +194,12 @@ public sealed partial class BattleSession
     {
         NativeBattleEffectFileAsset file = (effect.Binding.NativeQuezacotlResources ?? throw new NotSupportedException("Native6C3940 requires its original battle archive stream resources.")).Files.Single(file => file.FileId == request.FileId);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl file request requires its current effect memory.");
+        NativeBattleTextureFileIdentity identity = new(file.Name, NativeBattleTextureDomain.Battle);
+        memory = memory with { Textures = memory.Textures?.OpenTextureFile(identity) };
         if (request.DestinationAddress is >= 0x20DFAB8 and < 0x21DFAB8)
         {
-            NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl file request requires its actual effect arena.")).Write(checked((int)(request.DestinationAddress - 0x20DFAB8)), file.Data.AsSpan()) };
+            int offset = checked((int)(request.DestinationAddress - 0x20DFAB8));
+            NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl file request requires its actual effect arena.")).Write(offset, file.Data.AsSpan()).RememberTextureFile(offset, file.Data.AsSpan(), identity) };
         }
         else if (request.DestinationAddress >= NativeBattleQuezacotlExecutableMemory.Address && request.DestinationAddress < NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length)
         {

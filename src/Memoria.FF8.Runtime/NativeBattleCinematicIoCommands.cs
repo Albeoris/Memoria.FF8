@@ -94,6 +94,7 @@ public static class NativeBattleCinematicIoCommands
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native cinematic delivery requires its current effect arena.");
         int offset = ArenaOffset(request.DestinationAddress, file.Bytes.Length);
-        return new(memory with { Arena = arena.Write(offset, file.Bytes.AsSpan()) }, fileIo.Queue482610(file.Bytes.Length, request.CompletionCallback, null));
+        arena = arena.Write(offset, file.Bytes.AsSpan()).RememberTextureFile(offset, file.Bytes.AsSpan(), new(file.Name, NativeBattleTextureDomain.Battle));
+        return new(memory with { Arena = arena, Textures = memory.Textures?.OpenTextureFile(new(file.Name, NativeBattleTextureDomain.Battle)) }, fileIo.Queue482610(file.Bytes.Length, request.CompletionCallback, null));
     }
 }

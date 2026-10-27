@@ -150,6 +150,8 @@ internal static class NativeBattleProfiledIoCore
         {
             throw new InvalidDataException("Native file input must match its actual script ID and contain its supplied file bytes.");
         }
+        NativeBattleTextureFileIdentity identity = new(file.Name, NativeBattleTextureDomain.Battle);
+        memory = memory with { Textures = memory.Textures?.OpenTextureFile(identity) };
         if (request.Opcode == 1 || IsStream(profile, request.Opcode))
         {
             if (file.Data.Length > BufferLength)
@@ -157,7 +159,8 @@ internal static class NativeBattleProfiledIoCore
                 throw new NotSupportedException("Native TIM file input exceeds its actual allocated buffer owner.");
             }
             NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native TIM file copy requires its actual allocated arena.");
-            memory = memory with { Arena = arena.Write(checked((int)(request.DestinationAddress - ArenaAddress)), file.Data.AsSpan()) };
+            int offset = checked((int)(request.DestinationAddress - ArenaAddress));
+            memory = memory with { Arena = arena.Write(offset, file.Data.AsSpan()).RememberTextureFile(offset, file.Data.AsSpan(), identity) };
         }
         else
         {

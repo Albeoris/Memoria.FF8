@@ -15,6 +15,8 @@ internal sealed class NativeBattleEffectArenaWriter
     private readonly NativeBattleEffectArena source;
     internal ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; private set; }
     private ImmutableDictionary<int, NativeBattleResourcePointer?>? checkpointResourcePointers;
+    internal ImmutableArray<NativeBattleTextureFileSource>? TextureFiles { get; private set; }
+    private ImmutableArray<NativeBattleTextureFileSource>? checkpointTextureFiles;
     private readonly List<Region> regions;
     private readonly List<NativeBattleEffectUnknownRegion> unknown;
     private readonly List<(int Offset, byte[] Data)> writes = [];
@@ -30,6 +32,7 @@ internal sealed class NativeBattleEffectArenaWriter
         source.Validate();
         this.source = source;
         ResourcePointers = source.ResourcePointers;
+        TextureFiles = source.CurrentTextureFiles;
         if (transaction is not null)
         {
             regions = [];
@@ -214,8 +217,10 @@ internal sealed class NativeBattleEffectArenaWriter
             }
             result.Add(new(region.Offset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
         }
-        return new(result.MoveToImmutable()) { UnknownRegions = unknown.ToImmutableArray(), ResourcePointers = ResourcePointers };
+        return new(result.MoveToImmutable()) { UnknownRegions = unknown.ToImmutableArray(), ResourcePointers = ResourcePointers, TextureFiles = TextureFiles };
     }
+
+    internal void SetTextureFiles(ImmutableArray<NativeBattleTextureFileSource> files) => TextureFiles = files;
 
     internal void SetResourcePointer(int offset, NativeBattleResourcePointer? pointer)
     {
@@ -327,6 +332,7 @@ internal sealed class NativeBattleEffectArenaWriter
             throw new InvalidOperationException("Arena callback checkpoints cannot be nested.");
         }
         checkpointResourcePointers = ResourcePointers;
+        checkpointTextureFiles = TextureFiles;
         checkpointRegions = regions.ToArray();
         checkpointUnknown = unknown.ToArray();
     }
@@ -345,6 +351,7 @@ internal sealed class NativeBattleEffectArenaWriter
             throw new InvalidOperationException("Arena callback rollback requires its active checkpoint.");
         }
         ResourcePointers = checkpointResourcePointers;
+        TextureFiles = checkpointTextureFiles;
         for (int index = undo.Count - 1; index >= 0; index--)
         {
             var write = undo[index];

@@ -19,6 +19,8 @@ internal sealed class NativeBattleEffectArenaTransaction : IDisposable
 
     public NativeBattleEffectArena View { get; }
     internal System.Collections.Immutable.ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers => writer.ResourcePointers;
+    internal System.Collections.Immutable.ImmutableArray<NativeBattleTextureFileSource>? TextureFiles => writer.TextureFiles;
+    internal void SetTextureFiles(System.Collections.Immutable.ImmutableArray<NativeBattleTextureFileSource> files) => writer.SetTextureFiles(files);
 
     internal void SetResourcePointer(int offset, NativeBattleResourcePointer? pointer) => writer.SetResourcePointer(offset, pointer);
 

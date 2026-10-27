@@ -18,6 +18,7 @@ public sealed partial record NativeBattleEffectMemory
             throw new NotSupportedException("Native5718E0 has exhausted its256 physical heap allocation slots.");
         }
         int index = AllocationCount;
-        return new(this with { Allocations = Allocations.SetItem(index, asset), AllocationCount = index + 1 }, index);
+        NativeBattleEffectHeapAllocation loaded = asset with { TextureIdentity = new(asset.Identity, NativeBattleTextureDomain.Magic) };
+        return new(this with { Allocations = Allocations.SetItem(index, loaded), AllocationCount = index + 1, Textures = Textures?.OpenTextureFile(loaded.TextureIdentity) }, index);
     }
 }

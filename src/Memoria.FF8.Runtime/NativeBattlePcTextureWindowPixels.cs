@@ -9,13 +9,29 @@ namespace Memoria.FF8.Runtime;
 /// <summary>The original indexed/direct texture words retained by a cached PC region before VRAM invalidation.</summary>
 public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] int X, [property: JsonRequired] int Y, [property: JsonRequired] int Width, [property: JsonRequired] int Height, [property: JsonRequired] ImmutableArray<byte> Data)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleTextureSourceRegion>? LiveTextureSources { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeBattleTextureRegistration>? TextureRegistrations { get; init; }
     private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, ConcurrentDictionary<(int Row, NativeBattlePrimitiveTextureWindow Rectangle), NativeBattlePcTextureWindowPixels>> Captures = new();
 
     public void Validate()
     {
+        NativeBattleTextureCopyHistory.Validate(TextureRegistrations);
         if (X is < 0 or >= 1024 || Y is < 0 or >= 512 || Width is < 1 or > 256 || Height is < 1 or > 256 || Y + Height > 512 || 2 * ((Y + Height - 1) * 1024 + X + Width) > NativeBattleEffectArena.Length + NativeBattleEffectTextureState.PcPageReadTailLength || Data.IsDefault || Data.Length != 2 * Width * Height)
         {
             throw new InvalidDataException("Native cached texture words require their exact bounded physical VRAM rectangle and bytes.");
+        }
+        if (LiveTextureSources is { } sources)
+        {
+            if (sources.IsDefault)
+            {
+                throw new InvalidDataException("Native cached texture provenance requires explicit retained source regions.");
+            }
+            foreach (NativeBattleTextureSourceRegion source in sources)
+            {
+                source.Validate();
+            }
         }
     }
 
@@ -73,7 +89,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
                 tail.AsSpan().Slice(address + known - NativeBattleEffectArena.Length, count - known).CopyTo(data.AsSpan(2 * line * width + known));
             }
         }
-        NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, data.ToImmutableArray());
+        NativeBattlePcTextureWindowPixels result = new(x, y, width, rectangle.Height, data.ToImmutableArray()) { LiveTextureSources = textures.LiveTextureSources, TextureRegistrations = textures.TextureRegistrations };
         result.Validate();
         return result;
     }

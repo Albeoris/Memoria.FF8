@@ -4,7 +4,11 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A571900 heap allocation has a logical identity, not a portable native heap pointer.</summary>
-public sealed record NativeBattleEffectHeapAllocation([property: JsonRequired] string Identity, [property: JsonRequired] ImmutableArray<byte> Data);
+public sealed record NativeBattleEffectHeapAllocation([property: JsonRequired] string Identity, [property: JsonRequired] ImmutableArray<byte> Data)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleTextureFileIdentity? TextureIdentity { get; init; }
+}
 
 /// <summary>Process-retained571870 allocator and501230 publication fields. Only571870 proves the arena clear.</summary>
 public sealed partial record NativeBattleEffectMemory([property: JsonRequired] NativeBattleEffectArena? Arena, [property: JsonRequired] int Cursor, [property: JsonRequired] int AllocationCount, [property: JsonRequired] ImmutableArray<NativeBattleEffectHeapAllocation?> Allocations, [property: JsonRequired] int Active, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] uint SoundPendingFlags, [property: JsonRequired] uint SoundPublishedFlags)
@@ -355,14 +359,19 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         {
             allocations = allocations.SetItem(index, null);
         }
-        return this with { Arena = NativeBattleEffectArena.Clear(), Cursor = 0, AllocationCount = 0, Allocations = allocations, Active = 1, SelectedIndex = selectedIndex, EffectIo = EffectIo is { } io ? io with { Callback = 0x534150 } : null };
+        return this with { Arena = NativeBattleEffectArena.Clear(), Cursor = 0, AllocationCount = 0, Allocations = allocations, Active = 1, SelectedIndex = selectedIndex, EffectIo = EffectIo is { } io ? io with { Callback = 0x534150 } : null, Textures = Textures?.OpenTextureFile(null) };
     }
 
-    public NativeBattleEffectMemory LoadIntoArena(ReadOnlySpan<byte> bytes)
+    public NativeBattleEffectMemory LoadIntoArena(ReadOnlySpan<byte> bytes, NativeBattleTextureFileIdentity? identity = null)
     {
         Validate();
         NativeBattleEffectArena arena = Arena ?? throw new InvalidDataException("Native571B80 requires the arena established by571870.");
-        return this with { Arena = arena.Write(Cursor, bytes), Cursor = checked(Cursor + bytes.Length) };
+        arena = arena.Write(Cursor, bytes);
+        if (identity is not null)
+        {
+            arena = arena.RememberTextureFile(Cursor, bytes, identity);
+        }
+        return this with { Arena = arena, Cursor = checked(Cursor + bytes.Length), Textures = Textures?.OpenTextureFile(identity) };
     }
 
     public NativeBattleEffectMemory PublishSound()

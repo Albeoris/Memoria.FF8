@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 
 public interface INativeBattleScriptedTextureProfile
 {
+    int Effect { get; }
     int TextureCount { get; }
     uint InitializationAddress { get; }
     uint OwnerDirectoryAddress { get; }
@@ -14,6 +15,7 @@ public interface INativeBattleScriptedTextureProfile
     uint InitializationOffset(int byteOffset);
     NativeBattleEffectTextureRectangle Rectangle(int index, bool clut);
     byte Source(int index, bool clut);
+    int BitsPerPixel(int index);
 }
 
 public sealed record NativeBattleCinematicTextureProfile([property: JsonRequired] int Count, [property: JsonRequired] uint InitializationAddress, [property: JsonRequired] uint OwnerDirectoryAddress, [property: JsonRequired] uint PixelRectangleAddress, [property: JsonRequired] uint ClutRectangleAddress, [property: JsonRequired] uint PixelSourceMapAddress, [property: JsonRequired] uint ClutSourceMapAddress);
@@ -26,6 +28,7 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
     public ImmutableArray<NativeBattleArchiveFile> Files { get; init; } = [];
 
     int INativeBattleScriptedTextureProfile.TextureCount => TextureProfile.Count;
+    int INativeBattleScriptedTextureProfile.Effect => NativeBattleCinematicProfile.ForInitializationAddress(TextureProfile.InitializationAddress).Effect;
     uint INativeBattleScriptedTextureProfile.InitializationAddress => TextureProfile.InitializationAddress;
     uint INativeBattleScriptedTextureProfile.OwnerDirectoryAddress => TextureProfile.OwnerDirectoryAddress;
 
@@ -108,6 +111,12 @@ public sealed record NativeBattleCinematicResources([property: JsonRequired] uin
         RequireIndex(index);
         byte source = ReadStatic(checked((clut ? TextureProfile.ClutSourceMapAddress : TextureProfile.PixelSourceMapAddress) + (uint)index), 1)[0];
         return clut ? source : (byte)(source & 0x7F);
+    }
+
+    public int BitsPerPixel(int index)
+    {
+        RequireIndex(index);
+        return (ReadStatic(checked(TextureProfile.PixelSourceMapAddress + (uint)index), 1)[0] & 0x80) != 0 ? 8 : 4;
     }
 
     private void RequireIndex(int index)
