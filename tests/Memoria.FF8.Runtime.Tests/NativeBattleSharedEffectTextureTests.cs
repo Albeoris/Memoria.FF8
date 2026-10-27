@@ -27,7 +27,7 @@ public sealed class NativeBattleSharedEffectTextureTests
         }
         NativeBattleTextureSourceRegion palette = Assert.Single(drain.State.LiveTextureSources.Value.Where(source => source.Origin.Role == NativeBattleTextureRole.Clut));
         Assert.Equal("a8def.tim", palette.Origin.Owner);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(drain.State))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drain.State)))!);
         restored.Validate();
         Assert.Equal(drain.State.LiveTextureSources.Value, restored.LiveTextureSources!.Value);
     }
@@ -39,9 +39,10 @@ public sealed class NativeBattleSharedEffectTextureTests
         uint address = NativeBattleFileStaging.Address + 0xA00;
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, tim.Data.AsSpan());
         NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueStagingTim505E30(staging, address, NativeBattleSharedEffectTexture.File).State;
+        NativeBattleEffectTextureState initialQueued = NativeBattleStorageSnapshots.Capture(queued);
         Assert.Equal(3, queued.Drain505D20(stagingSource: staging).State.LiveTextureSources!.Value.Count(source => source.Origin.Kind == NativeBattleTextureSourceKind.Image));
         NativeBattleFileStaging changed = staging.Write(address + (uint)tim.Data.Length - 2, [1, 2]);
-        Assert.Null(queued.Drain505D20(stagingSource: changed).State.LiveTextureSources);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(initialQueued).Drain505D20(stagingSource: changed).State.LiveTextureSources);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(512, tim.Data.AsSpan());
         queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaTim505E30(arena, 512, NativeBattleSharedEffectTexture.File).State;
         Assert.Equal(3, queued.Drain505D20(arena).State.LiveTextureSources!.Value.Count(source => source.Origin.Kind == NativeBattleTextureSourceKind.Image));
@@ -84,12 +85,13 @@ public sealed class NativeBattleSharedEffectTextureTests
         byte[] bytes = new byte[64];
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(128, bytes).RememberTextureFile(128, bytes, new("MAG123_B.00", NativeBattleTextureDomain.Battle));
         NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(64, 256, 4, 4), arena, 128);
+        NativeBattleEffectTextureState initialQueued = NativeBattleStorageSnapshots.Capture(queued);
         NativeBattleEffectTextureDrain drain = queued.Drain505D20(arena);
         Assert.Equal("mag123_b.00", drain.Uploads.Single().Origin!.Owner);
         Assert.Equal(NativeBattleTextureSourceKind.Image, drain.Uploads.Single().Origin!.Kind);
         Assert.Equal(8, drain.Uploads.Single().Origin!.BitsPerPixel);
         Assert.Null(NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(64, 256, 4, 4), arena, 130).Drain505D20(arena).Uploads.Single().Origin);
-        Assert.Null(queued.Drain505D20(arena.Write(128, [1, 2])).Uploads.Single().Origin);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(initialQueued).Drain505D20(arena.Write(128, [1, 2])).Uploads.Single().Origin);
         NativeBattleEffectTextureState copied = drain.State.EnqueueCopy505EB0(64, 256, 4, 4, 128, 256).Drain505D20().State;
         NativeBattlePcTextureWindowPixels retained = NativeBattlePcTextureWindowPixels.Capture(50, new(0, 0, 8, 4), copied);
         Assert.Contains(retained.LiveTextureSources!.Value, source => source.X == 128 && source.Origin.Owner == "mag123_b.00");

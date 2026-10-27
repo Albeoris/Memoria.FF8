@@ -83,8 +83,17 @@ public sealed class BattleScenePresentationTests
         Assert.NotEmpty(scene.Render(session, 320, 240));
         BattleSnapshot snapshot = session.Capture();
         BattleSnapshot activated = snapshot with { Combatants = snapshot.Combatants.Select(actor => actor.Id == "reserve" ? actor with { NativeParticipant = actor.NativeParticipant! with { Active = true, ActorIndex = 4, NativeCombatantFlags = actor.NativeParticipant.NativeCombatantFlags!.Value | 1 } } : actor).ToArray() };
-        Assert.Throws<NotSupportedException>(() => scene.Render(BattleSession.Restore(activated), 320, 240));
+        BattleSession restored = BattleSession.Restore(activated);
+        Assert.True(restored.Combatants.Single(actor => actor.Id == "reserve").IsActive);
+        Assert.Empty(assets.LoadEnemy(127).Meshes);
+        Assert.NotEmpty(scene.Render(restored, 320, 240));
         Assert.False(session.Combatants.Single(actor => actor.Id == "reserve").IsActive);
+
+        BattleDefinition unsupportedAttachment = definition with { Combatants = definition.Combatants.Select(actor => actor.Id == "reserve" ? actor with { WeaponId = 0 } : actor).ToArray() };
+        BattleScenePresentation deferred = new(assets, unsupportedAttachment, false);
+        Assert.NotEmpty(deferred.Render(new BattleSession(unsupportedAttachment, BattleAtbMode.TurnBased), 320, 240));
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => deferred.Render(BattleSession.Restore(activated with { Definition = unsupportedAttachment }), 320, 240));
+        Assert.Contains("Enemy weapon replacement", error.Message);
     }
 
     [Fact]

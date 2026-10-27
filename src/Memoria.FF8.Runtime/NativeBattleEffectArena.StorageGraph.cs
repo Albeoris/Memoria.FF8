@@ -13,7 +13,7 @@ public partial record NativeBattleEffectArena
         {
             throw new InvalidOperationException("Storage references require detached arena snapshots.");
         }
-        NativeBattleEffectArenaSnapshot result = this is NativeBattleEffectArenaSnapshot existing ? existing with { } : new(initialRegions, initialUnknown, initialPointers, bound);
+        NativeBattleEffectArenaSnapshot result = this is NativeBattleEffectArenaSnapshot existing ? existing with { } : new(initialRegions, initialUnknown, initialPointers, bound) { TextureFiles = initialTextureFiles };
         result.StorageReference = reference;
         return result;
     }
