@@ -8,6 +8,8 @@ Use PowerShell 7 and the .NET 10 SDK pinned by `global.json`. Complete self-cont
 
 Game hosts also build the standalone PSF codec with CMake 3.20+ and a native C compiler (Visual Studio C++ tools on Windows). Its GPL source, build recipe and notices ship beside every host in `licenses/psf-decoder-source/`; no BIOS is bundled. For a cross-publish, supply a target-native codec directory through `MEMORIA_FF8_PSF_DECODER_DIRECTORY`; the publisher validates its target ABI. Otherwise build on the target OS. Ordinary C# audio-library and launcher-only builds do not require this codec build.
 
+The codec's incremental CMake build lives under `artifacts/native/psf/<key>`, keyed by host project and target runtime. Override it with the MSBuild property `MemoriaPsfBuildDirectory` when needed; choose a directory outside the system temporary directory to avoid Visual C++ warning MSB8029.
+
 ```powershell
 ./Build.ps1
 ./Build.ps1 -RuntimeIdentifier linux-x64
