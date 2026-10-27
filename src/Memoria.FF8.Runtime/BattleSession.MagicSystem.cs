@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     private NativeCharacterVitals? magicVitals;
     public NativeCharacterVitals? MagicVitals => magicVitals?.DeepCopy();
     public bool InfiniteMagic => magicVitals?.MagicSystem.InfiniteMagic == true && !UnlimitedMagic;
-    public bool UnlimitedMagic => magicVitals?.MagicSystem.UnlimitedMagic == true;
+    public bool UnlimitedMagic => magicVitals?.MagicSystem.UnlimitedMagic ?? definition.Tuning.UnlimitedMagic;
     public int? GetMagicJunctionOwner(string actorId, int spellId)
     {
         if (magicVitals is null)
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             return MagicCastingService.Quote(magicVitals, row, spellId, MagicCastContext.Battle);
         }
         int stock = actor.MagicStocks.FirstOrDefault(stock => stock.Id == spellId)?.Count ?? 0;
-        return new(stock, stock, stock > 0);
+        return new(actor.IsPlayer && UnlimitedMagic && stock > 0 ? int.MaxValue : stock, stock, stock > 0);
     }
 
     public int GetAvailableMagicCasts(string actorId, int spellId, string? actionId = null)

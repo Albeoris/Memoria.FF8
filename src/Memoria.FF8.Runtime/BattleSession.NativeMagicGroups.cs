@@ -126,14 +126,14 @@ public sealed partial class BattleSession
                 CompleteGuardianForceAffinity(actor, cast);
                 continue;
             }
-            if (!singleCost && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
+            if (!singleCost && !(actor.IsPlayer && UnlimitedMagic) && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
             {
                 break;
             }
             CompleteGuardianForceAffinity(actor, cast);
         }
         ReleaseMagicReservation(command.MagicReservationId);
-        if (command.MagicReservationId is null && singleCost && completed != 0)
+        if (command.MagicReservationId is null && singleCost && completed != 0 && !(actor.IsPlayer && UnlimitedMagic))
         {
             actor.TryConsumeMagic(command.ActionId);
         }

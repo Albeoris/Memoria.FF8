@@ -83,7 +83,7 @@ public sealed partial class BattleSession
             }
             else
             {
-                continueAffinity = actor.TryConsumeMagic(spell) && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
+                continueAffinity = UnlimitedMagic || actor.TryConsumeMagic(spell) && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
             }
         }
         ReprojectNativePlayerStatistics(actor);

@@ -184,7 +184,7 @@ public sealed partial class BattleSession
         for (int cast = 0; cast < casts; cast++)
         {
             powers[cast] = cast == 0 || actor.NativePlayerStatRules is null || actor.NativeGrowth is null ? actor.Magic : actor.NativePlayerStatRules.Project(stocks, actor.NativeGrowth).Magic;
-            if ((magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && MagicCost(actor, casts) > 1)
+            if (!UnlimitedMagic && magicVitals?.MagicSystem.InfiniteMagic != true && MagicCost(actor, casts) > 1)
             {
                 int index = stocks.FindIndex(stock => stock.SpellId == native.ActionId);
                 if (index >= 0)

@@ -497,6 +497,7 @@ internal sealed partial class RecreateGame
             LimitOncePerTurn = ReadCurrentUiPreferences().LimitOncePerTurn,
             SelphieCardSlots = ReadCurrentUiPreferences().SelphieCardSlots,
             DrawOncePerSpell = ReadCurrentUiPreferences().DrawOncePerSpell,
+            Tuning = world?.ReadGameplayTuning() ?? (resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty).Apply(session.State.GameplayPreferences.Tuning),
             GuardianFormsEnabled = ReadCurrentUiPreferences().GuardianFormsEnabled,
             GuardianFormResources = ReadCurrentUiPreferences().GuardianFormsEnabled ? [PresentationBattleResources.ReadIfritGuardianFormResources()] : []
         };
