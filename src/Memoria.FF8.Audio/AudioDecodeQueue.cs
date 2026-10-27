@@ -43,7 +43,8 @@ public sealed class AudioDecodeQueue : IDisposable
         }
     }
 
-    public void Queue<T>(object owner, Func<CancellationToken, Task<T>> decode, Action<T> apply, Action<Exception>? failed = null)
+    /// <summary>Transfers a decoded result when apply succeeds; discard releases results abandoned by cancellation, replacement, shutdown or a failed apply.</summary>
+    public void Queue<T>(object owner, Func<CancellationToken, Task<T>> decode, Action<T> apply, Action<Exception>? failed = null, Action<T>? discard = null)
     {
         lock (gate)
         {
@@ -56,8 +57,13 @@ public sealed class AudioDecodeQueue : IDisposable
             Job job = new(owner, CancellationTokenSource.CreateLinkedTokenSource(stopping.Token), async token =>
             {
                 T result = await decode(token).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                return () => apply(result);
+                var decoded = new Decoded(() => apply(result), () => discard?.Invoke(result));
+                if (token.IsCancellationRequested)
+                {
+                    decoded.Discard();
+                    token.ThrowIfCancellationRequested();
+                }
+                return decoded;
             }, failed ?? report);
             pending.Add(owner, job);
             if (!requests.Writer.TryWrite(job))
@@ -79,7 +85,10 @@ public sealed class AudioDecodeQueue : IDisposable
     {
         lock (gate)
         {
-            completions.Remove(owner);
+            if (completions.Remove(owner, out Completion? completion))
+            {
+                completion.Result?.Discard();
+            }
             if (pending.Remove(owner, out Job? job))
             {
                 job.Cancel();
@@ -96,6 +105,10 @@ public sealed class AudioDecodeQueue : IDisposable
                 job.Cancel();
             }
             pending.Clear();
+            foreach (Completion completion in completions.Values)
+            {
+                completion.Result?.Discard();
+            }
             completions.Clear();
         }
     }
@@ -123,10 +136,11 @@ public sealed class AudioDecodeQueue : IDisposable
             }
             try
             {
-                completion.Apply!();
+                completion.Result!.Apply();
             }
             catch (Exception exception)
             {
+                completion.Result?.Discard();
                 completion.Job.Failed(exception);
             }
         }
@@ -141,8 +155,8 @@ public sealed class AudioDecodeQueue : IDisposable
                 try
                 {
                     job.Token.ThrowIfCancellationRequested();
-                    Action apply = await job.Decode(job.Token).ConfigureAwait(false);
-                    Complete(new Completion(job, apply, null));
+                    Decoded result = await job.Decode(job.Token).ConfigureAwait(false);
+                    Complete(new Completion(job, result, null));
                 }
                 catch (Exception exception)
                 {
@@ -174,6 +188,10 @@ public sealed class AudioDecodeQueue : IDisposable
             {
                 completions[completion.Job.Owner] = completion;
             }
+            else
+            {
+                completion.Result?.Discard();
+            }
         }
     }
 
@@ -194,12 +212,12 @@ public sealed class AudioDecodeQueue : IDisposable
         _ = worker.ContinueWith(_ => stopping.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
-    private sealed class Job(object owner, CancellationTokenSource cancellation, Func<CancellationToken, Task<Action>> decode, Action<Exception> failed)
+    private sealed class Job(object owner, CancellationTokenSource cancellation, Func<CancellationToken, Task<Decoded>> decode, Action<Exception> failed)
     {
         public object Owner { get; } = owner;
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public CancellationToken Token { get; } = cancellation.Token;
-        public Func<CancellationToken, Task<Action>> Decode { get; } = decode;
+        public Func<CancellationToken, Task<Decoded>> Decode { get; } = decode;
         public Action<Exception> Failed { get; } = failed;
         public void Cancel()
         {
@@ -217,5 +235,23 @@ public sealed class AudioDecodeQueue : IDisposable
         }
     }
 
-    private sealed record Completion(Job Job, Action? Apply, Exception? Error);
+    private sealed class Decoded(Action apply, Action discard)
+    {
+        private int discarded;
+
+        public void Apply()
+        {
+            apply();
+        }
+
+        public void Discard()
+        {
+            if (Interlocked.Exchange(ref discarded, 1) == 0)
+            {
+                discard();
+            }
+        }
+    }
+
+    private sealed record Completion(Job Job, Decoded? Result, Exception? Error);
 }
