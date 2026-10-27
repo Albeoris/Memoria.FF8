@@ -6,12 +6,19 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using Memoria.FF8;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher;
 
 internal sealed partial class LauncherWindow : Window
 {
     private readonly ComboBox installations = new() { MinHeight = 32, IsEditable = false };
+    private readonly ComboBox graphicsBackend = new() { MinHeight = 32, MinWidth = 180 };
+    private readonly TextBlock graphicsStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly Button tryAuto = new() { Content = "Try Auto", IsVisible = false, MinHeight = 30 };
+    private GraphicsBackend requestedGraphicsBackend;
+    private bool loadingGraphicsBackend;
+    private bool graphicsPreferenceReadFailed;
     private readonly Button browse = new() { Content = "Browse…", MinWidth = 92, Margin = new Thickness(10, 0, 0, 0) };
     private readonly Button mediaSetup = new() { Content = "Set up FFmpeg", MinWidth = 130, MinHeight = 32 };
     private readonly Button play = new() { Content = "Play", MinWidth = 130, MinHeight = 38, IsDefault = true };
@@ -38,7 +45,7 @@ internal sealed partial class LauncherWindow : Window
         this.updateResume = updateResume;
         Title = "Memoria — FINAL FANTASY VIII";
         Width = 740;
-        Height = 600;
+        Height = 690;
         MinWidth = 600;
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -68,6 +75,12 @@ internal sealed partial class LauncherWindow : Window
         mediaProgressPanel.Children.Add(mediaProgressText);
         mediaSection.Children.Add(mediaProgressPanel);
         mediaSection.Children.Add(achievementsLocalOnly);
+        StackPanel graphicsSelection = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        graphicsSelection.Children.Add(new TextBlock { Text = "Graphics backend", VerticalAlignment = VerticalAlignment.Center });
+        graphicsSelection.Children.Add(graphicsBackend);
+        graphicsSelection.Children.Add(tryAuto);
+        mediaSection.Children.Add(graphicsSelection);
+        mediaSection.Children.Add(graphicsStatus);
         Add(layout, mediaSection, 3);
         Add(layout, CreateUpdatePanel(), 4);
         Add(layout, status, 5);
@@ -80,6 +93,9 @@ internal sealed partial class LauncherWindow : Window
         mediaSection.Children.Add(cancel);
         installations.SelectionChanged += async (_, _) => await ValidateSelectionAsync();
         achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
+        graphicsBackend.ItemsSource = GraphicsBackendSelection.Available(HostPlatforms.Current);
+        graphicsBackend.SelectionChanged += async (_, _) => await SaveGraphicsBackendAsync();
+        tryAuto.Click += (_, _) => graphicsBackend.SelectedItem = GraphicsBackend.Auto;
         mediaSetup.Click += async (_, _) => await RunSetupAsync();
         play.Click += async (_, _) => await PlayAsync();
         Opened += async (_, _) => await InitializeAsync();
@@ -100,6 +116,7 @@ internal sealed partial class LauncherWindow : Window
             cancel.IsVisible = true;
             List<string> warnings = [];
             LauncherSettings settings = LauncherSettings.Load(LauncherSettings.DefaultPath);
+            await LoadGraphicsBackendAsync();
             string? previous = settings.LastGameDirectory;
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
             IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add, discoveryLifetime.Token), discoveryLifetime.Token);
@@ -134,6 +151,59 @@ internal sealed partial class LauncherWindow : Window
             return;
         }
         await CheckUpdatesAsync();
+    }
+
+    private async Task LoadGraphicsBackendAsync()
+    {
+        loadingGraphicsBackend = true;
+        try
+        {
+            graphicsPreferenceReadFailed = false;
+            requestedGraphicsBackend = await Task.Run(() => GraphicsBackendPreferences.Read(GraphicsBackendPreferences.DefaultPath));
+            graphicsBackend.SelectedItem = GraphicsBackendSelection.Available(HostPlatforms.Current).Contains(requestedGraphicsBackend) ? requestedGraphicsBackend : null;
+            UpdateGraphicsStatus();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            graphicsPreferenceReadFailed = true;
+            graphicsStatus.Text = "Could not read graphics preference: " + exception.Message + " Try Auto to save a new preference.";
+            tryAuto.IsVisible = true;
+        }
+        finally
+        {
+            loadingGraphicsBackend = false;
+        }
+    }
+
+    private async Task SaveGraphicsBackendAsync()
+    {
+        if (loadingGraphicsBackend || graphicsBackend.SelectedItem is not GraphicsBackend selected)
+        {
+            return;
+        }
+        graphicsPreferenceReadFailed = false;
+        requestedGraphicsBackend = selected;
+        UpdateGraphicsStatus();
+        SetBusy(true);
+        try
+        {
+            await Task.Run(() => GraphicsBackendPreferences.Write(GraphicsBackendPreferences.DefaultPath, selected));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException)
+        {
+            graphicsStatus.Text = "Could not save graphics preference: " + exception.Message;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private void UpdateGraphicsStatus()
+    {
+        string? unavailable = GraphicsBackendSelection.UnavailableReason(requestedGraphicsBackend, HostPlatforms.Current);
+        graphicsStatus.Text = unavailable is null ? $"Requested: {requestedGraphicsBackend}. Applies on the next start. Actual backend is reported after graphics initialization." : $"Requested: {requestedGraphicsBackend}. {unavailable}";
+        tryAuto.IsVisible = unavailable is not null;
     }
 
     private async Task BrowseAsync()
@@ -298,13 +368,24 @@ internal sealed partial class LauncherWindow : Window
             status.Text = validationError;
             return;
         }
+        await LoadGraphicsBackendAsync();
+        if (graphicsPreferenceReadFailed)
+        {
+            return;
+        }
+        if (GraphicsBackendSelection.UnavailableReason(requestedGraphicsBackend, HostPlatforms.Current) is string unavailable)
+        {
+            graphicsStatus.Text = unavailable;
+            tryAuto.IsVisible = true;
+            return;
+        }
         SetBusy(true);
         try
         {
             bool localOnly = resume?.AchievementsLocalOnly ?? achievementsLocalOnly.IsChecked == true;
             achievementsLocalOnly.IsChecked = localOnly;
             runningAchievementsLocalOnly = localOnly;
-            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly);
+            ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, graphicsBackend: requestedGraphicsBackend);
             if (!File.Exists(start.FileName))
             {
                 throw new FileNotFoundException("The engine is missing. Extract the complete Memoria archive, keeping its Data folder beside Memoria.Launcher.exe.", start.FileName);
@@ -313,7 +394,7 @@ internal sealed partial class LauncherWindow : Window
             {
                 return;
             }
-            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory);
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory, requestedGraphicsBackend);
             status.Text = "Starting the game…";
             GameUpdateSession control = new();
             start.ArgumentList.Add("--update-control-dir");
@@ -335,8 +416,9 @@ internal sealed partial class LauncherWindow : Window
             while (!process.HasExited)
             {
                 process.Refresh();
-                if (!remembered && process.MainWindowHandle != IntPtr.Zero)
+                if (!remembered && diagnostics.GraphicsReady is string ready)
                 {
+                    graphicsStatus.Text = ready;
                     Remember(selected.Directory);
                     remembered = true;
                     WindowState = WindowState.Minimized;
@@ -360,14 +442,24 @@ internal sealed partial class LauncherWindow : Window
             }
             if (process.ExitCode == 0)
             {
-                if (!remembered)
+                if (!remembered && diagnostics.GraphicsReady is string ready)
                 {
+                    graphicsStatus.Text = ready;
                     Remember(selected.Directory);
                 }
-                status.Text = completion;
+                if (diagnostics.GraphicsReady is null)
+                {
+                    tryAuto.IsVisible = requestedGraphicsBackend != GraphicsBackend.Auto;
+                    status.Text = "The host exited without confirming graphics initialization." + Environment.NewLine + completion;
+                }
+                else
+                {
+                    status.Text = completion;
+                }
             }
             else
             {
+                tryAuto.IsVisible = diagnostics.GraphicsReady is null && requestedGraphicsBackend != GraphicsBackend.Auto;
                 status.Text = completion + (resume is null ? string.Empty : Environment.NewLine + "Automatic update save retained at: " + resume.SavePath);
                 await LauncherDialogs.ShowAsync(this, "Memoria", status.Text);
             }
@@ -375,6 +467,7 @@ internal sealed partial class LauncherWindow : Window
         catch (Exception exception)
         {
             WindowState = WindowState.Normal;
+            tryAuto.IsVisible = requestedGraphicsBackend != GraphicsBackend.Auto;
             await ShowErrorAsync("Could not start the game.", exception);
         }
         finally
@@ -412,6 +505,8 @@ internal sealed partial class LauncherWindow : Window
         installations.IsEnabled = !busy;
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
+        graphicsBackend.IsEnabled = !busy;
+        tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
         play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;

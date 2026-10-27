@@ -10,7 +10,7 @@ foreach ($project in $portable.Solution.Project) {
     [void]$covered.Add([string]$project.Path)
 }
 $exceptions = @{
-    'Memoria.FF8.App' = 'Windows DX11 host; Native hosts start at M5.'
+    'Memoria.FF8.App' = 'Shared-source Windows DX11 and Native Vulkan hosts; isolated build payloads.'
     'Memoria.FF8.App.Tests' = 'Windows DX11 host integration; portable presentation tests run separately.'
     'Memoria.FF8.Acceptance' = 'External original-game debugging tools; explicit local inputs required.'
     'Memoria.FF8.BattleEffects.Tests' = 'Effect tests require an explicitly authorized affected-effect selection.'

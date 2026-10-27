@@ -1,3 +1,13 @@
+#if VULKAN
+#define VS_PROFILE vs_6_0
+#define PS_PROFILE ps_6_0
+#define SAMPLE_TEXTURE(textureName, samplerName, uv) textureName.Sample(samplerName, uv)
+#else
+#define VS_PROFILE vs_4_0
+#define PS_PROFILE ps_4_0
+#define SAMPLE_TEXTURE(textureName, samplerName, uv) tex2D(samplerName, uv)
+#endif
+
 float2 ViewportSize;
 float4 MaterialParameters; // texture present, selects alpha, alpha multiplier, positive depth mapping
 float4 AlphaParameters; // minimum, maximum, minimum reciprocal W, source RGB multiplier
@@ -11,8 +21,17 @@ float4x4 WorldView;
 float3 WorldOffset;
 float WorldFocal;
 float WorldNativeCurvature;
+#if VULKAN
+Texture2D SourceTexture : register(t0);
+#else
 texture SourceTexture;
-sampler TextureSampler = sampler_state { Texture = <SourceTexture>; };
+#endif
+#if VULKAN
+sampler TextureSampler : register(s0) = sampler_state
+#else
+sampler TextureSampler = sampler_state
+#endif
+{ Texture = <SourceTexture>; };
 struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
 struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; };
 VSOutput VertexMain(VSInput input)
@@ -85,17 +104,17 @@ PSOutput PixelMain(VSOutput input)
             float2 pixel = clamp(floor(local * input.TextureTexelRectangle.zw), 0, input.TextureTexelRectangle.zw - 1);
             uv = (input.TextureTexelRectangle.xy + pixel + 0.5) / TextureSize;
         }
-        float4 texel = tex2D(TextureSampler, uv);
+        float4 texel = SAMPLE_TEXTURE(SourceTexture, TextureSampler, uv);
         if (FogParameters.w > 0)
         {
             // Integer source UVs are smooth RGB texel centers; texel above retains point-sampled cutout coverage.
             float2 texelPosition = clamp(interpolatedUv * TextureSize, 0, TextureSize - 1);
             float2 origin = floor(texelPosition);
             float2 weight = frac(texelPosition);
-            float4 c00 = tex2D(TextureSampler, (origin + float2(0.5, 0.5)) / TextureSize);
-            float4 c10 = tex2D(TextureSampler, (origin + float2(1.5, 0.5)) / TextureSize);
-            float4 c01 = tex2D(TextureSampler, (origin + float2(0.5, 1.5)) / TextureSize);
-            float4 c11 = tex2D(TextureSampler, (origin + float2(1.5, 1.5)) / TextureSize);
+            float4 c00 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(0.5, 0.5)) / TextureSize);
+            float4 c10 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(1.5, 0.5)) / TextureSize);
+            float4 c01 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(0.5, 1.5)) / TextureSize);
+            float4 c11 = SAMPLE_TEXTURE(SourceTexture, TextureSampler, (origin + float2(1.5, 1.5)) / TextureSize);
             float4 weights = float4((1-weight.x)*(1-weight.y), weight.x*(1-weight.y), (1-weight.x)*weight.y, weight.x*weight.y);
             weights *= float4(c00.a, c10.a, c01.a, c11.a);
             float total = dot(weights, float4(1,1,1,1));
@@ -140,8 +159,8 @@ technique TriangleTechnique
 {
     pass P0
     {
-        VertexShader = compile vs_4_0 VertexMain();
-        PixelShader = compile ps_4_0 PixelMain();
+        VertexShader = compile VS_PROFILE VertexMain();
+        PixelShader = compile PS_PROFILE PixelMain();
     }
 }
 
@@ -157,7 +176,7 @@ technique WorldTerrainTechnique
 {
     pass P0
     {
-        VertexShader = compile vs_4_0 WorldVertexMain();
-        PixelShader = compile ps_4_0 WorldPixelMain();
+        VertexShader = compile VS_PROFILE WorldVertexMain();
+        PixelShader = compile PS_PROFILE WorldPixelMain();
     }
 }

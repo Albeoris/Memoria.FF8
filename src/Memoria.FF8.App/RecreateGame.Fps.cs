@@ -19,13 +19,14 @@ internal sealed partial class RecreateGame
             DisposeFrameRate();
             return;
         }
-        visualFrameRate ??= new VisualFrameRate(GraphicsDevice);
+        visualFrameRate ??= GraphicsHostReadiness.Initialize(() => new VisualFrameRate(GraphicsDevice));
         visualFrameRate.BeginFrame();
     }
 
     protected override void EndDraw()
     {
         base.EndDraw();
+        graphicsReadiness?.Presented(Window);
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
         visualFrameRate?.Presented(now);
         AdvanceDiagnosticDriver(now);

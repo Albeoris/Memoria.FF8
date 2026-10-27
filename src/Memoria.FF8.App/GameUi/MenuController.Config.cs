@@ -82,6 +82,11 @@ public sealed partial class MenuController
             }
             bool enabled = unavailableReason is null;
             string help = unavailableReason ?? (setting.Id is "UI font" or "Dialogue font" ? FontDisplayValue(setting.Id) + ". " + LocalizeSettingHelp(setting.Id, setting.Description) : LocalizeSettingHelp(setting.Id, setting.Description));
+            if (setting.Id == "Graphics backend")
+            {
+                Memoria.FF8.Platform.GraphicsBackend backend = Memoria.FF8.Platform.GraphicsBackendSelection.Parse(value);
+                help = (Memoria.FF8.Platform.GraphicsBackendSelection.UnavailableReason(backend, Memoria.FF8.Platform.HostPlatforms.Current) is string reason ? reason + " " : "") + help;
+            }
             MenuAction action = setting.Id == "Quick saves" && !newGame ? new("quick-save-open") : setting.Id is "UI font" or "Dialogue font" ? new("font-picker-open", setting.Id) : new("config", setting.Id, Value: setting.Values[next]);
             entries.Add(new MenuEntry(setting.Id, newGame ? LocalizeSettingLabel(setting.Id, MagicUiText.SettingLabel(setting.Id)) : ConfigLabel(setting.Id), help, Action: action, Enabled: enabled));
         }
@@ -127,7 +132,7 @@ public sealed partial class MenuController
 
     private UiElement BuildConfigRow(MenuEntry entry, int index)
     {
-        if (entry.Id == "Quick saves")
+        if (entry.Id is "Quick saves" or "Graphics backend")
         {
             return new UiActionSettingRow
             {

@@ -13,6 +13,7 @@ public sealed record LaunchOptions
     public GameState InitialState { get; init; } = new();
     public double? ExitAfterSeconds { get; init; }
     public bool ValidateOnly { get; init; }
+    public GraphicsBackend? RequestedGraphicsBackend { get; init; }
     public string? CaptureFramePath { get; init; }
     public double CaptureAfterSeconds { get; init; } = 2;
     public int? ExitAfterFrames { get; init; }
@@ -61,6 +62,7 @@ public sealed record LaunchOptions
                 "--movie-time" => options with { InitialState = options.InitialState with { MovieSeconds = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture) } },
                 "--exit-after" => options with { ExitAfterSeconds = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture) },
                 "--validate" => options with { ValidateOnly = true },
+                "--graphics-backend" => options with { RequestedGraphicsBackend = GraphicsBackendSelection.Parse(Value()) },
                 "--capture-frame" => options with { CaptureFramePath = Path.GetFullPath(Value()) },
                 "--capture-after" => options with { CaptureAfterSeconds = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture) },
                 "--frames" => options with { ExitAfterFrames = int.Parse(Value()) },

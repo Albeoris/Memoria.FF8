@@ -33,7 +33,7 @@ internal sealed partial class RecreateGame
             observeOriginalAchievements = context.ResourceEdition != GameDataEdition.Remastered;
             AchievementRegistry registry = observeOriginalAchievements ? OriginalAchievementCatalog.CreateRegistry() : AchievementRegistry.CreateCombatRegistry(remastered: true);
             IAchievementBackend backend = context.CanInitializeExternalBackend && context.Provider == GameDistributionProvider.Steam
-                ? new SteamAchievementBackend(Path.Combine(AppContext.BaseDirectory, "Steam", "steam_api64.dll"), context.ProductId!, "default")
+                ? new SteamAchievementBackend(Path.Combine(Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, "Steam", "steam_api64.dll"), context.ProductId!, "default")
                 : new NoAchievementBackend(context.Diagnostic);
             AchievementBinding[] bindings = SteamAchievementMappings.ForProduct(context.ProductId);
             achievements = new AchievementService(registry, repository, backend, bindings);

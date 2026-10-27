@@ -52,7 +52,7 @@ internal sealed class MusicWorkerOutput : IDisposable
 
     private static ProcessStartInfo CreateStartInfo(string directory)
     {
-        string helper = Path.Combine(AppContext.BaseDirectory, "audio-host", OperatingSystem.IsWindows() ? "Memoria.FF8.Music.exe" : "Memoria.FF8.Music");
+        string helper = Path.Combine(Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, "audio-host", OperatingSystem.IsWindows() ? "Memoria.FF8.Music.exe" : "Memoria.FF8.Music");
         var start = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
         start.ArgumentList.Add(directory);
         return start;

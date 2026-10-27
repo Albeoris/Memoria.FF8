@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / [Build and test](building-and-testing.md)
 
-The migration keeps the current Windows DX11 game host usable while portable services, presentation, launcher and audio are introduced. The Linux and Intel macOS game hosts start in a later milestone. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
+The migration keeps Windows DX11 usable alongside the Native Vulkan Windows host, sharing portable services, presentation, launcher and audio. See [Windows graphics hosts](graphics-backends.md) for selection, isolated payloads and failure handling. The Linux and Intel macOS game hosts start in later milestones. A successful cross-publish is not evidence of desktop, audio-device or gameplay acceptance on that OS.
 
 ## Build surfaces
 
@@ -55,9 +55,9 @@ MonoGame's [3.8.5 native backend announcement](https://monogame.net/blog/2026-07
 
 The inspected `MonoGame.Runtime.Mac.Vulkan` 3.8.5.1 Intel slice declares macOS 26.0 in `LC_BUILD_VERSION`. An older Intel macOS baseline therefore requires a separately verified runtime build or compatible upstream package; do not infer compatibility from the package RID. The current Intel macOS CI runner validates the portable foundation and launcher, not this game runtime. Actual Cocoa lifecycle, relocation and Metal portability checks remain target gates.
 
-The pinned `dotnet-mgfxc` 3.8.5.1 accepts `Vulkan` and `DirectX_12` profiles. Existing game shaders use shader model 4 and legacy `tex2D` sampling. Vulkan compilation rejects shader model 4; changing only the profile to shader model 6 then rejects legacy sampling. M5 needs a deliberate shared shader-source adaptation and isolated compiled payloads, rather than reusing WindowsDX shader binaries. This work is not part of the current host implementation.
+The pinned `dotnet-mgfxc` 3.8.5.1 accepts `Vulkan` and `DirectX_12` profiles. Shared shader sources now retain shader model 4 for DX11 and select shader model 6 with explicit texture/sampler registers for Vulkan. Generated payloads are isolated and associated with source/profile/compiler hashes. See [shader generation](shaders.md).
 
-Final graphics hosts will live in separate backend directories and select their framework/runtime family before process startup. Keep WindowsDX and Native restore/build outputs separate. Preserve the package root for data, mods, configuration and helpers instead of deriving it from the nested backend executable directory.
+Windows graphics hosts live in separate backend directories and select their framework/runtime family before process startup. Keep WindowsDX and Native restore/build outputs separate. The dispatcher supplies the shared package data root for mods, configuration and helpers instead of deriving it from the nested backend executable directory.
 
 ## Media tools and external acceptance
 

@@ -49,6 +49,7 @@ jobs:
         if: steps.distribution.outputs.reuse != 'true'
         shell: pwsh
         run: |
+          ./tools/Test-Shaders.ps1 -Compile
           ./Build.ps1
           ./Build.ps1 -Scope Portable -RuntimeIdentifier win-x64 -Test
       - uses: actions/upload-artifact@v7

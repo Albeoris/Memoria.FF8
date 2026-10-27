@@ -17,6 +17,7 @@ internal sealed partial class RecreateGame : Game
     private GameResourceHost? resourceHost;
     private GameSession session;
     private readonly GraphicsDeviceManager graphics;
+    private GraphicsHostReadiness? graphicsReadiness;
     private KeyboardInput keyboard = new();
     private ControllerDevice? controller;
     private ControllerFeedback? controllerFeedback;
@@ -108,15 +109,16 @@ internal sealed partial class RecreateGame : Game
 
     protected override void LoadContent()
     {
+        graphicsReadiness = GraphicsHostReadiness.Initialize(() => new GraphicsHostReadiness(GraphicsDevice));
         resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory);
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();
         controllerFeedback = new ControllerFeedback(controller.SetVibration);
-        batch = new SpriteBatch(GraphicsDevice);
+        batch = GraphicsHostReadiness.Initialize(() => new SpriteBatch(GraphicsDevice));
         text = new SystemTextRenderer(GraphicsDevice);
-        pixel = new Texture2D(GraphicsDevice, 1, 1);
+        pixel = GraphicsHostReadiness.Initialize(() => new Texture2D(GraphicsDevice, 1, 1));
         pixel.SetData([Color.White]);
-        fieldTexture = new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height);
+        fieldTexture = GraphicsHostReadiness.Initialize(() => new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height));
         if (options.AudioEnabled)
         {
             fieldAudio = new FieldAudioPresentation(options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
@@ -132,8 +134,8 @@ internal sealed partial class RecreateGame : Game
         }
         if (!options.SoftwareRenderer)
         {
-            fieldGpu = new GpuTriangleRenderer(GraphicsDevice);
-            battleGpu = new GpuTriangleRenderer(GraphicsDevice);
+            fieldGpu = GraphicsHostReadiness.Initialize(() => new GpuTriangleRenderer(GraphicsDevice));
+            battleGpu = GraphicsHostReadiness.Initialize(() => new GpuTriangleRenderer(GraphicsDevice));
         }
         if (options.BattleTestPath is not null)
         {
@@ -1287,7 +1289,7 @@ internal sealed partial class RecreateGame : Game
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         if (!startup.Active && session.State.Scene == SceneKind.Title)
         {
-            titleScene ??= new TitleSceneRenderer(GraphicsDevice);
+            titleScene ??= GraphicsHostReadiness.Initialize(() => new TitleSceneRenderer(GraphicsDevice));
             titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice);
             titleScene.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
             titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
@@ -1422,6 +1424,9 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+#if MEMORIA_VULKAN
+            nativeBackBuffer?.Dispose();
+#endif
             confirmationOverlay.Dispose();
             if (ModelBrowserDialogs.Confirmation?.Target == this)
             {

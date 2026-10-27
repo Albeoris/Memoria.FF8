@@ -10,12 +10,14 @@ Use Windows x64, PowerShell 7 and the .NET 10 SDK for the complete current game 
 ./Build.ps1
 ```
 
-The script publishes a self-contained x64 launcher and engine, plus the common x64 music worker and its runtime. It checks the actual published dependency assemblies and native ABI before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled.
+The script publishes a self-contained x64 launcher, dispatcher and isolated DX11/Vulkan engines built from the same source, plus the common x64 music worker. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
 
 | Output | Purpose |
 | --- | --- |
 | `artifacts/package/Memoria.Launcher.exe` | Start the local packaged application. |
 | `artifacts/package/Data/` | Engine, runtimes, audio host and distribution notices. |
+| `artifacts/package/Data/Memoria.FF8.exe` | Dispatcher; selects a backend and waits for the actual game. |
+| `artifacts/package/Data/Game/dx11/`, `Data/Game/vulkan/` | Isolated graphics hosts sharing gameplay and rendering source. |
 | `artifacts/package/Data/BundledMods/` | Bundled native `Memoria/Depixelation` defaults, discovered after user packages. |
 | `artifacts/package/Mods/` | Empty `Tonberry/`, `Demaster/` and `Junction/` directories for user packages. |
 | `artifacts/Memoria-FF8-win-x64.zip` | The distributable archive; its root contains the launcher, `Data/` and `Mods/`. |

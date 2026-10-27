@@ -16,11 +16,15 @@
     <Content Include="../../vendor/Steamworks/redistributable_bin/win64/steam_api64.dll" Link="Steam/steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../vendor/Steamworks/README.md" Link="Steam/NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="Artwork/Controller/*.svg" />
-    <EmbeddedResource Include="Shaders/Triangles.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" />
-    <EmbeddedResource Include="Shaders/FrameDifference.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" />
+    <EmbeddedResource Include="Shaders/Triangles.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
+    <EmbeddedResource Include="Shaders/FrameDifference.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
+    <EmbeddedResource Include="Shaders/Triangles.vulkan.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+    <EmbeddedResource Include="Shaders/FrameDifference.vulkan.mgfxo" LogicalName="Memoria.FF8.Shaders.FrameDifference.mgfxo" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
     <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <Using Include="System.IO" />
-    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D11'" />
+    <PackageReference Include="MonoGame.Framework.Native" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
+    <PackageReference Include="MonoGame.Runtime.Windows.Vulkan" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.HarfBuzz" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
@@ -36,15 +40,18 @@
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
-    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" AdditionalProperties="TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true" />
+    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" AdditionalProperties="TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true" Condition="'$(SkipMusicHost)' != 'true'" />
   </ItemGroup>
-  <Target Name="CopyMusicHost" AfterTargets="Build">
+  <Target Name="ValidateGraphicsBackend" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(MemoriaGraphicsBackend)' != 'Direct3D11' And '$(MemoriaGraphicsBackend)' != 'Vulkan'" Text="MemoriaGraphicsBackend must be Direct3D11 or Vulkan. Publish hosts into separate output and intermediate directories." />
+  </Target>
+  <Target Name="CopyMusicHost" AfterTargets="Build" Condition="'$(SkipMusicHost)' != 'true'">
     <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true">
       <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
     </MSBuild>
     <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="PublishMusicHost" AfterTargets="Publish">
+  <Target Name="PublishMusicHost" AfterTargets="Publish" Condition="'$(SkipMusicHost)' != 'true'">
     <ItemGroup>
       <MusicHostPublishFile Include="$(OutDir)audio-host/**/*" />
     </ItemGroup>

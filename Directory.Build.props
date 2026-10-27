@@ -7,5 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
+    <MemoriaGraphicsBackend Condition="'$(MemoriaGraphicsBackend)' == ''">Direct3D11</MemoriaGraphicsBackend>
+    <DefineConstants Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(DefineConstants);MEMORIA_VULKAN</DefineConstants>
   </PropertyGroup>
 </Project>

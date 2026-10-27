@@ -13,7 +13,7 @@ internal sealed record SettingPlacement(string Identity, string LegacyKey, Setti
     internal string DefaultSource => Target.StartsWith("ControlsProfile", StringComparison.Ordinal) ? "ControlsProfile.CreateDefault" : Audience is SettingsAudience.Fixture or SettingsAudience.Excluded ? "MenuSettings fixture" : "UiPreferences / GameplayPreferences defaults";
     internal string DomainSource => "MenuSettings.Definitions:" + LegacyKey;
     internal string CommandOwner => LegacyKey == "Quick saves" ? "PlayerSaveStore.CommitQuickSaveCount" : LegacyKey == "Vibration" ? "ControlsProfile" : "Existing config command provider";
-    internal string Application => LegacyKey == "Quick saves" ? "Staged; persist then prune after exact-count review" : Scope.StartsWith("Game", StringComparison.Ordinal) ? "Session; normal game save; owner checks may defer/reject" : "Immediate global preference";
+    internal string Application => LegacyKey == "Graphics backend" ? "Requires restart; applies on next start" : LegacyKey == "Quick saves" ? "Staged; persist then prune after exact-count review" : Scope.StartsWith("Game", StringComparison.Ordinal) ? "Session; normal game save; owner checks may defer/reject" : "Immediate global preference";
 }
 
 /// <summary>Explicit placement adapts legacy command keys without changing persistence owners.</summary>
@@ -22,7 +22,7 @@ internal static class SettingsPlacement
     internal static readonly IReadOnlyDictionary<string, SettingsPage> Pages = new Dictionary<string, SettingsPage>(StringComparer.Ordinal)
     {
         ["config-graphics"] = new("Graphics", "Presentation preferences shared across saves.",
-            ["Anti-aliasing", "Window mode", "V-Sync", "config-frame-limits", "Show FPS"]),
+            ["Anti-aliasing", "Graphics backend", "Window mode", "V-Sync", "config-frame-limits", "Show FPS"]),
         ["config-frame-limits"] = new("Frame rate limits", "Presentation caps; simulation speed is unchanged. V-Sync can limit output further.",
             ["Field FPS", "World FPS", "Battle FPS", "Menu FPS"]),
         ["config-audio"] = new("Audio", "Output levels shared across saves.",
@@ -53,6 +53,7 @@ internal static class SettingsPlacement
             ["Show FPS"] = "frame-counter",
             ["Window mode"] = "window-mode",
             ["V-Sync"] = "vsync",
+            ["Graphics backend"] = "graphics-backend",
             ["Anti-aliasing"] = "msaa",
             ["Field FPS"] = "field-cap",
             ["World FPS"] = "world-cap",
@@ -128,6 +129,7 @@ internal static class SettingsPlacement
                 "Show FPS" => "UiPreferences.ShowFps",
                 "Window mode" => "UiPreferences.BorderlessWindow",
                 "V-Sync" => "UiPreferences.VSync",
+                "Graphics backend" => "UiPreferences.Graphics.Backend",
                 "Anti-aliasing" => "UiPreferences.Graphics.MsaaSamples",
                 "Field FPS" => "UiPreferences.FieldFps",
                 "World FPS" => "UiPreferences.WorldFps",

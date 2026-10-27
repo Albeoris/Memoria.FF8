@@ -6,31 +6,31 @@ using Microsoft.Xna.Framework;
 namespace Memoria.FF8;
 
 [SupportedOSPlatform("windows")]
-internal sealed class WindowsGameWindow(GameWindow window) : IGameWindowPlatform
+internal sealed class WindowsGameWindow(GameWindow window, nint nativeHandle) : IGameWindowPlatform
 {
     private WindowPlacement placement;
 
     public void Maximize()
     {
-        ShowWindow(window.Handle, 3);
+        ShowWindow(nativeHandle, 3);
     }
 
     public void EnterBorderless()
     {
         placement = new WindowPlacement { Length = Marshal.SizeOf<WindowPlacement>() };
-        Check(GetWindowPlacement(window.Handle, ref placement));
+        Check(GetWindowPlacement(nativeHandle, ref placement));
         MonitorInfo monitor = new() { Size = Marshal.SizeOf<MonitorInfo>() };
-        Check(GetMonitorInfo(MonitorFromWindow(window.Handle, 2), ref monitor));
-        ShowWindow(window.Handle, 9);
+        Check(GetMonitorInfo(MonitorFromWindow(nativeHandle, 2), ref monitor));
+        ShowWindow(nativeHandle, 9);
         window.IsBorderless = true;
         NativeRect bounds = monitor.Monitor;
-        Check(SetWindowPos(window.Handle, 0, bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top, 0x0024));
+        Check(SetWindowPos(nativeHandle, 0, bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top, 0x0024));
     }
 
     public void RestoreWindowed()
     {
         window.IsBorderless = false;
-        Check(SetWindowPlacement(window.Handle, in placement));
+        Check(SetWindowPlacement(nativeHandle, in placement));
     }
 
     private static void Check(bool result)

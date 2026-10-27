@@ -29,9 +29,13 @@ internal sealed class WindowModeController
     {
         if (OperatingSystem.IsWindows())
         {
-            return new WindowsGameWindow(window);
+#if MEMORIA_VULKAN
+            return new WindowsGameWindow(window, NativeWindowsGameWindow.ResolveHandle(window.Title));
+#else
+            return new WindowsGameWindow(window, window.Handle);
+#endif
         }
-        throw new PlatformNotSupportedException("The DX11 game host requires Windows. A native host must supply its own window adapter.");
+        throw new PlatformNotSupportedException("This game host currently requires the Windows window adapter.");
     }
 
     public void Apply(bool requestedBorderless)

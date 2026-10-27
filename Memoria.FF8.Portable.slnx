@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />
+  <Project Path="src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj" />
   <Project Path="vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />
   <Project Path="src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
   <Project Path="src/Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />

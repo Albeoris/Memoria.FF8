@@ -192,6 +192,8 @@ internal sealed partial class RecreateGame
         data.Settings["Window mode"] = uiPreferences.BorderlessWindow ? "Borderless" : "Windowed";
         data.SupportedActions.Add("config:Window mode");
         data.Settings["V-Sync"] = uiPreferences.VSync ? "On" : "Off";
+        data.Settings["Graphics backend"] = uiPreferences.Graphics.Backend.ToString();
+        data.SupportedActions.Add("config:Graphics backend");
         data.Settings["Anti-aliasing"] = uiPreferences.Graphics.AntiAliasingLabel;
         data.SupportedActions.Add("config:Anti-aliasing");
         data.Settings["Field FPS"] = uiPreferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -415,7 +417,10 @@ internal sealed partial class RecreateGame
             uiPreferences = installationPreferences;
             SynchronizeMenuPresentation();
             gameMenus?.InvalidateLiveData();
-            ApplyDisplaySettings();
+            if (action.SubjectId != "Graphics backend")
+            {
+                ApplyDisplaySettings();
+            }
             text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume, uiPreferences.VoiceVolume);
             return;

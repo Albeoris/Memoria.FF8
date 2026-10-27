@@ -13,6 +13,16 @@ public sealed class GameProcessDiagnosticsTests : IDisposable
     }
 
     [Fact]
+    public void ReadinessRequiresCompleteHostMessageAcrossPipeChunks()
+    {
+        using GameProcessDiagnostics diagnostics = new(directory);
+        diagnostics.RecordReadiness("Initializing graphics\nGraphics ready: requested=Auto act");
+        Assert.Null(diagnostics.GraphicsReady);
+        diagnostics.RecordReadiness("ual=Vulkan\r\n");
+        Assert.Equal("Graphics ready: requested=Auto actual=Vulkan", diagnostics.GraphicsReady);
+    }
+
+    [Fact]
     public async Task Large_console_streams_are_drained_and_final_unterminated_error_is_persisted()
     {
         string script = Path.Combine(directory, "crash.ps1");

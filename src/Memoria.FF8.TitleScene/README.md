@@ -1,6 +1,6 @@
 # Title scene
 
-`TitleSceneRenderer` is an isolated WindowsDX/MonoGame library for the animated title backdrop: turbulent crimson fabric and filaments, shaded storm clouds, a pearl upper light and a sunset reflected in water on the right. It uses procedural GPU fields and no raster artwork, content pipeline, game assets, random simulation, or wall clock. The host owns the foreground crest, wordmark and menu. The graphics device must use `GraphicsProfile.HiDef`; the constructor checks before allocating resources.
+`TitleSceneRenderer` is a shared MonoGame library for the isolated DX11 and Vulkan hosts' animated title backdrop: turbulent crimson fabric and filaments, shaded storm clouds, a pearl upper light and a sunset reflected in water on the right. It uses procedural GPU fields and no raster artwork, content pipeline, game assets, random simulation, or wall clock. The host owns the foreground crest, wordmark and menu. The graphics device must use `GraphicsProfile.HiDef`; the constructor checks before allocating resources.
 
 ```csharp
 using var title = new TitleSceneRenderer(GraphicsDevice);
@@ -39,12 +39,11 @@ The cylindrical noise lattice and integer angular harmonics close around a full 
 
 ## Rebuild the shader
 
-On Windows, from this directory:
+On Windows, from the product root:
 
 ```powershell
-dotnet tool restore
-dotnet tool run mgfxc Shaders/TitleScene.fx Shaders/TitleScene.mgfxo /Profile:DirectX_11
-dotnet build
+pwsh ./tools/Update-Shaders.ps1
+pwsh ./tools/Update-Shaders.ps1 -Check
 ```
 
-The local tool manifest pins `dotnet-mgfxc` to **3.8.5.1**, matching the centrally versioned MonoGame package. Commit the readable `.fx` and rebuilt `.mgfxo` together. The runtime only needs this assembly and its normal MonoGame dependency.
+The tool manifest pins `dotnet-mgfxc` to **3.8.5.1**, matching the centrally versioned MonoGame packages. Commit the readable `.fx`, both rebuilt `.mgfxo` profiles and the shader manifest together. See [artifact validation](../../docs/developers/shaders.md). The runtime only needs this assembly and its selected MonoGame dependency.

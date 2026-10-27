@@ -84,7 +84,7 @@ internal static class GameInstallationSelection
         return null;
     }
 
-    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null)
+    public static ProcessStartInfo CreateStartInfo(string packageDirectory, string gameDirectory, bool achievementsLocalOnly = false, string? mediaToolsDirectory = null, Memoria.FF8.Platform.GraphicsBackend? graphicsBackend = null)
     {
         string dataDirectory = Path.Combine(packageDirectory, "Data");
         ProcessStartInfo result = new(Path.Combine(dataDirectory, "Memoria.FF8.exe"))
@@ -103,6 +103,11 @@ internal static class GameInstallationSelection
         result.ArgumentList.Add(Path.GetFullPath(Path.Combine(packageDirectory, "Mods")));
         result.ArgumentList.Add("--media-tools");
         result.ArgumentList.Add(MediaToolsInstallation.ResolveDirectory(mediaToolsDirectory));
+        if (graphicsBackend is Memoria.FF8.Platform.GraphicsBackend backend)
+        {
+            result.ArgumentList.Add("--graphics-backend");
+            result.ArgumentList.Add(backend.ToString());
+        }
         if (achievementsLocalOnly)
         {
             result.ArgumentList.Add("--achievements-local-only");

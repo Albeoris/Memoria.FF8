@@ -125,6 +125,10 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("UI presentation requires Vector or Classic.")
             };
         }
+        if (key == "Graphics backend")
+        {
+            return this with { Graphics = Graphics with { Backend = Memoria.FF8.Platform.GraphicsBackendSelection.Parse(value) } };
+        }
         if (key == "Anti-aliasing")
         {
             int samples = value switch

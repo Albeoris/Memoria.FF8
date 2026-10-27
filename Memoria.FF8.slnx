@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj" />
     <Project Path="vendor/Topten.RichTextKit.Bidi/Memoria.FF8.Text.Unicode.csproj" />
     <Project Path="src/Memoria.FF8.Platform/Memoria.FF8.Platform.csproj" />
     <Project Path="src/Memoria.FF8.Audio/Memoria.FF8.Audio.csproj" />
@@ -21,6 +22,7 @@
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Memoria.FF8.Bootstrap.Tests/Memoria.FF8.Bootstrap.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Presentation.Tests/Memoria.FF8.Presentation.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Platform.Tests/Memoria.FF8.Platform.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Audio.Tests/Memoria.FF8.Audio.Tests.csproj" />

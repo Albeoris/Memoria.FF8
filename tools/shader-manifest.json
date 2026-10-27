@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "sourceNormalization": "utf8-lf",
+  "compiler": {
+    "package": "dotnet-mgfxc",
+    "version": "3.8.5.1"
+  },
+  "effects": [
+    {
+      "source": "src/Memoria.FF8.App/Shaders/Triangles.fx",
+      "sourceSha256": "993e44b950ec5e166169668f941d7d3c42911cd70409857cfc7965a8c4abfa45",
+      "profile": "DirectX_11",
+      "output": "src/Memoria.FF8.App/Shaders/Triangles.mgfxo",
+      "outputSha256": "751f6d8ca0c50a9a6f19d71339ad7b8441d55ecced4444b9e94da01ab64e2779"
+    },
+    {
+      "source": "src/Memoria.FF8.App/Shaders/Triangles.fx",
+      "sourceSha256": "993e44b950ec5e166169668f941d7d3c42911cd70409857cfc7965a8c4abfa45",
+      "profile": "Vulkan",
+      "output": "src/Memoria.FF8.App/Shaders/Triangles.vulkan.mgfxo",
+      "outputSha256": "6fabd5be69d6007b8ade136a61bc705c016787a2e0d2fcd45957730c10e842b3"
+    },
+    {
+      "source": "src/Memoria.FF8.App/Shaders/FrameDifference.fx",
+      "sourceSha256": "0063f0abe14ab786e53e20450fff0535651b4fb337ae44583bc35e2f93248492",
+      "profile": "DirectX_11",
+      "output": "src/Memoria.FF8.App/Shaders/FrameDifference.mgfxo",
+      "outputSha256": "a6fe798d936f32375274176b5d077af3e4a79264b45186c53eb1fafeace540b8"
+    },
+    {
+      "source": "src/Memoria.FF8.App/Shaders/FrameDifference.fx",
+      "sourceSha256": "0063f0abe14ab786e53e20450fff0535651b4fb337ae44583bc35e2f93248492",
+      "profile": "Vulkan",
+      "output": "src/Memoria.FF8.App/Shaders/FrameDifference.vulkan.mgfxo",
+      "outputSha256": "bc7e528db6f3b0eb2627bb1ca65c5a4fe62267fb2263a48abf865e9245527da4"
+    },
+    {
+      "source": "src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx",
+      "sourceSha256": "0b4ced00b966eadd2948e3c15fb114580c57488f16328a62ef20e53ae0bb6ee3",
+      "profile": "DirectX_11",
+      "output": "src/Memoria.FF8.TitleScene/Shaders/TitleScene.mgfxo",
+      "outputSha256": "91d5c5ff29dbb8ed164169a60ea58c88e12c0cac3913951b6bb0a43ceb73fd45"
+    },
+    {
+      "source": "src/Memoria.FF8.TitleScene/Shaders/TitleScene.fx",
+      "sourceSha256": "0b4ced00b966eadd2948e3c15fb114580c57488f16328a62ef20e53ae0bb6ee3",
+      "profile": "Vulkan",
+      "output": "src/Memoria.FF8.TitleScene/Shaders/TitleScene.vulkan.mgfxo",
+      "outputSha256": "edc0198f897cd33d14c411278cdb7fcbd980eedd98d037406a9edcea8716d3fb"
+    }
+  ]
+}

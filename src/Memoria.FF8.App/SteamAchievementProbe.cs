@@ -16,7 +16,7 @@ internal static class SteamAchievementProbe
             return 2;
         }
         Directory.SetCurrentDirectory(context.InstallationDirectory);
-        using SteamAchievementBackend backend = new(Path.Combine(AppContext.BaseDirectory, "Steam", "steam_api64.dll"), context.ProductId!, "read-only-probe");
+        using SteamAchievementBackend backend = new(Path.Combine(Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, "Steam", "steam_api64.dll"), context.ProductId!, "read-only-probe");
         AchievementBinding[] bindings = SteamAchievementMappings.ForProduct(context.ProductId);
         DateTime deadline = DateTime.UtcNow.AddSeconds(5);
         do

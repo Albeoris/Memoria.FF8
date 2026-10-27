@@ -9,6 +9,18 @@ internal sealed class GameProcessDiagnostics : IDisposable
     private readonly object gate = new();
     private readonly StringBuilder errorTail = new();
     private readonly StringBuilder outputTail = new();
+    private readonly StringBuilder readinessLine = new();
+    private string? graphicsReady;
+    public string? GraphicsReady
+    {
+        get
+        {
+            lock (gate)
+            {
+                return graphicsReady;
+            }
+        }
+    }
     private StreamWriter? log;
     private string? logWarning;
     private TextWriter? console;
@@ -67,6 +79,10 @@ internal sealed class GameProcessDiagnostics : IDisposable
                     {
                         tail.Remove(0, tail.Length - TailCapacity);
                     }
+                    if (source == "stdout")
+                    {
+                        RecordReadiness(text);
+                    }
                     WriteLog(source, text);
                     WriteConsole(text);
                 }
@@ -78,6 +94,33 @@ internal sealed class GameProcessDiagnostics : IDisposable
             {
                 logWarning = $"Could not read game {source}: {exception.Message}";
                 WriteLog("launcher", logWarning);
+            }
+        }
+    }
+
+    internal void RecordReadiness(string text)
+    {
+        lock (gate)
+        {
+            foreach (char character in text)
+            {
+                if (character == '\n')
+                {
+                    string line = readinessLine.ToString().TrimEnd('\r');
+                    if (line.StartsWith("Graphics ready: requested=", StringComparison.Ordinal) && line.Contains(" actual=", StringComparison.Ordinal))
+                    {
+                        graphicsReady = line;
+                    }
+                    readinessLine.Clear();
+                }
+                else
+                {
+                    readinessLine.Append(character);
+                    if (readinessLine.Length > TailCapacity)
+                    {
+                        readinessLine.Remove(0, readinessLine.Length - TailCapacity);
+                    }
+                }
             }
         }
     }

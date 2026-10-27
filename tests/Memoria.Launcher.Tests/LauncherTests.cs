@@ -104,6 +104,20 @@ public sealed class LauncherTests : IDisposable
         Assert.DoesNotContain("--achievements-local-only", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
     }
 
+    [Fact]
+    public void BackendOverridePreservesLaunchArguments()
+    {
+        ProcessStartInfo start = GameInstallationSelection.CreateStartInfo(directory, directory, true, directory, Memoria.FF8.Platform.GraphicsBackend.Vulkan);
+        Assert.Contains("--game-dir", start.ArgumentList);
+        Assert.Contains("--mods-dir", start.ArgumentList);
+        Assert.Contains("--media-tools", start.ArgumentList);
+        Assert.Contains("--achievements-local-only", start.ArgumentList);
+        int argument = start.ArgumentList.IndexOf("--graphics-backend");
+        Assert.True(argument >= 0);
+        Assert.Equal("Vulkan", start.ArgumentList[argument + 1]);
+        Assert.DoesNotContain("--graphics-backend", GameInstallationSelection.CreateStartInfo(directory, directory).ArgumentList);
+    }
+
     [Theory]
     [InlineData("39150", false)]
     [InlineData("1026680", true)]

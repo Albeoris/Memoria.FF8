@@ -32,7 +32,7 @@ if ($Scope -ne 'Distribution') {
         if ($Scope -eq 'Portable') {
             Invoke-DotNet @('build', 'Memoria.FF8.Portable.slnx', '-c', $Configuration, '-p:TargetFramework=net10.0', '-m:1')
             if ($Test) {
-                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests')) {
+                foreach ($project in @('Memoria.FF8.Platform.Tests', 'Memoria.FF8.Bootstrap.Tests', 'Memoria.FF8.Audio.Tests', 'Memoria.FF8.Presentation.Tests', 'Memoria.Launcher.Tests')) {
                     Invoke-DotNet @('run', '--project', "tests/$project", '-c', $Configuration)
                 }
                 Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration, '--', '--filter-class', '*SteamAchievementBackendTests')
@@ -79,12 +79,20 @@ foreach ($file in $bundledModFiles) {
 
 Push-Location $root
 try {
+    & (Join-Path $root 'tools/Update-Shaders.ps1') -Check
     $publishArguments = @('-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
-    Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $data, '-p:PublishSingleFile=false') + $publishArguments)
+    foreach ($backend in @(@{ Name = 'Direct3D11'; Directory = 'dx11' }, @{ Name = 'Vulkan'; Directory = 'vulkan' })) {
+        $hostOutput = Join-Path $data ('Game/' + $backend.Directory)
+        $hostBuild = Join-Path $artifacts ('build/' + $backend.Directory)
+        Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $publishArguments)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $hostOutput)
+        Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'))
+    }
+    Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-o', $data, '-p:PublishSingleFile=false') + $publishArguments)
     # Keep the released worker path with the common x64 music implementation and its complete runtime.
     Invoke-DotNet @('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $data 'audio-host'), '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false')
     Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-o', $launcher, '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true') + $publishArguments)
-    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', $data)
+    Invoke-DotNet @('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--', '--native-image', 'win-x64', (Join-Path $data 'Memoria.FF8.exe'))
 
     if ($Test) {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Remastered.Tests', '-c', $Configuration)
@@ -102,11 +110,14 @@ try {
         Invoke-DotNet @('run', '--project', 'tests/Memoria.FF8.Runtime.Tests', '-c', $Configuration)
     }
 
-    foreach ($relative in @('Memoria.FF8.exe', 'audio-host/Memoria.FF8.Music.exe', 'audio-host/coreclr.dll', 'Steam/steam_api64.dll', 'Steam/NOTICE.md')) {
+    foreach ($relative in @('Memoria.FF8.exe', 'Game/dx11/Memoria.FF8.exe', 'Game/vulkan/Memoria.FF8.exe', 'Game/vulkan/mgruntime.dll', 'audio-host/Memoria.FF8.Music.exe', 'audio-host/coreclr.dll')) {
         if (!(Test-Path -LiteralPath (Join-Path $data $relative) -PathType Leaf)) {
             throw "Incomplete distribution: Data/$relative is missing."
         }
     }
+    New-Item -ItemType Directory -Force -Path (Join-Path $data 'Steam') | Out-Null
+    Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/redistributable_bin/win64/steam_api64.dll') -Destination (Join-Path $data 'Steam/steam_api64.dll')
+    Copy-Item -LiteralPath (Join-Path $root 'vendor/Steamworks/README.md') -Destination (Join-Path $data 'Steam/NOTICE.md')
     $launcherExecutable = Join-Path $launcher 'Memoria.Launcher.exe'
     if (!(Test-Path -LiteralPath $launcherExecutable -PathType Leaf)) {
         throw 'The launcher publish did not produce Memoria.Launcher.exe.'
@@ -118,6 +129,7 @@ try {
     }
     Remove-Item -LiteralPath $launcher -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD-PARTY.md') -Destination $data
+    Copy-Item -LiteralPath (Join-Path $root 'tools/shader-manifest.json') -Destination (Join-Path $data 'shader-manifest.json')
     Copy-Item -LiteralPath (Join-Path $root 'vendor/Albeoris.Frameworks/LICENSE') -Destination (Join-Path $data 'Albeoris.Frameworks.LICENSE')
     Copy-Item -LiteralPath (Join-Path $root 'vendor/Topten.RichTextKit.Bidi/LICENSE.txt') -Destination (Join-Path $data 'Text.Unicode.LICENSE')
     Copy-Item -LiteralPath (Join-Path $root 'vendor/Topten.RichTextKit.Bidi/UNICODE-LICENSE.txt') -Destination (Join-Path $data 'Text.Unicode.Data.LICENSE')
@@ -126,8 +138,8 @@ try {
     $licenses = Join-Path $data 'licenses'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
     $copiedPackages = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($project in @('Memoria.FF8.App', 'Memoria.FF8.Music', 'Memoria.Launcher')) {
-        $assetsPath = Join-Path $root "src/$project/obj/project.assets.json"
+    $assetFiles = @((Join-Path $artifacts 'build/dx11/obj/Memoria.FF8.App/project.assets.json'), (Join-Path $artifacts 'build/vulkan/obj/Memoria.FF8.App/project.assets.json'), (Join-Path $root 'src/Memoria.FF8.Bootstrap/obj/project.assets.json'), (Join-Path $root 'src/Memoria.FF8.Music/obj/project.assets.json'), (Join-Path $root 'src/Memoria.Launcher/obj/project.assets.json'))
+    foreach ($assetsPath in $assetFiles) {
         $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json -AsHashtable
         foreach ($entry in $assets.libraries.GetEnumerator()) {
             if ($entry.Value.type -ne 'package' -or !$copiedPackages.Add($entry.Key)) {

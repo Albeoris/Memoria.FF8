@@ -1,11 +1,29 @@
+#if VULKAN
+#define VS_PROFILE vs_6_0
+#define PS_PROFILE ps_6_0
+#define SAMPLE_TEXTURE(textureName, samplerName, uv) textureName.Sample(samplerName, uv)
+#else
+#define VS_PROFILE vs_4_0
+#define PS_PROFILE ps_4_0
+#define SAMPLE_TEXTURE(textureName, samplerName, uv) tex2D(samplerName, uv)
+#endif
+
 float Time;
 float LightIntensity;
 float VortexRotation;
 float VortexTravel;
 float Aspect;
 float InverseHeight;
+#if VULKAN
+Texture2D Texture : register(t0);
+#else
 texture Texture;
+#endif
+#if VULKAN
+sampler TextureSampler : register(s0) = sampler_state
+#else
 sampler TextureSampler = sampler_state
+#endif
 {
     Texture = <Texture>;
     MinFilter = Linear;
@@ -203,7 +221,7 @@ float4 CompositePixel(float4 position : SV_POSITION, float4 color : COLOR0, floa
         return float4(0, 0, 0, 1);
     }
     float2 p = scene(uv);
-    float3 result = tex2D(TextureSampler, uv).rgb;
+    float3 result = SAMPLE_TEXTURE(Texture, TextureSampler, uv).rgb;
     // Native-resolution fibres follow the same coarse flow as the bounded material field.
     // Red coverage suppresses them in clouds, black gaps and the warm water opening.
     float redCoverage = saturate((result.r - result.g * 1.8 - result.b * 0.8) * 2.5);
@@ -257,7 +275,7 @@ technique Surface
 {
     pass Pass0
     {
-        PixelShader = compile ps_4_0 SurfacePixel();
+        PixelShader = compile PS_PROFILE SurfacePixel();
     }
 }
 
@@ -265,6 +283,6 @@ technique Composite
 {
     pass Pass0
     {
-        PixelShader = compile ps_4_0 CompositePixel();
+        PixelShader = compile PS_PROFILE CompositePixel();
     }
 }

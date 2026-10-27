@@ -18,7 +18,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         this.gameDirectory = gameDirectory;
         source = GameDataSourceFactory.Open(gameDirectory);
         Resources = new ResourceService(source);
-        Mods = new ModRuntime(applicationBaseDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
+        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory);
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;

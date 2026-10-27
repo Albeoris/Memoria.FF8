@@ -14,6 +14,9 @@ internal sealed partial class RecreateGame
     private void ApplyDisplaySettings()
     {
         windowMode?.Apply(uiPreferences.BorderlessWindow);
+#if MEMORIA_VULKAN
+        nativeBackBuffer?.Synchronize();
+#endif
         bool menu = startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
         int frameLimit = PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
         bool nativeBattle = ActiveBattle?.NativeGraphics is not null;

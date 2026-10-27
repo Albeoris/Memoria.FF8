@@ -46,6 +46,10 @@ internal static class Program
                 return HeadlessControlHost.Run(args[1..]);
             }
             LaunchOptions options = LaunchOptions.Parse(args);
+            if (options.RequestedGraphicsBackend is Memoria.FF8.Platform.GraphicsBackend requested && requested != Memoria.FF8.Platform.GraphicsBackend.Auto && requested.ToString() != GraphicsHostReadiness.Backend)
+            {
+                throw new ArgumentException($"This executable is the {GraphicsHostReadiness.Backend} host, but {requested} was requested. Start Data/Memoria.FF8.exe to select a backend, or try Auto.");
+            }
             if (!Directory.Exists(options.GameDirectory))
             {
                 throw new DirectoryNotFoundException($"Installed game directory not found: {options.GameDirectory}. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
@@ -67,6 +71,13 @@ internal static class Program
         }
         catch (Exception exception)
         {
+            string? failurePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_HOST_FAILURE_FILE");
+            if (failurePath is not null)
+            {
+                string temporary = failurePath + ".tmp";
+                File.WriteAllText(temporary, System.Text.Json.JsonSerializer.Serialize(new { schemaVersion = 1, processId = Environment.ProcessId, backend = GraphicsHostReadiness.Backend, graphicsInitialization = GraphicsHostReadiness.IsInitializationFailure(exception), message = exception.Message }));
+                File.Move(temporary, failurePath, true);
+            }
             DiagnosticHostFailure.Write(exception, Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY"), Console.Error);
             return 1;
         }
