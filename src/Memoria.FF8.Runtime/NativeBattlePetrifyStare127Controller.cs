@@ -67,9 +67,9 @@ public static class NativeBattlePetrifyStare127Controller
                 int actor = inputs.Packets.ReadContact(FirstContact(frame, inputs) + ordinal).Primary.ActorIndex;
                 (targetPool, int targetSlot) = targetPool.Append(TargetCallback);
                 NativeBattleModulePoolTask target = targetPool.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(14, checked((ushort)ordinal)).WriteDword(0x20, ModelAddress(actor));
-                NativeBattleGfAnimationWorkspace firstAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x24, 0x1C8).ToImmutableArray()).Initialize7016B0(resources.FirstAct, 0x1C8);
-                NativeBattleGfAnimationWorkspace secondAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x1EC, 0x2D0).ToImmutableArray()).Initialize7016B0(resources.SecondAct, 0x2D0);
-                target = secondAct.CopyTo(firstAct.CopyTo(target, 0x24, retainUnknown: false), 0x1EC, retainUnknown: false);
+                NativeBattleGfAnimationWorkspace firstAct = NativeBattleGfAnimationWorkspace.Borrow(target, 0x24, 0x1C8).Initialize7016B0(resources.FirstAct, 0x1C8);
+                NativeBattleGfAnimationWorkspace secondAct = NativeBattleGfAnimationWorkspace.Borrow(target, 0x1EC, 0x2D0).Initialize7016B0(resources.SecondAct, 0x2D0);
+                target = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleEffectTaskMemory.PublishAnimationWorkspace(target, 0x24, firstAct), 0x1EC, secondAct);
                 frame = WithPool(frame, 1, targetPool.WriteSlot(targetSlot, target));
                 frame = Put(frame, 0, slot, frame.Effect.Pools[0].Slots[slot].WriteByte(14, unchecked((byte)(ordinal + 1))));
             }

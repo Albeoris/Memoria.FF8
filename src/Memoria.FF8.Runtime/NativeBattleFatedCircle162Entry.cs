@@ -95,7 +95,7 @@ public static partial class NativeBattleFatedCircle162Controller
             {
                 throw new NotSupportedException($"Native Fated Circle main callback0x{task.Callback:X} is unsupported.");
             }
-            main = main with { Slots = main.Slots.SetItem(slot, task) };
+            main = main.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main) } };
             return new(main, result);
         });

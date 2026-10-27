@@ -35,7 +35,7 @@ public static class NativeBattleEffect83NodeEngine
         {
             int first = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25CFA2C), 0x10E0);
             int second = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25CFA44), 0x10680);
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x10E0, second, 0x10680, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x10E0, second, 0x10680, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(NativeBattleEffect83Profile.NodeSourceAddress, frame.State.NodeData ?? throw new NotSupportedException("Effect83 requires its current relocated source bank."));
             ushort emitterCursor = frame.State.ReadWord(0x25CA850);
             ushort geometryCursor = frame.State.ReadWord(0x25CFA38);

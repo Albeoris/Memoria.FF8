@@ -32,11 +32,11 @@ public static class NativeBattlePandemona291Controller
             {
                 NativeBattlePandemona291MasterInputs services = inputs ?? throw new NotSupportedException("Native Pandemona6ED350 requires its full target-record constructor6ED770 and timeline6ED900.");
                 task = task.WriteByte(0xF, 1);
-                frame = frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == current.DescriptorAddress ? current with { Slots = current.Slots.SetItem(index, task) } : active).ToImmutableArray() } };
+                frame = frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == current.DescriptorAddress ? current.WriteSlot(index, task) : active).ToImmutableArray() } };
                 frame = NativeBattlePandemona291Construction.Initialize6ED3B6(frame, services.Construction);
                 state = frame.Memory.Pandemona291!;
             }
-            frame = frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == current.DescriptorAddress ? current with { Slots = current.Slots.SetItem(index, task) } : active).ToImmutableArray() } };
+            frame = frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == current.DescriptorAddress ? current.WriteSlot(index, task) : active).ToImmutableArray() } };
             int creatures = 0;
             if (task.ReadByte(0xF) != 0)
             {
@@ -69,11 +69,11 @@ public static class NativeBattlePandemona291Controller
             {
                 if (task.ReadByte(0xF) != 0 && creatures == 0)
                 {
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 2);
+                    return new(current.WriteSlot(index, task), 2);
                 }
                 task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
             }
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+            return new(current.WriteSlot(index, task), 0);
         });
         return frame with { Memory = frame.Memory with { Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(active => active.DescriptorAddress == pool.DescriptorAddress ? step.Pool : active).ToImmutableArray(), ReturnedDescriptor = step.Survivors == 0 ? 0u : NativeBattlePandemona291Entry.MainDescriptor } };
     }

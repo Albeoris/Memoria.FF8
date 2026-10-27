@@ -36,7 +36,7 @@ public sealed class NativeBattlePrivateOrderingTests
     {
         NativeBattleEffectMemory memory = Memory();
         memory = memory with { Arena = memory.Arena!.MarkUnknown(RootOffset + 4, 4) };
-        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear() with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Repeat(new NativeBattleLogicalProxy(new("20DFAB8", 0, 0), 0, [], null), NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray() };
+        NativeBattleLogicalOrdering ordering = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Repeat(new NativeBattleLogicalProxy(new("20DFAB8", 0, 0), 0, [], null), NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray() });
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.AppendPrivate(memory, 0x2000, ordering, Batch(1), RootAddress);
         Assert.Equal(NativeBattlePrimitiveOrdering.ProxyCapacity, written.Ordering.ProxyCursor);
         Assert.Equal(ordering.Table, written.Ordering.Table);

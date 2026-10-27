@@ -31,9 +31,9 @@ public static partial class NativeBattleMiniPulseCannon286Controller
             NativeBattleGfAnimationSource[] sources = [resources.ProgrammeA, resources.ProgrammeB, resources.ProgrammeC, resources.ProgrammeD];
             for (int index = 0; index < offsets.Length; index++)
             {
-                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, main), offsets[index], lengths[index]), 0, lengths[index]);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offsets[index], lengths[index]);
                 workspace = workspace.Initialize7016B0(sources[index], lengths[index]);
-                frame = WriteBytes(frame, main + (uint)offsets[index], workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), lengths[index]);
+                NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offsets[index], workspace);
             }
             NativeBattleMiniPulseCannon286PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = WriteBytes(anchor.Frame, main + 20, anchor.Point8, 8);
@@ -120,15 +120,16 @@ public static partial class NativeBattleMiniPulseCannon286Controller
 
     private static NativeBattleMiniPulseCannon286Frame AdvanceProgramme286(NativeBattleMiniPulseCannon286Frame frame, uint task, int offset, int length, NativeBattleEffectArena caller, NativeBattleMiniPulseCannon286Resources resources, NativeBattleMiniPulseCannon286Inputs inputs)
     {
-        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(ReadBytes(frame, task + (uint)offset, length), 0, length);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, length);
         NativeBattleGfAnimationSource source = resources.ReadProgramme(workspace.ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, task + (uint)offset, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), length);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, current);
             frame = DrawProgrammeNode67A4E0(frame, source, node, caller, resources, inputs);
-            return NativeBattleGfAnimationWorkspace.Borrow(ReadBytes(frame, task + (uint)offset, length), 0, length);
+            return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, length);
         });
-        return WriteBytes(frame, task + (uint)offset, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan().Slice(0, length)), length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, task + (uint)offset, advanced.Workspace);
+        return frame;
     }
 
     private static NativeBattleEffectArena Caller286(NativeBattleEffectArena caller, NativeBattleActionMatrix matrix) => NativeBattleEffectNodeContextMemory.Copy(PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)), 0, caller, 0, 32);

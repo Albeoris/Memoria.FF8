@@ -305,8 +305,14 @@ internal static class NativeBattleEffectMeshPackets
 
     internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch(reader, matrix, projection, flags, readSelectedVertex, emit, observeFirstThreeFlags, projectFourth);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, uint flags, Func<int, NativeBattleVector>? readSelectedVertex, EmitFace emit, Action<uint>? observeFirstThreeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null)
+    {
         matrix.Validate();
-        if (mesh.IsDefaultOrEmpty || mesh.Length < 8)
+        if (mesh.IsDefault || mesh.Length < 8)
         {
             throw new InvalidDataException("Native effect mesh dispatcher requires its actual current mesh bytes.");
         }
@@ -369,7 +375,7 @@ internal static class NativeBattleEffectMeshPackets
             {
                 throw new InvalidDataException("Native effect mesh access leaves its current source bank.");
             }
-            return mesh.AsSpan().Slice(offset, length);
+            return mesh.Read(offset, length);
         }
     }
     private sealed class FlatCorners(int count, Func<int, NativeBattleModuleProjectedVertex> read) : IReadOnlyList<NativeBattleModuleProjectedVertex>

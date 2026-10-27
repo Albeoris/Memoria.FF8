@@ -146,8 +146,9 @@ internal sealed partial class GameWorld
             }
             flags = owner.Flags;
         }
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, flags), battle.Capture(), session.ExamTimer);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(battle.Capture().Definition)))
+        BattleSnapshot saved = battle.Capture();
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, saved.Definition.NativeSeed, flags), saved, session.ExamTimer);
+        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(saved.Definition)))
         {
             throw new InvalidDataException("Saved random combat differs from its current installed formation and party.");
         }

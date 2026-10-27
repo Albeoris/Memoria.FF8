@@ -18,6 +18,9 @@ public sealed partial class BattleSession
         NativeBattleModulePoolTask task = ReadNativeMasamuneChild(frame, address);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         int slot = checked((int)((address - pool.BankAddress) / 36));
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool.WriteSlot(slot, update(task) with { Next = task.Next })) } };
+        int? next = task.Next;
+        NativeBattleModulePoolTask updated = update(task);
+        updated.SetNext(next);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool.WriteSlot(slot, updated)) } };
     }
 }

@@ -41,14 +41,14 @@ public static partial class NativeBattleRinoa89Controller
             }
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(services.View, pose);
             NativeBattleRinoa89ProgramContext context = new(matrix, ArenaAddress + 100492, 0);
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(48, 344).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 48, 344);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(services.Program14A3EB0, 0, (current, node) =>
             {
                 NativeBattleRinoa89ProgramDraw drawn = NativeBattleRinoa89ProgramDrawing.Draw6FBB80(frame, services.Program14A3EB0, node, context, services.Projection, services.Colors);
                 frame = services.PublishPackets(drawn.Frame, drawn.Packets, true);
                 return current;
             });
-            task = advanced.Workspace.CopyTo(task, 48, retainUnknown: false);
+            task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 48, advanced.Workspace);
             if (advanced.Remaining == 0)
             {
                 return new(frame, pool.WriteSlot(slot, task), 2);

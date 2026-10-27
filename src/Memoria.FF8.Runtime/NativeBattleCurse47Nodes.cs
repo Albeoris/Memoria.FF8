@@ -85,7 +85,7 @@ public static class NativeBattleCurse47Nodes
             int geometry = ArenaOffset(frame.State.ReadDword(0x264EAE0));
             NativeBattleCuragaExecutableState program = frame.State.NodeProgram ?? throw new NotSupportedException("Curse node program is unknown.");
             program.Validate();
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(SourceAddress, program.Data ?? throw new NotSupportedException("Curse nodes require their current materialized source bytes."), inputs.ReadExternal ?? ((pointer, count) => frame.State.Read(pointer, count)));
             ushort emitterScan = frame.State.ReadWord(0x264D828);
             ushort geometryScan = frame.State.ReadWord(0x264E714);

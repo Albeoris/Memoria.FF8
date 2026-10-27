@@ -36,7 +36,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native Pandemona attached programme leaves its delivered source owner.");
         }
         int sourceLength = checked(file.Data.Length - (int)offset);
-        NativeBattleGfAnimationSource source = new(sourceAddress, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, sourceLength), sourceLength).ToImmutableArray());
+        NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(sourceAddress, arena, NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, sourceLength), sourceLength);
         NativeBattlePandemona291SurfaceInputs inputs = new(source, parent, null, 0, -128, length, 0x10);
         var drawn = DrawNativePandemona291Surface(frame, address, 0, graphics, inputs);
         return (new(drawn.Frame, task, drawn.Remaining == 0 ? 2 : 0), drawn.Graphics);

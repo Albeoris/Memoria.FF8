@@ -42,7 +42,7 @@ public static class NativeBattleShivaController
             pool = current.Entry.Effect.Pools[0];
             root = pool.Slots[slot];
             root = root.WriteWord(0x0C, unchecked((ushort)(root.ReadWord(0x0C) + 1)));
-            pool = pool with { Slots = pool.Slots.SetItem(slot, root) };
+            pool = pool.WriteSlot(slot, root);
             return new(pool, children.Survivors == 0 ? 2 : 0);
         });
         return current with { Entry = current.Entry with { Effect = current.Entry.Effect with { Pools = current.Entry.Effect.Pools.SetItem(0, main.Pool), ReturnedDescriptor = main.Survivors == 0 ? 0u : 0x22BC180u } } };

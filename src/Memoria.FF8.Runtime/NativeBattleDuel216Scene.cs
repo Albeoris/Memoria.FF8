@@ -281,8 +281,8 @@ public static class NativeBattleDuel216Scene
         }
         void Initialize(int offset, uint address, int size)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
-            task = workspace.Initialize7016B0(resources.Hierarchy(address), size).CopyTo(task, offset, retainUnknown: false);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
+            task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace.Initialize7016B0(resources.Hierarchy(address), size));
         }
         void Program(int offset, int size, NativeBattleActionMatrix local, uint windows, int depth, int vertical, int fade, bool compose = true)
         {

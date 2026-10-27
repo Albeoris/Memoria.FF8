@@ -11,7 +11,7 @@ public sealed partial class BattleSession
         NativeBattleEffect60Resources resources = current.Effect.Binding.Effect60Resources ?? throw new NotSupportedException("Effect60 requires its original ACT directory.");
         NativeBattleGfAnimationSource source = resources.Act(task.ReadDword(0x94));
         int length = source.Address == resources.ActSecondary.Address ? 36 : 228;
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x94, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, length);
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect60 ACT requires its current camera.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Effect60 ACT requires its current projection.");
         NativeBattleActMeshContext root = NativeBattleEffect60Rendering.PrepareAct(task, projection.View ?? throw new NotSupportedException("Effect60 ACT requires its published view matrix."));
@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return retained;
         });
         NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
-        task = advanced.Workspace.CopyTo(hierarchy.Read(address), 0x94, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(hierarchy.Read(address), 0x94, advanced.Workspace);
         hierarchy = hierarchy.Write(address, task);
         return (graphics, current with { Effect = current.Effect with { Pools = hierarchy.Pools } });
     }

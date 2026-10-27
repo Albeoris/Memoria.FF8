@@ -55,18 +55,37 @@ public static class NativeBattleGilgameshCommonTasks
             throw new NotSupportedException("Native596B30 requires its actual texture-completion callback.");
         }
         ArgumentNullException.ThrowIfNull(texture508630);
-        if (Signed(task, 0x0C) == 1)
+        NativeBattleTaskBankOwner checkpointOwner = task.RequireOwner();
+        checkpointOwner.BeginCheckpoint();
+        try
         {
-            NativeBattleModulePoolTask updated = texture508630(checked(arenaBase + 0xE000), checked(taskAddress + 0x0E), task);
-            ValidateTask(updated);
-            if (updated.Flags != task.Flags || updated.State != task.State || updated.Next != task.Next || updated.Callback != task.Callback || !updated.ReadRawPayloadSpan().Slice(0, 2).SequenceEqual(task.ReadRawPayloadSpan().Slice(0, 2)) || !updated.ReadRawPayloadSpan().Slice(3).SequenceEqual(task.ReadRawPayloadSpan().Slice(3)))
+            if (Signed(task, 0x0C) == 1)
             {
-                throw new InvalidDataException("Native508630 may update only its actual completion BYTE in the supplied task.");
+                ushort flags = task.Flags;
+                ushort state = task.State;
+                int? next = task.Next;
+                uint callback = task.Callback;
+                Span<byte> before = stackalloc byte[24];
+                task.ReadRawPayloadSpan().CopyTo(before);
+                NativeBattleModulePoolTask updated = texture508630(checked(arenaBase + 0xE000), checked(taskAddress + 0x0E), task);
+                ValidateTask(updated);
+                ReadOnlySpan<byte> after = updated.ReadRawPayloadSpan();
+                if (updated.Flags != flags || updated.State != state || updated.Next != next || updated.Callback != callback || !after[..2].SequenceEqual(before[..2]) || !after[3..].SequenceEqual(before[3..]))
+                {
+                    throw new InvalidDataException("Native508630 may update only its actual completion BYTE in the supplied task.");
+                }
+                task = updated;
             }
-            task = updated;
+            int result = task.ReadWord(0x0E) != 0 ? 2 : 0;
+            NativeBattleGilgameshCommonStep step = new(task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1))), result);
+            checkpointOwner.CommitCheckpoint();
+            return step;
         }
-        int result = task.ReadWord(0x0E) != 0 ? 2 : 0;
-        return new(task.WriteWord(0x0C, unchecked((ushort)(task.ReadWord(0x0C) + 1))), result);
+        catch
+        {
+            checkpointOwner.RollbackCheckpoint();
+            throw;
+        }
     }
 
     public static ImmutableArray<byte> SetActorFlags5904D0(ImmutableArray<byte> actorFlags) => ActorFlags(actorFlags, true);

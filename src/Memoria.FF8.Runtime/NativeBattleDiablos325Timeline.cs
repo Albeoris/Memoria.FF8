@@ -216,7 +216,7 @@ public static class NativeBattleDiablos325Timeline
                 if (selected.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current summon stream playback service."))(frame, 128, 127);
                 memory = frame.Memory;
@@ -232,7 +232,7 @@ public static class NativeBattleDiablos325Timeline
                 if (polled.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 NativeBattleDiablos325StreamStep initialized = NativeBattleDiablos325Stream.Initialize655488(frame, task);
                 frame = initialized.Frame;
@@ -244,7 +244,7 @@ public static class NativeBattleDiablos325Timeline
                 if (task.ReadByte(0xF) == 0)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current summon stream playback service."))(frame, 128, 127);
                 memory = NativeBattleEffectIo.Queue5341D0(memory, 732, checked(state.ModelBuffer5208 + 0x1685C), 5);
@@ -254,7 +254,7 @@ public static class NativeBattleDiablos325Timeline
                 if (task.ReadByte(0xF) == 0)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current summon stream playback service."))(frame, 128, 127);
                 memory = NativeBattleEffectIo.Queue5341D0(memory, 733, checked(state.ModelBuffer5208 + 0x1685C), 5);
@@ -275,7 +275,7 @@ public static class NativeBattleDiablos325Timeline
                 if (selected.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 NativeBattleDiablos325StreamStep initialized = NativeBattleDiablos325Stream.Initialize655488(frame, task);
                 frame = initialized.Frame;
@@ -287,7 +287,7 @@ public static class NativeBattleDiablos325Timeline
                 if (task.ReadByte(0xF) == 0)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current summon stream playback service."))(frame, 128, 127);
             }
@@ -302,7 +302,7 @@ public static class NativeBattleDiablos325Timeline
                 if (polled.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 memory = frame.Memory;
             }
@@ -321,7 +321,7 @@ public static class NativeBattleDiablos325Timeline
                 if (polled.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 frame = (inputs.UploadLateTexture ?? throw new NotSupportedException("Native Diablos requires its current original texture upload service."))(frame, checked(state.ModelBuffer5208 + 0x42E54));
                 memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 736, checked(state.ModelBuffer5208 + 0x1685C), 3);
@@ -337,7 +337,7 @@ public static class NativeBattleDiablos325Timeline
                 if (polled.Busy)
                 {
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                    return new(current.WriteSlot(index, task), 0);
                 }
                 (inputs.PlayStream ?? throw new NotSupportedException("Native Diablos requires its current final stream playback service."))(frame, 128, 127);
                 memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 727, checked(state.ModelBuffer5208 + 0x1685C), 5);
@@ -471,7 +471,7 @@ public static class NativeBattleDiablos325Timeline
             }
             task = task.WriteWord(0xC, unchecked((ushort)nextCounter));
             frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(12, task.ReadRawPayloadSpan()) } };
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
+            return new(current.WriteSlot(index, task), result);
         });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(item => item.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : item).ToImmutableArray() } };
     }

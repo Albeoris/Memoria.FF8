@@ -115,11 +115,13 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         fixture.Stream(0, 13, 0, Pack(-123, 234), Q(1), Q(-2), 0, -1);
         List<NativeBattleGfAnimationNode> nodes = [];
         NativeBattleGfAnimationAdvance first = fixture.Initialize().Advance701970(fixture.Source, 0, Collect);
+        NativeBattleGfAnimationWorkspace firstSnapshot = NativeBattleStorageSnapshots.Capture(first.Workspace);
         NativeBattleGfAnimationAdvance second = first.Workspace.Advance701970(fixture.Source, 0, Collect);
+        NativeBattleGfAnimationWorkspace secondSnapshot = NativeBattleStorageSnapshots.Capture(second.Workspace);
         NativeBattleGfAnimationAdvance third = second.Workspace.Advance701970(fixture.Source, 0, Collect);
         Assert.Equal((short)4096, nodes[0].Scalar36);
-        Assert.Equal(0x10000001, Int(first.Workspace, 8));
-        Assert.Equal(0x10000000, Int(second.Workspace, 8));
+        Assert.Equal(0x10000001, Int(firstSnapshot, 8));
+        Assert.Equal(0x10000000, Int(secondSnapshot, 8));
         Assert.Equal((short)1, nodes[0].Scalar38);
         Assert.Equal((short)0, nodes[1].Scalar38);
         Assert.Equal((short)-123, nodes[2].Word40);
@@ -280,6 +282,43 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         Assert.Equal(1, emitted);
         Assert.Null(borrowed.ActiveReader);
         Assert.Throws<InvalidOperationException>(() => borrowed.Data);
+    }
+
+    [Fact]
+    public void Local_cache_scope_accepts_completed_emits_and_discards_the_failed_emit_suffix()
+    {
+        Fixture fixture = new(1, 1);
+        fixture.Stream(0, 0, 0, Q(7), 0, 0, -1);
+        fixture.Stream(1, 0, 0, Q(9), 0, 0, -1);
+        NativeBattleGfAnimationWorkspace workspace = fixture.Initialize();
+        NativeBattleGfAnimationWorkspace original = NativeBattleStorageSnapshots.Capture(workspace);
+        Assert.Throws<InvalidOperationException>(() => workspace.Advance701970(fixture.Source, 0, (current, node) => node.NodeIndex == 0 ? current : throw new InvalidOperationException("Failed second emit.")));
+        Assert.Equal(Q(7), Int(workspace, 8));
+        Assert.Equal(0, Int(workspace, 20));
+        Assert.Equal(0, workspace.Frame);
+        Assert.Equal(0, Int(original, 8));
+    }
+
+    [Fact]
+    public void Task_backed_cache_does_not_accept_or_close_the_enclosing_pool_journal()
+    {
+        Fixture fixture = new(1, 1);
+        fixture.Stream(0, 0, 0, Q(7), 0, 0, -1);
+        fixture.Stream(1, 0, 0, Q(9), 0, 0, -1);
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x400, 0x800, 524, 1);
+        (pool, _) = pool.Append(1);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(pool.Slots[0], 12, 512).Initialize7016B0(fixture.Source, 512);
+        NativeBattleEffectTaskPool original = NativeBattleStorageSnapshots.Capture(pool);
+        pool.BeginCheckpoint();
+        Assert.Throws<InvalidOperationException>(() => workspace.Advance701970(fixture.Source, 0, (current, node) => node.NodeIndex == 0 ? current : throw new InvalidOperationException("Failed second emit.")));
+        Assert.True(pool.HasCheckpoint);
+        Assert.Equal(Q(7), Int(workspace, 8));
+        Assert.Equal(Q(9), Int(workspace, 20));
+        pool.RollbackCheckpoint();
+        Assert.False(pool.HasCheckpoint);
+        Assert.Equal(0, Int(workspace, 8));
+        Assert.Equal(0, Int(workspace, 20));
+        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(pool)));
     }
 
     private sealed class Fixture

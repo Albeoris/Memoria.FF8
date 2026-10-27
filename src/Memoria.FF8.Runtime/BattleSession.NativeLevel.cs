@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                 {
                     task = task.WriteWord(12, unchecked((ushort)(age + 1)));
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+                return new(pool.WriteSlot(slot, task), result);
             });
             targets = children.Pool;
             survivors = children.Survivors;

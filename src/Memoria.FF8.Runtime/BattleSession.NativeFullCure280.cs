@@ -89,7 +89,7 @@ public sealed partial class BattleSession
                 {
                     flash = 0;
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), complete ? 2 : 0);
             });
             directors = directorStep.Pool;
             directorSurvivors = directorStep.Survivors;
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
                     }
                     graphics = graphics with { PendingContacts = pending };
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, age + 1 >= 30 ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), age + 1 >= 30 ? 2 : 0);
             }).Pool;
             NativeBattleEffectTaskStep sparkStep = sparks!.Advance((pool, slot) =>
             {
@@ -146,7 +146,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
                 NativeFileStaging = NativeBattleTemporaryMemory.Release5082D0(drawn.Staging, 180);
                 task = task.WriteWord(18, unchecked((ushort)(age + 1)));
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, age + 1 >= 8 ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), age + 1 >= 8 ? 2 : 0);
             });
             sparks = sparkStep.Pool;
             sparkSurvivors = sparkStep.Survivors;

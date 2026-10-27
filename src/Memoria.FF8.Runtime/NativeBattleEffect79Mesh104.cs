@@ -9,33 +9,39 @@ public static class NativeBattleEffect79Mesh104
 {
     public static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2)
     {
+        using NativeBattleGfSourceReader resource = new(mesh.Bytes);
+        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, readSelectedVertex, maximumVertices, tableBaseBucket, depthShift);
+    }
+
+    internal static NativeBattleEffect79Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null, int maximumVertices = 125, int tableBaseBucket = 17, byte depthShift = 2)
+    {
         context.Validate();
         uint flags = Dword(context, 0x14);
         if ((flags & 0x2000) == 0)
         {
-            context = Put(context, 4, checked(mesh.Address + 8));
+            context = Put(context, 4, checked(meshAddress + 8));
         }
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0x30 or 0xC0 or 0xF0 or 0x2030 or 0x20F0) || depthShift > 31 || context.ExceedsExtent(104))
+        if (Dword(context, 0) != meshAddress || flags is not (0 or 0x30 or 0xC0 or 0xF0 or 0x2030 or 0x20F0) || depthShift > 31 || context.ExceedsExtent(104))
         {
             throw new InvalidDataException("Effect79 mesh104 requires its actual bounded windowed context.");
         }
-        int count = BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4));
+        int count = resource.Int(4);
         if (count < 1 || count > maximumVertices || maximumVertices is < 1 or > 125)
         {
             throw new InvalidDataException("Effect79 mesh104 selected rows leave its actual geometry extent.");
         }
-        int cursor = BinaryPrimitives.ReadInt32LittleEndian(Read(0, 4));
+        int cursor = resource.Int(0);
         int[] lengths = [12, 12, 20, 24, 20, 24, 28, 36];
         int validation = cursor;
         for (int group = 0; group < 8; group++)
         {
-            int faces = BinaryPrimitives.ReadInt32LittleEndian(Read(validation, 4));
+            int faces = resource.Int(validation);
             if (faces < 0 || faces != 0 && group is not (3 or 4 or 5 or 7))
             {
                 throw new NotSupportedException("Effect79 mesh104 requires its selected FT4, G3, G4 or GT4 group.");
             }
             validation = checked(validation + 4 + faces * lengths[group]);
-            _ = Read(validation, 0);
+            resource.ReadInto(validation, Span<byte>.Empty);
         }
         NativeBattleGeometryRegisterStep registers = new(memory.GeometryRegisters ?? throw new NotSupportedException("Effect79 mesh104 requires its current geometry registers."), memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect79 mesh104 requires its current color registers."));
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Effect79 mesh104 requires its current projection controls.");
@@ -49,12 +55,12 @@ public static class NativeBattleEffect79Mesh104
         int allocated = 0;
         for (int group = 0; group < 8; group++)
         {
-            int faces = BinaryPrimitives.ReadInt32LittleEndian(Read(cursor, 4));
+            int faces = resource.Int(cursor);
             cursor = checked(cursor + 4);
-            context = Put(context, 0x2C, checked(mesh.Address + (uint)cursor));
+            context = Put(context, 0x2C, checked(meshAddress + (uint)cursor));
             for (int index = 0; index < faces; index++)
             {
-                byte[] face = Read(cursor, lengths[group]).ToArray();
+                byte[] face = resource.ReadBytes(cursor, lengths[group]);
                 bool quad = (group & 1) != 0;
                 bool gouraud = group >= 4;
                 bool textured = group is 2 or 3 or 6 or 7;
@@ -153,7 +159,7 @@ public static class NativeBattleEffect79Mesh104
                 }
                 allocated = checked(allocated + leaf.AllocationBytes);
                 cursor = checked(cursor + lengths[group]);
-                context = Put(context, 0x2C, checked(mesh.Address + (uint)cursor));
+                context = Put(context, 0x2C, checked(meshAddress + (uint)cursor));
 
                 (NativeBattleVector Vertex, short? W) Vertex(int corner)
                 {
@@ -167,7 +173,8 @@ public static class NativeBattleEffect79Mesh104
                     {
                         return (readSelectedVertex ?? throw new NotSupportedException("Effect79 ACT mesh requires its current selected vertex owner."))(offset);
                     }
-                    ReadOnlySpan<byte> row = Read(8 + offset, 8);
+                    Span<byte> row = stackalloc byte[8];
+                    resource.ReadInto(8 + offset, row);
                     return (new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..])), BinaryPrimitives.ReadInt16LittleEndian(row[6..]));
                 }
             }
@@ -175,14 +182,6 @@ public static class NativeBattleEffect79Mesh104
         memory = memory with { GeometryRegisters = registers.Geometry, ScriptedColorRegisters = registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = far } };
         return new(memory, context, new(attempts.ToImmutable(), allocated));
 
-        ReadOnlySpan<byte> Read(int offset, int length)
-        {
-            if (mesh.Bytes.IsDefault || offset < 0 || length < 0 || offset > mesh.Bytes.Length - length)
-            {
-                throw new InvalidDataException("Effect79 mesh104 mesh leaves its original geometry.");
-            }
-            return mesh.Bytes.AsSpan().Slice(offset, length);
-        }
         NativeBattleTextureWindow Window(int offset) => new(unchecked((short)Word(context, offset)), unchecked((short)Word(context, offset + 2)), unchecked((short)Word(context, offset + 4)), unchecked((short)Word(context, offset + 6)));
     }
 

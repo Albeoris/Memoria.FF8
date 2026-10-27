@@ -321,8 +321,8 @@ public static partial class NativeBattleDuel215Controller
             (particles, int child) = particles.Append(0x69CB10);
             NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
             NativeBattleModulePoolTask record = particles.Slots[child].WriteWord(12, unchecked((ushort)position.X)).WriteWord(14, unchecked((ushort)position.Y)).WriteWord(16, unchecked((ushort)position.Z)).WriteWord(18, unchecked((ushort)scale)).WriteDword(20, unchecked((uint)angle));
-            NativeBattleGfAnimationWorkspace workspace = new(record.ReadBytes(24, size).ToImmutableArray());
-            record = workspace.Initialize7016B0(source, size).CopyTo(record, 24, retainUnknown: false);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(record, 24, size);
+            record = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(record, 24, workspace.Initialize7016B0(source, size));
             ReplaceParticles(particles.WriteSlot(child, record));
             return true;
         }

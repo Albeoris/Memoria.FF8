@@ -116,7 +116,7 @@ public static partial class NativeBattleMicroMissiles299Controller
                 }
                 NativeBattleGfAnimationSource source = variant > 1 ? resources.WideImpact : resources.Impact;
                 int size = variant > 1 ? 0x114 : 0xA0;
-                child = new NativeBattleGfAnimationWorkspace(child.ReadBytes(0x30, size).ToImmutableArray()).Initialize7016B0(source, size).CopyTo(child, 0x30, retainUnknown: false);
+                child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x30, NativeBattleGfAnimationWorkspace.Borrow(child, 0x30, size).Initialize7016B0(source, size));
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {
@@ -173,14 +173,14 @@ public static partial class NativeBattleMicroMissiles299Controller
 
     private static (NativeBattleMicroMissiles299Frame Frame, int Remaining) Play(NativeBattleMicroMissiles299Frame frame, uint address, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context, NativeBattleMicroMissiles299Inputs inputs)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(Read(frame, address).ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), offset, size);
         NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
         {
-            frame = Write(frame, address, Read(frame, address).WriteBytes(offset, current.Data.AsSpan()));
+            frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), offset, current));
             frame = inputs.EmitNode(frame, source, context, node);
-            return new(Read(frame, address).ReadBytes(offset, size).ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), offset, size);
         });
-        return (Write(frame, address, advance.Workspace.CopyTo(Read(frame, address), offset, retainUnknown: false)), advance.Remaining);
+        return (Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), offset, advance.Workspace)), advance.Remaining);
     }
     private static NativeBattleMicroMissiles299Frame EmitSprite(NativeBattleMicroMissiles299Frame frame, uint address, uint resource, ushort phase, NativeBattleMicroMissiles299Inputs inputs)
     {

@@ -67,7 +67,7 @@ public sealed partial class BattleSession
 
         NativeBattleOilBlast137ActStep AdvanceAct(NativeBattleOilBlast137Frame current, uint address, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(NativeBattleOilBlast137Controller.Read(current, address).ReadBytes(offset, size).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleOilBlast137Controller.Read(current, address), offset, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattleOilBlast137ActContext44.Visible(node))
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleOilBlast137Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleOilBlast137Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleOilBlast137Controller.Read(current, address), offset, retainUnknown: false));
+            current = NativeBattleOilBlast137Controller.Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleOilBlast137Controller.Read(current, address), offset, advanced.Workspace));
             return new(current, advanced.Remaining);
         }
 
@@ -107,8 +107,8 @@ public sealed partial class BattleSession
             {
                 case NativeBattleOilBlast137InitializeAct initializeAct:
                     NativeBattleModulePoolTask task = NativeBattleOilBlast137Controller.Read(current, initializeAct.TaskAddress);
-                    NativeBattleGfAnimationWorkspace initialized = new NativeBattleGfAnimationWorkspace(task.ReadBytes(initializeAct.WorkspaceOffset, initializeAct.WorkspaceBytes).ToImmutableArray()).Initialize7016B0(initializeAct.Source, initializeAct.WorkspaceBytes);
-                    return NativeBattleOilBlast137Controller.Write(current, initializeAct.TaskAddress, initialized.CopyTo(task, initializeAct.WorkspaceOffset, retainUnknown: false));
+                    NativeBattleGfAnimationWorkspace initialized = NativeBattleGfAnimationWorkspace.Borrow(task, initializeAct.WorkspaceOffset, initializeAct.WorkspaceBytes).Initialize7016B0(initializeAct.Source, initializeAct.WorkspaceBytes);
+                    return NativeBattleOilBlast137Controller.Write(current, initializeAct.TaskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, initializeAct.WorkspaceOffset, initialized));
                 case NativeBattleOilBlast137DrawCustom84 custom:
                     NativeBattleEffectArena customContext = ReadTemporary(current, custom.Temporary84, 84);
                     NativeBattleOilBlast137MeshStep customDraw = NativeBattleOilBlast137Mesh.Draw(current.Memory, resources.CustomMesh, customContext, Projection());

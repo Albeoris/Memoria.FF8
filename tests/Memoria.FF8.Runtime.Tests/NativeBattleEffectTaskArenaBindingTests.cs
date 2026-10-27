@@ -235,6 +235,23 @@ public sealed class NativeBattleEffectTaskArenaBindingTests
         Assert.Equal(17u, arena.ReadUInt32(0x100 + 12));
     }
 
+    [Fact]
+    public void Raw_payload_spans_from_distinct_slots_survive_other_reads_under_an_active_overlay()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        NativeBattleEffectTaskPool pool = Pool(0x100).BindArena(arena);
+        using NativeBattleEffectArenaTransaction transaction = new(arena);
+        transaction.View.WriteUInt32(0x100 + 12, 0x11223344);
+        transaction.View.WriteUInt32(0x100 + 32 + 12, 0xAABBCCDD);
+
+        ReadOnlySpan<byte> first = pool.Slots[0].ReadRawPayloadSpan();
+        ReadOnlySpan<byte> second = pool.Slots[1].ReadRawPayloadSpan();
+
+        Assert.Equal(0x11223344u, BinaryPrimitives.ReadUInt32LittleEndian(first));
+        Assert.Equal(0xAABBCCDDu, BinaryPrimitives.ReadUInt32LittleEndian(second));
+        Assert.Equal(0u, arena.ReadUInt32(0x100 + 12));
+    }
+
     private static NativeBattleEffectTaskPool Pool(int offset) => NativeBattleEffectTaskPool.Initialize(0x3000000u + (uint)offset, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)offset), 32, 2);
     private sealed record BindingGraph(NativeBattleEffectArena Arena, NativeBattleEffectTaskPool Pool);
 }

@@ -73,7 +73,7 @@ public sealed partial class BattleSession
 
         NativeBattleSaliva138ActStep AdvanceAct(NativeBattleSaliva138Frame current, uint address, NativeBattleGfAnimationSource source, int offset, int size, NativeBattleEffectArena context)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(NativeBattleSaliva138Controller.Read(current, address).ReadBytes(offset, size).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleSaliva138Controller.Read(current, address), offset, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattleDefaultActContext40.Visible(node))
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleSaliva138Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleSaliva138Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleSaliva138Controller.Read(current, address), offset, retainUnknown: false));
+            current = NativeBattleSaliva138Controller.Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleSaliva138Controller.Read(current, address), offset, advanced.Workspace));
             return new(current, advanced.Remaining);
         }
 

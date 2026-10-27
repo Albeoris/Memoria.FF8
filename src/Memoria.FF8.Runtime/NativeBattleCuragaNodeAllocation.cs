@@ -7,28 +7,28 @@ public static class NativeBattleCuragaNodes
 {
     public static NativeBattleCuragaNodeAllocation AllocateEmitter881700(NativeBattleCuragaFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         int? node = AllocateEmitter(memory, parentPointer, sourceIndex, targetIndex);
         return new(memory.Flush(), node);
     }
 
     public static NativeBattleCuragaNodeAllocation AllocateGeometry882080(NativeBattleCuragaFrame frame, uint contextTask, int emitter, sbyte sourceIndex)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         int? node = AllocateGeometry(memory, emitter, sourceIndex);
         return new(memory.Flush(), node);
     }
 
     public static NativeBattleCuragaFrame Unlink882960(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         memory.Unlink882960(node);
         return memory.Flush();
     }
 
     public static NativeBattleCuragaFrame AdvanceEmitterLifetime8817F0(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         AdvanceEmitterLifetime(memory, node);
         return memory.Flush();
     }

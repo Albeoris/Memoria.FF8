@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>A bounded task-body view of the operative physical authority, including a public arena transaction.</summary>
 internal sealed class NativeBattleTaskBody(NativeBattleTaskBankOwner owner)
 {
-    private byte[] rawScratch = [];
+    private readonly Dictionary<(int Offset, int Length), byte[]> rawScratch = [];
     private bool[] knownScratch = [];
 
     private NativeBattleWorkingMemory Kernel => owner.RequireActive().Storage;
@@ -169,14 +169,18 @@ internal sealed class NativeBattleTaskBody(NativeBattleTaskBankOwner owner)
         {
             return Kernel.BorrowRawReadOnly(offset, length);
         }
-        //Only the requested immediate borrow is copied; this scratch never becomes a second writable owner.
-        if (rawScratch.Length < length)
+        //Separate requested ranges must coexist until mutation/growth; another read is not an invalidation.
+        if (!rawScratch.TryGetValue((offset, length), out byte[]? bytes))
         {
-            rawScratch = new byte[length];
+            bytes = new byte[length];
+            rawScratch.Add((offset, length), bytes);
+        }
+        if (knownScratch.Length < length)
+        {
             knownScratch = new bool[length];
         }
-        transaction!.ReadWithKnownness(relative, rawScratch.AsSpan(0, length), knownScratch.AsSpan(0, length));
-        return rawScratch.AsSpan(0, length);
+        transaction!.ReadWithKnownness(relative, bytes, knownScratch.AsSpan(0, length));
+        return bytes;
     }
     public IEnumerator<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers() => Enumerate().GetEnumerator();
     private IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> Enumerate()

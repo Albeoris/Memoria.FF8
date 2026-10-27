@@ -93,7 +93,7 @@ public sealed partial class BattleSession
                 2 => (resources.ImpactAct, 0x18, 0xA8),
                 _ => throw new InvalidDataException("Eerie Sound Wave selected an absent ACT workspace.")
             };
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, length).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, length);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattleEerieSoundWave130Act.Visible(node))
@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleEerieSoundWave130Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleEerieSoundWave130Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleEerieSoundWave130Controller.Read(current, taskAddress), offset, retainUnknown: false));
+            current = NativeBattleEerieSoundWave130Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleEerieSoundWave130Controller.Read(current, taskAddress), offset, advanced.Workspace));
             return new(current, advanced.Remaining);
         }
     }

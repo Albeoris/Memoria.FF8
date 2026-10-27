@@ -64,9 +64,9 @@ public sealed partial class BattleSession
             var selected = NativeBattleChoco97ProgramDrawing.LoadedProfile(profile);
             NativeBattleChoco97IoState io = shared.Io ?? throw new NotSupportedException("Native Choco requires its loaded program IO owner.");
             NativeBattleChoco97Context context = shared.Context ?? throw new NotSupportedException("Native Choco requires its current context origins.");
-            NativeBattleGfAnimationSource source = new(selected.Address, io.Banks.Read(selected.Address, selected.Length).ToImmutableArray());
+            NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(selected.Address, io.Banks.Bytes, checked((int)(selected.Address - io.Banks.BaseAddress)), selected.Length);
             NativeBattleChoco97LoadedProgramDraw loaded = NativeBattleChoco97ProgramDrawing.AdvanceLoaded(profile, task, source, context.Data.Slice(0, 8), context.Data.Slice(8, 8), shared.MorphScratch, view, projection, colors, frozen);
-            current = current with { Memory = current.Memory with { Choco97 = shared with { Io = io with { Banks = io.Banks.Write(loaded.Source.Address, loaded.Source.Data) }, MorphScratch = loaded.MorphScratch } } };
+            current = current with { Memory = current.Memory with { Choco97 = shared with { Io = io, MorphScratch = loaded.MorphScratch } } };
             return new(AppendCommon(current, loaded.Packets), loaded.Task, loaded.Remaining);
         }
 

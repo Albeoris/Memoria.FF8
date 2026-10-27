@@ -162,7 +162,7 @@ public static class NativeBattleAuraController
                 {
                     task = task.WriteWord(24, unchecked((ushort)(task.ReadWord(24) + task.ReadWord(26)))).WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), complete ? 2 : 0);
             });
             pools[2] = flameStep.Pool;
             flames = flameStep.Survivors;

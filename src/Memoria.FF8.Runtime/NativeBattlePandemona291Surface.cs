@@ -15,8 +15,9 @@ public static class NativeBattlePandemona291Surface
         {
             return new(false, 0, 0, [], parent, context);
         }
-        int geometry = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(checked(8 + 4 * unchecked((short)node.GeometryIndex)), 4));
-        int count = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(checked(geometry + 4), 4));
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        int geometry = reader.Int(checked(8 + 4 * unchecked((short)node.GeometryIndex)));
+        int count = reader.Int(checked(geometry + 4));
         int selected = 0;
         ImmutableArray<NativeBattleVector> morph = [];
         if (node.Word40 == node.Word42 || node.Scalar38 is 0 or 4096)
@@ -26,7 +27,7 @@ public static class NativeBattlePandemona291Surface
         }
         else
         {
-            morph = NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38);
+            morph = NativeBattleGfMorphGeometry.MorphVertices701390(reader, geometry, node.Word40, node.Word42, node.Scalar38);
         }
         NativeBattleActionMatrix local = (node.Header & 0x40000) != 0 ? NativeBattleGfMatrices.Euler7015B0(node.Vector16) : NativeBattleGfMatrices.Euler701310(node.Vector16);
         NativeBattleVector position = node.Vector8;
@@ -72,10 +73,18 @@ public static class NativeBattlePandemona291Surface
         {
             return new([], 0);
         }
-        return EmitGeometry701DD0(source.Data.AsSpan().Slice(prepared.GeometryOffset).ToArray().ToImmutableArray(), prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth, zsf3);
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        using NativeBattleGfSourceReader geometry = reader.Slice(prepared.GeometryOffset);
+        return EmitGeometry701DD0(geometry, prepared.Matrix, prepared.Context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth, zsf3);
     }
 
     public static NativeBattleGfGeometryBatch EmitGeometry701DD0(ImmutableArray<byte> geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, short? zsf3 = null)
+    {
+        using NativeBattleGfSourceReader reader = new(geometry);
+        return EmitGeometry701DD0(reader, matrix, context, projection, colors, zsf4, readSelected, observeInput, observeFlags, projectFourth, zsf3);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitGeometry701DD0(NativeBattleGfSourceReader geometry, NativeBattleActionMatrix matrix, NativeBattleEsunaMeshContext context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, short zsf4, Func<int, NativeBattleVector> readSelected, Action<int>? observeInput = null, Action<uint>? observeFlags = null, Func<NativeBattleVector, NativeBattleModuleProjectedVertex>? projectFourth = null, short? zsf3 = null)
     {
         NativeBattleEffectMeshWindow window = new(context.UOffset, context.VOffset, context.WindowBefore, context.WindowAfter);
         NativeBattleEffectMeshPacketContext operands = new(context.Flags, context.FarColor, context.Fade, null, null, 0, false, context.DepthBias, context.TableBaseBucket, context.DepthShift, window);

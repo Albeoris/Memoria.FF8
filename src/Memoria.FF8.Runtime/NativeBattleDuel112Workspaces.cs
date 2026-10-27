@@ -47,7 +47,11 @@ public static class NativeBattleDuel112Workspaces
         {
             throw new InvalidDataException("Native Duel workspace leaves its actual target task.");
         }
-        return new((requireKnown ? task.ReadBytes(offset, size) : task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray()).ToImmutableArray());
+        if (requireKnown)
+        {
+            task.RequireKnownPayload(offset, size);
+        }
+        return NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
     }
 
     private static NativeBattleDuel112Frame Store(NativeBattleDuel112Frame frame, int slot, int offset, NativeBattleGfAnimationWorkspace workspace)
@@ -58,7 +62,7 @@ public static class NativeBattleDuel112Workspaces
             throw new InvalidDataException("Native Duel workspace requires its physical target bank.");
         }
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        task = workspace.CopyTo(task, offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
         pool = pool.WriteSlot(slot, task);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }

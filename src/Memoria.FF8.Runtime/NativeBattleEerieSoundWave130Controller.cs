@@ -61,8 +61,8 @@ public static class NativeBattleEerieSoundWave130Controller
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, travel, impact] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, travel, impact]) };
             (frame, uint address) = Append(frame, 1, MainCallback);
             NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x4C0]);
-            NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x20, 0x4AC).ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x4AC);
-            task = workspace.CopyTo(task, 0x20, retainUnknown: false);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x20, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
+            task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x20, workspace);
             int count = Header(frame, inputs).ReadByte(16);
             if (count > 3)
             {
@@ -152,8 +152,8 @@ public static class NativeBattleEerieSoundWave130Controller
                 int index = age / 12;
                 NativeBattleModulePoolTask travel = Read(frame, child).WriteWord(12, 0).WriteByte(14, (byte)(age % 12 == 9 ? 0 : 1)).WriteByte(15, task.ReadByte(0x1C + index)).WriteDword(0x10, task.ReadDword(0x10 + index * 4));
                 travel = Vector(travel, 0x14, origin.Point).MarkPayloadUnknown(0x1A, 2);
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(travel.ReadBytes(0x1C, 0x58).ToImmutableArray()).Initialize7016B0(resources.TravelAct, 0x58);
-                frame = Write(frame, child, workspace.CopyTo(travel, 0x1C, retainUnknown: false));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(travel, 0x1C, 0x58).Initialize7016B0(resources.TravelAct, 0x58);
+                frame = Write(frame, child, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(travel, 0x1C, workspace));
             }
         }
         return (Write(frame, address, Read(frame, address).WriteWord(12, unchecked((ushort)(age + 1)))), 0);
@@ -192,8 +192,8 @@ public static class NativeBattleEerieSoundWave130Controller
                 NativeBattleEerieSoundWave130AnchorStep currentAnchor = inputs.ReadAnchor(frame, actor);
                 frame = currentAnchor.Frame;
                 NativeBattleModulePoolTask impact = Read(frame, child).WriteWord(12, unchecked((ushort)currentAnchor.Anchor.X)).WriteWord(14, unchecked((ushort)currentAnchor.Anchor.Y)).WriteWord(16, unchecked((ushort)currentAnchor.Anchor.Z)).WriteWord(18, unchecked((ushort)currentAnchor.Anchor.W)).WriteDword(0x14, ModelAddress(actor));
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(impact.ReadBytes(0x18, 0xA8).ToImmutableArray()).Initialize7016B0(resources.ImpactAct, 0xA8);
-                frame = Write(frame, child, workspace.CopyTo(impact, 0x18, retainUnknown: false));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(impact, 0x18, 0xA8).Initialize7016B0(resources.ImpactAct, 0xA8);
+                frame = Write(frame, child, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(impact, 0x18, workspace));
             }
         }
         NativeBattleActionMatrix world = NativeBattleFunguarLaser277.Basis50CBA0(dx, dy, dz).Matrix with { X = point.X, Y = point.Y, Z = point.Z };

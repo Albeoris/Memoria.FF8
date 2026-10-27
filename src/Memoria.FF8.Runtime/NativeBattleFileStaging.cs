@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -72,6 +72,8 @@ public sealed partial record NativeBattleFileStaging : INativeBattleStorageNode
 
     [JsonIgnore]
     internal NativeBattleFileStagingTransaction? Transaction { get; init; }
+    [JsonIgnore]
+    internal bool IsSnapshot => snapshot;
     internal NativeBattleFileStagingWorkingOwner WorkingOwner => RequireOwner();
     internal object OwnerIdentity => RequireOwner();
     internal int AllocatedPageCount => RequireOwner().PageCount;

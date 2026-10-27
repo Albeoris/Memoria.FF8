@@ -120,9 +120,9 @@ public sealed partial class BattleSession
                     if ((task.ReadByte(14) & 1) != 0 && Allocate(3, 0x6CB340, out int targetSlot))
                     {
                         NativeBattleModulePoolTask targetTask = Clear(3, targetSlot).WriteWord(14, task.ReadByte(15));
-                        NativeBattleGfAnimationWorkspace workspace = new(new byte[0xEC].ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(targetTask, 16, 0xEC);
                         workspace = workspace.Initialize7016B0(resources.Cloud, 0xEC);
-                        Put(3, targetSlot, workspace.CopyTo(targetTask, 12 + (4), retainUnknown: true));
+                        Put(3, targetSlot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(targetTask, 16, workspace));
                     }
                     task = task.WriteByte(14, (byte)(task.ReadByte(14) >> 1)).WriteByte(15, unchecked((byte)(task.ReadByte(15) + 1)));
                 }

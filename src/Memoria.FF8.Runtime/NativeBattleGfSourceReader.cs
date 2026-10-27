@@ -7,7 +7,12 @@ namespace Memoria.FF8.Runtime;
 internal sealed class NativeBattleGfSourceReader : IDisposable
 {
     private readonly ImmutableArray<byte> data;
+    private readonly NativeBattleGfSourceReader? parent;
+    private readonly int parentOffset;
     private readonly NativeBattleReadWindow window;
+    private readonly NativeBattleStagingReadWindow stagingWindow;
+    private readonly bool staged;
+    private readonly NativeBattleEffectArena? frozenArena;
     private readonly NativeBattleGfAnimationSource? source;
     private readonly NativeBattleGfSourceReader? previous;
     private readonly bool borrowed;
@@ -21,27 +26,60 @@ internal sealed class NativeBattleGfSourceReader : IDisposable
         IsDefault = data.IsDefault;
     }
 
+    internal NativeBattleGfSourceReader(NativeBattleReadWindow window)
+    {
+        this.window = window;
+        Length = window.Length;
+        borrowed = true;
+        ownsWindow = true;
+    }
+
     internal NativeBattleGfSourceReader(NativeBattleGfAnimationSource source)
     {
         this.source = source;
         data = source.CatalogData;
         Length = source.Length;
         IsDefault = source.IsDefault;
-        if (source.Arena is { } arena)
+        frozenArena = source.FrozenArena;
+        if (frozenArena is null && (source.Arena is not null || source.Staging is not null))
         {
             borrowed = true;
             previous = source.ActiveReader;
             if (previous is not null)
             {
                 window = previous.window;
+                stagingWindow = previous.stagingWindow;
+                staged = previous.staged;
+            }
+            else if (source.Staging is { } staging)
+            {
+                stagingWindow = staging.OpenReadWindow(source.StagingAddress, source.Length);
+                staged = true;
+                ownsWindow = true;
             }
             else
             {
-                window = arena.OpenReadWindow(source.Offset, source.Length);
+                window = source.Arena!.OpenReadWindow(source.Offset, source.Length);
                 ownsWindow = true;
             }
             source.ActiveReader = this;
         }
+    }
+
+    private NativeBattleGfSourceReader(NativeBattleGfSourceReader parent, int offset, int length)
+    {
+        this.parent = parent;
+        parentOffset = offset;
+        Length = length;
+        IsDefault = parent.IsDefault;
+    }
+
+    public NativeBattleGfSourceReader Slice(int offset) => Slice(offset, Length - offset);
+
+    public NativeBattleGfSourceReader Slice(int offset, int length)
+    {
+        RequireRange(offset, length);
+        return new(this, offset, length);
     }
 
     public int Length { get; }
@@ -49,27 +87,42 @@ internal sealed class NativeBattleGfSourceReader : IDisposable
     public byte Byte(int offset)
     {
         RequireRange(offset, 1);
-        return borrowed ? window.ReadByte(offset) : data[offset];
+        return parent is not null ? parent.Byte(checked(parentOffset + offset)) : frozenArena is not null ? frozenArena.ReadByte(offset) : borrowed ? staged ? stagingWindow.ReadByte(offset) : window.ReadByte(offset) : data[offset];
     }
     public ushort UShort(int offset)
     {
         RequireRange(offset, 2);
-        return borrowed ? window.ReadUInt16(offset) : BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan().Slice(offset, 2));
+        return parent is not null ? parent.UShort(checked(parentOffset + offset)) : frozenArena is not null ? frozenArena.ReadUInt16(offset) : borrowed ? staged ? stagingWindow.ReadUInt16(offset) : window.ReadUInt16(offset) : BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan().Slice(offset, 2));
     }
     public short Short(int offset) => unchecked((short)UShort(offset));
     public uint UInt(int offset)
     {
         RequireRange(offset, 4);
-        return borrowed ? window.ReadUInt32(offset) : BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan().Slice(offset, 4));
+        return parent is not null ? parent.UInt(checked(parentOffset + offset)) : frozenArena is not null ? frozenArena.ReadUInt32(offset) : borrowed ? staged ? stagingWindow.ReadUInt32(offset) : window.ReadUInt32(offset) : BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan().Slice(offset, 4));
     }
     public int Int(int offset) => unchecked((int)UInt(offset));
 
     public void ReadInto(int offset, Span<byte> destination)
     {
         RequireRange(offset, destination.Length);
-        if (borrowed)
+        if (parent is not null)
         {
-            window.ReadInto(offset, destination);
+            parent.ReadInto(checked(parentOffset + offset), destination);
+        }
+        else if (frozenArena is not null)
+        {
+            frozenArena.ReadInto(offset, destination);
+        }
+        else if (borrowed)
+        {
+            if (staged)
+            {
+                stagingWindow.ReadInto(offset, destination);
+            }
+            else
+            {
+                window.ReadInto(offset, destination);
+            }
         }
         else
         {
@@ -85,9 +138,24 @@ internal sealed class NativeBattleGfSourceReader : IDisposable
         {
             throw new ArgumentException("Native source bytes and knownness destinations must have matching widths.", nameof(known));
         }
-        if (borrowed)
+        if (parent is not null)
         {
-            window.ReadWithKnownness(offset, destination, known);
+            parent.ReadWithKnownness(checked(parentOffset + offset), destination, known);
+        }
+        else if (frozenArena is not null)
+        {
+            frozenArena.ReadWithKnownness(offset, destination, known);
+        }
+        else if (borrowed)
+        {
+            if (staged)
+            {
+                stagingWindow.ReadWithKnownness(offset, destination, known);
+            }
+            else
+            {
+                window.ReadWithKnownness(offset, destination, known);
+            }
         }
         else
         {
@@ -98,17 +166,42 @@ internal sealed class NativeBattleGfSourceReader : IDisposable
         }
     }
 
+    public byte[] ReadBytes(int offset, int length)
+    {
+        RequireRange(offset, length);
+        byte[] bytes = new byte[length];
+        ReadInto(offset, bytes);
+        return bytes;
+    }
+
     public ReadOnlySpan<byte> Read(int offset, int length)
     {
         RequireRange(offset, length);
+        if (parent is not null)
+        {
+            return parent.Read(checked(parentOffset + offset), length);
+        }
+        if (frozenArena is not null)
+        {
+            return frozenArena.Read(offset, length);
+        }
         if (!borrowed)
         {
             return data.AsSpan().Slice(offset, length);
         }
         byte[] bytes = new byte[length];
-        window.ReadInto(offset, bytes);
+        if (staged)
+        {
+            stagingWindow.ReadInto(offset, bytes);
+        }
+        else
+        {
+            window.ReadInto(offset, bytes);
+        }
         return bytes;
     }
+
+    internal void RequireExtent(int offset, int length) => RequireRange(offset, length);
 
     private void RequireRange(int offset, int length)
     {
@@ -126,10 +219,20 @@ internal sealed class NativeBattleGfSourceReader : IDisposable
             disposed = true;
             if (borrowed)
             {
-                source!.ActiveReader = previous;
+                if (source is not null)
+                {
+                    source.ActiveReader = previous;
+                }
                 if (ownsWindow)
                 {
-                    window.Dispose();
+                    if (staged)
+                    {
+                        stagingWindow.Dispose();
+                    }
+                    else
+                    {
+                        window.Dispose();
+                    }
                 }
             }
         }

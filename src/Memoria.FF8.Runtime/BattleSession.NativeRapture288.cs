@@ -67,7 +67,7 @@ public sealed partial class BattleSession
                 pools[1] = pool;
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 int result = Target(ref task);
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+                return new(pool.WriteSlot(slot, task), result);
             });
             pools[1] = targets.Pool;
             targetSurvivors = targets.Survivors;
@@ -87,7 +87,7 @@ public sealed partial class BattleSession
                 {
                     task = task.WriteWord(14, unchecked((ushort)(scale - 256)));
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, WindWord(task, 14) < 256 ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), WindWord(task, 14) < 256 ? 2 : 0);
             }).Pool;
             pools[3] = pools[3].Advance((pool, slot) =>
             {
@@ -104,7 +104,7 @@ public sealed partial class BattleSession
                 effect = effect with { DrawArenaOffset = written.Cursor };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
                 task = task.WriteWord(14, unchecked((ushort)(point.Y + 30))).WriteWord(18, unchecked((ushort)(phase + 1)));
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, phase + 1 >= 12 ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), phase + 1 >= 12 ? 2 : 0);
             }).Pool;
         }
         bool released = root.ReadByte(17) != 0 && targetSurvivors == 0;

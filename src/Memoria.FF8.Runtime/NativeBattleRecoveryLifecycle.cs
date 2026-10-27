@@ -9,7 +9,7 @@ public static class NativeBattleRecoveryLifecycle
 {
     public static NativeBattleRecoveryPresentationStep AdvanceAndDraw(NativeBattleRecoveryFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
-        NativeBattleRecoveryNodeMemory memory = new(frame, contextTask);
+        using NativeBattleRecoveryNodeMemory memory = new(frame, contextTask);
         NativeBattleRecoveryExecutableState retained = frame.Memory.GetRecoveryExecutable(memory.Profile.Effect) ?? throw new NotSupportedException("Native recovery node lifecycle requires its own retained executable bank.");
         retained.Validate();
         NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data, retained.Read);

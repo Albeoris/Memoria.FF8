@@ -4,7 +4,28 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    public NativeBattleGraphicsState? NativeGraphics { get; private set; }
+    private NativeBattleGraphicsState? nativeGraphics;
+
+    public NativeBattleGraphicsState? NativeGraphics
+    {
+        get => nativeGraphics;
+        private set
+        {
+            if (!ReferenceEquals(nativeGraphics?.OriginalEffect, value?.OriginalEffect))
+            {
+                AcceptNativeEffectPublication(value?.OriginalEffect);
+            }
+            nativeGraphics = value;
+        }
+    }
+
+    private void AcceptNativeEffectPublication(NativeBattleOriginalEffectState? effect)
+    {
+        if (effect is not null && NativeBattleTaskOperation.IsActive && !NativeBattleTaskCallerOperation.IsActive)
+        {
+            NativeBattleTaskOperation.AcceptPublishedEffect(effect, NativeEffectMemory);
+        }
+    }
     public bool NativeEntryReady => NativeGraphics?.EntryReady ?? true;
     public bool? NativeGraphicsLoading => NativeGraphics is null ? null : NativeGraphics.ModelLoadCount != 0;
     public byte NativeEffectTaskCount => (NativeGraphics ?? throw new NotSupportedException("Native graphics completion requires its original effect task owner.")).Effects.PublishedCount;

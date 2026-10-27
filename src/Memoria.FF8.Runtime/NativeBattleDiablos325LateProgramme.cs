@@ -107,6 +107,6 @@ public static class NativeBattleDiablos325LateProgramme
         }
         int length = checked((int)(end - address));
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos programme requires its current mutable resource bytes.");
-        return new(address, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length).ToImmutableArray());
+        return NativeBattleGfAnimationSource.Borrow(address, arena, NativeBattleWaterExecutionFields.ArenaOffset(address, length), length);
     }
 }

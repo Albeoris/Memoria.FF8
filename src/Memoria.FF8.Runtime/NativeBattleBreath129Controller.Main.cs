@@ -165,8 +165,8 @@ public static partial class NativeBattleBreath129Controller
     private static NativeBattleBreath129Frame ResetWorkspace(NativeBattleBreath129Frame frame, uint address, int offset, int size, NativeBattleGfAnimationSource source)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(offset, size).ToImmutableArray()).Initialize7016B0(source, size);
-        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(source, size);
+        return Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace));
     }
 
     private static NativeBattleVector TaskVector(NativeBattleModulePoolTask task, int offset) => new(Signed(task, offset), Signed(task, offset + 2), Signed(task, offset + 4));

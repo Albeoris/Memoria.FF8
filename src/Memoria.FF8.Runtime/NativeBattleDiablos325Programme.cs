@@ -85,7 +85,7 @@ public static partial class NativeBattleDiablos325Programme
         return rotation with { X = unchecked(view.X + translated.X), Y = unchecked(view.Y + translated.Y), Z = unchecked(view.Z + translated.Z) };
     }
 
-    private static NativeBattleGfGeometryBatch Alternate(ImmutableArray<byte> source, int geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> vertex)
+    private static NativeBattleGfGeometryBatch Alternate(NativeBattleGfSourceReader source, int geometry, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors colors, Func<int, NativeBattleVector> vertex)
     {
         int cursor = checked(geometry + Int(source, geometry));
         int allocated = 0;
@@ -97,7 +97,7 @@ public static partial class NativeBattleDiablos325Programme
             cursor = checked(cursor + 4);
             for (int index = 0; index < count; index++)
             {
-                byte[] face = source.AsSpan().Slice(cursor, Lengths[group]).ToArray();
+                byte[] face = source.ReadBytes(cursor, Lengths[group]);
                 Corners corners = new(face, offset =>
                 {
                     if (!projected.TryGetValue(offset, out NativeBattleModuleProjectedVertex result))
@@ -115,6 +115,8 @@ public static partial class NativeBattleDiablos325Programme
         }
         return new(attempts.ToImmutable(), allocated);
     }
+
+    private static int Int(NativeBattleGfSourceReader bytes, int offset) => bytes.Int(offset);
 
     private static int Int(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan().Slice(offset, 4));
 

@@ -213,8 +213,8 @@ public static class NativeBattleHypnotize133Controller
     private static NativeBattleHypnotize133Frame InitializeAct(NativeBattleHypnotize133Frame frame, uint address, int offset, int size, NativeBattleGfAnimationSource source)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[size].ToImmutableArray()).Initialize7016B0(source, size);
-        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(source, size);
+        return Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace));
     }
 
     private static uint WorkspaceSource(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);

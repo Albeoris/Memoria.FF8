@@ -11,7 +11,8 @@ public sealed partial class BattleSession
         {
             provisionalQuezacotlOrderingPublished = true;
         }
-        NativeGraphics = graphics;
+        AcceptNativeEffectPublication(graphics.OriginalEffect);
+        nativeGraphics = graphics;
     }
 
     private NativeBattleGraphicsState AdvanceNativeQuezacotlFirstWindow(NativeBattleGraphicsState graphics)

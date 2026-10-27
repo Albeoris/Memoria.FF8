@@ -8,6 +8,33 @@ internal interface INativeBattleReadWindowSource
     void ValidateReadWindow(long generation);
     void ReadWindowByte(int absoluteOffset, out byte value, out bool known);
     void SeedReadWindow(NativeBattleReadWindowLease lease);
+    bool ObservesLayer(INativeBattleReadWindowSource layer) => ReferenceEquals(this, layer);
+}
+
+internal sealed class NativeBattleReadWindowBudget
+{
+    private int maximum;
+    internal int Retained { get; private set; }
+
+    internal void Reset(int limit)
+    {
+        if (limit < 0 || Retained != 0)
+        {
+            throw new InvalidOperationException("Native temporal budget requires an inactive nonnegative limit.");
+        }
+        maximum = limit;
+    }
+
+    internal void Require(int additional)
+    {
+        if (additional < 0 || additional > maximum - Retained)
+        {
+            throw new InvalidOperationException("Native temporal composition exceeds its shared retained-byte journal.");
+        }
+    }
+
+    internal void Accept(int count) => Retained += count;
+    internal void Release(int count) => Retained -= count;
 }
 
 internal readonly record struct NativeBattleReadWindowByte(byte Value, bool Known);
@@ -17,6 +44,7 @@ internal sealed class NativeBattleReadWindowLease
     internal readonly NativeBattleStagingDeltaMap<NativeBattleReadWindowByte> Original = new(1005);
     internal NativeBattleReadWindowStore Store = null!;
     internal INativeBattleReadWindowSource? Source;
+    internal NativeBattleReadWindowBudget? SharedBudget;
     internal long SourceGeneration;
     internal long Generation;
     internal int Offset;
@@ -148,7 +176,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
     internal long CapturedBytes { get; private set; }
     internal long ResetBytes { get; private set; }
 
-    internal NativeBattleReadWindow Open(INativeBattleReadWindowSource source, int offset, int length, int budget)
+    internal NativeBattleReadWindow Open(INativeBattleReadWindowSource source, int offset, int length, int budget, NativeBattleReadWindowBudget? sharedBudget = null)
     {
         if (preparing)
         {
@@ -163,6 +191,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
         NativeBattleReadWindowLease lease = available.Count == 0 ? new() : available.Pop();
         lease.Store = this;
         lease.Source = source;
+        lease.SharedBudget = sharedBudget;
         lease.SourceGeneration = source.ReadWindowGeneration;
         lease.Generation = checked(lease.Generation + 1);
         lease.Offset = offset;
@@ -180,10 +209,12 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
                 counted = true;
                 NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, lease.Original.Count * 2L);
             }
+            lease.SharedBudget?.Require(lease.Original.Count);
             lease.Index = active.Count;
             active.Add(lease);
             lease.Active = true;
             retained += lease.Original.Count;
+            lease.SharedBudget?.Accept(lease.Original.Count);
             return new(lease);
         }
         catch
@@ -200,6 +231,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
             {
                 ResetBytes += lease.Original.Clear();
                 lease.Source = null;
+                lease.SharedBudget = null;
                 available.Push(lease);
             }
             throw;
@@ -212,6 +244,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
 
     internal void ValidateBudget(NativeBattleReadWindowLease lease, int additional)
     {
+        lease.SharedBudget?.Require(checked(lease.Original.Count + additional));
         if (additional > lease.Budget - lease.Original.Count || (long)retained + lease.Original.Count + additional > maximumRetainedBytes)
         {
             throw new InvalidOperationException("Native temporal reads exceed their bounded retained-byte journal.");
@@ -235,7 +268,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
             foreach (NativeBattleReadWindowLease lease in active)
             {
                 lease.Additional = 0;
-                if (layer is not null && !ReferenceEquals(layer, lease.Source))
+                if (layer is not null && !lease.Source!.ObservesLayer(layer))
                 {
                     continue;
                 }
@@ -258,6 +291,23 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
             {
                 throw new InvalidOperationException("Native temporal reads exceed their aggregate retained-byte journal.");
             }
+            for (int index = 0; index < active.Count; index++)
+            {
+                NativeBattleReadWindowBudget? group = active[index].SharedBudget;
+                if (group is null)
+                {
+                    continue;
+                }
+                int groupAdditional = 0;
+                for (int other = 0; other < active.Count; other++)
+                {
+                    if (ReferenceEquals(group, active[other].SharedBudget))
+                    {
+                        groupAdditional = checked(groupAdditional + active[other].Additional);
+                    }
+                }
+                group.Require(groupAdditional);
+            }
             foreach (NativeBattleReadWindowLease lease in active)
             {
                 lease.Original.EnsureCapacity(checked(lease.Original.Count + lease.Additional));
@@ -279,6 +329,10 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
                     }
                 }
             }
+            foreach (NativeBattleReadWindowLease lease in active)
+            {
+                lease.SharedBudget?.Accept(lease.Additional);
+            }
             retained += additional;
             CapturedBytes += additional;
             if (additional != 0)
@@ -297,7 +351,7 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
         for (int index = active.Count - 1; index >= 0; index--)
         {
             NativeBattleReadWindowLease lease = active[index];
-            if (ReferenceEquals(source, lease.Source))
+            if (lease.Source!.ObservesLayer(source))
             {
                 Close(lease, lease.Generation);
             }
@@ -324,6 +378,8 @@ internal sealed class NativeBattleReadWindowStore(int maximumRetainedBytes)
             throw new InvalidOperationException("Native temporal observation cannot close during mutation preparation.");
         }
         retained -= lease.Original.Count;
+        lease.SharedBudget?.Release(lease.Original.Count);
+        lease.SharedBudget = null;
         int last = active.Count - 1;
         if (lease.Index != last)
         {
@@ -347,11 +403,22 @@ internal sealed partial class NativeBattleWorkingMemory : INativeBattleReadWindo
 
     internal NativeBattleReadWindow OpenReadWindow(int offset, int length, int maximumRetainedBytes = 1_048_576) => OpenReadWindow(this, offset, length, maximumRetainedBytes);
 
-    internal NativeBattleReadWindow OpenReadWindow(INativeBattleReadWindowSource source, int offset, int length, int maximumRetainedBytes)
+    internal NativeBattleReadWindow OpenReadWindow(INativeBattleReadWindowSource source, int offset, int length, int maximumRetainedBytes, NativeBattleReadWindowBudget? sharedBudget = null)
     {
         RequireRange(offset, length);
         readWindows ??= new(maxJournalEntries);
-        return readWindows.Open(source, offset, length, maximumRetainedBytes);
+        return readWindows.Open(source, offset, length, maximumRetainedBytes, sharedBudget);
+    }
+
+    internal NativeBattleReadWindow OpenReadWindow(int offset, int length, NativeBattleReadWindowBudget sharedBudget, int maximumRetainedBytes)
+    {
+        return OpenReadWindow(this, offset, length, maximumRetainedBytes, sharedBudget);
+    }
+
+    internal void PrepareReadWindowWrite(int offset, int length)
+    {
+        RequireRange(offset, length);
+        ObserveReadWindowWrite(null, offset, length);
     }
 
     internal void ObserveReadWindowWrite(INativeBattleReadWindowSource? layer, int offset, int length) => readWindows?.BeforeWrite(layer, offset, length);
@@ -397,6 +464,8 @@ internal sealed partial class NativeBattleArenaOverlay
         owner.Working.ObserveReadWindowWrite(this, owner.WorkingOffset + offset, length);
     }
 
+    bool INativeBattleReadWindowSource.ObservesLayer(INativeBattleReadWindowSource layer) => ReferenceEquals(this, layer) || privateParent is not null && ((INativeBattleReadWindowSource)privateParent).ObservesLayer(layer);
+
     long INativeBattleReadWindowSource.ReadWindowGeneration => readWindowGeneration;
 
     void INativeBattleReadWindowSource.ValidateReadWindow(long generation)
@@ -412,9 +481,20 @@ internal sealed partial class NativeBattleArenaOverlay
     {
         NativeBattleEffectArena owner = Source;
         owner.Working.SeedReadWindowUndo(lease);
+        if (privateParent is not null)
+        {
+            ((INativeBattleReadWindowSource)privateParent).SeedReadWindow(lease);
+        }
         foreach (ByteUndo undo in byteUndo)
         {
             lease.Seed(owner.WorkingOffset + undo.Offset);
+        }
+        if (mergingChild)
+        {
+            foreach (ByteUndo undo in mergeBytes)
+            {
+                lease.Seed(owner.WorkingOffset + undo.Offset);
+            }
         }
     }
 
@@ -429,7 +509,14 @@ internal sealed partial class NativeBattleArenaOverlay
         }
         else
         {
-            owner.Working.ReadWindowCurrentByte(absoluteOffset, out value, out isKnown);
+            if (privateParent is not null)
+            {
+                ((INativeBattleReadWindowSource)privateParent).ReadWindowByte(absoluteOffset, out value, out isKnown);
+            }
+            else
+            {
+                owner.Working.ReadWindowCurrentByte(absoluteOffset, out value, out isKnown);
+            }
         }
     }
 }

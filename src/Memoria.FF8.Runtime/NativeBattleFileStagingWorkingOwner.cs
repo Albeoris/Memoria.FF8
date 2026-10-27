@@ -1,11 +1,11 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 internal sealed record NativeBattleFileStagingData(uint BaseAddress, ImmutableArray<NativeBattleEffectMemoryRegion> KnownRanges, ImmutableArray<NativeBattleLoaderZeroRegion> LoaderZeroRanges, ImmutableDictionary<uint, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectMemoryRegion> RetainedUnknownRanges);
 
 /// <summary>Persistent sparse absolute-address pages; loader-proved zero does not materialize a page.</summary>
-internal sealed class NativeBattleFileStagingWorkingOwner
+internal sealed partial class NativeBattleFileStagingWorkingOwner
 {
     internal const int PageLength = 4096;
     private readonly record struct PointerUndo(uint Address, bool Present, NativeBattleResourcePointer? Pointer);
@@ -14,12 +14,11 @@ internal sealed class NativeBattleFileStagingWorkingOwner
     private readonly Dictionary<uint, NativeBattleResourcePointer?> pointers = [];
     private readonly List<NativeBattleLoaderZeroRegion> zeros = [];
     private readonly List<uint> removedPointers = [];
-    private readonly List<NativeBattleWorkingMemory> checkpointPages = [];
     private readonly List<PointerUndo> pointerUndo = [];
     private readonly List<ZeroUndo> zeroUndo = [];
     private readonly Stack<NativeBattleFileStagingOverlay> overlays = [];
-    private bool checkpoint;
-    private uint checkpointBase;
+    private readonly List<NativeBattleFileStagingOverlay> activeOverlays = [];
+    private bool checkpoint => checkpointDepth != 0;
     private long version;
 
     public NativeBattleFileStagingWorkingOwner(NativeBattleFileStagingData source)
@@ -82,15 +81,26 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public NativeBattleFileStagingOverlay LeaseOverlay()
     {
+        activeOverlays.EnsureCapacity(activeOverlays.Count + 1);
+        overlays.EnsureCapacity(overlays.Count + activeOverlays.Count + (overlays.Count == 0 ? 1 : 0));
         NativeBattleFileStagingOverlay overlay = overlays.Count == 0 ? new(this) : overlays.Pop();
+        overlay.IsPublicLayer = true;
         overlay.Begin();
+        activeOverlays.Add(overlay);
         return overlay;
     }
 
     public void ReturnOverlay(NativeBattleFileStagingOverlay overlay)
     {
-        overlay.Reset();
-        overlays.Push(overlay);
+        try
+        {
+            overlay.Reset();
+        }
+        finally
+        {
+            activeOverlays.Remove(overlay);
+            overlays.Push(overlay);
+        }
     }
 
     public void Rebase(uint address)
@@ -100,6 +110,7 @@ internal sealed class NativeBattleFileStagingWorkingOwner
         {
             return;
         }
+        PrepareOperationMutation();
         BaseAddress = address;
         version++;
     }
@@ -179,6 +190,8 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public void Write(uint address, ReadOnlySpan<byte> data)
     {
+        PrepareOperationMutation();
+        PrepareReadWindowWrite(address, data.Length);
         InvalidatePointers(address, data.Length);
         for (int offset = 0; offset < data.Length;)
         {
@@ -205,6 +218,12 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public void WriteWithKnownness(uint address, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
     {
+        if (data.Length != known.Length)
+        {
+            throw new ArgumentException("Native staging data and knownness sources must have equal lengths.", nameof(known));
+        }
+        PrepareOperationMutation();
+        PrepareReadWindowWrite(address, data.Length);
         InvalidatePointers(address, data.Length);
         for (int offset = 0; offset < data.Length;)
         {
@@ -231,6 +250,8 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public void MarkUnknown(uint address, int length)
     {
+        PrepareOperationMutation();
+        PrepareReadWindowWrite(address, length, materializedOnly: true);
         ForgetLoaderZero(address, length);
         InvalidatePointers(address, length);
         ulong end = (ulong)address + (uint)length;
@@ -268,6 +289,7 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public void SetPointerMetadata(uint address, bool present, NativeBattleResourcePointer? pointer)
     {
+        PrepareOperationMutation();
         bool existed = pointers.TryGetValue(address, out NativeBattleResourcePointer? previous);
         if (checkpoint)
         {
@@ -323,6 +345,8 @@ internal sealed class NativeBattleFileStagingWorkingOwner
 
     public void ForgetLoaderZero(uint address, int length)
     {
+        PrepareOperationMutation();
+        RequireReadWindowMutation();
         ulong end = (ulong)address + (uint)length;
         for (int index = 0; index < zeros.Count;)
         {
@@ -351,83 +375,6 @@ internal sealed class NativeBattleFileStagingWorkingOwner
                 InsertZero(index++, new(checked((uint)end), checked((int)(last - end))));
             }
             version++;
-        }
-    }
-
-    public void BeginCheckpoint()
-    {
-        if (checkpoint)
-        {
-            throw new InvalidOperationException("Native staging owner checkpoints cannot be nested.");
-        }
-        checkpoint = true;
-        checkpointBase = BaseAddress;
-        checkpointPages.Clear();
-        pointerUndo.Clear();
-        zeroUndo.Clear();
-    }
-
-    public void CommitCheckpoint()
-    {
-        RequireCheckpoint();
-        foreach (NativeBattleWorkingMemory page in checkpointPages)
-        {
-            page.CommitCheckpoint();
-        }
-        checkpoint = false;
-        checkpointPages.Clear();
-        pointerUndo.Clear();
-        zeroUndo.Clear();
-    }
-
-    public void RollbackCheckpoint()
-    {
-        RequireCheckpoint();
-        Exception? failure = null;
-        foreach (NativeBattleWorkingMemory page in checkpointPages)
-        {
-            try
-            {
-                page.RollbackCheckpoint();
-            }
-            catch (Exception error)
-            {
-                failure ??= error;
-            }
-        }
-        for (int index = pointerUndo.Count - 1; index >= 0; index--)
-        {
-            PointerUndo entry = pointerUndo[index];
-            if (entry.Present)
-            {
-                pointers[entry.Address] = entry.Pointer;
-            }
-            else
-            {
-                pointers.Remove(entry.Address);
-            }
-        }
-        for (int index = zeroUndo.Count - 1; index >= 0; index--)
-        {
-            ZeroUndo entry = zeroUndo[index];
-            if (entry.Removed is { } removed)
-            {
-                zeros.Insert(entry.Index, removed);
-            }
-            else
-            {
-                zeros.RemoveAt(entry.Index);
-            }
-        }
-        BaseAddress = checkpointBase;
-        checkpoint = false;
-        checkpointPages.Clear();
-        pointerUndo.Clear();
-        zeroUndo.Clear();
-        version++;
-        if (failure is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 
@@ -472,11 +419,7 @@ internal sealed class NativeBattleFileStagingWorkingOwner
             page = new(PageLength, initialKnownZero: false);
             pages.Add(address, page);
         }
-        if (checkpoint && !page.HasCheckpoint)
-        {
-            page.BeginCheckpoint();
-            checkpointPages.Add(page);
-        }
+        EnlistPage(page);
         return page;
     }
 

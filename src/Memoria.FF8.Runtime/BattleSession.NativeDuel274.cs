@@ -48,6 +48,14 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState AdvanceNativeDuel274(NativeBattleGraphicsState graphics)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Duel opening requires its retained process owner.");
+        NativeBattleGraphicsState publicationBase = NativeGraphics ?? graphics;
+        NativeBattleOriginalEffectState? acceptedEffect = null;
+        NativeBattlePrimitiveProcess acceptedCommon = memory.PrimitiveProcess ?? throw new NotSupportedException("Native publication requires its common packet owner.");
+        NativeBattleFileStaging acceptedStaging = NativeFileStaging ?? throw new NotSupportedException("Native publication requires its staging owner.");
+        NativeBattleLogicalOrdering acceptedOrdering = (graphics.PrimitiveFrame ?? throw new NotSupportedException("Native publication requires its ordering frame.")).Pending;
+        bool commonCheckpoint = false;
+        bool orderingCheckpoint = false;
+        bool stagingCheckpoint = false;
         using NativeBattleEffectArenaTransaction arena = new(memory.Arena ?? throw new NotSupportedException("Native Duel drawing requires its retained effect arena."));
         using NativeBattleFileStagingTransaction staging = new(NativeFileStaging ?? throw new NotSupportedException("Native Duel opening requires its retained shared byte owner."));
         using NativeBattleCommonPacketTransaction common = new(memory.PrimitiveProcess ?? throw new NotSupportedException("Native Duel drawing requires its retained common packet owner."));
@@ -56,6 +64,9 @@ public sealed partial class BattleSession
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleDuel274Resources resources = memory.Duel274?.Resources ?? throw new NotSupportedException("Native Duel opening requires resources retained by its actual entry.");
         NativeBattleDuel274Frame frame = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native Duel opening requires its selected module."), staging.View, nativeCrtRandom ?? throw new NotSupportedException("Native Duel opening requires its retained CRT random owner."));
+        using NativeBattleTaskCallerOperation caller = new(arena, frame.Effect.Pools);
+        caller.AdmitCommon(common.CurrentMemory);
+        BeginAuxiliaryCheckpoint();
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Duel opening requires its actual action parameters.");
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native Duel drawing requires its current camera owner.");
         NativeBattleCameraProjection projection = camera.Projection ?? throw new NotSupportedException("Native Duel drawing requires its current projection.");
@@ -69,30 +80,56 @@ public sealed partial class BattleSession
         try
         {
             frame = NativeBattleDuel274Controller.Advance689990(frame, actors, sequence => nativeActionPackets.ReadContact(FirstContact(sequence)).Primary.ActorIndex, (current, slot) => NativeBattleDuel274Controller.Advance689AC0(current, slot, actors, (next, targetSlot) => NativeBattleDuel274Target.AdvanceSelected689AC0(next, targetSlot, resources, selected)));
-            frame = frame with { Memory = frame.Memory with { Arena = arena.Freeze(), PrimitiveProcess = common.Freeze(frame.Memory.PrimitiveProcess!) }, Staging = staging.Freeze(frame.Staging) };
-            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
-            Publish(frame);
+            Publish(frame, final: true);
+            frame = frame with { Memory = NativeEffectMemory ?? throw new InvalidDataException("Native final publication lost its process memory.") };
+            graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = acceptedOrdering } };
             nativeCrtRandom = frame.Random;
             return graphics with { OriginalEffect = frame.Effect };
         }
         catch
         {
-            if (NativeEffectMemory is { Arena.Transaction: { } active } published && active == arena)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo? cleanupFailure = null;
+            try
             {
-                NativeEffectMemory = published with { Arena = arena.Freeze() };
+                EndAuxiliaryCheckpoint(commit: false);
             }
-            if (NativeEffectMemory is { PrimitiveProcess.CommonTransaction: { } activeCommon } publishedCommon && activeCommon == common)
+            catch (Exception exception)
             {
-                NativeEffectMemory = publishedCommon with { PrimitiveProcess = common.Freeze(publishedCommon.PrimitiveProcess!) };
+                cleanupFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
             }
-            if (NativeGraphics is { PrimitiveFrame.Pending.Transaction: { } activeOrdering } publishedGraphics && activeOrdering == ordering)
+            try
             {
-                NativeGraphics = publishedGraphics with { PrimitiveFrame = publishedGraphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+                caller.Dispose();
             }
-            if (NativeFileStaging is { Transaction: { } activeStaging } publishedStaging && activeStaging == staging)
+            catch (Exception exception)
             {
-                NativeFileStaging = staging.Freeze(publishedStaging);
+                cleanupFailure ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
             }
+            if (NativeEffectMemory is { } published)
+            {
+                NativeEffectMemory = published with
+                {
+                    Arena = ReferenceEquals(published.Arena?.Transaction, arena) ? caller.SourceArena : published.Arena,
+                    PrimitiveProcess = ReferenceEquals(published.PrimitiveProcess?.CommonTransaction, common) ? acceptedCommon : published.PrimitiveProcess
+                };
+            }
+            if (NativeFileStaging is { } publishedStaging && ReferenceEquals(publishedStaging.Transaction, staging))
+            {
+                NativeFileStaging = acceptedStaging;
+            }
+            if (NativeGraphics is { } publishedGraphics)
+            {
+                if (acceptedEffect is not null)
+                {
+                    publishedGraphics = publishedGraphics with { OriginalEffect = acceptedEffect };
+                }
+                if (publishedGraphics.PrimitiveFrame is { } publishedFrame && ReferenceEquals(publishedFrame.Pending.Transaction, ordering))
+                {
+                    publishedGraphics = publishedGraphics with { PrimitiveFrame = publishedFrame with { Pending = acceptedOrdering } };
+                }
+                NativeGraphics = publishedGraphics;
+            }
+            cleanupFailure?.Throw();
             throw;
         }
 
@@ -112,11 +149,120 @@ public sealed partial class BattleSession
             }
             return nativeActionPackets.Headers[header].FirstContactIndex ?? throw new NotSupportedException("Native Duel requires the selected header's actual contact pointer.");
         }
-        void Publish(NativeBattleDuel274Frame current)
+        void Publish(NativeBattleDuel274Frame current, bool final = false)
         {
-            NativeEffectMemory = current.Memory;
-            NativeFileStaging = current.Staging;
-            graphics = graphics with { OriginalEffect = current.Effect };
+            caller.Admit(current.Effect.Pools);
+            caller.AdmitCommon(common.CurrentMemory);
+            EndAuxiliaryCheckpoint(commit: true);
+            caller.PreparePrefix();
+            NativeBattlePrimitiveProcess process = common.Freeze(current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native publication lost its common process."));
+            NativeBattleFileStaging files = staging.Freeze(current.Staging);
+            NativeBattleLogicalOrdering pending = ordering.Freeze();
+            int before = caller.AcceptedPrefixes;
+            try
+            {
+                if (final)
+                {
+                    caller.Complete();
+                }
+                else
+                {
+                    caller.AcceptPrefix();
+                }
+            }
+            finally
+            {
+                if (caller.AcceptedPrefixes != before)
+                {
+                    acceptedCommon = process;
+                    acceptedStaging = files;
+                    acceptedOrdering = pending;
+                    acceptedEffect = current.Effect;
+                    //Physical publication also retains the scheduler metadata that identifies newly admitted banks.
+                    NativeGraphics = NativeBattleTaskCallerOperation.PublishEffectMetadata(NativeGraphics ?? publicationBase, current.Effect);
+                    NativeBattleEffectMemory published = current.Memory;
+                    NativeEffectMemory = final ? published with { Arena = caller.SourceArena, PrimitiveProcess = process } : published;
+                    NativeFileStaging = final ? files : current.Staging;
+                    nativeCrtRandom = current.Random;
+                }
+            }
+            if (!final)
+            {
+                BeginAuxiliaryCheckpoint();
+            }
+        }
+
+        void BeginAuxiliaryCheckpoint()
+        {
+            common.BeginCheckpoint();
+            commonCheckpoint = true;
+            ordering.BeginCheckpoint();
+            orderingCheckpoint = true;
+            staging.BeginCheckpoint();
+            stagingCheckpoint = true;
+        }
+
+        void EndAuxiliaryCheckpoint(bool commit)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+            if (stagingCheckpoint)
+            {
+                stagingCheckpoint = false;
+                try
+                {
+                    if (commit)
+                    {
+                        staging.CommitCheckpoint();
+                    }
+                    else
+                    {
+                        staging.RollbackCheckpoint();
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failure ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                }
+            }
+            if (orderingCheckpoint)
+            {
+                orderingCheckpoint = false;
+                try
+                {
+                    if (commit)
+                    {
+                        ordering.CommitCheckpoint();
+                    }
+                    else
+                    {
+                        ordering.RollbackCheckpoint();
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failure ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                }
+            }
+            if (commonCheckpoint)
+            {
+                commonCheckpoint = false;
+                try
+                {
+                    if (commit)
+                    {
+                        common.CommitCheckpoint();
+                    }
+                    else
+                    {
+                        common.RollbackCheckpoint();
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failure ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                }
+            }
+            failure?.Throw();
         }
         NativeBattleDuel274Frame Bind(NativeBattleDuel274Frame current, int index, uint row)
         {

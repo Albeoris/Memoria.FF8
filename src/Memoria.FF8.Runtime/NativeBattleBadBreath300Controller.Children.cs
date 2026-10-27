@@ -21,14 +21,14 @@ public static partial class NativeBattleBadBreath300Controller
             context = WriteDword(context, 20, stack.ReadUInt32(-0x4C));
         }
         context = WriteDword(context, 24, frame.State.ReadDword(WorkingGlobal) + ScratchOffset);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x18, 0x128).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x18, 0x128);
         NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Target, 0, (current, node) =>
         {
-            frame = Write(frame, address, Read(frame, address).WriteBytes(0x18, current.Data.AsSpan()));
+            frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x18, current));
             frame = inputs.EmitNode(frame, resources.Target, context, node);
-            return new(Read(frame, address).ReadBytes(0x18, 0x128).ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), 0x18, 0x128);
         });
-        frame = Write(frame, address, advance.Workspace.CopyTo(Read(frame, address), 0x18, retainUnknown: false));
+        frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x18, advance.Workspace));
         int age = unchecked((short)Read(frame, address).ReadWord(12));
         if (age <= 8)
         {

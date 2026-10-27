@@ -38,7 +38,7 @@ public static class NativeBattleEffect79NodeEngine
         {
             int first = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25EAF34), 0x870);
             int second = NativeBattleWaterExecutionFields.ArenaOffset(frame.State.ReadDword(0x25EB3B0), 0x9D80);
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(sourceAddress, frame.State.ReadNodeBank(sourceAddress));
             ushort emitterCursor = frame.State.ReadWord(0x25E8950);
             ushort geometryCursor = frame.State.ReadWord(0x25EAF40);

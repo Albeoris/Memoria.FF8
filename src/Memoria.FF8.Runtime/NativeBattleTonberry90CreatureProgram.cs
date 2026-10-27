@@ -19,9 +19,9 @@ public static partial class NativeBattleTonberry90Actors
                 {
                     throw new InvalidDataException("Native Tonberry creature programme source differs from its actual task pointer.");
                 }
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), task.PayloadLength - (0x94 - 12));
                 workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                task = (workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true)).WriteWord(0x1E, 0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
+                task = (NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 12 + (0x94 - 12), workspace)).WriteWord(0x1E, 0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
                 frame = PublishAnchor(Write(frame, address, task));
                 frame = services.Draw764130(frame, address).Frame;
                 frame = Next(frame, address);

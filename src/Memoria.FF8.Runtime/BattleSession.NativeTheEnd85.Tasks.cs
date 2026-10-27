@@ -109,9 +109,9 @@ public sealed partial class BattleSession
                 AcceptInput(address, input);
                 NativeBattleModulePoolTask task = Task(address);
                 NativeBattleGfAnimationSource source = Program(task.ReadDword(116));
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (148 - 12), task.PayloadLength - (148 - 12));
                 workspace = workspace.Initialize7016B0(source, checked((int)task.ReadDword(120)));
-                Put(address, workspace.CopyTo(task, 12 + (148 - 12), retainUnknown: true));
+                Put(address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 12 + (148 - 12), workspace));
                 return Input(address);
             },
             input =>

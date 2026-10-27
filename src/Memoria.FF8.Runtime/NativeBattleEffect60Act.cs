@@ -145,8 +145,8 @@ public static class NativeBattleEffect60Act
     private static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleEffect60Resources resources)
     {
         int length = unchecked((int)task.ReadDword(0x78));
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x94, length).ToImmutableArray()).Initialize7016B0(resources.Act(task.ReadDword(0x74)), length);
-        return workspace.CopyTo(task, 0x94, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, length).Initialize7016B0(resources.Act(task.ReadDword(0x74)), length);
+        return NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace);
     }
     private static int Remaining(NativeBattleModulePoolTask task, NativeBattleEffect60Resources resources)
     {

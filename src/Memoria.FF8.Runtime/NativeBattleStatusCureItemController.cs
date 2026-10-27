@@ -119,7 +119,7 @@ public static class NativeBattleStatusCureItemController
                         int first = inputs.Packets.Headers[parameters.HeaderIndex7C].FirstContactIndex ?? throw new NotSupportedException("Native status-cure item completion lost its actual first contact pointer.");
                         contacts.Add(first);
                     }
-                    return new(childPool with { Slots = childPool.Slots.SetItem(childSlot, child) }, advance.Remaining == 0 ? 2 : 0);
+                    return new(childPool.WriteSlot(childSlot, child), advance.Remaining == 0 ? 2 : 0);
                 });
                 children = childStep.Pool;
                 survivors = childStep.Survivors;
@@ -129,7 +129,7 @@ public static class NativeBattleStatusCureItemController
             {
                 root = root.WriteWord(12, unchecked((ushort)(root.ReadWord(12) + 1)));
             }
-            return new(pool with { Slots = pool.Slots.SetItem(slot, root) }, complete ? 2 : 0);
+            return new(pool.WriteSlot(slot, root), complete ? 2 : 0);
         });
         NativeBattleOriginalEffectState effect = frame.Effect with { Pools = children is null ? [rootStep.Pool] : [rootStep.Pool, children], ReturnedDescriptor = rootStep.Survivors == 0 ? 0u : profile.MainDescriptor };
         return new(frame with { Effect = effect }, contacts.ToImmutable(), sounds.ToImmutable());

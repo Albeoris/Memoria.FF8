@@ -116,7 +116,7 @@ public static class NativeBattleStatusMagicController
                     if (counter >= 60)
                     {
                         inputs.WriteFlags(model, (ushort)(inputs.ReadModel(model).Flags0 & ~0x2000));
-                        return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, 2);
+                        return new(pool.WriteSlot(slot, task), 2);
                     }
                 }
                 else
@@ -153,11 +153,11 @@ public static class NativeBattleStatusMagicController
                     }
                     if (counter > 48)
                     {
-                        return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, 2);
+                        return new(pool.WriteSlot(slot, task), 2);
                     }
                 }
                 task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+                return new(pool.WriteSlot(slot, task), 0);
             });
             targets = step.Pool;
             survivors = step.Survivors;

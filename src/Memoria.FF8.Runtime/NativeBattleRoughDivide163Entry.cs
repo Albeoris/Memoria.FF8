@@ -77,7 +77,7 @@ public static partial class NativeBattleRoughDivide163Controller
                 if (children.Survivors == 0)
                 {
                     (main, int loader) = main.Append(0x5F9090);
-                    main = main with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(12, 0).WriteWord(14, 0)) };
+                    main = main.WriteSlot(loader, main.Slots[loader].WriteWord(12, 0).WriteWord(14, 0));
                 }
                 task = main.Slots[slot].WriteWord(12, unchecked((ushort)(counter + 1)));
                 result = children.Survivors == 0 ? 2 : 0;
@@ -98,7 +98,7 @@ public static partial class NativeBattleRoughDivide163Controller
             {
                 throw new NotSupportedException($"Native Rough Divide main callback0x{task.Callback:X} is unsupported.");
             }
-            main = main with { Slots = main.Slots.SetItem(slot, task) };
+            main = main.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main) } };
             return new(main, result);
         });

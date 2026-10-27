@@ -94,7 +94,7 @@ public sealed partial class BattleSession
                 NativeBattleSonic139Profile.TargetActAddress => 0x278,
                 _ => throw new NotSupportedException("Sonic Wave selected an unsupported ACT workspace source.")
             };
-            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleSonic139Controller.ReadBytes(current, address, size), 0, size);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(current.Memory, current.Effect.Pools, address, size);
             NativeBattleEffectArena caller = Packed(context.Matrix).Write(32, BitConverter.GetBytes(context.DepthBias)).Write(36, BitConverter.GetBytes(context.MorphAddress));
             NativeBattleActContext40Policy policy = NativeBattleActContext40Policy.Sonic139;
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
                 current = NativeBattleSonic139Controller.Release(current, 88);
                 return next;
             });
-            current = NativeBattleSonic139Controller.WriteBytes(current, address, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), advanced.Workspace.Length);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(current.Memory, current.Effect.Pools, address, advanced.Workspace);
             return new(current, advanced.Remaining);
         }
 

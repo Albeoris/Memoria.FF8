@@ -9,6 +9,12 @@ public static partial class NativeBattleModulePackets
 {
     public static NativeBattleGfGeometryBatch EmitBatch572200(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
     {
+        using NativeBattleGfSourceReader reader = new(source);
+        return EmitBatch572200(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch572200(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null)
+    {
         return NativeBattleGfGeometryPackets.EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize572200(context), colors, readSelectedVertex, observeDepth, observeSourceCursor);
     }
 

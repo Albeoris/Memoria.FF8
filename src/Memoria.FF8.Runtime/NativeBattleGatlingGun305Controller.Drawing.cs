@@ -93,19 +93,6 @@ public static partial class NativeBattleGatlingGun305Controller
     private static NativeBattleEffectArena Dword(NativeBattleEffectArena arena, int offset, uint value) => arena.Write(offset, BitConverter.GetBytes(value));
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion range in ranges)
-            {
-                int first = Math.Max(offset, range.Offset);
-                int end = Math.Min(offset + length, range.Offset + range.Length);
-                if (first < end)
-                {
-                    result = result.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return result;
+        return task.BorrowPayloadArena(offset, length);
     }
 }

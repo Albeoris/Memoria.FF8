@@ -7,11 +7,17 @@ public static class NativeBattleChoco100DepthPackets
 {
     public static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors)
     {
+        using NativeBattleGfSourceReader reader = new(source);
+        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, operands, depthBias, colors);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleModuleMeshContext operands, short depthBias, NativeBattleSummonColors colors)
+    {
         if (geometryOffset < 0 || source.IsDefault || geometryOffset > source.Length - 8 || selectedVertices.IsDefault)
         {
             throw new InvalidDataException("Native Choco depth mesh requires its actual selected geometry owner.");
         }
-        ImmutableArray<byte> mesh = source.AsSpan().Slice(geometryOffset).ToArray().ToImmutableArray();
+        using NativeBattleGfSourceReader mesh = source.Slice(geometryOffset);
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, operands.Flags, ReadVertex, (group, face, readCorner, offset) => EmitFace(group, face, readCorner, operands, depthBias, colors, offset));
 
         NativeBattleVector ReadVertex(int offset)

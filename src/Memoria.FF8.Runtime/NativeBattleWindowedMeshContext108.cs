@@ -9,15 +9,21 @@ public static class NativeBattleWindowedMeshContext108
 {
     public static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh.Bytes);
+        return DrawLoaded(memory, mesh.Address, reader, projection, context, constants, tableBaseBucket, depthShift, maximumVertices, readSelectedVertex, observeAttempt, readSelectedPackedVertex);
+    }
+
+    internal static NativeBattleWindowedMeshContext108Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, int tableBaseBucket, byte depthShift, int maximumVertices, Func<int, (NativeBattleVector Vertex, short? W)> readSelectedVertex, Action<NativeBattleGfGeometryAttempt, int>? observeAttempt = null, Func<int, NativeBattleEffectArena>? readSelectedPackedVertex = null)
+    {
         context.Validate();
         uint flags = Dword(context, 0x1C);
-        if (Dword(context, 0) != mesh.Address || flags is not (0 or 0xC or 0x30 or 0xF0 or 0x2000 or 0x200C or 0x20C0 or 0x20CC or 0x2030 or 0x203C or 0x20F0 or 0x20FC or 0x800C or 0x8030) || depthShift > 31 || context.ExceedsExtent(108))
+        if (Dword(context, 0) != meshAddress || flags is not (0 or 0xC or 0x30 or 0xF0 or 0x2000 or 0x200C or 0x20C0 or 0x20CC or 0x2030 or 0x203C or 0x20F0 or 0x20FC or 0x800C or 0x8030) || depthShift > 31 || context.ExceedsExtent(108))
         {
             throw new InvalidDataException("Windowed mesh requires its actual bounded windowed context.");
         }
         if ((flags & 0x2000) == 0)
         {
-            context = Put(context, 4, checked(mesh.Address + 8));
+            context = Put(context, 4, checked(meshAddress + 8));
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(4, 4));
         if (maximumVertices < 1 || count < 1 || count > maximumVertices)
@@ -51,7 +57,7 @@ public static class NativeBattleWindowedMeshContext108
         {
             int faces = BinaryPrimitives.ReadInt32LittleEndian(Read(cursor, 4));
             cursor = checked(cursor + 4);
-            context = Put(context, 0x34, checked(mesh.Address + (uint)cursor));
+            context = Put(context, 0x34, checked(meshAddress + (uint)cursor));
             for (int index = 0; index < faces; index++)
             {
                 byte[] face = Read(cursor, lengths[group]).ToArray();
@@ -145,7 +151,7 @@ public static class NativeBattleWindowedMeshContext108
                 }
                 allocated = checked(allocated + leaf.AllocationBytes);
                 cursor = checked(cursor + lengths[group]);
-                context = Put(context, 0x34, checked(mesh.Address + (uint)cursor));
+                context = Put(context, 0x34, checked(meshAddress + (uint)cursor));
 
                 NativeBattleGeometryRegisterStep LoadSelected(NativeBattleGeometryRegisterStep loaded, int slot, int corner, NativeBattleVector vertex, short? w)
                 {
@@ -191,11 +197,11 @@ public static class NativeBattleWindowedMeshContext108
 
         ReadOnlySpan<byte> Read(int offset, int length)
         {
-            if (mesh.Bytes.IsDefault || offset < 0 || length < 0 || offset > mesh.Bytes.Length - length)
+            if (mesh.IsDefault || offset < 0 || length < 0 || offset > mesh.Length - length)
             {
                 throw new InvalidDataException("Windowed mesh mesh leaves its original geometry.");
             }
-            return mesh.Bytes.AsSpan().Slice(offset, length);
+            return mesh.Read(offset, length);
         }
         NativeBattleTextureWindow Window(int offset) => new(unchecked((short)Word(context, offset)), unchecked((short)Word(context, offset + 2)), unchecked((short)Word(context, offset + 4)), unchecked((short)Word(context, offset + 6)));
     }

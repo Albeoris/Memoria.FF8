@@ -6,7 +6,19 @@ public sealed partial class BattleSession
 {
     public NativeBattleModelLoader? NativeModelLoader { get; private set; }
     public NativeBattleModelCpuResources? NativeModelCpuResources { get; private set; }
-    public NativeBattleFileStaging? NativeFileStaging { get; private set; }
+    private NativeBattleFileStaging? nativeFileStaging;
+    public NativeBattleFileStaging? NativeFileStaging
+    {
+        get => nativeFileStaging;
+        private set
+        {
+            if (NativeBattleTaskOperation.IsActive && !NativeBattleTaskCallerOperation.IsActive)
+            {
+                NativeBattleTaskOperation.AcceptPublishedStaging(value);
+            }
+            nativeFileStaging = value;
+        }
+    }
 
     private void QueueNativeModelResource507080(NativeBattleGraphicsState graphics, ushort request, byte physicalIndex, uint argument = 0)
     {

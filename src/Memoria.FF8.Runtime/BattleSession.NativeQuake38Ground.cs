@@ -32,15 +32,20 @@ public sealed partial class BattleSession
             short primitive = 0;
             foreach (NativeBattleRawMesh mesh in meshes)
             {
-                (byte[] scratch, bool[] known) = staging.ReadSnapshot(workspace, capacity);
+                int posedLength = checked(mesh.Vertices.Length * 8);
+                if (posedLength > capacity)
+                {
+                    throw new InvalidDataException("Native Quake ground vertices exceed their allocated posed workspace.");
+                }
+                // This mesh-local stage preserves the existing publication before polygon processing.
+                (byte[] scratch, bool[] known) = staging.ReadSnapshot(workspace, posedLength);
                 if (state.Word(0x279299E) == 0)
                 {
-                    ImmutableArray<byte> posed = NativeBattleQuake38GroundVertices.Transform8D8B10(mesh, ground.Matrices, scratch.ToImmutableArray());
+                    NativeBattleQuake38GroundVertices.Transform8D8B10(mesh, ground.Matrices, scratch.AsSpan());
                     for (int index = 0; index < mesh.Vertices.Length; index++)
                     {
-                        staging = staging.Write(workspace + checked((uint)index * 8), posed.AsSpan().Slice(index * 8, 6));
+                        staging = staging.Write(workspace + checked((uint)index * 8), scratch.AsSpan(index * 8, 6));
                     }
-                    scratch = posed.ToArray();
                     for (int index = 0; index < mesh.Vertices.Length; index++)
                     {
                         Array.Fill(known, true, index * 8, 6);

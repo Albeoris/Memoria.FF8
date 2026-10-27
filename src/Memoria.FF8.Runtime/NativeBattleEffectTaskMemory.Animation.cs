@@ -11,7 +11,13 @@ public static partial class NativeBattleEffectTaskMemory
 
     internal static void PublishAnimationWorkspace(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools, uint address, NativeBattleGfAnimationWorkspace workspace)
     {
-        workspace.CopyTo(AnimationStorage(memory, pools, address, workspace.Length), 0);
+        workspace.RequireStorage(AnimationStorage(memory, pools, address, workspace.Length), 0);
+    }
+
+    internal static NativeBattleModulePoolTask PublishAnimationWorkspace(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
+    {
+        workspace.RequireStorage(task.BorrowPayloadArena(offset, workspace.Length), 0);
+        return task;
     }
 
     private static NativeBattleEffectArena AnimationStorage(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools, uint address, int length)

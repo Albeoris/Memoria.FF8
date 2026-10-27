@@ -70,7 +70,7 @@ public static partial class NativeBattleDuel215Controller
                 }
                 (scene, int child) = scene.Append(0x69B070);
                 scene = scene.WriteSlot(child, scene.Slots[child].WriteBytes(12, new byte[1277 * 4]));
-                Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                Publish(current.WriteSlot(slot, task));
                 frame = inputs.Execute(frame, new NativeBattleDuel215PrepareScene(child));
                 Refresh();
             }
@@ -83,7 +83,7 @@ public static partial class NativeBattleDuel215Controller
                 frame = frame with { Memory = io.Memory };
                 if (io.Request is { } request)
                 {
-                    Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                    Publish(current.WriteSlot(slot, task));
                     frame = inputs.Execute(frame, new NativeBattleDuel215File(request));
                     Refresh();
                 }
@@ -100,19 +100,19 @@ public static partial class NativeBattleDuel215Controller
                 frame = frame with { Memory = io.Memory };
                 if (io.Request is { } request)
                 {
-                    Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                    Publish(current.WriteSlot(slot, task));
                     frame = inputs.Execute(frame, new NativeBattleDuel215File(request));
                     Refresh();
                 }
                 if (!io.Busy)
                 {
-                    Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                    Publish(current.WriteSlot(slot, task));
                     frame = inputs.Execute(frame, new NativeBattleDuel215RestoreScene());
                     Refresh();
                     result = 2;
                 }
             }
-            return new(current with { Slots = current.Slots.SetItem(slot, task) }, result);
+            return new(current.WriteSlot(slot, task), result);
 
             NativeBattleEffectTaskPool Advance(NativeBattleEffectTaskPool pool, out int count)
             {
@@ -126,7 +126,7 @@ public static partial class NativeBattleDuel215Controller
                     {
                         particles = active;
                     }
-                    Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                    Publish(current.WriteSlot(slot, task));
                     NativeBattleDuel215Step child = advanceChild(frame, active, childSlot);
                     frame = child.Frame;
                     Refresh();

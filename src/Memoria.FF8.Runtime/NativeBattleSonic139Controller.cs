@@ -79,8 +79,8 @@ public static partial class NativeBattleSonic139Controller
                 throw new InvalidDataException("Sonic Wave failed its required initial main allocation.");
             }
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x4D0]);
-            NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x30, 0x4AC).ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x4AC);
-            task = workspace.CopyTo(task, 0x30, retainUnknown: false);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x30, 0x4AC).Initialize7016B0(resources.MainAct, 0x4AC);
+            task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x30, workspace);
             int header = Parameters(frame).HeaderIndex7C;
             int count = inputs.Packets.Headers[header].ReadByte(16);
             if (count is < 1 or > 3)

@@ -150,18 +150,10 @@ public static partial class NativeBattleEffect70Controller
 
     private static NativeBattleEffect70Frame InitializeWorkspace(NativeBattleEffect70Frame frame, uint address, int length, NativeBattleGfAnimationSource source, int clear)
     {
-        (byte[] bytes, bool[] known) = ReadBytes(frame, address, length).ReadSnapshot(0, length);
-        NativeBattleGfAnimationWorkspace workspace = new(bytes.ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address, length);
         workspace = workspace.Initialize7016B0(source, clear);
-        NativeBattleEffectArena result = workspace.CopyTo(NativeBattleEffectArena.Clear(), 0);
-        for (int index = clear; index < length; index++)
-        {
-            if (!known[index])
-            {
-                result = result.MarkUnknown(index, 1);
-            }
-        }
-        return WriteBytes(frame, address, result, length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address, workspace);
+        return frame;
     }
 
     public static uint ReadDword(NativeBattleEffect70Frame frame, uint address) => BitConverter.ToUInt32(ReadBytes(frame, address, 4).Read(0, 4));

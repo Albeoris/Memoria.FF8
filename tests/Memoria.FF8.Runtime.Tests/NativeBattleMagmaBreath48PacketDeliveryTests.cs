@@ -31,7 +31,7 @@ public sealed class NativeBattleMagmaBreath48PacketDeliveryTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, 36) };
         NativeBattleMagmaBreath48State state = NativeBattleMagmaBreath48State.FromColdProcess().WriteDword(Primary, Base);
-        NativeBattleLogicalOrdering full = NativeBattleLogicalOrdering.Clear() with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Repeat(new NativeBattleLogicalProxy(new("20DFAB8", 0, 512), 0, [0, 0, 0, 0], null), NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray() };
+        NativeBattleLogicalOrdering full = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Repeat(new NativeBattleLogicalProxy(new("20DFAB8", 0, 512), 0, [0, 0, 0, 0], null), NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray() });
         NativeBattleMagmaBreath48PacketStep result = NativeBattleMagmaBreath48PacketDelivery.Submit(memory, state, full, Flash());
         Assert.Equal(NativeBattlePrimitiveOrdering.ProxyCapacity, result.Ordering.Proxies.Length);
         Assert.Empty(result.Ordering.Packets);

@@ -138,7 +138,7 @@ public sealed partial class BattleSession
         NativeBattleEffectFileAsset file = frame.Effect.Binding.Pandemona291Resources!.Files.Single(file => file.FileId == 726);
         int relative = checked((int)(sourceAddress - unchecked(buffer + 0x23220)));
         int length = file.Data.Length - relative;
-        NativeBattleGfAnimationSource source = new(sourceAddress, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, length), length).ToImmutableArray());
+        NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(sourceAddress, arena, NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, length), length);
         int workspaceLength = impact ? 0x180 : 0x8C;
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x10, workspaceLength);
         arena = workspace.Initialize7016B0(source, workspaceLength).CopyTo(arena, start + 0x10);

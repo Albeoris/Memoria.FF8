@@ -31,8 +31,8 @@ public static partial class NativeBattleEffect283Controller
             frame = inputs.Execute(frame, new NativeBattleEffect283ModelFlags(target, 0, 4));
             foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (resources.MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (resources.SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })
             {
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[length].ToImmutableArray()).Initialize7016B0(source, length);
-                frame = WriteBytes(frame, main + (uint)offset, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), length);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offset, length).Initialize7016B0(source, length);
+                NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + (uint)offset, workspace);
             }
             NativeBattleEffect283PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = anchor.Frame;
@@ -137,11 +137,11 @@ public static partial class NativeBattleEffect283Controller
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), workspaceBytes);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, current);
             frame = inputs.DrawProgrammeNode(frame, source, node, caller32);
             return Workspace();
         });
-        frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), workspaceBytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + (uint)workspaceOffset, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 

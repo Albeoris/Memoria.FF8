@@ -18,7 +18,7 @@ public static partial class NativeBattleJunk44Controller
             {
                 NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, current);
                 frame = DrawProgrammeNode6E88B0(frame, source, node, caller, resources, inputs);
-                return new(TaskView(Read(frame, address), 0x18, 64).Read(0, 64).ToImmutableArray());
+                return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, 64);
             });
             NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, advanced.Workspace);
             if (advanced.Remaining == 0)

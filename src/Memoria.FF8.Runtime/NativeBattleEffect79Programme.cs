@@ -72,7 +72,7 @@ public static class NativeBattleEffect79Programme
     {
         NativeBattleGfAnimationSource template = resources.ReadProgramme(address);
         NativeBattleFileStaging staging = frame.Staging ?? throw new NotSupportedException("Effect79 programme requires its actual completed file staging.");
-        return template with { Data = staging.Read(address, template.Data.Length).ToImmutableArray() };
+        return NativeBattleGfAnimationSource.Borrow(address, staging, template.Length);
     }
 
     private static NativeBattleEffect79Frame PublishWorkspace(NativeBattleEffect79Frame frame, uint taskAddress, NativeBattleGfAnimationWorkspace workspace)
@@ -93,15 +93,16 @@ public static class NativeBattleEffect79Programme
             return frame;
         }
         int geometryIndex = unchecked((short)node.GeometryIndex);
-        if (geometryIndex < 0 || geometryIndex >= BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan()))
+        using NativeBattleGfSourceReader resource = source.OpenReader();
+        if (geometryIndex < 0 || geometryIndex >= resource.Int(0))
         {
             throw new InvalidDataException("Effect79 programme geometry leaves its selected source directory.");
         }
-        int geometryOffset = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + geometryIndex * 4));
+        int geometryOffset = resource.Int(8 + geometryIndex * 4);
         uint geometryAddress = checked(source.Address + (uint)geometryOffset);
-        NativeBattleStaticMeshResource mesh = new(0, geometryAddress, source.Data.AsSpan().Slice(geometryOffset).ToArray().ToImmutableArray());
-        int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
-        int shapes = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(8));
+        using NativeBattleGfSourceReader mesh = resource.Slice(geometryOffset);
+        int count = mesh.Int(4);
+        int shapes = mesh.Int(8);
         int first = node.Word40;
         int second = node.Word42;
         int ratio = node.Scalar38;
@@ -169,7 +170,7 @@ public static class NativeBattleEffect79Programme
             context = context.Write(offset, BitConverter.GetBytes((ushort)(offset is 0x20 or 0x22 or 0x28 or 0x2A ? 256 : 0)));
         }
         frame = PublishContext(frame, temporary, context, 104);
-        NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, offset =>
+        NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, geometryAddress, mesh, inputs.ReadProjection(frame), context, inputs.Colors, offset =>
         {
             NativeBattleEffectArena row = ReadBytes(frame, checked(vertices + (uint)offset), 8);
             (byte[] bytes, bool[] known) = row.ReadSnapshot(0, 8);
@@ -181,10 +182,10 @@ public static class NativeBattleEffect79Programme
         return Release(frame, 104);
     }
 
-    private static NativeBattleEffect79Frame MorphProgramme79(NativeBattleEffect79Frame frame, NativeBattleStaticMeshResource mesh, int first, int second, int ratio, uint destination)
+    private static NativeBattleEffect79Frame MorphProgramme79(NativeBattleEffect79Frame frame, NativeBattleGfSourceReader mesh, int first, int second, int ratio, uint destination)
     {
         const uint scratch = 0x25EAFA8;
-        int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
+        int count = mesh.Int(4);
         if (destination != scratch || count < 1 || count > 125 || count * 8 > 1000)
         {
             throw new InvalidDataException("Effect79 morph requires its actual addressed morph scratch.");
@@ -207,7 +208,7 @@ public static class NativeBattleEffect79Programme
         }
         return PublishRegistersProgramme79(frame, registers);
 
-        ushort ShapeWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(mesh.Bytes.AsSpan().Slice(offset, 2));
+        ushort ShapeWord(int offset) => mesh.UShort(offset);
     }
 
     private static uint Dword(NativeBattleEffectArena value, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(value.Read(offset, 4));

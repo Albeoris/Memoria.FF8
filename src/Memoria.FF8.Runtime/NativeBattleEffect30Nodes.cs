@@ -57,7 +57,7 @@ public static class NativeBattleEffect30Nodes
         {
             int emitters = ArenaOffset(frame.State.ReadDword(0x26D6A14), EmitterBytes);
             int geometry = ArenaOffset(frame.State.ReadDword(0x26D6A2C), GeometryBytes);
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.ExecutableBytes ?? throw new NotSupportedException("Effect30 nodes require their materialized executable source."));
             ushort emitterScan = frame.State.ReadWord(0x26D4768);
             ushort geometryScan = frame.State.ReadWord(0x26D6A20);

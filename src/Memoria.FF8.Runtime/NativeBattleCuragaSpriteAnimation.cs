@@ -9,7 +9,7 @@ public static class NativeBattleCuragaSpriteAnimation
         {
             return frame;
         }
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeLifecycle.AdvanceSpriteAnimation(memory, node, resourceKind);
         return memory.Flush();
     }

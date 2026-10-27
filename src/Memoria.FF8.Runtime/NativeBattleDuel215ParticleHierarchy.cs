@@ -36,7 +36,7 @@ public static partial class NativeBattleDuel215Controller
         };
         NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
         NativeBattleDuel215Program context = ParticleProgram69CB10(task, view);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(24, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 24, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleDuel215HierarchyStep drawn = NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors);
@@ -47,7 +47,7 @@ public static partial class NativeBattleDuel215Controller
             ordering = written.Ordering;
             return current;
         });
-        task = advanced.Workspace.CopyTo(task, 24, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 24, advanced.Workspace);
         pool = pool.WriteSlot(slot, task);
         return new(new(frame, pool, advanced.Remaining == 0 ? 2 : 0), ordering);
     }

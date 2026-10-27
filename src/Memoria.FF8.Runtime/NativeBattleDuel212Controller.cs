@@ -65,7 +65,7 @@ public static partial class NativeBattleDuel212Controller
                     throw new InvalidDataException("Native Burning Rave target pool was lost after initialization.");
                 }
                 (target, int child) = target.Append(0x6A1660);
-                Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                Publish(current.WriteSlot(slot, task));
                 frame = inputs.Execute(frame, new NativeBattleDuel212PrepareScene(child));
                 Refresh();
             }
@@ -84,7 +84,7 @@ public static partial class NativeBattleDuel212Controller
             }
             else
             {
-                Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                Publish(current.WriteSlot(slot, task));
                 frame = inputs.Execute(frame, new NativeBattleDuel212UpdateScene());
                 Refresh();
                 bool complete = false;
@@ -109,7 +109,7 @@ public static partial class NativeBattleDuel212Controller
                     }
                 }
             }
-            return new(current with { Slots = current.Slots.SetItem(slot, task) }, result);
+            return new(current.WriteSlot(slot, task), result);
 
             NativeBattleEffectTaskPool Advance(NativeBattleEffectTaskPool pool, out int survivors)
             {
@@ -127,7 +127,7 @@ public static partial class NativeBattleDuel212Controller
                     {
                         sprites = active;
                     }
-                    Publish(current with { Slots = current.Slots.SetItem(slot, task) });
+                    Publish(current.WriteSlot(slot, task));
                     NativeBattleDuel212Step child = advanceChild(frame, active, childSlot);
                     frame = child.Frame;
                     Refresh();

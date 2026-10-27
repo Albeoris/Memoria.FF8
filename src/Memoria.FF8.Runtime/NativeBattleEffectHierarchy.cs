@@ -169,8 +169,9 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
 
     public NativeBattleEffectHierarchyStep Advance(int poolIndex, Func<NativeBattleEffectHierarchy, uint, NativeBattleEffectHierarchyCallback> callback)
     {
+        using NativeBattleTaskOperation operation = new(Pools);
         NativeBattleEffectHierarchy hierarchy = this;
-        NativeBattleEffectTaskStep step = Pools[poolIndex].Advance((pool, slot) =>
+        NativeBattleEffectTaskStep step = Pools[poolIndex].AdvanceCore((pool, slot) =>
         {
             if (!ReferenceEquals(hierarchy.Pools[poolIndex].RequireOwner(), pool.RequireOwner()))
             {
@@ -185,6 +186,7 @@ public sealed record NativeBattleEffectHierarchy([property: JsonRequired] Immuta
             throw new InvalidDataException("Native hierarchy pass replaced its pool authority.");
         }
         hierarchy.Validate();
+        operation.Commit();
         return new(hierarchy, step.Survivors);
     }
 

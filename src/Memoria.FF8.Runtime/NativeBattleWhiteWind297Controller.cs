@@ -202,19 +202,19 @@ public static class NativeBattleWhiteWind297Controller
     private static NativeBattleWhiteWind297Frame InitializeAct(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, int size, NativeBattleGfAnimationSource source)
     {
         NativeBattleModulePoolTask task = Task(frame, pool, slot);
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(offset, size).ToImmutableArray()).Initialize7016B0(source, size);
-        return Put(frame, pool, slot, workspace.CopyTo(task, offset, retainUnknown: false));
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(source, size);
+        return Put(frame, pool, slot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace));
     }
     private static (NativeBattleWhiteWind297Frame Frame, int Remaining) Play(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context, NativeBattleWhiteWind297Inputs inputs)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(Task(frame, pool, slot).ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(Task(frame, pool, slot), offset, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            frame = Put(frame, pool, slot, Task(frame, pool, slot).WriteBytes(offset, current.Data.AsSpan()));
+            frame = Put(frame, pool, slot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Task(frame, pool, slot), offset, current));
             frame = inputs.EmitNode(frame, source, context, node);
-            return new(Task(frame, pool, slot).ReadBytes(offset, size).ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(Task(frame, pool, slot), offset, size);
         });
-        frame = Put(frame, pool, slot, advanced.Workspace.CopyTo(Task(frame, pool, slot), offset, retainUnknown: false));
+        frame = Put(frame, pool, slot, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Task(frame, pool, slot), offset, advanced.Workspace));
         return (frame, advanced.Remaining);
     }
     private static NativeBattleEffectArena BillboardContext(NativeBattleWhiteWind297Frame frame, NativeBattleVector point, NativeBattleWhiteWind297Inputs inputs) => Context(frame, NativeBattleWhiteWind226.Billboard673810(inputs.ReadView(frame).ReadMatrix(), point));

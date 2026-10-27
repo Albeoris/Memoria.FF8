@@ -73,7 +73,7 @@ public static class NativeBattleSiren95Io
         {
             throw new NotSupportedException("Native Siren programme starts in unknown current file bytes.");
         }
-        return new(address, banks.Read(address, checked(end - (int)offset)).ToImmutableArray());
+        return NativeBattleGfAnimationSource.Borrow(address, banks.Bytes, checked((int)offset), checked(end - (int)offset));
     }
 
     public static NativeBattleSiren95Frame Complete(NativeBattleSiren95Frame frame, uint callback)

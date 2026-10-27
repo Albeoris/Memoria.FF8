@@ -134,17 +134,7 @@ public static partial class NativeBattleEffect70Controller
 
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        foreach (NativeBattleEffectUnknownRegion range in task.ReadUnknownPayloadRanges() ?? [])
-        {
-            int first = Math.Max(offset, range.Offset);
-            int last = Math.Min(offset + length, range.Offset + range.Length);
-            if (first < last)
-            {
-                source = source.MarkUnknown(first - offset, last - first);
-            }
-        }
-        return source;
+        return task.BorrowPayloadArena(offset, length);
     }
 
     public static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));

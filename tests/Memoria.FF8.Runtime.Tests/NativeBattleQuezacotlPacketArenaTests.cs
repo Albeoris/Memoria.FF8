@@ -35,7 +35,7 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { DrawArenaOffset = 128 };
-        NativeBattleLogicalOrdering full = NativeBattleLogicalOrdering.Clear() with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Range(0, NativeBattlePrimitiveOrdering.ProxyCapacity).Select(index => new NativeBattleLogicalProxy(new("filled-native-proxy", 0, index * 4), 0, [1, 1, 1, 0], null)).ToImmutableArray() };
+        NativeBattleLogicalOrdering full = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity, Proxies = Enumerable.Range(0, NativeBattlePrimitiveOrdering.ProxyCapacity).Select(index => new NativeBattleLogicalProxy(new("filled-native-proxy", 0, index * 4), 0, [1, 1, 1, 0], null)).ToImmutableArray() });
         NativeBattleGeometryPrimitive primitive = new(20, [0x4000000, 0x20010203, 0, 0, 0], [1, 1, 1, 0]);
         NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(memory, effect, full, new([Known(0, primitive)], 20));
         Assert.Equal(148, written.Effect.DrawArenaOffset);

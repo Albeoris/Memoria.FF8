@@ -83,7 +83,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
                 DrawOrbit(ref task);
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, Effect107Word(task, 12) >= Effect107Word(task, 14) ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), Effect107Word(task, 12) >= Effect107Word(task, 14) ? 2 : 0);
             });
             pools[2] = particles.Pool;
         }

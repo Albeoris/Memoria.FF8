@@ -303,7 +303,7 @@ public static partial class NativeBattleMegaSpark279Controller
             scale = (random & 4095) + 2048;
         }
         NativeBattleGfAnimationSource source = resources.ReadProgramme(programme);
-        var workspace = new NativeBattleGfAnimationWorkspace(TaskView(Read(frame, address), 44, size).ReadSnapshot(0, size).Data.ToImmutableArray()).Initialize7016B0(source, size);
+        var workspace = NativeBattleGfAnimationWorkspace.Borrow(Read(frame, address), 44, size).Initialize7016B0(source, size);
         NativeBattleGraphicsModel caster = inputs.ReadModel(frame, frame.State.ReadDword(0x2508078));
         NativeBattleModelTransform transform = caster.Transform ?? throw new NotSupportedException("Mega Spark programme requires its current caster transform.");
         NativeBattleActionMatrix matrix = NativeBattleFunguarLaser277.Basis50CBA0(Signed(task, 32) - transform.Position28.X, 0, Signed(task, 36) - transform.Position28.Z).Matrix;
@@ -313,7 +313,7 @@ public static partial class NativeBattleMegaSpark279Controller
         }
         matrix = matrix with { X = Signed(task, 32), Y = Signed(task, 34), Z = Signed(task, 36) };
         NativeBattleModulePoolTask output = CopyTask(Read(frame, address), 12, PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)), 32);
-        output = CopyTask(output, 44, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), size);
+        output = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(output, 44, workspace);
         return Write(frame, address, output);
     }
 

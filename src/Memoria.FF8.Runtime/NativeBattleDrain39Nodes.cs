@@ -75,7 +75,7 @@ public static class NativeBattleDrain39Nodes
                 RequireBank();
                 int first = frame.State.Emitters ?? throw new NotSupportedException("Native Drain requires its cleared40-emitter pool.");
                 int second = frame.State.Geometry ?? throw new NotSupportedException("Native Drain requires its cleared140-geometry pool.");
-                NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x10E0, second, 0x16F80, useSharedScratch: true);
+                using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x10E0, second, 0x16F80, useSharedScratch: true);
                 NativeBattleEffectNodeBank bank = new(profile.BankAddress, profile.RequireBank(frame.Memory).Data!.Value, resources.ReadChannels);
                 ushort emitterCursor = frame.State.EmitterCursor ?? throw new NotSupportedException("Native Drain emitter scan WORD is unknown.");
                 ushort geometryCursor = frame.State.GeometryCursor ?? throw new NotSupportedException("Native Drain geometry scan WORD is unknown.");

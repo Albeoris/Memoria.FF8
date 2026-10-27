@@ -114,6 +114,9 @@ public sealed class NativeBattleQuake38Tests
         Assert.Equal(-260, Word(12));
         Assert.Equal(retained.AsSpan().Slice(6, 2).ToArray(), actual.AsSpan().Slice(6, 2).ToArray());
         Assert.Equal(retained.AsSpan().Slice(14, 10).ToArray(), actual.AsSpan().Slice(14, 10).ToArray());
+        byte[] staged = retained.ToArray();
+        NativeBattleQuake38GroundVertices.Transform8D8B10(mesh, bones, staged.AsSpan());
+        Assert.Equal(actual.ToArray(), staged);
         short Word(int offset) => BinaryPrimitives.ReadInt16LittleEndian(actual.AsSpan().Slice(offset));
     }
 }

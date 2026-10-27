@@ -52,12 +52,13 @@ public static class NativeBattleEffect251Programme
             return frame;
         }
         (frame, uint temporary) = Allocate(frame, 108);
-        int geometryOffset = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(8 + unchecked((short)node.GeometryIndex) * 4));
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        int geometryOffset = reader.Int(8 + unchecked((short)node.GeometryIndex) * 4);
         uint geometry = checked(source.Address + (uint)geometryOffset);
         NativeBattleStaticMeshResource original = resources.ReadGeometry(geometry);
-        NativeBattleStaticMeshResource mesh = original with { Bytes = source.Data.Slice(geometryOffset, original.Bytes.Length) };
-        int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
-        int shapes = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(8));
+        using NativeBattleGfSourceReader mesh = reader.Slice(geometryOffset, original.Bytes.Length);
+        int count = mesh.Int(4);
+        int shapes = mesh.Int(8);
         if (count < 1 || node.Word40 < 0 || node.Word42 < 0 || node.Word40 >= shapes || node.Word42 >= shapes)
         {
             throw new InvalidDataException("Effect251 mesh requires its actual selected vertex shapes.");
@@ -149,21 +150,21 @@ public static class NativeBattleEffect251Programme
         }
         frame = WriteBytes(frame, temporary, context, 108);
         bool external = morph || command is 0x41 or 0x42;
-        NativeBattleEffectArena Row(int offset) => external ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8));
+        NativeBattleEffectArena Row(int offset) => external ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, reader.Read(checked((int)(vertices - source.Address)) + offset, 8));
         (NativeBattleVector Vertex, short? W) ReadRow(int offset)
         {
             NativeBattleEffectArena row = Row(offset);
             (byte[] data, bool[] known) = row.ReadSnapshot(0, 8);
             return (Vector(row), known[6] && known[7] ? BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(6)) : null);
         }
-        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: Row);
+        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, geometry, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, count, ReadRow, readSelectedPackedVertex: Row);
         frame = WriteBytes(frame with { Memory = drawn.Memory }, temporary, drawn.Context108, 108);
         frame = inputs.Execute(frame, new NativeBattleEffect251DrawBatch(drawn.Batch));
         return Release(frame, 108);
 
         NativeBattleVector Shape(int shapeIndex, int vertex)
         {
-            ReadOnlySpan<byte> row = source.Data.AsSpan().Slice(geometryOffset + 12 + (shapeIndex * count + vertex) * 8, 6);
+            ReadOnlySpan<byte> row = reader.Read(geometryOffset + 12 + (shapeIndex * count + vertex) * 8, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[2..]), BinaryPrimitives.ReadInt16LittleEndian(row[4..]));
         }
         NativeBattleGeometryRegisterStep Weight(NativeBattleGeometryRegisterStep registers, NativeBattleVector value, int factor, bool accumulate)
@@ -175,11 +176,12 @@ public static class NativeBattleEffect251Programme
 
     public static NativeBattleEffect251Frame Deform6470(NativeBattleEffect251Frame frame, uint geometry, int count, int phase, int amplitude, int horizontalScale, int verticalScale, NativeBattleGfAnimationSource source, NativeBattleEffect251Resources resources)
     {
+        using NativeBattleGfSourceReader reader = source.OpenReader();
         uint destination = checked(frame.State.ReadDword(0x2556450) + 0xA880);
         RequireScratch(frame, destination, count);
         for (int index = 0; index < count; index++)
         {
-            NativeBattleEffectArena row = NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(geometry - source.Address)) + 12 + index * 8, 8));
+            NativeBattleEffectArena row = NativeBattleEffectArena.Clear().Write(0, reader.Read(checked((int)(geometry - source.Address)) + 12 + index * 8, 8));
             int angle = Word251(row, 6);
             int wave = BinaryPrimitives.ReadInt16LittleEndian(resources.ReadStatic(checked(0x1438C90u + (uint)((angle & 0xFFE) * 2)), 2));
             int radius = unchecked(wave * amplitude) >> 12;

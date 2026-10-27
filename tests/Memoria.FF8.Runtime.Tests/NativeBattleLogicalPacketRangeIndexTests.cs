@@ -20,9 +20,10 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
                 ProjectedCoordinates = index % 3 == 0 ? [new(1, 2)] : null
             };
         }).ToImmutableArray();
-        NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear() with { Packets = packets };
-        string original = JsonSerializer.Serialize(source);
-        NativeBattleLogicalOrdering.Builder builder = new(source);
+        NativeBattleLogicalOrdering source = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { Packets = packets });
+        NativeBattleLogicalOrdering retained = NativeBattleStorageSnapshots.Capture(source);
+        string original = JsonSerializer.Serialize(retained);
+        using NativeBattleLogicalOrdering.Builder builder = new(source);
         ImmutableArray<NativeBattleLogicalPacket> expected = packets;
         for (int query = 0; query < 300; query++)
         {
@@ -32,14 +33,15 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
             builder.InvalidatePacketRange(reference, length);
             Assert.Equal(expected, builder.ToImmutable().Packets);
         }
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, JsonSerializer.Serialize(retained));
     }
 
     [Fact]
     public void TouchingBoundariesAndNormalizedBufferAliasesInvalidateOnlyActualOverlaps()
     {
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear().Prepend(17, new("off_B6D070", 1, 0), Words(5), 0, [], projectedCoordinates: [new(1, 2)]);
-        NativeBattleLogicalOrdering.Builder builder = new(source);
+        NativeBattleLogicalOrdering retained = NativeBattleStorageSnapshots.Capture(source);
+        using NativeBattleLogicalOrdering.Builder builder = new(source);
         builder.InvalidatePacketRange(new("off_B6D070", 0, 114688 - 4), 4);
         builder.InvalidatePacketRange(new("off_B6D070", 0, 114688 + 20), 4);
         builder.InvalidatePacketRange(new("off_B6D094", 0, 114688), 20);
@@ -47,25 +49,31 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
         builder.InvalidatePacketRange(new("off_B6D070", 0, 114688 + 19), 1);
         Assert.True(builder.ToImmutable().Packets[0].RequiresPhysicalRead);
         Assert.Null(builder.ToImmutable().Packets[0].ProjectedCoordinates);
-        Assert.False(source.Packets[0].RequiresPhysicalRead);
-        Assert.NotNull(source.Packets[0].ProjectedCoordinates);
+        Assert.False(retained.Packets[0].RequiresPhysicalRead);
+        Assert.NotNull(retained.Packets[0].ProjectedCoordinates);
     }
 
     [Fact]
     public void RollbackRemovesRandomInsertionsAndRestoresReplacementsAndFrozenPredecessors()
     {
-        NativeBattleLogicalOrdering.Builder seed = new(NativeBattleLogicalOrdering.Clear());
-        for (int index = 0; index < 64; index++)
+        NativeBattleLogicalOrdering initial = NativeBattleLogicalOrdering.Clear();
+        using (NativeBattleLogicalOrdering.Builder seed = new(initial))
         {
-            seed.Prepend(17, new("20DFAB8", 0, index * 32), Words(5), 0, []);
+            for (int index = 0; index < 64; index++)
+            {
+                seed.Prepend(17, new("20DFAB8", 0, index * 32), Words(5), 0, []);
+            }
+            seed.ToImmutable();
         }
-        NativeBattleLogicalOrdering source = seed.ToImmutable();
-        string original = JsonSerializer.Serialize(source);
+        NativeBattleLogicalOrdering source = initial;
+        NativeBattleLogicalOrdering retained = NativeBattleStorageSnapshots.Capture(source);
+        string original = JsonSerializer.Serialize(retained);
         using NativeBattleLogicalOrderingTransaction transaction = new(source);
         Random random = new(9573);
         for (int callback = 0; callback < 40; callback++)
         {
-            NativeBattleLogicalOrdering before = transaction.Freeze();
+            transaction.Freeze();
+            NativeBattleLogicalOrderingData before = NativeBattleOrderingTestFixture.Inspect(source);
             string frozen = JsonSerializer.Serialize(before);
             transaction.BeginCheckpoint();
             int[] offsets = Enumerable.Range(0, 40).OrderBy(_ => random.Next()).Select(index => 4096 + index * 32).ToArray();
@@ -75,10 +83,11 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
             }
             transaction.View.Prepend(19, new("20DFAB8", 0, random.Next(64) * 32), Words(128), 0, []);
             transaction.RollbackCheckpoint();
-            Assert.Equal(frozen, JsonSerializer.Serialize(transaction.Freeze()));
+            transaction.Freeze();
+            Assert.Equal(frozen, JsonSerializer.Serialize(NativeBattleOrderingTestFixture.Inspect(source)));
             transaction.View.Prepend(20, new("20DFAB8", 0, callback * 32), Words(callback % 2 == 0 ? 2 : 16), 0, []);
-            NativeBattleLogicalOrdering.Builder current = new(transaction.View);
-            ImmutableArray<NativeBattleLogicalPacket> expected = transaction.Freeze().Packets;
+            using NativeBattleLogicalOrdering.Builder current = new(transaction.View);
+            ImmutableArray<NativeBattleLogicalPacket> expected = source.Packets.ToImmutableArray();
             for (int query = 0; query < 20; query++)
             {
                 NativeBattlePrimitiveReference reference = new("20DFAB8", 0, random.Next(2000) * 4);
@@ -86,10 +95,13 @@ public sealed class NativeBattleLogicalPacketRangeIndexTests
                 expected = Invalidate(expected, reference, length);
                 current.InvalidatePacketRange(reference, length);
             }
-            Assert.Equal(expected, transaction.Freeze().Packets);
+            current.ToImmutable();
+            Assert.Equal(expected, source.Packets);
+            current.Dispose();
+            transaction.Freeze();
             Assert.Equal(frozen, JsonSerializer.Serialize(before));
         }
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, JsonSerializer.Serialize(retained));
     }
 
     [Fact]

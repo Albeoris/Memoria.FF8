@@ -111,11 +111,11 @@ public static class NativeBattleCurse47Act
         NativeBattleGfAnimationSource source = Source(frame, task.ReadDword(0x94), inputs);
         NativeBattleGfAnimationAdvance advanced = Workspace(task, size).Advance701970(source, unchecked((int)frame.State.ReadDword(0x264D82C)), (workspace, node) =>
         {
-            frame = Put(frame, address, Read(frame, address).WriteBytes(0x94, workspace.Data.AsSpan()));
+            frame = Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x94, workspace));
             frame = inputs.EmitNode(frame, address, prepared.Context92, node);
             return Workspace(Read(frame, address), size);
         });
-        frame = Put(frame, address, advanced.Workspace.CopyTo(Read(frame, address), 0x94, retainUnknown: false));
+        frame = Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x94, advanced.Workspace));
         return new(frame, advanced.Remaining);
     }
 
@@ -124,7 +124,7 @@ public static class NativeBattleCurse47Act
         NativeBattleModulePoolTask task = Read(frame, address);
         int size = Size(task);
         NativeBattleGfAnimationWorkspace workspace = Workspace(task, size).Initialize7016B0(Source(frame, task.ReadDword(0x74), inputs), size);
-        return Put(frame, address, workspace.CopyTo(task, 0x94, retainUnknown: false));
+        return Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace));
     }
     private static int? FindActor(NativeBattleCurse47Frame frame, byte modelId, NativeBattleCurse47ActInputs inputs)
     {
@@ -167,7 +167,7 @@ public static class NativeBattleCurse47Act
         }
         return source;
     }
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, int size) => new(task.ReadBytes(0x94, size).ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, int size) => NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, size);
     private static NativeBattleModulePoolTask Read(NativeBattleCurse47Frame frame, uint address) => NativeBattleCurse47Controller.Read(frame, address);
     private static NativeBattleCurse47Frame Put(NativeBattleCurse47Frame frame, uint address, NativeBattleModulePoolTask task) => NativeBattleCurse47Controller.Write(frame, address, task);
     private static NativeBattleCurse47Frame Next(NativeBattleCurse47Frame frame, uint address) => Put(frame, address, Read(frame, address).WriteByte(0x29, unchecked((byte)(Read(frame, address).ReadByte(0x29) + 1))));

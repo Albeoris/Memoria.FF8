@@ -40,7 +40,7 @@ internal sealed class NativeBattleTaskBankSnapshot
 }
 
 /// <summary>The sole writable physical task bank; task objects are bounded views of this kernel.</summary>
-internal sealed class NativeBattleTaskBankOwner
+internal sealed partial class NativeBattleTaskBankOwner
 {
     private bool revoked;
     private bool arenaBound;
@@ -66,8 +66,8 @@ internal sealed class NativeBattleTaskBankOwner
         Stride = stride;
         IsPool = pool;
         BankLength = checked(stride * tasks.Length);
-        Storage = new(BankLength, initialCapacity: BankLength);
-        DescriptorStorage = new(8, initialCapacity: 8);
+        Storage = new(BankLength, initialCapacity: BankLength) { IsPrivateTaskAuthority = true };
+        DescriptorStorage = new(8, initialCapacity: 8) { IsPrivateTaskAuthority = true };
         Tasks = [.. Enumerable.Range(0, tasks.Length).Select(index => NativeBattleModulePoolTask.FromOwner(this, index))];
         for (int index = 0; index < tasks.Length; index++)
         {
@@ -105,7 +105,12 @@ internal sealed class NativeBattleTaskBankOwner
         }
         Storage = storage;
         arenaBound = frozen.ArenaBound;
+        if (!arenaBound)
+        {
+            Storage.IsPrivateTaskAuthority = true;
+        }
         DescriptorStorage = descriptorStorage ?? new(8, initialCapacity: 8);
+        DescriptorStorage.IsPrivateTaskAuthority = true;
         if (DescriptorStorage.LogicalLength != 8)
         {
             throw new InvalidDataException("Restored task descriptor requires its independent eight-byte logical storage.");
@@ -229,9 +234,22 @@ internal sealed class NativeBattleTaskBankOwner
             }
             throw new InvalidOperationException("A bound task bank requires capture/restore before changing battle storage authority.");
         }
-        if (HasCheckpoint || arena.Transaction is not null || target.HasCheckpoint || NativeBattleEffectArenaTransaction.HasActive(target))
+        bool callerOverlay = NativeBattleTaskCallerOperation.AllowsOverlayBinding(target, targetOffset, BankLength);
+        bool sameOperationKernel = ReferenceEquals(Storage, target) && NativeBattleTaskOperation.OwnsKernel(Storage) && !HasLocalCheckpoint && !DescriptorStorage.HasCheckpoint;
+        if (HasCheckpoint && !sameOperationKernel || arena.Transaction is not null && !callerOverlay || NativeBattleEffectArenaTransaction.HasActive(Storage) || NativeBattleEffectArenaTransaction.HasActive(target) && !callerOverlay)
         {
             throw new InvalidOperationException("Native task binding requires its committed physical ownership boundary.");
+        }
+        bool journaled = NativeBattleTaskCallerOperation.EnlistBinding(target) || NativeBattleTaskOperation.EnlistBinding(target);
+        if (target.HasCheckpoint && !journaled)
+        {
+            throw new InvalidOperationException("Native task binding requires its committed physical ownership boundary or active task operation.");
+        }
+        NativeBattleWorkingMemory previous = Storage;
+        BindingParticipant? participant = journaled ? new(this, previous) : null;
+        if (participant is not null)
+        {
+            target.EnlistCheckpointParticipant(participant);
         }
         if (binding == NativeBattleTaskStorageBinding.PublishTaskState)
         {
@@ -241,11 +259,14 @@ internal sealed class NativeBattleTaskBankOwner
         {
             ValidatePhysicalHeaders(target, targetOffset);
         }
-        NativeBattleWorkingMemory previous = Storage;
         Storage = target;
         StorageOffset = targetOffset;
         arenaBound = true;
-        if (!ReferenceEquals(previous, target))
+        if (participant is not null)
+        {
+            participant.SuspendPrevious();
+        }
+        else if (!ReferenceEquals(previous, target))
         {
             previous.Revoke();
         }
@@ -357,6 +378,7 @@ internal sealed class NativeBattleTaskBankOwner
         }
         int depth = Storage.CheckpointDepth;
         localScopes.Add(depth);
+        RegisterLocalCheckpoint();
         try
         {
             Storage.EnlistCheckpointParticipant(scopeObserver ??= new(this));
@@ -364,6 +386,7 @@ internal sealed class NativeBattleTaskBankOwner
         catch
         {
             localScopes.Remove(depth);
+            UnregisterLocalCheckpoint();
             if (nested)
             {
                 Storage.RollbackNestedCheckpoint();
@@ -488,6 +511,7 @@ internal sealed class NativeBattleTaskBankOwner
                 if (owner.localScopes[index] == completed)
                 {
                     owner.localScopes.RemoveAt(index);
+                    owner.UnregisterLocalCheckpoint();
                 }
             }
         }

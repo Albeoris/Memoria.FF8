@@ -202,7 +202,7 @@ public static partial class NativeBattleEffect323Controller
             NativeBattleVector local = new(unchecked((short)(NativeBattleCameraMath.Sine(yaw) * radius / 4096)), unchecked((short)(NativeBattleCameraMath.Cosine(yaw) * radius / 4096)), (short)((depthRandom & 63) + 64));
             NativeBattleVector velocity = NativeBattleGfMatrices.RotateShort56C4F0(basis, local);
             NativeBattleModulePoolTask value = CopyTask(Read(frame, particle), 12, point, 8);
-            value = CopyTask(value, 0x14, PutPoint(TaskView(value, 0x14, 8), 0, velocity), 6);
+            value = CopyTask(value, 0x14, PutPoint(NativeBattleEffectNodeContextMemory.Copy(TaskView(value, 0x14, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8), 0, velocity), 6);
             value = value.WriteWord(0x1C, unchecked((ushort)(-velocity.X / 12))).WriteWord(0x1E, unchecked((ushort)(-velocity.Y / 12))).WriteWord(0x20, unchecked((ushort)(-velocity.Z / 12)));
             frame = Write(frame, particle, value);
             yaw += 195;

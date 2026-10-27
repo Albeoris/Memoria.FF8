@@ -23,6 +23,12 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         View = source with { Transaction = this };
     }
 
+    internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease)
+    {
+        RequireActive();
+        overlay.CaptureReadWindowPrefix(lease);
+    }
+
     public NativeBattleFileStaging View { get; }
     public uint BaseAddress
     {
@@ -227,6 +233,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         {
             throw new InvalidOperationException("Native staging publication requires its current transaction view.");
         }
+        owner.RequireReadWindowMutation();
         overlay.Publish();
         return source;
     }
@@ -243,6 +250,7 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     {
         if (!disposed)
         {
+            owner.CloseReadWindows(this);
             disposed = true;
             owner.ReturnOverlay(overlay);
         }

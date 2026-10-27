@@ -64,7 +64,7 @@ public static partial class NativeBattleEffect345Controller
                 short vy = unchecked((short)(-0x1000 - (speed & 0x1FFF)));
                 task = Read(frame, child).WriteWord(0xF6 + mote * 8, unchecked((ushort)vy));
                 NativeBattleVector velocity = NativeBattleGfMatrices.RotateShort56C4F0(Packed(matrix).ReadMatrix(), Vector(TaskView(task, 0xF4 + mote * 8, 8)));
-                frame = Write(frame, child, CopyTask(task, 0xF4 + mote * 8, PutPoint(TaskView(task, 0xF4 + mote * 8, 8), 0, velocity), 8));
+                frame = Write(frame, child, CopyTask(task, 0xF4 + mote * 8, PutPoint(NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0xF4 + mote * 8, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8), 0, velocity), 8));
             }
         }
         return frame;

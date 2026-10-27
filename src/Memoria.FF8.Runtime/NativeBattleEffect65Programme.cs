@@ -18,7 +18,8 @@ public static class NativeBattleEffect65Programme
         }
         short file = files[0];
         int length = checked(BundleLengths[file] - offset);
-        return new(address, ReadBytes(frame, address, length).Read(0, length).ToImmutableArray());
+        NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Effect65 programme requires its retained COMMON owner.");
+        return NativeBattleGfAnimationSource.Borrow(address, arena, NativeBattleWaterExecutionFields.ArenaOffset(address, length), length);
     }
 
     public static NativeBattleEffect65Step Advance(NativeBattleEffect65Frame frame, uint workspaceAddress, int workspaceLength, NativeBattleEffectArena caller48, int frozen, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs, bool scaleNodes = false, uint cursorGlobal = CursorGlobal)
@@ -53,10 +54,14 @@ public static class NativeBattleEffect65Programme
         {
             return frame;
         }
-        uint geometry = checked(source.Address + BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan().Slice(8 + node.GeometryIndex * 4)));
-        NativeBattleStaticMeshResource mesh = NativeBattleEffect65Resources.ReadLoadedGeometry(source, geometry);
-        int count = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(4));
-        int shapes = BinaryPrimitives.ReadInt32LittleEndian(mesh.Bytes.AsSpan().Slice(8));
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        int geometryOffset = checked((int)reader.UInt(8 + node.GeometryIndex * 4));
+        uint geometry = checked(source.Address + (uint)geometryOffset);
+        using NativeBattleGfSourceReader suffix = reader.Slice(geometryOffset);
+        int geometryLength = NativeBattleEffect65Resources.ValidateLoadedGeometry(suffix);
+        using NativeBattleGfSourceReader mesh = suffix.Slice(0, geometryLength);
+        int count = mesh.Int(4);
+        int shapes = mesh.Int(8);
         if (count is < 1 or > 306 || node.Word40 < 0 || node.Word42 < 0 || node.Word40 >= shapes || node.Word42 >= shapes)
         {
             throw new InvalidDataException("Effect65 ACT geometry leaves its current selected shapes.");
@@ -136,9 +141,9 @@ public static class NativeBattleEffect65Programme
             }
             context = context.Write(selector == '3' ? 0x20 : 0x22, BitConverter.GetBytes(unchecked((ushort)(phase & (selector == '3' ? 63 : 127)))));
         }
-        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, 306, offset =>
+        NativeBattleWindowedMeshContext108Step drawn = NativeBattleWindowedMeshContext108.DrawLoaded(frame.Memory, geometry, mesh, inputs.ReadProjection(frame), context, inputs.Colors, 17, 2, 306, offset =>
         {
-            NativeBattleEffectArena row = morph ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, source.Data.AsSpan().Slice(checked((int)(vertices - source.Address)) + offset, 8));
+            NativeBattleEffectArena row = morph ? ReadBytes(frame, checked(vertices + (uint)offset), 8) : NativeBattleEffectArena.Clear().Write(0, reader.Read(checked((int)(vertices - source.Address)) + offset, 8));
             (byte[] bytes, bool[] known) = row.ReadSnapshot(0, 8);
             if (!known.Take(6).All(value => value))
             {
@@ -153,7 +158,7 @@ public static class NativeBattleEffect65Programme
         NativeBattleVector Shape(int shape, int vertex)
         {
             int offset = checked((int)(geometry - source.Address) + 12 + (shape * count + vertex) * 8);
-            ReadOnlySpan<byte> bytes = source.Data.AsSpan().Slice(offset, 6);
+            ReadOnlySpan<byte> bytes = reader.Read(offset, 6);
             return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
         }
         NativeBattleGeometryRegisterStep Weight(NativeBattleGeometryRegisterStep registers, NativeBattleVector vector, int factor, bool accumulate)

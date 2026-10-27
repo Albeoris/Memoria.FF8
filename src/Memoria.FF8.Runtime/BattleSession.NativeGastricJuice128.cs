@@ -124,7 +124,7 @@ public sealed partial class BattleSession
         {
             NativeBattleModulePoolTask task = NativeBattleGastricJuice128Controller.Read(current, taskAddress);
             NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, task.ReadBytes(0x16, 8)).Write(8, BitConverter.GetBytes(current.State.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal) + NativeBattleGastricJuice128Profile.MorphOffset));
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x20, 0x248).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x20, 0x248);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.MainAct, 0, (next, node) =>
             {
                 NativeBattleEffectArena normalized = current.State.ReadView(NativeBattleGastricJuice128Profile.CurrentMatrixAddress, 32);
@@ -144,7 +144,7 @@ public sealed partial class BattleSession
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
                 return next;
             });
-            return NativeBattleGastricJuice128Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleGastricJuice128Controller.Read(current, taskAddress), 0x20, retainUnknown: false));
+            return NativeBattleGastricJuice128Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleGastricJuice128Controller.Read(current, taskAddress), 0x20, advanced.Workspace));
         }
 
         NativeBattleGastricJuice128Frame DrawSprite(NativeBattleGastricJuice128Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)

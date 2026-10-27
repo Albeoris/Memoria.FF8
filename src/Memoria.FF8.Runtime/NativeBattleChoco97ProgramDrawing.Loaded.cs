@@ -10,7 +10,7 @@ public enum NativeBattleChoco97LoadedProgram
 }
 
 public sealed record NativeBattleChoco97LoadedProgramResources(NativeBattleChoco97LoadedProgram Profile, NativeBattleGfAnimationSource ProgramSource);
-public sealed record NativeBattleChoco97LoadedProgramDraw(NativeBattleModulePoolTask Task, NativeBattleGfAnimationSource Source, ImmutableArray<byte> MorphScratch, NativeBattleGfGeometryBatch Packets, int? Remaining, bool ReadyToComplete);
+public sealed record NativeBattleChoco97LoadedProgramDraw(NativeBattleModulePoolTask Task, [property: System.Text.Json.Serialization.JsonConverter(typeof(NativeBattleOwnedGfAnimationSource.Converter))] NativeBattleGfAnimationSource Source, ImmutableArray<byte> MorphScratch, NativeBattleGfGeometryBatch Packets, int? Remaining, bool ReadyToComplete);
 internal sealed record NativeBattleChocoProgramVScroll(int Geometry, int Delta);
 internal sealed record NativeBattleChocoLoadedProgramProfile(NativeBattleChocoProgramProfile Core, uint Address, int Length, uint Callback, int Clear, bool TargetOrigin, short OriginY, short OriginZ, bool ImmediateDraw, ImmutableArray<NativeBattleChocoProgramVScroll> Scrolls, uint? PhaseZeroSound);
 
@@ -23,9 +23,10 @@ public static partial class NativeBattleChoco97ProgramDrawing
 
     internal static (NativeBattleChoco97LoadedProgramDraw Draw, uint? SoundDescriptor) AdvanceLoadedProfiled(NativeBattleChocoLoadedProgramProfile profile, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozen)
     {
+        source = NativeBattleOwnedGfAnimationSource.Own(source);
         RequireTask(task, source, profile.Core);
         RequireScratch(morphScratch, profile.Core);
-        if (source.Address != profile.Address || source.Data.Length != profile.Length || task.Callback != profile.Callback || task.ReadDword(0x78) != profile.Clear)
+        if (source.Address != profile.Address || source.Length != profile.Length || task.Callback != profile.Callback || task.ReadDword(0x78) != profile.Clear)
         {
             throw new InvalidDataException("Native Choco loaded program requires its actual callback, file owner and clear operand.");
         }
@@ -73,8 +74,9 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
         foreach (NativeBattleChocoProgramVScroll scroll in profile.Scrolls)
         {
-            int offset = ReadInt(source.Data, checked(8 + scroll.Geometry * 4));
-            source = source with { Data = NativeBattleChoco97Uv.Scroll7311C0(source.Data, offset / 4 * 4, scroll.Delta) };
+            using NativeBattleGfSourceReader reader = source.OpenReader();
+            int offset = ReadInt(reader, checked(8 + scroll.Geometry * 4));
+            source = NativeBattleChoco97Uv.Scroll7311C0(source, offset / 4 * 4, scroll.Delta);
         }
         task = task.WriteWord(0x24, unchecked((ushort)(task.ReadWord(0x24) + 1)));
         return (new(task, source, morphScratch, packets, remaining, (task.ReadByte(0x26) & 1) != 0 && task.ReadByte(0x28) == 0), phase == 0 ? profile.PhaseZeroSound : null);

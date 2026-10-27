@@ -34,7 +34,7 @@ public static partial class NativeBattleEffect251Controller
         {
             if (address == start)
             {
-                return new(address, frame.State.Read(address, length).ToImmutableArray());
+                return frame.State.BorrowSource(address, length);
             }
         }
         return resources.Source(address);
@@ -355,17 +355,7 @@ public static partial class NativeBattleEffect251Controller
     }
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        foreach (NativeBattleEffectUnknownRegion range in task.ReadUnknownPayloadRanges() ?? [])
-        {
-            int first = Math.Max(offset, range.Offset);
-            int last = Math.Min(offset + length, range.Offset + range.Length);
-            if (first < last)
-            {
-                result = result.MarkUnknown(first - offset, last - first);
-            }
-        }
-        return result;
+        return task.BorrowPayloadArena(offset, length);
     }
     public static NativeBattleModulePoolTask CopyTask(NativeBattleModulePoolTask task, int offset, NativeBattleEffectArena source, int length)
     {

@@ -96,8 +96,8 @@ public static partial class NativeBattleBreath129Controller
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x324]);
             foreach ((int offset, int size, uint source) in new (int, int, uint)[] { (0x38, 0x108, 0x12239B8), (0x140, 0x68, 0x1226098), (0x1A8, 0x188, 0x122688C) })
             {
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(offset, size).ToImmutableArray()).Initialize7016B0(resources.Act(source), size);
-                task = workspace.CopyTo(task, offset, retainUnknown: false);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size).Initialize7016B0(resources.Act(source), size);
+                task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
             }
             int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
             if (count is < 1 or > 3)

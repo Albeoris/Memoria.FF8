@@ -29,7 +29,7 @@ public static class NativeBattleDuel216Workspaces
             throw new InvalidDataException("Native Different Beat selected an unsupported physical program workspace.");
         }
         NativeBattleGfAnimationSource source = resources.Hierarchy(address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleDuel216HierarchyStep drawn = NativeBattleDuel216Hierarchy.Draw6978F0(frame, source, node, context, projection, colors);
@@ -41,7 +41,7 @@ public static class NativeBattleDuel216Workspaces
             return current;
         });
         pool = Pool(frame, descriptor);
-        task = advanced.Workspace.CopyTo(pool.Slots[slot], offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(pool.Slots[slot], offset, advanced.Workspace);
         pool = pool.WriteSlot(slot, task);
         frame = Store(frame, pool);
         return new(frame, ordering, advanced.Remaining);
@@ -57,8 +57,8 @@ public static class NativeBattleDuel216Workspaces
         (pool, int slot) = pool.Append(0x69A5D0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, unchecked((ushort)(origin.X + x))).WriteWord(14, unchecked((ushort)(origin.Y + y))).WriteWord(16, unchecked((ushort)(origin.Z + z))).WriteWord(18, unchecked((ushort)scale)).WriteDword(20, 0);
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat child requires its entered resources.");
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(24, 236).ToImmutableArray());
-        task = workspace.Initialize7016B0(resources.Hierarchy(0x115049C), 236).CopyTo(task, 24, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 24, 236);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 24, workspace.Initialize7016B0(resources.Hierarchy(0x115049C), 236));
         return Store(frame, pool.WriteSlot(slot, task));
     }
 

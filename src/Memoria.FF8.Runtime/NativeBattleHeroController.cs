@@ -262,7 +262,7 @@ public static class NativeBattleHeroController
     private static NativeBattleHeroFrame AdvanceWorkspace(NativeBattleHeroFrame frame, NativeBattleHeroInputs inputs, NativeBattleGfAnimationSource source, int slot, int offset, int length, NativeBattleHeroDrawContext context, bool initialized)
     {
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[slot];
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, length);
         NativeBattleHeroFrame current = frame;
         NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (state, node) =>
         {
@@ -270,14 +270,14 @@ public static class NativeBattleHeroController
             current = Execute(current, inputs, new NativeBattleHeroAct(source, node, selected));
             return state;
         });
-        task = step.Workspace.CopyTo(current.Effect.Pools[1].Slots[slot], offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(current.Effect.Pools[1].Slots[slot], offset, step.Workspace);
         return WithPool(current, 1, Put(current.Effect.Pools[1], slot, task));
     }
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(ImmutableArray.CreateRange(new byte[length]));
-        return workspace.Initialize7016B0(source, length).CopyTo(task, offset, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, length);
+        return NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace.Initialize7016B0(source, length));
     }
 
     private static NativeBattleHeroFrame Execute(NativeBattleHeroFrame frame, NativeBattleHeroInputs inputs, NativeBattleHeroOperation operation)

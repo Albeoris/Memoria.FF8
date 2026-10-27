@@ -102,9 +102,9 @@ public static partial class NativeBattleJunk44Controller
                 angularVelocity = -angularVelocity;
             }
             NativeBattleModulePoolTask task = Read(frame, address).WriteWord(0x0C, unchecked((ushort)x)).WriteWord(0x0E, unchecked((ushort)y)).WriteWord(0x10, unchecked((ushort)z)).WriteWord(0x12, (ushort)(index + 8)).WriteWord(0x14, yaw).WriteWord(0x16, unchecked((ushort)angularVelocity));
-            NativeBattleGfAnimationWorkspace workspace = new(TaskView(task, 0x18, 64).ReadSnapshot(0, 64).Data.ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x18, 64);
             workspace = workspace.Initialize7016B0(resources.ReadProgramme(0x1354CE0), 64);
-            frame = WriteBytes(Write(frame, address, task), address + 0x18, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 64);
+            frame = Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x18, workspace));
             frame = DrawRandom(frame, out ushort spacing);
             angle = unchecked(angle + (spacing & 255) + 0x180);
         }

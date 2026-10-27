@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One callback's byte-faithful view of the two original cleared auxiliary ranges; unknown bytes stay unknown until a native store.</summary>
 internal sealed record NativeBattleEffectNodeMemoryWrite(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect);
 
-internal partial class NativeBattleEffectNodeMemory
+internal partial class NativeBattleEffectNodeMemory : IDisposable
 {
     internal const uint ArenaAddress = 0x20DFAB8;
     internal const int ContextOffset = 0x34;
@@ -15,12 +15,17 @@ internal partial class NativeBattleEffectNodeMemory
     private readonly uint taskAddress;
     private readonly NativeBattleModulePoolTask originalTask;
     private readonly int first;
-    private readonly byte[] bytes;
-    private readonly bool[] unknown;
+    private readonly int length;
+    // Temporal borrows preserve constructor-time reads; only touched bytes enter the private publication journal.
+    private NativeBattleReadWindow original;
+    private readonly NativeBattleReadWindow originalContext;
+    private readonly Dictionary<int, NodeByte> cells = new();
+    private readonly HashSet<int> dirtyCells = new();
+    private readonly record struct NodeByte(byte Value, bool Known, bool StoreValue);
+    private bool disposed;
     private readonly Dictionary<int, byte> contextBytes = new();
     private readonly List<ContextStore> contextStores = new();
     private readonly record struct ContextStore(int Offset, uint Value, int Width);
-    private bool dirty;
     private NativeBattleEffectNodeScratch? scratch;
 
     internal NativeBattleEffectNodeMemory(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint taskAddress, int first, int emitterBytes, int second, int geometryBytes, bool useSharedScratch = false)
@@ -43,16 +48,20 @@ internal partial class NativeBattleEffectNodeMemory
         }
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native effect nodes require the571870 arena.");
         arena.Validate();
-        bytes = new byte[checked(emitterBytes + geometryBytes)];
-        unknown = new bool[bytes.Length];
-        arena.ReadWithKnownness(first, bytes, unknown);
-        for (int index = 0; index < unknown.Length; index++)
+        length = checked(emitterBytes + geometryBytes);
+        original = arena.OpenReadWindow(first, length);
+        try
         {
-            unknown[index] = !unknown[index];
+            originalContext = originalTask.OpenPayloadReadWindow();
+        }
+        catch
+        {
+            original.Dispose();
+            throw;
         }
     }
 
-    internal byte Byte(int offset) => Read(offset, 1)[0];
+    internal byte Byte(int offset) => unchecked((byte)ReadScalar(offset, 1));
     internal NativeBattleEffectMemory CaptureProcessMemory() => memory with { NodeScratch2793E30 = scratch };
 
     internal void PublishProcessMemory(NativeBattleEffectMemory updated)
@@ -61,8 +70,8 @@ internal partial class NativeBattleEffectNodeMemory
         scratch = updated.NodeScratch2793E30;
     }
 
-    internal ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Read(offset, 2));
-    internal uint Dword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(Read(offset, 4));
+    internal ushort Word(int offset) => unchecked((ushort)ReadScalar(offset, 2));
+    internal uint Dword(int offset) => ReadScalar(offset, 4);
     internal ushort ContextWord(int offset) => unchecked((ushort)ReadContext(offset, 2));
     internal uint ContextDword(int offset) => ReadContext(offset, 4);
     internal void ContextWord(int offset, ushort value) => WriteContext(offset, value, 2);
@@ -70,10 +79,11 @@ internal partial class NativeBattleEffectNodeMemory
 
     private uint ReadContext(int offset, int width)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         int address = checked(ContextOffset + offset);
         Span<byte> data = stackalloc byte[4];
         Span<bool> known = stackalloc bool[4];
-        originalTask.ReadWithKnownness(address, data[..width], known[..width]);
+        originalContext.ReadWithKnownness(address - 12, data[..width], known[..width]);
         for (int index = 0; index < width; index++)
         {
             if (contextBytes.TryGetValue(address + index, out byte value))
@@ -86,6 +96,7 @@ internal partial class NativeBattleEffectNodeMemory
 
     private void WriteContext(int offset, uint value, int width)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         int address = checked(ContextOffset + offset);
         originalTask.RequirePayloadRange(address, width);
         contextStores.Add(new(address, value, width));
@@ -95,10 +106,17 @@ internal partial class NativeBattleEffectNodeMemory
         }
     }
 
-    internal void Byte(int offset, byte value) => Write(offset, 1)[0] = value;
-    internal void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(Write(offset, 2), value);
-    internal void Dword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(Write(offset, 4), value);
-    internal void Clear(int offset, int count) => Write(offset, count).Clear();
+    internal void Byte(int offset, byte value) => WriteScalar(offset, value, 1);
+    internal void Word(int offset, ushort value) => WriteScalar(offset, value, 2);
+    internal void Dword(int offset, uint value) => WriteScalar(offset, value, 4);
+    internal void Clear(int offset, int count)
+    {
+        Require(offset, count);
+        for (int index = 0; index < count; index++)
+        {
+            Store(offset + index, new(0, true, true));
+        }
+    }
     internal bool UseSharedScratch { get; }
     internal NativeBattleTheEnd85SpawnScratchObserver? SpawnScratchObserver { get; init; }
     internal NativeBattleVector ReadPlacementEuler() => (scratch ?? NativeBattleEffectNodeScratch.Unknown()).ReadEuler();
@@ -151,8 +169,10 @@ internal partial class NativeBattleEffectNodeMemory
 
     internal INativeBattleCuragaSpriteGeometry ProjectedSpriteGeometry(int node, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection)
     {
-        int offset = node + 0xAC + 18 - first;
-        short? padding = unknown.AsSpan(offset, 2).Contains(true) ? null : BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
+        int offset = node + 0xAC + 18;
+        NodeByte low = Cell(offset);
+        NodeByte high = Cell(offset + 1);
+        short? padding = low.Known && high.Known ? unchecked((short)(low.Value | high.Value << 8)) : null;
         return new ProjectedSpriteRegisters(this, resourceAddress, resource, phase, projection, padding);
     }
 
@@ -305,8 +325,11 @@ internal partial class NativeBattleEffectNodeMemory
     internal void MarkUnknown(int offset, int count)
     {
         Require(offset, count);
-        unknown.AsSpan(offset - first, count).Fill(true);
-        dirty |= count != 0;
+        for (int index = 0; index < count; index++)
+        {
+            NodeByte current = Cell(offset + index);
+            Store(offset + index, current with { Known = false, StoreValue = true });
+        }
     }
 
     internal void Copy(int source, int destination, int count)
@@ -317,17 +340,18 @@ internal partial class NativeBattleEffectNodeMemory
         {
             throw new InvalidDataException("Native effect forward copy requires its original DWORD count.");
         }
-        Span<byte> word = stackalloc byte[4];
-        Span<bool> mask = stackalloc bool[4];
+        Span<NodeByte> word = stackalloc NodeByte[4];
         for (int offset = 0; offset < count; offset += 4)
         {
-            //A native memcpy transfers unknown bytes too; their values are required only if a later operation actually reads them.
-            bytes.AsSpan(source - first + offset, 4).CopyTo(word);
-            unknown.AsSpan(source - first + offset, 4).CopyTo(mask);
-            word.CopyTo(bytes.AsSpan(destination - first + offset, 4));
-            mask.CopyTo(unknown.AsSpan(destination - first + offset, 4));
+            for (int lane = 0; lane < 4; lane++)
+            {
+                word[lane] = Cell(source + offset + lane);
+            }
+            for (int lane = 0; lane < 4; lane++)
+            {
+                Store(destination + offset + lane, word[lane] with { StoreValue = true });
+            }
         }
-        dirty |= count != 0;
     }
 
     internal uint Pointer(int offset)
@@ -389,26 +413,27 @@ internal partial class NativeBattleEffectNodeMemory
 
     internal NativeBattleEffectNodeMemoryWrite FlushStorage()
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         NativeBattleEffectArena arena = memory.Arena!;
-        if (dirty)
+        if (dirtyCells.Count != 0)
         {
-            //One committed range preserves untouched values and their original unknown masks, avoiding a full sparse-array clone per DWORD store.
-            arena = arena.Write(first, bytes);
-            for (int index = 0; index < unknown.Length;)
+            using NativeBattleEffectArenaTransaction publication = NativeBattleEffectArenaTransaction.CreatePrivateChild(arena);
+            Span<byte> value = stackalloc byte[1];
+            foreach (int offset in dirtyCells)
             {
-                if (!unknown[index])
+                NodeByte cell = cells[offset];
+                if (cell.StoreValue)
                 {
-                    index++;
-                    continue;
+                    value[0] = cell.Value;
+                    publication.Write(offset, value);
                 }
-                int end = index + 1;
-                while (end < unknown.Length && unknown[end])
+                if (!cell.Known)
                 {
-                    end++;
+                    publication.MarkUnknown(offset, 1);
                 }
-                arena = arena.MarkUnknown(first + index, end - index);
-                index = end;
             }
+            arena = publication.Freeze();
+            dirtyCells.Clear();
         }
         NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(taskAddress);
@@ -419,35 +444,70 @@ internal partial class NativeBattleEffectNodeMemory
             task.WriteRetainedBytes(store.Offset, contextStore[..store.Width]);
         }
         contextStores.Clear();
-        contextBytes.Clear();
         return new(memory with { Arena = arena, NodeScratch2793E30 = scratch }, effect with { Pools = hierarchy.Pools });
     }
 
-    private ReadOnlySpan<byte> Read(int offset, int count)
+    private NodeByte Cell(int offset)
     {
-        Require(offset, count);
-        int index = offset - first;
-        if (unknown.AsSpan(index, count).Contains(true))
+        Require(offset, 1);
+        if (cells.TryGetValue(offset, out NodeByte cell))
         {
-            throw new NotSupportedException("Native effect node read requires its actual prior bytes at the selected pointer.");
+            return cell;
         }
-        return bytes.AsSpan(index, count);
+        Span<byte> data = stackalloc byte[1];
+        Span<bool> known = stackalloc bool[1];
+        original.ReadWithKnownness(offset - first, data, known);
+        return new(data[0], known[0], false);
     }
 
-    private Span<byte> Write(int offset, int count)
+    private uint ReadScalar(int offset, int width)
     {
-        Require(offset, count);
-        int index = offset - first;
-        unknown.AsSpan(index, count).Clear();
-        dirty = true;
-        return bytes.AsSpan(index, count);
+        Require(offset, width);
+        uint value = 0;
+        for (int index = 0; index < width; index++)
+        {
+            NodeByte cell = Cell(offset + index);
+            if (!cell.Known)
+            {
+                throw new NotSupportedException("Native effect node read requires its actual prior bytes at the selected pointer.");
+            }
+            value |= (uint)cell.Value << (index * 8);
+        }
+        return value;
+    }
+
+    private void WriteScalar(int offset, uint value, int width)
+    {
+        Require(offset, width);
+        for (int index = 0; index < width; index++)
+        {
+            Store(offset + index, new(unchecked((byte)(value >> (index * 8))), true, true));
+        }
+    }
+
+    private void Store(int offset, NodeByte value)
+    {
+        cells[offset] = value;
+        dirtyCells.Add(offset);
+        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, 1);
     }
 
     private void Require(int offset, int count)
     {
-        if (count < 0 || offset < first || offset - first > bytes.Length - count)
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (count < 0 || offset < first || offset - first > length - count)
         {
             throw new InvalidDataException("Native effect node access leaves its two original auxiliary ranges.");
+        }
+    }
+
+    public void Dispose()
+    {
+        if (!disposed)
+        {
+            original.Dispose();
+            originalContext.Dispose();
+            disposed = true;
         }
     }
 }

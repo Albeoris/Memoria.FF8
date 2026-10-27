@@ -93,8 +93,9 @@ public sealed partial class BattleSession
     {
         task.RequirePayloadRange(offset, 32);
         task.ValidateUnknownPayloadRanges();
-        ImmutableArray<byte> bytes = task.ReadRawPayloadSpan().Slice(offset - 12, 32).ToArray().ToImmutableArray();
-        ImmutableArray<bool> known = Enumerable.Range(0, 32).Select(index => task.ReadUnknownPayloadRanges() is not { } ranges || !ranges.Any(range => offset + index >= range.Offset && offset + index < range.Offset + range.Length)).ToImmutableArray();
-        return new(bytes, known);
+        byte[] bytes = new byte[32];
+        bool[] known = new bool[32];
+        task.ReadWithKnownness(offset, bytes, known);
+        return new(System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(bytes), System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(known));
     }
 }

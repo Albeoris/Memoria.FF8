@@ -9,7 +9,7 @@ public static class NativeBattleConfuse36Lifecycle
 {
     public static NativeBattleConfuse36PresentationStep AdvanceAndDraw(NativeBattleConfuse36Frame frame, NativeBattleConfuse36Resources resources, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
-        NativeBattleConfuse36NodeMemory memory = new(frame, contextTask);
+        using NativeBattleConfuse36NodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = new(0x15D97FC, frame.Memory.Confuse36Executable ?? throw new NotSupportedException("Native Confuse requires its executed original actor context initialization."), resources.ReadConstantChannel);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);

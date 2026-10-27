@@ -62,10 +62,10 @@ public static class NativeBattlePain34Players
     private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task)
     {
         task.RequireKnownPayload(148, task.PayloadLength - (148 - 12));
-        return new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+        return NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (148 - 12), task.PayloadLength - (148 - 12));
     }
     private static NativeBattleModulePoolTask WithWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return workspace.CopyTo(task, 148, retainUnknown: false);
+        return NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 148, workspace);
     }
 }

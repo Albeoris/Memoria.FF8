@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -19,17 +19,36 @@ public static class NativeBattleChoco97Uv
         {
             throw new InvalidDataException("Native Choco UV mutation requires its complete current resource owner.");
         }
-        byte[] output = owner.ToArray();
-        int directory = BinaryPrimitives.ReadInt32LittleEndian(output.AsSpan(resourceOffset));
+        NativeBattleEffectArena output = NativeBattleEffectArena.CreateUnknown(owner.Length).Write(0, owner.AsSpan());
+        ScrollWorking(output, resourceOffset, delta, vertical);
+        return ImmutableCollectionsMarshal.AsImmutableArray(output.Read(0, owner.Length));
+    }
+
+    internal static NativeBattleGfAnimationSource Scroll7311C0(NativeBattleGfAnimationSource source, int resourceOffset, int deltaV)
+    {
+        NativeBattleOwnedGfAnimationSource owner = NativeBattleOwnedGfAnimationSource.Own(source);
+        using NativeBattleOwnedGfAnimationSource.Mutation mutation = owner.BeginMutation();
+        ScrollWorking(mutation.View, resourceOffset, deltaV, true);
+        mutation.Commit();
+        return owner;
+    }
+
+    private static void ScrollWorking(NativeBattleEffectArena output, int resourceOffset, int delta, bool vertical)
+    {
+        if (resourceOffset < 0 || resourceOffset > output.LogicalLength - 4)
+        {
+            throw new InvalidDataException("Native Choco UV mutation requires its complete current resource owner.");
+        }
+        int directory = output.ReadInt32(resourceOffset);
         int cursor = checked(resourceOffset + directory / 4 * 4);
         int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
         for (int group = 0; group < 8; group++)
         {
             Require(cursor, 4);
-            int count = BinaryPrimitives.ReadInt32LittleEndian(output.AsSpan(cursor));
+            int count = output.ReadInt32(cursor);
             cursor = checked(cursor + 4);
             int stride = strides[group];
-            if (count < 0 || count > (output.Length - cursor) / stride)
+            if (count < 0 || count > (output.LogicalLength - cursor) / stride)
             {
                 throw new InvalidDataException("Native Choco UV group leaves its supplied current resource extent.");
             }
@@ -38,23 +57,22 @@ public static class NativeBattleChoco97Uv
             {
                 if (corners.Length != 0)
                 {
-                    uint[] candidates = corners.Select(offset => vertical ? unchecked((uint)((output[cursor + offset + 1] << 8) + (delta << 8))) : unchecked((uint)((output[cursor + offset] & 0x7F) + delta))).ToArray();
+                    uint[] candidates = corners.Select(offset => vertical ? unchecked((uint)((output.ReadByte(cursor + offset + 1) << 8) + (delta << 8))) : unchecked((uint)((output.ReadByte(cursor + offset) & 0x7F) + delta))).ToArray();
                     uint limit = vertical ? 0xFF00u : 0x7Fu;
                     bool wrap = candidates.Any(value => value > limit);
                     for (int corner = 0; corner < corners.Length; corner++)
                     {
                         uint candidate = wrap ? unchecked(candidates[corner] - (vertical ? 0x8000u : 64u)) : candidates[corner];
-                        output[cursor + corners[corner] + (vertical ? 1 : 0)] = (byte)((candidate & limit) >> (vertical ? 8 : 0));
+                        output.Write(cursor + corners[corner] + (vertical ? 1 : 0), [(byte)((candidate & limit) >> (vertical ? 8 : 0))]);
                     }
                 }
                 cursor = checked(cursor + stride);
             }
         }
-        return output.ToImmutableArray();
 
         void Require(int offset, int length)
         {
-            if (offset < 0 || length < 0 || offset > output.Length - length)
+            if (offset < 0 || length < 0 || offset > output.LogicalLength - length)
             {
                 throw new InvalidDataException("Native Choco UV cursor leaves its supplied resource owner.");
             }

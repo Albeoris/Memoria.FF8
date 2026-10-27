@@ -119,9 +119,9 @@ public static class NativeBattleSiren95Actors
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), task.PayloadLength - (0x94 - 12));
                 workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                task = workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
+                task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 12 + (0x94 - 12), workspace);
                 task = task.WriteDword(0x1C, State(frame).ReadDword(director + 8)).WriteDword(0x20, State(frame).ReadDword(director + 0xC));
                 task = task.WriteWord(0x20, unchecked((ushort)(task.ReadWord(0x20) + zOffset))).WriteWord(0x1E, 0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
                 frame = draw(Write(frame, address, task), address);

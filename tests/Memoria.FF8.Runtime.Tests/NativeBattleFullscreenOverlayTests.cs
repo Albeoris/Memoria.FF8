@@ -116,7 +116,7 @@ public sealed class NativeBattleFullscreenOverlayTests
     {
         var fixture = Fixture([0x00112233]);
         NativeBattleLogicalProxy proxy = new(new("unread", 0, 0), 0, [], null);
-        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear() with { Proxies = Enumerable.Repeat(proxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity };
+        NativeBattleLogicalOrdering ordering = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { Proxies = Enumerable.Repeat(proxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity });
         NativeBattleFullscreenOverlayStep step = NativeBattleFullscreenOverlay.Advance8DDEC0(fixture.Frame with { Ordering = ordering }, fixture.Address, 0, fixture.Program);
         Assert.Empty(step.Frame.Ordering.Packets);
         for (int quadrant = 0; quadrant < 4; quadrant++)

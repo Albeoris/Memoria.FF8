@@ -183,13 +183,13 @@ public sealed partial class BattleSession
             current = anchored.Frame;
             NativeBattleModuleAnchor anchor = anchored.Anchor;
             NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, BitConverter.GetBytes(anchor.X)).Write(2, BitConverter.GetBytes(unchecked((short)(anchor.Y + 200)))).Write(4, BitConverter.GetBytes(anchor.Z)).Write(6, BitConverter.GetBytes(anchor.W)).Write(8, BitConverter.GetBytes(current.State.ReadDword(NativeBattleElectrocute275Profile.WorkingGlobal) + NativeBattleElectrocute275Profile.MorphOffset));
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0xC, 0xC8).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0xC, 0xC8);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Act, 0, (next, node) =>
             {
                 current = NativeBattleElectrocute275Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electrocute requires its projection."), colors, Deliver);
                 return next;
             });
-            current = NativeBattleElectrocute275Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleElectrocute275Controller.Read(current, taskAddress), 0xC, retainUnknown: false));
+            current = NativeBattleElectrocute275Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleElectrocute275Controller.Read(current, taskAddress), 0xC, advanced.Workspace));
             return new(current, advanced.Remaining == 0 ? 2 : 0);
         }
 

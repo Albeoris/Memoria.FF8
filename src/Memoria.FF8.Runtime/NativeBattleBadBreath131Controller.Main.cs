@@ -37,7 +37,7 @@ public static partial class NativeBattleBadBreath131Controller
                         frame = anchor.Frame;
                         short angle = unchecked((short)(Transform(inputs.ReadModel(actor)).Angle36 - 200));
                         NativeBattleModulePoolTask child = Vector(Read(frame, childAddress), 16, new(anchor.Anchor.X, anchor.Anchor.Y, anchor.Anchor.Z)).WriteWord(0x16, unchecked((ushort)angle));
-                        child = new NativeBattleGfAnimationWorkspace(child.ReadBytes(0x1C, 0x128).ToImmutableArray()).Initialize7016B0(resources.Target, 0x128).CopyTo(child, 0x1C, retainUnknown: false);
+                        child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 0x1C, NativeBattleGfAnimationWorkspace.Borrow(child, 0x1C, 0x128).Initialize7016B0(resources.Target, 0x128));
                         frame = Write(frame, childAddress, child);
                     }
                     frame = Write(frame, address, Read(frame, address).WriteWord(0x26, unchecked((ushort)(selected + 1))));

@@ -6,17 +6,24 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
     private readonly NativeBattleEffectArenaWriter writer;
     private bool disposed;
 
-    public NativeBattleEffectArenaTransaction(NativeBattleEffectArena source)
+    public NativeBattleEffectArenaTransaction(NativeBattleEffectArena source) : this(source, false)
     {
-        if (source.Transaction is not null)
+    }
+
+    private NativeBattleEffectArenaTransaction(NativeBattleEffectArena source, bool privateLayer)
+    {
+        if (!privateLayer && source.Transaction is not null)
         {
             throw new InvalidOperationException("Native arena pool transactions cannot be nested.");
         }
-        writer = new(source);
+        writer = new(source, privateLayer);
         View = new(source, this);
         try
         {
-            RegisterRoute();
+            if (!privateLayer)
+            {
+                RegisterRoute();
+            }
         }
         catch
         {
@@ -25,6 +32,8 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
         }
     }
 
+    internal static NativeBattleEffectArenaTransaction CreatePrivateChild(NativeBattleEffectArena source) => new(source, true);
+    internal NativeBattleArenaOverlay Overlay => writer.OwnedOverlay;
     internal NativeBattleEffectArena Source => writer.OwnedOverlay.Source;
 
     internal static void CommitGroup(IReadOnlyList<NativeBattleEffectArenaTransaction> transactions)

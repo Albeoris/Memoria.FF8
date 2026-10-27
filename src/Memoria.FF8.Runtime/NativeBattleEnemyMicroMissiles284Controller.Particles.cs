@@ -75,9 +75,9 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
                 }
                 NativeBattleGfAnimationSource source = variant == 0 ? resources.Impact : resources.WideImpact;
                 int bytes = variant == 0 ? 160 : 276;
-                NativeBattleGfAnimationWorkspace workspace = new(TaskView(child, 48, bytes).ReadSnapshot(0, bytes).Data.ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 48, bytes);
                 workspace = workspace.Initialize7016B0(source, bytes);
-                child = CopyTask(child, 48, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), bytes);
+                child = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(child, 48, workspace);
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {

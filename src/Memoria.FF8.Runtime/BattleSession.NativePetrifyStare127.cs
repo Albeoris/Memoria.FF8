@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 1 => (resources.SecondAct, 0x1EC, 0x2D0),
                 _ => throw new InvalidDataException("Petrify Stare selected an absent ACT workspace.")
             };
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, length).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, length);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattlePetrifyStare127Act.Visible(node))
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattlePetrifyStare127Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            return NativeBattlePetrifyStare127Controller.Write(current, operation.TaskAddress, advanced.Workspace.CopyTo(NativeBattlePetrifyStare127Controller.Read(current, operation.TaskAddress), offset, retainUnknown: false));
+            return NativeBattlePetrifyStare127Controller.Write(current, operation.TaskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattlePetrifyStare127Controller.Read(current, operation.TaskAddress), offset, advanced.Workspace));
         }
     }
 }

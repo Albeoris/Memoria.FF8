@@ -300,7 +300,7 @@ public sealed partial class BattleSession
                         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(28), matrix.Z);
                         return (bytes, known);
                     });
-                    return current with { Effect = current.Effect with { Pools = current.Effect.Pools.Select(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets ? pool with { Slots = pool.Slots.SetItem(0, captured) } : pool).ToImmutableArray() } };
+                    return current with { Effect = current.Effect with { Pools = current.Effect.Pools.Select(pool => pool.DescriptorAddress == NativeBattleDuel212Controller.Targets ? pool.WriteSlot(0, captured) : pool).ToImmutableArray() } };
                 default:
                     throw new NotSupportedException("Native Burning Rave selected an unsupported original scene operation.");
             }

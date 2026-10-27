@@ -47,9 +47,9 @@ public static partial class NativeBattleEffect338Controller
         }
         NativeBattleEffectArena point = PointResource(resources, pointAddress);
         NativeBattleModulePoolTask task = Read(frame, child).WriteWord(12, unchecked((ushort)(Word338(point, 0) + Word(frame, 0x2556248)))).WriteWord(14, unchecked((ushort)(Word338(point, 2) + Word(frame, 0x2556242) + height))).WriteWord(16, unchecked((ushort)(Word338(point, 4) + Word(frame, 0x255624C)))).WriteWord(18, 0);
-        NativeBattleGfAnimationWorkspace workspace = new(new byte[0x184].ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 20, 0x184);
         workspace = workspace.Initialize7016B0(resources.Programme(sourceAddress), 0x184);
-        task = CopyTask(task, 20, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 0x184);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 20, workspace);
         return Write(frame, child, task);
     }
 
@@ -106,9 +106,9 @@ public static partial class NativeBattleEffect338Controller
         }
         (frame, NativeBattleEffectArena point) = ReadEmbeddedPoint(frame, main, pointAddress, resources);
         NativeBattleModulePoolTask task = Read(frame, child).WriteWord(12, unchecked((ushort)Word338(point, 0))).WriteWord(14, 0).WriteWord(16, unchecked((ushort)Word338(point, 4))).WriteWord(18, 0);
-        NativeBattleGfAnimationWorkspace workspace = new(new byte[0xF8].ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 20, 0xF8);
         workspace = workspace.Initialize7016B0(resources.Programme(0x13755B8), 0xF8);
-        frame = Write(frame, child, CopyTask(task, 20, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 0xF8));
+        frame = Write(frame, child, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 20, workspace));
         for (int index = 0; index < 8; index++)
         {
             (frame, uint fragment) = Append(frame, Pools[3].Descriptor, 0x6ED0C0);

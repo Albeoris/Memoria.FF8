@@ -100,7 +100,7 @@ public static partial class NativeBattleElectricDischarge126Controller
                     throw new NotSupportedException("Electric Discharge exhausted its actual ACT task bank.");
                 }
                 NativeBattleModulePoolTask task = Read(frame, actAddress);
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.Payload).Initialize7016B0(resources.Act, 200);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12, task.PayloadLength).Initialize7016B0(resources.Act, 200);
                 frame = Write(frame, actAddress, workspace.CopyTo(task, 12, retainUnknown: false));
             }
         }

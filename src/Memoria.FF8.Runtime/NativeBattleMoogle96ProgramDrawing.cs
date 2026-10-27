@@ -53,18 +53,19 @@ public static class NativeBattleMoogle96ProgramDrawing
             throw new NotSupportedException("Native Moogle's original program requires its single shape; partial morph has no supplied scratch owner.");
         }
         int index = unchecked((short)node.GeometryIndex);
-        int count = ReadInt(source.Data, 0);
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        int count = ReadInt(reader, 0);
         if (index < 0 || index >= count)
         {
             throw new InvalidDataException("Native Moogle node selects an absent geometry.");
         }
-        int geometry = ReadInt(source.Data, checked(8 + index * 4));
-        int vertices = ReadInt(source.Data, checked(geometry + 4));
-        if (vertices < 1 || vertices > 160 || ReadInt(source.Data, checked(geometry + 8)) != 1 || ReadInt(source.Data, geometry) != 12 + vertices * 8)
+        int geometry = ReadInt(reader, checked(8 + index * 4));
+        int vertices = ReadInt(reader, checked(geometry + 4));
+        if (vertices < 1 || vertices > 160 || ReadInt(reader, checked(geometry + 8)) != 1 || ReadInt(reader, geometry) != 12 + vertices * 8)
         {
             throw new NotSupportedException("Native Moogle requires its complete single-shape geometry and bounded vertex owner.");
         }
-        ImmutableArray<byte> selected = Read(source.Data, checked(geometry + 12), checked(vertices * 8)).ToArray().ToImmutableArray();
+        ImmutableArray<byte> selected = Read(reader, checked(geometry + 12), checked(vertices * 8)).ToArray().ToImmutableArray();
         uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
         if ((node.Header & 0x2000) != 0)
         {
@@ -76,7 +77,7 @@ public static class NativeBattleMoogle96ProgramDrawing
             flags |= 0xC0;
         }
         NativeBattleModuleMeshContext operands = new(flags, cue ? node.Color32 : null, node.Scalar36, null, null, null, 17, 2);
-        return NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, ComposeNodeMatrix(node, context), projection, operands, colors);
+        return NativeBattleModulePackets.EmitBatch572200(reader, geometry, selected, ComposeNodeMatrix(node, context), projection, operands, colors);
     }
 
     public static NativeBattleActionMatrix ComposeNodeMatrix(NativeBattleGfAnimationNode node, NativeBattleActionMatrix context)
@@ -102,42 +103,45 @@ public static class NativeBattleMoogle96ProgramDrawing
 
     public static NativeBattleGfAnimationSource MutateUv7340A0(NativeBattleGfAnimationSource source)
     {
-        if (ReadInt(source.Data, 0) < 21)
+        NativeBattleOwnedGfAnimationSource owned = NativeBattleOwnedGfAnimationSource.Own(source);
+        using NativeBattleGfSourceReader reader = owned.OpenReader();
+        using NativeBattleOwnedGfAnimationSource.Mutation mutation = owned.BeginMutation();
+        if (reader.Int(0) < 21)
         {
             throw new InvalidDataException("Native Moogle UV motion requires all five original geometry selectors.");
         }
-        byte[] bytes = source.Data.ToArray();
         foreach (int geometryIndex in new[] { 13, 14, 15, 19, 20 })
         {
-            int geometry = ReadInt(source.Data, checked(8 + geometryIndex * 4));
-            int cursor = checked(geometry + ReadInt(source.Data, geometry));
+            int geometry = ReadInt(reader, checked(8 + geometryIndex * 4));
+            int cursor = checked(geometry + ReadInt(reader, geometry));
             for (int group = 0; group < FaceLengths.Length; group++)
             {
-                int count = ReadInt(source.Data, cursor);
+                int count = ReadInt(reader, cursor);
                 cursor = checked(cursor + 4);
                 if (count < 0)
                 {
                     throw new InvalidDataException("Native Moogle UV motion requires a nonnegative original face count.");
                 }
                 int length = checked(count * FaceLengths[group]);
-                _ = Read(source.Data, cursor, length);
+                reader.RequireExtent(cursor, length);
                 if (group is 2 or 3 or 6 or 7)
                 {
                     int[] corners = (group & 1) == 0 ? [11, 13, 17] : [13, 17, 21, 23];
                     for (int face = 0; face < count; face++)
                     {
                         int start = checked(cursor + face * FaceLengths[group]);
-                        bool wraps = corners.Any(corner => bytes[start + corner] + 2 > 255);
+                        bool wraps = corners.Any(corner => mutation.View.ReadByte(start + corner) + 2 > 255);
                         foreach (int corner in corners)
                         {
-                            bytes[start + corner] = unchecked((byte)(bytes[start + corner] + 2 - (wraps ? 128 : 0)));
+                            mutation.View.Write(start + corner, [unchecked((byte)(mutation.View.ReadByte(start + corner) + 2 - (wraps ? 128 : 0)))]);
                         }
                     }
                 }
                 cursor = checked(cursor + length);
             }
         }
-        return source with { Data = bytes.ToImmutableArray() };
+        mutation.Commit();
+        return owned;
     }
 
     private static void RequireTask(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source)
@@ -154,6 +158,9 @@ public static class NativeBattleMoogle96ProgramDrawing
     {
         return workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
     }
+
+    private static int ReadInt(NativeBattleGfSourceReader source, int offset) => source.Int(offset);
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader source, int offset, int length) => source.Read(offset, length);
 
     private static int ReadInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(source, offset, 4));
 

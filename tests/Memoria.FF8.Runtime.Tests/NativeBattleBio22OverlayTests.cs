@@ -34,7 +34,7 @@ public sealed class NativeBattleBio22OverlayTests
     public void SaturationStillClearsFullF4TagButRetainsUnknownE1LinkBytes()
     {
         NativeBattleLogicalProxy proxy = new(new("retained", 0, 0), 0, [], null);
-        NativeBattleLogicalOrdering exhausted = NativeBattleLogicalOrdering.Clear() with { Proxies = Enumerable.Repeat(proxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity };
+        NativeBattleLogicalOrdering exhausted = NativeBattleOrderingTestFixture.Working(NativeBattleLogicalOrdering.Clear(), data => data with { Proxies = Enumerable.Repeat(proxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity });
         NativeBattleEffectMemory memory = Memory() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0x100, 36) };
         NativeBattleBio22OverlayStep step = Advance(Task(), Program(0x00010203));
         NativeBattleEffectPacketWrite write = NativeBattleEffectPacketArena.Append(memory, 0x100, exhausted, step.Packets);

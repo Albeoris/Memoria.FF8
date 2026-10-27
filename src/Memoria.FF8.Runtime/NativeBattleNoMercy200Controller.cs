@@ -42,7 +42,7 @@ public static partial class NativeBattleNoMercy200Controller
                 }
                 bool complete = task.ReadWord(14) != 0;
                 task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
-                return new(root with { Slots = root.Slots.SetItem(slot, task) }, complete ? 2 : 0);
+                return new(root.WriteSlot(slot, task), complete ? 2 : 0);
             }
             if (task.Callback != 0x63E680)
             {
@@ -61,10 +61,10 @@ public static partial class NativeBattleNoMercy200Controller
             if (children.Survivors == 0)
             {
                 (root, int ending) = root.Append(0x63E6F0);
-                root = root with { Slots = root.Slots.SetItem(ending, root.Slots[ending].WriteWord(12, 0).WriteWord(14, 0)) };
+                root = root.WriteSlot(ending, root.Slots[ending].WriteWord(12, 0).WriteWord(14, 0));
             }
             task = root.Slots[slot].WriteWord(12, unchecked((ushort)(root.Slots[slot].ReadWord(12) + 1)));
-            return new(root with { Slots = root.Slots.SetItem(slot, task) }, children.Survivors == 0 ? 2 : 0);
+            return new(root.WriteSlot(slot, task), children.Survivors == 0 ? 2 : 0);
         });
         return frame with { Effect = frame.Effect with { Pools = [advanced.Pool, tasks], ReturnedDescriptor = advanced.Survivors == 0 ? 0u : Root } };
     }

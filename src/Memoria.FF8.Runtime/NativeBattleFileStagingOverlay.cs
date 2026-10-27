@@ -1,9 +1,9 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Reusable changed-byte journal against persistent staging; no source pages are hydrated into the overlay.</summary>
-internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWorkingOwner source)
+internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileStagingWorkingOwner source)
 {
     private readonly record struct Cell(byte Data, long Sequence);
     private readonly record struct Unknown(uint Address, int Length, long Sequence);
@@ -120,6 +120,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
 
     public void Write(uint address, ReadOnlySpan<byte> input)
     {
+        source.RequireReadWindowMutation();
         bytes.EnsureCapacity(checked(bytes.Count + input.Length));
         if (checkpoint)
         {
@@ -142,6 +143,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
 
     public void MarkUnknown(uint address, int length)
     {
+        source.RequireReadWindowMutation();
         if (length == 0)
         {
             return;
@@ -153,6 +155,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
 
     public void ForgetLoaderZero(uint address, int length)
     {
+        source.RequireReadWindowMutation();
         if (length != 0)
         {
             forgottenZeros.Add(new(address, length));
@@ -350,7 +353,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
         {
             throw new InvalidOperationException("Native staging publication requires a committed overlay boundary.");
         }
-        source.BeginCheckpoint();
+        int publicationDepth = source.BeginPublicationCheckpoint();
         try
         {
             source.Rebase(Math.Min(BaseAddress, source.BaseAddress));
@@ -390,13 +393,13 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
             {
                 source.SetPointerMetadata(entry.Key, entry.Value.Present, entry.Value.Value);
             }
-            source.CommitCheckpoint();
+            source.CommitPublicationCheckpoint(publicationDepth);
         }
         catch
         {
-            if (source.HasCheckpoint)
+            if (source.CheckpointDepth == publicationDepth)
             {
-                source.RollbackCheckpoint();
+                source.RollbackPublicationCheckpoint(publicationDepth);
             }
             throw;
         }

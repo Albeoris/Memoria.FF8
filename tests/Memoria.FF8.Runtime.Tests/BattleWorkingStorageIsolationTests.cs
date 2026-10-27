@@ -5,6 +5,33 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class BattleWorkingStorageIsolationTests
 {
     [Fact]
+    public void Published_session_memory_keeps_its_physical_prefix_while_unpublished_task_banks_roll_back()
+    {
+        BattleSession session = new(new BattleDefinition
+        {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        NativeBattleEffectMemory memory = session.NativeEffectMemory!.BeginLoad(0);
+        NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x3000000, 0x20DFAB8, 20, 1).BindArena(memory.Arena!);
+        NativeBattleEffectTaskPool auxiliary = NativeBattleEffectTaskPool.Initialize(0x3100000, 0x3200000, 20, 1);
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+        {
+            using NativeBattleTaskOperation operation = new([main, auxiliary]);
+            main.Slots[0].WriteDword(12, 17);
+            auxiliary.Slots[0].WriteDword(12, 23);
+            typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectMemory))!.SetValue(session, memory);
+            main.Slots[0].WriteDword(12, 99);
+            auxiliary.Slots[0].WriteDword(12, 100);
+            throw new InvalidOperationException("Unpublished suffix failed.");
+        }));
+        Assert.Equal(17u, session.NativeEffectMemory!.Arena!.ReadUInt32(12));
+        Assert.Equal(17u, main.Slots[0].ReadDword(12));
+        Assert.Equal(0u, auxiliary.Slots[0].ReadDword(12));
+        Assert.Equal(17u, session.Capture().NativeEffectMemory!.Arena!.ReadUInt32(12));
+    }
+
+    [Fact]
     public void Captures_definitions_cold_templates_and_two_restores_have_independent_owned_banks()
     {
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();

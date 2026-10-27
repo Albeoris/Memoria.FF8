@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         uint buffer = state.ModelBuffer25562F4 ?? throw new NotSupportedException("Native Pandemona late scenes require their actual model buffer.");
         NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 724);
         int sourceOffset = NativeBattleWaterExecutionFields.ArenaOffset(unchecked(buffer + 0x23220), file.Data.Length);
-        NativeBattleGfAnimationSource source = new(unchecked(buffer + 0x23220), arena.Read(sourceOffset, file.Data.Length).ToImmutableArray());
+        NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(unchecked(buffer + 0x23220), arena, sourceOffset, file.Data.Length);
         if (elapsed == 0)
         {
             NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x1F0, 0x22C);

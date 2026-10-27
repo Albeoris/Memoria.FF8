@@ -69,7 +69,7 @@ public static partial class NativeBattleRenzokuken160Controller
         });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children.Pool) } };
         frame = drawParticles(frame);
-        NativeBattleEffectTaskStep advancedMain = main.Advance((pool, index) => new(pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(12, unchecked((ushort)(counter + 1)))) }, children.Survivors == 0 ? 2 : 0));
+        NativeBattleEffectTaskStep advancedMain = main.Advance((pool, index) => new(pool.WriteSlot(index, pool.Slots[index].WriteWord(12, unchecked((ushort)(counter + 1)))), children.Survivors == 0 ? 2 : 0));
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, advancedMain.Pool), ReturnedDescriptor = advancedMain.Survivors == 0 ? 0u : main.DescriptorAddress } };
     }
 

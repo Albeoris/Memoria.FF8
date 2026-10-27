@@ -167,13 +167,13 @@ public sealed partial class BattleSession
         NativeBattleElectricDischarge126TaskStep AdvanceAct(NativeBattleElectricDischarge126Frame current, uint taskAddress, NativeBattleEffectArena context)
         {
             NativeBattleModulePoolTask task = NativeBattleElectricDischarge126Controller.Read(current, taskAddress);
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0xC, 0xC8).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0xC, 0xC8);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Act, 0, (next, node) =>
             {
                 current = NativeBattleElectricDischarge126Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its projection."), colors, Deliver);
                 return next;
             });
-            current = NativeBattleElectricDischarge126Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleElectricDischarge126Controller.Read(current, taskAddress), 0xC, retainUnknown: false));
+            current = NativeBattleElectricDischarge126Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleElectricDischarge126Controller.Read(current, taskAddress), 0xC, advanced.Workspace));
             return new(current, advanced.Remaining == 0 ? 2 : 0);
         }
 

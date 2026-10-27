@@ -13,9 +13,9 @@ public static class NativeBattleDuel215Workspaces
         NativeBattleEffectTaskPool pool = Scene(frame);
         NativeBattleModulePoolTask task = pool.Slots[slot];
         NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         workspace = workspace.Initialize7016B0(source, size);
-        task = workspace.CopyTo(task, offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace);
         pool = pool.WriteSlot(slot, task);
         return Store(frame, pool);
     }
@@ -28,7 +28,7 @@ public static class NativeBattleDuel215Workspaces
         uint address = task.ReadDword(offset);
         Require(offset, address, size);
         NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             NativeBattleDuel215HierarchyStep drawn = anchored ? NativeBattleDuel215Hierarchy.Draw69C6B0(frame, source, node, context, projection, colors) : NativeBattleDuel215Hierarchy.Draw69C220(frame, source, node, context, projection, colors);
@@ -40,7 +40,7 @@ public static class NativeBattleDuel215Workspaces
             return current;
         });
         pool = Scene(frame);
-        task = advanced.Workspace.CopyTo(pool.Slots[slot], offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(pool.Slots[slot], offset, advanced.Workspace);
         pool = pool.WriteSlot(slot, task);
         return new(Store(frame, pool), ordering, advanced.Remaining);
     }

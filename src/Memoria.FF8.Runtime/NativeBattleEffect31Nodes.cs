@@ -75,7 +75,7 @@ public static class NativeBattleEffect31Nodes
         }
         int first = checked((int)(frame.State.ReadDword(EmitterBankGlobal) - CommonAddress));
         int second = checked((int)(frame.State.ReadDword(ParticleBankGlobal) - CommonAddress));
-        NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, EmitterStride * EmitterCapacity, second, ParticleStride * ParticleCapacity, useSharedScratch: true)
+        using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, EmitterStride * EmitterCapacity, second, ParticleStride * ParticleCapacity, useSharedScratch: true)
         {
             SpawnScratchObserver = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory))
         };

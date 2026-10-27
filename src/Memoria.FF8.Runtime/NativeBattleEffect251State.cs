@@ -73,6 +73,19 @@ public sealed record NativeBattleEffect251State([property: JsonRequired] NativeB
         return Write(address, encoded);
     }
 
+    internal NativeBattleGfAnimationSource BorrowSource(uint address, int length)
+    {
+        if (WithinScript(address, length, out uint script))
+        {
+            return NativeBattleGfAnimationSource.Borrow(address, ReadScript(script), checked((int)(address - script)), length);
+        }
+        if (WithinCommonQueue(address, length, out uint descriptor))
+        {
+            return NativeBattleGfAnimationSource.Borrow(address, ReadCommonQueue(descriptor), checked((int)(address - descriptor)), length);
+        }
+        return NativeBattleGfAnimationSource.Borrow(address, Storage, Require(address, length), length);
+    }
+
     public NativeBattleEffectArena ReadView(uint address, int length)
     {
         if (WithinScript(address, length, out uint script))

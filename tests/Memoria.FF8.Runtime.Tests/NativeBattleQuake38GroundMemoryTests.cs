@@ -51,6 +51,7 @@ public sealed class NativeBattleQuake38GroundMemoryTests
         byte[] zones = new byte[12];
         Word(zones, 6, -1);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(Entries, entry).Write(Zones, zones).MarkUnknown(Entries + 6, 2).MarkUnknown(Zones + 400, 4);
+        NativeBattleEffectArenaSnapshot initial = arena.Capture();
         NativeBattleEffectArena result = NativeBattleQuake38GroundZones.Assign8D9950(arena, Entries, Zones, 0, 0, 1, 3, Resources(), 8192, 8192, 0);
         Assert.Equal((byte)3, result.ReadByte(Entries + 88));
         Assert.Equal((byte)7, result.ReadByte(Entries + 92));
@@ -62,16 +63,17 @@ public sealed class NativeBattleQuake38GroundMemoryTests
         Assert.Equal((ushort)1, result.ReadUInt16(Zones + 10));
         Assert.Throws<NotSupportedException>(() => result.ReadByte(Entries + 6));
         Assert.Throws<NotSupportedException>(() => result.ReadByte(Zones + 400));
+        byte[] beforeRepeat = result.Read(Zones, 12);
         NativeBattleEffectArena repeated = NativeBattleQuake38GroundZones.Assign8D9950(result, Entries, Zones, 0, 0, 1, 3, Resources(), 8192, 8192, 0);
-        Assert.Equal(result.Read(Zones, 12), repeated.Read(Zones, 12));
+        Assert.Equal(beforeRepeat, repeated.Read(Zones, 12));
 
-        NativeBattleEffectArena invalid = arena.MarkUnknown(Zones + 10, 2);
+        NativeBattleEffectArena invalid = NativeBattleStorageSnapshots.Restore<NativeBattleEffectArena>(initial).MarkUnknown(Zones + 10, 2);
         Assert.Throws<NotSupportedException>(() => NativeBattleQuake38GroundZones.Assign8D9950(invalid, Entries, Zones, 0, 0, 1, 3, Resources(), 8192, 8192, 0));
         Assert.Equal((byte)0, invalid.ReadByte(Entries + 88));
         Assert.Equal((ushort)0, invalid.ReadUInt16(Zones));
 
         NativeBattleQuake38Resources zeroBit = Resources() with { ZoneMap = Enumerable.Repeat((byte)16, 1024).ToImmutableArray() };
-        NativeBattleEffectArena zeroBitResult = NativeBattleQuake38GroundZones.Assign8D9950(arena, Entries, Zones, 0, 0, 1, 3, zeroBit, 8192, 8192, 0);
+        NativeBattleEffectArena zeroBitResult = NativeBattleQuake38GroundZones.Assign8D9950(NativeBattleStorageSnapshots.Restore<NativeBattleEffectArena>(initial), Entries, Zones, 0, 0, 1, 3, zeroBit, 8192, 8192, 0);
         Assert.Equal((ushort)0, zeroBitResult.ReadUInt16(Zones));
         Assert.Equal((ushort)5, zeroBitResult.ReadUInt16(Zones + 2));
         Assert.Equal((ushort)4, zeroBitResult.ReadUInt16(Zones + 6));

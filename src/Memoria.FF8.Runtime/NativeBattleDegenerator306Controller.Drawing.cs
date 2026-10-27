@@ -180,20 +180,7 @@ public static partial class NativeBattleDegenerator306Controller
     }
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion range in ranges)
-            {
-                int first = Math.Max(offset, range.Offset);
-                int end = Math.Min(offset + length, range.Offset + range.Length);
-                if (first < end)
-                {
-                    result = result.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return result;
+        return task.BorrowPayloadArena(offset, length);
     }
     private static NativeBattleDegenerator306Frame LoadMatrix(NativeBattleDegenerator306Frame frame, NativeBattleActionMatrix matrix) => frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null) } };
     private static NativeBattleFileStaging RequireStaging(NativeBattleDegenerator306Frame frame) => frame.Staging ?? throw new NotSupportedException("Degenerator requires its physical temporary memory.");

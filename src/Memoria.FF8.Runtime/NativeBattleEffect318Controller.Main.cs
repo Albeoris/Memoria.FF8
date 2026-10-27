@@ -142,7 +142,7 @@ public static partial class NativeBattleEffect318Controller
                 registers = NativeBattleRaldo19BallRendering.Weighted(registers, false, inputs.Colors);
                 frame = Publish(frame, registers);
                 NativeBattleVector velocity = new(unchecked((short)(registers.Colors.Ir[0] ?? throw new NotSupportedException("Effect318 requires its scaled velocity IR lanes."))), unchecked((short)(registers.Colors.Ir[1] ?? throw new NotSupportedException("Effect318 requires its scaled velocity IR lanes."))), unchecked((short)(registers.Colors.Ir[2] ?? throw new NotSupportedException("Effect318 requires its scaled velocity IR lanes."))));
-                NativeBattleModulePoolTask task = CopyTask(Read(frame, mesh), 0x18, PutPoint(TaskView(Read(frame, mesh), 0x18, 8), 0, velocity), 6);
+                NativeBattleModulePoolTask task = CopyTask(Read(frame, mesh), 0x18, PutPoint(NativeBattleEffectNodeContextMemory.Copy(TaskView(Read(frame, mesh), 0x18, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8), 0, velocity), 6);
                 task = task.WriteWord(0x20, unchecked((ushort)(-velocity.X / 12))).WriteWord(0x22, unchecked((ushort)(-velocity.Y / 12))).WriteWord(0x24, unchecked((ushort)(-velocity.Z / 12)));
                 frame = Write(frame, mesh, CopyTask(task, 0x28, TaskView(task, 0x18, 8), 8));
             }

@@ -6,16 +6,56 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectTaskWorkingStorageTests
 {
     [Fact]
+    public void Task_view_helpers_borrow_the_canonical_body_and_route_current_public_suffixes()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 48, 1);
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.WriteBytes(12, [1, 2, 3, 4, 5, 6, 7, 8]);
+        NativeBattleEffectArena view = NativeBattleEffect76Controller.TaskView(task, 12, 8);
+        Assert.Same(pool.StorageIdentity, view.Working.BackingIdentity);
+        Assert.Equal(8, view.LogicalLength);
+        task.WriteByte(12, 9);
+        Assert.Equal(9, view.ReadByte(0));
+        Assert.Throws<InvalidDataException>(() => view.ReadByte(8));
+        NativeBattleEffectArena bank = NativeBattleEffectTaskMemory.CaptureBank(pool);
+        using (NativeBattleEffectArenaTransaction transaction = new(bank))
+        {
+            task.WriteByte(13, 7);
+            Assert.Equal(7, view.ReadByte(1));
+            Assert.Equal(7, transaction.View.ReadByte(13));
+        }
+        Assert.Equal(2, view.ReadByte(1));
+    }
+
+    [Fact]
+    public void Explicit_private_task_scratch_preserves_original_and_failed_edits_until_copy_publication()
+    {
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 48, 1);
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.WriteBytes(12, [1, 2, 3, 4, 5, 6, 7, 8]).MarkPayloadUnknown(18, 2);
+        NativeBattleEffectArena borrowed = NativeBattleEffect76Controller.TaskView(task, 12, 8);
+        NativeBattleEffectArena scratch = NativeBattleEffectNodeContextMemory.Copy(borrowed, 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
+        scratch.WriteUInt32(0, 0x12345678);
+        Assert.Equal(0x04030201u, task.ReadDword(12));
+        Assert.Throws<InvalidDataException>(() => scratch.WriteByte(8, 1));
+        Assert.Equal(0x04030201u, task.ReadDword(12));
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(18, 2) }, task.ReadUnknownPayloadRanges()!.Value);
+        NativeBattleEffect76Controller.CopyTask(task, 12, scratch, 8);
+        Assert.Equal(0x12345678u, task.ReadDword(12));
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(18, 2) }, task.ReadUnknownPayloadRanges()!.Value);
+    }
+
+    [Fact]
     public void Explicit_unknown_metadata_receipt_survives_later_overlapping_payload_copy_and_mask_writes()
     {
         NativeBattleModulePoolTask task = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 48, 1).Slots[0];
         task.WriteBytes(12, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
         task.MarkPayloadUnknown(16, 4);
-        ImmutableArray<NativeBattleEffectUnknownRegion>? original = task.ReadUnknownPayloadRanges();
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original!.Value);
+        ImmutableArray<NativeBattleEffectUnknownRegion> original = task.ReadUnknownPayloadRanges() ?? throw new InvalidDataException("Expected the current explicit unknown mask.");
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original);
         byte[] bytes = task.ReadRawPayloadSpan().Slice(0, 12).ToArray();
         task.WriteBytes(16, bytes);
-        foreach (NativeBattleEffectUnknownRegion range in original ?? [])
+        foreach (NativeBattleEffectUnknownRegion range in original)
         {
             int first = Math.Max(12, range.Offset);
             int end = Math.Min(24, range.Offset + range.Length);
@@ -24,15 +64,15 @@ public sealed class NativeBattleEffectTaskWorkingStorageTests
                 task.MarkPayloadUnknown(16 + first - 12, end - first);
             }
         }
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original);
         Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(20, 4) }, task.ReadUnknownPayloadRanges()!.Value);
         Assert.Equal(bytes, task.ReadRawPayloadSpan().Slice(4, 12).ToArray());
         NativeBattleModulePoolTask frozen = NativeBattleStorageSnapshots.Capture(task);
-        ImmutableArray<NativeBattleEffectUnknownRegion>? retained = frozen.ReadUnknownPayloadRanges();
+        ImmutableArray<NativeBattleEffectUnknownRegion> retained = frozen.ReadUnknownPayloadRanges() ?? throw new InvalidDataException("Expected the current explicit unknown mask.");
         task.WriteDword(20, 0);
         Assert.Null(task.ReadUnknownPayloadRanges());
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(20, 4) }, retained!.Value);
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(20, 4) }, retained);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original);
     }
 
     [Fact]
@@ -45,11 +85,11 @@ public sealed class NativeBattleEffectTaskWorkingStorageTests
         using NativeBattleEffectArenaTransaction transaction = new(arena);
         transaction.BeginCheckpoint();
         task.MarkPayloadUnknown(20, 2);
-        ImmutableArray<NativeBattleEffectUnknownRegion>? provisional = task.ReadUnknownPayloadRanges();
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional!.Value);
+        ImmutableArray<NativeBattleEffectUnknownRegion> provisional = task.ReadUnknownPayloadRanges() ?? throw new InvalidDataException("Expected the current explicit unknown mask.");
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional);
         transaction.RollbackCheckpoint();
         Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, task.ReadUnknownPayloadRanges()!.Value);
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional);
     }
 
     [Fact]

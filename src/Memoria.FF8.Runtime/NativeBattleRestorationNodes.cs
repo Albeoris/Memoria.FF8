@@ -7,7 +7,7 @@ public static class NativeBattleRestorationNodes
 {
     public static NativeBattleRestorationNodeAllocation AllocateEmitter(NativeBattleRestorationFrame frame, uint contextTask, uint parentPointer, sbyte sourceIndex, sbyte targetIndex)
     {
-        NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
+        using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         ushort cursor = memory.State.EmitterScanCursor ?? throw new NotSupportedException("Native restoration emitter allocation requires its actual scan WORD.");
         int? node = NativeBattleEffectNodeAllocation.AllocateEmitter(memory, memory.State.Emitters!.Value, memory.Profile.EmitterBytes / 108, ref cursor, parentPointer, sourceIndex, targetIndex);
         memory.State = memory.State with { EmitterScanCursor = cursor };
@@ -16,7 +16,7 @@ public static class NativeBattleRestorationNodes
 
     public static NativeBattleRestorationNodeAllocation AllocateGeometry(NativeBattleRestorationFrame frame, uint contextTask, int emitter, sbyte sourceIndex)
     {
-        NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
+        using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         ushort cursor = memory.State.GeometryScanCursor ?? throw new NotSupportedException("Native restoration geometry allocation requires its actual scan WORD.");
         int? node = NativeBattleEffectNodeAllocation.AllocateGeometry(memory, memory.State.Geometry!.Value, memory.Profile.GeometryBytes / 672, ref cursor, emitter, sourceIndex);
         memory.State = memory.State with { GeometryScanCursor = cursor };
@@ -25,7 +25,7 @@ public static class NativeBattleRestorationNodes
 
     public static NativeBattleRestorationFrame Unlink(NativeBattleRestorationFrame frame, uint contextTask, int node)
     {
-        NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
+        using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         memory.Unlink882960(node);
         return memory.Flush();
     }
@@ -33,15 +33,23 @@ public static class NativeBattleRestorationNodes
     public static NativeBattleRestorationFrame AdvanceList(NativeBattleRestorationFrame frame, uint contextTask, Func<NativeBattleRestorationFrame, int, short, NativeBattleRestorationFrame> advance)
     {
         NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeAllocation.WalkList(() => memory, (node, kind) =>
+        try
         {
-            if (kind is not (0 or 1))
+            NativeBattleEffectNodeAllocation.WalkList(() => memory, (node, kind) =>
             {
-                return;
-            }
-            frame = advance(frame, node, kind);
-            memory = new(frame, contextTask);
-        });
-        return frame;
+                if (kind is not (0 or 1))
+                {
+                    return;
+                }
+                frame = advance(frame, node, kind);
+                memory.Dispose();
+                memory = new(frame, contextTask);
+            });
+            return frame;
+        }
+        finally
+        {
+            memory.Dispose();
+        }
     }
 }

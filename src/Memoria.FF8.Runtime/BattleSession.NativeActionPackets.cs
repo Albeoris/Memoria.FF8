@@ -4,10 +4,22 @@ public sealed partial class BattleSession
 {
     private NativeBattleActionPacketsState nativeActionPackets = NativeBattleActionPacketsState.Fresh();
     private NativeBattlePartyStatusMirrors nativePartyStatusMirrors = NativeBattlePartyStatusMirrors.Unknown();
+    private NativeBattleEffectMemory? nativeEffectMemory;
     public NativeBattleActionPacketsState NativeActionPackets => nativeActionPackets;
     public NativeBattlePartyStatusMirrors NativePartyStatusMirrors => nativePartyStatusMirrors;
     public int? NativeEffectIoResult { get; private set; }
-    public NativeBattleEffectMemory? NativeEffectMemory { get; private set; }
+    public NativeBattleEffectMemory? NativeEffectMemory
+    {
+        get => nativeEffectMemory;
+        private set
+        {
+            if (NativeBattleTaskOperation.IsActive && !NativeBattleTaskCallerOperation.IsActive)
+            {
+                NativeBattleTaskOperation.AcceptPublishedMemory(value);
+            }
+            nativeEffectMemory = value;
+        }
+    }
     public NativeBattleModelTextureCache? NativeModelTextureCache { get; private set; }
 
     private void InitializeNativeRetainedMemory()

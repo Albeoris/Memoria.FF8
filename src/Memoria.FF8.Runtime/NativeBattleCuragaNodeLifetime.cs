@@ -6,7 +6,7 @@ public static partial class NativeBattleCuragaNodeKinematics
 {
     public static NativeBattleCuragaNodeLifetimeStep CompleteGeometry881650(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank);
         bool complete = core.CompleteGeometry(node, core.ReadSource(unchecked((sbyte)memory.Byte(node + 0x1D6))));
@@ -15,7 +15,7 @@ public static partial class NativeBattleCuragaNodeKinematics
 
     public static NativeBattleCuragaFrame AppendChildren882D90(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank);
         core.AppendChildren(node, core.ReadSource(unchecked((sbyte)memory.Byte(node + 0x1D6))));

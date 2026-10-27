@@ -149,11 +149,11 @@ public static class NativeBattleDoom8Act
         NativeBattleGfAnimationWorkspace workspace = Workspace(task, size);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)frame.State.ReadDword(0x275ABDC)), (retained, node) =>
         {
-            frame = Put(frame, address, Read(frame, address).WriteBytes(0x94, retained.Data.AsSpan()));
+            frame = Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x94, retained));
             frame = inputs.EmitNode(frame, address, prepared.Context92, node);
             return Workspace(Read(frame, address), size);
         });
-        frame = Put(frame, address, advanced.Workspace.CopyTo(Read(frame, address), 0x94, retainUnknown: false));
+        frame = Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(frame, address), 0x94, advanced.Workspace));
         return new(frame, advanced.Remaining);
     }
 
@@ -162,7 +162,7 @@ public static class NativeBattleDoom8Act
         NativeBattleModulePoolTask task = Read(frame, address);
         int size = WorkspaceSize(task);
         NativeBattleGfAnimationWorkspace workspace = Workspace(task, size).Initialize7016B0(Source(frame, task.ReadDword(0x74), inputs), size);
-        return Put(frame, address, workspace.CopyTo(task, 0x94, retainUnknown: false));
+        return Put(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace));
     }
 
     private static NativeBattleGfAnimationSource Source(NativeBattleDoom8Frame frame, uint pointer, NativeBattleDoom8ActInputs inputs)
@@ -185,7 +185,7 @@ public static class NativeBattleDoom8Act
         return size;
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, int size) => new(task.ReadBytes(0x94, size).ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, int size) => NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, size);
     private static NativeBattleDoom8Frame Place(NativeBattleDoom8Frame frame, uint address, NativeBattleDoom8ActInputs inputs) => inputs.Execute(frame, new NativeBattleDoom8ActPlace(address, Word(Read(frame, address), 0x454)));
     private static NativeBattleModulePoolTask Scale(NativeBattleModulePoolTask task) => task.WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
     private static NativeBattleDoom8Frame Next(NativeBattleDoom8Frame frame, uint address) => Put(frame, address, Read(frame, address).WriteByte(0x29, unchecked((byte)(Read(frame, address).ReadByte(0x29) + 1))));

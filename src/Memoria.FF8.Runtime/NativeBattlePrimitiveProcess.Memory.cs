@@ -209,7 +209,7 @@ public sealed partial record NativeBattlePrimitiveProcess : IJsonOnSerializing
 
     internal static NativeBattleEffectArena UnknownCommonArena(int capacity)
     {
-        return NativeBattleEffectArena.CreateUnknown(capacity);
+        return NativeBattleTaskOperation.AdmitCurrentRetainedArena(NativeBattleEffectArena.CreateUnknown(capacity));
     }
 
     private static void RequireCommonRange(int offset, int count, int capacity)

@@ -24,6 +24,7 @@ internal sealed class NativeBattleCommonPacketTransaction : IDisposable
     }
 
     public NativeBattlePrimitiveProcess View { get; }
+    internal NativeBattleCommonPacketMemory? CurrentMemory => state.CommonPacketMemory;
 
     public void Append(ImmutableArray<NativeBattleCommonPacketStore> stores) => Append(View, stores);
 

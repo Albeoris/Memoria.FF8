@@ -87,16 +87,17 @@ public static partial class NativeBattleChoco97ProgramDrawing
             return new(new([], 0), morphScratch);
         }
         int index = unchecked((short)node.GeometryIndex);
-        if (index < 0 || index >= ReadInt(source.Data, 0))
+        using NativeBattleGfSourceReader reader = source.OpenReader();
+        if (index < 0 || index >= ReadInt(reader, 0))
         {
             throw new InvalidDataException("Native Choco node selects an absent geometry.");
         }
-        int geometry = ReadInt(source.Data, checked(8 + index * 4));
-        int vertices = ReadInt(source.Data, checked(geometry + 4));
-        int shapes = ReadInt(source.Data, checked(geometry + 8));
+        int geometry = ReadInt(reader, checked(8 + index * 4));
+        int vertices = ReadInt(reader, checked(geometry + 4));
+        int shapes = ReadInt(reader, checked(geometry + 8));
         int first = node.Word40;
         int second = node.Word42;
-        if (vertices < 1 || vertices > source.Data.Length / 8 || shapes < 1 || first < 0 || first >= shapes || second < 0 || second >= shapes)
+        if (vertices < 1 || vertices > source.Length / 8 || shapes < 1 || first < 0 || first >= shapes || second < 0 || second >= shapes)
         {
             throw new InvalidDataException("Native Choco geometry requires its actual shaped vertex bank.");
         }
@@ -105,7 +106,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         if (first == second || node.Scalar38 is 0 or 4096)
         {
             int shape = first == second || node.Scalar38 == 0 ? first : second;
-            selected = Read(source.Data, checked(geometry + 12 + shape * bytes), bytes).ToArray().ToImmutableArray();
+            selected = Read(reader, checked(geometry + 12 + shape * bytes), bytes).ToArray().ToImmutableArray();
         }
         else
         {
@@ -114,7 +115,15 @@ public static partial class NativeBattleChoco97ProgramDrawing
             {
                 throw new InvalidDataException("Native Choco morph leaves its explicitly retained scratch owner.");
             }
-            morphScratch = NativeBattleGfMorphGeometry.Morph701390(source.Data, geometry, first, second, node.Scalar38, morphScratch);
+            ImmutableArray<NativeBattleVector> positions = NativeBattleGfMorphGeometry.MorphVertices701390(reader, geometry, first, second, node.Scalar38);
+            byte[] updated = morphScratch.ToArray();
+            for (int vertex = 0; vertex < positions.Length; vertex++)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(updated.AsSpan(vertex * 8), positions[vertex].X);
+                BinaryPrimitives.WriteInt16LittleEndian(updated.AsSpan(vertex * 8 + 2), positions[vertex].Y);
+                BinaryPrimitives.WriteInt16LittleEndian(updated.AsSpan(vertex * 8 + 4), positions[vertex].Z);
+            }
+            morphScratch = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(updated);
             selected = morphScratch.AsSpan(0, bytes).ToArray().ToImmutableArray();
         }
         uint flags = (node.Header & 0x4000) != 0 ? 0x2000u : 0x2030u;
@@ -125,7 +134,7 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
         NativeBattleModuleMeshContext operands = new(flags, cue ? node.Color32 : null, cue ? node.Scalar36 : null, null, null, null, 17, 2);
         NativeBattleActionMatrix matrix = ComposeNodeMatrix(node, context, profile.Header8000SkipsBasis);
-        NativeBattleGfGeometryBatch packets = depthBias == 0 ? NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, selected, matrix, projection, operands, colors) : NativeBattleChoco100DepthPackets.EmitBatch(source.Data, geometry, selected, matrix, projection, operands, depthBias, colors);
+        NativeBattleGfGeometryBatch packets = depthBias == 0 ? NativeBattleModulePackets.EmitBatch572200(reader, geometry, selected, matrix, projection, operands, colors) : NativeBattleChoco100DepthPackets.EmitBatch(reader, geometry, selected, matrix, projection, operands, depthBias, colors);
         return new(packets, morphScratch);
     }
 
@@ -179,6 +188,9 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
         return workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
     }
+
+    private static int ReadInt(NativeBattleGfSourceReader source, int offset) => source.Int(offset);
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader source, int offset, int length) => source.Read(offset, length);
 
     private static int ReadInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(source, offset, 4));
 

@@ -32,11 +32,12 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         {
             NativeBattleEffectArena owner = source ?? throw new ObjectDisposedException(nameof(NativeBattleArenaOverlay));
             owner.Validate();
+            ValidatePrivateParent();
             return owner;
         }
     }
     internal bool HasPendingChanges => checkpoint || dirty.Count != 0 || pointers.Count != 0;
-    internal int StoredLength => Math.Max(Source.CommittedStoredLength, extent);
+    internal int StoredLength => Math.Max(privateParent is null ? Source.CommittedStoredLength : Math.Clamp(privateParent.StoredLength - privateParentOffset, 0, Source.Bound), extent);
 
     internal void ValidateExplicitCoverage(int capacity)
     {
@@ -54,6 +55,19 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         NativeBattleEffectArena owner = Source;
         owner.RequireRange(offset, length);
         NativeBattleArenaCoverage classified = owner.Classification;
+        if (privateParent is not null)
+        {
+            privateClassified.Ranges.Clear();
+            foreach (NativeBattleEffectStorageRange item in EnumerateBaseRanges(false))
+            {
+                privateClassified.Add(item.Offset, item.Length);
+            }
+            foreach (NativeBattleEffectStorageRange item in EnumerateBaseRanges(true))
+            {
+                privateClassified.Add(item.Offset, item.Length);
+            }
+            classified = privateClassified;
+        }
         int range = 0;
         int covered = offset;
         int end = offset + length;
@@ -81,7 +95,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     internal NativeBattleArenaRanges DataRanges()
     {
         dataRanges.Ranges.Clear();
-        foreach (NativeBattleEffectStorageRange range in Source.EnumerateDataRanges(true))
+        foreach (NativeBattleEffectStorageRange range in EnumerateBaseRanges(false))
         {
             dataRanges.Ranges.Add((range.Offset, range.Offset + range.Length));
         }
@@ -98,7 +112,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     internal NativeBattleArenaRanges UnknownRanges()
     {
         unknownRanges.Ranges.Clear();
-        foreach (NativeBattleEffectStorageRange range in Source.EnumerateUnknownRanges(true))
+        foreach (NativeBattleEffectStorageRange range in EnumerateBaseRanges(true))
         {
             unknownRanges.Add(range.Offset, range.Length);
         }
@@ -139,7 +153,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             NativeBattleTelemetry.Copy(1002, known.AsSpan(offset, destination.Length), destinationKnown);
             return;
         }
-        Source.ReadCommittedWithKnownness(offset, destination, destinationKnown);
+        ReadBaseWithKnownness(offset, destination, destinationKnown);
         for (int index = 0; index < destination.Length && offset + index < present.Length; index++)
         {
             int current = offset + index;
@@ -170,7 +184,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         }
         if (!touched)
         {
-            Source.ReadCommittedInto(offset, destination);
+            ReadBaseInto(offset, destination);
             return;
         }
         Span<byte> scratch = stackalloc byte[256];
@@ -257,7 +271,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         for (int index = 0; index < bytes.Length; index++)
         {
             int current = offset + index;
-            bool previousKnown = present[current] ? known[current] : owner.Working.IsKnown(owner.WorkingOffset + current, 1);
+            bool previousKnown = present[current] ? known[current] : BaseKnown(current);
             SaveByte(current);
             data[current] = bytes[index];
             dataStore[current] = true;
@@ -294,7 +308,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             {
                 index++;
             }
-            Source.ReadCommittedWithKnownness(offset + first, data.AsSpan(offset + first, index - first), known.AsSpan(offset + first, index - first));
+            ReadBaseWithKnownness(offset + first, data.AsSpan(offset + first, index - first), known.AsSpan(offset + first, index - first));
         }
         for (int index = 0; index < length; index++)
         {
@@ -313,12 +327,12 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             pointer = changed.Value;
             return changed.Present;
         }
-        return Source.TryGetCommittedResourcePointer(offset, out pointer);
+        return TryGetBaseResourcePointer(offset, out pointer);
     }
 
     internal IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers()
     {
-        foreach ((int offset, NativeBattleResourcePointer? pointer) in Source.EnumerateResourcePointers(true))
+        foreach ((int offset, NativeBattleResourcePointer? pointer) in EnumerateBaseResourcePointers())
         {
             if (!pointers.TryGetValue(offset, out PointerChange changed))
             {
@@ -331,7 +345,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         }
         foreach ((int offset, PointerChange changed) in pointers)
         {
-            if (changed.Present && !Source.TryGetCommittedResourcePointer(offset, out _))
+            if (changed.Present && !TryGetBaseResourcePointer(offset, out _))
             {
                 yield return new(offset, changed.Value);
             }
@@ -407,6 +421,10 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         {
             return Source;
         }
+        if (privateParent is not null)
+        {
+            return CommitPrivateChild();
+        }
         PrepareCommit();
         NativeBattleWorkingMemory memory = Kernel;
         BeginPublication();
@@ -464,6 +482,10 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     internal void PrepareCommit()
     {
         NativeBattleEffectArena owner = Source;
+        if (privateParent is not null)
+        {
+            throw new InvalidOperationException("A private child publishes through its parent overlay.");
+        }
         if (checkpoint)
         {
             throw new InvalidOperationException("Native arena overlay publication requires a committed overlay checkpoint.");
@@ -529,6 +551,8 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     {
         source?.Working.InvalidateReadWindows(this);
         ClearChanges();
+        privateParent = null;
+        privateParentOffset = 0;
         source = null;
     }
 
@@ -591,13 +615,23 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     {
         pointerScratch.Clear();
         NativeBattleEffectArena owner = Source;
-        using var retained = owner.Working.EnumerateResourcePointers();
-        while (retained.MoveNext())
+        using (var retained = owner.Working.EnumerateResourcePointers())
         {
-            int key = retained.Current.Key - owner.WorkingOffset;
-            if (key >= 0 && key <= owner.Bound - 4 && key < offset + length && key + 4 > offset)
+            while (retained.MoveNext())
             {
-                pointerScratch.Add(key);
+                int key = retained.Current.Key - owner.WorkingOffset;
+                AddBasePointerToScratch(key, offset, length, owner);
+            }
+        }
+        for (NativeBattleArenaOverlay? ancestor = privateParent; ancestor is not null; ancestor = ancestor.privateParent)
+        {
+            foreach ((int inheritedOffset, PointerChange inherited) in ancestor.pointers)
+            {
+                if (inherited.Present)
+                {
+                    int key = checked(ancestor.Source.WorkingOffset + inheritedOffset - owner.WorkingOffset);
+                    AddBasePointerToScratch(key, offset, length, owner);
+                }
             }
         }
         foreach ((int key, PointerChange value) in pointers)
@@ -616,6 +650,15 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         {
             SavePointer(key);
             pointers[key] = new(false, null);
+        }
+
+    }
+
+    private void AddBasePointerToScratch(int key, int offset, int length, NativeBattleEffectArena owner)
+    {
+        if (key >= 0 && key <= owner.Bound - 4 && key < offset + length && key + 4 > offset && TryGetBaseResourcePointer(key, out _) && !pointerScratch.Contains(key))
+        {
+            pointerScratch.Add(key);
         }
     }
 

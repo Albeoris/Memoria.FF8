@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Buffers.Binary;
 using System.Text.Json.Serialization;
 
@@ -19,18 +20,19 @@ public static class NativeBattleSiren95Model
     public static NativeBattleEffectOwnedModelResource ReadCurrentResource(NativeBattleEffectMemory memory, uint address)
     {
         NativeBattleGfAnimationSource current = NativeBattleSiren95Io.ReadProgrammeSource(memory, address);
-        if (current.Data.Length < 24 || BinaryPrimitives.ReadInt32LittleEndian(current.Data.AsSpan()) != 4)
+        using NativeBattleGfSourceReader reader = current.OpenReader();
+        if (current.Length < 24 || reader.Int(0) != 4)
         {
             throw new InvalidDataException("Native Siren model requires its current four-section directory.");
         }
-        int length = BinaryPrimitives.ReadInt32LittleEndian(current.Data.AsSpan().Slice(20));
-        if (length < 24 || length > current.Data.Length)
+        int length = reader.Int(20);
+        if (length < 24 || length > current.Length)
         {
             throw new InvalidDataException("Native Siren model declared extent leaves its current file bytes.");
         }
-        ImmutableArray<byte> bounded = current.Data.Slice(0, length);
+        ImmutableArray<byte> bounded = ImmutableCollectionsMarshal.AsImmutableArray(reader.ReadBytes(0, length));
         int[] sections = Enumerable.Range(0, 5).Select(index => NativeBattleDatDirectory.Section(bounded.AsSpan(), index)).ToArray();
-        if (sections[4] < 24 || sections[4] > current.Data.Length || sections[0] < 24 || sections.Zip(sections.Skip(1), (left, right) => left <= right).Any(ordered => !ordered))
+        if (sections[4] < 24 || sections[4] > current.Length || sections[0] < 24 || sections.Zip(sections.Skip(1), (left, right) => left <= right).Any(ordered => !ordered))
         {
             throw new InvalidDataException("Native Siren model sections leave their current supplied file bytes.");
         }

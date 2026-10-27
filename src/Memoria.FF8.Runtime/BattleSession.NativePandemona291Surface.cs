@@ -35,6 +35,7 @@ public sealed partial class BattleSession
             {
                 return current;
             }
+            using NativeBattleGfSourceReader sourceBytes = source.OpenReader();
             ImmutableArray<byte>? kinds = inputs is null ? age >= 144 ? null : resources.SurfaceTextureKinds : inputs.TextureKinds;
             byte kind = kinds is { } table ? table[unchecked((short)node.GeometryIndex)] : (byte)4;
             NativeBattlePandemona291PreparedSurface prepared = NativeBattlePandemona291Surface.Prepare6F06F0(source, node, parent, kind, inputs?.Phase ?? (age >= 144 ? (byte)0 : unchecked((byte)((age - 10) * 8))), inputs?.DepthBias ?? (age >= 144 ? (short)-128 : (short)0));
@@ -55,13 +56,21 @@ public sealed partial class BattleSession
             NativeBattleScriptedColorRegisters registers = frame.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Native Pandemona requires its canonical GTE input owner.");
             NativeBattleGfGeometryBatch batch = NativeBattlePandemona291Surface.Emit701DD0(source, prepared, projection, colors, zsf4, offset =>
             {
-                byte[] xyz = prepared.Morph.IsEmpty ? source.Data.AsSpan().Slice(checked(prepared.SelectedOffset + offset), 6).ToArray() : arena.Read(checked(scratch + offset), 6);
-                return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
+                Span<byte> xyz = stackalloc byte[6];
+                if (prepared.Morph.IsEmpty)
+                {
+                    sourceBytes.ReadInto(checked(prepared.SelectedOffset + offset), xyz);
+                }
+                else
+                {
+                    arena.ReadInto(checked(scratch + offset), xyz);
+                }
+                return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
             }, offset =>
             {
                 if (prepared.Morph.IsEmpty)
                 {
-                    registers = registers with { NormalInput = source.Data.AsSpan().Slice(checked(prepared.SelectedOffset + offset), 8).ToArray().ToImmutableArray(), NormalInputKnown = null };
+                    registers = registers with { NormalInput = System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(sourceBytes.ReadBytes(checked(prepared.SelectedOffset + offset), 8)), NormalInputKnown = null };
                 }
                 else
                 {

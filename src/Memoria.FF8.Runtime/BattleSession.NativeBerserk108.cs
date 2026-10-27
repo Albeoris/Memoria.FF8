@@ -206,7 +206,7 @@ public sealed partial class BattleSession
             }
             (int tx, int ty, int tz) = NativeBattleGfMatrices.Rotate56C3D0(view, anchor);
             NativeBattleActionMatrix rayMatrix = view with { X = unchecked(tx + view.X), Y = unchecked(ty + view.Y), Z = unchecked(tz + view.Z) };
-            NativeBattleBerserk108RayStep rays = NativeBattleBerserk108Geometry.Rays(task.Payload.Slice(0x28 - 12, 32 * 48), point => NativeBattleModuleProjection.Project45FE10(rayMatrix, point, projection));
+            NativeBattleBerserk108RayStep rays = NativeBattleBerserk108Geometry.Rays(task.ReadRawPayloadSpan().Slice(0x28 - 12, 32 * 48), point => NativeBattleModuleProjection.Project45FE10(rayMatrix, point, projection));
             task = task.WriteRetainedBytes(0x28, rays.Rays.AsSpan());
             Append(rays.Packets, 1);
             if (counter == 0)

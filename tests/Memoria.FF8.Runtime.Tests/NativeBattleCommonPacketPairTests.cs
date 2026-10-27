@@ -132,7 +132,7 @@ public sealed class NativeBattleCommonPacketPairTests
         lengths[0x60] = 3;
         NativeBattleLogicalCommand command = Assert.Single(ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count)));
         Assert.Equal(0x60000055u, command.Words[0]);
-        NativeBattleLogicalOrdering aliasPacketIdentity = ordering with { Packets = ordering.Packets.SetItem(0, ordering.Packets[0] with { Reference = alias }) };
+        NativeBattleLogicalOrdering aliasPacketIdentity = NativeBattleOrderingTestFixture.Frozen(ordering, data => data with { Packets = data.Packets.SetItem(0, data.Packets[0] with { Reference = alias }) });
         Assert.Single(aliasPacketIdentity.Traverse(lengths.ToImmutableArray(), (reference, count) => (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count)));
     }
 

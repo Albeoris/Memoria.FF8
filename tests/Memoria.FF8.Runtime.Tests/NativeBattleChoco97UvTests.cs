@@ -121,6 +121,64 @@ public sealed class NativeBattleChoco97UvTests
         Assert.Throws<NotSupportedException>(() => NativeBattleChoco97Uv.UpdateDrawableResource(bank, bank.Address, 5, 0));
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Working_ACT_scroll_matches_scalar_bytes_and_detached_history_restores_independently(int group)
+    {
+        var fixture = Mesh(group, true, [250, 10, 20, 30]);
+        NativeBattleEffectArena bank = NativeBattleEffectArena.CreateUnknown(fixture.Bytes.Length).Write(0, fixture.Bytes.AsSpan());
+        NativeBattleGfAnimationSource source = NativeBattleOwnedGfAnimationSource.Own(NativeBattleGfAnimationSource.Borrow(0x1000, bank, 0, fixture.Bytes.Length));
+        SourceHistory before = NativeBattleStorageSnapshots.Capture(new SourceHistory(source));
+        NativeBattleGfAnimationSource result = NativeBattleChoco97Uv.Scroll7311C0(source, 0, 12);
+        Assert.Same(source, result);
+        Assert.Equal(NativeBattleChoco97Uv.Scroll7311C0(fixture.Bytes, 12), bank.Read(0, fixture.Bytes.Length));
+        Assert.Equal(fixture.Bytes, before.Source.Data);
+        string json = JsonSerializer.Serialize(before);
+        SourceHistory frozen = JsonSerializer.Deserialize<SourceHistory>(json)!;
+        SourceHistory first = NativeBattleStorageSnapshots.Restore(frozen);
+        SourceHistory second = NativeBattleStorageSnapshots.Restore(frozen);
+        NativeBattleChoco97Uv.Scroll7311C0(first.Source, 0, 12);
+        using NativeBattleGfSourceReader unchanged = second.Source.OpenReader();
+        Assert.Equal(fixture.Bytes, unchanged.ReadBytes(0, fixture.Bytes.Length));
+        Assert.Throws<InvalidOperationException>(() => NativeBattleChoco97Uv.Scroll7311C0(frozen.Source, 0, 12));
+        Assert.Throws<InvalidOperationException>(() => JsonSerializer.Serialize(new SourceHistory(source)));
+    }
+
+    [Fact]
+    public void Working_ACT_preserves_unknown_padding_and_failed_scroll_does_not_publish_earlier_faces()
+    {
+        var fixture = Mesh(3, true, [250, 10, 20, 30]);
+        NativeBattleEffectArena bank = NativeBattleEffectArena.CreateUnknown(fixture.Bytes.Length).Write(0, fixture.Bytes.AsSpan());
+        bank.MarkUnknown(4, 1);
+        NativeBattleGfAnimationSource source = NativeBattleOwnedGfAnimationSource.Own(NativeBattleGfAnimationSource.Borrow(0x1000, bank, 0, fixture.Bytes.Length));
+        NativeBattleChoco97Uv.Scroll7311C0(source, 0, 12);
+        var padding = bank.ReadSnapshot(4, 1);
+        Assert.Equal((byte)0xA5, padding.Data[0]);
+        Assert.False(padding.Known[0]);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new SourceHistory(source)));
+        Assert.Contains("UnknownRegions", json);
+        SourceHistory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<SourceHistory>(json)!);
+        using (NativeBattleGfSourceReader reader = restored.Source.OpenReader())
+        {
+            byte[] bytes = new byte[1];
+            bool[] known = new bool[1];
+            reader.ReadWithKnownness(4, bytes, known);
+            Assert.Equal((byte)0xA5, bytes[0]);
+            Assert.False(known[0]);
+            Assert.Throws<NotSupportedException>(() => reader.Byte(4));
+        }
+        byte[] accepted = bank.ReadSnapshot(0, fixture.Bytes.Length).Data;
+        bank.Write(accepted.Length - 4, [255, 255, 255, 127]);
+        byte[] beforeFailure = bank.ReadSnapshot(0, fixture.Bytes.Length).Data;
+        Assert.Throws<InvalidDataException>(() => NativeBattleChoco97Uv.Scroll7311C0(source, 0, 12));
+        Assert.Equal(beforeFailure, bank.ReadSnapshot(0, fixture.Bytes.Length).Data);
+    }
+
+    private sealed record SourceHistory([property: System.Text.Json.Serialization.JsonConverter(typeof(NativeBattleOwnedGfAnimationSource.Converter))] NativeBattleGfAnimationSource Source);
+
     private static (ImmutableArray<byte> Bytes, int[] Corners) Mesh(int selected, bool vertical, byte[] values)
     {
         int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];

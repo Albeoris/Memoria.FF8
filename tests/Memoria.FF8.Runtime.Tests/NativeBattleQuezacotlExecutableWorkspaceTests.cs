@@ -27,7 +27,7 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         Assert.Equal(beforeEffect, SnapshotJson(effect));
         int offset = checked((int)(NativeBattleQuezacotlWorkspace.EighthAddress - NativeBattleQuezacotlExecutableMemory.Address));
         Assert.Equal(before.AsSpan().Slice(0, offset).ToArray(), NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory!).Data.AsSpan().Slice(0, offset).ToArray());
-        Assert.Equal(before.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray(), NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory).Data.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray());
+        Assert.Equal(before.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray(), NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory!).Data.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray());
         NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(memory))!);
         Assert.Equal(SnapshotJson(memory), SnapshotJson(restored));
         Assert.Equal(NativeBattleStorageSnapshots.Capture(advanced.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.ReadExecutable(restored)).Data.ToArray());

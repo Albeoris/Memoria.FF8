@@ -49,7 +49,7 @@ public static class NativeBattleLaserEye71BeamLower
         task = Read(frame, address);
         if (task.ReadWord(0x8C) != 4096)
         {
-            NativeBattleEffectArena saved = TaskView(task, 0x30, 16);
+            NativeBattleEffectArena saved = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x30, 16), 0, NativeBattleEffectArena.CreateUnknown(16), 0, 16);
             var savedPointers = task.EnumerateResourcePointers().Where(entry => entry.Key >= 0x30 && entry.Key + 4 <= 0x40).ToArray();
             task = task.WriteDword(0x4C, 0x158FDA0).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
             task = WriteTaskView(task, 0x1C, TaskView(task, 0x84, 8), 8);
@@ -197,22 +197,7 @@ public static class NativeBattleLaserEye71BeamLower
 
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        task.RequirePayloadRange(offset, length);
-        task.ValidateUnknownPayloadRanges();
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion region in ranges)
-            {
-                int first = Math.Max(offset, region.Offset);
-                int end = Math.Min(offset + length, region.Offset + region.Length);
-                if (end > first)
-                {
-                    view = view.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return view;
+        return task.BorrowPayloadArena(offset, length);
     }
 
     private static NativeBattleModulePoolTask WriteTaskView(NativeBattleModulePoolTask task, int offset, NativeBattleEffectArena view, int length)

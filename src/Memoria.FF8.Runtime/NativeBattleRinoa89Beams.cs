@@ -51,8 +51,8 @@ public static partial class NativeBattleRinoa89Controller
         }
         (pool, int slot) = pool.Append(narrow ? 0x6FDC20u : 0x6FD580u);
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(48, 344).ToImmutableArray());
-        task = workspace.Initialize7016B0(source, 344).CopyTo(task, 48, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 48, 344);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 48, workspace.Initialize7016B0(source, 344));
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Euler56CD50(new(angleX, angleY, 0));
         task = WriteBeamRotation(task, matrix);
         int distance = narrow ? 2 : 6;

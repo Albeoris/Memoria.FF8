@@ -14,15 +14,26 @@ internal sealed class NativeBattleEffectArenaWriter : IDisposable
     private bool disposed;
     private readonly int transactionOffset;
 
-    public NativeBattleEffectArenaWriter(NativeBattleEffectArena source)
+    public NativeBattleEffectArenaWriter(NativeBattleEffectArena source) : this(source, false)
+    {
+    }
+
+    internal NativeBattleEffectArenaWriter(NativeBattleEffectArena source, bool privateLayer)
     {
         ArgumentNullException.ThrowIfNull(source);
         source.RequireWritable();
         source.Validate();
         this.source = source;
         textureFiles = source.CurrentTextureFiles;
-        if (source.TryEffectiveRoute(0, source.Bound, out transaction, out int routedOffset))
+        if (source.TryEffectiveRoute(0, source.Bound, out NativeBattleEffectArenaTransaction? parent, out int routedOffset))
         {
+            if (privateLayer)
+            {
+                overlay = source.RentOverlay();
+                overlay.BindPrivateParent(parent!.Overlay, routedOffset);
+                return;
+            }
+            transaction = parent;
             transactionOffset = routedOffset;
         }
         overlay = transaction is null ? source.RentOverlay() : null;

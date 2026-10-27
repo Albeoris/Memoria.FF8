@@ -105,7 +105,7 @@ internal static class NativeBattleEffectNodeCaller
         {
             int first = frame.State.Emitters ?? throw new NotSupportedException("Native Recover emitter storage has not been cleared.");
             int second = frame.State.Geometry ?? throw new NotSupportedException("Native Recover geometry storage has not been cleared.");
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, profile.EmitterBytes, second, profile.GeometryBytes, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(profile.SourceAddress, frame.State.Data ?? throw new NotSupportedException("Native Recover has no fixed mutable node bank."));
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Recover emitter scan WORD is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Recover geometry scan WORD is unknown.");

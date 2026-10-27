@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -183,7 +183,7 @@ public static partial class NativeBattleWendigoController
                 NativeBattleWendigoState owner = State;
                 int emitters = owner.Emitters ?? throw new NotSupportedException("Native Wendigo requires its cleared emitter pool.");
                 int geometry = owner.Geometry ?? throw new NotSupportedException("Native Wendigo requires its cleared geometry pool.");
-                NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect with { Pools = hierarchy.Pools }, address, emitters, shoot ? 0x438 : 0x870, geometry, shoot ? 0x4EC0 : 0x8340, true);
+                using NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect with { Pools = hierarchy.Pools }, address, emitters, shoot ? 0x438 : 0x870, geometry, shoot ? 0x4EC0 : 0x8340, true);
                 NativeBattleEffectNodeBank bank = new(resources.ActorBankAddress, owner.ActorBank ?? throw new NotSupportedException("Native Wendigo lost its actor data."), ReadExternal);
                 ushort emitterScan = owner.EmitterScan;
                 ushort geometryScan = owner.GeometryScan;

@@ -67,14 +67,14 @@ public static class NativeBattleDuel112Controller
             }
             uint offset = task.ReadDword(16) != 0 ? 0x1E88u : 0x11E88u;
             task = task.WriteDword(16, task.ReadDword(16) != 0 ? 0u : 1u);
-            root = root with { Slots = root.Slots.SetItem(slot, task) };
+            root = root.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, root), DrawArenaOffset = (int)offset }, Staging = Dword(frame.Staging, 0x2521914, Arena + offset) };
             if (task.ReadWord(12) == 1)
             {
                 if (task.ReadByte(15) == 0)
                 {
                     task = task.WriteByte(15, 1);
-                    root = root with { Slots = root.Slots.SetItem(slot, task) };
+                    root = root.WriteSlot(slot, task);
                     frame = frame with { Effect = frame.Effect with { Pools = [root, NativeBattleEffectTaskPool.Initialize(0x2521950, Arena, 0xF48, 1), NativeBattleEffectTaskPool.Initialize(0x2521940, Arena + 0x1488, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, Arena + 0x1248, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, Arena + 0xF48, 48, 16)] } };
                     frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
                 }
@@ -90,7 +90,7 @@ public static class NativeBattleDuel112Controller
                         frame = initializeTarget(frame, targetSlot, sequence);
                         task = task.WriteByte(14, unchecked((byte)(sequence + 1)));
                         root = frame.Effect.Pools[0];
-                        root = root with { Slots = root.Slots.SetItem(slot, task) };
+                        root = root.WriteSlot(slot, task);
                         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, root) } };
                         frame = registerAnimation(frame);
                     }
@@ -120,7 +120,7 @@ public static class NativeBattleDuel112Controller
                 task = task.WriteWord(12, counter >= 10 ? (ushort)0 : unchecked((ushort)counter));
             }
             root = frame.Effect.Pools[0];
-            root = root with { Slots = root.Slots.SetItem(slot, task) };
+            root = root.WriteSlot(slot, task);
             return new(root, result);
         });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, roots.Pool), ReturnedDescriptor = roots.Survivors == 0 ? 0u : 0x2521960u } };

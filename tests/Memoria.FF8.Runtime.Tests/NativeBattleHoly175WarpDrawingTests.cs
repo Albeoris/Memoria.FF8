@@ -117,7 +117,7 @@ public sealed class NativeBattleHoly175WarpDrawingTests
     {
         NativeBattleHoly175WarpFrame frame = Fixture(delay: 10);
         NativeBattleLogicalProxy retainedProxy = new(new("retained-proxy", 0, 0), 0, [11, 22, 33, 44], null);
-        NativeBattleLogicalOrdering exhausted = frame.Ordering with { Proxies = Enumerable.Repeat(retainedProxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity };
+        NativeBattleLogicalOrdering exhausted = NativeBattleOrderingTestFixture.Working(frame.Ordering, data => data with { Proxies = Enumerable.Repeat(retainedProxy, NativeBattlePrimitiveOrdering.ProxyCapacity).ToImmutableArray(), ProxyCursor = NativeBattlePrimitiveOrdering.ProxyCapacity });
         frame = frame with { Ordering = exhausted, State = frame.State with { PhysicalPackets = frame.State.PhysicalPackets.MarkUnknown(0, 3) } };
         NativeBattleHoly175WarpDraw draw = Advance(frame, 10, 0);
         Assert.Equal(1, draw.AliveFaces);

@@ -47,7 +47,7 @@ public static class NativeBattleTheEnd85GroundInitialization
             int first = ArenaOffset(state.Dword(0x25C1CB8));
             int second = ArenaOffset(state.Dword(0x25C21D0));
             NativeBattleTheEnd85SpawnScratchObserver scratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, 1944, second, 40320, useSharedScratch: true) { SpawnScratchObserver = scratch };
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, taskAddress, first, 1944, second, 40320, useSharedScratch: true) { SpawnScratchObserver = scratch };
             NativeBattleEffectNodeBank bank = new(ModelBankAddress, state.ModelData ?? throw new NotSupportedException("Native The End grounded nodes require their initialized mutable model bank."), services.Resources.Read);
             ushort emitterCursor = state.Word(0x25BC890);
             ushort geometryCursor = state.Word(0x25C1CC4);

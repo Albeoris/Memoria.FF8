@@ -54,7 +54,7 @@ public static partial class NativeBattleEffect345Particles
                 throw new NotSupportedException("Effect345 spawn scratch requires its actual current physical suffix.");
             }
             NativeBattleTheEnd85SpawnScratchObserver spawnScratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, first, 0x870, second, 0x9D80, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
             NativeBattleEffectNodeBank bank = new(source, current);
             ushort emitterCursor = frame.State.ReadWord(0x2557758);
             ushort particleCursor = frame.State.ReadWord(0x255EA50);

@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 726);
             uint sourceAddress = unchecked(buffer + 0x23220u + (uint)sourceRelative);
             int sourceLength = file.Data.Length - sourceRelative;
-            NativeBattleGfAnimationSource source = new(sourceAddress, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, sourceLength), sourceLength).ToImmutableArray());
+            NativeBattleGfAnimationSource source = NativeBattleGfAnimationSource.Borrow(sourceAddress, arena, NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, sourceLength), sourceLength);
             if (elapsed == 0)
             {
                 arena = begin == 254 ? NativeBattlePandemona291Vortex.Reset6F1520(arena, address) : NativeBattlePandemona291Late.Convert284(arena, address);

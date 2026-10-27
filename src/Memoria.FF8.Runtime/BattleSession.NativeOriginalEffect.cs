@@ -41,6 +41,9 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)
     {
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect entry requires its retained physical memory.");
+        using NativeBattleTaskOperation operation = new(memory, graphics.OriginalEffect ?? throw new InvalidDataException("Native effect entry requires its selected module."));
+        operation.AdmitStaging(NativeFileStaging);
         NativeBattleGraphicsState entered = InvokeNativeOriginalEffectEntry(graphics);
         if (entered.OriginalEffect is { } effect)
         {
@@ -51,6 +54,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native assigned entry requires its process task pointer owner.")).AssignReturnedTask(entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its returned pool owner."));
         }
         ObserveDiagnosticEffectDispatch(entered, entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its executed effect binding."));
+        operation.Commit();
         return entered;
     }
 

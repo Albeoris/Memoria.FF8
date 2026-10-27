@@ -19,7 +19,7 @@ public static class NativeBattleTonberry90ProgramDrawing
         NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
         NativeBattleTonberry90State shared = frame.Memory.Tonberry90 ?? throw new NotSupportedException("Native Tonberry programme requires its current module state.");
         int frozen = unchecked((int)shared.ReadDword(0x25A2118));
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), task.PayloadLength - (0x94 - 12));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, frozen, (current, node) =>
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -56,7 +56,7 @@ public static class NativeBattleTonberry90ProgramDrawing
             return current;
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        task = advanced.Workspace.CopyTo(task, 0x94, retainUnknown: true);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, advanced.Workspace);
         frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
         return new(frame, advanced.Remaining);
     }

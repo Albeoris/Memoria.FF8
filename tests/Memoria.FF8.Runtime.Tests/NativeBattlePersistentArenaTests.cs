@@ -407,6 +407,8 @@ public sealed class NativeBattlePersistentArenaTests
             abandoned.Write(48, [9, 8, 7, 6]);
         }
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(48, 4));
+        Assert.Throws<InvalidOperationException>(() => new NativeBattleEffectArenaTransaction(source));
+        transaction.Dispose();
         NativeBattleEffectArenaTransaction disposed = new(source);
         NativeBattleEffectArena oldView = disposed.View;
         disposed.Dispose();
@@ -461,9 +463,13 @@ public sealed class NativeBattlePersistentArenaTests
         using NativeBattleEffectArenaTransaction transaction = new(source);
         source.Working.BeginCheckpoint();
         transaction.View.WriteByte(0, 8);
-        Assert.Throws<InvalidOperationException>(() => transaction.Freeze());
-        Assert.Equal(0, source.ReadByte(0));
+        Assert.Same(source, transaction.Freeze());
+        Assert.Equal(1, source.Working.CheckpointDepth);
+        Assert.Equal(8, source.ReadByte(0));
         source.Working.RollbackCheckpoint();
+        Assert.Equal(0, source.ReadByte(0));
+        Assert.Equal(previous, source.ReadUInt32(4));
+        Assert.DoesNotContain(source.Capture().Regions, region => region.Offset == 0);
     }
 
     [Fact]

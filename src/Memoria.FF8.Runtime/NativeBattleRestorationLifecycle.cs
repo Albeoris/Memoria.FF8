@@ -9,7 +9,7 @@ public static class NativeBattleRestorationLifecycle
 {
     public static NativeBattleRestorationPresentationStep AdvanceAndDraw(NativeBattleRestorationFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
-        NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
+        using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         NativeBattleRestorationExecutableState retained = frame.Memory.GetRestorationExecutable(memory.Profile.Effect) ?? throw new NotSupportedException("Native restoration node lifecycle requires its own retained executable bank.");
         retained.Validate();
         NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data ?? throw new NotSupportedException("Native restoration node lifecycle requires its executed context resource initialization."));

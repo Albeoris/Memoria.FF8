@@ -93,8 +93,8 @@ public static partial class NativeBattleEnergyBomber217Controller
         frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, sprites] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, sprites]) };
         (main, int slot) = main.Append(MainCallback);
         NativeBattleModulePoolTask task = main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]);
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0x398].ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x398);
-        task = workspace.CopyTo(task, 0x44, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x44, 0x398).Initialize7016B0(resources.MainAct, 0x398);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x44, workspace);
         frame = WithPool(frame, 1, main.WriteSlot(slot, task));
         NativeBattleEnergyBomber217AnchorStep anchor = inputs.ReadAnchor571400(frame, Actor(frame.State.ReadDword(TargetGlobal)));
         frame = anchor.Frame;
@@ -143,20 +143,7 @@ public static partial class NativeBattleEnergyBomber217Controller
 
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion range in ranges)
-            {
-                int first = Math.Max(offset, range.Offset);
-                int end = Math.Min(offset + length, range.Offset + range.Length);
-                if (first < end)
-                {
-                    view = view.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return view;
+        return task.BorrowPayloadArena(offset, length);
     }
 
     private static void Require(NativeBattleEnergyBomber217Frame frame)

@@ -101,10 +101,16 @@ public static class NativeBattleBerserk108Geometry
 
     public static NativeBattleBerserk108RayStep Rays(ImmutableArray<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project)
     {
+        return Rays(source.AsSpan(), project);
+    }
+
+    internal static NativeBattleBerserk108RayStep Rays(ReadOnlySpan<byte> source, Func<NativeBattleVector, NativeBattleModuleProjectedVertex> project)
+    {
         if (source.Length != 32 * 48)
         {
             throw new InvalidDataException("Native Berserk requires all32 retained ray slots.");
         }
+        //Keep this bounded draw's updates private until every projection and packet succeeds.
         byte[] next = source.ToArray();
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocated = 0;
@@ -123,7 +129,7 @@ public static class NativeBattleBerserk108Geometry
             allocated += batch.AllocationBytes;
             UpdateRay(ray).AsSpan().CopyTo(next.AsSpan(offset));
         }
-        return new(next.ToImmutableArray(), alive, new(attempts.ToImmutable(), allocated));
+        return new(System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(next), alive, new(attempts.ToImmutable(), allocated));
     }
 
     internal static NativeBattleGfGeometryAttempt Packet(ImmutableArray<uint> words, int offset, int bucket)

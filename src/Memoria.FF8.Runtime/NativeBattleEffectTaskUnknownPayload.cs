@@ -63,7 +63,7 @@ public sealed partial record NativeBattleModulePoolTask
         }
     }
 
-    /// <summary>Borrow raw payload bytes for the immediate owner scope; unknown lanes remain raw and storage growth invalidates the view.</summary>
+    /// <summary>Borrow raw payload bytes for the immediate owner scope; unknown lanes remain raw and storage mutation or growth invalidates the view.</summary>
     public ReadOnlySpan<byte> ReadRawPayloadSpan()
     {
         return owner is null ? RequireSnapshotData().Payload.AsSpan() : owner.RequireActive().Body.BorrowRawReadOnly(Start + 12, PayloadLength);

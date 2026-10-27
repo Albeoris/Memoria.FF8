@@ -75,6 +75,15 @@ public sealed partial record NativeBattleGfAnimationWorkspace : INativeBattleSto
     public void ReadInto(int offset, Span<byte> destination) => arena.ReadInto(offset, destination);
     public void ReadWithKnownness(int offset, Span<byte> destination, Span<bool> known) => arena.ReadWithKnownness(offset, destination, known);
 
+    internal void RequireStorage(NativeBattleEffectArena destination, int offset)
+    {
+        destination.RequireWritable();
+        if (snapshot || offset < 0 || offset > destination.LogicalLength - Length || !ReferenceEquals(arena.Working, destination.Working) || arena.WorkingOffset != destination.WorkingOffset + offset)
+        {
+            throw new InvalidOperationException("Native animation publication requires its current physical cache owner and offset.");
+        }
+    }
+
     public NativeBattleModulePoolTask CopyTo(NativeBattleModulePoolTask task, int offset, bool retainUnknown = true)
     {
         NativeBattleEffectArena destination = task.BorrowPayloadArena(offset, Length);

@@ -25,9 +25,9 @@ public static class NativeBattleEffect9Nodes
         switch (unchecked((sbyte)task.ReadByte(0x29)))
         {
             case 0:
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x94, 840).ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, 840);
                 workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                task = workspace.CopyTo(task, 0x94, retainUnknown: false);
+                task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace);
                 if (secondary)
                 {
                     task = task.WriteDword(0x1C, task.ReadDword(0x3DC)).WriteDword(0x20, task.ReadDword(0x3E0));
@@ -89,13 +89,13 @@ public static class NativeBattleEffect9Nodes
         world = NativeBattlePoseMatrices.Scale56BEF0(world, unchecked((int)task.ReadDword(0x50)), unchecked((int)task.ReadDword(0x54)), unchecked((int)task.ReadDword(0x58)));
         world = world with { X = unchecked((short)task.ReadWord(0x1C)), Y = unchecked((short)task.ReadWord(0x1E)), Z = unchecked((short)task.ReadWord(0x20)) };
         NativeBattleActionMatrix context = NativeBattleGfMatrices.Compose56C2F0(inputs.View.ReadMatrix(), world);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x94, 840).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, 840);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (currentWorkspace, node) =>
         {
             frame = Emit(frame, task, source, node, context, inputs);
             return currentWorkspace;
         });
-        task = advanced.Workspace.CopyTo(NativeBattleEffect9Controller.Read(frame, address), 0x94, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleEffect9Controller.Read(frame, address), 0x94, advanced.Workspace);
         frame = NativeBattleEffect9Controller.Write(frame, address, task);
         return new(frame, advanced.Remaining);
     }

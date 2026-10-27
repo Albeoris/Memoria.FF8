@@ -29,12 +29,10 @@ public static class NativeBattleRinoa89Programme
         Store(advanced.Workspace);
         return frame;
 
-        NativeBattleGfAnimationWorkspace Workspace() => new(task.ReadBytes(offset, capacity).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace Workspace() => NativeBattleGfAnimationWorkspace.Borrow(task, offset, capacity);
         void Store(NativeBattleGfAnimationWorkspace current)
         {
-            task = current.CopyTo(task, offset, retainUnknown: false);
-            pool = pool.WriteSlot(slot, task);
-            frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == descriptor ? pool : bank).ToImmutableArray() } };
+            current.RequireStorage(task.BorrowPayloadArena(offset, capacity), 0);
         }
         void Refresh()
         {

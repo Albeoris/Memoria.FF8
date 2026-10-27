@@ -149,17 +149,18 @@ public static class NativeBattleSiren95ProgramDrawing
             throw new InvalidDataException("Native Siren programme requires its actual source and retained workspace.");
         }
         NativeBattleActionMatrix context = NativeBattleSearchProgramDrawing.ComposeContext758D70(task, view);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), task.PayloadLength - (0x94 - 12));
         int frozen = unchecked((int)State(frame).ReadDword(0x2585E38));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, frozen, (current, node) =>
         {
+            using NativeBattleGfSourceReader reader = source.OpenReader();
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
             {
                 return current;
             }
-            int geometry = ReadInt(source, checked(8 + 4 * unchecked((short)node.GeometryIndex)));
-            int count = ReadInt(source, checked(geometry + 4));
-            if (count < 1 || count > source.Data.Length / 8)
+            int geometry = ReadInt(reader, checked(8 + 4 * unchecked((short)node.GeometryIndex)));
+            int count = ReadInt(reader, checked(geometry + 4));
+            if (count < 1 || count > source.Length / 8)
             {
                 throw new NotSupportedException("Native Siren mesh requires its consumed positive vertex extent.");
             }
@@ -173,7 +174,7 @@ public static class NativeBattleSiren95ProgramDrawing
                 }
                 using NativeBattleEffectArenaWriter output = new(State(frame).Globals);
                 uint destination = 0x258EF98;
-                foreach (NativeBattleVector vertex in NativeBattleGfMorphGeometry.MorphVertices701390(source.Data, geometry, node.Word40, node.Word42, node.Scalar38))
+                foreach (NativeBattleVector vertex in NativeBattleGfMorphGeometry.MorphVertices701390(reader, geometry, node.Word40, node.Word42, node.Scalar38))
                 {
                     byte[] xyz = new byte[6];
                     BinaryPrimitives.WriteInt16LittleEndian(xyz, vertex.X);
@@ -217,8 +218,8 @@ public static class NativeBattleSiren95ProgramDrawing
             }
             frame = frame with { Memory = frame.Memory with { NodeScratch2793E30 = NativeBattleSiren95Scratch.Programme(frame.Memory.NodeScratch2793E30, u, after) } };
             NativeBattleEsunaMeshContext operands = new(flags, far, fade, unchecked((short)task.ReadWord(0x88)), u, 0, full, after, 17, 2);
-            int geometryEnd = node.GeometryIndex + 1 < ReadInt(source, 0) ? ReadInt(source, checked(12 + 4 * node.GeometryIndex)) : ReadInt(source, 4);
-            ImmutableArray<byte> mesh = Source(geometry, checked(geometryEnd - geometry)).ToArray().ToImmutableArray();
+            int geometryEnd = node.GeometryIndex + 1 < ReadInt(reader, 0) ? ReadInt(reader, checked(12 + 4 * node.GeometryIndex)) : ReadInt(reader, 4);
+            using NativeBattleGfSourceReader mesh = reader.Slice(geometry, checked(geometryEnd - geometry));
             NativeBattleGfGeometryBatch batch = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, matrix, projection, operands, colors, offset =>
             {
                 if (offset < 0 || (offset & 7) != 0 || offset > count * 8 - 8)
@@ -270,26 +271,26 @@ public static class NativeBattleSiren95ProgramDrawing
 
             ReadOnlySpan<byte> Source(int offset, int length)
             {
-                if (source.Data.IsDefault || offset < 0 || length < 0 || offset > source.Data.Length - length)
+                if (source.IsDefault || offset < 0 || length < 0 || offset > source.Length - length)
                 {
                     throw new InvalidDataException("Native Siren geometry read leaves its supplied source.");
                 }
-                return source.Data.AsSpan().Slice(offset, length);
+                return reader.Read(offset, length);
             }
             byte[] Selected(int offset, int length) => morph ? State(frame).Read(unchecked(0x258EF98u + (uint)offset), length) : Source(checked(selected + offset), length).ToArray();
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        task = advanced.Workspace.CopyTo(task, 0x94, retainUnknown: true);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, advanced.Workspace);
         return new(frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } }, advanced.Remaining);
     }
 
-    private static int ReadInt(NativeBattleGfAnimationSource source, int offset)
+    private static int ReadInt(NativeBattleGfSourceReader source, int offset)
     {
-        if (source.Data.IsDefault || offset < 0 || offset > source.Data.Length - 4)
+        if (source.IsDefault || offset < 0 || offset > source.Length - 4)
         {
             throw new InvalidDataException("Native Siren source DWORD read leaves its current supplied span.");
         }
-        return BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(offset, 4));
+        return source.Int(offset);
     }
 
     private static NativeBattleSiren95State State(NativeBattleSiren95Frame frame) => frame.Memory.Siren95 ?? throw new NotSupportedException("Native Siren programme requires its raw module owner.");

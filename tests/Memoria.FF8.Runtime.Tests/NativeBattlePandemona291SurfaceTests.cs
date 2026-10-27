@@ -72,6 +72,39 @@ public sealed class NativeBattlePandemona291SurfaceTests
         Assert.Equal(0xE2000010u, BinaryPrimitives.ReadUInt32LittleEndian(batch.Attempts[3].Data.AsSpan().Slice(4)));
     }
 
+    [Fact]
+    public void Borrowed_surface_matches_catalog_packets_and_freezes_later_faces_before_observer_writes()
+    {
+        NativeBattleGfAnimationSource catalog = Source();
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateUnknown(catalog.Data.Length).Write(0, catalog.Data.AsSpan());
+        NativeBattleGfAnimationSource borrowed = NativeBattleGfAnimationSource.Borrow(catalog.Address, arena, 0, catalog.Data.Length);
+        NativeBattleGfGeometryBatch expected = Draw(catalog, false);
+        NativeBattleGfGeometryBatch actual = Draw(borrowed, true);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(actual));
+        Assert.Equal(0x3CFFFFFFu, arena.ReadUInt32(176));
+        Assert.Null(borrowed.ActiveReader);
+
+        NativeBattleGfGeometryBatch Draw(NativeBattleGfAnimationSource source, bool mutate)
+        {
+            using NativeBattleGfSourceReader reader = source.OpenReader();
+            NativeBattlePandemona291PreparedSurface prepared = NativeBattlePandemona291Surface.Prepare6F06F0(source, Node(), Identity with { Z = 1000 }, 1, 64, 0);
+            bool changed = false;
+            return NativeBattlePandemona291Surface.Emit701DD0(source, prepared, new(Identity, 100, 160, 100), new(0, 0, 1f / 4096f, 4503601774854144d), 0x200, offset =>
+            {
+                Span<byte> xyz = stackalloc byte[6];
+                reader.ReadInto(prepared.SelectedOffset + offset, xyz);
+                return new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
+            }, _ =>
+            {
+                if (mutate && !changed)
+                {
+                    changed = true;
+                    arena.Write(176, [255, 255, 255, 60]);
+                }
+            });
+        }
+    }
+
     private static NativeBattleActionMatrix Identity => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
     private static NativeBattleGfAnimationNode Node()

@@ -5,10 +5,12 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Caller-owned current bytes at a native model resource address; mutable EXE banks must be supplied from their actual owner.</summary>
-public sealed record NativeBattleGfAnimationSource
+public record NativeBattleGfAnimationSource
 {
     private ImmutableArray<byte> data;
     private NativeBattleEffectArena? arena;
+    private NativeBattleFileStaging? staging;
+    private uint stagingAddress;
     private int offset;
     private int length;
     internal NativeBattleGfSourceReader? ActiveReader;
@@ -16,19 +18,31 @@ public sealed record NativeBattleGfAnimationSource
     public NativeBattleGfAnimationSource(uint Address, ImmutableArray<byte> Data)
     {
         this.Address = Address;
-        this.Data = Data;
+        data = Data;
+        length = Data.IsDefault ? 0 : Data.Length;
     }
+
+    protected NativeBattleGfAnimationSource(uint address, NativeBattleEffectArena arena)
+    {
+        Address = address;
+        this.arena = arena;
+        length = arena.LogicalLength;
+    }
+
+    internal virtual NativeBattleEffectArena? FrozenArena => null;
 
     [JsonRequired]
     public uint Address { get; init; }
     [JsonRequired]
-    public ImmutableArray<byte> Data
+    public virtual ImmutableArray<byte> Data
     {
-        get => arena is null ? data : throw new InvalidOperationException("Borrowed animation sources require bounded readers, not a payload export.");
+        get => arena is null && staging is null ? data : throw new InvalidOperationException("Borrowed animation sources require bounded readers, not a payload export.");
         init
         {
             data = value;
             arena = null;
+            staging = null;
+            stagingAddress = 0;
             offset = 0;
             length = value.IsDefault ? 0 : value.Length;
             ActiveReader = null;
@@ -37,9 +51,11 @@ public sealed record NativeBattleGfAnimationSource
     [JsonIgnore]
     public int Length => length;
     [JsonIgnore]
-    internal bool IsDefault => arena is null && data.IsDefault;
+    internal bool IsDefault => arena is null && staging is null && data.IsDefault;
     internal NativeBattleEffectArena? Arena => arena;
     internal int Offset => offset;
+    internal NativeBattleFileStaging? Staging => staging;
+    internal uint StagingAddress => stagingAddress;
     internal ImmutableArray<byte> CatalogData => data;
 
     internal static NativeBattleGfAnimationSource Borrow(uint address, NativeBattleEffectArena arena, int offset, int length)
@@ -48,7 +64,13 @@ public sealed record NativeBattleGfAnimationSource
         {
             throw new InvalidDataException("Native borrowed animation source leaves its actual physical owner.");
         }
-        return new(address, default) { arena = arena, offset = offset, length = length };
+        return new(address, default(ImmutableArray<byte>)) { arena = arena, offset = offset, length = length };
+    }
+
+    internal static NativeBattleGfAnimationSource Borrow(uint address, NativeBattleFileStaging staging, int length)
+    {
+        NativeBattleFileStaging.RequirePhysicalRange(address, length);
+        return new(address, default(ImmutableArray<byte>)) { staging = staging, stagingAddress = address, length = length };
     }
 
     internal NativeBattleGfSourceReader OpenReader() => new(this);

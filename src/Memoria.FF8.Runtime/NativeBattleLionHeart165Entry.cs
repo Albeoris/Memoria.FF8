@@ -86,7 +86,7 @@ public static partial class NativeBattleLionHeart165Controller
             });
             main = frame.Effect.Pools[0];
             task = main.Slots[slot].WriteWord(12, unchecked((ushort)(counter + 1)));
-            main = main with { Slots = main.Slots.SetItem(slot, task) };
+            main = main.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main).SetItem(1, children.Pool) } };
             return new(main, children.Survivors == 0 ? 2 : 0);
         });

@@ -53,7 +53,7 @@ public static partial class NativeBattleDeathController
             void Draw()
             {
                 uint source = Read(address).ReadDword(0x30);
-                NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect with { Pools = hierarchy.Pools }, address, State.Emitters ?? throw new NotSupportedException("Native Death emitter work is uninitialized."), 0x870, State.Geometry ?? throw new NotSupportedException("Native Death geometry work is uninitialized."), 0x9D80, useSharedScratch: true);
+                using NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect with { Pools = hierarchy.Pools }, address, State.Emitters ?? throw new NotSupportedException("Native Death emitter work is uninitialized."), 0x870, State.Geometry ?? throw new NotSupportedException("Native Death geometry work is uninitialized."), 0x9D80, useSharedScratch: true);
                 NativeBattleEffectNodeBank bank = new(source, ActorBank(source), ReadExternal);
                 ushort emitterScan = State.EmitterScan;
                 ushort geometryScan = State.GeometryScan;

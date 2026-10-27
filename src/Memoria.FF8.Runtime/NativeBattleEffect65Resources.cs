@@ -157,9 +157,17 @@ public sealed record NativeBattleEffect65Resources(NativeBattleEffectInitializer
 
     private static int ValidateMesh(ImmutableArray<byte> data, bool shapes, int[]? expected)
     {
-        int vertices = checked((int)Dword(data, 4));
-        int shapeCount = shapes ? checked((int)Dword(data, 8)) : 1;
-        int cursor = checked((int)Dword(data, 0));
+        using NativeBattleGfSourceReader reader = new(data);
+        return ValidateMesh(reader, shapes, expected);
+    }
+
+    internal static int ValidateLoadedGeometry(NativeBattleGfSourceReader data) => ValidateMesh(data, true, null);
+
+    private static int ValidateMesh(NativeBattleGfSourceReader data, bool shapes, int[]? expected)
+    {
+        int vertices = checked((int)data.UInt(4));
+        int shapeCount = shapes ? checked((int)data.UInt(8)) : 1;
+        int cursor = checked((int)data.UInt(0));
         if (vertices <= 0 || vertices > 306 || shapeCount <= 0 || shapeCount > 4 || cursor != checked((shapes ? 12 : 8) + vertices * shapeCount * 8))
         {
             throw new InvalidDataException("Effect65 geometry has invalid physical shape rows.");
@@ -167,7 +175,7 @@ public sealed record NativeBattleEffect65Resources(NativeBattleEffectInitializer
         int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
         for (int group = 0; group < 8; group++)
         {
-            int count = checked((int)Dword(data, cursor));
+            int count = checked((int)data.UInt(cursor));
             cursor += 4;
             if (count < 0 || count > (data.Length - cursor) / strides[group] || expected is not null && count != expected[group])
             {
@@ -177,7 +185,7 @@ public sealed record NativeBattleEffect65Resources(NativeBattleEffectInitializer
             {
                 for (int corner = 0; corner < ((group & 1) != 0 ? 4 : 3); corner++)
                 {
-                    int physical = Word(data, cursor + face * strides[group] + 4 + corner * 2) * 4;
+                    int physical = data.UShort(cursor + face * strides[group] + 4 + corner * 2) * 4;
                     if ((physical & 7) != 0 || physical > vertices * 8 - 8)
                     {
                         throw new InvalidDataException("Effect65 face index leaves its physical vertex rows.");

@@ -79,7 +79,7 @@ public static partial class NativeBattleDiablos325Particles
             {
                 task = task.WriteWord(0xE, unchecked((ushort)(task.ReadWord(0xE) + 24)));
             }
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, programme.Remaining == 0 ? 2 : 0);
+            return new(current.WriteSlot(index, task), programme.Remaining == 0 ? 2 : 0);
         });
         return Synchronize(Replace(frame, advanced.Pool), advanced.Pool);
     }
@@ -96,7 +96,7 @@ public static partial class NativeBattleDiablos325Particles
         }
         int length = checked((int)(end - address));
         NativeBattleEffectArena arena = frame.Memory.Arena ?? throw new NotSupportedException("Native Diablos particle programme requires its current arena bytes.");
-        return new(address, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(address, length), length).ToImmutableArray());
+        return NativeBattleGfAnimationSource.Borrow(address, arena, NativeBattleWaterExecutionFields.ArenaOffset(address, length), length);
     }
 
     private static NativeBattleDiablos325Frame Replace(NativeBattleDiablos325Frame frame, NativeBattleEffectTaskPool pool)

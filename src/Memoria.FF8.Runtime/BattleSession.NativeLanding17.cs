@@ -90,7 +90,7 @@ public sealed partial class BattleSession
                 NativeBattleVector velocity = Vector(task, 24);
                 NativeBattleVector moved = new(unchecked((short)(position.X + velocity.X)), unchecked((short)(position.Y + velocity.Y)), unchecked((short)(position.Z + velocity.Z)));
                 task = PutVector(task, 16, moved).WriteWord(12, unchecked((ushort)(frame + 1)));
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, frame + 1 >= 13 ? 2 : 0);
+                return new(pool.WriteSlot(slot, task), frame + 1 >= 13 ? 2 : 0);
             });
             particles = particleStep.Pool;
             remainingParticles = particleStep.Survivors;

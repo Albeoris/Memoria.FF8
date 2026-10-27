@@ -11,19 +11,19 @@ public sealed class NativeBattleLogicalTraversalAllocationTests
         NativeBattlePrimitiveReference first = new("20DFAB8", 0, 0);
         NativeBattlePrimitiveReference second = new("20DFAB8", 0, 16);
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear();
-        source = source with
+        source = NativeBattleOrderingTestFixture.Frozen(source, data => data with
         {
-            Table = source.Table.SetItem(source.Table.Length - 1, new(false, 0)).SetItem(0, new(true, 0)),
-            OtherTable = source.OtherTable!.Value.SetItem(0, new(true, 1)),
+            Table = data.Table.SetItem(source.Table.Length - 1, new(false, 0)).SetItem(0, new(true, 0)),
+            OtherTable = data.OtherTable!.Value.SetItem(0, new(true, 1)),
             Proxies = [new(first, 0, [], null) { NextHigh22 = 1 }, new(second, 0, [], null) { NextHigh22 = 255 }],
             Packets = [new(first, Tile(1), new(false, 0)) { NextTableBuffer = 1 }, new(second, Tile(2), new(false, -1)) { NextTableBuffer = 0 }]
-        };
+        });
         Assert.Equal(new[] { first, second }, source.Traverse(Lengths()).Select(command => command.Packet));
-        NativeBattleLogicalOrdering cyclic = source with
+        NativeBattleLogicalOrdering cyclic = NativeBattleOrderingTestFixture.Frozen(source, data => data with
         {
-            Proxies = source.Proxies.SetItem(1, source.Proxies[1] with { NextHigh22 = 1 }),
-            Packets = source.Packets.SetItem(1, source.Packets[1] with { Next = new(false, 0) })
-        };
+            Proxies = data.Proxies.SetItem(1, source.Proxies[1] with { NextHigh22 = 1 }),
+            Packets = data.Packets.SetItem(1, source.Packets[1] with { Next = new(false, 0) })
+        });
         Assert.Contains("link cycle", Assert.Throws<InvalidDataException>(() => cyclic.Traverse(Lengths())).Message);
     }
 
@@ -31,7 +31,7 @@ public sealed class NativeBattleLogicalTraversalAllocationTests
     public void RootProxyAndAddressedCyclesKeepTheirOwnVisitedIdentities()
     {
         NativeBattleLogicalOrdering roots = NativeBattleLogicalOrdering.Clear();
-        roots = roots with { Table = roots.Table.SetItem(roots.Table.Length - 1, new(false, roots.Table.Length - 1)) };
+        roots = NativeBattleOrderingTestFixture.Frozen(roots, data => data with { Table = data.Table.SetItem(data.Table.Length - 1, new(false, data.Table.Length - 1)) });
         Assert.Contains("link cycle", Assert.Throws<InvalidDataException>(() => roots.Traverse(Lengths())).Message);
         NativeBattlePrimitiveReference reference = new("20DFAB8", 0, 0);
         NativeBattleLogicalOrdering proxy = NativeBattleLogicalOrdering.Clear().Prepend(17, reference, Tile(1), 0, []).Prepend(17, reference, Tile(2), 0, []);
@@ -53,7 +53,7 @@ public sealed class NativeBattleLogicalTraversalAllocationTests
     {
         NativeBattlePrimitiveReference reference = new("off_B6D070", 1, 0);
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear().Prepend(17, reference, Tile(1), 0, []).ResetAfterDraw45D080();
-        source = source with { Proxies = source.Proxies.SetItem(0, source.Proxies[0] with { Packet = new("off_B6D070", 0, 114688) }) };
+        source = NativeBattleOrderingTestFixture.Frozen(source, data => data with { Proxies = data.Proxies.SetItem(0, data.Proxies[0] with { Packet = new("off_B6D070", 0, 114688) }) });
         byte[] physical = new byte[16];
         BinaryPrimitives.WriteUInt32LittleEndian(physical, 0x03000000 | ((0x1D8E058u + 16 * 4) & 0xFFFFFF));
         BinaryPrimitives.WriteUInt32LittleEndian(physical.AsSpan(4), 0x62010203);
@@ -81,13 +81,13 @@ public sealed class NativeBattleLogicalTraversalAllocationTests
     public void MissingOwnersAndDuplicatePacketValidationRetainTheirFailureBoundaries()
     {
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear();
-        NativeBattleLogicalOrdering missingProxy = source with { Table = source.Table.SetItem(source.Table.Length - 1, new(true, 0)) };
+        NativeBattleLogicalOrdering missingProxy = NativeBattleOrderingTestFixture.Frozen(source, data => data with { Table = data.Table.SetItem(data.Table.Length - 1, new(true, 0)) });
         Assert.Contains("missing proxy", Assert.Throws<InvalidDataException>(() => missingProxy.Traverse(Lengths())).Message);
         NativeBattlePrimitiveReference reference = new("20DFAB8", 0, 0);
-        NativeBattleLogicalOrdering missingPacket = missingProxy with { Proxies = [new(reference, 0, [], null)] };
+        NativeBattleLogicalOrdering missingPacket = NativeBattleOrderingTestFixture.Frozen(missingProxy, data => data with { Proxies = [new(reference, 0, [], null)] });
         Assert.Contains("unobserved", Assert.Throws<NotSupportedException>(() => missingPacket.Traverse(Lengths())).Message);
         NativeBattleLogicalPacket packet = new(reference, Tile(1), new(false, -1));
-        NativeBattleLogicalOrdering duplicate = source with { Packets = [packet, packet], TableBuffer = null };
+        NativeBattleLogicalOrdering duplicate = NativeBattleOrderingTestFixture.Frozen(source, data => data with { Packets = [packet, packet], TableBuffer = null });
         Assert.Throws<ArgumentException>(() => duplicate.Traverse(Lengths()));
     }
 

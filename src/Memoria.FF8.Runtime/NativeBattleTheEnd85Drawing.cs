@@ -23,7 +23,7 @@ public static class NativeBattleTheEnd85Drawing
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
         int allocation = 0;
         NativeBattleTheEnd85DrawingStep result = Empty(task, staging);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (148 - 12), task.PayloadLength - (148 - 12));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)frozen), (current, node) =>
         {
             NativeBattleTheEnd85DrawingStep drawn = DrawNode785790(task, source, node, context, projection, colors, result.Staging, services);
@@ -32,7 +32,7 @@ public static class NativeBattleTheEnd85Drawing
             result = drawn.PublishedFarColor ? drawn : result with { Staging = drawn.Staging };
             return current;
         });
-        return result with { Task = advanced.Workspace.CopyTo(task, 12 + (148 - 12), retainUnknown: true), Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
+        return result with { Task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 12 + (148 - 12), advanced.Workspace), Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
     }
 
     public static NativeBattleTheEnd85DrawingStep DrawNode785790(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging staging, NativeBattleTheEnd85DrawServices services)

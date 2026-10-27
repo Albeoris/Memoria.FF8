@@ -49,13 +49,13 @@ public static partial class NativeBattleRinoa89Controller
             {
                 task = task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)));
             }
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = pool.WriteSlot(slot, task);
             return new(pool, result);
 
             void Publish()
             {
                 pool = frame.Effect.Pools[rootIndex];
-                pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+                pool = pool.WriteSlot(slot, task);
                 frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(rootIndex, pool) } };
             }
             int Advance(uint descriptor)

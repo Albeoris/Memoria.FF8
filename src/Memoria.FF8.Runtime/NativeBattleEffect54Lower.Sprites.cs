@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect54Lower
         ImmutableArray<byte> sprite = resources.ReadResource(RequireStaging(frame), source);
         int first = checked((int)(frame.State.ReadDword(EmitterRecordsGlobal) - 0x20DFAB8));
         int second = checked((int)(frame.State.ReadDword(DrawRecordsGlobal) - 0x20DFAB8));
-        NativeBattleEffectNodeMemory physical = new(frame.Memory, frame.Effect, taskAddress, first, EmitterStride * EmitterCount, second, DrawStride * DrawCount, true);
+        using NativeBattleEffectNodeMemory physical = new(frame.Memory, frame.Effect, taskAddress, first, EmitterStride * EmitterCount, second, DrawStride * DrawCount, true);
         NativeBattleActionMatrix matrix = Packed(ReadBytes(frame, node + 0xAC, 32)).ReadMatrix();
         NativeBattleCameraProjection projection = inputs.ReadProjection(frame);
         NativeBattleGfGeometryBatch batch = NativeBattleCuragaProjectedSprites.EmitBatch8DD260(sprite, phase, matrix, projection, inputs.ReadCameraRoll(frame), 17, 2, geometry: physical.ProjectedSpriteGeometry(checked((int)(node - 0x20DFAB8)), source, sprite, phase, projection));

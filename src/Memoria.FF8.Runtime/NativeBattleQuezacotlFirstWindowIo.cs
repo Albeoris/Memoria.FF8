@@ -79,6 +79,6 @@ public static class NativeBattleQuezacotlFirstWindowIo
         {
             throw new NotSupportedException("Native6C4D3C requires its current ribbon, particle and path pool owners.");
         }
-        return effect with { Pools = effect.Pools.Select(pool => descriptors.Contains(pool.DescriptorAddress) ? pool with { Head = null, Tail = null } : pool).ToImmutableArray() };
+        return effect with { Pools = effect.Pools.Select(pool => descriptors.Contains(pool.DescriptorAddress) ? pool.UpdateLinks(null, null) : pool).ToImmutableArray() };
     }
 }

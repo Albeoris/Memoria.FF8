@@ -5,7 +5,7 @@ public static partial class NativeBattleCuragaNodeKinematics
 {
     public static NativeBattleCuragaFrame InitializeEmitter882990(NativeBattleCuragaFrame frame, uint contextTask, int node, Func<int, NativeBattleGraphicsModel> readModel)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         core.InitializeEmitter(node, core.ReadSource(unchecked((sbyte)memory.Byte(node + 0x6A))));
@@ -14,7 +14,7 @@ public static partial class NativeBattleCuragaNodeKinematics
 
     public static NativeBattleCuragaFrame FollowParent882150(NativeBattleCuragaFrame frame, uint contextTask, int node)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank);
         core.FollowParent(node, core.ReadSource(unchecked((sbyte)memory.Byte(node + 0x6A))));

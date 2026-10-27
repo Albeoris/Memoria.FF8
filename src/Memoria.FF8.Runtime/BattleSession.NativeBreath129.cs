@@ -200,13 +200,13 @@ public sealed partial class BattleSession
                 NativeBattleBreath129Profile.FourthActAddress => 0x188,
                 _ => throw new NotSupportedException("Breath selected an unsupported ACT workspace.")
             };
-            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleBreath129Controller.ReadBytes(current, address, size), 0, size);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(current.Memory, current.Effect.Pools, address, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 current = NativeBattleBreath129Act.Draw6B57B0(current, node, source, context, inputs ?? throw new InvalidDataException("Breath lost its initialized services."));
                 return next;
             });
-            current = NativeBattleBreath129Controller.WriteBytes(current, address, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), advanced.Workspace.Length);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(current.Memory, current.Effect.Pools, address, advanced.Workspace);
             return new(current, advanced.Remaining);
         }
 

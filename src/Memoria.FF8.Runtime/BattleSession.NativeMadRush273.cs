@@ -84,7 +84,7 @@ public sealed partial class BattleSession
                 if (counter < 0)
                 {
                     task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-                    return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
+                    return new(pool.WriteSlot(slot, task), 0);
                 }
                 NativeBattleVector anchor = WindVector(task, 20);
                 NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
@@ -118,7 +118,7 @@ public sealed partial class BattleSession
                 {
                     task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
                 }
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+                return new(pool.WriteSlot(slot, task), result);
             });
             targets = targetsStep.Pool;
             targetSurvivors = targetsStep.Survivors;
@@ -131,7 +131,7 @@ public sealed partial class BattleSession
                 }
                 DrawParticle(task);
                 (task, int result) = NativeBattleMadRush273Particles.Advance(task);
-                return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, result);
+                return new(pool.WriteSlot(slot, task), result);
             });
             particles = particlesStep.Pool;
             particleSurvivors = particlesStep.Survivors;

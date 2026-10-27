@@ -248,7 +248,7 @@ public static partial class NativeBattleStare45Controller
                 {
                     int length = checked((int)task.ReadDword(0x78));
                     NativeBattleGfAnimationWorkspace workspace = ProgrammeWorkspace(task, false).Initialize7016B0(resources.ReadProgramme(task.ReadDword(0x74)), length);
-                    frame = WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan().Slice(0, length)), length);
+                    NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, workspace);
                     NativeBattleStare45PointStep bone = inputs.ReadBone502170(frame, task.ReadByte(0x2D), 0xF1, 0);
                     frame = WriteBytes(bone.Frame, address + 0x1C, bone.Point8, 6);
                     frame = Write(frame, address, Read(frame, address).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096).WriteWord(0x88, 0xFF80));

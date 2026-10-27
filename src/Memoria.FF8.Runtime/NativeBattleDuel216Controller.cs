@@ -118,11 +118,11 @@ public static class NativeBattleDuel216Controller
                     result = 2;
                 }
             }
-            return new(root with { Slots = root.Slots.SetItem(slot, task) }, result);
+            return new(root.WriteSlot(slot, task), result);
 
             void PublishRoot()
             {
-                root = root with { Slots = root.Slots.SetItem(slot, task) };
+                root = root.WriteSlot(slot, task);
                 frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(Index(frame, Root), root) } };
             }
             void Execute(NativeBattleDuel216Operation operation)

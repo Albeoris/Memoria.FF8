@@ -201,7 +201,8 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved battle requires exactly one live field BATTLE owner.");
         }
-        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, battle.Capture().Definition.NativeSeed, request.Flags), battle.Capture(), session.ExamTimer);
+        BattleSnapshot saved = battle.Capture();
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, saved.Definition.NativeSeed, request.Flags), saved, session.ExamTimer);
         long allocationClock = Events.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation!.Value;
         long completedCallbacks = Events.Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
         long executedCallbacks = battle.NativeGraphics is null ? battle.Frame : battle.NativeHostCallbacks ?? throw new InvalidDataException("Saved native battle lacks its executed callback clock.");
@@ -209,7 +210,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved battle disagrees with its executed native callback clock.");
         }
-        if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(current), System.Text.Json.JsonSerializer.SerializeToElement(battle.Capture().Definition)))
+        if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(current), System.Text.Json.JsonSerializer.SerializeToElement(saved.Definition)))
         {
             throw new InvalidDataException("Saved battle definition diverges from the current installed encounter and canonical party.");
         }

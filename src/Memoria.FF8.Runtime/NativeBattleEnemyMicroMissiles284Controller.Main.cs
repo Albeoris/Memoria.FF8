@@ -99,9 +99,9 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
             short targetZ = BinaryPrimitives.ReadInt16LittleEndian(endpoint.Read(4, 2));
             var basis = NativeBattleFunguarLaser277.Basis50CBA0(x - targetX, y - targetY, targetZ - z);
             frame = Write(frame, missile, Read(frame, missile).WriteWord(32, unchecked((ushort)basis.Length)).WriteWord(34, variant));
-            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, missile), 52, 2020), 0, 2020);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, missile + 52, 2020);
             workspace = workspace.Initialize7016B0(resources.Missile, 2020);
-            frame = WriteBytes(frame, missile + 52, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 2020);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, missile + 52, workspace);
             NativeBattleActionMatrix roll = Roll7012C0(index * 256 - 640);
             NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(basis.Matrix, roll);
             NativeBattleModulePoolTask task = Read(frame, missile).WriteWord(30, 0);

@@ -55,7 +55,7 @@ public static partial class NativeBattleFireEffect
             NativeBattleEffectTaskStep step = children.Advance((bank, index) => childCallback(bank, index, buffer));
             children = step.Pool;
             task = task.WriteWord(12, unchecked((ushort)(counter + 1)));
-            return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, step.Survivors == 0 ? 2 : 0);
+            return new(pool.WriteSlot(slot, task), step.Survivors == 0 ? 2 : 0);
         });
         return effect with { Pools = [main.Pool, children], FireDrawBuffer = drawBuffer, ReturnedDescriptor = main.Survivors == 0 ? 0 : main.Pool.DescriptorAddress };
     }

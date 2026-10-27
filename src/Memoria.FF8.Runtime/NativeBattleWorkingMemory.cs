@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -33,6 +34,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private readonly List<List<INativeBattleCheckpointParticipant>> checkpointParticipants = [];
     private bool checkpoint;
     private bool revoked;
+    private bool ownershipSuspended;
     private long version;
     private long bytesWritten;
     private long growthCopyBytes;
@@ -440,26 +442,30 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             throw new InvalidOperationException("Native working memory cannot publish an unfinished nested change.");
         }
-        CompleteParticipantFrame(0, rollback: false);
+        ExceptionDispatchInfo? failure = CompleteParticipantFrame(0, rollback: false);
         checkpoint = false;
         byteUndo.Clear();
         pointerUndo.Clear();
+        failure?.Throw();
     }
 
     public void RollbackCheckpoint()
     {
         RequireCheckpoint();
         long restoredBytes = RestoreUndo(0, 0, checkpointStoredLength);
+        ExceptionDispatchInfo? failure = null;
         for (int depth = nestedCheckpoints.Count; depth >= 0; depth--)
         {
-            CompleteParticipantFrame(depth, rollback: true);
+            ExceptionDispatchInfo? participantFailure = CompleteParticipantFrame(depth, rollback: true);
+            failure ??= participantFailure;
         }
         nestedCheckpoints.Clear();
         version++;
         checkpoint = false;
         byteUndo.Clear();
         pointerUndo.Clear();
-        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+        RecordRollbackTraffic(restoredBytes, ref failure);
+        failure?.Throw();
     }
 
     public void BeginNestedCheckpoint()
@@ -476,8 +482,9 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     public void CommitNestedCheckpoint()
     {
         RequireNestedCheckpoint();
-        CompleteParticipantFrame(nestedCheckpoints.Count, rollback: false);
+        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints.Count, rollback: false);
         nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
+        failure?.Throw();
     }
 
     public void RollbackNestedCheckpoint()
@@ -485,10 +492,23 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         RequireNestedCheckpoint();
         CheckpointMark mark = nestedCheckpoints[^1];
         long restoredBytes = RestoreUndo(mark.Bytes, mark.Pointers, mark.StoredLength);
-        CompleteParticipantFrame(nestedCheckpoints.Count, rollback: true);
+        ExceptionDispatchInfo? failure = CompleteParticipantFrame(nestedCheckpoints.Count, rollback: true);
         nestedCheckpoints.RemoveAt(nestedCheckpoints.Count - 1);
         version++;
-        NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+        RecordRollbackTraffic(restoredBytes, ref failure);
+        failure?.Throw();
+    }
+
+    private static void RecordRollbackTraffic(long restoredBytes, ref ExceptionDispatchInfo? failure)
+    {
+        try
+        {
+            NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, restoredBytes);
+        }
+        catch (Exception exception)
+        {
+            failure ??= ExceptionDispatchInfo.Capture(exception);
+        }
     }
 
     public void EnlistCheckpointParticipant(INativeBattleCheckpointParticipant participant)
@@ -525,21 +545,30 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         return checkpointParticipants[depth];
     }
 
-    private void CompleteParticipantFrame(int depth, bool rollback)
+    private ExceptionDispatchInfo? CompleteParticipantFrame(int depth, bool rollback)
     {
         List<INativeBattleCheckpointParticipant> frame = ParticipantFrame(depth);
+        ExceptionDispatchInfo? failure = null;
         for (int index = frame.Count - 1; index >= 0; index--)
         {
-            if (rollback)
+            try
             {
-                frame[index].RollbackCheckpoint();
+                if (rollback)
+                {
+                    frame[index].RollbackCheckpoint();
+                }
+                else
+                {
+                    frame[index].CommitCheckpoint();
+                }
             }
-            else
+            catch (Exception exception)
             {
-                frame[index].CommitCheckpoint();
+                failure ??= ExceptionDispatchInfo.Capture(exception);
             }
         }
         frame.Clear();
+        return failure;
     }
 
     private long RestoreUndo(int firstByte, int firstPointer, int previousStoredLength)
@@ -669,11 +698,43 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         return result;
     }
 
-    public void Revoke()
+    internal void SuspendOwnership()
     {
         RequireActive();
+        if (checkpoint || NativeBattleEffectArenaTransaction.HasActive(this))
+        {
+            throw new InvalidOperationException("Native storage ownership cannot be suspended during an active mutation scope.");
+        }
+        readWindows?.CloseAll();
+        ownershipSuspended = true;
+    }
+
+    internal void ResumeOwnership()
+    {
+        ObjectDisposedException.ThrowIf(revoked, this);
+        if (!ownershipSuspended)
+        {
+            throw new InvalidOperationException("Native storage ownership is not suspended.");
+        }
+        ownershipSuspended = false;
+    }
+
+    internal void CompleteSuspension()
+    {
+        ObjectDisposedException.ThrowIf(revoked, this);
+        if (!ownershipSuspended)
+        {
+            throw new InvalidOperationException("Native storage ownership is not suspended.");
+        }
+        Revoke();
+    }
+
+    public void Revoke()
+    {
+        ObjectDisposedException.ThrowIf(revoked, this);
         readWindows?.CloseAll();
         revoked = true;
+        ownershipSuspended = false;
         data = [];
         known = [];
         pointers.Clear();
@@ -843,5 +904,5 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         return value;
     }
 
-    private void RequireActive() => ObjectDisposedException.ThrowIf(revoked, this);
+    private void RequireActive() => ObjectDisposedException.ThrowIf(revoked || ownershipSuspended, this);
 }

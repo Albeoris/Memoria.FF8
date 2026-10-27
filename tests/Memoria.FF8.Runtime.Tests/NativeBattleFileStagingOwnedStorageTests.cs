@@ -158,10 +158,12 @@ public sealed class NativeBattleFileStagingOwnedStorageTests
         using NativeBattleFileStagingTransaction transaction = new(source);
         transaction.View.Write(Address + 4060, Enumerable.Repeat((byte)7, 64).ToArray());
         transaction.View.MarkUnknown(Address + 16, 4);
-        using (NativeBattleTelemetry.BeginScope(new FailOnceSink()))
+        FailOnceSink sink = new(source);
+        using (NativeBattleTelemetry.BeginScope(sink))
         {
             Assert.Throws<InvalidOperationException>(() => transaction.Freeze(transaction.View));
         }
+        Assert.True(sink.ObservedBothPages);
         Assert.Equal(original, JsonSerializer.Serialize(Capture(source)));
         Assert.Equal(123u, source.ReadResourcePointer(Address + 16)!.StagingAddress);
         transaction.Freeze(transaction.View);
@@ -285,13 +287,17 @@ public sealed class NativeBattleFileStagingOwnedStorageTests
         }
     }
 
-    private sealed class FailOnceSink : INativeBattleTelemetrySink
+    private sealed class FailOnceSink(NativeBattleFileStaging source) : INativeBattleTelemetrySink
     {
         private bool failed;
+        private int secondPageCopies;
+        public bool ObservedBothPages { get; private set; }
         public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
         {
-            if (!failed && siteId == 1005 && kind == NativeBattleTrafficKind.CpuCopyPayload && payloadBytes == 52)
+            if (!failed && siteId == 1005 && kind == NativeBattleTrafficKind.CpuCopyPayload && payloadBytes == 104 && ++secondPageCopies == 2)
             {
+                //The52-lane mixed store reports104 bytes for its journal and then its actual byte/knownness copies.
+                ObservedBothPages = source.ReadByte(Address + 4060) == 7 && source.ReadByte(Address + 4123) == 7;
                 failed = true;
                 throw new InvalidOperationException("Injected publication failure.");
             }

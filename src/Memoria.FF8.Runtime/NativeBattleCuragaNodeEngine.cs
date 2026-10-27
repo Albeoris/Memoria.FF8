@@ -80,7 +80,7 @@ public static class NativeBattleCuragaNodeEngine
 
     public static NativeBattleCuragaFrame Birth882E20(NativeBattleCuragaFrame frame, uint contextTask)
     {
-        NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
+        using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
         NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, NativeBattleCuragaNodeKinematics.CurrentBank(memory)).Birth();
         return memory.Flush();
     }
@@ -88,21 +88,29 @@ public static class NativeBattleCuragaNodeEngine
     public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceEmitter, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceGeometry)
     {
         NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        WalkList(() => memory, (node, kind) =>
+        try
         {
-            switch (kind)
+            WalkList(() => memory, (node, kind) =>
             {
-                case 0:
-                    frame = advanceEmitter(frame, contextTask, node);
-                    break;
-                case 1:
-                    frame = advanceGeometry(frame, contextTask, node);
-                    break;
-            }
-            //8804D0 reads this link after the callback. Appended nodes run in this same walk, and882960 leaves a removed node's link intact.
-            memory = new(frame, contextTask);
-        });
-        return frame;
+                switch (kind)
+                {
+                    case 0:
+                        frame = advanceEmitter(frame, contextTask, node);
+                        break;
+                    case 1:
+                        frame = advanceGeometry(frame, contextTask, node);
+                        break;
+                }
+                //8804D0 reads this link after the callback. Appended nodes run in this same walk, and882960 leaves a removed node's link intact.
+                memory.Dispose();
+                memory = new(frame, contextTask);
+            });
+            return frame;
+        }
+        finally
+        {
+            memory.Dispose();
+        }
     }
 
     internal static void WalkList(Func<NativeBattleCuragaNodeMemory> readMemory, Action<int, short> advance)

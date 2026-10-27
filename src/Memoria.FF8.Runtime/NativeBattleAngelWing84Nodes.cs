@@ -49,7 +49,7 @@ internal static class NativeBattleAngelWing84Nodes
         {
             int emitters = frame.State.Emitters ?? throw new NotSupportedException("Native Angel Wing emitter pool has not been cleared.");
             int geometry = frame.State.Geometry ?? throw new NotSupportedException("Native Angel Wing geometry pool has not been cleared.");
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, 432, geometry, 26880, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, 432, geometry, 26880, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(NativeBattleAngelWing84NodeResources.Address, frame.State.NodeData ?? throw new NotSupportedException("Native Angel Wing requires its current fixed node bank."));
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Angel Wing emitter cursor is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Angel Wing geometry cursor is unknown.");

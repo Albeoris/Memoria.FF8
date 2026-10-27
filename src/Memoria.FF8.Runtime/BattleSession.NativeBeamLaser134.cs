@@ -76,8 +76,10 @@ public sealed partial class BattleSession
         NativeBattleBeamLaser134ContextStep ChildContext(NativeBattleBeamLaser134Frame current, uint address)
         {
             NativeBattleModulePoolTask task = NativeBattleBeamLaser134Controller.Read(current, address);
-            ImmutableArray<bool> known = Enumerable.Range(12, 32).Select(offset => task.ReadUnknownPayloadRanges() is not { } ranges || !ranges.Any(range => offset >= range.Offset && offset < range.Offset + range.Length)).ToImmutableArray();
-            NativeBattlePackedMatrix32 matrix = new(task.ReadRawPayloadSpan().Slice(0, 32).ToArray().ToImmutableArray(), known);
+            byte[] bytes = new byte[32];
+            bool[] known = new bool[32];
+            task.ReadWithKnownness(12, bytes, known);
+            NativeBattlePackedMatrix32 matrix = new(System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(bytes), System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsImmutableArray(known));
             return new(current, NativeBattleBeamLaser134Contexts.Child(Camera().CapturePackedView1D97778(), matrix, Morph(current)));
         }
 
@@ -89,7 +91,7 @@ public sealed partial class BattleSession
 
         NativeBattleBeamLaser134ActStep AdvanceAct(NativeBattleBeamLaser134Frame current, uint address, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(NativeBattleBeamLaser134Controller.Read(current, address).ReadBytes(offset, size).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleBeamLaser134Controller.Read(current, address), offset, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattleDefaultActContext40.Visible(node))
@@ -104,7 +106,7 @@ public sealed partial class BattleSession
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
                 return next;
             });
-            current = NativeBattleBeamLaser134Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleBeamLaser134Controller.Read(current, address), offset, retainUnknown: false));
+            current = NativeBattleBeamLaser134Controller.Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleBeamLaser134Controller.Read(current, address), offset, advanced.Workspace));
             return new(current, advanced.Remaining);
         }
 

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -38,6 +38,29 @@ internal sealed class NativeBattleStorageCaptureContext : NativeBattleStorageCon
 
 internal sealed class NativeBattleStorageRestoreContext : NativeBattleStorageContext
 {
+    private readonly List<NativeBattleEffectMemory> retainedMemories = [];
+    private readonly List<NativeBattleOriginalEffectState> retainedEffects = [];
+    internal void RegisterRetained(NativeBattleEffectMemory memory) => retainedMemories.Add(memory);
+    internal void RegisterRetained(NativeBattleOriginalEffectState effect) => retainedEffects.Add(effect);
+
+    protected override void CompleteMapping()
+    {
+        foreach (NativeBattleEffectMemory memory in retainedMemories)
+        {
+            NativeBattleRetainedStorageAuthority authority = GetOrAddOwner(memory.RetainedReceipt ?? (object)memory, static () => new NativeBattleRetainedStorageAuthority());
+            NativeBattleRetainedEffectStorage.Admit(memory, authority);
+            memory.RetainedReceipt = null;
+        }
+        foreach (NativeBattleOriginalEffectState effect in retainedEffects)
+        {
+            NativeBattleRetainedStorageAuthority authority = GetOrAddOwner(effect.RetainedReceipt ?? (object)effect, static () => new NativeBattleRetainedStorageAuthority());
+            NativeBattleRetainedEffectStorage.AdmitEffect(effect, authority);
+            effect.RetainedReceipt = null;
+        }
+        retainedMemories.Clear();
+        retainedEffects.Clear();
+    }
+
     protected override object MapStorage(INativeBattleStorageNode node)
     {
         if (!node.IsSnapshot)
@@ -65,7 +88,29 @@ internal abstract class NativeBattleStorageContext
     private readonly HashSet<object> mapping = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<object> creatingOwners = new(ReferenceEqualityComparer.Instance);
 
-    public T Map<T>(T value) => (T)RequireAssignable(MapObject(value), typeof(T))!;
+    private int mapDepth;
+
+    public T Map<T>(T value)
+    {
+        mapDepth++;
+        try
+        {
+            T result = (T)RequireAssignable(MapObject(value), typeof(T))!;
+            if (mapDepth == 1)
+            {
+                CompleteMapping();
+            }
+            return result;
+        }
+        finally
+        {
+            mapDepth--;
+        }
+    }
+
+    protected virtual void CompleteMapping()
+    {
+    }
 
     public T GetOrAddOwner<T>(object backingOwner, Func<T> create) where T : class
     {
@@ -185,11 +230,35 @@ internal abstract class NativeBattleStorageContext
         foreach (FieldInfo field in GetFields(type))
         {
             object? original = field.GetValue(source);
-            object? mapped = RequireAssignable(MapObject(original), field.FieldType);
+            object? mapped = field.FieldType == typeof(NativeBattleRetainedStorageAuthority) ? null : RequireAssignable(MapObject(original), field.FieldType);
             if (!ReferenceEquals(original, mapped))
             {
                 result ??= Clone.Invoke(source, null)!;
                 field.SetValue(result, mapped);
+            }
+        }
+        if (source is NativeBattleEffectMemory)
+        {
+            result ??= Clone.Invoke(source, null)!;
+            NativeBattleEffectMemory memory = (NativeBattleEffectMemory)result;
+            memory.RetainedAuthority = null;
+            NativeBattleEffectMemory originalMemory = (NativeBattleEffectMemory)source;
+            memory.RetainedReceipt = this is NativeBattleStorageCaptureContext && originalMemory.RetainedAuthority is { } authority ? GetOrAddOwner(authority, static () => new NativeBattleRetainedAuthorityReceipt()) : originalMemory.RetainedReceipt;
+            if (this is NativeBattleStorageRestoreContext restore)
+            {
+                restore.RegisterRetained(memory);
+            }
+        }
+        if (source is NativeBattleOriginalEffectState)
+        {
+            result ??= Clone.Invoke(source, null)!;
+            NativeBattleOriginalEffectState effect = (NativeBattleOriginalEffectState)result;
+            effect.RetainedAuthority = null;
+            NativeBattleOriginalEffectState originalEffect = (NativeBattleOriginalEffectState)source;
+            effect.RetainedReceipt = this is NativeBattleStorageCaptureContext && originalEffect.RetainedAuthority is { } authority ? GetOrAddOwner(authority, static () => new NativeBattleRetainedAuthorityReceipt()) : originalEffect.RetainedReceipt;
+            if (this is NativeBattleStorageRestoreContext restore)
+            {
+                restore.RegisterRetained(effect);
             }
         }
         return result ?? source;

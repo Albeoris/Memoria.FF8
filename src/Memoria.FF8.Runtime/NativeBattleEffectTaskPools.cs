@@ -330,6 +330,18 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
 
     public NativeBattleEffectTaskStep Advance(Func<NativeBattleEffectTaskPool, int, NativeBattleEffectTaskCallback> callback)
     {
+        if (Head is null)
+        {
+            return AdvanceCore(callback);
+        }
+        using NativeBattleTaskOperation operation = new([this]);
+        NativeBattleEffectTaskStep result = AdvanceCore(callback);
+        operation.Commit();
+        return result;
+    }
+
+    internal NativeBattleEffectTaskStep AdvanceCore(Func<NativeBattleEffectTaskPool, int, NativeBattleEffectTaskCallback> callback)
+    {
         RequireOwner();
         if (Head is null)
         {
@@ -339,7 +351,6 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
             }
             return new(this, 0);
         }
-        RequireOwner().PrepareDescriptorMutation();
         NativeBattleEffectTaskPool pool = this;
         int? previous = null;
         int survivors = 0;

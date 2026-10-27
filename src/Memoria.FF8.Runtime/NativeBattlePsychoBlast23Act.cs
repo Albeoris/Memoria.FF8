@@ -20,8 +20,8 @@ public static class NativeBattlePsychoBlast23Act
             {
                 NativeBattleGfAnimationSource source = resources.Act(task.ReadDword(0x74));
                 int size = unchecked((int)task.ReadDword(0x78));
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x94, size).ToImmutableArray()).Initialize7016B0(source, size);
-                task = workspace.CopyTo(task, 0x94, retainUnknown: false).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, size).Initialize7016B0(source, size);
+                task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x94, workspace).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
                 task = Copy(frame.State.Basis56, 0, task, 0x30, 32);
                 int position = callback == NativeBattlePsychoBlast23Profile.ActFollowupCallback ? 0x30 : 0x28;
                 task = Copy(frame.State.Basis56, position, task, 0x1C, 8);

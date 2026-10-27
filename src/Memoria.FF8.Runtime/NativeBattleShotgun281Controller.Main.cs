@@ -24,9 +24,9 @@ public static partial class NativeBattleShotgun281Controller
             int first = Header(frame, packets).FirstContactIndex ?? throw new NotSupportedException("Shotgun requires its actual first physical contact.");
             uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
             frame = Write(frame, main, Read(frame, main).WriteDword(16, target));
-            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, main), 20, 524), 0, 524);
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, 524);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 524);
-            frame = WriteBytes(frame, main + 20, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 524);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, main + 20, workspace);
             NativeBattleModelTransform casterPosition = inputs.ReadModel(frame, frame.State.ReadDword(0x2507F30)).Transform ?? throw new NotSupportedException("Shotgun requires its current caster position.");
             NativeBattleModelTransform targetPosition = inputs.ReadModel(frame, target).Transform ?? throw new NotSupportedException("Shotgun requires its current recipient position.");
             int x = targetPosition.Position28.X - casterPosition.Position28.X;
@@ -89,9 +89,9 @@ public static partial class NativeBattleShotgun281Controller
                     }
                 }
                 frame = Write(frame, impact, Read(frame, impact).WriteWord(18, 0));
-                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, impact), 20, 312), 0, 312);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, impact + 20, 312);
                 workspace = workspace.Initialize7016B0(resources.ProgrammeB, 312);
-                frame = WriteBytes(frame, impact + 20, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 312);
+                NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, impact + 20, workspace);
                 frame = SpawnImpactParticles281(frame, impact);
             }
         }

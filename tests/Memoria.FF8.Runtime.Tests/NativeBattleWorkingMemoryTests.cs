@@ -5,6 +5,30 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void Ownership_suspension_retains_storage_for_rollback_without_reactivating_old_read_windows()
+    {
+        using NativeBattleWorkingMemory memory = new(64, initialCapacity: 64);
+        memory.WriteUInt32(8, 0x12345678);
+        object backing = memory.BackingIdentity;
+        using NativeBattleReadWindow previous = memory.OpenReadWindow(8, 4);
+        memory.SuspendOwnership();
+        Assert.Throws<ObjectDisposedException>(() => memory.ReadUInt32(8));
+        Assert.Throws<ObjectDisposedException>(() => memory.WriteUInt32(8, 0));
+        Assert.Throws<ObjectDisposedException>(() => memory.Capture());
+        Assert.Throws<ObjectDisposedException>(() => previous.ReadUInt32(0));
+        memory.ResumeOwnership();
+        Assert.Same(backing, memory.BackingIdentity);
+        Assert.Equal(0x12345678u, memory.ReadUInt32(8));
+        Assert.Throws<ObjectDisposedException>(() => previous.ReadUInt32(0));
+        using NativeBattleReadWindow current = memory.OpenReadWindow(8, 4);
+        Assert.Equal(0x12345678u, current.ReadUInt32(0));
+        memory.SuspendOwnership();
+        memory.CompleteSuspension();
+        Assert.Throws<ObjectDisposedException>(() => memory.ResumeOwnership());
+        Assert.Throws<ObjectDisposedException>(() => memory.ReadUInt32(8));
+    }
+
+    [Fact]
     public void Physical_receipts_follow_mixed_stores_hidden_bytes_and_nested_parent_rollback()
     {
         using NativeBattleWorkingMemory memory = new(64, initialKnownZero: false);

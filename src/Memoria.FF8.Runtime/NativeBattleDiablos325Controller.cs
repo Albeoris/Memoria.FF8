@@ -57,11 +57,11 @@ public static class NativeBattleDiablos325Controller
                 if (task.ReadByte(0xF) != 0 && frame.Effect.Pools.Single(item => item.DescriptorAddress == NativeBattleDiablos325Construction.TimelineDescriptor).Head is null)
                 {
                     frame = (publishFlash ?? throw new NotSupportedException("Native Diablos completion requires its current stage color service."))(frame, 0);
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, 2);
+                    return new(current.WriteSlot(index, task), 2);
                 }
                 task = task.WriteWord(0xC, unchecked((ushort)(task.ReadWord(0xC) + 1)));
             }
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+            return new(current.WriteSlot(index, task), 0);
         });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(item => item.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : item).ToImmutableArray(), ReturnedDescriptor = step.Survivors == 0 ? 0u : NativeBattleDiablos325Entry.MainDescriptor } };
     }

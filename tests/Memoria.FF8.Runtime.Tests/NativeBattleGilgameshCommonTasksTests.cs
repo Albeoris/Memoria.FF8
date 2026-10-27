@@ -25,9 +25,10 @@ public sealed class NativeBattleGilgameshCommonTasksTests
         }
         Assert.Equal(0, pool.Head);
         Assert.Equal(3, pool.Tail);
-        NativeBattleEffectTaskPool restored = JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(pool))!;
+        string saved = SnapshotJson(pool);
+        NativeBattleEffectTaskPool restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(saved)!);
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(pool), JsonSerializer.Serialize(restored));
+        Assert.Equal(saved, SnapshotJson(restored));
         NativeBattleEffectTaskPool full = pool;
         for (int slot = 4; slot < 100; slot++)
         {
@@ -60,10 +61,11 @@ public sealed class NativeBattleGilgameshCommonTasksTests
     public void Fade_completion_uses_wrapped_signed_counter_and_retains_suffix(short counter, short duration, short next, int result)
     {
         NativeBattleModulePoolTask task = Task(0x592A00).WriteWord(0x0C, unchecked((ushort)counter)).WriteWord(0x0E, unchecked((ushort)duration));
+        byte[] suffix = task.ReadRawPayloadSpan().Slice(2).ToArray();
         NativeBattleGilgameshCommonStep step = NativeBattleGilgameshCommonTasks.StepFade(task, 0, (_, _, _, _, _) => { });
         Assert.Equal(unchecked((ushort)next), step.UpdatedTask.ReadWord(0x0C));
         Assert.Equal(result, step.Result);
-        Assert.Equal(task.Payload.AsSpan().Slice(2).ToArray(), step.UpdatedTask.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(suffix, step.UpdatedTask.ReadRawPayloadSpan().Slice(2).ToArray());
     }
 
     [Theory]
@@ -89,6 +91,7 @@ public sealed class NativeBattleGilgameshCommonTasksTests
     public void Stage_terminal_draw_precedes_increment_and_only_reverse_task_resets(uint callback, int calls)
     {
         NativeBattleModulePoolTask task = Task(callback).WriteWord(0x0C, 15).WriteWord(0x0E, 16).WriteWord(0x18, 2048);
+        byte[] suffix = task.ReadRawPayloadSpan().Slice(2).ToArray();
         List<int> values = [];
         NativeBattleGilgameshCommonStep step = NativeBattleGilgameshCommonTasks.StepStage(task, 0, (value, _) => values.Add(value));
         Assert.Equal(calls, values.Count);
@@ -99,7 +102,7 @@ public sealed class NativeBattleGilgameshCommonTasksTests
         }
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)16, step.UpdatedTask.ReadWord(0x0C));
-        Assert.Equal(task.Payload.AsSpan().Slice(2).ToArray(), step.UpdatedTask.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(suffix, step.UpdatedTask.ReadRawPayloadSpan().Slice(2).ToArray());
     }
 
     [Fact]
@@ -117,29 +120,31 @@ public sealed class NativeBattleGilgameshCommonTasksTests
         NativeBattleGilgameshCommonStep first = NativeBattleGilgameshCommonTasks.Step596B30(task, 0x3000000, 0x21FFD68, Queue);
         Assert.Equal(0, scheduled);
         Assert.Equal(0, first.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!;
+        NativeBattleModulePoolTask restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(SnapshotJson(first.UpdatedTask))!);
         NativeBattleGilgameshCommonStep second = NativeBattleGilgameshCommonTasks.Step596B30(restored, 0x3000000, 0x21FFD68, Queue);
         Assert.Equal(1, scheduled);
         Assert.Equal(0, second.Result);
         Assert.Equal((ushort)0, second.UpdatedTask.ReadWord(0x0E));
         NativeBattleModulePoolTask completed = second.UpdatedTask.WriteWord(0x0E, 1);
+        byte[] suffix = completed.ReadRawPayloadSpan().Slice(2).ToArray();
         NativeBattleGilgameshCommonStep third = NativeBattleGilgameshCommonTasks.Step596B30(completed, 0x3000000, 0x21FFD68, Queue);
         Assert.Equal(1, scheduled);
         Assert.Equal(2, third.Result);
         Assert.Equal((ushort)3, third.UpdatedTask.ReadWord(0x0C));
-        Assert.Equal(completed.Payload.AsSpan().Slice(2).ToArray(), third.UpdatedTask.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(suffix, third.UpdatedTask.ReadRawPayloadSpan().Slice(2).ToArray());
     }
 
     [Fact]
     public void Texture_completion_tests_whole_WORD_and_allows_only_service_owned_low_BYTE()
     {
         NativeBattleModulePoolTask task = Task(0x596B30).WriteWord(0x0C, 1).WriteWord(0x0E, 0xA500);
-        NativeBattleGilgameshCommonStep highOnly = NativeBattleGilgameshCommonTasks.Step596B30(task, 0, 0, (_, _, current) => current);
+        NativeBattleModulePoolTask original = NativeBattleStorageSnapshots.Capture(task);
+        NativeBattleGilgameshCommonStep highOnly = NativeBattleGilgameshCommonTasks.Step596B30(NativeBattleStorageSnapshots.Restore(original), 0, 0, (_, _, current) => current);
         Assert.Equal(2, highOnly.Result);
-        NativeBattleGilgameshCommonStep lowWrite = NativeBattleGilgameshCommonTasks.Step596B30(task, 0, 0, (_, _, current) => current.WriteWord(0x0E, 0xA501));
+        NativeBattleGilgameshCommonStep lowWrite = NativeBattleGilgameshCommonTasks.Step596B30(NativeBattleStorageSnapshots.Restore(original), 0, 0, (_, _, current) => current.WriteWord(0x0E, 0xA501));
         Assert.Equal((ushort)0xA501, lowWrite.UpdatedTask.ReadWord(0x0E));
-        Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshCommonTasks.Step596B30(task, 0, 0, (_, _, current) => current.WriteWord(0x0E, 1)));
-        Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshCommonTasks.Step596B30(task, 0, 0, (_, _, current) => current.WriteWord(0x10, 1)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshCommonTasks.Step596B30(NativeBattleStorageSnapshots.Restore(original), 0, 0, (_, _, current) => current.WriteWord(0x0E, 1)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshCommonTasks.Step596B30(NativeBattleStorageSnapshots.Restore(original), 0, 0, (_, _, current) => current.WriteWord(0x10, 1)));
         NativeBattleGilgameshCommonStep wrap = NativeBattleGilgameshCommonTasks.Step596B30(task.WriteWord(0x0C, 0xFFFF).WriteWord(0x0E, 0), 0, 0, (_, _, _) => throw new InvalidOperationException());
         Assert.Equal((ushort)0, wrap.UpdatedTask.ReadWord(0x0C));
         Assert.Equal(0, wrap.Result);
@@ -156,5 +161,6 @@ public sealed class NativeBattleGilgameshCommonTasksTests
 
     private static NativeBattleModulePoolTask Task(uint callback) => new(1, 0xBEEF, null, callback, Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray());
 
-    private static NativeBattleEffectTaskPool Pool() => new(0x21FFD58, 0x21FFD68, 0x24, Enumerable.Range(0, 100).Select(_ => Task(0) with { Flags = 0 }).ToImmutableArray(), null, null);
+    private static NativeBattleEffectTaskPool Pool() => new(0x21FFD58, 0x21FFD68, 0x24, Enumerable.Range(0, 100).Select(_ => Task(0).UpdateHeader(0, 0xBEEF, null, 0)).ToImmutableArray(), null, null);
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
 }

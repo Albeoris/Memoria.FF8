@@ -161,7 +161,7 @@ public sealed partial class BattleSession
         {
             NativeBattleModulePoolTask task = NativeBattleAcid317Controller.Read(current, taskAddress);
             NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, task.ReadBytes(0x16, 8)).Write(8, BitConverter.GetBytes(current.State.ReadDword(NativeBattleAcid317Profile.WorkingGlobal) + NativeBattleAcid317Profile.MorphOffset));
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x20, 0x248).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x20, 0x248);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.TargetAct, 0, (next, node) =>
             {
                 NativeBattleEffectArena normalized = current.State.ReadView(NativeBattleAcid317Profile.PackedViewGlobal, 32);
@@ -169,7 +169,7 @@ public sealed partial class BattleSession
                 current = NativeBattleAcid317Drawing.EmitNode(current, resources.TargetAct, context, node, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."), colors, Deliver);
                 return next;
             });
-            return NativeBattleAcid317Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleAcid317Controller.Read(current, taskAddress), 0x20, retainUnknown: false));
+            return NativeBattleAcid317Controller.Write(current, taskAddress, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleAcid317Controller.Read(current, taskAddress), 0x20, advanced.Workspace));
         }
 
         NativeBattleAcid317Frame ProjectPoints(NativeBattleAcid317Frame current, uint head, short count) => NativeBattleAcid317PointProjection.Project(current, head, count, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."));

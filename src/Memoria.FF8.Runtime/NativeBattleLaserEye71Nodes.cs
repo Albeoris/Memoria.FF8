@@ -64,7 +64,7 @@ public static class NativeBattleLaserEye71Nodes
         {
             int emitters = ArenaOffset(frame.State.ReadDword(0x25FCD8C), EmitterBytes);
             int geometry = ArenaOffset(frame.State.ReadDword(0x25FCDC8), GeometryBytes);
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterBytes, geometry, GeometryBytes, useSharedScratch: true);
             NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.ExecutableBytes ?? throw new NotSupportedException("Laser Eye nodes require their materialized executable source."));
             ushort emitterScan = frame.State.ReadWord(0x25FAAE0);
             ushort geometryScan = frame.State.ReadWord(0x25FCD98);

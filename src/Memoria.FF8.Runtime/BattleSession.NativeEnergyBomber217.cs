@@ -73,7 +73,7 @@ public sealed partial class BattleSession
 
         NativeBattleEnergyBomber217ActStep AdvanceAct(NativeBattleEnergyBomber217Frame current, uint address, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(NativeBattleEnergyBomber217Controller.Read(current, address).ReadBytes(offset, size).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(NativeBattleEnergyBomber217Controller.Read(current, address), offset, size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (next, node) =>
             {
                 if (!NativeBattleAnchorDepthAct16.Visible(node))
@@ -92,7 +92,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleEnergyBomber217Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleEnergyBomber217Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleEnergyBomber217Controller.Read(current, address), offset, retainUnknown: false));
+            current = NativeBattleEnergyBomber217Controller.Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(NativeBattleEnergyBomber217Controller.Read(current, address), offset, advanced.Workspace));
             return new(current, advanced.Remaining);
         }
 

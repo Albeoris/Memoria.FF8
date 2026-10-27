@@ -36,7 +36,7 @@ public sealed class NativeFieldRegistrationMemoryTests
             memory.Write8(Address + 4, 9);
             memory.Prepare();
             Assert.Equal((byte)9, outer.View.ReadByte(Address + 4));
-            Assert.False(source.IsKnown(Address + 4, 1));
+            Assert.False(AllKnown(source, Address + 4, 1));
         }
         Assert.Equal((byte)6, outer.View.ReadByte(Address + 4));
         Assert.Equal(Address, outer.View.BaseAddress);
@@ -46,7 +46,7 @@ public sealed class NativeFieldRegistrationMemoryTests
             Assert.Same(outer.View, memory.Finish());
         }
         Assert.Equal((byte)7, outer.View.ReadByte(Address + 8));
-        Assert.False(source.IsKnown(Address + 8, 1));
+        Assert.False(AllKnown(source, Address + 8, 1));
         outer.Freeze(outer.View);
         Assert.Equal((byte)6, source.ReadByte(Address + 4));
         Assert.Equal((byte)7, source.ReadByte(Address + 8));
@@ -87,7 +87,7 @@ public sealed class NativeFieldRegistrationMemoryTests
         outer.BeginCheckpoint();
         outer.View.WriteByte(Address, 7);
         outer.RollbackCheckpoint();
-        Assert.False(outer.View.IsKnown(Address, 1));
+        Assert.False(AllKnown(outer.View, Address, 1));
     }
 
     [Fact]
@@ -111,14 +111,14 @@ public sealed class NativeFieldRegistrationMemoryTests
         Assert.Equal(1, outer.CheckpointDepth);
         Assert.Equal(Address - 8, outer.View.BaseAddress);
         Assert.False(outer.View.TryGetResourcePointerMetadata(Address + 8, out _));
-        Assert.False(outer.View.IsKnown(Address + 20, 1));
+        Assert.False(AllKnown(outer.View, Address + 20, 1));
         Assert.Equal(original, SnapshotJson(source));
         Assert.Throws<InvalidOperationException>(() => outer.Freeze(outer.View));
         outer.RollbackCheckpoint();
         Assert.Equal(0, outer.CheckpointDepth);
         Assert.Equal(Address, outer.View.BaseAddress);
         Assert.Equal(pointer, outer.View.ReadResourcePointer(Address + 8));
-        Assert.True(outer.View.IsKnown(Address + 20, 5));
+        Assert.True(AllKnown(outer.View, Address + 20, 5));
         Assert.Equal((byte)77, outer.View.ReadByte(Address + 28));
         outer.Freeze(outer.View);
         Assert.Equal(pointer, source.ReadResourcePointer(Address + 8));
@@ -148,16 +148,18 @@ public sealed class NativeFieldRegistrationMemoryTests
         Assert.Throws<InvalidOperationException>(() => transaction.CommitNestedCheckpoint(child));
         transaction.RollbackNestedCheckpoint(grandchild);
         Assert.Equal(second, transaction.View.ReadResourcePointer(Address + 16));
-        Assert.True(transaction.View.IsKnown(Address + 28, 2));
+        Assert.True(AllKnown(transaction.View, Address + 28, 2));
         transaction.CommitNestedCheckpoint(child);
-        Assert.False(transaction.View.IsKnown(Address + 24, 4));
+        Assert.False(AllKnown(transaction.View, Address + 24, 4));
         transaction.RollbackCheckpoint();
         Assert.Equal(Address, transaction.View.BaseAddress);
         Assert.Equal(first, transaction.View.ReadResourcePointer(Address + 8));
-        Assert.True(transaction.View.IsKnown(Address + 24, 6));
+        Assert.True(AllKnown(transaction.View, Address + 24, 6));
         Assert.Equal(new[] { Address + 8 }, transaction.View.EnumerateResourcePointers().Select(pair => pair.Key));
         Assert.Throws<InvalidDataException>(() => transaction.View.SetResourcePointerMetadata(Address, new(null, null, -1)));
     }
+
+    private static bool AllKnown(NativeBattleFileStaging memory, uint address, int length) => memory.ReadSnapshot(address, length).Known.All(value => value);
 
     private static string SnapshotJson(NativeBattleFileStaging source) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source));
 }

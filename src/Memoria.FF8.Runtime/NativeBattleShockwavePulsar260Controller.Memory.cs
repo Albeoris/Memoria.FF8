@@ -121,20 +121,20 @@ public static partial class NativeBattleShockwavePulsar260Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
         workspace = workspace.Initialize7016B0(resources.Act(sourceAddress), size);
-        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
+        return Write(frame, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, offset, workspace));
     }
 
     public static NativeBattleShockwavePulsar260TaskStep AdvanceAct(NativeBattleShockwavePulsar260Frame frame, uint address, int offset, int size, uint sourceAddress, NativeBattleEffectArena context20, NativeBattleShockwavePulsar260Resources resources, NativeBattleShockwavePulsar260Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         NativeBattleShockwavePulsar260Frame current = frame;
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Act(sourceAddress), 0, (unchanged, node) =>
         {
             current = inputs.Execute(current, new NativeBattleShockwavePulsar260ActNode(sourceAddress, node, context20));
             return unchanged;
         });
-        current = Write(current, address, advanced.Workspace.CopyTo(Read(current, address), offset, retainUnknown: false));
+        current = Write(current, address, NativeBattleEffectTaskMemory.PublishAnimationWorkspace(Read(current, address), offset, advanced.Workspace));
         return new(current, advanced.Remaining);
     }
 

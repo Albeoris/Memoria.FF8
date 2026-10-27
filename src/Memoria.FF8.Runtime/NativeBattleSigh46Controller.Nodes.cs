@@ -18,7 +18,7 @@ public static partial class NativeBattleSigh46Controller
             int emitters = checked((int)(frame.State.ReadDword(EmitterPointerGlobal) - NativeBattleEffectNodeMemory.ArenaAddress));
             int geometry = checked((int)(frame.State.ReadDword(GeometryPointerGlobal) - NativeBattleEffectNodeMemory.ArenaAddress));
             NativeBattleTheEnd85SpawnScratchObserver spawnScratch = new(NativeBattleEffectNodeContextMemory.Capture(frame.Memory));
-            NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterStorageLength, geometry, GeometryStorageLength, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
+            using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, EmitterStorageLength, geometry, GeometryStorageLength, useSharedScratch: true) { SpawnScratchObserver = spawnScratch };
             NativeBattleEffectNodeBank bank = new(SourceAddress, frame.State.Read(SourceAddress, SourceLength).ToImmutableArray(), ReadExternal, ReadResource);
             ushort emitterCursor = frame.State.ReadWord(EmitterScanCursorGlobal);
             ushort geometryCursor = frame.State.ReadWord(GeometryScanCursorGlobal);

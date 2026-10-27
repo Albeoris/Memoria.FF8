@@ -43,8 +43,8 @@ public static partial class NativeBattleEffect303Controller
         {
             throw new NotSupportedException("Effect303 child programme requires its native successful allocation.");
         }
-        var workspace = new NativeBattleGfAnimationWorkspace(new byte[280].ToImmutableArray()).Initialize7016B0(resources.ChildProgramme, 280);
-        frame = WriteBytes(frame, address + 32, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 280);
+        var workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 32, 280).Initialize7016B0(resources.ChildProgramme, 280);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 32, workspace);
         uint caster = frame.State.ReadDword(0x25075D8);
         NativeBattleGraphicsModel model = inputs.ReadModel(frame, caster);
         var transform = model.Transform ?? throw new NotSupportedException("Effect303 child requires its current caster transform.");

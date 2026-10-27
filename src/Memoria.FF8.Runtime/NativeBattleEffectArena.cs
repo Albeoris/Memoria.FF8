@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -90,7 +90,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
     [JsonIgnore] public bool IsSnapshot => snapshot;
     [JsonIgnore] public int LogicalLength => bound;
     [JsonIgnore] internal NativeBattleEffectArenaTransaction? Transaction { get; }
-    [JsonIgnore] internal NativeBattleWorkingMemory Working => working ??= Hydrate();
+    [JsonIgnore] internal NativeBattleWorkingMemory Working => RetainedWorking();
     [JsonIgnore] internal int WorkingOffset => workingOffset;
     [JsonIgnore] internal int Bound => bound;
     [JsonIgnore] internal int CommittedStoredLength => snapshot ? ImportExtent() : Math.Clamp(Working.StoredLength - workingOffset, 0, bound);

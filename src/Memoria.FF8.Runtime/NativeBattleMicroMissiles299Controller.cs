@@ -158,7 +158,7 @@ public static partial class NativeBattleMicroMissiles299Controller
         NativeBattleActionMatrix rotated = NativeBattleGfMatrices.Multiply56C090(basis, roll);
         task = Read(frame, address).WriteWord(0x20, unchecked((ushort)length)).WriteWord(0x22, variant).WriteWord(0x1E, 0);
         task = WriteRotation(task, 0xC, rotated);
-        task = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x34, 0x7D8).ToImmutableArray()).Initialize7016B0(resources.Missile, 0x7D8).CopyTo(task, 0x34, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 0x34, NativeBattleGfAnimationWorkspace.Borrow(task, 0x34, 0x7D8).Initialize7016B0(resources.Missile, 0x7D8));
         return Write(frame, address, task);
     }
 

@@ -96,8 +96,8 @@ public static class NativeBattleEffect101Controller
         frame = position.Frame;
         NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x2C4]).WriteDword(16, unchecked((uint)(int)scale)).WriteDword(20, color);
         task = CopyToTask(task, 24, position.Position8, 8);
-        NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0x2B0].ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x2B0);
-        task = workspace.CopyTo(task, 32, retainUnknown: false);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 32, 0x2B0).Initialize7016B0(resources.MainAct, 0x2B0);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(task, 32, workspace);
         frame = Write(frame, address, task);
         NativeBattleVector caster = (inputs.ReadModel(Actor(frame.State.ReadDword(CasterGlobal))).Transform ?? throw new NotSupportedException("Effect101 requires its actual caster position.")).Position28;
         frame = inputs.Execute(frame, new NativeBattleEffect101PositionXYZ(target, new(caster.X, 300, unchecked((short)(caster.Z - 1000)))));
@@ -214,20 +214,7 @@ public static class NativeBattleEffect101Controller
 
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion range in ranges)
-            {
-                int first = Math.Max(offset, range.Offset);
-                int end = Math.Min(offset + length, range.Offset + range.Length);
-                if (first < end)
-                {
-                    view = view.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return view;
+        return task.BorrowPayloadArena(offset, length);
     }
 
     private static void Require(NativeBattleEffect101Frame frame)

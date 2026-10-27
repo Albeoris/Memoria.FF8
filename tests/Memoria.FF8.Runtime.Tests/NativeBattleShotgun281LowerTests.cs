@@ -195,10 +195,8 @@ public sealed class NativeBattleShotgun281LowerTests
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
         uint address = ArenaAddress + 0x1400;
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[312].ToImmutableArray()).Initialize7016B0(resources.ProgrammeB, 312);
-        byte[] cache = workspace.Data.ToArray();
-        BinaryPrimitives.WriteInt32LittleEndian(cache.AsSpan(4), 31);
-        workspace = workspace with { Data = cache.ToImmutableArray() };
-        var task = CopyTask(Read(frame, address).WriteWord(12, 100).WriteWord(14, unchecked((ushort)-200)).WriteWord(16, 300), 20, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 312);
+        workspace.WriteDword(4, 31);
+        var task = workspace.CopyTo(Read(frame, address).WriteWord(12, 100).WriteWord(14, unchecked((ushort)-200)).WriteWord(16, 300), 20, retainUnknown: false);
         frame = Write(frame, address, task);
         var actual = AdvanceProgramme67E6B0(frame, address, resources, Inputs((_, _) => throw new InvalidOperationException()));
         Assert.Equal(2, actual.Result);

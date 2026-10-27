@@ -57,7 +57,7 @@ public static class NativeBattleCarbuncle278Controller
                 }
             }
             frame = frame with { Memory = frame.Memory with { Carbuncle278 = state } };
-            return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
+            return new(current.WriteSlot(index, task), result);
         });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : pool).ToImmutableArray(), ReturnedDescriptor = step.Survivors == 0 ? 0u : NativeBattleCarbuncle278Entry.MainDescriptor } };
     }
@@ -83,7 +83,7 @@ public static class NativeBattleCarbuncle278Controller
                     };
                     int childOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(childOffset, finished.Task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, finished.Task) }, finished.Result);
+                    return new(current.WriteSlot(index, finished.Task), finished.Result);
                 }
                 if (task.Callback == 0x6822F0)
                 {
@@ -127,7 +127,7 @@ public static class NativeBattleCarbuncle278Controller
                         }
                     }
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(recipientOffset, task.ReadRawPayloadSpan()).MarkUnknown(recipientOffset + 0x46 - 12, 2) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, task) }, result);
+                    return new(current.WriteSlot(index, task), result);
                 }
                 if (task.Callback is 0x683E80 or 0x683DC0)
                 {
@@ -145,7 +145,7 @@ public static class NativeBattleCarbuncle278Controller
                     }
                     int sparkleOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                     frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(sparkleOffset, sparkle.Task.ReadRawPayloadSpan()) } };
-                    return new(current with { Slots = current.Slots.SetItem(index, sparkle.Task) }, sparkle.Result);
+                    return new(current.WriteSlot(index, sparkle.Task), sparkle.Result);
                 }
                 if (task.Callback != 0x681630)
                 {
@@ -182,7 +182,7 @@ public static class NativeBattleCarbuncle278Controller
                     {
                         int heldOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.ReadRawPayloadSpan()) } };
-                        return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                        return new(current.WriteSlot(index, task), 0);
                     }
                     uint destination = checked(NativeBattleCarbuncle278Entry.RequireState(frame.Memory).ModelBuffer81F8 + 0x23ECC);
                     frame = frame with { Memory = NativeBattleEffectIo.Queue5341D0(NativeBattleEffectIo.Queue5341D0(frame.Memory, 717, destination, 1), 718, destination, 0) };
@@ -208,7 +208,7 @@ public static class NativeBattleCarbuncle278Controller
                     {
                         int heldOffset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(heldOffset, task.ReadRawPayloadSpan()) } };
-                        return new(current with { Slots = current.Slots.SetItem(index, task) }, 0);
+                        return new(current.WriteSlot(index, task), 0);
                     }
                 }
                 if (counter == 263)
@@ -248,7 +248,7 @@ public static class NativeBattleCarbuncle278Controller
                 }
                 int offset = checked((int)(current.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * current.Stride + 12);
                 frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) } };
-                return new(current with { Slots = current.Slots.SetItem(index, task) }, creatureResult);
+                return new(current.WriteSlot(index, task), creatureResult);
             });
             //6811E0's balanced borrowed context is consumed only by active beam callbacks in681270.
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == step.Pool.DescriptorAddress ? step.Pool : pool).ToImmutableArray() } };

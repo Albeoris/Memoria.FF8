@@ -76,20 +76,7 @@ public static partial class NativeBattleSandStorm155Controller
     public static NativeBattleSandStorm155Frame PublishContext(NativeBattleSandStorm155Frame frame, uint address, NativeBattleEffectArena context, int length) => frame with { Staging = NativeBattleTemporaryMemory.PublishView(RequireStaging(frame), address, context, length) };
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
-        NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.ReadUnknownPayloadRanges() is { } ranges)
-        {
-            foreach (NativeBattleEffectUnknownRegion range in ranges)
-            {
-                int first = Math.Max(offset, range.Offset);
-                int end = Math.Min(offset + length, range.Offset + range.Length);
-                if (first < end)
-                {
-                    view = view.MarkUnknown(first - offset, end - first);
-                }
-            }
-        }
-        return view;
+        return task.BorrowPayloadArena(offset, length);
     }
 
     public static NativeBattleEffectArena PointView(NativeBattleVector point, short? w = null)

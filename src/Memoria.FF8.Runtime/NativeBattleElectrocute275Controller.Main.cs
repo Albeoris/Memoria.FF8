@@ -110,7 +110,7 @@ public static partial class NativeBattleElectrocute275Controller
                     throw new NotSupportedException("Electrocute reached a full original ACT task bank.");
                 }
                 NativeBattleModulePoolTask act = Read(frame, child);
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(act.Payload).Initialize7016B0(resources.Act, 200);
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(act, 12, act.PayloadLength).Initialize7016B0(resources.Act, 200);
                 frame = Write(frame, child, workspace.CopyTo(act, 12, retainUnknown: false));
             }
         }

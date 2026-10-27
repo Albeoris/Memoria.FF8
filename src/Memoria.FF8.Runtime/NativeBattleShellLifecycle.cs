@@ -32,7 +32,7 @@ public static class NativeBattleShellLifecycle
             }
             int emitters = owner.Emitters ?? throw new NotSupportedException("Native Shell requires its cleared emitter allocation.");
             int geometry = owner.Geometry ?? throw new NotSupportedException("Native Shell requires its cleared geometry allocation.");
-            NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect, address, emitters, 0x654, geometry, 0x8340);
+            using NativeBattleEffectNodeMemory memory = new(current.Memory, current.Effect, address, emitters, 0x654, geometry, 0x8340);
             NativeBattleEffectNodeBank bank = new(NativeBattleShellResources.ActorBankAddress, owner.ActorBank, ReadExternal);
             NativeBattleModulePoolTask context = Read();
             NativeBattleEffectNodeInputs nodeInputs = new(inputs.Camera, inputs.ReadModel, AllocateEmitter, AllocateGeometry)

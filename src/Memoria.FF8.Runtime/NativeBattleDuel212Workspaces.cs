@@ -13,7 +13,7 @@ public static class NativeBattleDuel212Workspaces
         NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel212Resources.EndAddress - address))));
         NativeBattleEffectTaskPool target = Target(frame);
         NativeBattleModulePoolTask task = target.Slots[0];
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, offset, size);
         if (operation.Initialize)
         {
             workspace = workspace.Initialize7016B0(source, size);
@@ -29,7 +29,7 @@ public static class NativeBattleDuel212Workspaces
             return current;
         });
         target = Target(frame);
-        task = advanced.Workspace.CopyTo(target.Slots[0], offset, retainUnknown: false);
+        task = NativeBattleEffectTaskMemory.PublishAnimationWorkspace(target.Slots[0], offset, advanced.Workspace);
         target = target.WriteSlot(0, task);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == target.DescriptorAddress ? target : pool).ToImmutableArray() } };
         return new(frame, ordering, advanced.Remaining);

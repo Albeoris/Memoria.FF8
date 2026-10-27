@@ -58,10 +58,11 @@ public static partial class NativeBattleEffect251Lower
 
     public static NativeBattleEffect251Frame Mutate4FA0(NativeBattleEffect251Frame frame, uint address)
     {
-        NativeBattleGfAnimationSource source = new(0x1434430, frame.State.Read(0x1434430, 17224).ToImmutableArray());
+        NativeBattleGfAnimationSource source = frame.State.BorrowSource(0x1434430, 17224);
+        using NativeBattleGfSourceReader reader = source.OpenReader();
         int start = checked((int)(address - source.Address));
-        int count = BinaryPrimitives.ReadInt32LittleEndian(source.Data.AsSpan().Slice(start + 4));
-        if (count < 2 || start < 0 || start > source.Data.Length - 12 - checked(count * 8))
+        int count = reader.Int(start + 4);
+        if (count < 2 || start < 0 || start > source.Length - 12 - checked(count * 8))
         {
             throw new InvalidDataException("Effect251 normalization requires its actual positive vertex rows.");
         }

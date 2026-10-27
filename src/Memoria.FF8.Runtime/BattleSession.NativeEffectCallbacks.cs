@@ -37,6 +37,20 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect callbacks require their retained physical memory.");
+        using NativeBattleTaskOperation operation = new(memory, effect);
+        operation.AdmitStaging(NativeFileStaging);
+        NativeBattleGraphicsState result = AdvanceNativeOriginalEffectTaskCore(graphics);
+        operation.Commit();
+        return result;
+    }
+
+    private NativeBattleGraphicsState AdvanceNativeOriginalEffectTaskCore(NativeBattleGraphicsState graphics)
+    {
+        if (graphics.OriginalEffect is not { ReturnedDescriptor: > 0 } effect)
+        {
+            return graphics;
+        }
         if (effect.Binding.Effect is >= 292 and <= 296)
         {
             return AdvanceNativeStatusCureItem(graphics);

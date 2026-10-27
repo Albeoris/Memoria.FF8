@@ -20,7 +20,7 @@ public static class NativeBattleMoogle96Controller
         }
         NativeBattleMoogle96State retained = memory.Moogle96 ?? throw new NotSupportedException("Native Moogle requires its explicitly initialized cold/import state owner.");
         NativeBattleGfAnimationSource program = retained.ProgramSource ?? (retained.ProgramSourceKnownCold ? resources.ProgramSource : throw new NotSupportedException("Native Moogle's warmed mutable GF source is missing."));
-        if (program.Address != resources.ProgramSource.Address || program.Data.IsDefault || program.Data.Length != resources.ProgramSource.Data.Length)
+        if (program.Address != resources.ProgramSource.Address || program.IsDefault || program.Length != resources.ProgramSource.Length)
         {
             throw new InvalidDataException("Native Moogle mutable GF source contradicts its actual original owner.");
         }
@@ -55,6 +55,7 @@ public static class NativeBattleMoogle96Controller
             (textures, _) = textures.EnqueueArenaTim505E30(memory.Arena ?? throw new NotSupportedException("Native Moogle96 requires its loaded arena."), textureOffset);
             memory = memory with { Textures = textures };
         }
+        program = NativeBattleOwnedGfAnimationSource.Own(program);
         memory = memory with { Moogle96 = retained with { ProgramSource = program, ProgramSourceKnownCold = false, Global257F724 = 0, Global257CF24 = 0, NextAllocation = next } };
         return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = MainDescriptor }, random);
     }
