@@ -204,7 +204,7 @@ internal static partial class BattleResourceReader
     internal static BattleModel ReadLinkedAnimationBank(BattleModel owner, byte[] bank, bool weapon)
     {
         using BinaryReader reader = Reader(bank);
-        int[] offsets = Directory(reader);
+        int[] offsets = Directory(bank);
         if (offsets.Length is not (2 or 3) || weapon && offsets.Length != 3)
         {
             throw new NotSupportedException("External animation bank requires a body-only or paired directory.");

@@ -258,11 +258,8 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
         byte[] header = candidate.Read(new ResourceKey("menu/mngrphd.bin"));
         MngrpArchive archive = MngrpArchive.Read(content, header, FF8Encoding.CreateEuropean());
         _ = NativeTutorialExamCatalog.Read(header, content, candidate.Source.Language);
-        MngrpTextRecordSection cards = archive.GetSection<MngrpTextRecordSection>(192);
-        if (cards.Records.Count != NativeCardInventory.CardCount || cards.Records.Where((record, id) => record.Payload.Length < 4 || record.Payload[3] != id).Any())
-        {
-            throw new InvalidDataException("Menu card records must retain their complete native card identities.");
-        }
+        _ = NativeRefinementGroupReader.ReadTables(archive);
+        _ = NativeRefinementGroupReader.ReadCardDescriptions(archive);
         _ = archive.GetSection<MngrpStringTableSection>(87);
         _ = archive.GetSection<MngrpOpaqueSection>(7);
         menuValidated = true;

@@ -53,9 +53,9 @@ public static partial class JunctionEncodedResources
                 try
                 {
                     byte[] bytes = member.File.ReadBytes();
-                    if (bytes.Length < 16)
+                    if (bytes.Length == 0)
                     {
-                        throw new InvalidDataException("A compound native resource member is empty or truncated.");
+                        throw new InvalidDataException("A compound native resource member is empty.");
                     }
                     ResourceKey key = member.Key!.Value;
                     selected.Add(key, new EncodedResource(key, Path.GetExtension(key.Path)[1..], member.File.Revision, $"{member.File.PackageId}:{member.File.RelativePath}", bytes));

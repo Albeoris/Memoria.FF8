@@ -18,6 +18,11 @@ public static partial class JunctionEncodedResources
         {
             notices.Add(new("Junction.UnusedFieldMember", "The loose Field filename does not match a native runtime member and is not applied. Localized suffixes are not aliases for the field basename.", file.PackageId, file.RelativePath));
         }
+        foreach (var group in catalog.Files.Where(file => file.Format == ModFormat.Junction && IsUnregisteredNativeFile(file.RelativePath)).GroupBy(file => (file.PackageId, Extension: Path.GetExtension(file.RelativePath).ToLowerInvariant())))
+        {
+            ModFile[] members = group.ToArray();
+            notices.Add(new("Junction.UnsupportedNativeFamily", $"{members.Length} native {group.Key.Extension} resource(s) have no registered engine contract and were not applied. Examples: {string.Join(", ", members.Take(3).Select(file => file.RelativePath))}.", group.Key.PackageId, members[0].RelativePath));
+        }
         HashSet<ResourceKey> acceptedFieldMembers = [];
         var fieldFiles = catalog.Files.Where(file => file.Format == ModFormat.Junction).Select(file => (File: file, Key: Address(file.RelativePath))).Where(item => item.Key is ResourceKey key && FieldGroup(key) is not null);
         foreach (var group in fieldFiles.GroupBy(item => item.File.PackageId + "\0" + FieldGroup(item.Key!.Value), StringComparer.OrdinalIgnoreCase))
@@ -70,7 +75,7 @@ public static partial class JunctionEncodedResources
                     continue;
                 }
                 byte[] bytes = file.ReadBytes();
-                if (bytes.Length == 0 || !IsStaticFileResource(key) && bytes.Length < 16)
+                if (bytes.Length == 0 || NativeDataResourceFiles.Classify(key) is null && !IsStaticFileResource(key) && bytes.Length < 16)
                 {
                     throw new InvalidDataException("An encoded resource replacement is empty or truncated.");
                 }
@@ -170,6 +175,19 @@ public static partial class JunctionEncodedResources
         }
         string name = Path.GetFileName(path).ToLowerInvariant();
         return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(name) == ".csv" || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
+    }
+
+    private static bool IsUnregisteredNativeFile(string relativePath)
+    {
+        string path = relativePath.Replace('\\', '/').ToLowerInvariant();
+        if (path.StartsWith("direct/", StringComparison.Ordinal))
+        {
+            path = path[7..];
+        }
+        string extension = Path.GetExtension(path);
+        bool field = path.StartsWith("field/mapdata/", StringComparison.Ordinal) && extension is ".pmp" or ".pvp" or ".tdw";
+        bool standalone = (path.StartsWith("menu/", StringComparison.Ordinal) || path.StartsWith("world/", StringComparison.Ordinal) || path.StartsWith("battle/", StringComparison.Ordinal)) && extension is ".bin" or ".msg" or ".obj" or ".one" or ".dc1" or ".dc2" or ".sp1" or ".sp2" or ".vib" or ".tex";
+        return (field || standalone) && Address(relativePath) is null;
     }
 
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');

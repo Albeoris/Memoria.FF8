@@ -10,7 +10,7 @@ internal static partial class BattleResourceReader
     public static BattleRenzokukenModels ReadRenzokukenModels(BattleNativeRenzokukenResource resource, BattleModel body, BattleModel? weapon)
     {
         using BinaryReader reader = Reader(resource.RawResource.ToArray());
-        int[] offsets = Directory(reader);
+        int[] offsets = Directory(resource.RawResource.AsSpan());
         if (offsets.Length != 3)
         {
             throw new InvalidDataException("Native Renzokuken pointer replacement requires its three-section embedded resource.");

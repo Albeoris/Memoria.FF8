@@ -22,14 +22,14 @@ internal static partial class BattleResourceReader
         return count;
     }
 
-    private static int[] Directory(BinaryReader reader)
+    private static int[] Directory(ReadOnlySpan<byte> bytes)
     {
-        int count = Count(reader.ReadInt32(), 16, "sections");
-        int[] offsets = Enumerable.Range(0, count).Select(_ => reader.ReadInt32()).ToArray();
-        int length = reader.ReadInt32();
-        if (length != reader.BaseStream.Length || offsets.Where((offset, index) => offset < 8 + count * 4 || offset > length || (index > 0 && offset < offsets[index - 1])).Any())
+        _ = NativeBattleDatDirectory.Section(bytes, 0);
+        int count = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes);
+        int[] offsets = new int[count];
+        for (int index = 0; index < count; index++)
         {
-            throw new InvalidDataException("Battle DAT section directory is invalid.");
+            offsets[index] = NativeBattleDatDirectory.Section(bytes, index);
         }
         return offsets;
     }
@@ -37,7 +37,7 @@ internal static partial class BattleResourceReader
     public static BattleModel ReadModel(string name, byte[] bytes, int? textureSectionOverride = null)
     {
         using BinaryReader reader = Reader(bytes);
-        int[] offsets = Directory(reader);
+        int[] offsets = Directory(bytes);
         if (offsets.Length is not (7 or 8 or 9 or 10 or 11))
         {
             throw new NotSupportedException($"{name}: {offsets.Length}-section battle model has no supported skeleton contract.");
@@ -80,7 +80,7 @@ internal static partial class BattleResourceReader
     public static BattleModel ReadWeapon(string name, byte[] bytes, BattleModel character)
     {
         using BinaryReader reader = Reader(bytes);
-        int[] offsets = Directory(reader);
+        int[] offsets = Directory(bytes);
         if (offsets.Length is 7 or 8)
         {
             return ReadModel(name, bytes, 6) with { Sequences = Sequences(bytes, offsets, 3), NativeWeaponTexturePack = new(name + ":weapon-textures", bytes.AsSpan(offsets[6], offsets.Where(offset => offset > offsets[6]).DefaultIfEmpty(bytes.Length).Min() - offsets[6]).ToArray().ToImmutableArray()), NativeWeaponUsesBodySkeleton = false };

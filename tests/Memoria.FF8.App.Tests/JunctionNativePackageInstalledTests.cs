@@ -17,12 +17,12 @@ public sealed class JunctionNativePackageInstalledTests
         Fixture fixture = JsonSerializer.Deserialize<Fixture>(File.ReadAllText(path!), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         string package = Path.GetFullPath(fixture.Package, Path.GetDirectoryName(Path.GetFullPath(path!))!);
         string fingerprint = FileFingerprint(package);
+        using IsolatedFieldGame game = new();
         string root = Path.Combine(Path.GetTempPath(), "ff8-native-package-" + Guid.NewGuid().ToString("N"));
         string mods = Path.Combine(root, "Mods");
         string archive = Path.Combine(mods, "Junction", "native.iroj");
         Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
         File.Copy(package, archive);
-        using IsolatedFieldGame game = new();
         try
         {
             for (int index = 0; index < fixture.Selections.Length; index++)

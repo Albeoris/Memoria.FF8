@@ -54,6 +54,29 @@ public sealed class JunctionDataResourceTests
     }
 
     [Fact]
+    public void RegisteredShortTablesReachTheirTypedValidatorWithoutAnInventedMinimum()
+    {
+        byte[] bytes = new byte[12];
+        ModFile file = new("fixture", ModFormat.Junction, "menu/mtmag.bin", 1, () => bytes);
+        Assert.True(JunctionEncodedResources.TryPrepare(new(1, [], [file]), out var resources, out var diagnostics));
+        using Stream content = Assert.Single(resources).Content.OpenRead();
+        Assert.Equal(12, content.Length);
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void UnregisteredNativeFamiliesAreDiagnosedWithoutOpeningTheirBytes()
+    {
+        ModFile File(string path) => new("fixture", ModFormat.Junction, path, 1, () => throw new InvalidOperationException("An unsupported native file must remain unopened."));
+        ModFile[] files = [File("field/mapdata/aa/aa/aa.pvp"), File("field/mapdata/bb/bb/bb.pvp"), File("menu/unknown.bin"), File("field/mapdata/map1.c")];
+        Assert.True(JunctionEncodedResources.TryPrepare(new(1, [], files), out var resources, out var diagnostics));
+        Assert.Empty(resources);
+        Assert.Equal(2, diagnostics.Count);
+        Assert.All(diagnostics, item => Assert.Equal("Junction.UnsupportedNativeFamily", item.Code));
+        Assert.Contains(diagnostics, item => item.Message.StartsWith("2 native .pvp", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void OverlappingCompoundContributionLosesAsAWhole()
     {
         ModFile header = File("first", "menu/mngrphd.bin", 1);

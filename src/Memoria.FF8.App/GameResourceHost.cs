@@ -218,7 +218,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 }
                 else if (resource.Content.Format == JunctionEncodedResources.MainCharacterFormat)
                 {
-                    GameAssets.ValidateMainCharacterResource(resource.Content);
+                    GameAssets.ValidateMainCharacterResource(resource.Content, original);
                 }
                 else
                 {
