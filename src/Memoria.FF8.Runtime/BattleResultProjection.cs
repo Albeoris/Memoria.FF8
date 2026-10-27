@@ -4,7 +4,7 @@ public sealed record BattleCharacterRewardPresentation(byte Row, uint PreviousEx
 public sealed record BattleGuardianForceRewardPresentation(int Id, byte PreviousLevel, byte FinalLevel, int[] LearnedAbilityIds);
 public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> CharacterExperience, IReadOnlyDictionary<byte, ushort> GuardianForceExperience, IReadOnlyDictionary<int, ushort> GuardianForceAbilityPoints, BattleStock[] Items, byte[] Cards)
 {
-    public byte? AbilityPointsNotice { get; init; }
+    public ushort? AbilityPointsNotice { get; init; }
     public BattleRewardOffer[] LootOffers { get; init; } = [];
     public BattleCharacterRewardPresentation[] CharacterGrowth { get; init; } = [];
     public BattleGuardianForceRewardPresentation[] GuardianForceGrowth { get; init; } = [];
@@ -143,7 +143,7 @@ public static partial class BattleResultProjection
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
-            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience);
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems);
             List<byte> grantedCards = [.. loot.CardsGranted];
@@ -165,7 +165,7 @@ public static partial class BattleResultProjection
             throw new InvalidDataException("Observed GF reward eligibility disagrees with the current canonical junction/HP owners.");
         }
         Dictionary<int, ushort> abilityPoints = [];
-        byte abilityPointsNotice = 0;
+        ushort abilityPointsNotice = 0;
         if (eligible.Length > 0)
         {
             ushort points = 0;
@@ -177,11 +177,12 @@ public static partial class BattleResultProjection
                 }
                 points = unchecked((ushort)(points + amount));
             }
+            points = checked((ushort)Math.Min(ushort.MaxValue, (long)points * result.Tuning.ApMultiplier));
             foreach (int id in eligible)
             {
                 if (vitals.GuardianForceAbilities(id).Any(ability => !ability.Learned && ability.Ability == vitals.GuardianForces[id].Learning))
                 {
-                    abilityPointsNotice = unchecked((byte)points);
+                    abilityPointsNotice = result.Tuning.ApMultiplier == 1 ? unchecked((byte)points) : points;
                 }
                 vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
                 abilityPoints[id] = points;

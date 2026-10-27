@@ -222,6 +222,7 @@ public sealed record BattleDefinition
     public ushort NativeFlags { get; init; }
     public ushort? NativeFieldBattleMode { get; init; }
     public NativeBattleRandomState? InitialRandom { get; init; }
+    public GameplayTuning Tuning { get; init; } = new();
     public bool RareItem { get; init; }
 }
 

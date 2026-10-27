@@ -47,7 +47,7 @@ public sealed record BattleOriginalStockDrawOperation(int Ordinal, string ActorI
 
     internal static void ValidateResult(BattleNativeDrawContext? result)
     {
-        if (result is null || result.Selection is 0 or >= 64 || result.Quantity > 9 || result.Added > result.Quantity || result.Failed != (result.Quantity == 0))
+        if (result is null || result.Selection is 0 or >= 64 || result.Quantity > 100 || result.Added > result.Quantity || result.Failed != (result.Quantity == 0))
         {
             throw new InvalidDataException("Stock Draw operation requires its exact spell, quantity and inventory receipt.");
         }

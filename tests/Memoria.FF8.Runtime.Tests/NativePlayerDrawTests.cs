@@ -376,6 +376,43 @@ public sealed class NativePlayerDrawTests
         Assert.False(restored.ActiveAction!.NativeDraw!.Failed);
     }
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 100)]
+    [InlineData(98, 5)]
+    [InlineData(100, 100)]
+    public void SuccessfulDrawAddsConfiguredBonusOnceAndClampsStockAfterJsonRestore(int stock, int bonus)
+    {
+        BattleSession baseline = Create(stock);
+        BattleDefinition definition = baseline.Capture().Definition;
+        BattleSession battle = new(definition with { Tuning = new() { DrawBonus = bonus } }, BattleAtbMode.TurnBased);
+        baseline.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        baseline.Tick();
+        battle.Tick();
+        int expected = Math.Min(100, baseline.ActiveAction!.NativeDraw!.Quantity + bonus);
+        Assert.Equal(expected, battle.ActiveAction!.NativeDraw!.Quantity);
+        Assert.Equal(Math.Min(100 - stock, expected), battle.ActiveAction.NativeDraw.Added);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        Complete(battle);
+        Complete(restored);
+        Assert.Equal(Math.Min(100, stock + expected), Assert.Single(restored.Combatants[0].MagicStocks).Count);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void MaximumDrawBonusCannotTurnNativeFailureIntoSuccess()
+    {
+        BattleDefinition definition = Create().Capture().Definition;
+        BattleSession battle = new(definition with { Tuning = new() { DrawBonus = 100 } }, BattleAtbMode.TurnBased);
+        battle.Combatants.Single(actor => actor.Id == "source").RestoreDrawSlots([new(1, 255), new(0, 0), new(0, 0), new(0, 0)]);
+        battle.QueueAction("party", "source", BattleAbility.Draw, 1);
+        battle.Tick();
+        Assert.True(battle.ActiveAction!.NativeDraw!.Failed);
+        Assert.Equal(0, battle.ActiveAction.NativeDraw.Quantity);
+        Assert.Equal(2, Assert.Single(battle.Combatants[0].MagicStocks).Count);
+    }
+
     private static BattleSession CreateWithSecondCaster()
     {
         BattleDefinition definition = Create().Capture().Definition;

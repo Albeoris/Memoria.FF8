@@ -41,6 +41,7 @@ public sealed record BattlePartyResult([property: JsonRequired] byte Row, [prope
 /// <summary>Observed persistent effects of a completed live encounter. Reward amounts are recomputed from current installed rules.</summary>
 public sealed partial record BattleResult([property: JsonRequired] BattleEncounterOccurrence Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] BattlePartyResult[] Party, [property: JsonRequired] BattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory, [property: JsonRequired] BattleRewardPolicy RewardPolicy, [property: JsonRequired] BattleEnemyDefeat[] EnemyDefeats)
 {
+    public GameplayTuning Tuning { get; init; } = new();
     public BattleNativeGrowthChange[] NativeGrowthChanges { get; init; } = [];
     public BattleNativeCardChange? NativeCardChange { get; init; }
     public ChocoboRewardLedger? ChocoboRewardsBefore { get; init; }
@@ -68,6 +69,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
+        (Tuning ?? throw new InvalidDataException("Battle reward tuning is missing.")).Validate();
         MagicSystemReceipt?.Validate();
         NativeKnownMagic.ValidateReceipt(NativeKnownMagicBefore, NativeKnownMagicAfter);
         NativeScannedModels.ValidateReceipt(NativeScannedModelsBefore, NativeScannedModelsAfter);

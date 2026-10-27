@@ -538,7 +538,7 @@ public sealed partial class BattleSession
             damage /= 2;
         }
         int maximum = (native.AttackFlags & 8) != 0 ? 60_000 : 9_999;
-        damage = Math.Clamp(damage, -maximum, maximum);
+        damage = Math.Clamp(damage, -maximum, definition.Tuning.MaximumDamage);
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
         if ((NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0)
@@ -558,8 +558,8 @@ public sealed partial class BattleSession
         if (native.AttackType == 9 || (native.Statuses1 & 0x8000) != 0)
         {
             int percent = native.AttackType == 9 ? 100 : Math.Max(0, native.StatusAttack - GetNativeStatusResistance(recipient, 23));
-            int drain = Math.Min(9_999, Math.Abs(damage) * percent / 100);
             bool reverseDrain = ((NativeSavedStatusBits(actor) ^ NativeSavedStatusBits(recipient)) & 0x40) != 0;
+            int drain = checked((int)Math.Min(reverseDrain ? definition.Tuning.MaximumDamage : 9_999, (long)Math.Abs(damage) * percent / 100));
             BeginNativeContactSecondary(actor, drain, !reverseDrain);
             if (drain > 0 && reverseDrain)
             {

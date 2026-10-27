@@ -75,6 +75,10 @@ public sealed partial class BattleSession
             {
                 NativeBattleDrawSlot entry = source.NativeDrawSlots.First(slot => slot.Id == command.ActionId);
                 quantity = NativeDrawQuantity(actor, source, spell.DrawResist, entry.Resistance, NextRandomByte());
+                if (quantity > 0)
+                {
+                    quantity = Math.Min(100, quantity + definition.Tuning.DrawBonus);
+                }
                 failed = quantity == 0;
                 if (!command.DrawCast)
                 {
@@ -237,7 +241,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Stock Draw has no spell damage metadata or spell recipient mask.");
         }
-        if (result is not null && (result.Selection != selection || result.Quantity > 9 || result.Added > result.Quantity || cast && result.Added != 0 || selection >= 64 && (result.Quantity != 0 || result.Added != 0) || selection < 64 && result.Failed != (result.Quantity == 0)))
+        if (result is not null && (result.Selection != selection || result.Quantity > Math.Min(100, 9 + definition.Tuning.DrawBonus) || result.Added > result.Quantity || cast && result.Added != 0 || selection >= 64 && (result.Quantity != 0 || result.Added != 0) || selection < 64 && result.Failed != (result.Quantity == 0)))
         {
             throw new InvalidDataException("Saved Draw result contradicts its prepared quantity or acquisition.");
         }

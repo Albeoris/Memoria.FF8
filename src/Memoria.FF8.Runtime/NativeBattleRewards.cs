@@ -56,10 +56,10 @@ public sealed record BattleEnemyRewardDefinition(ushort KillExperience, ushort S
     public bool SelectCard(byte sample) => sample <= (GuaranteedCard ? 255 : 8) && CardId != 255;
     public bool SelectDrop(byte sample) => sample <= DropRate;
 
-    public static sbyte SelectDropSlot(byte sample, bool rareItem)
+    public static sbyte SelectDropSlot(byte sample, bool rareItem, RareItemProbabilities? probabilities = null)
     {
         // Native486650's rare threshold261 is intentionally unreachable for its unsigned byte sample.
-        return rareItem ? sample < 128 ? (sbyte)0 : sample < 242 ? (sbyte)1 : (sbyte)2 : sample < 178 ? (sbyte)0 : sample < 229 ? (sbyte)1 : sample < 244 ? (sbyte)2 : (sbyte)3;
+        return rareItem ? (probabilities ?? new RareItemProbabilities()).Select(sample) : sample < 178 ? (sbyte)0 : sample < 229 ? (sbyte)1 : sample < 244 ? (sbyte)2 : (sbyte)3;
     }
 }
 
@@ -158,8 +158,10 @@ public static class NativeBattleRewardDistribution
         return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray()) { Offers = offers.ToArray() };
     }
 
-    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null)
+    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null, GameplayTuning? tuning = null)
     {
+        tuning ??= new();
+        tuning.Validate();
         vitals.Validate();
         byte[] party = vitals.CombatParty.Where(row => row != 255).ToArray();
         if (party.Length == 0)
@@ -240,7 +242,12 @@ public static class NativeBattleRewardDistribution
                 guardian[guardianId] = unchecked((ushort)(guardian.GetValueOrDefault(guardianId) + shared / assigned.Length));
             }
         }
-        return noExperience ? new BattleExperienceAwards(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>()) : new BattleExperienceAwards(characters, guardian);
+        return noExperience ? new BattleExperienceAwards(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>()) : new BattleExperienceAwards(ScaleAwards(characters, tuning.ExperienceMultiplier), ScaleAwards(guardian, tuning.GuardianExperienceMultiplier));
+    }
+
+    private static Dictionary<byte, ushort> ScaleAwards(Dictionary<byte, ushort> awards, int multiplier)
+    {
+        return awards.ToDictionary(pair => pair.Key, pair => checked((ushort)Math.Min(ushort.MaxValue, (long)pair.Value * multiplier)));
     }
 
     private static ushort ScaledExperience(ushort basis, int enemyLevel, int recipientLevel)

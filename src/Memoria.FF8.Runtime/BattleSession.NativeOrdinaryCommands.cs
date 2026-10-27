@@ -54,7 +54,7 @@ public sealed partial class BattleSession
         }
         //4840E0 queues0/id7;48FE20 setsEject and494410 commitsHP0/KO before493840 removes the party record.
         actor.NativeStatus1 |= 0x10000;
-        ApplyDamage(null, actor, actor.CurrentHp, "Kamikaze", false);
+        ApplyDamage(null, actor, actor.CurrentHp, "Kamikaze", false, bypassDamageLimit: true);
         actor.NativeStatus1 &= ~0x10000u;
         actor.NativeStatus0 &= 0xFFDF;
         guardianForceCasts.Remove(actor.Id);
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
         {
             StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 0, 6, 0, 3);
         }
-        ApplyDamage(null, actor, damage, "Darkside cost", false);
+        ApplyDamage(null, actor, damage, "Darkside cost", false, bypassDamageLimit: true);
     }
 
     private static ushort NextNativePlayerDeathCount(BattleCombatant actor)

@@ -94,6 +94,10 @@ public sealed partial class BattleSession
             FinalizeNativeContactPresentation();
             (ushort saved, uint battle) = contact.PrimaryStatusSnapshot ?? NativeContactStatusMirror(recipient);
             NativeBattleContactHalf primary = NativeBattleContactHalf.FromScratch(contact.PrimaryIndex, contact.Sequence, contact.Flags, contact.HitFlags, saved, contact.Magnitude, battle);
+            if (contact.Magnitude > short.MaxValue && (contact.HitFlags & 1) == 0)
+            {
+                primary = primary with { ExtendedDamageAmount = contact.Magnitude };
+            }
             NativeBattleContactHalf secondary = contact.Secondary ?? new(255, 0, 0, 0, 0, 0, 0);
             if (contact.Secondary is not null)
             {

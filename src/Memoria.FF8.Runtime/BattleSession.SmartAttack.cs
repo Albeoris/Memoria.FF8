@@ -155,11 +155,11 @@ public sealed partial class BattleSession
     {
         uint statuses = NativeBattleStatusBits(actor);
         uint passives = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? 0;
-        if ((statuses & 0x40000) != 0 && (available >= 3 || magicVitals?.MagicSystem.InfiniteMagic != true && (passives & 0x40) != 0))
+        if ((statuses & 0x40000) != 0 && (available >= 3 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (passives & 0x40) != 0))
         {
             return 3;
         }
-        if ((statuses & 0x20000) != 0 && (available >= 2 || magicVitals?.MagicSystem.InfiniteMagic != true && (passives & 0x20) != 0))
+        if ((statuses & 0x20000) != 0 && (available >= 2 || (magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && (passives & 0x20) != 0))
         {
             return 2;
         }
@@ -168,7 +168,7 @@ public sealed partial class BattleSession
 
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
-        string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.SmartAttack, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
+        string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.SmartAttack, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
         state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.NativeIndex}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
@@ -184,7 +184,7 @@ public sealed partial class BattleSession
         for (int cast = 0; cast < casts; cast++)
         {
             powers[cast] = cast == 0 || actor.NativePlayerStatRules is null || actor.NativeGrowth is null ? actor.Magic : actor.NativePlayerStatRules.Project(stocks, actor.NativeGrowth).Magic;
-            if (magicVitals?.MagicSystem.InfiniteMagic != true && MagicCost(actor, casts) > 1)
+            if ((magicVitals?.MagicSystem.InfiniteMagic != true || magicVitals?.MagicSystem.UnlimitedMagic == true) && MagicCost(actor, casts) > 1)
             {
                 int index = stocks.FindIndex(stock => stock.SpellId == native.ActionId);
                 if (index >= 0)
@@ -214,7 +214,7 @@ public sealed partial class BattleSession
                 {
                     damage = damage * (draw() + 10) / 150;
                 }
-                total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, (native.AttackFlags & 8) != 0 ? 60_000 : 9_999);
+                total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, definition.Tuning.MaximumDamage);
             }
             return total;
         }, Math.Max(1, target.CurrentHp));
@@ -266,7 +266,7 @@ public sealed partial class BattleSession
                 damage = NativeBattleDamage.Element(damage, (byte)actor.ElementAttack, target.ElementDefenses[element], true, actor.ElementAttackPercent);
             }
             int maximum = ((native?.AttackFlags ?? 0) & 8) != 0 ? 60_000 : 9_999;
-            return Math.Clamp(damage, -maximum, maximum);
+            return Math.Clamp(damage, -maximum, definition.Tuning.MaximumDamage);
         }, Math.Max(1, target.CurrentHp));
     }
 

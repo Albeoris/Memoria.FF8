@@ -164,7 +164,7 @@ public sealed partial class BattleSession
     {
         recipient.NativeStatus1 |= 0x10000;
         RecordNativeActionMemory(actor, recipient, command);
-        ApplyDamage(actor, recipient, recipient.CurrentHp, source);
+        ApplyDamage(actor, recipient, recipient.CurrentHp, source, bypassDamageLimit: true);
     }
 
     private static void ValidateNativeDevourGrowth(BattleCombatant actor, BattleNativeDevourEffect effect)
@@ -178,7 +178,7 @@ public sealed partial class BattleSession
     private void ApplyNativeDevourEffect(BattleCombatant actor, BattleNativeAction native, BattleNativeDevourEffect effect)
     {
         // TODO(TD-009): The same completed action owns the native0/10 follow-up until the graphics callback VM replaces scaffold action timing.
-        int amount = Math.Min(9999, effect.Quantity * actor.MaximumHp / 16);
+        int amount = checked((int)Math.Min(effect.Effect == 31 ? definition.Tuning.MaximumDamage : 9999, (long)effect.Quantity * actor.MaximumHp / 16));
         if (effect.Effect == 30)
         {
             RemoveNativeStatuses(actor, effect.SavedStatuses, effect.BattleStatuses);

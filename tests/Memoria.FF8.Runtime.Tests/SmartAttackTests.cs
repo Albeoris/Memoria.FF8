@@ -186,6 +186,20 @@ public sealed class SmartAttackTests
         Assert.Equal(1, correlated.Distribution.Values.Sum(), 12);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DamageForecastUsesTheSameNumericCapAfterRestore(int cap)
+    {
+        BattleDefinition definition = Create([Spell(1, 80)], [new(1, 100)], enemyHp: 60000).Capture().Definition;
+        BattleSession battle = new(definition with { Tuning = new() { MaximumDamage = cap } }, BattleAtbMode.TurnBased);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSmartAttackPreview preview = restored.PreviewSmartAttack("party", "enemy");
+        Assert.InRange(preview.ExpectedDamage, 0, cap * preview.CastCount);
+        Assert.Equal(0, preview.KillProbability);
+        Assert.Equal(battle.PreviewSmartAttack("party", "enemy"), preview);
+    }
+
     private static BattleSession Create(BattleNativeAction[] spells, BattleStock[] stocks, int enemyHp = 100, bool infinite = false, uint actorStatus = 0, int[]? defenses = null, bool mug = false, uint enemyFlags = 0, bool nativeLimit = false)
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Create();

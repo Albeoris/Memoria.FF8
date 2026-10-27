@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -44,6 +44,24 @@ public sealed record NativeBattlePartyPresentedVital([property: JsonRequired] us
 
     public NativeBattlePartyPresentedVital Apply(NativeBattleContactHalf half)
     {
+        if (half.ExtendedDamageAmount is int extended)
+        {
+            ushort nextHp = HitPoints;
+            ushort? nextGfHp = GuardianForceHitPoints;
+            if ((half.HitFlags3 & 0x20) != 0)
+            {
+                nextGfHp = checked((ushort)Math.Max(0, (GuardianForceHitPoints ?? throw new NotSupportedException("Damage requires its summoned GF HP owner.")) - extended));
+            }
+            else
+            {
+                nextHp = checked((ushort)Math.Max(0, HitPoints - extended));
+            }
+            if ((half.SavedStatuses4 & 1) != 0)
+            {
+                nextHp = 0;
+            }
+            return this with { HitPoints = nextHp, GuardianForceHitPoints = nextGfHp };
+        }
         short amount = unchecked((short)half.Amount6);
         ushort hp = HitPoints;
         ushort? gfHp = GuardianForceHitPoints;

@@ -83,7 +83,7 @@ public sealed partial class BattleSession
         }
         ushort accumulated = recipient.NativeReturnDamage ?? throw new NotSupportedException("Native0/5 requires its actual retained Return Damage WORD.");
         recipient.NativeReturnDamage = 0;
-        int damage = Math.Min(9999, accumulated >> 2);
+        int damage = Math.Min(definition.Tuning.MaximumDamage, accumulated >> 2);
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
         RecordNativeActionMemory(actor, recipient, command);

@@ -5,6 +5,9 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One12-byte half emitted by48EF80 from the48FE20/494410 scratch owners.</summary>
 public sealed record NativeBattleContactHalf(byte ActorIndex, byte Sequence, byte Flags2, byte HitFlags3, ushort SavedStatuses4, ushort Amount6, uint BattleStatuses8)
 {
+    public int? ExtendedDamageAmount { get; init; }
+    public int PresentedAmount => ExtendedDamageAmount ?? Amount6;
+
     public static NativeBattleContactHalf FromScratch(byte actorIndex, byte sequence, byte flags2, byte hitFlags3, ushort savedStatuses, int amountDword, uint battleStatuses)
     {
         //48EF80 copies only the lowWORD of signed/nativeDWORD damage; the formula consumer owns its earlier cap/sign rules.
@@ -22,6 +25,13 @@ public sealed record NativeBattleContactPacket(NativeBattleContactHalf Primary, 
         if (Primary is null || Secondary is null || Primary.ActorIndex >= 7 || Secondary.ActorIndex >= 7 && Secondary.ActorIndex != 255)
         {
             throw new InvalidDataException("Native contact packet requires its original primary and optional secondary physical model indices.");
+        }
+        foreach (NativeBattleContactHalf half in new[] { Primary, Secondary })
+        {
+            if (half.ExtendedDamageAmount is int amount && (amount is <= short.MaxValue or > 100000 || (half.HitFlags3 & 1) != 0 || half.Amount6 != unchecked((ushort)amount)))
+            {
+                throw new InvalidDataException("Extended contact damage must preserve its native low WORD and positive damage identity.");
+            }
         }
     }
 

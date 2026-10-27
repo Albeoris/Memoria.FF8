@@ -79,7 +79,7 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
         return this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot };
     }
 
-    public NativeBattleEffectsState PrependDamageText(byte modelIndex, ushort contactFlags, ushort amount)
+    public NativeBattleEffectsState PrependDamageText(byte modelIndex, ushort contactFlags, int amount)
     {
         Validate();
         ValidateModel(modelIndex);

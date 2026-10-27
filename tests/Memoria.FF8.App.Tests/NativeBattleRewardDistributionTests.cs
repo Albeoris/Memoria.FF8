@@ -113,6 +113,54 @@ public sealed class NativeBattleRewardDistributionTests
         Assert.Equal(beforeEconomy, JsonSerializer.Serialize(economy));
     }
 
+    [Theory]
+    [InlineData(0, 100)]
+    [InlineData(1, 1)]
+    [InlineData(100, 0)]
+    [InlineData(100, 100)]
+    public void CharacterAndGuardianMultipliersApplyIndependentlyWithExplicitRecipientCaps(int characterMultiplier, int guardianMultiplier)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        BattleEnemyDefeat[] defeats = [new(0, level, BattleDefeatCredit.Character, 0, null, false, -1)];
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() with { KillExperience = 1000, SharedExperience = 1000 } };
+        BattleExperienceAwards baseline = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, false);
+        GameplayTuning tuning = new() { ExperienceMultiplier = characterMultiplier, GuardianExperienceMultiplier = guardianMultiplier };
+        tuning = JsonSerializer.Deserialize<GameplayTuning>(JsonSerializer.Serialize(tuning))!;
+        BattleExperienceAwards awards = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, false, tuning: tuning);
+        Assert.Equal((ushort)Math.Min(ushort.MaxValue, (long)baseline.Characters[0] * characterMultiplier), awards.Characters[0]);
+        Assert.Equal((ushort)Math.Min(ushort.MaxValue, (long)baseline.GuardianForces[0] * guardianMultiplier), awards.GuardianForces[0]);
+        BattleExperienceAwards suppressed = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, true, tuning: tuning);
+        Assert.Empty(suppressed.Characters);
+        Assert.Empty(suppressed.GuardianForces);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(100)]
+    public void ApMultiplierUsesGeneralMultiplicationAndPreviewStaysPure(int multiplier)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
+        BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row =>
+        {
+            NativeCharacterVital member = vitals.Records[row];
+            return new BattlePartyResult(row, member.CharacterId, member.HitPoints.Minimum, member.HitPoints.Minimum, member.Status, member.Status, []);
+        }).ToArray();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        BattleEncounterOccurrence encounter = new("numeric-reward", 0, new string('A', 64), SceneKind.Field, 0, 0, new string('B', 64), null);
+        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [0], BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.NativeCombat, [new(0, level, BattleDefeatCredit.Character, 0, null, false, -1)]) { Tuning = new() { ApMultiplier = multiplier } };
+        result = JsonSerializer.Deserialize<BattleResult>(JsonSerializer.Serialize(result))!;
+        string before = JsonSerializer.Serialize(vitals);
+        BattleResultOwners Project() => BattleResultProjection.Apply(result, vitals, assets.ReadNewGameEconomy(), new Dictionary<int, int> { [0] = 4 }, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, assets.ReadNativeBattleExperienceDefinition(), null, false);
+        BattleResultOwners projected = Project();
+        Assert.Equal((ushort)(4 * multiplier), projected.Rewards.GuardianForceAbilityPoints[0]);
+        Assert.Equal(JsonSerializer.Serialize(projected), JsonSerializer.Serialize(Project()));
+        Assert.Equal(before, JsonSerializer.Serialize(vitals));
+    }
+
     private static BattleEnemyRewardDefinition Definition()
     {
         return new BattleEnemyRewardDefinition(10, 20, 20, 30, 0, false, 255, Enumerable.Repeat(new BattleStock(1, 5), 12).ToImmutableArray());

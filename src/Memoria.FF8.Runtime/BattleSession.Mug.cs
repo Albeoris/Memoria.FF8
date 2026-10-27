@@ -22,7 +22,7 @@ public sealed partial class BattleSession
             return;
         }
         //4867C0 shares486650's four-slot probability thresholds, including unreachable rare threshold261.
-        BattleStock stolen = mug.Item(recipient.Level, BattleEnemyRewardDefinition.SelectDropSlot((byte)NextRandomByte(), definition.RareItem));
+        BattleStock stolen = mug.Item(recipient.Level, BattleEnemyRewardDefinition.SelectDropSlot((byte)NextRandomByte(), definition.RareItem, definition.Tuning.RareItem));
         recipient.NativeCombatantFlags |= 0x800;
         AddNativeBattleItem(stolen.Id, stolen.Count);
         string name = stolen.Id == 0 ? "" : FindInstalledNativeAction(4, checked((ushort)stolen.Id)).Name ?? throw new InvalidDataException("Native Mug requires the installed item name.");

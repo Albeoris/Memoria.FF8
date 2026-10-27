@@ -723,8 +723,12 @@ public sealed partial class BattleSession
         Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: Attack queued.");
     }
 
-    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true, bool publishDamage = true)
+    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true, bool publishDamage = true, bool bypassDamageLimit = false)
     {
+        if (!bypassDamageLimit)
+        {
+            amount = Math.Min(amount, definition.Tuning.MaximumDamage);
+        }
         bool ownsTransaction = nativeActionCommitDepth == 0;
         if (ownsTransaction)
         {
@@ -1060,6 +1064,7 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
+        (source.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).Validate();
         source.MagicVitals?.Validate();
         source.MagicVitals?.ValidateMagicSystemConsistency();
         if (source.Combatants.Any(actor => actor.MagicRecordId is int row && ((uint)row >= 8 || !actor.IsPlayer)) || source.Combatants.Where(actor => actor.IsPlayer && actor.MagicRecordId is not null).Select(actor => actor.MagicRecordId).Distinct().Count() != source.Combatants.Count(actor => actor.IsPlayer && actor.MagicRecordId is not null))

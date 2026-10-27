@@ -257,7 +257,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            ApplyDamage(actor, target, Math.Min(9999, damage), source);
+            ApplyDamage(actor, target, damage, source);
         }
     }
     private bool IsRevive(BattleAbility ability, int id)

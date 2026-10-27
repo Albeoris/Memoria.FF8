@@ -37,7 +37,7 @@ public sealed partial class BattleSession
         // Native494410 grants card486750, then drop486650 before accruing EXP/AP494AF0.
         //Both chance rolls precede their bank-capacity checks. A full item bank suppresses only the rarity roll; stolen800 suppresses both item rolls.
         bool card = rewards.SelectCard(checked((byte)NextRandomByte())) && enemyDefeats.Count(defeat => defeat.CardSelected) < 8;
-        sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) && nativeRewardItems.Count < 24 ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
+        sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) && nativeRewardItems.Count < 24 ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem, definition.Tuning.RareItem) : (sbyte)-1;
         if (selection >= 0)
         {
             nativeRewardItems.Add(rewards.Drop(target.Level, selection));

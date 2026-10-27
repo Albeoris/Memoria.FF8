@@ -114,9 +114,13 @@ public sealed partial class BattleSession
             return false;
         }
         int damage = native.ActionId == 2 ? (NextRandomByte() % 5 + 5) * recipient.MaximumHp / 100 : recipient.MaximumHp / 10;
+        if (native.ActionId == 2)
+        {
+            damage = Math.Min(damage, definition.Tuning.MaximumDamage);
+        }
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
-        ApplyDamage(actor, recipient, damage, native.Name!, counterEligible: false);
+        ApplyDamage(actor, recipient, damage, native.Name!, counterEligible: false, bypassDamageLimit: native.ActionId == 6);
         return true;
     }
 }
