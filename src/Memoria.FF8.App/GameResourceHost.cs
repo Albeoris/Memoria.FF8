@@ -200,9 +200,9 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                         throw new NotSupportedException($"The selected game source does not provide resource {resource.Key}.");
                     }
                     dataValidator.Validate(resource.Content, original);
-                    if (kind == NativeDataResourceKind.WorldSettings && resource.Key != NativeResourceNames.WorldSettings(Resources.ResourceLanguage))
+                    if (kind == NativeDataResourceKind.WorldSettings && resource.Key != NativeResourceNames.WorldSettings(Resources.ResourceLanguage) && !encodedResources.Any(member => member.Key == NativeResourceNames.WorldSettings(Resources.ResourceLanguage) && member.Content.Provenance.StartsWith($"{owner.PackageId}:", StringComparison.Ordinal)))
                     {
-                        staticFileDiagnostics.Add(new("resource-unused", $"Resource {resource.Key} was validated and published, but the selected resource language uses {NativeResourceNames.WorldSettings(Resources.ResourceLanguage)}.", owner.PackageId, owner.RelativePath));
+                        staticFileDiagnostics.Add(new("resource-language-variant-missing", $"This package provides {resource.Key}, but no variant {NativeResourceNames.WorldSettings(Resources.ResourceLanguage)} for the selected resource language. The package remains active; resources keep their original identities and other language variants are used only when requested.", owner.PackageId, owner.RelativePath));
                     }
                     else if (kind is NativeDataResourceKind.CompressedImage or NativeDataResourceKind.Texture && !NativeDataResourceFiles.IsDisplayedImage(resource.Key))
                     {

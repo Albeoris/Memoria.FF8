@@ -6,6 +6,47 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class JunctionStaticFilePublicationTests
 {
+    [Theory]
+    [InlineData("en", false, true)]
+    [InlineData("fr", false, false)]
+    [InlineData("en", true, false)]
+    [InlineData("fr", true, false)]
+    public void LanguageVariantsKeepTheirIdentitiesAndWarnOnlyWhenThePackageLacksTheCurrentVariant(string language, bool includeEnglish, bool warning)
+    {
+        using IsolatedFieldGame game = new();
+        string directory = Path.Combine(Path.GetTempPath(), "memoria-language-variants-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using IResourceSource source = GameDataSourceFactory.Open(game.GameDirectory);
+            byte[] original = new ResourceService(source).Read(new("world/wmsetus.obj"));
+            string package = Path.Combine(directory, "Junction", "World");
+            Directory.CreateDirectory(Path.Combine(package, "assets", "world"));
+            File.WriteAllText(Path.Combine(package, "mod.xml"), "<ModInfo><Name>World</Name><ModFolder Folder=\"assets\" /></ModInfo>");
+            File.WriteAllBytes(Path.Combine(package, "assets", "world", "wmsetfr.obj"), original);
+            if (includeEnglish)
+            {
+                File.WriteAllBytes(Path.Combine(package, "assets", "world", "wmsetus.obj"), original);
+            }
+
+            using GameResourceHost host = new(game.GameDirectory, Path.Combine(directory, "application"), watch: false, modsDirectory: directory, resourceLanguage: language);
+            Assert.Equal(ModEffectiveStatus.Active, host.Mods.Catalog.Packages.Single(item => item.Id == "Junction/World").Status);
+            Assert.Equal(warning, host.Mods.Diagnostics.Any(item => item.Code == "resource-language-variant-missing" && item.PackageId == "Junction/World"));
+            Assert.DoesNotContain(host.Mods.Diagnostics, item => item.Code == "resource-unused");
+            Assert.Equal(original, host.Resources.Read(new("world/wmsetfr.obj")));
+            Assert.StartsWith("Junction/World:", host.Resources.Get(new("world/wmsetfr.obj")).Provenance);
+            ResourceContent english = host.Resources.Get(new("world/wmsetus.obj"));
+            Assert.Equal(includeEnglish, english.Provenance.StartsWith("Junction/World:", StringComparison.Ordinal));
+            Assert.Equal(original, host.Resources.Read(new("world/wmsetus.obj")));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
     [Fact]
     public void RegisteredFormatWithoutInstalledSourceIsRejectedWithOwningDiagnostic()
     {
