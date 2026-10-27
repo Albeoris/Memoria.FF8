@@ -130,6 +130,137 @@ public sealed class NativeBattleCinematicPointCloud27Tests
         Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicPointCloud27.Draw(frame, services)), JsonSerializer.Serialize(result));
     }
 
+    [Theory]
+    [InlineData(false, false, -1)]
+    [InlineData(true, false, -1)]
+    [InlineData(false, true, -1)]
+    [InlineData(true, true, -1)]
+    [InlineData(false, false, 0)]
+    [InlineData(true, false, 0)]
+    [InlineData(false, false, 1)]
+    [InlineData(true, false, 1)]
+    public void Batched_points_preserve_blink_random_unknowns_and_last_successful_packet_publication(bool commonPackets, bool hidden, int failingAppend)
+    {
+        NativeBattleWaterExecutionFrame original = Warm(3);
+        for (int point = 0; point < 3; point++)
+        {
+            int record = 0x4004 + point * 16;
+            original = original with { Arena = original.Arena.Write(record + 6, [1]).Write(record + 12, hidden ? [0, 1] : [1, 0]).MarkUnknown(record + 14, 2) };
+        }
+        original = original with { Arena = original.Arena.WriteResourcePointer(0x7000, new(null, 123)).MarkUnknown(0x6000, 36) };
+        original = WaterSchedulerFixture.CoreDword(original, 0x2797690 + 0x7C, commonPackets ? 0x40u : Address(0x6000));
+        NativeBattlePrimitiveProcess sourceProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { ByteCursor = 0x40 };
+        string originalBytes = JsonSerializer.Serialize(original);
+        var scalar = Run(false);
+        var batched = Run(true);
+        Assert.Equal(JsonSerializer.Serialize(scalar.Frame), JsonSerializer.Serialize(batched.Frame));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Published), JsonSerializer.Serialize(batched.Published));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Process), JsonSerializer.Serialize(batched.Process));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Ordering), JsonSerializer.Serialize(batched.Ordering));
+        Assert.Equal(originalBytes, JsonSerializer.Serialize(original));
+        Assert.Null(batched.Published.Transaction);
+        Assert.Null(batched.Process.CommonTransaction);
+        Assert.Equal(original.Arena.ReadResourcePointer(0x7000), batched.Published.ReadResourcePointer(0x7000));
+        Assert.Throws<NotSupportedException>(() => batched.Published.Read(0x4012, 1));
+        if (failingAppend < 0)
+        {
+            Assert.NotNull(batched.Frame);
+            Assert.Null(batched.Frame.Arena.Transaction);
+            Assert.NotEqual(original.Random, batched.Frame.Random);
+            Assert.Equal(commonPackets ? 0x40u + (hidden ? 0u : 36u) : Address(0x6000 + (hidden ? 0 : 36)), WaterSchedulerFixture.ReadCoreDword(batched.Frame, 0x2797690 + 0x7C));
+            Assert.Equal(hidden ? 0 : 3, batched.Appends);
+        }
+        else if (failingAppend == 0)
+        {
+            Assert.Equal(JsonSerializer.Serialize(original.Arena), JsonSerializer.Serialize(batched.Published));
+        }
+
+        (NativeBattleWaterExecutionFrame? Frame, NativeBattleEffectArena Published, NativeBattlePrimitiveProcess Process, NativeBattleLogicalOrdering Ordering, int Appends) Run(bool batch)
+        {
+            using NativeBattleEffectArenaTransaction? arena = batch ? new(original.Arena) : null;
+            NativeBattleLogicalOrdering seed = NativeBattleLogicalOrdering.Clear();
+            using NativeBattleLogicalOrderingTransaction? links = batch ? new(seed) : null;
+            NativeBattleLogicalOrdering ordering = links?.View ?? seed;
+            NativeBattlePrimitiveProcess process = sourceProcess;
+            NativeBattleCommonPacketTransaction? common = null;
+            NativeBattleEffectArena published = original.Arena;
+            int appends = 0;
+            NativeBattleCinematicPointCloud27Services services = new(current => current, (current, address) => new(current, address, 0x40), (current, output, _, packets) =>
+            {
+                if (arena is not null && ReferenceEquals(current.Arena.Transaction, arena))
+                {
+                    current = current with { Arena = arena.Freeze() };
+                }
+                NativeBattlePrimitiveProcess previousProcess = process;
+                if (batch && commonPackets && common is null)
+                {
+                    common = new(process);
+                    process = common.View;
+                }
+                common?.BeginCheckpoint();
+                try
+                {
+                    if (appends++ == failingAppend)
+                    {
+                        packets = packets with { Attempts = [.. packets.Attempts, new(0, [], [], null)] };
+                    }
+                    if (commonPackets)
+                    {
+                        NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, ordering, packets);
+                        process = written.Process;
+                        ordering = written.Ordering;
+                        published = current.Arena;
+                    }
+                    else
+                    {
+                        NativeBattleEffectMemory memory = new(current.Arena, 0, 0, [], 0, 0, 0, 0);
+                        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, checked((int)(output - NativeBattleEffectNodeMemory.ArenaAddress)), ordering, packets);
+                        published = written.Memory.Arena!;
+                        ordering = written.Ordering;
+                    }
+                    common?.CommitCheckpoint();
+                    return current with { Arena = published };
+                }
+                catch
+                {
+                    common?.RollbackCheckpoint();
+                    process = previousProcess;
+                    throw;
+                }
+            });
+            NativeBattleWaterExecutionFrame? drawn = null;
+            try
+            {
+                drawn = NativeBattleCinematicPointCloud27.Draw(original with { Arena = arena?.View ?? original.Arena }, services);
+                Assert.Equal(-1, failingAppend);
+                if (arena is not null && ReferenceEquals(drawn.Arena.Transaction, arena))
+                {
+                    drawn = drawn with { Arena = arena.Freeze() };
+                }
+                ordering = links?.Freeze() ?? ordering;
+            }
+            catch (InvalidDataException) when (failingAppend >= 0)
+            {
+                ordering = seed;
+            }
+            finally
+            {
+                try
+                {
+                    if (common is not null && ReferenceEquals(process.CommonTransaction, common))
+                    {
+                        process = common.Freeze(process);
+                    }
+                }
+                finally
+                {
+                    common?.Dispose();
+                }
+            }
+            return (drawn, published, process, ordering, appends);
+        }
+    }
+
     private static NativeBattleWaterExecutionFrame Warm(short count)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(Address(0x4000), 0);

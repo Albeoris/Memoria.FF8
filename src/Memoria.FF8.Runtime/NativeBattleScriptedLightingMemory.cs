@@ -12,13 +12,30 @@ public sealed record NativeBattleScriptedLightingMatrix([property: JsonRequired]
     {
         get
         {
-            Validate();
-            if (Known.Take(18).Any(known => !known))
+            Span<short> rotation = stackalloc short[9];
+            CopyRotation(rotation);
+            return [.. rotation];
+        }
+    }
+
+    public void CopyRotation(Span<short> destination)
+    {
+        Validate();
+        for (int index = 0; index < 18; index++)
+        {
+            if (!Known[index])
             {
                 throw new NotSupportedException("Native lighting matrix requires its actual rotation register values.");
             }
-            byte[] bytes = Bytes.ToArray();
-            return Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(index * 2))).ToImmutableArray();
+        }
+        if (destination.Length < 9)
+        {
+            throw new ArgumentException("Native lighting rotation requires space for nine signed matrix words.", nameof(destination));
+        }
+        ReadOnlySpan<byte> bytes = Bytes.AsSpan();
+        for (int index = 0; index < 9; index++)
+        {
+            destination[index] = BinaryPrimitives.ReadInt16LittleEndian(bytes.Slice(index * 2, 2));
         }
     }
 

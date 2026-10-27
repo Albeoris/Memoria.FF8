@@ -6,6 +6,39 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleScriptedNormalColorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Transform_reads_changed_matrix_records_and_keeps_padding_and_required_byte_knowledge(bool depthColor)
+    {
+        NativeBattleScriptedLightingMemory original = Lighting(Identity(), Identity(), new(0, 0, 0));
+        NativeBattleScriptedLightingMatrix light = original.LightMatrix! with { Bytes = original.LightMatrix!.Bytes.SetItem(1, 0xF0).SetItem(18, 0xAD).SetItem(19, 0xDE), Known = original.LightMatrix!.Known.SetItem(18, false).SetItem(19, false) };
+        NativeBattleScriptedLightingMatrix color = original.ColorMatrix! with { Bytes = original.ColorMatrix!.Bytes.SetItem(9, 0x20), Known = original.ColorMatrix!.Known.SetItem(18, false).SetItem(19, false) };
+        NativeBattleScriptedLightingMemory changed = original with { LightMatrix = light, ColorMatrix = color };
+        NativeBattleScriptedColorRegisters first = Transform(original);
+        NativeBattleScriptedColorRegisters second = Transform(changed);
+        Assert.Equal(new int?[] { 512, 512, 512 }, first.Mac);
+        Assert.Equal(new int?[] { 0, 1024, 512 }, second.Mac);
+        Assert.Equal(new int?[] { 0, 1024, 512 }, second.Ir);
+        Assert.Equal(0x7F204000u, second.Rgb[2]);
+        Assert.Equal(0u, second.Flags);
+        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(Transform(original)));
+        Assert.Equal(0xAD, light.Bytes[18]);
+        Assert.Equal(0xDE, light.Bytes[19]);
+        for (int index = 0; index < 18; index++)
+        {
+            Assert.Throws<NotSupportedException>(() => Transform(changed with { LightMatrix = light with { Known = light.Known.SetItem(index, false) } }));
+            Assert.Throws<NotSupportedException>(() => Transform(changed with { ColorMatrix = color with { Known = color.Known.SetItem(index, false) } }));
+        }
+
+        NativeBattleScriptedColorRegisters Transform(NativeBattleScriptedLightingMemory lighting)
+        {
+            NativeBattleScriptedColorRegisters initial = NativeBattleScriptedColorRegisters.Unknown();
+            NativeBattleVector normal = new(4096, 2048, 1024);
+            return depthColor ? NativeBattleScriptedNormalDepthColor.Transform45EE80(lighting, normal, 0x7F804020, 0, new(0, 0, 0, null, null), initial) : NativeBattleScriptedNormalColor.Transform4601B0(lighting, normal, 0x7F804020, initial);
+        }
+    }
+
     [Fact]
     public void Identity_lighting_modulates_each_material_byte_and_advances_actual_RGB_FIFO()
     {

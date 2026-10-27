@@ -10,9 +10,11 @@ public static class NativeBattleScriptedNormalDepthColor
         NativeBattleScriptedLightingMatrix light = lighting.LightMatrix ?? throw new NotSupportedException("Native normal color requires its current light matrix controls.");
         NativeBattleScriptedLightingMatrix color = lighting.ColorMatrix ?? throw new NotSupportedException("Native normal color requires its current color matrix controls.");
         NativeBattleScriptedBackColor back = (lighting.BackColor ?? throw new NotSupportedException("Native normal color requires its current back-color controls.")).RequireKnown();
-        var lightWords = light.Rotation;
-        var colorWords = color.Rotation;
-        float[] lit = new float[3];
+        Span<short> lightWords = stackalloc short[9];
+        light.CopyRotation(lightWords);
+        Span<short> colorWords = stackalloc short[9];
+        color.CopyRotation(colorWords);
+        Span<float> lit = stackalloc float[3];
         for (int row = 0; row < 3; row++)
         {
             double z = (float)(lightWords[row * 3 + 2] / 4096d) * (double)normal.Z;
@@ -23,17 +25,17 @@ public static class NativeBattleScriptedNormalDepthColor
         }
         int?[] mac = new int?[3];
         int?[] ir = new int?[3];
-        double[] backgrounds = [back.Red, (float)back.Green, (float)back.Blue];
-        uint[] irFlags = [0x81000000, 0x80800000, 0x00400000];
-        uint[] rgbFlags = [0x00200000, 0x00100000, 0x00080000];
+        ReadOnlySpan<double> backgrounds = stackalloc double[3] { back.Red, (float)back.Green, (float)back.Blue };
+        ReadOnlySpan<uint> irFlags = stackalloc uint[3] { 0x81000000, 0x80800000, 0x00400000 };
+        ReadOnlySpan<uint> rgbFlags = stackalloc uint[3] { 0x00200000, 0x00100000, 0x00080000 };
         uint flags = 0;
         uint output = material & 0xFF000000u;
-        float[] distant =
-        [
+        ReadOnlySpan<float> distant = stackalloc float[3]
+        {
             unchecked((int)(far.FarRed ?? throw new NotSupportedException("Native normal depth color requires its current far-red control."))),
             unchecked((int)(far.FarGreen ?? throw new NotSupportedException("Native normal depth color requires its current far-green control."))),
             unchecked((int)(far.FarBlue ?? throw new NotSupportedException("Native normal depth color requires its current far-blue control.")))
-        ];
+        };
         double fraction = cue / 4096d;
         for (int channel = 0; channel < 3; channel++)
         {

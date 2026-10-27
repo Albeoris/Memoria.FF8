@@ -35,6 +35,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private TelemetryProcessSample? processBefore;
     private long effectStartedTicks;
     private long effectCompletedTicks;
+    private readonly DiagnosticPresentationProgress presentationProgress = new(Stopwatch.Frequency);
     private const int EventCapacity = 65536;
 
     internal DiagnosticLiveTelemetry(BattleSession battle, Guid instance, ushort expectedEffect = 1)
@@ -51,6 +52,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     internal TelemetryCoverageManifest Coverage => coverage;
     internal IReadOnlyList<DiagnosticLiveExecution> Executions => executions;
     internal bool Active => start is not null;
+    internal DiagnosticPresentationProgressSnapshot PresentationProgress(int sequence) => presentationProgress.Snapshot(sequence, effectStartedTicks > 0, effectCompletedTicks > 0);
 
     private TelemetryOwnerState Owners(long frame)
     {
@@ -70,6 +72,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         previousRender = rendererVersion;
         renders = dropped = 0;
         effectStartedTicks = effectCompletedTicks = 0;
+        presentationProgress.Reset(executions.Count + 1, timestamp);
         events.Clear();
         resolutions.Clear();
         dispatches.Clear();
@@ -107,6 +110,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             renders++;
         }
         previousRender = rendererVersion;
+        presentationProgress.Presented(timestamp, effectStartedTicks, effectCompletedTicks);
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));
     }
 

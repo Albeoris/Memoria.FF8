@@ -25,6 +25,15 @@ public sealed partial class BattleSession
 
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicPointCloud27(NativeBattleWaterExecutionFrame frame, int resourceLength, NativeBattleGraphicsState graphics)
     {
+        using NativeBattleEffectArenaTransaction? arenaTransaction = frame.Arena.Transaction is null ? new(frame.Arena) : null;
+        frame = frame with { Arena = arenaTransaction?.View ?? frame.Arena };
+        NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic points require their current ordering table.");
+        using NativeBattleLogicalOrderingTransaction? orderingTransaction = primitiveFrame.Pending.Transaction is null ? new(primitiveFrame.Pending) : null;
+        if (orderingTransaction is not null)
+        {
+            graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = orderingTransaction.View } };
+        }
+        NativeBattleCommonPacketTransaction? commonTransaction = null;
         NativeBattleActionMatrix? matrix = null;
         NativeBattleCinematicPointCloud27Services services = new(current =>
         {
@@ -39,11 +48,68 @@ public sealed partial class BattleSession
             return new(current, projected.Projected.Screen, projected.Projected.Depth >> 2);
         }, (current, output, ordering, batch) =>
         {
-            var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
-            graphics = written.Graphics;
-            return written.Frame;
+            if (arenaTransaction is not null && ReferenceEquals(current.Arena.Transaction, arenaTransaction))
+            {
+                current = current with { Arena = arenaTransaction.Freeze() };
+            }
+            NativeBattleEffectMemory previousMemory = RequireWaterMemory();
+            bool common = !(output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length);
+            if (common && commonTransaction is null && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
+            {
+                commonTransaction = new(process);
+                NativeEffectMemory = previousMemory with { PrimitiveProcess = commonTransaction.View };
+            }
+            if (common)
+            {
+                commonTransaction?.BeginCheckpoint();
+            }
+            try
+            {
+                var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
+                if (common)
+                {
+                    commonTransaction?.CommitCheckpoint();
+                }
+                graphics = written.Graphics;
+                return written.Frame;
+            }
+            catch
+            {
+                if (common)
+                {
+                    commonTransaction?.RollbackCheckpoint();
+                }
+                NativeEffectMemory = previousMemory;
+                throw;
+            }
         });
-        return (NativeBattleCinematicPointCloud27.Draw(frame, services), graphics);
+        try
+        {
+            NativeBattleWaterExecutionFrame drawn = NativeBattleCinematicPointCloud27.Draw(frame, services);
+            if (arenaTransaction is not null && ReferenceEquals(drawn.Arena.Transaction, arenaTransaction))
+            {
+                drawn = drawn with { Arena = arenaTransaction.Freeze() };
+            }
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };
+            }
+            return (drawn, graphics);
+        }
+        finally
+        {
+            try
+            {
+                if (commonTransaction is not null && NativeEffectMemory?.PrimitiveProcess is { } process && ReferenceEquals(process.CommonTransaction, commonTransaction))
+                {
+                    NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = commonTransaction.Freeze(process) };
+                }
+            }
+            finally
+            {
+                commonTransaction?.Dispose();
+            }
+        }
     }
 
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicColumns2D(NativeBattleWaterExecutionFrame frame, NativeBattleGraphicsState graphics)

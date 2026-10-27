@@ -9,6 +9,42 @@ public sealed class NativeBattleScriptedLightingTests
     private const uint Light = 0x27977F4;
     private const uint Parent = 0x2797A08;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Packed_rotation_copy_reads_signed_words_and_ignores_only_the_final_padding_word(bool knownPadding)
+    {
+        short[] expected = [short.MinValue, short.MaxValue, -4096, 4096, -1, 0, 1, 0x1234, -12345];
+        byte[] bytes = new byte[20];
+        for (int index = 0; index < expected.Length; index++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(index * 2), expected[index]);
+        }
+        bytes[18] = 0xAD;
+        bytes[19] = 0xDE;
+        NativeBattleScriptedLightingMatrix matrix = new(bytes.ToImmutableArray(), Enumerable.Repeat(true, 20).ToImmutableArray().SetItem(18, knownPadding).SetItem(19, knownPadding));
+        Span<short> actual = stackalloc short[11];
+        actual.Fill(123);
+        matrix.CopyRotation(actual);
+        Assert.Equal(expected, actual[..9].ToArray());
+        Assert.Equal(new short[] { 123, 123 }, actual[9..].ToArray());
+        Assert.Equal(expected, matrix.Rotation);
+        Assert.Equal(expected, matrix.ToActionMatrix().Rotation);
+        Assert.Equal(bytes, matrix.Bytes.ToArray());
+        Assert.Throws<ArgumentException>(() => matrix.CopyRotation(new short[8]));
+        for (int index = 0; index < 18; index++)
+        {
+            NativeBattleScriptedLightingMatrix unknown = matrix with { Known = matrix.Known.SetItem(index, false) };
+            short[] destination = Enumerable.Repeat((short)123, 9).ToArray();
+            Assert.Throws<NotSupportedException>(() => unknown.CopyRotation(destination));
+            Assert.All(destination, value => Assert.Equal((short)123, value));
+            Assert.Throws<NotSupportedException>(() => unknown.Rotation);
+        }
+        NativeBattleScriptedLightingMatrix malformed = matrix with { Bytes = matrix.Bytes.RemoveAt(19) };
+        Assert.Throws<InvalidDataException>(() => malformed.CopyRotation(new short[9]));
+        Assert.Throws<InvalidDataException>(() => malformed.Rotation);
+    }
+
     [Fact]
     public void Zero_selector_preserves_retained_registers_and_never_reads_unconsumed_fields()
     {

@@ -62,7 +62,7 @@ public sealed class TelemetryTrafficCollector
     }
 
     private const int KindCount = 8;
-    private readonly object sync = new();
+    private readonly System.Threading.Lock sync = new();
     private readonly Dictionary<int, int> enabledSites;
     private readonly int[] siteIds;
     private readonly Counter[] counters;

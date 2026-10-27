@@ -219,6 +219,10 @@ internal sealed partial class RecreateGame
         if (options.ControlDirectory is { } control)
         {
             WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame });
+            if (diagnosticTelemetry is { Active: true } telemetry)
+            {
+                WriteDiagnosticJson(Path.Combine(control, "presentation-progress.json"), telemetry.PresentationProgress(diagnosticProgressSequence));
+            }
         }
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_OUTPUT_DIRECTORY");
         string? receipt = diagnosticDriverRecipe!.ProgressPath ?? (string.IsNullOrWhiteSpace(output) ? null : Path.Combine(output, "diagnostic-driver.json"));
