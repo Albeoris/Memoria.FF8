@@ -30,6 +30,7 @@ public sealed partial class GameAssets : IDisposable
     private NativeShopDefinitions? nativeShopDefinitions;
     private NativeWeaponShopDefinitions? nativeWeaponShopDefinitions;
     private NativeDrawPointCatalog? nativeDrawPointCatalog;
+    private long nativeDrawPointGeneration = -1;
     private NativeEncounterTables? nativeEncounterTables;
 
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null, IMusicCueResolver? musicCueResolver = null, IModelOverrideSource? modelOverrides = null)
@@ -85,13 +86,16 @@ public sealed partial class GameAssets : IDisposable
     public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.Read(ReadNativeMemory());
     public NativeDrawPointCatalog ReadNativeDrawPointCatalog()
     {
-        if (nativeDrawPointCatalog is not null)
+        long generation = resources.Generation;
+        if (nativeDrawPointCatalog is not null && nativeDrawPointGeneration == generation)
         {
             return nativeDrawPointCatalog;
         }
         using IFlArchive main = OpenArchive("main");
-        nativeDrawPointCatalog = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")));
-        return nativeDrawPointCatalog;
+        NativeDrawPointCatalog selected = NativeDrawPointCatalogReader.Read(ReadNativeMemory(), Read(main, "kernel.bin"), ReadResource(new ResourceKey("text/draw-points")), resources.FindText(StaticTextResource.DrawPointMessages));
+        nativeDrawPointCatalog = selected;
+        nativeDrawPointGeneration = generation;
+        return selected;
     }
     public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadTable(ReadResource(new ResourceKey("tables/vibration")), NativeExecutableHash);
     public NativeShakeTables ReadNativeShakeTables()

@@ -54,14 +54,22 @@ public sealed class NativeTutorialInformationLocalizationTests
         byte[] title = FF8Encoding.CreateEuropean().GetBytes("Synthetic heading");
         int length = 8 + title.Length + 1 + body.Length + 1;
         byte[] block = new byte[(length + 3) & ~3];
+        BinaryPrimitives.WriteUInt16LittleEndian(block, ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(block.AsSpan(2), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(block.AsSpan(4), ushort.MaxValue);
         BinaryPrimitives.WriteUInt16LittleEndian(block.AsSpan(6), checked((ushort)length));
         title.CopyTo(block, 8);
         body.CopyTo(block, 9 + title.Length);
+        byte[] map = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(map, 1);
+        byte[] content = [.. map, .. block];
         byte[] header = new byte[2048];
-        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(128 * 8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(127 * 8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(127 * 8 + 4), checked((uint)map.Length));
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(128 * 8), checked((uint)map.Length + 1));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(128 * 8 + 4), checked((uint)block.Length));
         using InMemoryResourceSource resource = new(new("synthetic", GameDataEdition.Remastered, []));
-        resource.Set(new("menu/mngrp.bin"), block, "bin");
+        resource.Set(new("menu/mngrp.bin"), content, "bin");
         resource.Set(new("menu/mngrphd.bin"), header, "bin");
 
         var result = LocalizationSourceExporter.Read(resource, new MissingArchives(), "en", TestContext.Current.CancellationToken);

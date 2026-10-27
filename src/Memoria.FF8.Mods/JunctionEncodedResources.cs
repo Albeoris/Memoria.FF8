@@ -169,7 +169,7 @@ public static partial class JunctionEncodedResources
             path = path[7..];
         }
         string name = Path.GetFileName(path).ToLowerInvariant();
-        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("menu/temp/", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(name) == ".csv" || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
+        return path.StartsWith("save/", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(name) == ".csv" || name is "license" or "license.txt" or "license.md" or "copying" or "copying.txt" or "copying.md";
     }
 
     private static bool IsFieldName(string name) => name.Length >= 2 && name.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');

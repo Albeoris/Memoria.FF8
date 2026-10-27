@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.KernelBin;
+using Albeoris.Games.FF8.Imaging.Tex;
 using Albeoris.Games.FF8.NamedicBin;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Resources;
@@ -41,6 +42,55 @@ public sealed class NativeDataResourceValidatorTests
         validator.Dispose();
         Assert.False(source.Disposed);
         Assert.Throws<ObjectDisposedException>(() => validator.Validate(dictionary.Content, null));
+    }
+
+    [Theory]
+    [InlineData("menu/mag00.tex")]
+    [InlineData("menu/mag12.tex")]
+    [InlineData("menu/mag99.tex")]
+    public void DecodableMagazineTexWithWrongCanvasIsRejectedBeforePublication(string path)
+    {
+        using EmptySource source = new();
+        ResourceService resources = new(source);
+        using NativeDataResourceValidator validator = new(resources);
+        ResourceKey key = new(path);
+        EncodedResource original = Texture(key, 256, 256);
+        EncodedResource malformed = Texture(key, 128, 128);
+        Assert.Equal(128, TexFile.Read(Read(malformed.Content)).Decode().Width);
+        InvalidDataException failure = Assert.Throws<InvalidDataException>(() => validator.Validate(malformed.Content, original.Content));
+        Assert.Contains("256 by 256", failure.Message);
+        Assert.Equal(0, resources.Generation);
+        validator.Validate(original.Content, original.Content);
+    }
+
+    [Fact]
+    public void UnusedFontTexRetainsItsOwnValidBoundedCanvas()
+    {
+        using EmptySource source = new();
+        using NativeDataResourceValidator validator = new(new ResourceService(source));
+        ResourceKey key = new("menu/hires/sysfld00.tex");
+        validator.Validate(Texture(key, 128, 128).Content, Texture(key, 256, 256).Content);
+    }
+
+    private static EncodedResource Texture(ResourceKey key, int width, int height)
+    {
+        TexHeader header = new()
+        {
+            Width = width,
+            Height = height,
+            Pitch = width,
+            BitDepth = 8,
+            BitsPerPixel = 8,
+            BytesPerPixel = 1,
+            BitsPerIndex = 8,
+            PaletteFlags = TexPaletteFlags.HasPalette,
+            PaletteCount = 1,
+            ColorsPerPalette = 256,
+            RepeatedColorsPerPalette = 256,
+            PaletteSize = 256
+        };
+        TexFile texture = new(header, [Enumerable.Repeat(0xFF112233u, 256).ToArray()], new byte[width * height]);
+        return new(key, "tex", 1, "fixture", texture.Write());
     }
 
     [Fact]

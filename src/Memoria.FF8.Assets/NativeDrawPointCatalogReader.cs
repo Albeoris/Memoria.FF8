@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -13,7 +14,7 @@ public static class NativeDrawPointCatalogReader
         return Read(new NativeExecutableMemory(executable), kernel);
     }
 
-    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null)
+    public static NativeDrawPointCatalog Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? commonMessages = null, StaticTextResource? selectedMessages = null)
     {
         string executableHash = memory.SourceHash;
         if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
@@ -82,6 +83,30 @@ public static class NativeDrawPointCatalogReader
             CommonMessageBytes = messageBytes.MoveToImmutable(),
             MagicNames = magicNames.MoveToImmutable()
         };
+        catalog.Validate();
+        return ApplyMessages(catalog, selectedMessages);
+    }
+
+    public static NativeDrawPointCatalog ApplyMessages(NativeDrawPointCatalog original, StaticTextResource? selected)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        if (selected is null)
+        {
+            return original;
+        }
+        if (selected.Key != StaticTextResource.DrawPointMessages || selected.Texts.IsDefault || selected.Texts.Length != 9)
+        {
+            throw new InvalidDataException("Draw-point text requires its complete nine-entry source bank.");
+        }
+        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        ImmutableArray<string> messages = selected.Texts.Take(8).ToImmutableArray();
+        ImmutableArray<ImmutableArray<byte>> bytes = messages.Select(text =>
+        {
+            byte[] encoded = encoding.GetBytes(text);
+            return encoded.Length > 0 && encoded[^1] == 0 ? encoded.ToImmutableArray() : encoded.Append((byte)0).ToImmutableArray();
+        }).ToImmutableArray();
+        ImmutableArray<string> hashes = bytes.Select(value => Convert.ToHexString(SHA256.HashData(value.AsSpan()))).ToImmutableArray();
+        NativeDrawPointCatalog catalog = original with { CommonMessages = messages, CommonMessageBytes = bytes, CommonMessageHashes = hashes, NoEligibleMessage = messages[7], CommonMessageHash = hashes[7] };
         catalog.Validate();
         return catalog;
     }

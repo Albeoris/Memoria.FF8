@@ -49,6 +49,10 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
                     break;
                 case NativeDataResourceKind.Texture:
                     TexFile texture = TexFile.Read(bytes);
+                    if (Path.GetFileName(content.Key.Path).StartsWith("mag", StringComparison.Ordinal) && (texture.Header.Width != 256 || texture.Header.Height != 256))
+                    {
+                        throw new InvalidDataException("Native menu magazine and tutorial TEX atlases must preserve their 256 by 256 canvas.");
+                    }
                     for (int palette = 0; palette < Math.Max(1, texture.Palettes.Count); palette++)
                     {
                         _ = texture.Decode(palette);
@@ -138,7 +142,10 @@ public sealed class NativeDataResourceValidator(ResourceService candidate) : IDi
         {
             return;
         }
-        MngrpArchive archive = MngrpArchive.Read(candidate.Read(new ResourceKey("menu/mngrp.bin")), candidate.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+        byte[] content = candidate.Read(new ResourceKey("menu/mngrp.bin"));
+        byte[] header = candidate.Read(new ResourceKey("menu/mngrphd.bin"));
+        MngrpArchive archive = MngrpArchive.Read(content, header, FF8Encoding.CreateEuropean());
+        _ = NativeTutorialExamCatalog.Read(header, content, candidate.Source.Language);
         MngrpTextRecordSection cards = archive.GetSection<MngrpTextRecordSection>(192);
         if (cards.Records.Count != NativeCardInventory.CardCount || cards.Records.Where((record, id) => record.Payload.Length < 4 || record.Payload[3] != id).Any())
         {

@@ -2,7 +2,8 @@ namespace Albeoris.Games.FF8.MngrpBin.Abstractions;
 
 /// <summary>
 /// One block of a <see cref="MngrpTextBlockSection"/>: three 16-bit link ids, a 16-bit total
-/// length (recalculated on serialization) and a payload of NUL-terminated texts.
+/// metadata word and two NUL-terminated texts. Native readers use map offsets and strings,
+/// rather than traversing by the metadata word; serialization recalculates that word.
 /// </summary>
 public sealed class MngrpTextBlock
 {

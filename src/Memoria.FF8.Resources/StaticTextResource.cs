@@ -6,6 +6,9 @@ namespace Memoria.FF8.Resources;
 public sealed record StaticTextResource(ResourceKey Key, ImmutableArray<string> Texts, string PackageId, string RelativePath)
 {
     public static ResourceKey CardNames { get; } = new("text/exe/card_names");
+    public static ResourceKey BattleScans { get; } = new("text/exe/battle_scans");
+    public static ResourceKey CardTexts { get; } = new("text/exe/card_texts");
+    public static ResourceKey DrawPointMessages { get; } = new("text/exe/draw_point");
 
     public string? At(int index) => (uint)index < Texts.Length ? Texts[index] : null;
 

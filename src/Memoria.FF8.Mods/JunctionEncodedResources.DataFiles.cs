@@ -6,7 +6,7 @@ public static partial class JunctionEncodedResources
 {
     private static ResourceKey? DataFileAddress(string[] parts, int start)
     {
-        if (parts.Skip(start).Any(part => string.IsNullOrEmpty(part) || part is "." or ".."))
+        if (parts.Length <= start || parts.Skip(start).Any(part => string.IsNullOrEmpty(part) || part is "." or ".."))
         {
             return null;
         }

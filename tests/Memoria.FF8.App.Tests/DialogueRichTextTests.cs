@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.TextEncoding.Tags;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 
@@ -73,24 +74,25 @@ public sealed class DialogueRichTextTests
     }
 
     [Theory]
-    [InlineData(TextTagTerm.FishermansHorizon, "Fisherman's Horizon")]
-    [InlineData(TextTagTerm.BalambGarden, "Balamb Garden")]
-    [InlineData(TextTagTerm.TrabiaGarden, "Trabia Garden")]
-    [InlineData(TextTagTerm.EastAcademy, "East Academy")]
-    [InlineData(TextTagTerm.EastAcademyStation, "East Academy Station")]
-    [InlineData(TextTagTerm.DesertPrison, "D-District Prison")]
-    [InlineData(TextTagTerm.DesertPrisonStation, "D-District Prison Station")]
-    [InlineData(TextTagTerm.LunarGate, "Lunar Gate")]
-    [InlineData(TextTagTerm.LunarBase, "Lunar Base")]
-    [InlineData(TextTagTerm.ShumiVillage, "Shumi Village")]
-    [InlineData(TextTagTerm.DelingCity, "Deling City")]
-    [InlineData(TextTagTerm.DolletStation, "Dollet Station")]
-    [InlineData(TextTagTerm.UltimeciaCastle, "Ultimecia Castle")]
-    [InlineData(TextTagTerm.Balamb, "Balamb")]
-    [InlineData(TextTagTerm.Restores, "Restores")]
-    public void Place_and_term_references_expand_to_readable_names(TextTagTerm term, string expected)
+    [InlineData(TextTagTerm.FishermansHorizon, 7)]
+    [InlineData(TextTagTerm.BalambGarden, 14)]
+    [InlineData(TextTagTerm.TrabiaGarden, 10)]
+    [InlineData(TextTagTerm.EastAcademy, 8)]
+    [InlineData(TextTagTerm.EastAcademyStation, 15)]
+    [InlineData(TextTagTerm.DesertPrison, 9)]
+    [InlineData(TextTagTerm.DesertPrisonStation, 17)]
+    [InlineData(TextTagTerm.LunarGate, 18)]
+    [InlineData(TextTagTerm.LunarBase, 11)]
+    [InlineData(TextTagTerm.ShumiVillage, 12)]
+    [InlineData(TextTagTerm.DelingCity, 13)]
+    [InlineData(TextTagTerm.DolletStation, 16)]
+    [InlineData(TextTagTerm.UltimeciaCastle, 29)]
+    [InlineData(TextTagTerm.Balamb, 2)]
+    [InlineData(TextTagTerm.Restores, 19)]
+    public void TermReferencesUseTheirNativeDictionaryIndex(TextTagTerm term, int index)
     {
-        Assert.Equal(expected, DialogueTextFormatter.Format($"{{Term {term}}}"));
+        NativeTextTerms terms = new(Enumerable.Range(0, 32).Select(id => $"Source term {id}"));
+        Assert.Equal($"Source term {index}", DialogueTextFormatter.Format($"{{Term {term}}}", terms: terms));
     }
 
     [Fact]

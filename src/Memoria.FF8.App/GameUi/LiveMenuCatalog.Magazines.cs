@@ -81,10 +81,11 @@ public sealed partial class LiveMenuCatalog
                     byte textId = row[52 + slot * 4 + 3];
                     if (textId != 255)
                     {
-                        string value = DialogueTextFormatter.Format(text[textId] ?? throw new InvalidDataException("Magazine page refers to an absent English text entry."));
+                        string template = text[textId] ?? throw new InvalidDataException("Magazine page refers to an absent source text entry.");
+                        string value = FormatDescription(template)!;
                         lines.Add(value);
                         texts.Add(new NativeMagazineText(BinaryPrimitives.ReadUInt16LittleEndian(row[(52 + slot * 4)..]), row[54 + slot * 4], value));
-                        Func<string> readText = () => FormatDescription(LocalizedTable("mngrp_slot087_table", textId, value))!;
+                        Func<string> readText = () => FormatDescription(LocalizedTable("mngrp_slot087_table", textId, template))!;
                         linePresentation.Add(readText);
                         layoutPresentation.Add(readText);
                     }

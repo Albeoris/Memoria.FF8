@@ -12,7 +12,7 @@ public sealed partial class LiveMenuCatalog
 
     private void ReadLocations(byte[] bytes, Encoding encoding, WorldMapLocations world)
     {
-        locationNames = NamedicBin.ReadStrings(bytes, encoding).Select(value => DialogueTextFormatter.Format(value).Replace('\n', ' ')).ToArray();
+        locationNames = NamedicBin.ReadStrings(bytes, encoding);
         worldLocations = world;
     }
 

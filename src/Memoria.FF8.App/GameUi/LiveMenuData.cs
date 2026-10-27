@@ -418,6 +418,7 @@ public static class LiveMenuData
 public sealed partial class LiveMenuCatalog
 {
     private readonly KernelData kernel;
+    private readonly ITextTermSource terms;
     private readonly BattlePlayerStatReader statistics;
     private readonly string[] guardianForceNames;
     private readonly string?[] abilityNames;
@@ -429,9 +430,10 @@ public sealed partial class LiveMenuCatalog
     private readonly TripleTriadCatalog tripleTriad;
     private ImmutableArray<NativeAngeloTrainingDefinition> angeloMoves = [];
 
-    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad)
+    private LiveMenuCatalog(byte[] kernelBytes, KernelData kernel, string[] guardianForceNames, string[] cardDescriptions, byte[] fieldItems, byte[] itemIconKinds, TripleTriadCatalog tripleTriad, ITextTermSource terms)
     {
         this.kernel = kernel;
+        this.terms = terms;
         statistics = new BattlePlayerStatReader(kernelBytes);
         this.guardianForceNames = guardianForceNames;
         this.cardDescriptions = cardDescriptions;
@@ -439,7 +441,7 @@ public sealed partial class LiveMenuCatalog
         this.itemIconKinds = itemIconKinds;
         this.tripleTriad = tripleTriad;
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
-        abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CommandAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterStatAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.PartyAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.GuardianAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.MenuAbilities.Select(ability => FormatDescription(ability.Description))];
+        abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => ability.Description), .. kernel.CommandAbilities.Select(ability => ability.Description), .. kernel.CharacterStatAbilities.Select(ability => ability.Description), .. kernel.CharacterAbilities.Select(ability => ability.Description), .. kernel.PartyAbilities.Select(ability => ability.Description), .. kernel.GuardianAbilities.Select(ability => ability.Description), .. kernel.MenuAbilities.Select(ability => ability.Description)];
     }
 
     public BattleNativePlayerStatRules ReadStatRules(NativeCharacterVitals vitals, int row) => statistics.ReadRules(vitals, row);
@@ -469,7 +471,7 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original card text catalogue does not preserve its 110 card identities.");
         }
-        string[] cardDescriptions = cardText.Records.Select(record => FormatDescription(record.Text.Value)!).ToArray();
+        string[] cardDescriptions = cardText.Records.Select(record => record.Text.Value).ToArray();
         TripleTriadCatalog tripleTriad = TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
         byte[] fieldItems = ReadMenu("mitem.bin");
         if (fieldItems.Length % 4 != 0)
@@ -477,7 +479,7 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
         byte[] itemIconKinds = assets.ReadItemIconKinds();
-        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, fieldItems, itemIconKinds, tripleTriad);
+        LiveMenuCatalog catalog = new(kernelBytes, kernel, guardianForceNames, cardDescriptions, fieldItems, itemIconKinds, tripleTriad, assets.ReadNativeTextTerms());
         catalog.resources = assets.Resources;
         catalog.angeloMoves = NativeAngeloTrainingDefinitionReader.Read(ReadMenu("pet_exp.bin"), ReadMenu("pet_exp.msg"), encoding);
         catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.Read(assets.Resources));
@@ -504,9 +506,9 @@ public sealed partial class LiveMenuCatalog
     public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Name", id, kernel.BattleItems[id].Name) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Name", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Name) : null;
     public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? LocalizedKernel(nameof(kernel.BattleItems), "Description", id, kernel.BattleItems[id].Description) : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? LocalizedKernel(nameof(kernel.FieldItems), "Description", id - kernel.BattleItems.Count, kernel.FieldItems[id - kernel.BattleItems.Count].Description) : null);
 
-    internal static string? FormatText(string? encoded, IReadOnlyDictionary<int, string>? names = null) => encoded is null ? null : DialogueTextFormatter.Format(encoded, names).Replace('\n', ' ');
+    internal static string? FormatText(string? encoded, IReadOnlyDictionary<int, string>? names = null, ITextTermSource? terms = null) => encoded is null ? null : DialogueTextFormatter.Format(encoded, names, terms: terms).Replace('\n', ' ');
 
-    private static string? FormatDescription(string? encoded) => FormatText(encoded);
+    private string? FormatDescription(string? encoded) => FormatText(encoded, terms: terms);
     public string? AbilityName(int id)
     {
         return (uint)id < abilityNames.Length && AbilityIdentity(id) is { } identity ? LocalizedKernel(identity.Collection, "Name", identity.Ordinal, abilityNames[id]) : null;

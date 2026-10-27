@@ -78,6 +78,20 @@ public sealed class JunctionTextResourceTests
         Assert.Equal(["Before", "Before", "A{Speed 32}B"], Assert.Single(texts).Texts);
     }
 
+    [Theory]
+    [InlineData("battle_scans", 160)]
+    [InlineData("draw_point", 9)]
+    [InlineData("card_texts", 29)]
+    public void KnownNativeBanksRequireTheirCompleteIndexedIdentityCount(string bank, int count)
+    {
+        ModFile valid = File("bank", $"direct/exe/{bank}.msd", Enumerable.Range(0, count).Select(index => $"Entry {index}"));
+        Assert.True(JunctionTextResources.TryPrepare(new(1, [], [valid]), out _, out var diagnostics));
+        Assert.Empty(diagnostics);
+        ModFile invalid = File("bank", $"direct/exe/{bank}.msd", Enumerable.Range(0, count - 1).Select(index => $"Entry {index}"));
+        Assert.False(JunctionTextResources.TryPrepare(new(2, [], [invalid]), out _, out diagnostics));
+        Assert.Equal("Junction.InvalidTextResource", Assert.Single(diagnostics).Code);
+    }
+
     private static ModFile File(string package, string path, IEnumerable<string> texts)
     {
         MsdFile table = new(FF8Encoding.CreateEuropean());

@@ -33,6 +33,8 @@ public sealed class JunctionDataResourceTests
     [InlineData("world/dat/wmsetxxx.obj")]
     [InlineData("menu/hires/sysfldx0.tex")]
     [InlineData("")]
+    [InlineData("direct")]
+    [InlineData("direct/")]
     public void UnregisteredPathsDoNotBecomeNativeAliases(string path)
     {
         Assert.Null(JunctionEncodedResources.Address(path));

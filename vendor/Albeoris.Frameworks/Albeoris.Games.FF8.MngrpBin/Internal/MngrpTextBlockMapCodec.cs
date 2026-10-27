@@ -6,12 +6,12 @@ namespace Albeoris.Games.FF8.MngrpBin.Internal;
 /// <summary>
 /// Reads and writes the text-block-map layout: a 32-bit reference count followed by one
 /// (16-bit block offset, 16-bit section number) pair per reference. Offsets are resolved to
-/// block indexes on read and recalculated from the referenced sections on write; a stored
-/// offset that matches no block start (a shipped-file corruption) is carried through verbatim.
+/// block indexes on read and recalculated from the referenced sections on write; every stored
+/// offset must resolve to a complete native Information node.
 /// </summary>
 internal static class MngrpTextBlockMapCodec
 {
-    public static MngrpTextBlockMapSection Read(Int32 slotIndex, ReadOnlySpan<Byte> body, IReadOnlyList<List<Int32>> blockStartsBySectionNumber)
+    public static MngrpTextBlockMapSection Read(Int32 slotIndex, ReadOnlySpan<Byte> body, IReadOnlyList<List<Int32>> blockStartsBySectionNumber, Boolean resolveReferences = true)
     {
         if (body.Length < 4)
         {
@@ -19,18 +19,18 @@ internal static class MngrpTextBlockMapCodec
         }
 
         UInt32 count = BinaryPrimitives.ReadUInt32LittleEndian(body);
-        Int32 headerLength = checked(4 + (Int32)count * 4);
-        if (count > Int32.MaxValue / 4 || headerLength > body.Length)
+        if (count > (body.Length - 4) / 4)
         {
             throw new InvalidDataException($"A text block map declares {count} references but is only {body.Length} bytes long.");
         }
 
+        Int32 headerLength = 4 + (Int32)count * 4;
         MngrpTextBlockMapSection section = new(slotIndex);
         for (Int32 i = 0; i < count; i++)
         {
             UInt16 storedOffset = BinaryPrimitives.ReadUInt16LittleEndian(body.Slice(4 + i * 4, 2));
             UInt16 sectionNumber = BinaryPrimitives.ReadUInt16LittleEndian(body.Slice(6 + i * 4, 2));
-            section.References.Add(new MngrpTextBlockReference(sectionNumber, ResolveBlockIndex(sectionNumber, storedOffset, blockStartsBySectionNumber), storedOffset));
+            section.References.Add(new MngrpTextBlockReference(sectionNumber, resolveReferences ? ResolveBlockIndex(sectionNumber, storedOffset, blockStartsBySectionNumber) : null, storedOffset));
         }
 
         section.TrailingData = MngrpFormat.TrimTrailingZeros(body[headerLength..]).ToArray();
@@ -53,18 +53,18 @@ internal static class MngrpTextBlockMapCodec
     {
         if (sectionNumber >= blockStartsBySectionNumber.Count)
         {
-            return null;
+            throw new InvalidDataException("An Information map selects an absent text resource.");
         }
 
         Int32 blockIndex = blockStartsBySectionNumber[sectionNumber].BinarySearch(storedOffset);
-        return blockIndex >= 0 ? blockIndex : null;
+        return blockIndex >= 0 ? blockIndex : throw new InvalidDataException("An Information map offset does not address a complete native node.");
     }
 
     private static UInt16 GetBlockOffset(MngrpTextBlockReference reference, IReadOnlyList<List<Int32>> blockStartsBySectionNumber)
     {
         if (reference.BlockIndex is not Int32 blockIndex)
         {
-            return reference.StoredOffset;
+            throw new InvalidOperationException("An Information map reference must resolve to a native node before writing.");
         }
 
         if (reference.SectionNumber >= blockStartsBySectionNumber.Count)

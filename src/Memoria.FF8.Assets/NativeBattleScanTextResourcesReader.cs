@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
+using Albeoris.Games.FF8.TextEncoding;
 
 namespace Memoria.FF8.Assets;
 
@@ -13,7 +15,7 @@ public static class NativeBattleScanTextResourcesReader
         return new(category, address, memory.Read(address, 16).ToImmutableArray());
     }
 
-    public static NativeBattleScanTextResources Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? descriptionData = null)
+    public static NativeBattleScanTextResources Read(IGameNativeMemorySource memory, byte[] kernel, byte[]? descriptionData = null, StaticTextResource? selectedDescriptions = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
         ArgumentNullException.ThrowIfNull(kernel);
@@ -54,6 +56,37 @@ public static class NativeBattleScanTextResourcesReader
         {
             resources.ReadEncodedMiscText(id);
         }
-        return resources;
+        return ApplyDescriptions(resources, selectedDescriptions);
+    }
+
+    public static NativeBattleScanTextResources ApplyDescriptions(NativeBattleScanTextResources original, StaticTextResource? selected)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        if (selected is null)
+        {
+            return original;
+        }
+        if (selected.Key != StaticTextResource.BattleScans || selected.Texts.IsDefault || selected.Texts.Length != 160)
+        {
+            throw new InvalidDataException("Scan descriptions require all 160 model-indexed text identities.");
+        }
+        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        ImmutableArray<ushort>.Builder offsets = ImmutableArray.CreateBuilder<ushort>(160);
+        using MemoryStream bytes = new();
+        foreach (string text in selected.Texts)
+        {
+            if (bytes.Length > ushort.MaxValue)
+            {
+                throw new InvalidDataException("Scan description offsets exceed their native WORD directory.");
+            }
+            offsets.Add((ushort)bytes.Length);
+            byte[] encoded = encoding.GetBytes(text);
+            bytes.Write(encoded);
+            if (encoded.Length == 0 || encoded[^1] != 0)
+            {
+                bytes.WriteByte(0);
+            }
+        }
+        return original with { DescriptionOffsets = offsets.MoveToImmutable(), DescriptionBytes = bytes.ToArray().ToImmutableArray() };
     }
 }

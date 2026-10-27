@@ -62,6 +62,7 @@ public sealed class JunctionTranslationResourceInstalledTests
             {
                 List<object> observations = [];
                 ModDiagnostic[] diagnostics = [];
+                ModDiagnostic[] restartDiagnostics = [];
                 try
                 {
                     File.WriteAllText(archive + ".ini", $"enabled = 1{Environment.NewLine}option.{fixture.Option} = {value}");
@@ -94,6 +95,9 @@ public sealed class JunctionTranslationResourceInstalledTests
                     Assert.Equal(kernel.BattleItems[1].Name, menu.ItemName(1));
                     Assert.Equal(kernel.MiscTexts, battle.ReadNativeGlobalBattleMessages());
                     MngrpArchive textArchive = MngrpArchive.Read(Expected("menu/mngrp.bin"), Expected("menu/mngrphd.bin"), encoding);
+                    MngrpFilePair roundtrip = textArchive.Write();
+                    Assert.Equal(Expected("menu/mngrp.bin"), roundtrip.Content);
+                    Assert.Equal(Expected("menu/mngrphd.bin"), roundtrip.Header);
                     MngrpTextRecordSection cards = textArchive.GetSection<MngrpTextRecordSection>(192);
                     Assert.Equal(LiveMenuCatalog.FormatText(cards.Records[0].Text.Value), menu.CardDescription(0));
                     foreach (var pair in expected.Where(pair => NativeDataResourceFiles.Classify(pair.Key) == NativeDataResourceKind.Enemy))
@@ -129,6 +133,27 @@ public sealed class JunctionTranslationResourceInstalledTests
                     foreach (StaticTextResource table in texts)
                     {
                         Assert.Equal(table.Texts, host.Resources.FindText(table.Key)!.Texts);
+                        if (table.Key == StaticTextResource.BattleScans)
+                        {
+                            NativeBattleScanTextResources scan = assets.ReadNativeScanTextResources();
+                            for (int index = 0; index < table.Texts.Length; index++)
+                            {
+                                int offset = scan.DescriptionOffsets[index];
+                                int length = scan.DescriptionBytes.AsSpan()[offset..].IndexOf((byte)0);
+                                Assert.Equal(table.Texts[index], encoding.GetString(scan.DescriptionBytes.AsSpan(offset, length)));
+                            }
+                        }
+                        if (table.Key == StaticTextResource.DrawPointMessages)
+                        {
+                            NativeDrawPointCatalog draw = assets.ReadNativeDrawPointCatalog();
+                            Assert.Equal(table.Texts.Take(8), draw.CommonMessages);
+                            Assert.Equal(table.Texts[7], draw.NoEligibleMessage);
+                            for (int index = 0; index < 8; index++)
+                            {
+                                byte[] encoded = encoding.GetBytes(table.Texts[index]);
+                                Assert.Equal(encoded.Append((byte)0), draw.CommonMessageBytes[index]);
+                            }
+                        }
                         for (int index = 0; index < table.Texts.Length; index++)
                         {
                             Assert.Equal(table.Texts[index], host.Resources.ReadText(table.Key, index));
@@ -142,7 +167,15 @@ public sealed class JunctionTranslationResourceInstalledTests
                         {
                             foreach (var pair in group)
                             {
-                                Assert.Equal(Read(original.Find(pair.Key)!.OpenRead()), host.Resources.Read(pair.Key));
+                                ResourceContent? installed = original.Find(pair.Key);
+                                if (installed is null)
+                                {
+                                    Assert.Throws<FileNotFoundException>(() => host.Resources.Read(pair.Key));
+                                }
+                                else
+                                {
+                                    Assert.Equal(Read(installed.OpenRead()), host.Resources.Read(pair.Key));
+                                }
                             }
                             fields.Add(new { field = group.Key, accepted = false, errors });
                             continue;
@@ -174,14 +207,15 @@ public sealed class JunctionTranslationResourceInstalledTests
                         Assert.False(host.Pump(true));
                         Assert.Contains(host.Mods.Diagnostics, item => item.Code == "resource-reload-required");
                         Assert.Equal(before, host.Resources.Read(new ResourceKey("main/kernel.bin")));
+                        restartDiagnostics = host.Mods.Diagnostics.ToArray();
                     }
-                    selections.Add(new { value, success = true, observations, fields, diagnostics = host.Mods.Diagnostics });
+                    selections.Add(new { value, success = true, observations, fields, diagnostics, restartDiagnostics });
                     WriteEvidence(value, selections[^1]);
                 }
                 catch (Exception exception)
                 {
                     failures.Add($"Selection {value}: {exception}");
-                    selections.Add(new { value, success = false, error = exception.ToString(), observations, diagnostics });
+                    selections.Add(new { value, success = false, error = exception.ToString(), observations, diagnostics, restartDiagnostics });
                     WriteEvidence(value, selections[^1]);
                 }
             }

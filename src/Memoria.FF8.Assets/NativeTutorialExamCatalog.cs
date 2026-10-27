@@ -121,7 +121,7 @@ public sealed class NativeTutorialExamCatalog
                 }
                 else if (visible)
                 {
-                    Append(ReadInformationNumber(operand, progress)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—");
+                    Append(ReadInformationNumber(operand, progress)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "â€”");
                 }
                 continue;
             }
@@ -273,10 +273,9 @@ public sealed class NativeTutorialExamCatalog
                 throw new InvalidDataException("Original Information node is outside its text section.");
             }
             byte[] bytes = blocks[section];
-            int length = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 6));
             int titleEnd = Array.IndexOf(bytes, (byte)0, offset + 8);
             int bodyEnd = titleEnd < 0 ? -1 : Array.IndexOf(bytes, (byte)0, titleEnd + 1);
-            if (length < 10 || offset + length > bytes.Length || titleEnd < 0 || bodyEnd < 0 || bodyEnd >= offset + length)
+            if (titleEnd < offset + 8 || bodyEnd < 0 || bodyEnd >= bytes.Length)
             {
                 throw new InvalidDataException("Original Information node lacks its bounded title/body pair.");
             }

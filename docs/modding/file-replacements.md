@@ -22,6 +22,18 @@ Declarative `FFNxConfig` settings `enable_ffmpeg_videos`, `ffmpeg_video_ext` and
 
 Registered `.tdw` files can replace ordinary archive resources even though the current renderer does not consume their font data. A root file such as `sysfnt.tdw`, optionally under `direct/`, addresses `main/sysfnt.tdw`; explicit `main/` and `menu/` paths remain distinct. The installed source must provide the corresponding key and format. Bytes are frozen through the resource service under normal priority and acquired-resource restart rules. A successful publication reports owning-package `resource-unused`; this is not a font-rendering implementation. Unregistered formats are not accepted as executable code or arbitrary runtime plugins.
 
+## Native data files
+
+The file replacement layer also registers `main/kernel.bin`, `main/namedic.bin`, `battle/c0mNNN.dat`, `menu/mngrp.bin`, `menu/mngrphd.bin` and native `world/wmsetXX.obj` resources. Root `kernel.bin` and `namedic.bin` names retain their main-archive identity; `world/dat/wmsetXX.obj` retains its world-archive identity. The optional `direct/` prefix has the same meaning as for model files. CSV exports are auxiliary material. Unregistered nested paths do not become aliases for canonical archive files.
+
+Preparation validates all winning files against one candidate resource publication. Enemy ability and text references therefore use the selected kernel. Native two-section and eleven-section enemy layouts remain distinct. Kernel directory and record bounds, message terminators, menu indexes and world records are checked through their typed readers. A malformed winning binary rejects the update with owning-package diagnostics and preserves the preceding generation.
+
+Native `Term` controls resolve through the selected counted `namedic.bin` dictionary and the resource abstraction. The native parameter-to-index calculation is retained; an index outside that dictionary contributes no text. Native text formatting requires a term source when such a control is reached. Authored interface localization remains a presentation layer over the selected source strings.
+
+The menu index and data files form a compound contribution. When another package overlaps a contributed member, the lower-priority contribution loses as a whole; disjoint partial contributions can combine and must pass joint validation. This follows file replacement priority and does not turn the package into a native Field mod. Field components retain their separate grouping rules below, followed by incremental presentation patches.
+
+Native menu TEX and compressed disc images are decoded and validated as registered file resources. Tutorial and magazine artwork consumes selected TEX bytes through the resource service. Images without a consumer in the current interface are published with owning `resource-unused` diagnostics; accepting those bytes does not add disc prompts, title layouts or font rendering. Binary files remain subject to the acquired-resource restart guard.
+
 ## Encoded model resources
 
 Selected `direct/field/model/main_chr/<name>.mch` or `field/model/main_chr/<name>.mch` files replace installed main-character library resources through the shared resource service. Both layouts address the same resource and follow normal package priority. Names follow the native letter-plus-three-digits convention. Geometry and embedded TIM materials are validated before publication; a malformed winning contribution rejects the update rather than selecting a lower-priority file. Original field ONE resources continue to own placement and animation data, and native registration captures the selected MCH bytes.
@@ -76,11 +88,15 @@ Voice payloads are copied and hashed into immutable disk snapshots through the s
 
 ## Indexed text tables
 
-Selected `direct/exe/<table>.msd` files provide indexed text tables under the resource address `text/exe/<table>`. The current card-name consumers use `card_names`, which must contain all 110 native card identities in order. Parsing and texture preparation complete before the resource generation is published; malformed text retains the preceding generation and reports the owning package.
+Selected `exe/<table>.msd` files, optionally prefixed with `direct/`, provide indexed text tables under the resource address `text/exe/<table>`. The current card-name consumers use `card_names`, which must contain all 110 native card identities in order. Parsing and texture preparation complete before the resource generation is published; malformed text retains the preceding generation and reports the owning package. Native speed controls remain nonvisual tokens; parameter zero terminates the text at its native boundary.
+
+`battle_scans` contains 160 model-indexed descriptions. `draw_point` contains nine indexed rows, of which native interactions currently use the first eight. Scan and draw-point resource materializations refresh with the publication generation while already captured definitions remain immutable. A pending draw-point snapshot retains its selected message-bank hash; restoring it requires the compatible bank or an explicit migration. `card_texts` has 29 rows and is retained with an unused-resource diagnostic because the current card interface uses semantic localization rather than this native table.
 
 Inventory, refinement, reward UI and Triple Triad look up card names through the current resource generation. A native battle definition keeps the names captured when that battle was constructed; subsequent battles use the new generation. Disabling a text replacement restores the original names.
 
 ## Movie lifetime and timing
+
+Flat native movie filenames at a package root can replace the corresponding requested movie. Exact directory-qualified addresses take precedence within a package; distinct source directories are not merged. A camera companion is selected only from the winning video package, otherwise the original timeline is retained.
 
 Uncompressed archive videos are read directly from their bounded byte range through FFmpeg's seekable `subfile` input, without extracting the movie or copying it into memory. Compressed entries, folder replacements and small CAM files are materialized only when selected. Playback pins its video and CAM together; package toggles apply to the next playback. Cached files remain available for the host's lifetime. Archive versions are checked before reopening a bound movie; changing its underlying archive requires preparing playback again.
 

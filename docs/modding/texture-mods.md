@@ -57,6 +57,8 @@ Battle material images can use any positive resolution, with independent horizon
 
 ### Junction Field background atlases
 
+Native loose pages can also use `field/mapdata/<prefix>/<field>/<field>_<page>.png`, optionally under `direct/`. The prefix must match the field name. These are original 256 × 256 VRAM pages sampled with the tile's source coordinates, independently of the packed MAP-record atlas below. Native pages 0–12 and legacy page names 13–25 retain their distinct numbering; the legacy name takes precedence when both describe the same page. Unproved multi-suffix variants are rejected individually with owning diagnostics.
+
 The palette-free path is `mods/textures/field/mapdata/<field>/<field>.dds` or `.png`, with the existing optional English root. Original MAP record count determines atlas width: `ceil(count / 16) * 16`, with height 256. Each record occupies a 16 × 16 slot. Native source identity includes texture ID, quantized source coordinates, depth and indexed palette; duplicate identities use the earliest matching slot. Destination placement, animation and blending remain controlled by native MAP data. These addresses are separate from MIM-page aliases used by other adapters.
 
 External atlas alpha is coverage: values below 127 are transparent; values from 127 upward retain RGB and select the native primitive's blend behavior. The adapter converts this to the engine's canonical semitransparency marker. Authored opacity is not passed directly to the renderer.
@@ -64,6 +66,8 @@ External atlas alpha is coverage: values below 127 are transparent; values from 
 The current direct tile consumer requires source UV coordinates aligned to 16 pixels, supported depth and in-page source bounds. Unsupported source layouts are diagnosed during inspection and reject the selected replacement when acquired; original tiles remain active. It does not guess residual UV reconstruction or change the original MAP decoder. Incompatible dimensions reject that resource without retrying PNG or a lower package. Valid resources and sibling mod components remain available.
 
 ### Junction native artwork
+
+Native `menu/magNN.tex.png` and `menu/hires/iconflNN_PP.png` paths can address their corresponding artwork directly. Their source canvas and available palettes remain authoritative; extra palette filenames do not expand the original palette set.
 
 Inspection checks palette availability against the selected source. Extra palette filenames cannot create new original palette consumers. Existing native font/title atlases without a current renderer consumer remain unused with an owning diagnostic; no title or glyph rendering is implied by accepting those resources.
 

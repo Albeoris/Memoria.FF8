@@ -22,7 +22,8 @@ public static class JunctionTextResources
                     continue;
                 }
                 ImmutableArray<string> texts = MsdFile.Read(file.ReadBytes(), FF8Encoding.CreateEuropean()).Texts.Select(WithoutTerminator).ToImmutableArray();
-                if (texts.IsEmpty || key == StaticTextResource.CardNames && texts.Length != 110)
+                int? requiredCount = key == StaticTextResource.CardNames ? 110 : key == StaticTextResource.BattleScans ? 160 : key == StaticTextResource.DrawPointMessages ? 9 : key == StaticTextResource.CardTexts ? 29 : null;
+                if (texts.IsEmpty || requiredCount is int count && texts.Length != count)
                 {
                     throw new InvalidDataException("Static text table is empty or differs from its required identity count.");
                 }

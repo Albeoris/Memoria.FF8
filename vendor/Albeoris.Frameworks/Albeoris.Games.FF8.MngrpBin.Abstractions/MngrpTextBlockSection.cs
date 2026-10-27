@@ -1,8 +1,8 @@
 namespace Albeoris.Games.FF8.MngrpBin.Abstractions;
 
 /// <summary>
-/// A section holding a sequence of <see cref="MngrpTextBlock"/>s, each aligned to four bytes and
-/// terminated by a block whose stored length is zero. Blocks are addressed by their byte offset
+/// A section holding map-addressed <see cref="MngrpTextBlock"/>s. Native readers select exact
+/// byte offsets without an alignment or sequential-length requirement. Blocks are addressed by their byte offset
 /// from a <see cref="MngrpTextBlockMapSection"/>; those offsets are recalculated on serialization.
 /// </summary>
 public sealed class MngrpTextBlockSection : MngrpSection

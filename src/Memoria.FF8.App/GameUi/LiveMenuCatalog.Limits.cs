@@ -32,11 +32,11 @@ public sealed partial class LiveMenuCatalog
         }
         else if (command == 19)
         {
-            character.LimitSettings["Angelo name"] = FormatText("{Char Angelo2}", names)!;
+            character.LimitSettings["Angelo name"] = FormatText("{Char Angelo2}", names, terms)!;
             for (int index = 0; index < 8; index++)
             {
                 var definition = AngeloMove(index);
-                MenuLimitMove move = LimitMove(index, FormatText(LocalizedTable("names_angelo_abilities", index, definition.Name), names), FormatText(LocalizedTable("descriptions_angelo_abilities", index, definition.Description), names), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
+                MenuLimitMove move = LimitMove(index, FormatText(LocalizedTable("names_angelo_abilities", index, definition.Name), names, terms), FormatText(LocalizedTable("descriptions_angelo_abilities", index, definition.Description), names, terms), progress is null ? null : (progress.AngeloFlags & (1 << index)) != 0);
                 if (progress is not null)
                 {
                     move.TrainingProgress = AngeloTrainingProgress(definition.TrainingTotal, progress.TrainingCounters[index], move.Learned == true);
@@ -112,7 +112,7 @@ public sealed partial class LiveMenuCatalog
         return Math.Clamp((total - remaining) * 64 / total, 0, remaining == 0 ? 64 : 63);
     }
 
-    private static MenuLimitMove LimitMove(int index, string? name, string? description, bool? learned)
+    private MenuLimitMove LimitMove(int index, string? name, string? description, bool? learned)
     {
         return new MenuLimitMove
         {

@@ -239,6 +239,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: textDiagnostics);
         }
+        foreach (StaticTextResource text in textResources.Where(text => text.Key != StaticTextResource.CardNames && text.Key != StaticTextResource.BattleScans && text.Key != StaticTextResource.DrawPointMessages))
+        {
+            staticFileDiagnostics.Add(new("resource-unused", $"Text table {text.Key} was published, but the current interface has no native indexed consumer for it. Authored interface localization remains separate.", text.PackageId, text.RelativePath));
+        }
         if (!PrepareVoices(catalog, encodedResources, out ExternalVoiceResolver? voiceResolver, out IReadOnlyList<EncodedResource> voiceResources, out IReadOnlyList<ModDiagnostic> voiceDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics.Concat(fieldResourceDiagnostics).Concat(voiceDiagnostics).ToArray());

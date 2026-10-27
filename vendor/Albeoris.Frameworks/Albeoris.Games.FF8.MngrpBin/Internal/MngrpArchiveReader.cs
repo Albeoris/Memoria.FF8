@@ -12,6 +12,23 @@ internal static class MngrpArchiveReader
         List<MngrpSlotLocation> occupied = [.. directory.EnumerateOccupied()];
         Dictionary<Int32, MngrpSlotLocation> occupiedBySlot = occupied.ToDictionary(location => location.SlotIndex);
 
+        MngrpSlotLocation[] blockLocations = occupied.Where(location => MngrpSectionCatalog.Get(location.SlotIndex).Layout == MngrpSectionLayout.TextBlockList).ToArray();
+        Dictionary<Int32, List<Int32>> mappedStarts = blockLocations.ToDictionary(location => location.SlotIndex, _ => new List<Int32>());
+        Int32 referenceCount = 0;
+        foreach (MngrpSlotLocation mapLocation in occupied.Where(location => MngrpSectionCatalog.Get(location.SlotIndex).Layout == MngrpSectionLayout.TextBlockMap))
+        {
+            MngrpTextBlockMapSection map = MngrpTextBlockMapCodec.Read(mapLocation.SlotIndex, GetBody(mapLocation, content), [], resolveReferences: false);
+            referenceCount = checked(referenceCount + map.References.Count);
+            foreach (MngrpTextBlockReference reference in map.References)
+            {
+                if ((UInt32)reference.SectionNumber >= blockLocations.Length)
+                {
+                    throw new InvalidDataException("A mapped Information node selects an absent text resource.");
+                }
+                mappedStarts[blockLocations[reference.SectionNumber].SlotIndex].Add(reference.StoredOffset);
+            }
+        }
+
         List<IMngrpSection> sections = new(occupied.Count);
         List<List<Int32>> blockStartsBySectionNumber = [];
         List<(MngrpTextBlockMapSection Placeholder, MngrpSlotLocation Location)> pendingMaps = [];
@@ -25,7 +42,7 @@ internal static class MngrpArchiveReader
 
             try
             {
-                IMngrpSection section = ReadSection(location, content, encoding, occupiedBySlot, blockStartsBySectionNumber, pendingMaps);
+                IMngrpSection section = ReadSection(location, content, encoding, occupiedBySlot, blockStartsBySectionNumber, pendingMaps, mappedStarts, referenceCount);
                 section.ReservedSize = location.Size;
                 if (section is MngrpTextRecordSection records && occupiedBySlot.TryGetValue(records.TextSlotIndex, out MngrpSlotLocation textLocation))
                 {
@@ -65,7 +82,9 @@ internal static class MngrpArchiveReader
         Encoding encoding,
         Dictionary<Int32, MngrpSlotLocation> occupiedBySlot,
         List<List<Int32>> blockStartsBySectionNumber,
-        List<(MngrpTextBlockMapSection Placeholder, MngrpSlotLocation Location)> pendingMaps)
+        List<(MngrpTextBlockMapSection Placeholder, MngrpSlotLocation Location)> pendingMaps,
+        Dictionary<Int32, List<Int32>> mappedStarts,
+        Int32 referenceCount)
     {
         ReadOnlySpan<Byte> body = GetBody(location, content);
         MngrpSectionDescriptor descriptor = MngrpSectionCatalog.Get(location.SlotIndex);
@@ -77,6 +96,7 @@ internal static class MngrpArchiveReader
                 MngrpStringTable table = MngrpStringTableCodec.Read(body, encoding, trimLastEntry: true);
                 section.Table.Entries.AddRange(table.Entries);
                 section.Table.LeadingBytes = table.LeadingBytes;
+                MngrpStringTableCodec.CopyLayout(table, section.Table);
                 return section;
             }
 
@@ -85,7 +105,7 @@ internal static class MngrpArchiveReader
 
             case MngrpSectionLayout.TextBlockList:
             {
-                MngrpTextBlockSection section = MngrpTextBlockCodec.Read(location.SlotIndex, body, encoding, out List<Int32> blockStarts);
+                MngrpTextBlockSection section = MngrpTextBlockCodec.Read(location.SlotIndex, body, encoding, mappedStarts[location.SlotIndex], referenceCount, out List<Int32> blockStarts);
                 blockStartsBySectionNumber.Add(blockStarts);
                 return section;
             }

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 using Microsoft.Xna.Framework;
 
 namespace Memoria.FF8;
@@ -10,18 +11,18 @@ internal static partial class DialogueTextFormatter
     private static readonly Color GreyTextColor = new(208, 208, 208);
     private static readonly Func<ushort, string> DefaultButtonBindingHint = new KeyboardInput().NativeButtonBindingHint;
 
-    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
+    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
     {
-        return Parse(encoded, names, messageVariables, buttonBindingHint).Text;
+        return Parse(encoded, names, messageVariables, buttonBindingHint, terms).Text;
     }
 
-    internal static string FormatWithPrompts(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
+    internal static string FormatWithPrompts(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
     {
-        DialogueDocument document = Parse(encoded, names, messageVariables, buttonBindingHint);
+        DialogueDocument document = Parse(encoded, names, messageVariables, buttonBindingHint, terms);
         return string.Join('\n', document.Pages.SelectMany(page => page.Lines).Select(line => string.Concat(line.Runs.Select(run => run.IsButton ? ButtonPromptText.Mark(run.Text) : run.Text))));
     }
 
-    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null)
+    public static DialogueDocument Parse(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null, Func<ushort, string>? buttonBindingHint = null, ITextTermSource? terms = null)
     {
         string expanded = NativeMessageVariables.Expand(encoded, messageVariables);
         List<DialoguePage> pages = [];
@@ -116,7 +117,15 @@ internal static partial class DialogueTextFormatter
                     Append(MiscName(ParseEnum<TextTagName>(parameter, kind), names));
                     break;
                 case "Term":
-                    Append(TermName(ParseEnum<TextTagTerm>(parameter, kind)));
+                    if (terms is null)
+                    {
+                        throw new NotSupportedException("Native text terms require their source dictionary.");
+                    }
+                    if (!Enum.TryParse(parameter, out TextTagTerm term))
+                    {
+                        throw new NotSupportedException($"Dialogue Term parameter '{parameter}' is unsupported.");
+                    }
+                    Append(terms.Resolve(unchecked((byte)((byte)term - 32))));
                     break;
                 case "Key" when Enum.TryParse(parameter, out TextTagKey key) && key == TextTagKey.JunctionMarker:
                     // Native common message4 uses key65 for the junctioned-magic J marker.
@@ -226,27 +235,6 @@ internal static partial class DialogueTextFormatter
             TextTagName.Boko => names?.GetValueOrDefault(GameNames.BokoSubject) ?? GameNames.DefaultName(GameNames.BokoSubject),
             TextTagName.Griever => names?.GetValueOrDefault(GameNames.GrieverSubject) ?? GameNames.DefaultName(GameNames.GrieverSubject),
             _ => name.ToString()
-        };
-    }
-
-    private static string TermName(TextTagTerm term)
-    {
-        return term switch
-        {
-            TextTagTerm.FishermansHorizon => "Fisherman's Horizon",
-            TextTagTerm.EastAcademy => "East Academy",
-            TextTagTerm.DesertPrison => "D-District Prison",
-            TextTagTerm.TrabiaGarden => "Trabia Garden",
-            TextTagTerm.LunarBase => "Lunar Base",
-            TextTagTerm.ShumiVillage => "Shumi Village",
-            TextTagTerm.DelingCity => "Deling City",
-            TextTagTerm.BalambGarden => "Balamb Garden",
-            TextTagTerm.EastAcademyStation => "East Academy Station",
-            TextTagTerm.DolletStation => "Dollet Station",
-            TextTagTerm.DesertPrisonStation => "D-District Prison Station",
-            TextTagTerm.LunarGate => "Lunar Gate",
-            TextTagTerm.UltimeciaCastle => "Ultimecia Castle",
-            _ => term.ToString()
         };
     }
 
