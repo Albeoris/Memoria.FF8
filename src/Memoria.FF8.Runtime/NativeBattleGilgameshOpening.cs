@@ -80,7 +80,7 @@ public static class NativeBattleGilgameshOpening
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x592E90 or 0x592F90 or 0x5930C0))
+        if (task.PayloadLength != 24 || task.Callback is not (0x592E90 or 0x592F90 or 0x5930C0))
         {
             throw new InvalidDataException("Native Gilgamesh opening requires its original raw0x24-byte leaf task.");
         }

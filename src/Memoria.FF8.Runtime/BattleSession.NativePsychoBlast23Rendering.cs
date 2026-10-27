@@ -31,7 +31,7 @@ public sealed partial class BattleSession
             return retained;
         });
         NativeBattleEffectHierarchy hierarchy = new(current.Effect.Pools);
-        task = hierarchy.Read(address).WriteBytes(0x94, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(hierarchy.Read(address), 0x94, retainUnknown: false);
         hierarchy = hierarchy.Write(address, task);
         return (graphics, current with { Effect = current.Effect with { Pools = hierarchy.Pools } });
     }

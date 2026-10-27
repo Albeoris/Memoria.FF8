@@ -192,7 +192,7 @@ public static partial class NativeBattleEffect65Controller
         {
             NativeBattleModulePoolTask task = Read(frame, main);
             uint model = task.ReadDword(0x24 + index * 12);
-            NativeBattleEffectArena point = TaskView(task, 0x28 + index * 12, 8);
+            NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x28 + index * 12, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8);
             point = point.Write(4, BitConverter.GetBytes(unchecked((short)(Vector(point).Z + deltaZ))));
             frame = inputs.Execute(frame, new NativeBattleEffect65WriteActorPoint8(model, point, false));
             if (clearScale)

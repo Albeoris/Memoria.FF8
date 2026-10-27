@@ -30,7 +30,7 @@ public static partial class NativeBattleEffect289Controller
         {
             NativeBattleModulePoolTask task = Read(frame, taskAddress);
             task.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (workspaceOffset - 12), workspaceBytes);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
@@ -38,7 +38,7 @@ public static partial class NativeBattleEffect289Controller
             frame = inputs.DrawProgrammeNode(frame, source, node, caller40);
             return Workspace();
         });
-        frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), workspaceBytes);
+        frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), workspaceBytes);
         return (frame, advanced.Remaining);
     }
 

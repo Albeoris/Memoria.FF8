@@ -71,7 +71,7 @@ public static class NativeBattleDuel216Preparation
         Ring(services, target, false);
         RestorePosition(actor, 64);
         NativeBattleGraphicsModel model = services.ReadModel(actor);
-        bool unknownPadding = task.UnknownPayloadRanges?.Any(range => range.Offset < 80 && range.Offset + range.Length > 78) == true;
+        bool unknownPadding = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < 80 && range.Offset + range.Length > 78) == true;
         services.WriteModel(actor, model with { Rotation12 = Signed(72), Rotation14 = Signed(74), Rotation16 = Signed(76), RotationPadding18 = unknownPadding ? null : task.ReadWord(78) });
         return services.RestoreFocal1D8E038(frame);
 

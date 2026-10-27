@@ -320,7 +320,7 @@ public sealed class NativeBattleEffect290ControllerTests
         NativeBattleEffect290State state = NativeBattleEffect290State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(3));
         NativeBattleOriginalEffectState effect = new(290, 289, new(290, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutable() };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
-        memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, effect.Pools.Skip(1).ToImmutableArray());
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools.Skip(1).ToImmutableArray());
         return new(memory, effect, new(1), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
     }
 

@@ -58,7 +58,7 @@ public static class NativeBattlePetrifyStare127Controller
             {
                 frame = Put(frame, 0, slot, frame.Effect.Pools[0].Slots[slot].WriteByte(15, 1));
                 NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, Working(frame), TargetStride, 1);
-                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], targets] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [targets]) };
+                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], targets] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [targets]) };
             }
             int ordinal = frame.Effect.Pools[0].Slots[slot].ReadByte(14);
             NativeBattleEffectTaskPool targetPool = frame.Effect.Pools[1];
@@ -69,7 +69,7 @@ public static class NativeBattlePetrifyStare127Controller
                 NativeBattleModulePoolTask target = targetPool.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(14, checked((ushort)ordinal)).WriteDword(0x20, ModelAddress(actor));
                 NativeBattleGfAnimationWorkspace firstAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x24, 0x1C8).ToImmutableArray()).Initialize7016B0(resources.FirstAct, 0x1C8);
                 NativeBattleGfAnimationWorkspace secondAct = new NativeBattleGfAnimationWorkspace(target.ReadBytes(0x1EC, 0x2D0).ToImmutableArray()).Initialize7016B0(resources.SecondAct, 0x2D0);
-                target = target.WriteBytes(0x24, firstAct.Data.AsSpan()).WriteBytes(0x1EC, secondAct.Data.AsSpan());
+                target = secondAct.CopyTo(firstAct.CopyTo(target, 0x24, retainUnknown: false), 0x1EC, retainUnknown: false);
                 frame = WithPool(frame, 1, targetPool.WriteSlot(targetSlot, target));
                 frame = Put(frame, 0, slot, frame.Effect.Pools[0].Slots[slot].WriteByte(14, unchecked((byte)(ordinal + 1))));
             }

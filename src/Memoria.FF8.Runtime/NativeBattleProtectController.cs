@@ -192,7 +192,7 @@ public static class NativeBattleProtectController
                 case 0x86C000:
                     if (phase == 0)
                     {
-                        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x470).ToArray().ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x470);
                         task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Shield, 0x470));
                         NativeBattleVector point = Bone(task, 0xF1);
                         task = WriteVector(task, point with { Y = Math.Min(point.Y, (short)-512) });
@@ -202,7 +202,7 @@ public static class NativeBattleProtectController
                     {
                         NativeBattleActionMatrix world = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), Facing(task)) with { X = Word(task, 0x1C), Y = Word(task, 0x1E), Z = Word(task, 0x20) };
                         NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Camera, world);
-                        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x470).ToArray().ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x470);
                         NativeBattleEffectHierarchy local = state;
                         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Shield, 0, (owner, node) =>
                         {
@@ -360,7 +360,7 @@ public static class NativeBattleProtectController
     private static NativeBattleModulePoolTask WriteVector(NativeBattleModulePoolTask task, NativeBattleVector point) => task.WriteWord(0x1C, unchecked((ushort)point.X)).WriteWord(0x1E, unchecked((ushort)point.Y)).WriteWord(0x20, unchecked((ushort)point.Z));
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 0x94, retainUnknown: true);
     }
     private static NativeBattleEffectHierarchyCallback Finish(NativeBattleEffectHierarchy state, uint address)
     {

@@ -8,7 +8,7 @@ public static partial class NativeBattleEffect69Controller
     public static NativeBattleEffect69Frame AdvanceProgramme(NativeBattleEffect69Frame frame, uint address, bool initialize, NativeBattleEffect69Resources resources, NativeBattleEffect69Inputs inputs)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x1C - 12, NativeBattleEffect69Profile.ProgrammeWorkspaceLength).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x1C, NativeBattleEffect69Profile.ProgrammeWorkspaceLength);
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(resources.Programme, NativeBattleEffect69Profile.ProgrammeWorkspaceLength);
@@ -27,7 +27,8 @@ public static partial class NativeBattleEffect69Controller
 
     private static NativeBattleEffect69Frame PublishProgramme69(NativeBattleEffect69Frame frame, uint address, NativeBattleGfAnimationWorkspace workspace)
     {
-        return Write(frame, address, CopyTask(Read(frame, address), 0x1C, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), NativeBattleEffect69Profile.ProgrammeWorkspaceLength));
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x1C, workspace);
+        return frame;
     }
 
     private static NativeBattleVector Vector69(NativeBattleEffectArena point) => Vector(point);

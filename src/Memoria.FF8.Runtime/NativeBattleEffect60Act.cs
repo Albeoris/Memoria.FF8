@@ -146,7 +146,7 @@ public static class NativeBattleEffect60Act
     {
         int length = unchecked((int)task.ReadDword(0x78));
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x94, length).ToImmutableArray()).Initialize7016B0(resources.Act(task.ReadDword(0x74)), length);
-        return task.WriteBytes(0x94, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 0x94, retainUnknown: false);
     }
     private static int Remaining(NativeBattleModulePoolTask task, NativeBattleEffect60Resources resources)
     {
@@ -198,7 +198,7 @@ public static class NativeBattleEffect60Act
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear();
         for (int index = 0; index < length; index++)
         {
-            if (task.UnknownPayloadRanges is { } ranges && ranges.Any(range => offset + index >= range.Offset && offset + index < range.Offset + range.Length))
+            if (task.ReadUnknownPayloadRanges() is { } ranges && ranges.Any(range => offset + index >= range.Offset && offset + index < range.Offset + range.Length))
             {
                 result = result.MarkUnknown(index, 1);
             }
@@ -229,7 +229,7 @@ public static class NativeBattleEffect60Act
     }
     private static short? Padding(NativeBattleModulePoolTask task, int offset)
     {
-        if (task.UnknownPayloadRanges is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
+        if (task.ReadUnknownPayloadRanges() is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
         {
             return null;
         }

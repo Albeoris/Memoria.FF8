@@ -13,14 +13,14 @@ public static partial class NativeBattleJunk44Controller
             NativeBattleActionMatrix local = Rotation6E8A70(Signed(task, 0x14)) with { X = Signed(task, 0x0C), Y = Signed(task, 0x0E), Z = Signed(task, 0x10) };
             NativeBattlePackedMatrix32 caller = NativeBattlePackedMatrix32.FromMatrix(NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local), 0);
             NativeBattleGfAnimationSource source = resources.ReadProgramme(0x1354CE0);
-            NativeBattleGfAnimationWorkspace workspace = new(TaskView(task, 0x18, 64).Read(0, 64).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, 64);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
             {
-                frame = WriteBytes(frame, address + 0x18, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), 64);
+                NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, current);
                 frame = DrawProgrammeNode6E88B0(frame, source, node, caller, resources, inputs);
                 return new(TaskView(Read(frame, address), 0x18, 64).Read(0, 64).ToImmutableArray());
             });
-            frame = WriteBytes(frame, address + 0x18, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), 64);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x18, advanced.Workspace);
             if (advanced.Remaining == 0)
             {
                 return (frame, 2);

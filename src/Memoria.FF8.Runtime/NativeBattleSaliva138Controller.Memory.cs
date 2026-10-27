@@ -97,7 +97,7 @@ public static partial class NativeBattleSaliva138Controller
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
         NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {
@@ -140,8 +140,8 @@ public static partial class NativeBattleSaliva138Controller
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
-        return task.WriteBytes(offset, workspace.Initialize7016B0(source, size).Data.AsSpan());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
+        return workspace.Initialize7016B0(source, size).CopyTo(task, offset, retainUnknown: false);
     }
 
 }

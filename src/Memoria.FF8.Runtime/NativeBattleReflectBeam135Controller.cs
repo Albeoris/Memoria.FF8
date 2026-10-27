@@ -63,7 +63,7 @@ public static partial class NativeBattleReflectBeam135Controller
             NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, working + SecondaryOffset, SecondaryStride, SecondaryCount);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, working + TargetOffset, TargetStride, TargetCount);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, targets, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, secondary, targets, particles]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, targets, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, secondary, targets, particles]) };
             (frame, uint childAddress) = Append(frame, 1, MainCallback);
             if (childAddress == 0)
             {

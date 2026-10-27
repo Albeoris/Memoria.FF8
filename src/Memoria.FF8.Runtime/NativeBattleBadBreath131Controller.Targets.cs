@@ -9,7 +9,7 @@ public static partial class NativeBattleBadBreath131Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         byte actor = task.ReadByte(15);
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, task.ReadRawPayloadSpan().Slice(4, 8));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

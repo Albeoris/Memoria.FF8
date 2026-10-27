@@ -47,7 +47,7 @@ public static partial class NativeBattleDoom8Strips
         task.RequirePayloadRange(0x1C, 8);
         task.ValidateUnknownPayloadRanges();
         state = state.Write(TargetAddress + 0x30, task.ReadRawPayloadSpan().Slice(0x10, 8));
-        if (task.UnknownPayloadRanges is { } unknown)
+        if (task.ReadUnknownPayloadRanges() is { } unknown)
         {
             foreach (NativeBattleEffectUnknownRegion range in unknown)
             {

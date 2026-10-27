@@ -97,7 +97,7 @@ public static partial class NativeBattleEffect251Controller
             throw new InvalidDataException("Effect251 pool initialization would duplicate its physical bank owner.");
         }
         NativeBattleEffectTaskPool initialized = InitializePayload(shape, ReadBytes(frame, shape.Bank, shape.Stride * shape.Capacity));
-        return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [initialized]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(initialized) }, State = frame.State.DetachCommonQueue(descriptor) };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [initialized]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(initialized) }, State = frame.State.DetachCommonQueue(descriptor) };
     }
 
     public static NativeBattleEffect251Frame RetireCommonPool(NativeBattleEffect251Frame frame, uint descriptor)

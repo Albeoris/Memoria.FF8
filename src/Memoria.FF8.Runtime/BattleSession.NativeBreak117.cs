@@ -73,7 +73,7 @@ public sealed partial class BattleSession
                     NativeBattleModelTransform transform = graphics.Models[actor].Transform ?? throw new NotSupportedException("Native Break requires its actor heightWORD24.");
                     position = position with { Y = transform.Angle36 };
                     NativeBattleModulePoolTask task = WindStore(pools[1].Slots[slot].ClearPayload(0x1564), 16, position).WriteWord(14, (ushort)action).WriteDword(24, entity);
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x1554));
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x1554);
                     Put(1, slot, PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Shell, 0x1554)));
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
@@ -228,7 +228,7 @@ public sealed partial class BattleSession
         void Play(ref NativeBattleModulePoolTask task, NativeBattleVector anchor, int scale)
         {
             NativeBattleGfAnimationSource source = resources.Shell;
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x1554));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x1554);
             int frame = workspace.Frame;
             NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (current, node) =>
             {

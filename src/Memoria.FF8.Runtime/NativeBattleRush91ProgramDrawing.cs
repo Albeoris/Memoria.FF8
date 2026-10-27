@@ -135,10 +135,10 @@ public static class NativeBattleRush91ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, 0x70).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x70);
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
     }
 }

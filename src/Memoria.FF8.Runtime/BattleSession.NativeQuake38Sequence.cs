@@ -170,7 +170,7 @@ public sealed partial class BattleSession
             {
                 state = state.SetWord(field, 0);
             }
-            Memory = Memory with { Arena = Memory.Arena!.Write(0x28000, new byte[0xB600]).Write(0x33600, new byte[0xCC0]) };
+            Memory.Arena!.Write(0x28000, new byte[0xB600]).Write(0x33600, new byte[0xCC0]);
             state = state.Write(0x27929A0, NativeBattleQuake38Templates.Crack8D88C0(state.Read(0x27929A0, 40)).AsSpan());
             state = state.Write(0x2792E38, NativeBattleQuake38Templates.Wall8D88C0(state.Read(0x2792E38, 40)).AsSpan());
         }

@@ -71,7 +71,7 @@ public static class NativeBattleDiablos325LateProgramme
     {
         NativeBattleDiablos325State state = NativeBattleDiablos325Entry.RequireState(frame.Memory);
         NativeBattleGfAnimationSource source = ReadSource(frame, fileId, offset);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceLength).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (workspaceOffset - 12), workspaceLength);
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(source, workspaceLength);
@@ -92,7 +92,7 @@ public static class NativeBattleDiablos325LateProgramme
         {
             workspace = workspace.Initialize7016B0(source, workspaceLength);
         }
-        return new(memory, task.WriteRetainedBytes(12 + (workspaceOffset - 12), workspace.Data.AsSpan()), new(attempts.ToImmutable(), allocated));
+        return new(memory, workspace.CopyTo(task, 12 + (workspaceOffset - 12), retainUnknown: true), new(attempts.ToImmutable(), allocated));
     }
 
     internal static NativeBattleGfAnimationSource ReadSource(NativeBattleDiablos325Frame frame, short fileId, uint offset)

@@ -178,9 +178,9 @@ public static partial class NativeBattleBoomerangSword304Controller
                         frame = Write(frame, programme, Read(frame, programme).WriteDword(12, target));
                         NativeBattleBoomerangSword304PointStep anchor = inputs.ReadAnchor571400(frame, target);
                         frame = WriteBytes(anchor.Frame, programme + 16, anchor.Point8, 8);
-                        NativeBattleGfAnimationWorkspace workspace = new(TaskView(Read(frame, programme), 24, 460).Read(0, 460).ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, programme), 24, 460), 0, 460);
                         workspace = workspace.Initialize7016B0(resources.Programme, 460);
-                        frame = WriteBytes(frame, programme + 24, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 460);
+                        frame = WriteBytes(frame, programme + 24, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 460);
                     }
                     frame = SpawnParticles304(frame, PointView(point, 0), direction);
                     task = Read(frame, address);

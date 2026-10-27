@@ -28,7 +28,7 @@ public sealed partial class BattleSession
         short zsf4 = controls.Zsf4 ?? throw new NotSupportedException("Native Pandemona requires its current ZSF4.");
         int workspaceOffset = checked((int)(taskAddress - NativeBattleEffectNodeMemory.ArenaAddress) + (inputs?.WorkspaceOffset ?? 0x1F0));
         int workspaceLength = inputs?.WorkspaceLength ?? (age >= 144 ? 0xE0 : 0x12C);
-        NativeBattleGfAnimationWorkspace workspace = new(frame.Memory.Arena!.Read(workspaceOffset, workspaceLength).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(frame.Memory.Arena!, workspaceOffset, workspaceLength);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)pause), (current, node) =>
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
             graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = written.Ordering } };
             return current;
         });
-        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(workspaceOffset, advanced.Workspace.Data.AsSpan()) } };
+        frame = frame with { Memory = frame.Memory with { Arena = advanced.Workspace.CopyTo(frame.Memory.Arena!, workspaceOffset) } };
         return (frame, graphics, advanced.Remaining);
     }
 }

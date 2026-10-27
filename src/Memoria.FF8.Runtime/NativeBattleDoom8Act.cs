@@ -153,7 +153,7 @@ public static class NativeBattleDoom8Act
             frame = inputs.EmitNode(frame, address, prepared.Context92, node);
             return Workspace(Read(frame, address), size);
         });
-        frame = Put(frame, address, Read(frame, address).WriteBytes(0x94, advanced.Workspace.Data.AsSpan()));
+        frame = Put(frame, address, advanced.Workspace.CopyTo(Read(frame, address), 0x94, retainUnknown: false));
         return new(frame, advanced.Remaining);
     }
 
@@ -162,7 +162,7 @@ public static class NativeBattleDoom8Act
         NativeBattleModulePoolTask task = Read(frame, address);
         int size = WorkspaceSize(task);
         NativeBattleGfAnimationWorkspace workspace = Workspace(task, size).Initialize7016B0(Source(frame, task.ReadDword(0x74), inputs), size);
-        return Put(frame, address, task.WriteBytes(0x94, workspace.Data.AsSpan()));
+        return Put(frame, address, workspace.CopyTo(task, 0x94, retainUnknown: false));
     }
 
     private static NativeBattleGfAnimationSource Source(NativeBattleDoom8Frame frame, uint pointer, NativeBattleDoom8ActInputs inputs)

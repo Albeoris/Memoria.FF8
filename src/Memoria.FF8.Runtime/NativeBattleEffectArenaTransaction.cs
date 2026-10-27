@@ -79,6 +79,7 @@ internal sealed partial class NativeBattleEffectArenaTransaction : IDisposable
     internal NativeBattleArenaRanges UnknownRanges() => writer.UnknownRanges();
     internal int StoredLength => writer.StoredLength;
     internal void ValidateExplicitCoverage(int capacity) => writer.ValidateExplicitCoverage(capacity);
+    internal void ValidateExplicitCoverageWindow(int offset, int length) => writer.OwnedOverlay.ValidateExplicitCoverageWindow(offset, length);
     internal IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers()
     {
         RequireActive();

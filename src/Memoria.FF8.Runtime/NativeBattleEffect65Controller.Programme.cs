@@ -18,9 +18,10 @@ public static partial class NativeBattleEffect65Controller
         uint file = checked(frame.State.ReadDword(ArenaGlobal) + FileOffset);
         uint offset = BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(frame, file + (uint)(4 + index * 4), 4).Read(0, 4));
         NativeBattleGfAnimationSource source = NativeBattleEffect65Programme.ReadSource(frame, checked(file + offset), resources);
-        NativeBattleGfAnimationWorkspace cache = new(ReadBytes(frame, workspace, size).Read(0, size).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace cache = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, size);
         cache = cache.Initialize7016B0(source, size);
-        return WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, cache.Data.AsSpan()), size);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
+        return frame;
     }
 
     private static NativeBattleEffectArena Caller48(NativeBattleEffect65Frame frame, NativeBattleActionMatrix matrix, uint selectors, short depth, short? phase, uint cursor)

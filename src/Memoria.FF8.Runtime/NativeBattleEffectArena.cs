@@ -22,7 +22,6 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
     private readonly int bound = Length;
     private readonly bool snapshot;
     private readonly bool borrowed;
-    private NativeBattleArenaCoverage? coverage;
     private readonly NativeBattleWorkingMemorySnapshot? capturedAuthority;
     private readonly int capturedOffset;
     private readonly int capturedBound;
@@ -31,6 +30,13 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
     private static readonly ConditionalWeakTable<NativeBattleWorkingMemory, Stack<NativeBattleArenaOverlay>> OverlayPools = new();
 
     public NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions) => initialRegions = regions;
+
+    private NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions, int logicalLength)
+    {
+        RequireLogicalLength(logicalLength);
+        initialRegions = regions;
+        bound = logicalLength;
+    }
 
     protected NativeBattleEffectArena(NativeBattleEffectArena original)
     {
@@ -45,22 +51,20 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         capturedOffset = original.capturedOffset;
         capturedBound = original.capturedBound;
         Transaction = original.Transaction;
-        coverage = original.coverage;
-        dataCoverage = original.dataCoverage;
-        unknownCoverage = original.unknownCoverage;
-        metadataVersion = original.metadataVersion;
         borrowed = original.borrowed;
     }
 
-    internal NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers)
+    internal NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers, int logicalLength = Length)
     {
+        RequireLogicalLength(logicalLength);
+        bound = logicalLength;
         initialRegions = regions;
         initialUnknown = unknown;
         initialPointers = pointers;
         snapshot = true;
     }
 
-    internal NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers, NativeBattleWorkingMemorySnapshot authority, int offset, int length) : this(regions, unknown, pointers)
+    internal NativeBattleEffectArena(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers, NativeBattleWorkingMemorySnapshot authority, int offset, int length) : this(regions, unknown, pointers, length)
     {
         capturedAuthority = authority;
         capturedOffset = offset;
@@ -74,28 +78,17 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         bound = length;
         initialRegions = [];
         this.borrowed = borrowed;
-        if (!owner.InitialKnownZero)
-        {
-            coverage = new();
-            coverage.Add(0, length);
-            dataCoverage = new();
-            unknownCoverage = new();
-            unknownCoverage.Add(0, length);
-            metadataVersion = owner.Version;
-        }
+
     }
 
     internal NativeBattleEffectArena(NativeBattleEffectArena source, NativeBattleEffectArenaTransaction transaction) : this(source.Working, source.workingOffset, source.bound)
     {
         Transaction = transaction;
-        coverage = source.coverage;
-        dataCoverage = source.dataCoverage;
-        unknownCoverage = source.unknownCoverage;
-        metadataVersion = source.metadataVersion;
         borrowed = source.borrowed;
     }
 
     [JsonIgnore] public bool IsSnapshot => snapshot;
+    [JsonIgnore] public int LogicalLength => bound;
     [JsonIgnore] internal NativeBattleEffectArenaTransaction? Transaction { get; }
     [JsonIgnore] internal NativeBattleWorkingMemory Working => working ??= Hydrate();
     [JsonIgnore] internal int WorkingOffset => workingOffset;
@@ -155,9 +148,9 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         return new(owner, offset, length);
     }
 
-    public static NativeBattleEffectArenaSnapshot CreateSnapshot(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = null)
+    public static NativeBattleEffectArenaSnapshot CreateSnapshot(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = null, int logicalLength = Length)
     {
-        NativeBattleEffectArenaSnapshot result = new(regions, unknown, pointers);
+        NativeBattleEffectArenaSnapshot result = new(regions, unknown, pointers, logicalLength);
         result.Validate();
         return result;
     }
@@ -182,7 +175,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
     }
 
-    internal bool ExceedsExtent(int maximum) => maximum < 0 || maximum > Length || Math.Max(StoredLength, coverage?.Extent ?? 0) > maximum;
+    internal bool ExceedsExtent(int maximum) => maximum < 0 || maximum > Length || Math.Max(StoredLength, Classification.Extent) > maximum;
 
     public void ValidateExtent(int maximum)
     {
@@ -201,14 +194,14 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         {
             classified = SnapshotCoverage.GetValue(this, static arena => arena.ImportCoverage());
         }
-        else if (Transaction is { } transaction)
+        else if (TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
-            transaction.ValidateExplicitCoverage(capacity);
+            transaction!.ValidateExplicitCoverageWindow(routedOffset, capacity);
             return;
         }
         else
         {
-            classified = coverage!;
+            classified = Classification;
         }
         if (classified is null || classified.Prefix != capacity)
         {
@@ -324,21 +317,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
         else
         {
-            PrepareCoverage(1);
-            long previousVersion = Working.Version;
-            try
-            {
-                Working.Write(workingOffset + offset, bytes);
-            }
-            finally
-            {
-                if (Working.Version != previousVersion)
-                {
-                    RecordCoverage(offset, bytes.Length);
-                    RecordDataCoverage(offset, bytes.Length);
-                    RecordKnowledge(offset, bytes.Length, true);
-                }
-            }
+            Working.Write(workingOffset + offset, bytes);
         }
         return this;
     }
@@ -353,20 +332,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
         else
         {
-            PrepareCoverage(1);
-            long previousVersion = Working.Version;
-            try
-            {
-                Working.MarkUnknown(workingOffset + offset, count);
-            }
-            finally
-            {
-                if (Working.Version != previousVersion)
-                {
-                    RecordCoverage(offset, count);
-                    RecordKnowledge(offset, count, false);
-                }
-            }
+            Working.MarkUnknown(workingOffset + offset, count);
         }
         return this;
     }
@@ -408,75 +374,50 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
 
     private NativeBattleEffectArenaSnapshot CreateCaptured(NativeBattleWorkingMemorySnapshot captured)
     {
-        _ = EnumerateDataRanges();
-        ImmutableArray<NativeBattleEffectUnknownRegion> wholeUnknown = captured.UnknownRegions;
-        if (!captured.InitialKnownZero && captured.StoredLength < captured.LogicalLength)
+        ImmutableArray<NativeBattleEffectMemoryRegion>.Builder regions = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
+        foreach (NativeBattleEffectUnknownRegion receipt in captured.DataFootprint)
         {
-            if (!wholeUnknown.IsEmpty && wholeUnknown[^1].Offset + wholeUnknown[^1].Length == captured.StoredLength)
+            int first = Math.Max(workingOffset, receipt.Offset);
+            int end = Math.Min(workingOffset + bound, receipt.Offset + receipt.Length);
+            if (first >= end)
             {
-                NativeBattleEffectUnknownRegion last = wholeUnknown[^1];
-                wholeUnknown = wholeUnknown.SetItem(wholeUnknown.Length - 1, new(last.Offset, captured.LogicalLength - last.Offset));
-            }
-            else
-            {
-                wholeUnknown = wholeUnknown.Add(new(captured.StoredLength, captured.LogicalLength - captured.StoredLength));
-            }
-        }
-        ImmutableArray<NativeBattleEffectMemoryRegion> visibleRegions = captured.Regions;
-        if (!borrowed && dataCoverage is not null)
-        {
-            ImmutableArray<NativeBattleEffectMemoryRegion>.Builder visible = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
-            foreach ((int offset, int end) in dataCoverage.Ranges)
-            {
-                int first = offset;
-                int last = Math.Min(end, captured.StoredLength);
-                if (first >= last)
-                {
-                    continue;
-                }
-                if (captured.Regions.Length == 1 && captured.Regions[0].Offset == first && captured.Regions[0].Data.Length == last - first)
-                {
-                    visible.Add(captured.Regions[0]);
-                }
-                else
-                {
-                    byte[] data = new byte[last - first];
-                    foreach (NativeBattleEffectMemoryRegion region in captured.Regions)
-                    {
-                        int start = Math.Max(first, region.Offset);
-                        int finish = Math.Min(last, region.Offset + region.Data.Length);
-                        if (start < finish)
-                        {
-                            NativeBattleTelemetry.Copy(1002, region.Data.AsSpan().Slice(start - region.Offset, finish - start), data.AsSpan(start - first));
-                        }
-                    }
-                    visible.Add(new(first, ImmutableCollectionsMarshal.AsImmutableArray(data)));
-                }
-            }
-            visibleRegions = visible.ToImmutable();
-        }
-        if (workingOffset == 0 && bound == captured.LogicalLength)
-        {
-            return new(visibleRegions, wholeUnknown, captured.ResourcePointers.Count == 0 ? null : captured.ResourcePointers, captured, workingOffset, bound);
-        }
-        int extent = captured.InitialKnownZero ? Math.Clamp(captured.StoredLength - workingOffset, 0, bound) : bound;
-        NativeBattleEffectArenaSnapshot whole = new(captured.Regions, wholeUnknown, captured.ResourcePointers);
-        var bytes = whole.ReadSnapshot(workingOffset, extent);
-        ImmutableArray<NativeBattleEffectMemoryRegion> regions = extent == 0 ? [] : [new(0, ImmutableArray.CreateRange(bytes.Data))];
-        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder unknown = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
-        for (int index = 0; index < extent;)
-        {
-            if (bytes.Known[index])
-            {
-                index++;
                 continue;
             }
-            int first = index++;
-            while (index < extent && !bytes.Known[index])
+            byte[] bytes = new byte[end - first];
+            foreach (NativeBattleEffectMemoryRegion stored in captured.Regions)
             {
-                index++;
+                int start = Math.Max(first, stored.Offset);
+                int finish = Math.Min(end, stored.Offset + stored.Data.Length);
+                if (start < finish)
+                {
+                    NativeBattleTelemetry.Copy(1002, stored.Data.AsSpan().Slice(start - stored.Offset, finish - start), bytes.AsSpan(start - first));
+                }
             }
-            unknown.Add(new(first, index - first));
+            regions.Add(new(first - workingOffset, ImmutableCollectionsMarshal.AsImmutableArray(bytes)));
+        }
+        NativeBattleArenaCoverage unknownRanges = new();
+        foreach (NativeBattleEffectUnknownRegion unknown in captured.UnknownRegions)
+        {
+            int first = Math.Max(workingOffset, unknown.Offset);
+            int end = Math.Min(workingOffset + bound, unknown.Offset + unknown.Length);
+            if (first < end)
+            {
+                unknownRanges.Add(first - workingOffset, end - first);
+            }
+        }
+        if (!captured.InitialKnownZero)
+        {
+            int first = Math.Max(workingOffset, captured.StoredLength);
+            int end = Math.Min(workingOffset + bound, captured.LogicalLength);
+            if (first < end)
+            {
+                unknownRanges.Add(first - workingOffset, end - first);
+            }
+        }
+        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder unknowns = ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>(unknownRanges.Ranges.Count);
+        foreach ((int offset, int end) in unknownRanges.Ranges)
+        {
+            unknowns.Add(new(offset, end - offset));
         }
         ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder pointers = ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>();
         foreach ((int key, NativeBattleResourcePointer? pointer) in captured.ResourcePointers)
@@ -487,7 +428,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
                 pointers.Add(offset, pointer);
             }
         }
-        return new(regions, unknown.ToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound);
+        return new(regions.ToImmutable(), unknowns.MoveToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound);
     }
 
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
@@ -514,12 +455,9 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         {
             NativeBattleWorkingMemory restored = context.GetOrAddOwner(authority, () => NativeBattleWorkingMemory.Restore(authority));
             NativeBattleEffectArena arena = new(restored, capturedOffset, capturedBound, capturedOffset != 0 || capturedBound != authority.LogicalLength);
-            arena.coverage = ImportCoverage();
-            arena.InitializeRangeMetadata();
-            arena.metadataVersion = restored.Version;
             return arena;
         }
-        return context.GetOrAddOwner(this, () => new NativeBattleEffectArena(initialRegions) { UnknownRegions = initialUnknown, ResourcePointers = initialPointers });
+        return context.GetOrAddOwner(this, () => new NativeBattleEffectArena(initialRegions, bound) { UnknownRegions = initialUnknown, ResourcePointers = initialPointers });
     }
 
     internal NativeBattleArenaOverlay RentOverlay()
@@ -538,25 +476,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         OverlayPools.GetValue(Working, static _ => new()).Push(overlay);
     }
 
-    internal void PrepareCoverage(int additional)
-    {
-        _ = Working;
-        if (coverage is not null && dataCoverage is not null && unknownCoverage is not null)
-        {
-            EnlistRangeMetadata();
-        }
-        EnsureUnknownMetadata();
-        coverage ??= new();
-        coverage.Reserve(additional);
-        dataCoverage ??= new();
-        dataCoverage.Reserve(additional);
-        unknownCoverage ??= new();
-        unknownCoverage.Reserve(checked(additional * 2));
-        EnlistRangeMetadata();
-    }
-
-    internal void RecordCoverage(int offset, int length) => coverage!.Add(offset, length);
-    internal NativeBattleArenaCoverage? Classification => coverage;
+    internal void PrepareCoverage(int additional) => Working.ReserveStorageReceipts(additional);
 
     internal void RequireRange(int offset, int count)
     {
@@ -582,13 +502,10 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             throw new InvalidOperationException("Frozen arena snapshots cannot acquire working authority implicitly.");
         }
         ValidateImport();
-        coverage = ImportCoverage();
-        InitializeRangeMetadata();
         NativeBattleWorkingMemory result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty));
         initialRegions = [];
         initialUnknown = [];
         initialPointers = null;
-        metadataVersion = result.Version;
         return result;
     }
 
@@ -615,7 +532,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         int end = 0;
         foreach (NativeBattleEffectMemoryRegion region in initialRegions)
         {
-            if (region is null || region.Data.IsDefaultOrEmpty || region.Offset < end || region.Offset > Length - region.Data.Length)
+            if (region is null || region.Data.IsDefaultOrEmpty || region.Offset < end || region.Offset > bound - region.Data.Length)
             {
                 throw new InvalidDataException("Native effect memory regions overlap or exceed the original1MB arena.");
             }
@@ -624,7 +541,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         end = -1;
         foreach (NativeBattleEffectUnknownRegion region in initialUnknown)
         {
-            if (region is null || region.Length <= 0 || region.Offset <= end || region.Offset > Length - region.Length)
+            if (region is null || region.Length <= 0 || region.Offset <= end || region.Offset > bound - region.Length)
             {
                 throw new InvalidDataException("Native effect unknown-byte spans must be bounded, disjoint and merged.");
             }
@@ -669,6 +586,14 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
     }
 
+    private static void RequireLogicalLength(int logicalLength)
+    {
+        if (logicalLength < 0 || logicalLength > Length)
+        {
+            throw new InvalidDataException("Native arena logical length exceeds its physical capacity.");
+        }
+    }
+
     private void RequireImportMetadata()
     {
         if (working is not null || snapshot || Transaction is not null)
@@ -681,7 +606,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
 [JsonConverter(typeof(NativeBattleEffectArenaSnapshotJsonConverter))]
 public sealed record NativeBattleEffectArenaSnapshot : NativeBattleEffectArena
 {
-    internal NativeBattleEffectArenaSnapshot(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers) : base(regions, unknown, pointers)
+    internal NativeBattleEffectArenaSnapshot(ImmutableArray<NativeBattleEffectMemoryRegion> regions, ImmutableArray<NativeBattleEffectUnknownRegion> unknown, ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers, int logicalLength = Length) : base(regions, unknown, pointers, logicalLength)
     {
     }
 

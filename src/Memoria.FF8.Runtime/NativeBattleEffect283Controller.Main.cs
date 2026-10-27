@@ -32,7 +32,7 @@ public static partial class NativeBattleEffect283Controller
             foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (resources.MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (resources.SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })
             {
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[length].ToImmutableArray()).Initialize7016B0(source, length);
-                frame = WriteBytes(frame, main + (uint)offset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), length);
+                frame = WriteBytes(frame, main + (uint)offset, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), length);
             }
             NativeBattleEffect283PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = anchor.Frame;
@@ -133,7 +133,7 @@ public static partial class NativeBattleEffect283Controller
         {
             NativeBattleModulePoolTask task = Read(frame, taskAddress);
             task.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (workspaceOffset - 12), workspaceBytes);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
@@ -141,7 +141,7 @@ public static partial class NativeBattleEffect283Controller
             frame = inputs.DrawProgrammeNode(frame, source, node, caller32);
             return Workspace();
         });
-        frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), workspaceBytes);
+        frame = WriteBytes(frame, taskAddress + (uint)workspaceOffset, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), workspaceBytes);
         return (frame, advanced.Remaining);
     }
 

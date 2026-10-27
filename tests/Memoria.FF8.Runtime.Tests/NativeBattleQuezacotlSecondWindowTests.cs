@@ -10,7 +10,7 @@ public sealed class NativeBattleQuezacotlSecondWindowTests
     public void MorphAfterSkinOverwritesOnlyXyzAndPreservesUnknownFourthWord()
     {
         NativeBattleEffectMemory memory = Memory();
-        byte[] source = memory.QuezacotlExecutableMemory!.Data.ToArray();
+        byte[] source = NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory!).Data.ToArray();
         int geometry = NativeBattleQuezacotlExecutableMemory.PrimaryLength + 16;
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(geometry), 28);
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(geometry + 4), 1);
@@ -42,11 +42,11 @@ public sealed class NativeBattleQuezacotlSecondWindowTests
         NativeBattleOriginalEffectState effect = Effect();
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, 0x12A9664);
         Assert.Equal(0x12A9664u, source.Address);
-        Assert.Equal(NativeBattleQuezacotlExecutableMemory.SecondaryLength, source.Data.Length);
+        Assert.Equal(NativeBattleQuezacotlExecutableMemory.SecondaryLength, source.Length);
         byte[] bytes = Enumerable.Repeat((byte)0xA5, NativeBattleQuezacotlWorkspace.SecondLength).ToArray();
         NativeBattleQuezacotlWorkspaceWrite write = NativeBattleQuezacotlWorkspace.Write(memory, effect, new(bytes.ToImmutableArray()));
-        Assert.Equal(bytes, NativeBattleQuezacotlWorkspace.Read(write.Memory, NativeBattleQuezacotlWorkspace.SecondLength).Data.ToArray());
-        Assert.Equal((byte)0xA5, write.Effect.Pools.Single().Slots[0].Payload[^1]);
+        Assert.Equal(bytes, NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.Read(write.Memory, NativeBattleQuezacotlWorkspace.SecondLength)).Data.ToArray());
+        Assert.Equal((byte)0xA5, write.Effect.Pools.Single().Slots[0].ReadByte(write.Effect.Pools.Single().Stride - 1));
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public sealed class NativeBattleQuezacotlSecondWindowTests
         Assert.Empty(captured.Batch.Attempts);
         NativeBattleActionMatrix matrix = Assert.IsType<NativeBattleActionMatrix>(captured.Memory.QuezacotlCapturedMatrix1780);
         Assert.Equal((1, 2, 3), (matrix.X, matrix.Y, matrix.Z));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(captured.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(matrix), JsonSerializer.Serialize(restored.BeginLoad(1).QuezacotlCapturedMatrix1780));
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(captured.Memory))!);
+        Assert.Equal(SnapshotJson(matrix), SnapshotJson(restored.BeginLoad(1).QuezacotlCapturedMatrix1780));
         NativeBattleQuezacotlGeometryStep generic = NativeBattleQuezacotlGeometry.Emit6C53A0(captured.Memory, Effect(), node, new(context, 216, 160, 108), new(0, 0, 0, 0), context with { X = 999 }, false, 0);
         Assert.False(generic.CapturedPackets);
         Assert.Equal(matrix, generic.Memory.QuezacotlCapturedMatrix1780);
@@ -89,4 +89,6 @@ public sealed class NativeBattleQuezacotlSecondWindowTests
         (child, _) = child.Append(0x6C3940);
         return new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [child] };
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

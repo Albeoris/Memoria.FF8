@@ -203,7 +203,7 @@ public sealed partial class BattleSession
 
         void Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, int scale, int depth)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(offset - 12, size));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (owner, node) =>
             {
                 NativeBattleRapture288Draw draw = NativeBattleRapture288Part.Draw(NativeEffectMemory!, NativeFileStaging!, source, node, context, scale, depth, projection, colors);
@@ -214,10 +214,10 @@ public sealed partial class BattleSession
             });
             task = Store(task, offset, advanced.Workspace);
         }
-        NativeBattleModulePoolTask Init(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source) => Store(task, offset, new NativeBattleGfAnimationWorkspace(task.Payload.Slice(offset - 12, size)).Initialize7016B0(source, size));
+        NativeBattleModulePoolTask Init(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source) => Store(task, offset, NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size).Initialize7016B0(source, size));
         NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
         {
-            return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
+            return workspace.CopyTo(task, offset, retainUnknown: true);
         }
         ushort Random()
         {

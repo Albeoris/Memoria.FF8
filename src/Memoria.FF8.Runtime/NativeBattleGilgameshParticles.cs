@@ -10,7 +10,7 @@ public static partial class NativeBattleGilgameshParticles
 {
     public static NativeBattleGilgameshParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshParticleResources resources, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, uint graphicsFlags)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x5915C0 or 0x591850 or 0x591B80))
+        if (task.PayloadLength != 24 || task.Callback is not (0x5915C0 or 0x591850 or 0x591B80))
         {
             throw new InvalidDataException("Native Gilgamesh particles require their original raw0x24-byte callback task.");
         }

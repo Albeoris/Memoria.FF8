@@ -92,7 +92,7 @@ public static partial class NativeBattleEffect289Controller
             uint target = ModelAddress(packets.ReadContact(first).Primary.ActorIndex);
             frame = Write(frame, main, Read(frame, main).WriteDword(0x10, target));
             NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[MainProgrammeWorkspaceLength].ToImmutableArray()).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
-            frame = WriteBytes(frame, main + MainProgrammeWorkspaceOffset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), MainProgrammeWorkspaceLength);
+            frame = WriteBytes(frame, main + MainProgrammeWorkspaceOffset, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), MainProgrammeWorkspaceLength);
             NativeBattleEffect289PointStep anchor = inputs.ReadAnchor571400(frame, target);
             frame = Write(anchor.Frame, main, CopyTask(Read(anchor.Frame, main), 0x14, anchor.Point8, 8));
             frame = InitializeMeshW677A10(frame, 0x106EDE4, resources);

@@ -16,7 +16,8 @@ public static partial class NativeBattleEffect345Body
     public static NativeBattleEffect345Frame ApplyMaterial70C590(NativeBattleEffect345Frame frame, uint address, NativeBattleEffect345Resources resources, NativeBattleEffect345Inputs inputs, short mode = 1)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleEffectArena model = Material70C5B0(TaskView(task, 0x30, 0x80), unchecked((short)task.ReadWord(0x13A)), mode, inputs.ReadModelColors(frame).Color40);
+        NativeBattleEffectArena scratch = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x30, 0x80), 0, NativeBattleEffectArena.CreateUnknown(0x80), 0, 0x80);
+        NativeBattleEffectArena model = Material70C5B0(scratch, unchecked((short)task.ReadWord(0x13A)), mode, inputs.ReadModelColors(frame).Color40);
         return Write(frame, address, CopyTask(task, 0x30, model, 0x80));
     }
 

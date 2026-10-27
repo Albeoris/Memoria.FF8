@@ -48,7 +48,7 @@ public static class NativeBattleEffect30BeamLower
         if (task.ReadWord(0x8C) != 4096)
         {
             NativeBattleEffectArena saved = TaskView(task, 0x30, 16);
-            var savedPointers = task.ResourcePointers?.Where(entry => entry.Key >= 0x30 && entry.Key + 4 <= 0x40).ToArray();
+            var savedPointers = task.EnumerateResourcePointers().Where(entry => entry.Key >= 0x30 && entry.Key + 4 <= 0x40).ToArray();
             task = task.WriteDword(0x4C, 0x160DC50).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
             task = WriteTaskView(task, 0x1C, TaskView(task, 0x84, 8), 8);
             NativeBattleActionMatrix camera = Rotation(inputs.ReadCamera(frame));
@@ -198,7 +198,7 @@ public static class NativeBattleEffect30BeamLower
         task.RequirePayloadRange(offset, length);
         task.ValidateUnknownPayloadRanges();
         NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion region in ranges)
             {

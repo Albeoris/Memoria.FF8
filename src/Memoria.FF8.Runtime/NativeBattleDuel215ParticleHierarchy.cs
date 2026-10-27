@@ -47,7 +47,7 @@ public static partial class NativeBattleDuel215Controller
             ordering = written.Ordering;
             return current;
         });
-        task = task.WriteBytes(24, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(task, 24, retainUnknown: false);
         pool = pool.WriteSlot(slot, task);
         return new(new(frame, pool, advanced.Remaining == 0 ? 2 : 0), ordering);
     }

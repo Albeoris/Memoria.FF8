@@ -279,7 +279,7 @@ public static class NativeBattleSiren95ProgramDrawing
             byte[] Selected(int offset, int length) => morph ? State(frame).Read(unchecked(0x258EF98u + (uint)offset), length) : Source(checked(selected + offset), length).ToArray();
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        task = task.WriteRetainedBytes(0x94, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(task, 0x94, retainUnknown: true);
         return new(frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } }, advanced.Remaining);
     }
 

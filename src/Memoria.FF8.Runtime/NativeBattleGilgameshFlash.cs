@@ -10,7 +10,7 @@ public static class NativeBattleGilgameshFlash
 {
     public static NativeBattleGilgameshFlashStep Step592BC0(NativeBattleModulePoolTask task, uint graphicsFlags)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 0x24 - 12)
+        if (task.PayloadLength != 0x24 - 12)
         {
             throw new InvalidDataException("Native592BC0 requires its original raw0x24-byte task.");
         }

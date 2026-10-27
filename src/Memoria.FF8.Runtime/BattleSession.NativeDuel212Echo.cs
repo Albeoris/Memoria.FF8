@@ -45,7 +45,7 @@ public sealed partial class BattleSession
                 for (int index = 0; index < length; index++)
                 {
                     int physical = 336 + offset + index;
-                    bool known = written.UnknownPayloadRanges?.Any(range => range.Offset <= physical && physical < range.Offset + range.Length) != true;
+                    bool known = written.ReadUnknownPayloadRanges()?.Any(range => range.Offset <= physical && physical < range.Offset + range.Length) != true;
                     task = known ? task.WriteByte(physical, written.ReadByte(physical)) : task.MarkPayloadUnknown(physical, 1);
                 }
             }

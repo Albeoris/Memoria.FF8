@@ -145,7 +145,7 @@ public sealed class NativeBattleEffect301LowerTests
             }
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [pool]);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);
             Frame = new(memory, new(301, 300, new(301, 0x66D8E0, 0x66D8F0), null, null) { Pools = [pool] }, new(42), NativeBattleEffect301State.FromColdProcess().WriteDword(0x2507754, Main).WriteDword(0x25076E0, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
             byte[] normal = new byte[48];
             BinaryPrimitives.WriteUInt16LittleEndian(normal.AsSpan(8), 16);

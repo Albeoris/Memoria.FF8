@@ -95,7 +95,7 @@ public static partial class NativeBattleBeamLaser134Controller
         NativeBattleEffectTaskPool moving = Pool(frame, 0x2520EA8, working + 0x420, 0x1C, 16);
         NativeBattleEffectTaskPool children = Pool(frame, 0x2520E98, working, 0x84, 8);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(15, 1));
-        return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, stationary, moving, children] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, stationary, moving, children]) };
+        return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, stationary, moving, children] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, stationary, moving, children]) };
     }
 
     private static NativeBattleBeamLaser134Frame TryMain(NativeBattleBeamLaser134Frame frame, NativeBattleBeamLaser134Resources resources, NativeBattleBeamLaser134Inputs inputs)
@@ -176,7 +176,7 @@ public static partial class NativeBattleBeamLaser134Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[size].ToImmutableArray()).Initialize7016B0(source, size);
-        return Write(frame, address, task.WriteBytes(offset, workspace.Data.AsSpan()));
+        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
     }
 
     private static uint WorkspaceSource(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);

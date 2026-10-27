@@ -92,7 +92,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleSaliva138Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleSaliva138Controller.Write(current, address, NativeBattleSaliva138Controller.Read(current, address).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleSaliva138Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleSaliva138Controller.Read(current, address), offset, retainUnknown: false));
             return new(current, advanced.Remaining);
         }
 

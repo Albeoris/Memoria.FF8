@@ -87,7 +87,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
             (targets, _) = targets.Append(0x689AC0);
             NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(15, selector).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000).WriteWord(48, 100).WriteWord(50, 200).WriteWord(52, 300).WriteWord(54, 40);
             targets = targets with { Slots = targets.Slots.SetItem(0, task) };
-            NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
+            NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000));
             Frame = new(memory, effect, staging, new(1));

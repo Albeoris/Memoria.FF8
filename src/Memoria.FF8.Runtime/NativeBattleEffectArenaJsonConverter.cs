@@ -19,7 +19,8 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         }
         ImmutableArray<NativeBattleEffectUnknownRegion> unknown = TryProperty(root, "UnknownRegions", options, out JsonElement unknownValue) ? unknownValue.Deserialize<ImmutableArray<NativeBattleEffectUnknownRegion>>(options) : [];
         ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = TryProperty(root, "ResourcePointers", options, out JsonElement pointerValue) ? pointerValue.Deserialize<ImmutableDictionary<int, NativeBattleResourcePointer?>>(options) : null;
-        return NativeBattleEffectArena.CreateSnapshot(regions.Deserialize<ImmutableArray<NativeBattleEffectMemoryRegion>>(options), unknown, pointers);
+        int logicalLength = TryProperty(root, "LogicalLength", options, out JsonElement logicalLengthValue) ? logicalLengthValue.GetInt32() : NativeBattleEffectArena.Length;
+        return NativeBattleEffectArena.CreateSnapshot(regions.Deserialize<ImmutableArray<NativeBattleEffectMemoryRegion>>(options), unknown, pointers, logicalLength);
     }
 
     internal static void WriteSnapshot(Utf8JsonWriter writer, NativeBattleEffectArena value, JsonSerializerOptions options)
@@ -30,6 +31,10 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         }
         value.Validate();
         writer.WriteStartObject();
+        if (value.LogicalLength != NativeBattleEffectArena.Length)
+        {
+            writer.WriteNumber(PropertyName("LogicalLength", options), value.LogicalLength);
+        }
         writer.WritePropertyName(PropertyName("Regions", options));
         JsonSerializer.Serialize(writer, value.Regions, options);
         writer.WritePropertyName(PropertyName("UnknownRegions", options));

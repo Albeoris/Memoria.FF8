@@ -5,6 +5,63 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleWorkingMemoryTests
 {
     [Fact]
+    public void Physical_receipts_follow_mixed_stores_hidden_bytes_and_nested_parent_rollback()
+    {
+        using NativeBattleWorkingMemory memory = new(64, initialKnownZero: false);
+        Assert.Empty(memory.DataFootprint.Ranges);
+        Assert.Equal((0, 64), Assert.Single(memory.ExplicitCoverage.Ranges));
+        memory.WriteWithKnownness(8, [0xA5, 0xB6], [true, false]);
+        memory.WriteRetainedBytes(9, [0xC7]);
+        memory.Copy(8, 16, 2);
+        memory.SetResourcePointer(24, new(null, 0x12345678));
+        memory.SetResourcePointer(32, null);
+        memory.MarkUnknown(40, 4);
+        Assert.Equal(new[] { (8, 10), (16, 18), (24, 28) }, memory.DataFootprint.Ranges);
+        NativeBattleWorkingMemorySnapshot captured = memory.Capture();
+        Assert.Equal(3, captured.DataFootprint.Length);
+        Assert.Equal((0, 64), Assert.Single(memory.ExplicitCoverage.Ranges));
+        memory.BeginCheckpoint();
+        memory.Write(0, [1, 2]);
+        memory.BeginNestedCheckpoint();
+        memory.WriteByte(12, 7);
+        memory.CommitNestedCheckpoint();
+        memory.MarkUnknown(8, 2);
+        memory.RollbackCheckpoint();
+        Assert.Equal(captured.DataFootprint.ToArray(), memory.Capture().DataFootprint.ToArray());
+        using NativeBattleWorkingMemory restored = NativeBattleWorkingMemory.Restore(captured);
+        Assert.Equal(memory.DataFootprint.Ranges, restored.DataFootprint.Ranges);
+        Assert.Equal(memory.ExplicitCoverage.Ranges, restored.ExplicitCoverage.Ranges);
+        Assert.Equal(memory.UnknownCoverage.Ranges, restored.UnknownCoverage.Ranges);
+        NativeBattleEffectArenaSnapshot visible = NativeBattleEffectArena.BorrowWorking(restored, 0, 64).Capture();
+        Assert.Equal(new[] { 8, 16, 24 }, visible.Regions.Select(region => region.Offset));
+        Assert.Equal((byte)0xC7, visible.ReadSnapshot(9, 1).Data[0]);
+        Assert.False(visible.ReadSnapshot(9, 1).Known[0]);
+        AssertStorageEqual(memory, restored);
+    }
+
+    [Fact]
+    public void Physical_receipts_are_consistent_when_post_store_diagnostics_throw()
+    {
+        using NativeBattleWorkingMemory memory = new(64);
+        using (NativeBattleTelemetry.BeginScope(new ThrowingTrafficSink(NativeBattleTrafficKind.CpuCopyPayload)))
+        {
+            Assert.Throws<InvalidOperationException>(() => memory.WriteByte(8, 7));
+        }
+        Assert.Equal((8, 9), Assert.Single(memory.DataFootprint.Ranges));
+        Assert.Equal((8, 9), Assert.Single(memory.ExplicitCoverage.Ranges));
+        Assert.Equal(7, memory.ReadByte(8));
+        using (NativeBattleTelemetry.BeginScope(new ThrowingTrafficSink(NativeBattleTrafficKind.Fill)))
+        {
+            Assert.Throws<InvalidOperationException>(() => memory.MarkUnknown(20, 1));
+        }
+        Assert.Equal((8, 9), Assert.Single(memory.DataFootprint.Ranges));
+        Assert.Equal((20, 21), Assert.Single(memory.UnknownCoverage.Ranges));
+        NativeBattleEffectArenaSnapshot visible = NativeBattleEffectArena.BorrowWorking(memory, 0, 64).Capture();
+        Assert.Equal(7, visible.ReadByte(8));
+        Assert.False(visible.ReadSnapshot(20, 1).Known[0]);
+    }
+
+    [Fact]
     public void Lazy_metadata_participants_follow_child_commits_and_parent_rollbacks_without_full_snapshots()
     {
         using NativeBattleWorkingMemory memory = new(16);

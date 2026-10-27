@@ -45,7 +45,8 @@ public static partial class NativeBattleDisolvingAcid132Controller
 
     private static NativeBattleEffectArena ActContext(NativeBattleDisolvingAcid132Frame frame, NativeBattleModulePoolTask task)
     {
-        return TaskView(task, 16, 8).Write(8, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
+        NativeBattleEffectArena caller = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 16, 8), 0, NativeBattleEffectArena.CreateUnknown(12), 0, 8);
+        return caller.Write(8, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
     }
 
     public static (NativeBattleDisolvingAcid132Frame Frame, int Survivors) AdvanceSpriteScheduler(NativeBattleDisolvingAcid132Frame frame, NativeBattleDisolvingAcid132Resources resources, NativeBattleDisolvingAcid132Inputs inputs)

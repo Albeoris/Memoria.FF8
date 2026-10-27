@@ -58,7 +58,7 @@ public static partial class NativeBattleDuel212Controller
                     target = NativeBattleEffectTaskPool.Initialize(Targets, 0x20DFAB8, 3280, 1);
                     fragments = NativeBattleEffectTaskPool.Initialize(Fragments, 0x20DFAB8 + 3280, 36, 64);
                     sprites = NativeBattleEffectTaskPool.Initialize(Sprites, 0x20DFAB8 + 5584, 24, 64);
-                    frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [target, fragments, sprites]) };
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [target, fragments, sprites]) };
                 }
                 if (target is null)
                 {

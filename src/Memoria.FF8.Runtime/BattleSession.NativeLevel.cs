@@ -73,7 +73,7 @@ public sealed partial class BattleSession
             task = WindStore(task, 20, new(anchor.X, middle, anchor.Z)).WriteWord(26, unchecked((ushort)anchor.W));
             NativeBattleLevelScale scale = NativeBattleLevelNodeMatrix.BoundsScale(bounds.Minimum, bounds.Maximum);
             task = task.WriteDword(28, unchecked((uint)scale.X)).WriteDword(32, unchecked((uint)scale.Y)).WriteDword(36, unchecked((uint)scale.Z));
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x20, profile.WorkspaceBytes));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x20), profile.WorkspaceBytes);
             task = PublishWorkspace(task, 0x2C, workspace.Initialize7016B0(resources.Animation, profile.WorkspaceBytes));
             targets = pool.WriteSlot(slot, task);
             root = root.WriteByte(14, unchecked((byte)(root.ReadByte(14) + 1)));
@@ -102,7 +102,7 @@ public sealed partial class BattleSession
                 int depthBias = -(int)scale38 >> 4;
                 NativeBattleVector anchor = WindVector(task, 20);
                 NativeBattleLevelScale scale = new(unchecked((int)task.ReadDword(28)), unchecked((int)task.ReadDword(32)), unchecked((int)task.ReadDword(36)));
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x20, profile.WorkspaceBytes));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x20), profile.WorkspaceBytes);
                 NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
                     DrawLevelNode(node, anchor, scale, scroll, depthBias);

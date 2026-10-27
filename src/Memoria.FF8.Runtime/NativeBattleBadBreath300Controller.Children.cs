@@ -28,7 +28,7 @@ public static partial class NativeBattleBadBreath300Controller
             frame = inputs.EmitNode(frame, resources.Target, context, node);
             return new(Read(frame, address).ReadBytes(0x18, 0x128).ToImmutableArray());
         });
-        frame = Write(frame, address, Read(frame, address).WriteBytes(0x18, advance.Workspace.Data.AsSpan()));
+        frame = Write(frame, address, advance.Workspace.CopyTo(Read(frame, address), 0x18, retainUnknown: false));
         int age = unchecked((short)Read(frame, address).ReadWord(12));
         if (age <= 8)
         {

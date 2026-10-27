@@ -75,7 +75,7 @@ public static class NativeBattleWhiteWind297Controller
             (scene, int index) = scene.Append(SceneCallback);
             scene = scene.WriteSlot(index, scene.Slots[index].WriteWord(12, 0));
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], scene, targets] } };
-            frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [scene, targets]) };
+            frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [scene, targets]) };
         }
         int survivors = 1;
         if (Task(frame, 0, slot).ReadByte(15) != 0)
@@ -203,7 +203,7 @@ public static class NativeBattleWhiteWind297Controller
     {
         NativeBattleModulePoolTask task = Task(frame, pool, slot);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(offset, size).ToImmutableArray()).Initialize7016B0(source, size);
-        return Put(frame, pool, slot, task.WriteBytes(offset, workspace.Data.AsSpan()));
+        return Put(frame, pool, slot, workspace.CopyTo(task, offset, retainUnknown: false));
     }
     private static (NativeBattleWhiteWind297Frame Frame, int Remaining) Play(NativeBattleWhiteWind297Frame frame, int pool, int slot, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleEffectArena context, NativeBattleWhiteWind297Inputs inputs)
     {
@@ -214,7 +214,7 @@ public static class NativeBattleWhiteWind297Controller
             frame = inputs.EmitNode(frame, source, context, node);
             return new(Task(frame, pool, slot).ReadBytes(offset, size).ToImmutableArray());
         });
-        frame = Put(frame, pool, slot, Task(frame, pool, slot).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+        frame = Put(frame, pool, slot, advanced.Workspace.CopyTo(Task(frame, pool, slot), offset, retainUnknown: false));
         return (frame, advanced.Remaining);
     }
     private static NativeBattleEffectArena BillboardContext(NativeBattleWhiteWind297Frame frame, NativeBattleVector point, NativeBattleWhiteWind297Inputs inputs) => Context(frame, NativeBattleWhiteWind226.Billboard673810(inputs.ReadView(frame).ReadMatrix(), point));

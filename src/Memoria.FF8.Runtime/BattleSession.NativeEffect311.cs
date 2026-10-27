@@ -40,7 +40,7 @@ public sealed partial class BattleSession
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x25073E8, 0x20DFAB8 + 0x700, 840, 1);
             (main, _) = main.Append(0x665550);
             NativeBattleModulePoolTask task = main.Slots[0].ClearPayload(828);
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(72, 756).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (72), 756);
             workspace = workspace.Initialize7016B0(resources.Hierarchy, 756);
             task = StoreEffect311Workspace(task, workspace);
             NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[effect.Parameters!.HeaderIndex7C];
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
             NativeBattleVector center = Effect107Vector(task, 76);
             if (frame < 74)
             {
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(72, 756).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (72), 756);
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Hierarchy, 0, (current, node) =>
                 {
                     DrawNativeEffect311Hierarchy(ref graphics, ref effect, resources, node, center);
@@ -233,7 +233,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleModulePoolTask StoreEffect311Workspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (72), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (72), retainUnknown: true);
     }
 
     private bool TryWriteNativeEffect311Completion(NativeBattleGraphicsState graphics, uint address, byte value, out NativeBattleGraphicsState updated)

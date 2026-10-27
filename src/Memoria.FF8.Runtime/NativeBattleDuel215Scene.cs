@@ -97,7 +97,7 @@ public static partial class NativeBattleDuel215Controller
                     int target = Target(index);
                     int offset = 64 + index * 32;
                     NativeBattleGraphicsModel model = services.ReadModel(target);
-                    bool paddingUnknown = task.UnknownPayloadRanges?.Any(range => range.Offset < offset + 20 && range.Offset + range.Length > offset + 18) == true;
+                    bool paddingUnknown = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 20 && range.Offset + range.Length > offset + 18) == true;
                     services.WriteModel(target, model with { Flags0 = (ushort)(model.Flags0 | 4), Rotation12 = Signed(offset + 12), Rotation14 = Signed(offset + 14), Rotation16 = Signed(offset + 16), RotationPadding18 = paddingUnknown ? null : task.ReadWord(offset + 18) });
                 }
                 Initialize(true, 392, 0x11625E0, 148);
@@ -322,7 +322,7 @@ public static partial class NativeBattleDuel215Controller
             NativeBattleGfAnimationSource source = new(address, resources.Read(address, checked((int)(NativeBattleDuel215Resources.EndAddress - address))));
             NativeBattleModulePoolTask record = particles.Slots[child].WriteWord(12, unchecked((ushort)position.X)).WriteWord(14, unchecked((ushort)position.Y)).WriteWord(16, unchecked((ushort)position.Z)).WriteWord(18, unchecked((ushort)scale)).WriteDword(20, unchecked((uint)angle));
             NativeBattleGfAnimationWorkspace workspace = new(record.ReadBytes(24, size).ToImmutableArray());
-            record = record.WriteBytes(24, workspace.Initialize7016B0(source, size).Data.AsSpan());
+            record = workspace.Initialize7016B0(source, size).CopyTo(record, 24, retainUnknown: false);
             ReplaceParticles(particles.WriteSlot(child, record));
             return true;
         }

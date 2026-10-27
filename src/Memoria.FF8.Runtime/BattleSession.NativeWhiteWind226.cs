@@ -130,7 +130,7 @@ public sealed partial class BattleSession
                 int actor = nativeActionPackets.ReadContact(firstContact + targetIndex / 4).Primary.ActorIndex;
                 NativeBattleModulePoolTask target = pools[2].Slots[slot].WriteDword(12, checked(0x1D972C0u + (uint)actor * 156));
                 target = WindStore(target, 16, Anchor(actor));
-                NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(12, 0x278));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 0x278);
                 workspace = workspace.Initialize7016B0(resources.Target, 0x278);
                 Put(2, slot, PublishWorkspace(target, 0x18, workspace));
             }
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
 
         int Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, bool initialize)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(offset - 12, size));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             if (initialize)
             {
                 workspace = workspace.Initialize7016B0(source, size);
@@ -219,7 +219,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleModulePoolTask PublishWorkspace(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, offset, retainUnknown: true);
     }
     private static short WindWord(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector WindVector(NativeBattleModulePoolTask task, int offset) => new(WindWord(task, offset), WindWord(task, offset + 2), WindWord(task, offset + 4));

@@ -15,9 +15,10 @@ public static class NativeBattleEffect251Programme
             throw new NotSupportedException("Effect251 requires its selected programme source.");
         }
         int length = Math.Max(clearBytes, NativeBattleEffect251Profile.ProgrammeWorkspaceLengths[index]);
-        NativeBattleGfAnimationWorkspace initialized = new(ReadBytes(frame, workspace, length).Read(0, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace initialized = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         initialized = initialized.Initialize7016B0(Source(frame, resources, source), clearBytes);
-        return WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, initialized.Data.AsSpan()), length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, initialized);
+        return frame;
     }
 
     public static NativeBattleEffect251Step Advance(NativeBattleEffect251Frame frame, uint workspace, uint sourceAddress, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
@@ -32,15 +33,15 @@ public static class NativeBattleEffect251Programme
 
     public static NativeBattleEffect251Step AdvanceWorkspace(NativeBattleEffect251Frame frame, uint workspace, int length, NativeBattleEffectArena caller56, NativeBattleEffect251Resources resources, NativeBattleEffect251Inputs inputs)
     {
-        NativeBattleGfAnimationWorkspace Current() => new(ReadBytes(frame, workspace, length).Read(0, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, length);
         NativeBattleGfAnimationSource source = Source(frame, resources, Current().ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = Current().Advance701970(source, unchecked((int)ReadCurrentPause(frame)), (cache, node) =>
         {
-            frame = WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, cache.Data.AsSpan()), length);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, cache);
             frame = DrawNode(frame, source, node, caller56, resources, inputs);
             return Current();
         });
-        frame = WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, advanced.Workspace);
         return new(frame, advanced.Remaining);
     }
 

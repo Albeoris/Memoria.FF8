@@ -98,7 +98,7 @@ public static partial class NativeBattleSonic139Controller
                     frame = WriteBytes(anchor.Frame, childAddress + 24, anchor.Point8, 8);
                     child = Read(frame, childAddress);
                     NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(child.ReadBytes(32, 0x278).ToImmutableArray()).Initialize7016B0(resources.TargetAct, 0x278);
-                    frame = Write(frame, childAddress, child.WriteBytes(32, workspace.Data.AsSpan()));
+                    frame = Write(frame, childAddress, workspace.CopyTo(child, 32, retainUnknown: false));
                 }
             }
         }

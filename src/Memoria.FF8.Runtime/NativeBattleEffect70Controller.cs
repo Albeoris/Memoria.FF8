@@ -83,7 +83,7 @@ public static partial class NativeBattleEffect70Controller
         NativeBattleEffectArena retained = index < frame.Effect.Pools.Length ? NativeBattleEffectTaskMemory.CaptureBank(frame.Effect.Pools[index]) : ReadBytes(frame, shape.Bank, shape.Stride * shape.Capacity);
         NativeBattleEffectTaskPool pool = PreparePool(shape, retained);
         ImmutableArray<NativeBattleEffectTaskPool> pools = index == frame.Effect.Pools.Length ? frame.Effect.Pools.Add(pool) : frame.Effect.Pools.SetItem(index, pool);
-        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]) };
+        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
     }
 
     public static (NativeBattleEffect70Frame Frame, uint Address) Append(NativeBattleEffect70Frame frame, int index, uint callback)

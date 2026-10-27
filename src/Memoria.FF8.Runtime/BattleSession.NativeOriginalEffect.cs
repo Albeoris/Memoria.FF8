@@ -42,12 +42,34 @@ public sealed partial class BattleSession
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, bool assignReturnedTask = true)
     {
         NativeBattleGraphicsState entered = InvokeNativeOriginalEffectEntry(graphics);
+        if (entered.OriginalEffect is { } effect)
+        {
+            NativeEffectMemory = BindNativeEffectTaskStorage(NativeEffectMemory ?? throw new NotSupportedException("Native effect entry requires its retained physical memory."), effect);
+        }
         if (assignReturnedTask)
         {
             NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native assigned entry requires its process task pointer owner.")).AssignReturnedTask(entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its returned pool owner."));
         }
         ObserveDiagnosticEffectDispatch(entered, entered.OriginalEffect ?? throw new InvalidDataException("Native entry lost its executed effect binding."));
         return entered;
+    }
+
+    private static NativeBattleEffectMemory BindNativeEffectTaskStorage(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
+    {
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
+        if (memory.QuezacotlExecutableMemory is { } executable)
+        {
+            foreach (NativeBattleEffectTaskPool pool in effect.Pools)
+            {
+                long offset = (long)pool.BankAddress - NativeBattleQuezacotlExecutableMemory.Address;
+                long length = (long)pool.Stride * pool.Slots.Length;
+                if (offset >= 0 && offset <= NativeBattleQuezacotlExecutableMemory.Length - length)
+                {
+                    pool.BindStorage(executable.Arena, NativeBattleQuezacotlExecutableMemory.Address);
+                }
+            }
+        }
+        return memory;
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffectEntry(NativeBattleGraphicsState graphics)

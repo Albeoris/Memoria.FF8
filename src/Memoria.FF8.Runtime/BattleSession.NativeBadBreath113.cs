@@ -122,7 +122,7 @@ public sealed partial class BattleSession
                         NativeBattleModulePoolTask targetTask = Clear(3, targetSlot).WriteWord(14, task.ReadByte(15));
                         NativeBattleGfAnimationWorkspace workspace = new(new byte[0xEC].ToImmutableArray());
                         workspace = workspace.Initialize7016B0(resources.Cloud, 0xEC);
-                        Put(3, targetSlot, targetTask.WriteRetainedBytes(12 + (4), workspace.Data.AsSpan()));
+                        Put(3, targetSlot, workspace.CopyTo(targetTask, 12 + (4), retainUnknown: true));
                     }
                     task = task.WriteByte(14, (byte)(task.ReadByte(14) >> 1)).WriteByte(15, unchecked((byte)(task.ReadByte(15) + 1)));
                 }
@@ -247,7 +247,7 @@ public sealed partial class BattleSession
         {
             NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
             anchor = anchor with { Y = graphics.Models[actor].Transform!.Angle36 };
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(4, 0xEC).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (4), 0xEC);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Cloud, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -286,7 +286,7 @@ public sealed partial class BattleSession
                 Append(NativeBattleModulePackets.EmitBatch572200(source, geometry, vertices, matrix, projection, new(flags, node.Scalar36 == 0 ? 0u : node.Color32, node.Scalar36, null, null, null, 17, 2), colors));
                 return current;
             });
-            task = task.WriteRetainedBytes(12 + (4), advanced.Workspace.Data.AsSpan());
+            task = advanced.Workspace.CopyTo(task, 12 + (4), retainUnknown: true);
         }
 
         void DrawOverlay(int actorIndex, short amplitude, short phase)

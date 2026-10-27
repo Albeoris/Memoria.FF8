@@ -243,7 +243,7 @@ public static partial class NativeBattleEffect173Controller
     public static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        foreach (NativeBattleEffectUnknownRegion range in task.UnknownPayloadRanges ?? [])
+        foreach (NativeBattleEffectUnknownRegion range in task.ReadUnknownPayloadRanges() ?? [])
         {
             int first = Math.Max(offset, range.Offset);
             int last = Math.Min(offset + length, range.Offset + range.Length);

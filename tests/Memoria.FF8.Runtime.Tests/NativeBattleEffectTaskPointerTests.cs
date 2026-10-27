@@ -33,7 +33,7 @@ public sealed class NativeBattleEffectTaskPointerTests
         NativeBattleEffectTaskPool pool = Pool();
         (pool, _) = pool.Append(0x6CD750);
         pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).WriteByte(28, 0xA5)) };
-        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
         Assert.Throws<NotSupportedException>(() => memory.Arena!.Read(0x4010, 4));
         Assert.True(NativeBattleEffectTaskMemory.TryReadPointer([pool], Bank + 16, out NativeBattleResourcePointer? pointer));
         Assert.Equal(new NativeBattleModelCpuReference(0, 0x123), pointer!.Cpu);
@@ -61,7 +61,7 @@ public sealed class NativeBattleEffectTaskPointerTests
         NativeBattleEffectTaskPool pool = Pool();
         NativeBattleModulePoolTask task = pool.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(30, 2);
         pool = pool with { Slots = pool.Slots.SetItem(0, task) };
-        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
         NativeBattleOriginalEffectState effect = new(274, 111, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0x25084B8) { Pools = [pool] };
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect, pool.DescriptorAddress);
         Assert.Empty(transfer.Effect.Pools);
@@ -73,7 +73,7 @@ public sealed class NativeBattleEffectTaskPointerTests
         NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(transfer.Memory))!;
         Assert.Throws<NotSupportedException>(() => restored.Arena!.Read(0x401E, 1));
         NativeBattleEffectTaskPool replacement = NativeBattleEffectTaskPool.Initialize(pool.DescriptorAddress, Bank + 24, 48, 2);
-        NativeBattleEffectMemory replaced = NativeBattleEffectTaskMemory.RevokeArenaOwnership(restored, [replacement]);
+        NativeBattleEffectMemory replaced = NativeBattleEffectTaskMemory.BindArenaBankOwnership(restored, [replacement]);
         Assert.Equal(task.Flags, BitConverter.ToUInt16(replaced.Arena!.Read(0x4000, 2)));
         Assert.Throws<NotSupportedException>(() => replaced.Arena.Read(0x4018, 1));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectTaskMemory.DetachArenaBank(memory, effect, 0xBAD));

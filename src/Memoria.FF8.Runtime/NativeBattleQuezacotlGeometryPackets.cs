@@ -14,6 +14,12 @@ public static class NativeBattleQuezacotlGeometryPackets
 {
     public static NativeBattleGfGeometryBatch EmitBatch6C5710(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
     {
+        using NativeBattleGfSourceReader reader = new(source);
+        return EmitBatch6C5710(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch6C5710(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleQuezacotlGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    {
         if (source.IsDefault || selectedVertices.IsDefault && readSelectedVertex is null || context.DepthShift > 31)
         {
             throw new InvalidDataException("Native6C5710 requires its current geometry, selected vertex bytes and actual depth shift.");
@@ -165,6 +171,15 @@ public static class NativeBattleQuezacotlGeometryPackets
         }
         NativeBattleGeometryPrimitive polygon = new(bucket, packet.Words(), payload);
         return NativeBattleEffectTextureWindows.Bracket(packet.Attempt(null), polygon, context.WindowBefore, context.WindowAfter);
+    }
+
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader bytes, int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > bytes.Length - length)
+        {
+            throw new InvalidDataException("Native captured geometry pointer leaves its current source bytes.");
+        }
+        return bytes.Read(offset, length);
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> source, int offset, int length)

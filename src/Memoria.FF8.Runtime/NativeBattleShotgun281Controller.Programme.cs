@@ -15,16 +15,16 @@ public static partial class NativeBattleShotgun281Controller
         {
             NativeBattleModulePoolTask current = Read(frame, address);
             current.RequireKnownPayload(0x14, workspaceBytes);
-            return new(current.ReadRawPayloadSpan().Slice(0x14 - 12).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(current, 0x14, workspaceBytes);
         }
         NativeBattleGfAnimationSource source = resources.ReadProgramme(Workspace().ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + 0x14, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan().Slice(0, workspaceBytes)), workspaceBytes);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x14, current);
             frame = DrawProgrammeNode281(frame, source, node, caller, -128, resources, inputs);
             return Workspace();
         });
-        frame = WriteBytes(frame, address + 0x14, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan().Slice(0, workspaceBytes)), workspaceBytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x14, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 

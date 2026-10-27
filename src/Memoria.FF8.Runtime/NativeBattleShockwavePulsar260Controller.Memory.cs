@@ -56,7 +56,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
                 }
                 NativeBattleModulePoolTask task = pool.Slots[(int)(relative / pool.Stride)];
                 NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-                if (task.UnknownPayloadRanges is { } ranges)
+                if (task.ReadUnknownPayloadRanges() is { } ranges)
                 {
                     foreach (NativeBattleEffectUnknownRegion range in ranges)
                     {
@@ -119,9 +119,9 @@ public static partial class NativeBattleShockwavePulsar260Controller
     public static NativeBattleShockwavePulsar260Frame InitializeAct(NativeBattleShockwavePulsar260Frame frame, uint address, int offset, int size, uint sourceAddress, NativeBattleShockwavePulsar260Resources resources)
     {
         NativeBattleModulePoolTask task = Read(frame, address);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, size).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
         workspace = workspace.Initialize7016B0(resources.Act(sourceAddress), size);
-        return Write(frame, address, task.WriteBytes(offset, workspace.Data.AsSpan()));
+        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
     }
 
     public static NativeBattleShockwavePulsar260TaskStep AdvanceAct(NativeBattleShockwavePulsar260Frame frame, uint address, int offset, int size, uint sourceAddress, NativeBattleEffectArena context20, NativeBattleShockwavePulsar260Resources resources, NativeBattleShockwavePulsar260Inputs inputs)
@@ -134,7 +134,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
             current = inputs.Execute(current, new NativeBattleShockwavePulsar260ActNode(sourceAddress, node, context20));
             return unchanged;
         });
-        current = Write(current, address, Read(current, address).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+        current = Write(current, address, advanced.Workspace.CopyTo(Read(current, address), offset, retainUnknown: false));
         return new(current, advanced.Remaining);
     }
 

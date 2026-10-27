@@ -22,7 +22,7 @@ public static partial class NativeBattleRinoa89Controller
         NativeBattleEffectTaskPool body = NativeBattleEffectTaskPool.Initialize(Body, ArenaAddress + 23104, 1052, 1);
         NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(Sprites, ArenaAddress + 3136, 48, 32);
         NativeBattleEffectTaskPool beams = NativeBattleEffectTaskPool.Initialize(Beams, ArenaAddress, 392, 8);
-        return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [body, sprites, beams]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Where(pool => pool.DescriptorAddress != Body && pool.DescriptorAddress != Sprites && pool.DescriptorAddress != Beams).Concat([body, sprites, beams]).ToImmutableArray() } };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [body, sprites, beams]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Where(pool => pool.DescriptorAddress != Body && pool.DescriptorAddress != Sprites && pool.DescriptorAddress != Beams).Concat([body, sprites, beams]).ToImmutableArray() } };
     }
 
     public static NativeBattleRinoa89Frame PrepareBody6F9D80(NativeBattleRinoa89Frame frame, int slot, NativeBattleRinoa89PreparationServices services)

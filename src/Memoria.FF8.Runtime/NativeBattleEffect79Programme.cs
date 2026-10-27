@@ -16,7 +16,7 @@ public static class NativeBattleEffect79Programme
             throw new InvalidDataException("Effect79 programme initialization requires its current source and actual task workspace clear size.");
         }
         NativeBattleGfAnimationSource source = CurrentSource(frame, sourceAddress, resources);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, task.PayloadLength - (0x94 - 12));
         workspace = workspace.Initialize7016B0(source, sizeBytes);
         return PublishWorkspace(frame, taskAddress, workspace);
     }
@@ -58,7 +58,7 @@ public static class NativeBattleEffect79Programme
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
         NativeBattleGfAnimationSource source = CurrentSource(frame, task.ReadDword(0x74), resources);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, task.PayloadLength - (0x94 - 12));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)frame.State.ReadDword(0x25E8954)), (current, node) =>
         {
             frame = PublishWorkspace(frame, taskAddress, current);
@@ -78,11 +78,11 @@ public static class NativeBattleEffect79Programme
     private static NativeBattleEffect79Frame PublishWorkspace(NativeBattleEffect79Frame frame, uint taskAddress, NativeBattleGfAnimationWorkspace workspace)
     {
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
-        if (workspace.Data.Length != task.PayloadLength - (0x94 - 12))
+        if (workspace.Length != task.PayloadLength - (0x94 - 12))
         {
             throw new InvalidDataException("Effect79 programme workspace leaves its current task payload.");
         }
-        return Write(frame, taskAddress, task.WriteRetainedBytes(0x94, workspace.Data.AsSpan()));
+        return Write(frame, taskAddress, workspace.CopyTo(task, 0x94, retainUnknown: true));
     }
 
     public static NativeBattleEffect79Frame DrawNode7B5D80(NativeBattleEffect79Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller92, NativeBattleEffect79Resources resources, NativeBattleEffect79Inputs inputs)

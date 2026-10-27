@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Detached physical storage. Unmaterialized suffix bytes use InitialKnownZero.</summary>
-internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers);
+internal sealed record NativeBattleWorkingMemorySnapshot(int LogicalLength, bool InitialKnownZero, int StoredLength, ImmutableArray<NativeBattleEffectMemoryRegion> Regions, ImmutableArray<NativeBattleEffectUnknownRegion> UnknownRegions, ImmutableDictionary<int, NativeBattleResourcePointer?> ResourcePointers, ImmutableArray<NativeBattleEffectUnknownRegion> DataFootprint = default, ImmutableArray<NativeBattleEffectUnknownRegion> ClassifiedRanges = default);
 
 internal interface INativeBattleCheckpointParticipant
 {
@@ -14,7 +14,7 @@ internal interface INativeBattleCheckpointParticipant
 }
 
 /// <summary>One authoritative, single-threaded native memory owner retained across callbacks.</summary>
-internal sealed class NativeBattleWorkingMemory : IDisposable
+internal sealed partial class NativeBattleWorkingMemory : IDisposable
 {
     private readonly record struct ByteUndo(int Offset, byte Data, bool Known);
     private readonly record struct PointerUndo(int Offset, bool Present, NativeBattleResourcePointer? Value);
@@ -48,6 +48,11 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         }
         this.logicalLength = logicalLength;
         this.initialKnownZero = initialKnownZero;
+        if (!initialKnownZero)
+        {
+            ExplicitCoverage.Add(0, logicalLength);
+            UnknownCoverage.Add(0, logicalLength);
+        }
         this.maxJournalEntries = maxJournalEntries;
         EnsureCapacity(initialCapacity);
     }
@@ -167,6 +172,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        PrepareStorageReceipts();
         PrepareMutation(offset, source.Length, source, false, 0);
         SaveBytes(offset, source.Length, source, false);
         InvalidatePointers();
@@ -174,6 +180,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         Array.Fill(known, true, offset, source.Length);
         bytesWritten += source.Length;
         storedLength = Math.Max(storedLength, offset + source.Length);
+        RecordStorageReceipts(offset, source.Length, true);
+        RecordKnownness(offset, source.Length, true);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, source.Length);
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.Fill, source.Length);
@@ -186,11 +194,14 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        PrepareStorageReceipts();
         PrepareMutation(offset, length, default, true, 0);
         SaveBytes(offset, length, default, true);
         InvalidatePointers();
         Array.Fill(known, false, offset, length);
         storedLength = Math.Max(storedLength, offset + length);
+        RecordStorageReceipts(offset, length, false);
+        RecordKnownness(offset, length, false);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.Fill, length);
     }
@@ -206,6 +217,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        PrepareStorageReceipts(CountUnknownRanges(sourceKnown) + 1);
         CollectPointers(offset, source.Length);
         int changes = 0;
         if (checkpoint)
@@ -219,6 +231,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             }
         }
         ReserveJournal(changes, removedPointers.Count);
+        ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
         {
@@ -237,6 +250,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         sourceKnown.CopyTo(known.AsSpan(offset));
         bytesWritten += source.Length;
         storedLength = Math.Max(storedLength, offset + source.Length);
+        RecordStorageReceipts(offset, source.Length, true);
+        RefreshKnownness(offset, source.Length);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, source.Length * 2L);
     }
@@ -249,6 +264,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        PrepareStorageReceipts();
         CollectPointers(offset, source.Length);
         int changes = 0;
         if (checkpoint)
@@ -262,6 +278,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             }
         }
         ReserveJournal(changes, removedPointers.Count);
+        ObserveReadWindowWrite(null, offset, source.Length);
         EnsureCapacity(offset + source.Length);
         if (checkpoint)
         {
@@ -279,6 +296,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         source.CopyTo(data.AsSpan(offset));
         bytesWritten += source.Length;
         storedLength = Math.Max(storedLength, offset + source.Length);
+        RecordStorageReceipts(offset, source.Length, true);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, source.Length);
     }
@@ -292,6 +310,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        PrepareStorageReceipts(UnknownCoverage.Ranges.Count + 1);
         CollectPointers(destination, length);
         int changes = 0;
         if (checkpoint)
@@ -305,6 +324,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             }
         }
         ReserveJournal(changes, removedPointers.Count);
+        ObserveReadWindowWrite(null, destination, length);
         EnsureCapacity(destination + length);
         if (checkpoint)
         {
@@ -326,6 +346,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         known.AsSpan(destination + count, length - count).Fill(initialKnownZero);
         bytesWritten += length;
         storedLength = Math.Max(storedLength, destination + length);
+        RecordStorageReceipts(destination, length, true);
+        RefreshKnownness(destination, length);
         version++;
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.CpuCopyPayload, count * 2L);
         NativeBattleTelemetry.Record(1005, NativeBattleTrafficKind.ZeroFill, length - count);
@@ -346,6 +368,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             BinaryPrimitives.WriteUInt32LittleEndian(bytes, address);
         }
+        PrepareStorageReceipts();
         PrepareMutation(offset, 4, bytes, numeric is null, 1);
         SaveBytes(offset, 4, bytes, numeric is null);
         InvalidatePointers();
@@ -361,6 +384,8 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         }
         pointers[offset] = pointer;
         storedLength = Math.Max(storedLength, offset + 4);
+        RecordStorageReceipts(offset, 4, numeric is not null);
+        RecordKnownness(offset, 4, numeric is not null);
         version++;
         if (numeric is not null)
         {
@@ -551,6 +576,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
         {
             throw new InvalidOperationException("Native working memory capture requires a committed boundary.");
         }
+        NativeBattleEffectArenaTransaction.RequireCommittedForCapture(this);
         ImmutableArray<NativeBattleEffectMemoryRegion>.Builder regions = ImmutableArray.CreateBuilder<NativeBattleEffectMemoryRegion>();
         if (storedLength != 0)
         {
@@ -572,7 +598,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             }
             unknown.Add(new(first, index - first));
         }
-        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers.ToImmutableDictionary());
+        return new(logicalLength, initialKnownZero, storedLength, regions.ToImmutable(), unknown.ToImmutable(), pointers.ToImmutableDictionary(), CaptureReceipts(DataFootprint), CaptureReceipts(ExplicitCoverage));
     }
 
     public static NativeBattleWorkingMemory Restore(NativeBattleWorkingMemorySnapshot snapshot)
@@ -601,6 +627,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             end = region.Offset + region.Length;
         }
         NativeBattleWorkingMemory result = new(snapshot.LogicalLength, snapshot.InitialKnownZero, snapshot.StoredLength);
+        result.RestoreStorageReceipts(snapshot);
         result.storedLength = snapshot.StoredLength;
         Array.Fill(result.known, true, 0, snapshot.StoredLength);
         NativeBattleTelemetry.Record(1013, NativeBattleTrafficKind.Fill, snapshot.StoredLength);
@@ -645,6 +672,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
     public void Revoke()
     {
         RequireActive();
+        readWindows?.CloseAll();
         revoked = true;
         data = [];
         known = [];
@@ -699,6 +727,7 @@ internal sealed class NativeBattleWorkingMemory : IDisposable
             }
         }
         ReserveJournal(changes, removedPointers.Count + extraPointers);
+        ObserveReadWindowWrite(null, offset, length);
         EnsureCapacity(offset + length);
     }
 

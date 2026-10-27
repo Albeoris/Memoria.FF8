@@ -180,7 +180,7 @@ public static class NativeBattleThundaga105Fragments
     private static short S(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Callback != 0x6D5AD0 || task.Payload.IsDefault || task.PayloadLength != 0x30)
+        if (task.Callback != 0x6D5AD0 || task.PayloadLength != 0x30)
         {
             throw new InvalidDataException("Native Thundaga fragment requires its actual secondary task.");
         }

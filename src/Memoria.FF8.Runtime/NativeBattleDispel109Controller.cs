@@ -65,7 +65,7 @@ public static class NativeBattleDispel109Controller
                     NativeBattleModulePoolTask task = ClearPayload(targets.Slots[slot]).WriteWord(14, group).WriteDword(20, actorPointer);
                     NativeBattleModuleAnchor anchor = inputs.ReadAnchor(actor);
                     task = task.WriteWord(24, unchecked((ushort)anchor.X)).WriteWord(26, unchecked((ushort)anchor.Y)).WriteWord(28, unchecked((ushort)anchor.Z)).WriteWord(30, unchecked((ushort)(3 * (inputs.ReadHeight(actor) + 256))));
-                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 808).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (20), 808);
                     inputs.ObserveTargetInitialize6CF687?.Invoke();
                     task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Animation, 808));
                     targets = targets.WriteSlot(slot, task);
@@ -142,7 +142,7 @@ public static class NativeBattleDispel109Controller
         }
         if (age >= 0)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 808).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (20), 808);
             NativeBattleGfAnimationAdvance played = workspace.Advance701970(resources.Animation, 0, (current, node) =>
             {
                 frame = inputs.DrawModel(frame, task, node);
@@ -196,7 +196,7 @@ public static class NativeBattleDispel109Controller
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteBytes(32, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 32, retainUnknown: false);
     }
 
     private static NativeBattleDispel109Frame SetPool(NativeBattleDispel109Frame frame, int index, NativeBattleEffectTaskPool pool) => frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, pool) } };

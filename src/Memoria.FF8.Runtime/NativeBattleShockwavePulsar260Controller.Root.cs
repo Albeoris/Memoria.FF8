@@ -128,7 +128,7 @@ public static partial class NativeBattleShockwavePulsar260Controller
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, working + ChildrenOffset, ChildStride, ChildCount);
         (mains, int mainSlot) = mains.Append(MainCallback);
         mains = mains.WriteSlot(mainSlot, mains.Slots[mainSlot].WriteBytes(0xC, new byte[0x4A3 * 4]));
-        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], mains, children] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [mains, children]) };
+        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], mains, children] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [mains, children]) };
         uint mainAddress = checked(mains.BankAddress + (uint)(mainSlot * mains.Stride));
         byte caster = checked((byte)Actor(frame.State.ReadDword(CasterGlobal)));
         frame = inputs.Execute(frame, new NativeBattleShockwavePulsar260BindCaster(caster, mainAddress + 0x178, 0x111B3CC));

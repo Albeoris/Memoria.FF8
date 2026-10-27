@@ -39,7 +39,7 @@ public static class NativeBattleGilgameshOpeningFlare
 
     public static NativeBattleGilgameshOpeningFlareStep Step593250(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningFlareState state, NativeBattleGilgameshOpeningFlareResources resources, NativeBattleVector cameraEye, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, short dqa, int dqb, uint graphicsFlags)
     {
-        if (task is null || task.Callback != 0x593250 || task.Payload.IsDefault || task.PayloadLength != 24)
+        if (task is null || task.Callback != 0x593250 || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native593250 requires its actual raw0x24-byte flare task.");
         }

@@ -37,7 +37,7 @@ public static class NativeBattleGilgameshFlare
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 0x24 - 12)
+        if (task.PayloadLength != 0x24 - 12)
         {
             throw new InvalidDataException("Native591470 requires its original raw0x24-byte task.");
         }

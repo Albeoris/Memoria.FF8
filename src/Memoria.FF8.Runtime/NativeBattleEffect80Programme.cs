@@ -16,7 +16,7 @@ public static class NativeBattleEffect80Programme
             throw new InvalidDataException("Effect80 programme initialization requires its current source and actual task workspace clear size.");
         }
         NativeBattleGfAnimationSource source = CurrentSource(frame, sourceAddress, resources);
-        NativeBattleGfAnimationWorkspace workspace = new(new byte[sizeBytes].ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, taskAddress + 0x94, sizeBytes);
         workspace = workspace.Initialize7016B0(source, sizeBytes);
         return PublishWorkspace(frame, taskAddress, workspace);
     }
@@ -59,7 +59,7 @@ public static class NativeBattleEffect80Programme
         NativeBattleModulePoolTask task = Read(frame, taskAddress);
         NativeBattleGfAnimationSource source = CurrentSource(frame, task.ReadDword(0x74), resources);
         int sizeBytes = checked((int)task.ReadDword(0x78));
-        NativeBattleGfAnimationWorkspace workspace = new(ReadBytes(frame, checked(taskAddress + 0x94), sizeBytes).Read(0, sizeBytes).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, checked(taskAddress + 0x94), sizeBytes);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
             frame = PublishWorkspace(frame, taskAddress, current);
@@ -76,7 +76,8 @@ public static class NativeBattleEffect80Programme
 
     private static NativeBattleEffect80Frame PublishWorkspace(NativeBattleEffect80Frame frame, uint taskAddress, NativeBattleGfAnimationWorkspace workspace)
     {
-        return WriteBytes(frame, checked(taskAddress + 0x94), NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), workspace.Data.Length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, checked(taskAddress + 0x94), workspace);
+        return frame;
     }
 
     public static NativeBattleEffect80Frame DrawNode7AC1E0(NativeBattleEffect80Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena caller92, NativeBattleEffect80Resources resources, NativeBattleEffect80Inputs inputs)

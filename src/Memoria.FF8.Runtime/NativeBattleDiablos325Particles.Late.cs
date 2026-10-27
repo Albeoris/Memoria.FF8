@@ -38,8 +38,8 @@ public static partial class NativeBattleDiablos325Particles
             random = random.Draw(out ushort scaleRandom);
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, unchecked((ushort)point.X)).WriteWord(0xE, unchecked((ushort)point.Y)).WriteWord(0x10, unchecked((ushort)point.Z)).WriteWord(0x12, unchecked((ushort)-256)).WriteDword(0x14, (uint)((scaleRandom & 2047) + 2048));
             NativeBattleGfAnimationSource source = NativeBattleDiablos325LateProgramme.ReadSource(frame, 735, 0x42620);
-            NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xB8).ToArray().ToImmutableArray()).Initialize7016B0(source, 0xB8);
-            pool = pool.WriteSlot(slot, task.WriteRetainedBytes(12 + (0x18 - 12), workspace.Data.AsSpan()));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0xB8).Initialize7016B0(source, 0xB8);
+            pool = pool.WriteSlot(slot, workspace.CopyTo(task, 12 + (0x18 - 12), retainUnknown: true));
             frame = Synchronize(Replace(frame with { Random = random }, pool), pool);
         }
         byte color = unchecked((byte)(112 - ((counter - 470) << 4)));
@@ -53,7 +53,7 @@ public static partial class NativeBattleDiablos325Particles
         NativeBattleDiablos325LateResources tables = frame.Effect.Binding.Diablos325Resources?.LateResources ?? throw new NotSupportedException("Native Diablos late particles require their original selector table.");
         ImmutableArray<byte> selector = tables.Read(0xFE0FB4, 1).ToArray().ToImmutableArray();
         NativeBattleGfAnimationSource source = NativeBattleDiablos325LateProgramme.ReadSource(frame, 735, 0x42620);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xB8).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0xB8);
         short scale = unchecked((short)task.ReadDword(0x14));
         NativeBattleVector position = new(unchecked((short)task.ReadWord(0xC)), unchecked((short)task.ReadWord(0xE)), unchecked((short)task.ReadWord(0x10)));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, unchecked((int)state.Pause5180), (current, node) =>
@@ -62,7 +62,7 @@ public static partial class NativeBattleDiablos325Particles
             frame = submit(frame with { Memory = draw.Memory }, draw.Packets);
             return current;
         });
-        task = task.WriteRetainedBytes(0x18, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(task, 0x18, retainUnknown: true);
         publish(frame);
         return new(pool.WriteSlot(index, task), advanced.Remaining == 0 ? 2 : 0);
     }

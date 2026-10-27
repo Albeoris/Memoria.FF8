@@ -77,7 +77,7 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
                 int bytes = variant == 0 ? 160 : 276;
                 NativeBattleGfAnimationWorkspace workspace = new(TaskView(child, 48, bytes).ReadSnapshot(0, bytes).Data.ToImmutableArray());
                 workspace = workspace.Initialize7016B0(source, bytes);
-                child = CopyTask(child, 48, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), bytes);
+                child = CopyTask(child, 48, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), bytes);
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {

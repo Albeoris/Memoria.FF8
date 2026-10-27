@@ -208,7 +208,7 @@ public static partial class NativeBattleMegaSpark279Controller
     {
         NativeBattleGfAnimationWorkspace workspace = new(new byte[length].ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, length);
-        return WriteBytes(frame, address, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), length);
+        return WriteBytes(frame, address, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), length);
     }
 
     private static NativeBattleEffectArena ProgrammeCaller279(NativeBattleMegaSpark279Frame frame, NativeBattleFullMacVertex point, NativeBattleActionMatrix rotation, NativeBattleMegaSpark279Inputs inputs)

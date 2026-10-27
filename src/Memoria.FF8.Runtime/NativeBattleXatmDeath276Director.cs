@@ -33,7 +33,10 @@ public static partial class NativeBattleXatmDeath276Controller
             }
             if (counter <= 108)
             {
-                Execute(new NativeBattleXatmDeath276Caster(Read(7, index).Payload.Slice(2, 55)));
+                byte[] casterContext = new byte[55];
+                Span<bool> casterKnown = stackalloc bool[55];
+                Read(7, index).ReadWithKnownness(14, casterContext, casterKnown);
+                Execute(new NativeBattleXatmDeath276Caster(casterContext.ToImmutableArray()));
             }
             NativeBattleGraphicsModel caster = inputs.ReadCaster();
             Execute(new NativeBattleXatmDeath276Model(caster with { Flags0 = (ushort)(caster.Flags0 | 4) }));

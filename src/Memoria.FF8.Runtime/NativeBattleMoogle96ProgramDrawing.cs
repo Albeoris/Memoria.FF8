@@ -148,11 +148,11 @@ public static class NativeBattleMoogle96ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, WorkspaceBytes).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), WorkspaceBytes);
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
     }
 
     private static int ReadInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(source, offset, 4));

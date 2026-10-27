@@ -70,7 +70,7 @@ public sealed class NativeBattleDuel274MeteorParticlesTests
     private static NativeBattleDuel274Frame Frame()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508478, NativeBattleEffectNodeMemory.ArenaAddress + 0x4000, 44, 32);
-        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
         return new(memory, new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0) { Pools = [pool] }, NativeBattleFileStaging.Unknown(), new(1));
     }
 }

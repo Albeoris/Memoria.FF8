@@ -91,6 +91,30 @@ public sealed partial record NativeBattleModulePoolTask
         return result;
     }
 
+    internal NativeBattleEffectArena BorrowPayloadArena(int offset, int length)
+    {
+        RequirePayloadRange(offset, length);
+        NativeBattleTaskBankOwner current = RequireOwner();
+        return NativeBattleEffectArena.BorrowWorking(current.Storage, checked(Start + offset), length);
+    }
+
+    /// <summary>Captures only the current bounded unknown-range metadata; later task writes cannot change this receipt.</summary>
+    internal ImmutableArray<NativeBattleEffectUnknownRegion>? ReadUnknownPayloadRanges()
+    {
+        if (owner is null)
+        {
+            return RequireSnapshotData().Unknown;
+        }
+        NativeBattleEffectArena payload = BorrowPayloadArena(12, PayloadLength);
+        ImmutableArray<NativeBattleEffectUnknownRegion>.Builder? ranges = null;
+        foreach (NativeBattleEffectStorageRange range in payload.EnumerateUnknownRanges())
+        {
+            ranges ??= ImmutableArray.CreateBuilder<NativeBattleEffectUnknownRegion>();
+            ranges.Add(new(range.Offset + 12, range.Length));
+        }
+        return ranges is null ? null : ranges.ToImmutable();
+    }
+
     public void ReadWithKnownness(int offset, Span<byte> bytes, Span<bool> known)
     {
         RequirePayloadRange(offset, bytes.Length);

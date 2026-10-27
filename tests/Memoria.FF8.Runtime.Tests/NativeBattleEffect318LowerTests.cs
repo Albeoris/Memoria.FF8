@@ -89,7 +89,7 @@ public sealed class NativeBattleEffect318LowerTests
                 pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[stride - 12])) };
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [pool]);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);
             NativeBattleEffect318State state = NativeBattleEffect318State.FromColdProcess().WriteDword(0x2505488, Arena).WriteDword(0x2505424, 0x1D97494);
             Frame = new(memory, new(318, 317, new(318, 0x65E510, 0x65E520), null, null) { Pools = [pool] }, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
             byte[] normal = new byte[40];

@@ -10,7 +10,7 @@ public sealed partial class BattleSession
         NativeBattleXatmDeath276Resources resources = frame.Effect.Binding.XatmDeath276Resources ?? throw new NotSupportedException("Native X-ATM092 requires its original primitive resources.");
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[4];
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x18 - 12, 0x124));
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0x124);
         workspace = workspace.Initialize7016B0(resources.Prim, 0x124);
         task = PublishWorkspace(task, 0x18, workspace);
         pool = pool.WriteSlot(slot, task);
@@ -30,7 +30,7 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Native X-ATM092 primitive argument requires its original identity event scale.");
         }
         NativeBattleVector origin = new(unchecked((short)task.ReadWord(0xE)), unchecked((short)task.ReadWord(0x10)), unchecked((short)task.ReadWord(0x12)));
-        NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x18 - 12, 0x124));
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0x124);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Prim, 0, (current, node) =>
         {
             if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)

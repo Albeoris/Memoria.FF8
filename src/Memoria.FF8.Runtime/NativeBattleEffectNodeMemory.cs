@@ -17,7 +17,9 @@ internal partial class NativeBattleEffectNodeMemory
     private readonly int first;
     private readonly byte[] bytes;
     private readonly bool[] unknown;
-    private readonly byte[] taskBytes;
+    private readonly Dictionary<int, byte> contextBytes = new();
+    private readonly List<ContextStore> contextStores = new();
+    private readonly record struct ContextStore(int Offset, uint Value, int Width);
     private bool dirty;
     private NativeBattleEffectNodeScratch? scratch;
 
@@ -35,7 +37,6 @@ internal partial class NativeBattleEffectNodeMemory
         {
             throw new InvalidDataException("Native effect node context requires its original676-byte task.");
         }
-        taskBytes = originalTask.ReadRawPayloadSpan().ToArray();
         if (emitterBytes <= 0 || geometryBytes <= 0 || second != first + emitterBytes || first < 0 || second > NativeBattleEffectArena.Length - geometryBytes)
         {
             throw new InvalidDataException("Native effect node auxiliary ranges contradict their original contiguous allocations.");
@@ -62,10 +63,37 @@ internal partial class NativeBattleEffectNodeMemory
 
     internal ushort Word(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(Read(offset, 2));
     internal uint Dword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(Read(offset, 4));
-    internal ushort ContextWord(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(taskBytes.AsSpan(ContextOffset + offset - 12));
-    internal uint ContextDword(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(taskBytes.AsSpan(ContextOffset + offset - 12));
-    internal void ContextWord(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(taskBytes.AsSpan(ContextOffset + offset - 12), value);
-    internal void ContextDword(int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(taskBytes.AsSpan(ContextOffset + offset - 12), value);
+    internal ushort ContextWord(int offset) => unchecked((ushort)ReadContext(offset, 2));
+    internal uint ContextDword(int offset) => ReadContext(offset, 4);
+    internal void ContextWord(int offset, ushort value) => WriteContext(offset, value, 2);
+    internal void ContextDword(int offset, uint value) => WriteContext(offset, value, 4);
+
+    private uint ReadContext(int offset, int width)
+    {
+        int address = checked(ContextOffset + offset);
+        Span<byte> data = stackalloc byte[4];
+        Span<bool> known = stackalloc bool[4];
+        originalTask.ReadWithKnownness(address, data[..width], known[..width]);
+        for (int index = 0; index < width; index++)
+        {
+            if (contextBytes.TryGetValue(address + index, out byte value))
+            {
+                data[index] = value;
+            }
+        }
+        return width == 2 ? BinaryPrimitives.ReadUInt16LittleEndian(data) : BinaryPrimitives.ReadUInt32LittleEndian(data);
+    }
+
+    private void WriteContext(int offset, uint value, int width)
+    {
+        int address = checked(ContextOffset + offset);
+        originalTask.RequirePayloadRange(address, width);
+        contextStores.Add(new(address, value, width));
+        for (int index = 0; index < width; index++)
+        {
+            contextBytes[address + index] = unchecked((byte)(value >> (index * 8)));
+        }
+    }
 
     internal void Byte(int offset, byte value) => Write(offset, 1)[0] = value;
     internal void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(Write(offset, 2), value);
@@ -383,7 +411,15 @@ internal partial class NativeBattleEffectNodeMemory
             }
         }
         NativeBattleEffectHierarchy hierarchy = new(effect.Pools);
-        hierarchy = hierarchy.Write(taskAddress, originalTask with { Payload = taskBytes.ToImmutableArray() });
+        NativeBattleModulePoolTask task = hierarchy.Read(taskAddress);
+        Span<byte> contextStore = stackalloc byte[4];
+        foreach (ContextStore store in contextStores)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(contextStore, store.Value);
+            task.WriteRetainedBytes(store.Offset, contextStore[..store.Width]);
+        }
+        contextStores.Clear();
+        contextBytes.Clear();
         return new(memory with { Arena = arena, NodeScratch2793E30 = scratch }, effect with { Pools = hierarchy.Pools });
     }
 

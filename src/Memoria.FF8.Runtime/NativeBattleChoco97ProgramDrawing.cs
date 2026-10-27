@@ -169,15 +169,15 @@ public static partial class NativeBattleChoco97ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, NativeBattleChocoProgramProfile profile) => new(task.ReadRawPayloadSpan().Slice(0x94 - 12, profile.WorkspaceBytes).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task, NativeBattleChocoProgramProfile profile) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), profile.WorkspaceBytes);
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace, NativeBattleChocoProgramProfile profile)
     {
-        if (workspace.Data.Length != profile.WorkspaceBytes)
+        if (workspace.Length != profile.WorkspaceBytes)
         {
             throw new InvalidDataException("Native Choco workspace leaves its caller's physical capacity.");
         }
-        return task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
     }
 
     private static int ReadInt(ImmutableArray<byte> source, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(source, offset, 4));

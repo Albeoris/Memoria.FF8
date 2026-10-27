@@ -192,7 +192,7 @@ public static class NativeBattleDuel274Target
         {
             NativeBattleGraphicsModel model = inputs.ReadModel(actor);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel restoration requires its actual actor position fields.");
-            bool unknownPadding = task.UnknownPayloadRanges is { } unknown && unknown.Any(range => range.Offset < 40 && range.Offset + range.Length > 38);
+            bool unknownPadding = task.ReadUnknownPayloadRanges() is { } unknown && unknown.Any(range => range.Offset < 40 && range.Offset + range.Length > 38);
             inputs.WriteModel(actor, model with { Transform = transform with { Position28 = transform.Position28 with { X = Signed(task, 24), Y = Signed(task, 26), Z = Signed(task, 28) }, Vertical34 = Signed(task, 30) }, Rotation12 = Signed(task, 32), Rotation14 = Signed(task, 34), Rotation16 = Signed(task, 36), RotationPadding18 = unknownPadding ? null : task.ReadWord(38) });
         }
         void RestoreTarget()

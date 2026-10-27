@@ -139,7 +139,7 @@ public static class NativeBattleDuel212Targets
         int actor = frame.Memory.Duel212?.Parameters?.Actor78 ?? throw new NotSupportedException("Native Burning Rave restoration requires its entered caster.");
         NativeBattleGraphicsModel caster = services.ReadModel(actor);
         NativeBattleModelTransform casterTransform = caster.Transform ?? throw new NotSupportedException("Native Burning Rave restoration requires its actual caster transform.");
-        bool paddingUnknown = task.UnknownPayloadRanges?.Any(range => range.Offset < 64 && range.Offset + range.Length > 62) == true;
+        bool paddingUnknown = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < 64 && range.Offset + range.Length > 62) == true;
         services.WriteModel(actor, caster with { Transform = casterTransform with { Position28 = new(Signed(48), Signed(50), Signed(52)), Vertical34 = Signed(54) }, Rotation12 = Signed(56), Rotation14 = Signed(58), Rotation16 = Signed(60), RotationPadding18 = paddingUnknown ? null : task.ReadWord(62) });
         NativeBattleEffectMemory memory = NativeBattleEffectIo.Queue5341D0(frame.Memory, 360, 0x20DFAB8 + 7192, 1);
         return frame with { Memory = NativeBattleEffectIo.Queue5341D0(memory, 361, 0x20DFAB8 + 7192, 0) };

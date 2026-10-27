@@ -53,17 +53,17 @@ public static partial class NativeBattleEffectTaskMemory
         return pools;
     }
 
-    public static NativeBattleEffectMemory RevokeArenaOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools)
+    public static NativeBattleEffectMemory BindArenaBankOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools)
     {
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task bank requires its retained arena owner.");
         foreach (NativeBattleEffectTaskPool pool in pools)
         {
-            if (ArenaOffset(pool) is int offset)
+            if (ArenaOffset(pool) is not null)
             {
-                arena = arena.MarkUnknown(offset, checked(pool.Stride * pool.Slots.Length));
+                pool.BindArena(arena);
             }
         }
-        return memory with { Arena = arena };
+        return memory;
     }
 
     public static NativeBattleEffectTaskTransfer TransferInactiveArenaBanks(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
@@ -75,33 +75,26 @@ public static partial class NativeBattleEffectTaskMemory
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task transfer requires its retained arena owner.");
         ImmutableArray<NativeBattleEffectTaskPool>.Builder retained = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>();
         List<NativeBattleEffectTaskPool> transferred = [];
-        foreach (NativeBattleEffectTaskPool candidate in effect.Pools)
-        {
-            candidate.Validate();
-            if (candidate.HasCheckpoint)
-            {
-                throw new InvalidOperationException("Native task authority transfer requires committed pool checkpoints.");
-            }
-            _ = ArenaOffset(candidate);
-        }
-        using NativeBattleEffectArenaWriter writer = new(arena);
         foreach (NativeBattleEffectTaskPool pool in effect.Pools)
         {
             pool.Validate();
-            if (ArenaOffset(pool) is not int offset)
+            if (ArenaOffset(pool) is null)
             {
                 retained.Add(pool);
                 continue;
             }
-            PublishPool(writer, pool, offset);
+            if (!pool.IsBoundToStorage(arena, ArenaAddress))
+            {
+                throw new InvalidOperationException("Native arena task transfer requires its previously bound canonical physical owner.");
+            }
+            pool.RequireOwner().ValidateRetirementBoundary();
             transferred.Add(pool);
         }
-        arena = writer.Freeze();
-        foreach (NativeBattleEffectTaskPool transferredPool in transferred)
+        foreach (NativeBattleEffectTaskPool pool in transferred)
         {
-            transferredPool.Revoke();
+            pool.Revoke();
         }
-        return new(memory with { Arena = arena }, effect with { Pools = retained.ToImmutable() });
+        return new(memory, effect with { Pools = retained.ToImmutable() });
     }
 
     public static NativeBattleEffectTaskTransfer DetachArenaBank(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, uint descriptor)
@@ -124,17 +117,14 @@ public static partial class NativeBattleEffectTaskMemory
         }
         NativeBattleEffectTaskPool pool = effect.Pools[index];
         pool.Validate();
-        int offset = ArenaOffset(pool) ?? throw new NotSupportedException("Native descriptor reassignment requires its actual arena-backed bank.");
+        _ = ArenaOffset(pool) ?? throw new NotSupportedException("Native descriptor reassignment requires its actual arena-backed bank.");
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native descriptor reassignment requires its retained arena owner.");
-        if (pool.HasCheckpoint)
+        if (!pool.IsBoundToStorage(arena, ArenaAddress))
         {
-            throw new InvalidOperationException("Native task authority transfer requires its committed pool checkpoint.");
+            throw new InvalidOperationException("Native descriptor reassignment requires its bound canonical physical owner.");
         }
-        using NativeBattleEffectArenaWriter writer = new(arena);
-        PublishPool(writer, pool, offset);
-        arena = writer.Freeze();
         pool.Revoke();
-        return new(memory with { Arena = arena }, effect with { Pools = effect.Pools.RemoveAt(index) });
+        return new(memory, effect with { Pools = effect.Pools.RemoveAt(index) });
     }
 
     /// <summary>Explicit detached bank export for lifecycle handoff; ordinary readers borrow CaptureBank.</summary>

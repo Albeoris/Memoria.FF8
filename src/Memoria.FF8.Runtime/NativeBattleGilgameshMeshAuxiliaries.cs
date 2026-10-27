@@ -89,7 +89,7 @@ public static class NativeBattleGilgameshMeshAuxiliaries
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x593600 or 0x594210))
+        if (task.PayloadLength != 24 || task.Callback is not (0x593600 or 0x594210))
         {
             throw new InvalidDataException("Native Gilgamesh finite mesh requires its original raw0x24-byte child task.");
         }

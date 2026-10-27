@@ -49,7 +49,18 @@ public static class NativeBattleGfGeometryPackets
         return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
     }
 
+    internal static NativeBattleGfGeometryBatch EmitBatch7043B0(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null)
+    {
+        return EmitBatch(source, geometryOffset, selectedVertices, matrix, projection, Normalize(context), colors, readSelectedVertex, observeDepth);
+    }
+
     internal static NativeBattleGfGeometryBatch EmitBatch(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null)
+    {
+        using NativeBattleGfSourceReader reader = new(source);
+        return EmitBatch(reader, geometryOffset, selectedVertices, matrix, projection, context, colors, readSelectedVertex, observeDepth, observeSourceCursor, variant);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch(NativeBattleGfSourceReader source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleMeshPacketContext context, NativeBattleSummonColors? colors, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<ushort>? observeDepth = null, Action<int>? observeSourceCursor = null, NativeBattleMeshPacketVariant? variant = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -63,8 +74,7 @@ public static class NativeBattleGfGeometryPackets
         }
         else
         {
-            int start = checked(geometryOffset + 8);
-            vertices = Read(source, start, source.Length - start).ToArray().ToImmutableArray();
+            vertices = default;
         }
         int cursor = checked(geometryOffset + Int32(source, geometryOffset));
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
@@ -107,6 +117,12 @@ public static class NativeBattleGfGeometryPackets
                 if ((context.Flags & 0x2000) != 0 && readSelectedVertex is not null)
                 {
                     position = readSelectedVertex(offset * 4);
+                }
+                else if ((context.Flags & 0x2000) == 0)
+                {
+                    Span<byte> xyz = stackalloc byte[6];
+                    source.ReadInto(checked(geometryOffset + 8 + offset * 4), xyz);
+                    position = new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..]));
                 }
                 else
                 {
@@ -303,6 +319,26 @@ public static class NativeBattleGfGeometryPackets
         ushort word = contextWord ?? throw new NotSupportedException($"Native7043B0 textured leaf requires its actual context {name} WORD for the selected material flag.");
         ushort result = add ? unchecked((ushort)((original >> 16) + word)) : word;
         return (original & 0xFFFF) | (uint)result << 16;
+    }
+
+    private static int Int32(NativeBattleGfSourceReader bytes, int offset)
+    {
+        RequireSourceRange(bytes, offset, 4);
+        return bytes.Int(offset);
+    }
+
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader bytes, int offset, int length)
+    {
+        RequireSourceRange(bytes, offset, length);
+        return bytes.Read(offset, length);
+    }
+
+    private static void RequireSourceRange(NativeBattleGfSourceReader bytes, int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > bytes.Length - length)
+        {
+            throw new InvalidDataException("Native7043B0 pointer leaves its current geometry bytes.");
+        }
     }
 
     private static int Int32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(bytes, offset, 4));

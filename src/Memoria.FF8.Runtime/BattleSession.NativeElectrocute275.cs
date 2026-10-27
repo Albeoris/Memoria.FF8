@@ -189,7 +189,7 @@ public sealed partial class BattleSession
                 current = NativeBattleElectrocute275Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electrocute requires its projection."), colors, Deliver);
                 return next;
             });
-            current = NativeBattleElectrocute275Controller.Write(current, taskAddress, NativeBattleElectrocute275Controller.Read(current, taskAddress).WriteBytes(0xC, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleElectrocute275Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleElectrocute275Controller.Read(current, taskAddress), 0xC, retainUnknown: false));
             return new(current, advanced.Remaining == 0 ? 2 : 0);
         }
 

@@ -236,9 +236,9 @@ public static class NativeBattleSiren95LayerProgrammes
         }
         void Initialize()
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, task.PayloadLength - (0x94 - 12));
             workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-            task = task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
+            task = workspace.CopyTo(task, 0x94, retainUnknown: true);
         }
         void Complete()
         {

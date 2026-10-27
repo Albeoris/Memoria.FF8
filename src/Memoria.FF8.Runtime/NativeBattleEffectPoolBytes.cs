@@ -24,13 +24,13 @@ public static class NativeBattleEffectPoolBytes
             {
                 task.RequirePayloadRange(offset, 1);
                 task.ValidateUnknownPayloadRanges();
-                if (task.UnknownPayloadRanges is { } ranges && ranges.Any(range => offset >= range.Offset && offset - range.Offset < range.Length))
+                if (task.ReadUnknownPayloadRanges() is { } ranges && ranges.Any(range => offset >= range.Offset && offset - range.Offset < range.Length))
                 {
                     unresolved = true;
                     continue;
                 }
             }
-            byte actual = offset < 12 ? Header(pool, task)[offset] : task.Payload[offset - 12];
+            byte actual = offset < 12 ? Header(pool, task)[offset] : task.ReadByte(offset);
             if (actual != unchecked((byte)(expected >> (index * 8))))
             {
                 return false;

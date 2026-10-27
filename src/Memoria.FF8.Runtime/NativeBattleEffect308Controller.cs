@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect308Controller
             NativeBattleCureFamilyPool shape = relative with { Bank = checked(frame.State.ReadDword(ArenaGlobal) + relative.Bank) };
             NativeBattleEffectArena bank = ReadBytes(frame, shape.Bank, shape.Stride * shape.Capacity);
             NativeBattleEffectTaskPool pool = InitializePayload(shape, bank);
-            frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, State = frame.State.DetachCommonQueue(shape.Descriptor) };
+            frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, State = frame.State.DetachCommonQueue(shape.Descriptor) };
         }
         return frame;
     }

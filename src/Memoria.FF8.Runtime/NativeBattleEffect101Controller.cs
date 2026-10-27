@@ -84,7 +84,7 @@ public static class NativeBattleEffect101Controller
     {
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, Working(frame), 0x2D0, 1);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(15, 1));
-        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main]) };
+        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main]) };
         (main, int slot) = main.Append(MainCallback);
         frame = WithPool(frame, 1, main);
         uint address = main.BankAddress + (uint)(slot * main.Stride);
@@ -97,7 +97,7 @@ public static class NativeBattleEffect101Controller
         NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0x2C4]).WriteDword(16, unchecked((uint)(int)scale)).WriteDword(20, color);
         task = CopyToTask(task, 24, position.Position8, 8);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0x2B0].ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x2B0);
-        task = task.WriteBytes(32, workspace.Data.AsSpan());
+        task = workspace.CopyTo(task, 32, retainUnknown: false);
         frame = Write(frame, address, task);
         NativeBattleVector caster = (inputs.ReadModel(Actor(frame.State.ReadDword(CasterGlobal))).Transform ?? throw new NotSupportedException("Effect101 requires its actual caster position.")).Position28;
         frame = inputs.Execute(frame, new NativeBattleEffect101PositionXYZ(target, new(caster.X, 300, unchecked((short)(caster.Z - 1000)))));
@@ -215,7 +215,7 @@ public static class NativeBattleEffect101Controller
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
         NativeBattleEffectArena view = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

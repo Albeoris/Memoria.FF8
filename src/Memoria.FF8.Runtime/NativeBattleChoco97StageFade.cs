@@ -6,7 +6,7 @@ public static class NativeBattleChoco97StageFade
 {
     public static NativeBattleChoco97StageFadeStep Advance(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40 or 0x7292D0 or 0x7296D0 or 0x7297C0 or 0x716A60 or 0x716B50))
+        if (task.PayloadLength != 0x70 - 12 || task.Callback is not (0x731630 or 0x731A50 or 0x731B40 or 0x7292D0 or 0x7296D0 or 0x7297C0 or 0x716A60 or 0x716B50))
         {
             throw new InvalidDataException("Native Choco stage fade requires its actual auxiliary callback and task.");
         }

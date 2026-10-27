@@ -148,6 +148,48 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         overlay.InvalidatePointers(address, length);
     }
 
+    public IEnumerable<KeyValuePair<uint, NativeBattleResourcePointer?>> EnumerateResourcePointers()
+    {
+        RequireActive();
+        using var pointers = overlay.EnumerateResourcePointers().GetEnumerator();
+        while (true)
+        {
+            RequireActive();
+            if (!pointers.MoveNext())
+            {
+                yield break;
+            }
+            yield return pointers.Current;
+        }
+    }
+
+    public int CheckpointDepth
+    {
+        get
+        {
+            RequireActive();
+            return overlay.CheckpointDepth;
+        }
+    }
+
+    public int BeginNestedCheckpoint()
+    {
+        RequireActive();
+        return overlay.BeginNestedCheckpoint();
+    }
+
+    public void CommitNestedCheckpoint(int depth)
+    {
+        RequireActive();
+        overlay.CommitNestedCheckpoint(depth);
+    }
+
+    public void RollbackNestedCheckpoint(int depth)
+    {
+        RequireActive();
+        overlay.RollbackNestedCheckpoint(depth);
+    }
+
     public ImmutableDictionary<uint, NativeBattleResourcePointer?> CapturePointers()
     {
         RequireActive();

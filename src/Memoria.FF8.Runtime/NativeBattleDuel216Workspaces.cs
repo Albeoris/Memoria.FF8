@@ -41,7 +41,7 @@ public static class NativeBattleDuel216Workspaces
             return current;
         });
         pool = Pool(frame, descriptor);
-        task = pool.Slots[slot].WriteBytes(offset, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(pool.Slots[slot], offset, retainUnknown: false);
         pool = pool.WriteSlot(slot, task);
         frame = Store(frame, pool);
         return new(frame, ordering, advanced.Remaining);
@@ -58,7 +58,7 @@ public static class NativeBattleDuel216Workspaces
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, unchecked((ushort)(origin.X + x))).WriteWord(14, unchecked((ushort)(origin.Y + y))).WriteWord(16, unchecked((ushort)(origin.Z + z))).WriteWord(18, unchecked((ushort)scale)).WriteDword(20, 0);
         NativeBattleDuel216Resources resources = frame.Memory.Duel216?.Resources ?? throw new NotSupportedException("Native Different Beat child requires its entered resources.");
         NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(24, 236).ToImmutableArray());
-        task = task.WriteBytes(24, workspace.Initialize7016B0(resources.Hierarchy(0x115049C), 236).Data.AsSpan());
+        task = workspace.Initialize7016B0(resources.Hierarchy(0x115049C), 236).CopyTo(task, 24, retainUnknown: false);
         return Store(frame, pool.WriteSlot(slot, task));
     }
 

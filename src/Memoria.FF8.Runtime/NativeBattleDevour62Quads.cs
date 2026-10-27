@@ -6,7 +6,7 @@ public static class NativeBattleDevour62Quads
 {
     public static NativeBattleGfGeometryBatch Emit(NativeBattleModulePoolTask task)
     {
-        if (task.Callback != 0x7E4F60 || task.Payload.IsDefault || task.PayloadLength != 72)
+        if (task.Callback != 0x7E4F60 || task.PayloadLength != 72)
         {
             throw new InvalidDataException("Devour screen drawing requires its selected84-byte task.");
         }

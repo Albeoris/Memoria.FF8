@@ -32,7 +32,7 @@ public static class NativeBattleRinoa89Programme
         NativeBattleGfAnimationWorkspace Workspace() => new(task.ReadBytes(offset, capacity).ToImmutableArray());
         void Store(NativeBattleGfAnimationWorkspace current)
         {
-            task = task.WriteBytes(offset, current.Data.AsSpan());
+            task = current.CopyTo(task, offset, retainUnknown: false);
             pool = pool.WriteSlot(slot, task);
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(bank => bank.DescriptorAddress == descriptor ? pool : bank).ToImmutableArray() } };
         }

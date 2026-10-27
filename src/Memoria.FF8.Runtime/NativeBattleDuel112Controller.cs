@@ -76,7 +76,7 @@ public static class NativeBattleDuel112Controller
                     task = task.WriteByte(15, 1);
                     root = root with { Slots = root.Slots.SetItem(slot, task) };
                     frame = frame with { Effect = frame.Effect with { Pools = [root, NativeBattleEffectTaskPool.Initialize(0x2521950, Arena, 0xF48, 1), NativeBattleEffectTaskPool.Initialize(0x2521940, Arena + 0x1488, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, Arena + 0x1248, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, Arena + 0xF48, 48, 16)] } };
-                    frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, frame.Effect.Pools) };
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
                 }
                 int sequence = task.ReadByte(14);
                 if (sequence <= readMaximumSequence())

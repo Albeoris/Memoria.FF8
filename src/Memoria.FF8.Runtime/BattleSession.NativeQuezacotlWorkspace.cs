@@ -90,7 +90,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -211,7 +211,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -248,7 +248,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -288,7 +288,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -326,7 +326,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -366,7 +366,7 @@ public sealed partial class BattleSession
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
                 NativeEffectMemory = memory;
                 CommitArenaPublication();
-                NativeGraphics = graphics;
+                PublishNativeQuezacotlGraphics(graphics);
                 ordering.CommitCheckpoint();
                 ordering.BeginCheckpoint();
                 return current;
@@ -521,7 +521,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = memory;
             CommitArenaPublication();
             graphics = graphics with { OriginalEffect = effect };
-            NativeGraphics = graphics;
+            PublishNativeQuezacotlGraphics(graphics);
             ordering.CommitCheckpoint();
             ordering.BeginCheckpoint();
         }
@@ -540,7 +540,7 @@ public sealed partial class BattleSession
             NativeEffectMemory = memory;
             CommitArenaPublication();
             graphics = graphics with { OriginalEffect = effect };
-            NativeGraphics = graphics;
+            PublishNativeQuezacotlGraphics(graphics);
             ordering.CommitCheckpoint();
             ordering.BeginCheckpoint();
         }

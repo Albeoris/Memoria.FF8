@@ -103,7 +103,7 @@ public static partial class NativeBattleMeltEye158Controller
     private static NativeBattleVector DrawingStateVector(NativeBattleMeltEye158State state, uint address) => new(unchecked((short)state.ReadWord(address)), unchecked((short)state.ReadWord(address + 2)), unchecked((short)state.ReadWord(address + 4)));
     private static short? DrawingOptionalWord(NativeBattleModulePoolTask task, int offset)
     {
-        if (task.UnknownPayloadRanges is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
+        if (task.ReadUnknownPayloadRanges() is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
         {
             return null;
         }

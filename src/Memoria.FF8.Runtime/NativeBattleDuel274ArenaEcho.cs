@@ -36,7 +36,7 @@ public static class NativeBattleDuel274ArenaEcho
                 throw new InvalidDataException("Native Duel echo write leaves its actual arena extent.");
             }
             arena = arena.Write(checked(start + offset), task.ReadRawPayloadSpan().Slice(offset, length));
-            if (task.UnknownPayloadRanges is { } unknown)
+            if (task.ReadUnknownPayloadRanges() is { } unknown)
             {
                 foreach (NativeBattleEffectUnknownRegion range in unknown)
                 {

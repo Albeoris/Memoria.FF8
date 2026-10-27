@@ -29,7 +29,7 @@ public static class NativeBattleBio22SecondGeometryTask
     public static NativeBattleBio22SecondGeometryStep Advance89C270(uint selfAddress, NativeBattleBio22SecondGeometryFrame frame, NativeBattleBio22Resources resources, NativeBattleBio22SecondGeometryInputs inputs)
     {
         NativeBattleModulePoolTask task = frame.Task;
-        if (task.Payload.IsDefault || task.PayloadLength != 0x98 - 12 || task.Callback != 0x89C270)
+        if (task.PayloadLength != 0x98 - 12 || task.Callback != 0x89C270)
         {
             throw new InvalidDataException("Native Bio second geometry requires its actual hierarchy task.");
         }

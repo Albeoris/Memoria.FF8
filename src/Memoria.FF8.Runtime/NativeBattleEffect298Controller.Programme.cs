@@ -28,8 +28,8 @@ public static partial class NativeBattleEffect298Controller
         }
         uint sourceAddress = BinaryPrimitives.ReadUInt32LittleEndian(resources.ProgrammeTable32.AsSpan().Slice(words[2] * 8, 4));
         int length = BinaryPrimitives.ReadInt32LittleEndian(resources.ProgrammeTable32.AsSpan().Slice(words[2] * 8 + 4, 4));
-        var workspace = new NativeBattleGfAnimationWorkspace(TaskView(Read(frame, address), 24, length).ReadSnapshot(0, length).Data.ToImmutableArray()).Initialize7016B0(resources.ReadProgramme(sourceAddress), length);
-        frame = WriteBytes(frame, address + 24, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), length);
+        var workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 24, length).Initialize7016B0(resources.ReadProgramme(sourceAddress), length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 24, workspace);
         return (frame, script + 12);
     }
 
@@ -40,20 +40,20 @@ public static partial class NativeBattleEffect298Controller
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), local);
         int scale = Signed(task, 18);
         NativeBattleEffectArena caller = PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, 0)).Write(32, BitConverter.GetBytes(scale)).Write(36, BitConverter.GetBytes(scale)).Write(40, BitConverter.GetBytes(scale)).Write(44, BitConverter.GetBytes(1)).Write(48, BitConverter.GetBytes((int)Signed(task, 22))).Write(52, BitConverter.GetBytes(NativeBattleEffect298Profile.ArenaAddress + 0x261D0));
-        uint sourceAddress = BinaryPrimitives.ReadUInt32LittleEndian(TaskView(task, 24, 4).Read(0, 4));
+        uint sourceAddress = task.ReadDword(24);
         NativeBattleGfAnimationSource source = resources.ReadProgramme(sourceAddress);
         int length = sourceAddress switch { 0x104ED34 => 80, 0x104F7C0 => 304, 0x1050A60 or 0x105166C => 272, _ => throw new NotSupportedException("Effect298 programme task has no selected source.") };
         NativeBattleGfAnimationWorkspace Workspace()
         {
-            return new(ReadBytes(frame, address + 24, length).Read(0, length).ToImmutableArray());
+            return NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 24, length);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + 24, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), length);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 24, current);
             frame = DrawProgrammeNode671B50(frame, source, node, caller, resources, inputs);
             return Workspace();
         });
-        frame = WriteBytes(frame, address + 24, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), length);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 24, advanced.Workspace);
         return (frame, advanced.Remaining == 0 ? 2 : 0);
     }
 

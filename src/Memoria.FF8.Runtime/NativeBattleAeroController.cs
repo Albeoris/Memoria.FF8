@@ -230,7 +230,7 @@ public static class NativeBattleAeroController
         void Emit(NativeBattleAeroOperation operation) => frame = inputs.Execute(frame, operation);
     }
 
-    public static NativeBattleGfAnimationWorkspace ReadWorkspace(NativeBattleModulePoolTask task, bool first) => new(task.ReadRawPayloadSpan().Slice((first ? FirstWorkspaceOffset : SecondWorkspaceOffset) - 12, first ? FirstWorkspaceLength : SecondWorkspaceLength).ToArray().ToImmutableArray());
+    public static NativeBattleGfAnimationWorkspace ReadWorkspace(NativeBattleModulePoolTask task, bool first) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + ((first ? FirstWorkspaceOffset : SecondWorkspaceOffset) - 12), first ? FirstWorkspaceLength : SecondWorkspaceLength);
     public static int PrimarySlot(uint pointer) => Index(pointer, PrimaryBank, 0x68C, 3);
     public static int ActorIndex(uint pointer) => Index(pointer, ActorBank, 156, 7);
     private static int Index(uint pointer, uint bank, uint stride, uint count)
@@ -246,11 +246,11 @@ public static class NativeBattleAeroController
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, bool first, NativeBattleGfAnimationWorkspace workspace)
     {
         int expected = first ? FirstWorkspaceLength : SecondWorkspaceLength;
-        if (workspace.Data.Length != expected)
+        if (workspace.Length != expected)
         {
             throw new InvalidDataException("Native Aero animation workspace changed its physical extent.");
         }
-        return task.WriteRetainedBytes((first ? FirstWorkspaceOffset : SecondWorkspaceOffset), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, (first ? FirstWorkspaceOffset : SecondWorkspaceOffset), retainUnknown: true);
     }
     private static void Require(NativeBattleModulePoolTask task, uint callback)
     {

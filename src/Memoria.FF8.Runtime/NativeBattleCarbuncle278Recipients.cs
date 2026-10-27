@@ -36,9 +36,9 @@ public static class NativeBattleCarbuncle278Recipients
         {
             throw new InvalidDataException("Native Carbuncle recipient source changed its original address.");
         }
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x64 - 12, 0xA8).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x64 - 12), 0xA8);
         workspace = workspace.Initialize7016B0(source, 0xA8);
-        task = task.WriteRetainedBytes(12 + (0x64 - 12), workspace.Data.AsSpan());
+        task = workspace.CopyTo(task, 12 + (0x64 - 12), retainUnknown: true);
         pool = pool.WriteSlot(index, task);
         int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress) + index * pool.Stride + 12);
         return frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(offset, task.ReadRawPayloadSpan()) }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == pool.DescriptorAddress ? pool : current).ToImmutableArray() } };

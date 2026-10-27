@@ -11,15 +11,15 @@ public static partial class NativeBattleEnemyMicroMissiles284Controller
         {
             NativeBattleModulePoolTask task = Read(frame, address);
             task.RequireKnownPayload(workspaceOffset, workspaceBytes);
-            return new(task.ReadRawPayloadSpan().Slice(workspaceOffset - 12, workspaceBytes).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (workspaceOffset - 12), workspaceBytes);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + (uint)workspaceOffset, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), workspaceBytes);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, current);
             frame = DrawProgrammeNode67C010(frame, source, node, caller40, resources, inputs);
             return Workspace();
         });
-        frame = WriteBytes(frame, address + (uint)workspaceOffset, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), workspaceBytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)workspaceOffset, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 

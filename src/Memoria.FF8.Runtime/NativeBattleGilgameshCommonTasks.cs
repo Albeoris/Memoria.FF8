@@ -113,7 +113,7 @@ public static class NativeBattleGilgameshCommonTasks
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task is null || task.Payload.IsDefault || task.PayloadLength != 24)
+        if (task is null || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native Gilgamesh common tasks require their original raw0x24-byte task.");
         }

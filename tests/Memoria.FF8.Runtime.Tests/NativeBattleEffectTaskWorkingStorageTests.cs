@@ -6,6 +6,53 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleEffectTaskWorkingStorageTests
 {
     [Fact]
+    public void Explicit_unknown_metadata_receipt_survives_later_overlapping_payload_copy_and_mask_writes()
+    {
+        NativeBattleModulePoolTask task = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 48, 1).Slots[0];
+        task.WriteBytes(12, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        task.MarkPayloadUnknown(16, 4);
+        ImmutableArray<NativeBattleEffectUnknownRegion>? original = task.ReadUnknownPayloadRanges();
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original!.Value);
+        byte[] bytes = task.ReadRawPayloadSpan().Slice(0, 12).ToArray();
+        task.WriteBytes(16, bytes);
+        foreach (NativeBattleEffectUnknownRegion range in original ?? [])
+        {
+            int first = Math.Max(12, range.Offset);
+            int end = Math.Min(24, range.Offset + range.Length);
+            if (first < end)
+            {
+                task.MarkPayloadUnknown(16 + first - 12, end - first);
+            }
+        }
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(20, 4) }, task.ReadUnknownPayloadRanges()!.Value);
+        Assert.Equal(bytes, task.ReadRawPayloadSpan().Slice(4, 12).ToArray());
+        NativeBattleModulePoolTask frozen = NativeBattleStorageSnapshots.Capture(task);
+        ImmutableArray<NativeBattleEffectUnknownRegion>? retained = frozen.ReadUnknownPayloadRanges();
+        task.WriteDword(20, 0);
+        Assert.Null(task.ReadUnknownPayloadRanges());
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(20, 4) }, retained!.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, original.Value);
+    }
+
+    [Fact]
+    public void Unknown_metadata_receipts_capture_the_current_public_transaction_and_remain_stable_after_rollback()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x20DFBB8, 48, 1).BindArena(arena);
+        NativeBattleModulePoolTask task = pool.Slots[0];
+        task.MarkPayloadUnknown(16, 4);
+        using NativeBattleEffectArenaTransaction transaction = new(arena);
+        transaction.BeginCheckpoint();
+        task.MarkPayloadUnknown(20, 2);
+        ImmutableArray<NativeBattleEffectUnknownRegion>? provisional = task.ReadUnknownPayloadRanges();
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional!.Value);
+        transaction.RollbackCheckpoint();
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 4) }, task.ReadUnknownPayloadRanges()!.Value);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(16, 6) }, provisional.Value);
+    }
+
+    [Fact]
     public void Typed_stores_keep_the_same_slot_and_bank_with_traffic_proportional_to_changed_bytes()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 1024, 4);

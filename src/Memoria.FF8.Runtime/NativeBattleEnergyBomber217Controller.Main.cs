@@ -83,7 +83,7 @@ public static partial class NativeBattleEnergyBomber217Controller
             if (impactAge == 0)
             {
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0x2A8].ToImmutableArray()).Initialize7016B0(resources.ImpactAct, 0x2A8);
-                frame = Write(frame, address, Read(frame, address).WriteBytes(0x3DC, workspace.Data.AsSpan()));
+                frame = Write(frame, address, workspace.CopyTo(Read(frame, address), 0x3DC, retainUnknown: false));
             }
             else if (impactAge < 5)
             {

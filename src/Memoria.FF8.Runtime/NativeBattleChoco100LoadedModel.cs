@@ -195,7 +195,7 @@ public static class NativeBattleChoco100LoadedModel
 
     private static void RequireTask(NativeBattleModulePoolTask task)
     {
-        if (task.Callback != Callback || task.Payload.IsDefault || task.PayloadLength != 0x140 - 12)
+        if (task.Callback != Callback || task.PayloadLength != 0x140 - 12)
         {
             throw new InvalidDataException("Native Choco100 loaded model requires its complete actual model task.");
         }

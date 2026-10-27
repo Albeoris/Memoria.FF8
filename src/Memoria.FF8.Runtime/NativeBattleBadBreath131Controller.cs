@@ -62,7 +62,7 @@ public static partial class NativeBattleBadBreath131Controller
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, MainStride, 1);
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, working + TargetOffset, TargetStride, TargetCount);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, targets, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, targets, particles]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, targets, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, targets, particles]) };
             (frame, uint childAddress) = Append(frame, 1, MainCallback);
             if (childAddress == 0)
             {

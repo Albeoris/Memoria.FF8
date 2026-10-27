@@ -30,9 +30,9 @@ public sealed partial class BattleSession
         NativeBattleGfAnimationSource source = new(unchecked(buffer + 0x23220), arena.Read(sourceOffset, file.Data.Length).ToImmutableArray());
         if (elapsed == 0)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x1F0, 0x22C).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x1F0, 0x22C);
             workspace = workspace.Initialize7016B0(source, 0x22C);
-            arena = arena.Write(start + 0x1F0, workspace.Data.AsSpan());
+            arena = workspace.CopyTo(arena, start + 0x1F0);
             frame = frame with { Memory = frame.Memory with { Arena = arena } };
         }
         var anchor = NativeBattlePandemona291Late.Anchor6F0CC0(frame, address, resources.BodyAnchorInput);

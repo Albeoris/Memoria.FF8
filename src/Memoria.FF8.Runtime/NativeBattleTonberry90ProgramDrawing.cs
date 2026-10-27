@@ -56,7 +56,7 @@ public static class NativeBattleTonberry90ProgramDrawing
             return current;
         });
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
-        task = task.WriteRetainedBytes(0x94, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(task, 0x94, retainUnknown: true);
         frame = frame with { Effect = frame.Effect with { Pools = new NativeBattleEffectHierarchy(frame.Effect.Pools).Write(address, task).Pools } };
         return new(frame, advanced.Remaining);
     }

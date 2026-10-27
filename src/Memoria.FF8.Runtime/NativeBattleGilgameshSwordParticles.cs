@@ -35,7 +35,7 @@ public static partial class NativeBattleGilgameshSwordParticles
 
     public static NativeBattleGilgameshSwordParticleStep Step(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, NativeBattleGilgameshSwordParticleResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, uint graphicsFlags, Func<int, byte, short, NativeBattleVector> readSwordBone, NativeBattleSummonColors? colors = null)
     {
-        if (task is null || task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x5948A0 or 0x594CA0))
+        if (task is null || task.PayloadLength != 24 || task.Callback is not (0x5948A0 or 0x594CA0))
         {
             throw new InvalidDataException("Native sword particles require their selected raw0x24-byte callback task.");
         }

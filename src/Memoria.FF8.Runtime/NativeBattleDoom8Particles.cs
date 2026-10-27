@@ -198,7 +198,7 @@ public static class NativeBattleDoom8Particles
         source.ValidateUnknownPayloadRanges();
         byte[] bytes = source.ReadRawPayloadSpan().Slice(sourceOffset - 12, 8).ToArray();
         bool[] known = Enumerable.Repeat(true, 8).ToArray();
-        if (source.UnknownPayloadRanges is { } ranges)
+        if (source.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

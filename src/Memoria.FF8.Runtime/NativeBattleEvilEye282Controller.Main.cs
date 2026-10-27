@@ -35,9 +35,9 @@ public static partial class NativeBattleEvilEye282Controller
                 uint model = ModelAddress(packets.ReadContact(checked(first + index)).Primary.ActorIndex);
                 frame = Write(frame, main, Read(frame, main).WriteDword(16 + index * 4, model));
             }
-            NativeBattleGfAnimationWorkspace workspace = new(TaskView(Read(frame, main), 28, 1352).Read(0, 1352).ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, main), 28, 1352), 0, 1352);
             workspace = workspace.Initialize7016B0(resources.ProgrammeA, 1352);
-            frame = WriteBytes(frame, main + 28, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 1352);
+            frame = WriteBytes(frame, main + 28, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 1352);
         }
         int mainSurvivors = 1;
         int targetSurvivors = 1;
@@ -103,9 +103,9 @@ public static partial class NativeBattleEvilEye282Controller
                 frame = bone.Frame;
                 frame = WriteBytes(frame, child + 12, bone.Point8, 6);
                 frame = Write(frame, child, Read(frame, child).WriteWord(18, 0));
-                NativeBattleGfAnimationWorkspace workspace = new(TaskView(Read(frame, child), 24, 384).Read(0, 384).ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, child), 24, 384), 0, 384);
                 workspace = workspace.Initialize7016B0(resources.ProgrammeB, 384);
-                frame = WriteBytes(frame, child + 24, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 384);
+                frame = WriteBytes(frame, child + 24, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 384);
             }
         }
         NativeBattleModulePoolTask task = Read(frame, address);

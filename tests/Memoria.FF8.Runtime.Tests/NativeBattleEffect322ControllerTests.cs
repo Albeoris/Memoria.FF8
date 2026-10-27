@@ -178,7 +178,7 @@ public sealed class NativeBattleEffect322ControllerTests
         NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, ModelAddress(4));
         NativeBattleOriginalEffectState effect = new(322, 321, new(322, Entry, Initializer), new(4, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
-        return new(NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+        return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 
     private sealed class SampleObservedException : Exception

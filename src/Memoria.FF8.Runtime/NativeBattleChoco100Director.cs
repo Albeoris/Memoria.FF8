@@ -23,7 +23,7 @@ public static class NativeBattleChoco100Director
     public static NativeBattleChoco97DirectorStep Advance70F370(NativeBattleChoco97DirectorFrame frame, NativeBattleChoco100DirectorInputs inputs)
     {
         frame.Context.Validate();
-        if (frame.Task.Callback != Callback || frame.Task.Payload.IsDefault || frame.Task.PayloadLength != 0x48 - 12)
+        if (frame.Task.Callback != Callback || frame.Task.PayloadLength != 0x48 - 12)
         {
             throw new InvalidDataException("Native Choco100 director requires its complete actual 48-byte task.");
         }

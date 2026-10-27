@@ -197,7 +197,7 @@ public static partial class NativeBattleGatlingGun150Controller
     private static NativeBattleEffectArena ParticleTaskPosition150(NativeBattleModulePoolTask task)
     {
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(4, 8));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

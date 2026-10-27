@@ -108,8 +108,8 @@ public sealed partial record NativeBattleModulePoolTask : INativeBattleStorageNo
     }
 
     public void BeginCheckpoint() => RequireOwner().BeginCheckpoint();
-    public void CommitCheckpoint() => RequireOwner().CommitCheckpoint();
-    public void RollbackCheckpoint() => RequireOwner().RollbackCheckpoint();
+    public void CommitCheckpoint() => (owner ?? throw new InvalidOperationException("Frozen task journal cannot be completed.")).CommitCheckpoint();
+    public void RollbackCheckpoint() => (owner ?? throw new InvalidOperationException("Frozen task journal cannot be completed.")).RollbackCheckpoint();
 
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
     {
@@ -136,6 +136,12 @@ public sealed partial record NativeBattleModulePoolTask : INativeBattleStorageNo
         ImmutableArray<NativeBattleTaskSnapshotData> data = [.. frozen.Data.Select(task => task with { Pointers = context.Map(task.Pointers) })];
         return new(frozen.Descriptor, frozen.Address, frozen.Stride, data, frozen.Head, frozen.Tail, frozen.IsPool);
     }
+}
+
+public enum NativeBattleTaskStorageBinding
+{
+    PublishTaskState,
+    AdoptPhysicalState
 }
 
 public sealed record NativeBattleEffectTaskCallback(NativeBattleEffectTaskPool Pool, int Result);
@@ -173,11 +179,11 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     private static void RejectInitializer() => throw new InvalidOperationException("Native pool initializers cannot replace shared bank authority; use WriteSlot or UpdateLinks.");
 
     [JsonRequired]
-    public uint DescriptorAddress { get => owner?.RequireActive().Descriptor ?? snapshot!.Descriptor; init => RejectInitializer(); }
+    public uint DescriptorAddress { get => owner?.Descriptor ?? snapshot!.Descriptor; init => RejectInitializer(); }
     [JsonRequired]
-    public uint BankAddress { get => owner?.RequireActive().Address ?? snapshot!.Address; init => RejectInitializer(); }
+    public uint BankAddress { get => owner?.Address ?? snapshot!.Address; init => RejectInitializer(); }
     [JsonRequired]
-    public ushort Stride { get => owner?.RequireActive().Stride ?? snapshot!.Stride; init => RejectInitializer(); }
+    public ushort Stride { get => owner?.Stride ?? snapshot!.Stride; init => RejectInitializer(); }
     [JsonRequired]
     public ImmutableArray<NativeBattleModulePoolTask> Slots { get => owner?.RequireActive().Tasks ?? snapshot!.Tasks; init => RejectInitializer(); }
     [JsonRequired]
@@ -187,9 +193,41 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     [JsonIgnore]
     public bool IsSnapshot => owner is null;
     [JsonIgnore]
-    public bool HasCheckpoint => RequireOwner().HasLocalCheckpoint;
+    public bool HasCheckpoint => owner?.HasLocalCheckpoint ?? false;
     [JsonIgnore]
     internal object StorageIdentity => RequireOwner().Storage.BackingIdentity;
+    [JsonIgnore]
+    internal NativeBattleWorkingMemory CheckpointStorage => (owner ?? throw new InvalidOperationException("Frozen task pools have no working journal.")).Storage;
+    [JsonIgnore]
+    internal int CurrentCheckpointDepth => owner?.CurrentCheckpointDepth ?? 0;
+
+    /// <summary>Publishes the current task bank once, then uses the main arena as its sole physical authority.</summary>
+    public NativeBattleEffectTaskPool BindArena(NativeBattleEffectArena arena, NativeBattleTaskStorageBinding binding = NativeBattleTaskStorageBinding.PublishTaskState)
+    {
+        return BindStorage(arena, NativeBattleEffectNodeMemory.ArenaAddress, binding);
+    }
+
+    public NativeBattleEffectTaskPool BindStorage(NativeBattleEffectArena arena, uint physicalBase, NativeBattleTaskStorageBinding binding = NativeBattleTaskStorageBinding.PublishTaskState)
+    {
+        NativeBattleTaskBankOwner current = RequireOwner();
+        arena.RequireWritable();
+        if (!Enum.IsDefined(binding))
+        {
+            throw new ArgumentOutOfRangeException(nameof(binding));
+        }
+        if (current.IsBoundToStorage(arena, physicalBase))
+        {
+            return this;
+        }
+        Validate();
+        current.BindStorage(arena, physicalBase, binding);
+        return this;
+    }
+
+    public bool IsBoundToStorage(NativeBattleEffectArena arena, uint physicalBase)
+    {
+        return owner is not null && owner.IsBoundToStorage(arena, physicalBase);
+    }
 
     public static NativeBattleEffectTaskPool Initialize(uint descriptorAddress, uint bankAddress, ushort stride, ushort capacity)
     {
@@ -253,8 +291,8 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     }
 
     public void BeginCheckpoint() => RequireOwner().BeginCheckpoint();
-    public void CommitCheckpoint() => RequireOwner().CommitCheckpoint();
-    public void RollbackCheckpoint() => RequireOwner().RollbackCheckpoint();
+    public void CommitCheckpoint() => (owner ?? throw new InvalidOperationException("Frozen task journal cannot be completed.")).CommitCheckpoint();
+    public void RollbackCheckpoint() => (owner ?? throw new InvalidOperationException("Frozen task journal cannot be completed.")).RollbackCheckpoint();
     internal void Revoke() => RequireOwner().Revoke();
 
     public (NativeBattleEffectTaskPool Pool, int Slot) Append(uint callback)
@@ -277,6 +315,7 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
         {
             throw new InvalidOperationException("Native508360 exhausted its original effect task bank.");
         }
+        RequireOwner().PrepareDescriptorMutation();
         NativeBattleModulePoolTask selected = Slots[index];
         int? oldTail = Tail;
         selected.UpdateHeader((ushort)(selected.Flags | 1), 0, null, callback);
@@ -292,6 +331,15 @@ public sealed record NativeBattleEffectTaskPool : INativeBattleStorageNode
     public NativeBattleEffectTaskStep Advance(Func<NativeBattleEffectTaskPool, int, NativeBattleEffectTaskCallback> callback)
     {
         RequireOwner();
+        if (Head is null)
+        {
+            if (Tail is not null)
+            {
+                throw new InvalidDataException("Native empty task queue retains an invalid tail.");
+            }
+            return new(this, 0);
+        }
+        RequireOwner().PrepareDescriptorMutation();
         NativeBattleEffectTaskPool pool = this;
         int? previous = null;
         int survivors = 0;

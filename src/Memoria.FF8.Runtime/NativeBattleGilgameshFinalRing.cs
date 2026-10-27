@@ -43,7 +43,7 @@ public static class NativeBattleGilgameshFinalRing
 
     private static void ValidateTask(NativeBattleModulePoolTask task)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24)
+        if (task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native591F50 requires its original raw0x24-byte task.");
         }

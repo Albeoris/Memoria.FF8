@@ -313,7 +313,7 @@ public static partial class NativeBattleMegaSpark279Controller
         }
         matrix = matrix with { X = Signed(task, 32), Y = Signed(task, 34), Z = Signed(task, 36) };
         NativeBattleModulePoolTask output = CopyTask(Read(frame, address), 12, PackedArena(NativeBattlePackedMatrix32.FromMatrix(matrix, null)), 32);
-        output = CopyTask(output, 44, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), size);
+        output = CopyTask(output, 44, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), size);
         return Write(frame, address, output);
     }
 

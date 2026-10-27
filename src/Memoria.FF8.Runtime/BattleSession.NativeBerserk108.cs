@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x8B8);
                     NativeBattleVector spawn = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0) with { Y = graphics.Models[actor].Transform!.Angle36 };
                     task = WindStore(WindStore(task.WriteWord(14, (ushort)action).WriteDword(20, entity), 24, spawn), 32, ReadNativeDefaultPosition571400(graphics, actor));
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x628 - 12, 0x29C));
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x628 - 12), 0x29C);
                     task = PublishWorkspace(task, 0x628, workspace.Initialize7016B0(resources.Burst, 0x29C));
                     pools[1] = pools[1].WriteSlot(slot, task);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -249,7 +249,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Burst(NativeBattleModulePoolTask task, NativeBattleVector spawn)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x628 - 12, 0x29C));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x628 - 12), 0x29C);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Burst, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)

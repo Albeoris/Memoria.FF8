@@ -131,7 +131,7 @@ public sealed class NativeBattleDuel274TargetTests
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(273);
             memory = memory with { EffectIo = memory.EffectIo! with { Callback = 0x689810 } };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, effect.Pools);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
             Frame = new(memory, effect, staging, new(1));
             byte[] data = new byte[NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address];
             data[checked((int)(0x110E3E6 - NativeBattleDuel274Resources.Address))] = 49;

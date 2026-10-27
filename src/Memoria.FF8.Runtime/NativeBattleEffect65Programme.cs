@@ -23,11 +23,11 @@ public static class NativeBattleEffect65Programme
 
     public static NativeBattleEffect65Step Advance(NativeBattleEffect65Frame frame, uint workspaceAddress, int workspaceLength, NativeBattleEffectArena caller48, int frozen, NativeBattleEffect65Resources resources, NativeBattleEffect65Inputs inputs, bool scaleNodes = false, uint cursorGlobal = CursorGlobal)
     {
-        NativeBattleGfAnimationWorkspace Workspace() => new(ReadBytes(frame, workspaceAddress, workspaceLength).Read(0, workspaceLength).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace Workspace() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, workspaceLength);
         NativeBattleGfAnimationSource source = ReadSource(frame, Workspace().ResourceAddress, resources);
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, frozen, (workspace, node) =>
         {
-            frame = WriteBytes(frame, workspaceAddress, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), workspaceLength);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, workspace);
             if (scaleNodes)
             {
                 int factor = unchecked((int)frame.State.ReadDword(ScaleGlobal));
@@ -43,7 +43,7 @@ public static class NativeBattleEffect65Programme
             frame = DrawNode(frame, source, node, caller48, resources, inputs, cursorGlobal);
             return Workspace();
         });
-        frame = WriteBytes(frame, workspaceAddress, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), workspaceLength);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, advanced.Workspace);
         return new(frame, advanced.Remaining);
     }
 

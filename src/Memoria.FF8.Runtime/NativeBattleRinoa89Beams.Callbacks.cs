@@ -48,7 +48,7 @@ public static partial class NativeBattleRinoa89Controller
                 frame = services.PublishPackets(drawn.Frame, drawn.Packets, true);
                 return current;
             });
-            task = task.WriteBytes(48, advanced.Workspace.Data.AsSpan());
+            task = advanced.Workspace.CopyTo(task, 48, retainUnknown: false);
             if (advanced.Remaining == 0)
             {
                 return new(frame, pool.WriteSlot(slot, task), 2);

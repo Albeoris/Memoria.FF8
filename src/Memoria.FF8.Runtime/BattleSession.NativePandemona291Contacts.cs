@@ -140,8 +140,8 @@ public sealed partial class BattleSession
         int length = file.Data.Length - relative;
         NativeBattleGfAnimationSource source = new(sourceAddress, arena.Read(NativeBattleWaterExecutionFields.ArenaOffset(sourceAddress, length), length).ToImmutableArray());
         int workspaceLength = impact ? 0x180 : 0x8C;
-        NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x10, workspaceLength).ToImmutableArray());
-        arena = arena.Write(start + 0x10, workspace.Initialize7016B0(source, workspaceLength).Data.AsSpan());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x10, workspaceLength);
+        arena = workspace.Initialize7016B0(source, workspaceLength).CopyTo(arena, start + 0x10);
         pool = pool.WriteSlot(index, task);
         return frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(current => current.DescriptorAddress == descriptor ? pool : current).ToImmutableArray() } };
     }

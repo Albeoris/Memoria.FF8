@@ -10,7 +10,7 @@ public static class NativeBattleTheEnd85Environment
 {
     public static NativeBattleTheEnd85EnvironmentStep Advance(NativeBattleTheEnd85EnvironmentInput input, uint defaultColor)
     {
-        if (input.Context.IsDefault || input.Context.Length != 84 || input.Models.IsDefault || input.Models.Length != 7 || input.Task.Payload.IsDefault || input.Task.PayloadLength != 96 - 12)
+        if (input.Context.IsDefault || input.Context.Length != 84 || input.Models.IsDefault || input.Models.Length != 7 || input.Task.PayloadLength != 96 - 12)
         {
             throw new InvalidDataException("Native The End environment requires its complete task, context, stage and graphics model owners.");
         }

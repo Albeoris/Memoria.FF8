@@ -67,7 +67,7 @@ public static partial class NativeBattleDisolvingAcid132Controller
                 NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
                 NativeBattleEffectTaskPool curves = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
                 NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
-                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, act, simple, curves, sprites] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, act, simple, curves, sprites]) };
+                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, act, simple, curves, sprites] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, act, simple, curves, sprites]) };
                 for (int index = 0; index < PointCount; index++)
                 {
                     frame = WriteArena(frame, checked(working + PointsOffset + (uint)(index * PointStride) + 6), BitConverter.GetBytes(ushort.MaxValue));

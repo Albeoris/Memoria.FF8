@@ -59,7 +59,7 @@ public sealed partial class BattleSession
                 NativeVibrationEnqueue vibration = (NativeVibrationProcess ?? throw new NotSupportedException("Native landing requires its actual vibration process.")).Enqueue(resources.Vibration, 1, 128);
                 NativeVibrationProcess = vibration.State;
                 task = task.WriteDword(16, unchecked((uint)vibration.Handle));
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(8, 0x1E8));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x1E8);
                 task = PublishWorkspace(task, 20, workspace.Initialize7016B0(resources.Animation, 0x1E8));
                 directors = directors.WriteSlot(director, task);
             }
@@ -202,7 +202,7 @@ public sealed partial class BattleSession
                 {
                     PublishNativeModuleSound(resources.SecondSound, 0, new(position.X, position.Y, position.Z, 0));
                 }
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(8, 0x1E8));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x1E8);
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
                     DrawNode(node, origin);

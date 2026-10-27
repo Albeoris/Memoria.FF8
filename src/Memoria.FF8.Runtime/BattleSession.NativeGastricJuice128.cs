@@ -144,7 +144,7 @@ public sealed partial class BattleSession
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
                 return next;
             });
-            return NativeBattleGastricJuice128Controller.Write(current, taskAddress, NativeBattleGastricJuice128Controller.Read(current, taskAddress).WriteBytes(0x20, advanced.Workspace.Data.AsSpan()));
+            return NativeBattleGastricJuice128Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleGastricJuice128Controller.Read(current, taskAddress), 0x20, retainUnknown: false));
         }
 
         NativeBattleGastricJuice128Frame DrawSprite(NativeBattleGastricJuice128Frame current, uint address, uint sourceAddress, ushort phase, byte depthShift)

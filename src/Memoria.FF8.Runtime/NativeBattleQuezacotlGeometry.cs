@@ -34,22 +34,19 @@ public static class NativeBattleQuezacotlGeometry
         {
             return new(memory, new([], 0));
         }
-        ImmutableArray<byte> source;
-        int sourceOffset;
-        if (currentSource is null)
+        NativeBattleGfAnimationSource? resource = currentSource;
+        if (resource is null)
         {
-            source = (memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl draw requires its current executable bytes.")).Data;
-            sourceOffset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
+            NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl draw requires its current executable bytes.");
+            int offset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
+            resource = NativeBattleGfAnimationSource.Borrow(sourceAddress, executable.Arena, offset, NativeBattleQuezacotlExecutableMemory.Length - offset);
         }
-        else
+        if (resource.IsDefault || currentSource is not null && currentSource.Address == 0)
         {
-            if (currentSource.Data.IsDefault || currentSource.Address == 0)
-            {
-                throw new InvalidDataException("Native6C6060 requires its actual bounded current resource view.");
-            }
-            source = currentSource.Data;
-            sourceOffset = 0;
+            throw new InvalidDataException("Native6C6060 requires its actual bounded current resource view.");
         }
+        using NativeBattleGfSourceReader source = resource.OpenReader();
+        const int sourceOffset = 0;
         int directory = checked(sourceOffset + 8 + 4 * node.GeometryIndex);
         int geometry = checked(sourceOffset + BinaryPrimitives.ReadInt32LittleEndian(Read(source, directory, 4)));
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(source, checked(geometry + 4), 4));
@@ -105,13 +102,13 @@ public static class NativeBattleQuezacotlGeometry
         return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source, geometry, vertices, matrix, projection, context, colors, readMorphedVertex, observeDepth));
     }
 
-    private static ReadOnlySpan<byte> Read(ImmutableArray<byte> bytes, int offset, int length)
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader bytes, int offset, int length)
     {
         if (offset < 0 || length < 0 || offset > bytes.Length - length)
         {
             throw new InvalidDataException("Native6C6060 geometry pointer leaves its current resource source owner.");
         }
-        return bytes.AsSpan().Slice(offset, length);
+        return bytes.Read(offset, length);
     }
 }
 

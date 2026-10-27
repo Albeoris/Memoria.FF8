@@ -158,7 +158,7 @@ internal sealed class NativeBattleEffectArenaWriter : IDisposable
         RequireActive();
         if (transaction is not null)
         {
-            transaction.ValidateExplicitCoverage(capacity);
+            source.ValidateExplicitCoverage(capacity);
         }
         else
         {

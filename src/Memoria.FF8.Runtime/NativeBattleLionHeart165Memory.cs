@@ -42,7 +42,7 @@ public static partial class NativeBattleLionHeart165Controller
     {
         task.RequirePayloadRange(source, length);
         staging = staging.Write(destination, task.ReadRawPayloadSpan().Slice(source - 12, length));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

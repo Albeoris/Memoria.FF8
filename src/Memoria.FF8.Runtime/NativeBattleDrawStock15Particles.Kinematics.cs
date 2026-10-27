@@ -29,7 +29,7 @@ public static partial class NativeBattleDrawStock15Particles
 
     public static ushort? ReadPadding(NativeBattleModulePoolTask task, int offset)
     {
-        return task.UnknownPayloadRanges?.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset) == true ? null : task.ReadWord(offset);
+        return task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset) == true ? null : task.ReadWord(offset);
     }
 
     public static NativeBattleActionMatrix LookBasis8DDA50(NativeBattleVector direction)

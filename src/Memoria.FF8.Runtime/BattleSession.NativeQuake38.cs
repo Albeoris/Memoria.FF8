@@ -49,15 +49,20 @@ public sealed partial class BattleSession
 
         public NativeBattleGraphicsState Run()
         {
+            Span<bool> owned = stackalloc bool[effect.Pools.Length];
+            owned.Clear();
             state.BeginCheckpoint();
             try
             {
+                NativeBattleTaskPoolCheckpoints.Begin(effect.Pools, owned);
                 NativeBattleGraphicsState result = RunCore();
+                NativeBattleTaskPoolCheckpoints.Commit(effect.Pools, owned);
                 state.CommitCheckpoint();
                 return result;
             }
             catch
             {
+                NativeBattleTaskPoolCheckpoints.Rollback(effect.Pools, owned);
                 if (state.HasCheckpoint)
                 {
                     state.RollbackCheckpoint();

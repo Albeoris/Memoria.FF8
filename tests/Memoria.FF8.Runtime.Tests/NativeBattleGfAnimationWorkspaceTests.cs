@@ -11,14 +11,15 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
     {
         Fixture fixture = new(0x40);
         NativeBattleGfAnimationWorkspace prior = new(Enumerable.Repeat((byte)0xA5, 40).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace priorSnapshot = NativeBattleStorageSnapshots.Capture(prior);
         NativeBattleGfAnimationWorkspace initialized = prior.Initialize7016B0(fixture.Source, 23);
         Assert.Equal(Fixture.Address, initialized.ResourceAddress);
         Assert.Equal(0, initialized.Frame);
-        Assert.Equal(new byte[] { 0, 0, 0, 0x10, 0, 0, 0, 0x10, 0, 0, 0, 0x10 }, initialized.Data.AsSpan().Slice(8, 12).ToArray());
-        Assert.All(initialized.Data.Skip(20), value => Assert.Equal((byte)0xA5, value));
-        Assert.All(prior.Data, value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(new byte[] { 0, 0, 0, 0x10, 0, 0, 0, 0x10, 0, 0, 0, 0x10 }, NativeBattleStorageSnapshots.Capture(initialized).Data.AsSpan().Slice(8, 12).ToArray());
+        Assert.All(NativeBattleStorageSnapshots.Capture(initialized).Data.Skip(20), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(priorSnapshot.Data, value => Assert.Equal((byte)0xA5, value));
         Assert.Throws<InvalidDataException>(() => prior.Initialize7016B0(fixture.Source, 44));
-        NativeBattleGfAnimationWorkspace pointerOnly = prior.Initialize7016B0(new Fixture(0).Source, 7);
+        NativeBattleGfAnimationWorkspace pointerOnly = NativeBattleStorageSnapshots.Restore(priorSnapshot).Initialize7016B0(new Fixture(0).Source, 7);
         Assert.Equal(unchecked((int)0xA5A5A5A5), pointerOnly.Frame);
     }
 
@@ -66,10 +67,11 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         NativeBattleGfAnimationWorkspace workspace = fixture.Initialize();
         List<NativeBattleGfAnimationNode> nodes = [];
         NativeBattleGfAnimationAdvance first = workspace.Advance701970(fixture.Source, -1, Collect);
+        NativeBattleGfAnimationWorkspace firstSnapshot = NativeBattleStorageSnapshots.Capture(first.Workspace);
         NativeBattleGfAnimationAdvance second = first.Workspace.Advance701970(fixture.Source, 1, Collect);
         Assert.Equal(0, first.Workspace.Frame);
         Assert.Equal(10, second.Remaining);
-        Assert.Equal(first.Workspace.Data.ToArray(), second.Workspace.Data.ToArray());
+        Assert.Equal(firstSnapshot.Data.ToArray(), NativeBattleStorageSnapshots.Capture(second.Workspace).Data.ToArray());
         Assert.Equal(new NativeBattleVector(-2, 3, 4), nodes[0].Vector8);
         Assert.Equal(nodes[0].Data.ToArray(), nodes[1].Data.ToArray());
 
@@ -169,7 +171,7 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         Assert.Throws<NotSupportedException>(() => fixture.Initialize().Advance701970(fixture.Source, 0, (current, node) =>
         {
             Assert.Equal((ushort)0, node.NodeIndex);
-            boundary = current;
+            boundary = NativeBattleStorageSnapshots.Capture(current);
             throw new NotSupportedException("Downstream native geometry callback is unimplemented.");
         }));
         Assert.NotNull(boundary);
@@ -184,7 +186,7 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         Fixture fixture = new(2);
         fixture.Stream(0, 1, 0, Q(3), Q(-4), Q(5), -1);
         NativeBattleGfAnimationWorkspace original = fixture.Initialize().Advance701970(fixture.Source, 0, (current, _) => current).Workspace;
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(original))!;
+        NativeBattleGfAnimationWorkspace restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original)))!);
         List<NativeBattleGfAnimationNode> left = [];
         List<NativeBattleGfAnimationNode> right = [];
         NativeBattleGfAnimationAdvance expected = original.Advance701970(fixture.Source, 0, (current, node) =>
@@ -197,7 +199,7 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
             right.Add(node);
             return current;
         });
-        Assert.Equal(expected.Workspace.Data.ToArray(), actual.Workspace.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(expected.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(actual.Workspace).Data.ToArray());
         Assert.Equal(expected.Remaining, actual.Remaining);
         Assert.Equal(Assert.Single(left).Data.ToArray(), Assert.Single(right).Data.ToArray());
         NativeBattleGfAnimationWorkspace completed = WriteInt(actual.Workspace, 4, 10);
@@ -221,15 +223,63 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
 
     private static int Q(int value) => unchecked(value << 16);
     private static int Pack(int low, int high) => unchecked((ushort)low | (int)((uint)(ushort)high << 16));
-    private static int Int(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadInt32LittleEndian(state.Data.AsSpan().Slice(offset));
-    private static short Short(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadInt16LittleEndian(state.Data.AsSpan().Slice(offset));
-    private static ushort UShort(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(state.Data.AsSpan().Slice(offset));
+    private static int Int(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(state).Data.AsSpan().Slice(offset));
+    private static short Short(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(state).Data.AsSpan().Slice(offset));
+    private static ushort UShort(NativeBattleGfAnimationWorkspace state, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleStorageSnapshots.Capture(state).Data.AsSpan().Slice(offset));
 
     private static NativeBattleGfAnimationWorkspace WriteInt(NativeBattleGfAnimationWorkspace state, int offset, int value)
     {
-        byte[] bytes = state.Data.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(state).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset), value);
         return new(bytes.ToImmutableArray());
+    }
+
+    [Fact]
+    public void Borrowed_source_preserves_unread_resource_bytes_across_callbacks_without_undoing_real_writes()
+    {
+        Fixture fixture = new(0, 0);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateUnknown(fixture.Source.Data.Length).Write(0, fixture.Source.Data.AsSpan());
+        NativeBattleGfAnimationSource borrowed = NativeBattleGfAnimationSource.Borrow(Fixture.Address, arena, 0, fixture.Source.Data.Length);
+        NativeBattleGfAnimationWorkspace workspace = fixture.Initialize();
+        List<uint> headers = [];
+        NativeBattleGfAnimationAdvance first = workspace.Advance701970(borrowed, 0, (current, node) =>
+        {
+            headers.Add(node.Header);
+            if (node.NodeIndex == 0)
+            {
+                arena.Write(0x200, [1, 2, 3, 4]);
+                using NativeBattleGfSourceReader nested = borrowed.OpenReader();
+                Assert.Equal(0x123400A1u, nested.UInt(0x200));
+            }
+            return current;
+        });
+        Assert.Equal(new uint[] { 0x123400A0, 0x123400A1 }, headers);
+        Assert.Equal(0x04030201u, arena.ReadUInt32(0x200));
+        headers.Clear();
+        first.Workspace.Advance701970(borrowed, 0, (current, node) =>
+        {
+            headers.Add(node.Header);
+            return current;
+        });
+        Assert.Equal(new uint[] { 0x123400A0, 0x04030201 }, headers);
+        Assert.Null(borrowed.ActiveReader);
+    }
+
+    [Fact]
+    public void Borrowed_unknown_source_failure_occurs_at_the_consumed_node_after_accepted_callback()
+    {
+        Fixture fixture = new(0, 0);
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateUnknown(fixture.Source.Data.Length).Write(0, fixture.Source.Data.AsSpan()).MarkUnknown(0x200, 4);
+        NativeBattleGfAnimationSource borrowed = NativeBattleGfAnimationSource.Borrow(Fixture.Address, arena, 0, fixture.Source.Data.Length);
+        int emitted = 0;
+        Assert.Throws<NotSupportedException>(() => fixture.Initialize().Advance701970(borrowed, 0, (current, _) =>
+        {
+            emitted++;
+            return current;
+        }));
+        Assert.Equal(1, emitted);
+        Assert.Null(borrowed.ActiveReader);
+        Assert.Throws<InvalidOperationException>(() => borrowed.Data);
     }
 
     private sealed class Fixture

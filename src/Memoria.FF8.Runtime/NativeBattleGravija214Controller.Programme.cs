@@ -13,15 +13,16 @@ public static partial class NativeBattleGravija214Controller
         {
             NativeBattleModulePoolTask current = Read(frame, address);
             current.RequireKnownPayload(0x30, 756);
-            return new(current.ReadRawPayloadSpan().Slice(0x30 - 12).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(current, 0x30, 756);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(resources.Programme, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + 0x30, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan().Slice(0, 756)), 756);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x30, current);
             frame = DrawProgrammeNode214(frame, resources.Programme, node, position, -128, resources, inputs, Signed(Read(frame, address), 0x2E));
             return Workspace();
         });
-        return WriteBytes(frame, address + 0x30, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan().Slice(0, 756)), 756);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x30, advanced.Workspace);
+        return frame;
     }
 
     public static NativeBattleGravija214Frame DrawProgrammeNode214(NativeBattleGravija214Frame frame, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleVector callerPosition, int depthBias, NativeBattleGravija214Resources resources, NativeBattleGravija214Inputs inputs, short? callerW = null)

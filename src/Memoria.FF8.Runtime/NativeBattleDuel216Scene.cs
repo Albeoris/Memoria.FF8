@@ -282,7 +282,7 @@ public static class NativeBattleDuel216Scene
         void Initialize(int offset, uint address, int size)
         {
             NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(offset, size).ToImmutableArray());
-            task = task.WriteBytes(offset, workspace.Initialize7016B0(resources.Hierarchy(address), size).Data.AsSpan());
+            task = workspace.Initialize7016B0(resources.Hierarchy(address), size).CopyTo(task, offset, retainUnknown: false);
         }
         void Program(int offset, int size, NativeBattleActionMatrix local, uint windows, int depth, int vertical, int fade, bool compose = true)
         {
@@ -313,7 +313,7 @@ public static class NativeBattleDuel216Scene
         }
         void RestoreRotation(int index, int offset)
         {
-            bool unknownPadding = task.UnknownPayloadRanges?.Any(range => range.Offset < offset + 8 && range.Offset + range.Length > offset + 6) == true;
+            bool unknownPadding = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 8 && range.Offset + range.Length > offset + 6) == true;
             services.WriteModel(index, services.ReadModel(index) with { Rotation12 = Signed(offset), Rotation14 = Signed(offset + 2), Rotation16 = Signed(offset + 4), RotationPadding18 = unknownPadding ? null : task.ReadWord(offset + 6) });
         }
         void RingFlags(int set, int clear)

@@ -60,7 +60,7 @@ public static class NativeBattleQuezacotl
         random = random.Draw(out ushort seed);
         NativeBattleEffectHeapAllocation tim = new(resources.Initializer.Name, resources.Initializer.Data);
         (textures, _) = textures.EnqueueTim505E30(tim);
-        work = work.Write(0, executable.Data.AsSpan());
+        work = work.Write(0, executable.Read(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2521748, 0x2521758, 20, 1);
         (main, _) = main.Append(0x6C3760);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];
@@ -112,6 +112,7 @@ public static class NativeBattleQuezacotl
             child.Slots[index].ReadRawPayloadSpan().CopyTo(physical.AsSpan(12));
             NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native6C3760 requires the actual cleared571B50 arena for its8D0 task.");
             memory = memory with { Arena = arena.Write(0, physical).Write(0x28E50, [1, 0, 0, 0]) };
+            child.BindArena(arena, NativeBattleTaskStorageBinding.AdoptPhysicalState);
             memory = NativeBattleEffectIo.Initialize534110(memory, 0x28E54);
             pools = pools.Where(pool => pool.DescriptorAddress != child.DescriptorAddress).Append(child).ToImmutableArray();
             task.WriteByte(15, 1);

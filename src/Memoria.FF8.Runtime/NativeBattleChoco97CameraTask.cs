@@ -11,7 +11,7 @@ public static class NativeBattleChoco97CameraTask
     public static NativeBattleChoco97CameraTaskStep Advance72FBC0(NativeBattleModulePoolTask task, NativeBattleMoogleCameraState? camera, NativeBattleChoco97CameraResources resources, short cameraMode, ImmutableArray<byte> actorRaw8, ImmutableArray<byte> targetRaw8)
     {
         resources.Validate();
-        if (task.Callback != Callback || task.Payload.IsDefault || task.PayloadLength != 0x70 - 12)
+        if (task.Callback != Callback || task.PayloadLength != 0x70 - 12)
         {
             throw new InvalidDataException("Native Choco camera requires its complete original auxiliary task.");
         }

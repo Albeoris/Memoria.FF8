@@ -14,7 +14,7 @@ public sealed class NativeBattleDuel274DolphinTests
         (old, _) = old.Append(0x68B140);
         old = old with { Slots = old.Slots.SetItem(0, old.Slots[0].WriteWord(26, 3).MarkPayloadUnknown(34, 2)) };
         NativeBattleDuel274Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.Add(old) } };
-        frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [old]) };
+        frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [old]) };
         frame = fixture.Advance(frame);
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[0];
 
@@ -105,7 +105,7 @@ public sealed class NativeBattleDuel274DolphinTests
             NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0) { Parameter80 = 6 };
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), parameters, root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [targets]);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [targets]);
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000)).Write(0x2508452, [0xAA, 0xBB]);
             Frame = new(memory, effect, staging, new(1));
             byte[] raw = new byte[checked((int)(NativeBattleDuel274Resources.EndAddress - NativeBattleDuel274Resources.Address))];

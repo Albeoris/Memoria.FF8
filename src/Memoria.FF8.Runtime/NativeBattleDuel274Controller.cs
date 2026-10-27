@@ -65,7 +65,7 @@ public static class NativeBattleDuel274Controller
                     task = task.WriteByte(15, 1);
                     root = root with { Slots = root.Slots.SetItem(slot, task) };
                     frame = frame with { Effect = frame.Effect with { Pools = [root, NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1)] } };
-                    frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, frame.Effect.Pools) };
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
                 }
                 NativeBattleEffectTaskPool targets = frame.Effect.Pools[1];
                 if (targets.Slots.Any(candidate => (candidate.Flags & 1) == 0))

@@ -172,11 +172,12 @@ public static class NativeBattleQuezacotlPathCallbacks
         {
             NativeBattleQuezacotlExecutableMemory source = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C79A0 requires its current primary executable vertex bytes.");
             int offset = checked(8 + selector * 8);
-            if (offset < 0 || offset > source.Data.Length - 6)
+            if (offset < 0 || offset > NativeBattleQuezacotlExecutableMemory.Length - 6)
             {
                 throw new NotSupportedException("Native6C79A0 signed vertex index leaves its current executable region.");
             }
-            ReadOnlySpan<byte> bytes = source.Data.AsSpan().Slice(offset, 6);
+            Span<byte> bytes = stackalloc byte[6];
+            source.ReadInto(NativeBattleQuezacotlExecutableMemory.Address + (uint)offset, bytes);
             return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes[2..]), BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]));
         }
 

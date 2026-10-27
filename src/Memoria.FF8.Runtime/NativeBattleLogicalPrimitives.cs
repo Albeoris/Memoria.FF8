@@ -68,6 +68,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
     internal static NativeBattleLogicalOrdering FromSnapshot(NativeBattleLogicalOrderingData data) => new(data);
     internal NativeBattleLogicalOrderingData RequireSnapshot() => snapshot ?? throw new InvalidOperationException("Pending working ordering requires explicit capture before serialization.");
     internal NativeBattleLogicalOrderingTransaction? Transaction => transaction;
+    internal bool SharesWorkingStorage(NativeBattleLogicalOrdering other) => owner is not null && ReferenceEquals(owner, other.owner);
     private Owner RequireOwner()
     {
         transaction?.RequireActive();
@@ -289,6 +290,15 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             Checkpoint current = CurrentCallback();
             storage.RollbackMark(current);
             callbacks.RemoveAt(callbacks.Count - 1);
+        }
+        internal Delta SuspendCheckpointDelta()
+        {
+            RequireActive();
+            Checkpoint current = CurrentCallback();
+            ImmutableArray<Action> edits = storage.PendingEdits(current);
+            storage.RollbackMark(current);
+            callbacks.RemoveAt(callbacks.Count - 1);
+            return new(storage, storage.version, edits);
         }
         internal Delta SuspendDelta()
         {

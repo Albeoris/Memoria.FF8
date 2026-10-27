@@ -12,7 +12,7 @@ public sealed class NativeBattleQuezacotlFragmentTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116) with { QuezacotlExecutableMemory = new(Enumerable.Repeat((byte)0xA5, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()), QuezacotlSecondaryHeads = [11, 22, 33, 44, 55] };
         NativeBattleQuezacotlFragmentWrite initialized = NativeBattleQuezacotlFragmentPool.Initialize6C4725(memory, Effect());
         int offset = checked((int)(NativeBattleQuezacotlFragmentPool.Bank - NativeBattleQuezacotlExecutableMemory.Address));
-        ImmutableArray<byte> bytes = initialized.Memory.QuezacotlExecutableMemory!.Data;
+        ImmutableArray<byte> bytes = NativeBattleStorageSnapshots.Capture(initialized.Memory.QuezacotlExecutableMemory!).Data;
         Assert.All(bytes.AsSpan().Slice(offset, 32 * 44).ToArray(), value => Assert.Equal((byte)0, value));
         Assert.All(bytes.AsSpan().Slice(0, offset).ToArray(), value => Assert.Equal((byte)0xA5, value));
         Assert.All(bytes.AsSpan().Slice(offset + 32 * 44).ToArray(), value => Assert.Equal((byte)0xA5, value));
@@ -21,7 +21,7 @@ public sealed class NativeBattleQuezacotlFragmentTests
         Assert.Null(pool.Head);
         Assert.Null(pool.Tail);
         Assert.Equal(32, pool.Slots.Length);
-        Assert.All(pool.Slots, task => Assert.All(task.Payload, value => Assert.Equal((byte)0, value)));
+        Assert.All(pool.Slots, task => Assert.All(task.ReadRawPayloadSpan().ToArray(), value => Assert.Equal((byte)0, value)));
         Assert.Equal(memory.Arena, initialized.Memory.Arena);
     }
 
@@ -56,8 +56,8 @@ public sealed class NativeBattleQuezacotlFragmentTests
                 Assert.Equal((byte)0, task[offset]);
             }
         });
-        NativeBattleQuezacotlFragmentWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(JsonSerializer.Serialize(spawned))!;
-        Assert.Equal(JsonSerializer.Serialize(spawned), JsonSerializer.Serialize(restored));
+        NativeBattleQuezacotlFragmentWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(SnapshotJson(spawned))!);
+        Assert.Equal(SnapshotJson(spawned), SnapshotJson(restored));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public sealed class NativeBattleQuezacotlFragmentTests
         }
         NativeBattleQuezacotlFragmentWrite full = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(state.Memory with { SharedEffectRandom = null }, state.Effect);
         Assert.Null(full.Memory.SharedEffectRandom);
-        Assert.Equal(JsonSerializer.Serialize(state.Effect), JsonSerializer.Serialize(full.Effect));
-        Assert.Equal(state.Memory.QuezacotlExecutableMemory!.Data.ToArray(), full.Memory.QuezacotlExecutableMemory!.Data.ToArray());
+        Assert.Equal(SnapshotJson(state.Effect), SnapshotJson(full.Effect));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(state.Memory.QuezacotlExecutableMemory!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(full.Memory.QuezacotlExecutableMemory!).Data.ToArray());
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class NativeBattleQuezacotlFragmentTests
             {
                 Assert.Equal(raw[offset], moved.Task44[offset]);
             }
-            task = age == 15 ? JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentMotion>(JsonSerializer.Serialize(moved))!.Task44 : moved.Task44;
+            task = age == 15 ? NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentMotion>(SnapshotJson(moved))!).Task44 : moved.Task44;
         }
     }
 
@@ -196,7 +196,7 @@ public sealed class NativeBattleQuezacotlFragmentTests
     {
         NativeBattleQuezacotlFragmentWrite start = Fixture();
         NativeBattleQuezacotlFragmentWrite state = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(start.Memory, start.Effect);
-        NativeBattleQuezacotlFragmentWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(JsonSerializer.Serialize(state))!;
+        NativeBattleQuezacotlFragmentWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(SnapshotJson(state))!);
         NativeBattleEffectTaskPool pool = restored.Effect.Pools[0];
         NativeBattleQuezacotlFragmentPool.Validate(restored.Memory, pool);
         byte[] raw = NativeBattleQuezacotlFragmentPool.ReadTask(restored.Memory, 0).ToArray();
@@ -222,4 +222,6 @@ public sealed class NativeBattleQuezacotlFragmentTests
     {
         BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(offset), value);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

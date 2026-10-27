@@ -64,7 +64,7 @@ public static class NativeBattleBlindController
                 (pools[1], int slot) = pools[1].Append(0x6BE080);
                 NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0x830);
                 target = target.WriteWord(14, checked((ushort)action)).WriteDword(24, checked(0x1D972C0u + model * 156u));
-                NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(16, 0x820));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (16), 0x820);
                 target = StoreWorkspace(target, workspace.Initialize7016B0(resources.Layout, 0x820));
                 Store(1, slot, target);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -87,7 +87,7 @@ public static class NativeBattleBlindController
                     target = target.WriteWord(16, unchecked((ushort)position.X)).WriteWord(18, unchecked((ushort)position.Y)).WriteWord(20, unchecked((ushort)position.Z));
                 }
                 NativeBattleVector anchor = new(Word(target, 16), Word(target, 18), Word(target, 20));
-                NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(16, 0x820));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (16), 0x820);
                 NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                 {
                     current = NativeBattleBlindDrawing.Part(current, resources, node, anchor, inputs);
@@ -152,6 +152,6 @@ public static class NativeBattleBlindController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (16), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (16), retainUnknown: true);
     }
 }

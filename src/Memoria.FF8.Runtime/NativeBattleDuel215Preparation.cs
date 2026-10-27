@@ -31,7 +31,7 @@ public static class NativeBattleDuel215Preparation
         {
             NativeBattleGraphicsModel model = services.ReadModel(index);
             NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native Duel215 restoration requires its actual raw model transform.");
-            bool paddingUnknown = task.UnknownPayloadRanges?.Any(range => range.Offset < rotation + 8 && range.Offset + range.Length > rotation + 6) == true;
+            bool paddingUnknown = task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < rotation + 8 && range.Offset + range.Length > rotation + 6) == true;
             model = model with
             {
                 Transform = transform with { Position28 = new(Signed(position), Signed(position + 2), Signed(position + 4)), Vertical34 = Signed(position + 6) },

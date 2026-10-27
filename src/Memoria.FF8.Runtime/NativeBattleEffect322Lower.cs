@@ -17,7 +17,7 @@ public static class NativeBattleEffect322Lower
             case 0x65BB20:
                 return AdvanceMesh(frame, address, resources, inputs);
             case 0x65B7E0:
-                NativeBattleEffectArena caller = TaskView(task, 0x10, 8);
+                NativeBattleEffectArena caller = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 0x10, 8), 0, NativeBattleEffectArena.CreateUnknown(16), 0, 8);
                 caller = Put322(Put322(caller, 8, unchecked((uint)-128)), 12, checked(frame.State.ReadDword(0x2505340) + 0x1CCF0));
                 NativeBattleEffect322Step programme = NativeBattleEffect322Programme.Advance(frame, address + 0x18, 0x210, caller, resources, inputs);
                 return new(programme.Frame, programme.Result == 0 ? 2 : 0);

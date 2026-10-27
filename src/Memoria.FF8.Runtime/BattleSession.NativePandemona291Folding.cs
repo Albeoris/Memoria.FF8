@@ -96,8 +96,8 @@ public sealed partial class BattleSession
 
         NativeBattleEffectArena Initialize(NativeBattleEffectArena current, NativeBattleGfAnimationSource source, int length)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(current.Read(start + 0x1F0, length).ToImmutableArray());
-            return current.Write(start + 0x1F0, workspace.Initialize7016B0(source, length).Data.AsSpan());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(current, start + 0x1F0, length);
+            return workspace.Initialize7016B0(source, length).CopyTo(current, start + 0x1F0);
         }
     }
 }

@@ -63,7 +63,7 @@ public static class NativeBattleAuraController
                     (pools[1], int slot) = pools[1].Append(0x6CDB60);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x354);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, pointer);
-                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x34C);
                     task = StoreWorkspace(task, workspace.Initialize7016B0(resources.Layout, 0x34C));
                     Store(1, slot, task);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -88,7 +88,7 @@ public static class NativeBattleAuraController
                     NativeBattleVector feet = Bone(actor);
                     NativeBattleActionMatrix local = new([scale, 0, 0, 0, scale, 0, 0, 0, scale], feet.X, transform.Angle36, feet.Z, 4096);
                     NativeBattleActionMatrix placement = NativeBattleGfMatrices.Compose56C2F0(inputs.Projection.View ?? throw new NotSupportedException("Native Aura requires its current camera matrix."), local);
-                    NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(8, 0x34C).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (8), 0x34C);
                     NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                     {
                         current = NativeBattleAuraDrawing.Part(current, resources, node, placement, inputs);
@@ -194,6 +194,6 @@ public static class NativeBattleAuraController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (8), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (8), retainUnknown: true);
     }
 }

@@ -17,7 +17,7 @@ public sealed class NativeBattleDuel274BanksTests
         NativeBattleModulePoolTask task = particles.Slots[0].WriteWord(12, 17).WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(26, 2);
         particles = particles with { Slots = particles.Slots.SetItem(0, task) };
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root, target, particles];
-        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pools);
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pools);
         NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = pools };
         NativeBattleDuel274Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), new(1));
 
@@ -42,7 +42,7 @@ public sealed class NativeBattleDuel274BanksTests
         NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(0x2508498, 0x20E3AB8, 36, 1);
         (particles, _) = particles.Append(0x68B140);
         particles = particles with { Slots = particles.Slots.SetItem(0, particles.Slots[0].WriteResourcePointer(16, new(new(0, 0x123), null, 20)).MarkPayloadUnknown(30, 2)) };
-        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [particles]);
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [particles]);
         NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), 0x25084B8) { Pools = [particles] };
         NativeBattleDuel274Frame frame = NativeBattleDuel274Banks.DetachUnscheduledPrivateBanks(new(memory, effect, NativeBattleFileStaging.Unknown(), new(1)));
 

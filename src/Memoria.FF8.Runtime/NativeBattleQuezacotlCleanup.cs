@@ -14,6 +14,15 @@ public static class NativeBattleQuezacotlCleanup
         }
         NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C5196 requires its current mutable executable regions.");
         NativeBattleGuardianWorkBuffer backup = memory.GuardianWorkBuffer ?? throw new NotSupportedException("Native6C5196 requires its actual entry backup, not static resource seeds.");
+        if (effect.Pools.SingleOrDefault(pool => pool.DescriptorAddress == NativeBattleQuezacotlFragmentPool.Descriptor) is { } fragments)
+        {
+            if (fragments.Head is not null || memory.QuezacotlSecondaryHeads is not { } heads || heads[4] != 0)
+            {
+                throw new InvalidDataException("Native executable restoration requires its fragment task list to have completed.");
+            }
+            fragments.Revoke();
+            effect = effect with { Pools = effect.Pools.Remove(fragments) };
+        }
         memory = memory with { QuezacotlExecutableMemory = executable.Restore6C5196(backup) };
         //The child returns2 only after508630 scheduling and6C6500 stage restoration have executed.
         memory = scheduleTextureAndRestoreStage(memory);

@@ -8,6 +8,12 @@ public static partial class NativeBattleModulePackets
     /// <summary>572200's flags0/group0 stores and insertion match7043B0's shared F3 core, with no depth bias or color/material overrides.</summary>
     public static NativeBattleGfGeometryBatch EmitFlatTriangles572200(ImmutableArray<byte> source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null)
     {
+        using NativeBattleGfSourceReader reader = new(source);
+        return EmitFlatTriangles572200(reader, geometryOffset, matrix, projection, tableBaseBucket, depthShift, observeDepth);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitFlatTriangles572200(NativeBattleGfSourceReader source, int geometryOffset, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, int tableBaseBucket, byte depthShift, Action<ushort>? observeDepth = null)
+    {
         if (source.IsDefault || geometryOffset < 0 || geometryOffset > source.Length - 8)
         {
             throw new InvalidDataException("Native572200 requires its current bounded mesh header.");
@@ -32,7 +38,7 @@ public static partial class NativeBattleModulePackets
             {
                 throw new InvalidDataException("Native572200 mesh group directory leaves its current bytes.");
             }
-            return BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan().Slice(offset, 4));
+            return source.Int(offset);
         }
     }
 }

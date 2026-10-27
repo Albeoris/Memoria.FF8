@@ -77,7 +77,7 @@ public sealed class NativeBattleEffect322LowerTests
             }
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [pool]);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);
             NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().WriteDword(0x2505340, Arena);
             Frame = new(memory, new(322, 321, new(322, 0x65AB70, 0x65AB80), null, null) { Pools = [pool] }, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
             ImmutableDictionary<uint, NativeBattleModuleResource> sprites = ImmutableDictionary<uint, NativeBattleModuleResource>.Empty;

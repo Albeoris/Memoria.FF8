@@ -25,8 +25,8 @@ public sealed partial class BattleSession
             if (elapsed == 0)
             {
                 arena = NativeBattlePandemona291Vortex.Reset6F1520(arena, address);
-                NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x1F0, 0x1C0).ToImmutableArray());
-                arena = arena.Write(start + 0x1F0, workspace.Initialize7016B0(source, 0x1C0).Data.AsSpan());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x1F0, 0x1C0);
+                arena = workspace.Initialize7016B0(source, 0x1C0).CopyTo(arena, start + 0x1F0);
                 frame = frame with { Memory = frame.Memory with { Arena = arena } };
             }
             var anchored = NativeBattlePandemona291Late.Anchor6F0CC0(frame, address, resources.BodyAnchorInput);

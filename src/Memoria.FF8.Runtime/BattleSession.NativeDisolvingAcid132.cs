@@ -102,7 +102,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleDisolvingAcid132Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleDisolvingAcid132Controller.Write(current, address, NativeBattleDisolvingAcid132Controller.Read(current, address).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleDisolvingAcid132Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleDisolvingAcid132Controller.Read(current, address), offset, retainUnknown: false));
             return new(current, advanced.Remaining);
         }
 

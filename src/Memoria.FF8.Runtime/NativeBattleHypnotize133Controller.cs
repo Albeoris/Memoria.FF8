@@ -86,7 +86,7 @@ public static class NativeBattleHypnotize133Controller
         NativeBattleEffectTaskPool fading = Pool(frame, 0x2520F20, working + 0x280, 0x54, 16);
         NativeBattleEffectTaskPool sprites = Pool(frame, 0x2520F10, working, 0x14, 32);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteByte(15, 1));
-        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, anchored, fading, sprites] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, anchored, fading, sprites]) };
+        frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, anchored, fading, sprites] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, anchored, fading, sprites]) };
         (frame, uint address) = Append(frame, 1, MainCallback);
         NativeBattleModulePoolTask task = Read(frame, address).WriteBytes(12, new byte[0xB8]);
         int count = Header(frame, inputs).ReadByte(16);
@@ -214,7 +214,7 @@ public static class NativeBattleHypnotize133Controller
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[size].ToImmutableArray()).Initialize7016B0(source, size);
-        return Write(frame, address, task.WriteBytes(offset, workspace.Data.AsSpan()));
+        return Write(frame, address, workspace.CopyTo(task, offset, retainUnknown: false));
     }
 
     private static uint WorkspaceSource(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);

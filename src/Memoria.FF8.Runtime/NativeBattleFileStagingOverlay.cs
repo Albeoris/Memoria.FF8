@@ -19,11 +19,10 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
     private readonly List<CellUndo> byteUndo = [];
     private readonly List<PointerUndo> pointerUndo = [];
     private long sequence;
-    private bool checkpoint;
-    private int checkpointUnknown;
-    private int checkpointZeros;
-    private long checkpointSequence;
-    private uint checkpointBase;
+    private readonly record struct CheckpointMark(int Bytes, int Pointers, int Unknown, int Zeros, long Sequence, uint BaseAddress);
+    private readonly List<CheckpointMark> checkpointMarks = [];
+    private bool checkpoint => checkpointMarks.Count != 0;
+    public int CheckpointDepth => checkpointMarks.Count;
 
     public uint BaseAddress { get; private set; }
     public ulong KnownExtentEnd
@@ -208,6 +207,33 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
         }
     }
 
+    public IEnumerable<KeyValuePair<uint, NativeBattleResourcePointer?>> EnumerateResourcePointers()
+    {
+        using var originals = source.EnumeratePointers();
+        while (originals.MoveNext())
+        {
+            var entry = originals.Current;
+            if (pointers.TryGetValue(entry.Key, out Pointer change))
+            {
+                if (change.Present)
+                {
+                    yield return new(entry.Key, change.Value);
+                }
+            }
+            else
+            {
+                yield return entry;
+            }
+        }
+        foreach (var entry in pointers)
+        {
+            if (entry.Value.Present && !source.TryGetPointer(entry.Key, out _))
+            {
+                yield return new(entry.Key, entry.Value.Value);
+            }
+        }
+    }
+
     public ImmutableDictionary<uint, NativeBattleResourcePointer?> CapturePointers()
     {
         var result = source.CapturePointers().ToBuilder();
@@ -249,27 +275,43 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
         {
             throw new InvalidOperationException("Native staging overlay checkpoints cannot be nested.");
         }
-        checkpoint = true;
-        checkpointUnknown = unknown.Count;
-        checkpointZeros = forgottenZeros.Count;
-        checkpointSequence = sequence;
-        checkpointBase = BaseAddress;
-        byteUndo.Clear();
-        pointerUndo.Clear();
+        BeginNestedCheckpoint();
+    }
+
+    public int BeginNestedCheckpoint()
+    {
+        checkpointMarks.Add(new(byteUndo.Count, pointerUndo.Count, unknown.Count, forgottenZeros.Count, sequence, BaseAddress));
+        return checkpointMarks.Count;
     }
 
     public void CommitCheckpoint()
     {
-        RequireCheckpoint();
-        checkpoint = false;
-        byteUndo.Clear();
-        pointerUndo.Clear();
+        RequireDepth(1);
+        CommitNestedCheckpoint(1);
+    }
+
+    public void CommitNestedCheckpoint(int depth)
+    {
+        RequireDepth(depth);
+        checkpointMarks.RemoveAt(checkpointMarks.Count - 1);
+        if (!checkpoint)
+        {
+            byteUndo.Clear();
+            pointerUndo.Clear();
+        }
     }
 
     public void RollbackCheckpoint()
     {
-        RequireCheckpoint();
-        for (int index = byteUndo.Count - 1; index >= 0; index--)
+        RequireDepth(1);
+        RollbackNestedCheckpoint(1);
+    }
+
+    public void RollbackNestedCheckpoint(int depth)
+    {
+        RequireDepth(depth);
+        CheckpointMark mark = checkpointMarks[^1];
+        for (int index = byteUndo.Count - 1; index >= mark.Bytes; index--)
         {
             CellUndo entry = byteUndo[index];
             if (entry.Present)
@@ -281,7 +323,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
                 bytes.Remove(entry.Address);
             }
         }
-        for (int index = pointerUndo.Count - 1; index >= 0; index--)
+        for (int index = pointerUndo.Count - 1; index >= mark.Pointers; index--)
         {
             PointerUndo entry = pointerUndo[index];
             if (entry.Present)
@@ -293,11 +335,13 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
                 pointers.Remove(entry.Address);
             }
         }
-        unknown.RemoveRange(checkpointUnknown, unknown.Count - checkpointUnknown);
-        forgottenZeros.RemoveRange(checkpointZeros, forgottenZeros.Count - checkpointZeros);
-        sequence = checkpointSequence;
-        BaseAddress = checkpointBase;
-        CommitCheckpoint();
+        byteUndo.RemoveRange(mark.Bytes, byteUndo.Count - mark.Bytes);
+        pointerUndo.RemoveRange(mark.Pointers, pointerUndo.Count - mark.Pointers);
+        unknown.RemoveRange(mark.Unknown, unknown.Count - mark.Unknown);
+        forgottenZeros.RemoveRange(mark.Zeros, forgottenZeros.Count - mark.Zeros);
+        sequence = mark.Sequence;
+        BaseAddress = mark.BaseAddress;
+        CommitNestedCheckpoint(depth);
     }
 
     public void Publish()
@@ -370,7 +414,7 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
         sorted.Clear();
         byteUndo.Clear();
         pointerUndo.Clear();
-        checkpoint = false;
+        checkpointMarks.Clear();
         sequence = 0;
         NativeBattleTelemetry.Record(1035, NativeBattleTrafficKind.ZeroFill, cleared);
     }
@@ -454,11 +498,11 @@ internal sealed class NativeBattleFileStagingOverlay(NativeBattleFileStagingWork
 
     private static bool Overlaps(uint pointer, uint address, int length) => pointer < (ulong)address + (uint)length && (ulong)pointer + 4 > address;
 
-    private void RequireCheckpoint()
+    private void RequireDepth(int depth)
     {
-        if (!checkpoint)
+        if (depth <= 0 || checkpointMarks.Count != depth)
         {
-            throw new InvalidOperationException("Native staging requires its active overlay checkpoint.");
+            throw new InvalidOperationException("Native staging requires its current innermost overlay checkpoint.");
         }
     }
 }

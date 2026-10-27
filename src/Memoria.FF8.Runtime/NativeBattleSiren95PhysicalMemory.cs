@@ -12,6 +12,8 @@ internal static class NativeBattleSiren95PhysicalMemory
         }
         byte[] result = new byte[length];
         Span<byte> header = stackalloc byte[12];
+        Span<byte> payloadByte = stackalloc byte[1];
+        Span<bool> payloadKnown = stackalloc bool[1];
         for (int index = 0; index < length; index++)
         {
             uint pointer = unchecked(address + (uint)index);
@@ -27,7 +29,8 @@ internal static class NativeBattleSiren95PhysicalMemory
                     NativeBattleModulePoolTask task = pool.Slots[slot];
                     if (field >= 12)
                     {
-                        result[index] = task.Payload[field - 12];
+                        task.ReadWithKnownness(field, payloadByte, payloadKnown);
+                        result[index] = payloadByte[0];
                     }
                     else
                     {

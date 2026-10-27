@@ -14,7 +14,7 @@ public sealed class NativeBattleQuezacotlCleanupTests
         memory = memory with { GuardianWorkBuffer = memory.GuardianWorkBuffer!.Write(0, backup.AsSpan()), QuezacotlCompletion17A8 = null, QuezacotlPause = 1 };
         byte[] before = memory.Arena!.Read(0, 0x8D0);
         NativeBattleQuezacotlWorkspaceWrite restored = NativeBattleQuezacotlCleanup.RestoreAndUnlink355(memory, effect, current => current);
-        Assert.Equal(backup.ToArray(), restored.Memory.QuezacotlExecutableMemory!.Data.ToArray());
+        Assert.Equal(backup.ToArray(), NativeBattleStorageSnapshots.Capture(restored.Memory.QuezacotlExecutableMemory!).Data.ToArray());
         NativeBattleEffectTaskPool child = restored.Effect.Pools[1];
         Assert.Null(child.Head);
         Assert.Null(child.Tail);
@@ -24,7 +24,7 @@ public sealed class NativeBattleQuezacotlCleanupTests
         Assert.Equal(before.AsSpan(2).ToArray(), restored.Memory.Arena.Read(2, before.Length - 2));
         Assert.Equal(effect.ReturnedDescriptor, restored.Effect.ReturnedDescriptor);
         Assert.Null(restored.Memory.QuezacotlCompletion17A8);
-        Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(JsonSerializer.Serialize(restored))));
+        Assert.Equal(SnapshotJson(restored), SnapshotJson(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(SnapshotJson(restored)))));
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlCleanup.RestoreAndUnlink355(restored.Memory, restored.Effect, current => current));
     }
 
@@ -51,7 +51,7 @@ public sealed class NativeBattleQuezacotlCleanupTests
         int scheduled = 0;
         NativeBattleQuezacotlWorkspaceWrite restored = NativeBattleQuezacotlCleanup.RestoreAndUnlink355(memory with { QuezacotlCompletion17A8 = null }, effect, current =>
         {
-            Assert.Equal(memory.GuardianWorkBuffer!.Read(0, NativeBattleQuezacotlExecutableMemory.Length), current.QuezacotlExecutableMemory!.Data.ToArray());
+            Assert.Equal(memory.GuardianWorkBuffer!.Read(0, NativeBattleQuezacotlExecutableMemory.Length), NativeBattleStorageSnapshots.Capture(current.QuezacotlExecutableMemory!).Data.ToArray());
             Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(current.Arena!.Read(0, 2)));
             scheduled++;
             return current with { QuezacotlCompletion17A8 = 0 };
@@ -67,9 +67,9 @@ public sealed class NativeBattleQuezacotlCleanupTests
     {
         var (memory, effect) = Fixture();
         memory = memory with { QuezacotlCompletion17A8 = null };
-        string json = JsonSerializer.Serialize(memory);
+        string json = SnapshotJson(memory);
         Assert.DoesNotContain("QuezacotlCompletion17A8", json);
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!.BeginLoad(115).QuezacotlCompletion17A8);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!).BeginLoad(115).QuezacotlCompletion17A8);
         NativeBattleOriginalEffectState active = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect);
         Assert.Equal((ushort)778, active.Pools[0].Slots[0].ReadWord(12));
         NativeBattleQuezacotlWorkspaceWrite restored = NativeBattleQuezacotlCleanup.RestoreAndUnlink355(memory, effect, current => current);
@@ -121,9 +121,11 @@ public sealed class NativeBattleQuezacotlCleanupTests
         byte[] raw = new byte[0x8D0];
         BinaryPrimitives.WriteUInt16LittleEndian(raw, 1);
         BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(8), 0x6C3940);
-        child.Slots[0].Payload.AsSpan().CopyTo(raw.AsSpan(12));
+        child.Slots[0].ReadRawPayloadSpan().CopyTo(raw.AsSpan(12));
         memory = memory with { Arena = memory.Arena!.Write(0, raw) };
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [main, child], ReturnedDescriptor = main.DescriptorAddress };
         return (memory, effect);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

@@ -69,7 +69,7 @@ public sealed partial class BattleSession
                     (pools[1], int slot) = pools[1].Append(0x6C9BC0);
                     NativeBattleModulePoolTask task = pools[1].Slots[slot].ClearPayload(0x704);
                     task = task.WriteWord(14, checked((ushort)action)).WriteDword(16, checked(0x1D972C0u + model * 156u));
-                    NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(16, 0x6F4));
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (16), 0x6F4);
                     Store(1, slot, Workspace(task, workspace.Initialize7016B0(resources.Layout, 0x6F4)));
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
@@ -95,7 +95,7 @@ public sealed partial class BattleSession
                 short size = model.Transform?.Scale38 ?? throw new NotSupportedException("Native Zombie requires its current signed target size WORD.");
                 int reach = (size >> 1) + 2048;
                 int depth = unchecked(-2048 - size) >> 3;
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(16, 0x6F4));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (16), 0x6F4);
                 NativeBattleGfAnimationAdvance played = workspace.Advance701970(resources.Layout, 0, (owner, node) =>
                 {
                     NativeBattleZombieDraw draw = NativeBattleZombiePart.Draw(NativeEffectMemory ?? throw new NotSupportedException("Native Zombie requires its current magic memory."), NativeFileStaging ?? throw new NotSupportedException("Native Zombie requires its current temporary memory."), resources, node, new(anchor.X, anchor.Y, anchor.Z), reach, depth, projection, colors);
@@ -173,7 +173,7 @@ public sealed partial class BattleSession
         static short Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
         static NativeBattleModulePoolTask Workspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            return task.WriteRetainedBytes(12 + (16), workspace.Data.AsSpan());
+            return workspace.CopyTo(task, 12 + (16), retainUnknown: true);
         }
     }
 }

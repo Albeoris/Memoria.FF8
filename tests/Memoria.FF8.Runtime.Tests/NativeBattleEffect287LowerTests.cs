@@ -143,7 +143,7 @@ public sealed class NativeBattleEffect287LowerTests
             }
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
-            memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [pool]);
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);
             Frame = new(memory, new(287, 287, new(287, 0x5755B0, 0x6F2E80), null, null) { Pools = [pool] }, new(42), NativeBattleEffect287State.FromColdProcess().WriteDword(NativeBattleEffect287Profile.ArenaGlobal, Common)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
             Frame = Frame with { Staging = Frame.Staging.MarkUnknown(NativeBattleTemporaryMemory.Address + 22, 1) };
             byte[] triangle = new byte[24];

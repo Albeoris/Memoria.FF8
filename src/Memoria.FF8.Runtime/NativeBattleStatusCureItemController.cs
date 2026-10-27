@@ -81,10 +81,10 @@ public static class NativeBattleStatusCureItemController
                 {
                     child = child.WriteWord(18, unchecked((ushort)inputs.ReadModelY(target)));
                 }
-                NativeBattleGfAnimationWorkspace workspace = new(child.ReadRawPayloadSpan().Slice(8, profile.WorkspaceBytes).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 12 + (8), profile.WorkspaceBytes);
                 workspace = workspace.Initialize7016B0(resources.Layout, profile.WorkspaceBytes);
                 children = children.WriteSlot(childSlot, StoreWorkspace(child, workspace));
-                frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [children]) };
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [children]) };
                 sounds.Add(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
             }
             int survivors = 1;
@@ -107,7 +107,7 @@ public static class NativeBattleStatusCureItemController
                         throw new NotSupportedException("Native status-cure item child requires its own animation callback.");
                     }
                     NativeBattleVector anchor = new(unchecked((short)child.ReadWord(12)), unchecked((short)child.ReadWord(14)), unchecked((short)child.ReadWord(16)));
-                    NativeBattleGfAnimationWorkspace workspace = new(child.ReadRawPayloadSpan().Slice(8, profile.WorkspaceBytes).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(child, 12 + (8), profile.WorkspaceBytes);
                     NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Layout, 0, (current, node) =>
                     {
                         frame = inputs.Draw(frame, node, anchor);
@@ -152,6 +152,6 @@ public static class NativeBattleStatusCureItemController
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (8), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (8), retainUnknown: true);
     }
 }

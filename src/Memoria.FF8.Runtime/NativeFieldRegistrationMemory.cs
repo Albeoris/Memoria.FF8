@@ -4,9 +4,15 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A single registration transaction over the shared sparse memory; copies preserve unknown bytes.</summary>
-internal sealed class NativeFieldRegistrationMemory
+internal sealed class NativeFieldRegistrationMemory : IDisposable
 {
     private readonly NativeBattleFileStaging source;
+    private readonly NativeBattleFileStagingTransaction transaction;
+    private readonly bool ownsTransaction;
+    private readonly int checkpointDepth;
+    private bool completed;
+    private bool prepared;
+    private bool disposed;
     private readonly uint origin;
     private readonly byte[] bytes;
     private readonly bool[] known;
@@ -16,18 +22,34 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal NativeFieldRegistrationMemory(NativeBattleFileStaging source, uint first, uint end)
     {
-        this.source = source.Rebase(Math.Min(first, source.BaseAddress));
-        origin = this.source.BaseAddress;
-        ulong last = Math.Max(end, this.source.KnownExtentEnd);
-        int length = checked((int)(last - origin));
-        (byte[] data, bool[] observed) = this.source.ReadSnapshot(origin, length);
-        bytes = data;
-        known = observed;
-        changed = new bool[length];
+        ownsTransaction = source.Transaction is null;
+        transaction = source.Transaction ?? new NativeBattleFileStagingTransaction(source);
+        if (!ownsTransaction)
+        {
+            checkpointDepth = transaction.BeginNestedCheckpoint();
+        }
+        this.source = transaction.View;
+        try
+        {
+            this.source.Rebase(Math.Min(first, source.BaseAddress));
+            origin = this.source.BaseAddress;
+            ulong last = Math.Max(end, this.source.KnownExtentEnd);
+            int length = checked((int)(last - origin));
+            (byte[] data, bool[] observed) = this.source.ReadSnapshot(origin, length);
+            bytes = data;
+            known = observed;
+            changed = new bool[length];
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     internal void ObserveCpuBanks(NativeBattleModelCpuResources? cpu)
     {
+        RequireMutable();
         if (cpu is null)
         {
             return;
@@ -126,6 +148,7 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal void Write(uint address, ReadOnlySpan<byte> data)
     {
+        RequireMutable();
         int index = Index(address, data.Length);
         data.CopyTo(bytes.AsSpan(index, data.Length));
         Array.Fill(known, true, index, data.Length);
@@ -150,6 +173,7 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal void Fill(uint address, int length, byte value)
     {
+        RequireMutable();
         int index = Index(address, length);
         Array.Fill(bytes, value, index, length);
         Array.Fill(known, true, index, length);
@@ -158,6 +182,7 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal void Forget(uint address, int length)
     {
+        RequireMutable();
         int index = Index(address, length);
         Array.Fill(known, false, index, length);
         Array.Fill(changed, true, index, length);
@@ -165,6 +190,7 @@ internal sealed class NativeFieldRegistrationMemory
 
     internal void Copy(uint sourceAddress, uint destination, int length)
     {
+        RequireMutable();
         int from = Index(sourceAddress, length);
         int to = Index(destination, length);
         bytes.AsSpan(from, length).CopyTo(bytes.AsSpan(to, length));
@@ -172,8 +198,13 @@ internal sealed class NativeFieldRegistrationMemory
         Array.Fill(changed, true, to, length);
     }
 
-    internal NativeBattleFileStaging Finish()
+    internal NativeBattleFileStaging Prepare()
     {
+        RequireActive();
+        if (prepared)
+        {
+            return source;
+        }
         List<(int First, int End)> publish = [.. observedCpuRanges];
         for (int index = 0; index < changed.Length;)
         {
@@ -190,44 +221,102 @@ internal sealed class NativeFieldRegistrationMemory
             publish.Add((first, index));
         }
         publish.Sort((left, right) => left.First.CompareTo(right.First));
-        NativeBattleFileStaging result = source;
+        // Keep provenance receipts before any store can invalidate the shared metadata.
+        List<KeyValuePair<uint, NativeBattleResourcePointer?>> receipts = [];
+        if (observedCpuRanges.Count != 0)
+        {
+            foreach ((uint address, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
+            {
+                long offset = (long)address - origin;
+                int first = checked((int)Math.Clamp(offset, 0, changed.Length));
+                int end = checked((int)Math.Clamp(offset + 4, 0, changed.Length));
+                if (changed.AsSpan(first, end - first).Contains(true))
+                {
+                    continue;
+                }
+                foreach ((int observedFirst, int observedEnd) in observedCpuRanges)
+                {
+                    if (offset < observedEnd && offset + 4 > observedFirst)
+                    {
+                        receipts.Add(new(address, pointer));
+                        break;
+                    }
+                }
+            }
+        }
         for (int range = 0; range < publish.Count; range++)
         {
-            int index = publish[range].First;
+            int first = publish[range].First;
             int end = publish[range].End;
             while (range + 1 < publish.Count && publish[range + 1].First <= end)
             {
                 range++;
                 end = Math.Max(end, publish[range].End);
             }
-            while (index < end)
-            {
-                int first = index++;
-                bool observed = known[first];
-                while (index < end && known[index] == observed)
-                {
-                    index++;
-                }
-                uint address = checked(origin + (uint)first);
-                int length = index - first;
-                result = observed ? result.Write(address, bytes.AsSpan(first, length)) : result.MarkUnknown(address, length);
-            }
+            source.WriteWithKnownness(checked(origin + (uint)first), bytes.AsSpan(first, end - first), known.AsSpan(first, end - first));
         }
-        foreach ((uint address, NativeBattleResourcePointer? pointer) in source.ResourcePointers)
+        foreach ((uint address, NativeBattleResourcePointer? pointer) in receipts)
         {
-            long offset = (long)address - origin;
-            int first = checked((int)Math.Clamp(offset, 0, changed.Length));
-            int end = checked((int)Math.Clamp(offset + 4, 0, changed.Length));
-            if (!changed.AsSpan(first, end - first).Contains(true))
+            source.SetResourcePointerMetadata(address, pointer);
+        }
+        prepared = true;
+        return source;
+    }
+
+    internal NativeBattleFileStaging Finish()
+    {
+        Prepare();
+        NativeBattleFileStaging result;
+        if (ownsTransaction)
+        {
+            result = transaction.Freeze(source);
+        }
+        else
+        {
+            transaction.CommitNestedCheckpoint(checkpointDepth);
+            result = source;
+        }
+        completed = true;
+        return result;
+    }
+
+    private void RequireActive()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (completed)
+        {
+            throw new InvalidOperationException("Native field registration has already published its completed changes.");
+        }
+    }
+
+    private void RequireMutable()
+    {
+        RequireActive();
+        if (prepared)
+        {
+            throw new InvalidOperationException("Native field registration must finish its prepared publication before further stores.");
+        }
+    }
+
+    public void Dispose()
+    {
+        if (!disposed)
+        {
+            disposed = true;
+            if (ownsTransaction)
             {
-                result = result with { ResourcePointers = result.ResourcePointers.SetItem(address, pointer) };
+                transaction.Dispose();
+            }
+            else if (!completed)
+            {
+                transaction.RollbackNestedCheckpoint(checkpointDepth);
             }
         }
-        return result;
     }
 
     private int Index(uint address, int length)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         if (address < origin || length < 0 || (ulong)address - origin + (uint)length > (uint)bytes.Length)
         {
             throw new InvalidDataException("Native field registration left its shared address domain.");

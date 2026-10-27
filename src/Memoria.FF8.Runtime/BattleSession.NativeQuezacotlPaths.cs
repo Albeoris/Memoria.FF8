@@ -14,6 +14,7 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
         if (incomingOutlineDirectionDword is null && memory.ExecutionStack is { } stack)
         {
             incomingOutlineDirectionDword = NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(stack, graphics.EntryLifecycle);
@@ -24,6 +25,8 @@ public sealed partial class BattleSession
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleEffectMemory committedMemory = memory;
         NativeBattleGraphicsState committedGraphics = graphics;
+        ImmutableArray<NativeBattleEffectTaskPool> checkpointPools = effect.Pools;
+        bool[] ownedPoolCheckpoints = new bool[checkpointPools.Length];
         bool checkpointActive = false;
         try
         {
@@ -33,6 +36,7 @@ public sealed partial class BattleSession
             {
                 transaction.BeginCheckpoint();
                 ordering.BeginCheckpoint();
+                NativeBattleTaskPoolCheckpoints.Begin(checkpointPools, ownedPoolCheckpoints);
                 checkpointActive = true;
                 if (current.Slots[index].Callback != 0x6C7800)
                 {
@@ -45,6 +49,7 @@ public sealed partial class BattleSession
                 depthTrace.ObserveFinal(path.DepthFifo4);
                 outlineDirection = path.FinalOutlineDirectionDword;
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = path.Ordering } };
+                NativeBattleTaskPoolCheckpoints.Commit(checkpointPools, ownedPoolCheckpoints);
                 transaction.CommitCheckpoint();
                 ordering.CommitCheckpoint();
                 checkpointActive = false;
@@ -54,25 +59,13 @@ public sealed partial class BattleSession
             });
             transaction.BeginCheckpoint();
             ordering.BeginCheckpoint();
+            NativeBattleTaskPoolCheckpoints.Begin(checkpointPools, ownedPoolCheckpoints);
             checkpointActive = true;
             NativeBattleEffectTaskPool pool = stepped.Pool;
-            for (int index = 0; index < pool.Slots.Length; index++)
-            {
-                int address = checked((int)(pool.BankAddress - NativeBattleQuezacotlPathProducer.ArenaAddress) + index * pool.Stride);
-                if (before.Slots[index].Flags != pool.Slots[index].Flags)
-                {
-                    byte[] flags = new byte[2];
-                    BinaryPrimitives.WriteUInt16LittleEndian(flags, pool.Slots[index].Flags);
-                    memory = memory with { Arena = memory.Arena!.Write(address, flags) };
-                }
-                if (before.Slots[index].Next != pool.Slots[index].Next)
-                {
-                    memory = memory with { Arena = NativeBattleQuezacotlParticleProducer.Dword(memory.Arena!, address + 4, pool.Slots[index].Next is int next ? checked(pool.BankAddress + (uint)next * pool.Stride) : 0) };
-                }
-            }
             memory = memory with { QuezacotlSecondaryHeads = memory.QuezacotlSecondaryHeads!.Value.SetItem(2, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0) };
             effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
             graphics = graphics with { OriginalEffect = effect };
+            NativeBattleTaskPoolCheckpoints.Commit(checkpointPools, ownedPoolCheckpoints);
             transaction.CommitCheckpoint();
             ordering.CommitCheckpoint();
             checkpointActive = false;
@@ -81,6 +74,7 @@ public sealed partial class BattleSession
         {
             if (checkpointActive)
             {
+                NativeBattleTaskPoolCheckpoints.Rollback(checkpointPools, ownedPoolCheckpoints);
                 transaction.RollbackCheckpoint();
                 ordering.RollbackCheckpoint();
             }
@@ -92,7 +86,7 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = memory with { Arena = transaction.Freeze() };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
-            NativeGraphics = graphics;
+            PublishNativeQuezacotlGraphics(graphics);
         }
         return graphics;
     }

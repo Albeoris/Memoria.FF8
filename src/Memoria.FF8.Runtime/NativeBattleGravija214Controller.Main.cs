@@ -26,9 +26,9 @@ public static partial class NativeBattleGravija214Controller
                     throw new InvalidDataException("Gravija's freshly reset main pool must admit its sole task.");
                 }
                 frame = ClearDwords701200(frame, main + 12, 198);
-                NativeBattleGfAnimationWorkspace workspace = new(TaskView(Read(frame, main), 0x30, 756).Read(0, 756).ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, main), 0x30, 756), 0, 756);
                 workspace = workspace.Initialize7016B0(resources.Programme, 756);
-                frame = WriteBytes(frame, main + 0x30, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 756);
+                frame = WriteBytes(frame, main + 0x30, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 756);
                 int count = Header(frame, inputs.ReadPackets(frame)).ReadByte(16);
                 if (count == 0 || count > 5)
                 {

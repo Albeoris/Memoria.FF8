@@ -169,7 +169,7 @@ public sealed partial class BattleSession
                 current = NativeBattleAcid317Drawing.EmitNode(current, resources.TargetAct, context, node, Camera().CapturePackedView1D97778(), new(bytes.ToImmutableArray(), known.ToImmutableArray()), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."), colors, Deliver);
                 return next;
             });
-            return NativeBattleAcid317Controller.Write(current, taskAddress, NativeBattleAcid317Controller.Read(current, taskAddress).WriteBytes(0x20, advanced.Workspace.Data.AsSpan()));
+            return NativeBattleAcid317Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleAcid317Controller.Read(current, taskAddress), 0x20, retainUnknown: false));
         }
 
         NativeBattleAcid317Frame ProjectPoints(NativeBattleAcid317Frame current, uint head, short count) => NativeBattleAcid317PointProjection.Project(current, head, count, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Acid requires its projection."));

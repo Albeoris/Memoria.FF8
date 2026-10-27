@@ -18,7 +18,7 @@ public static partial class NativeBattleEffect287Controller
             foreach (NativeBattleCureFamilyPool shape in CommonPools)
             {
                 NativeBattleEffectTaskPool pool = CreatePool(frame, shape, true);
-                frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) } };
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) } };
                 if (shape.Descriptor == MeshDescriptor)
                 {
                     frame = frame with { State = frame.State.DetachMeshQueue() };

@@ -24,6 +24,57 @@ public sealed partial record NativeBattleFileStaging
         }
     }
 
+    public IEnumerable<KeyValuePair<uint, NativeBattleResourcePointer?>> EnumerateResourcePointers()
+    {
+        if (Transaction is { } transaction)
+        {
+            foreach (var pointer in transaction.EnumerateResourcePointers())
+            {
+                yield return pointer;
+            }
+        }
+        else if (snapshot)
+        {
+            foreach (var pointer in resourcePointers)
+            {
+                yield return pointer;
+            }
+        }
+        else
+        {
+            using var pointers = RequireOwner().EnumeratePointers();
+            while (pointers.MoveNext())
+            {
+                yield return pointers.Current;
+            }
+        }
+    }
+
+    internal bool TryGetResourcePointerMetadata(uint address, out NativeBattleResourcePointer? pointer)
+    {
+        RequireOffsetRange(address, 4);
+        return Transaction is { } transaction ? transaction.TryGetPointer(address, out pointer) : snapshot ? resourcePointers.TryGetValue(address, out pointer) : RequireOwner().TryGetPointer(address, out pointer);
+    }
+
+    /// <summary>Restores a validated provenance receipt without changing the physical bytes or their knowledge.</summary>
+    internal NativeBattleFileStaging SetResourcePointerMetadata(uint address, NativeBattleResourcePointer? pointer)
+    {
+        RequireWritableRange(address, 4);
+        if (pointer is not null && !pointer.HasValidOwner())
+        {
+            throw new InvalidDataException("Native staging pointer has an invalid source owner.");
+        }
+        if (Transaction is { } transaction)
+        {
+            transaction.SetPointerMetadata(address, pointer);
+        }
+        else
+        {
+            RequireOwner().SetPointerMetadata(address, true, pointer);
+        }
+        return this;
+    }
+
     public NativeBattleFileStaging InvalidateResourcePointers(uint address, int length)
     {
         if (length < 0)

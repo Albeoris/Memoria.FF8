@@ -13,7 +13,7 @@ public static class NativeBattleChoco99Environment
     {
         frame.Context.Validate();
         frame.Stage.Validate();
-        if (frame.Models.IsDefault || frame.Models.Length != 7 || frame.Task.Payload.IsDefault || frame.Task.PayloadLength != 0xB0 - 12)
+        if (frame.Models.IsDefault || frame.Models.Length != 7 || frame.Task.PayloadLength != 0xB0 - 12)
         {
             throw new InvalidDataException("Native Choco environment requires its original task, stage and actor rows.");
         }

@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                 current = current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, 88) };
                 return next;
             });
-            current = NativeBattleHypnotize133Controller.Write(current, address, NativeBattleHypnotize133Controller.Read(current, address).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleHypnotize133Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleHypnotize133Controller.Read(current, address), offset, retainUnknown: false));
             return new(current, advanced.Remaining);
         }
 

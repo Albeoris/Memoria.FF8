@@ -91,7 +91,7 @@ public static partial class NativeBattleEffect64Controller
             pools.Add(pool);
         }
         ImmutableArray<NativeBattleEffectTaskPool> attached = pools.ToImmutable();
-        return frame with { Effect = frame.Effect with { Pools = attached }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, attached) };
+        return frame with { Effect = frame.Effect with { Pools = attached }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, attached) };
     }
 
     private static NativeBattleEffect64Frame DetachBanks(NativeBattleEffect64Frame frame)

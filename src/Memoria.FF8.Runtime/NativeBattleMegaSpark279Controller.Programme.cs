@@ -11,15 +11,15 @@ public static partial class NativeBattleMegaSpark279Controller
         {
             NativeBattleModulePoolTask task = Read(frame, address);
             task.RequireKnownPayload(offset, bytes);
-            return new(task.ReadRawPayloadSpan().Slice(offset - 12, bytes).ToArray().ToImmutableArray());
+            return NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), bytes);
         }
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + (uint)offset, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), bytes);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)offset, current);
             frame = DrawProgrammeNode67F7E0(frame, source, node, caller40, resources, inputs);
             return Workspace();
         });
-        frame = WriteBytes(frame, address + (uint)offset, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), bytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + (uint)offset, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 

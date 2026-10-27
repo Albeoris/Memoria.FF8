@@ -139,7 +139,7 @@ public static class NativeBattleDuel216Controller
                 {
                     throw new InvalidDataException("Native Duel216 initialization found an existing descriptor owner.");
                 }
-                frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Staging = frame.Staging.MarkUnknown(descriptor, 16) };
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Staging = frame.Staging.MarkUnknown(descriptor, 16) };
             }
             int Advance(uint descriptor)
             {

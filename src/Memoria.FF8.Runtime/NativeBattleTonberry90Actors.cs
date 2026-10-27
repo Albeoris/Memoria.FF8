@@ -43,7 +43,7 @@ public static partial class NativeBattleTonberry90Actors
                     }
                     NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
                     workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                    task = task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
+                    task = workspace.CopyTo(task, 0x94, retainUnknown: true);
                     director = Director(frame);
                     task = task.WriteDword(0x1C, State(frame).ReadDword(director)).WriteDword(0x20, State(frame).ReadDword(unchecked(director + 4))).WriteWord(0x1E, 0);
                     NativeBattleActionMatrix rotation = NativeBattleCuragaMatrices.RotateY8DD8A0(NativeBattleCuragaMatrices.Identity8DD770(), unchecked((short)task.ReadWord(0x62)));

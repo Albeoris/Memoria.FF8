@@ -10,20 +10,21 @@ public sealed class NativeBattleFieldRegistrationTests
         const uint origin = 0x1900000;
         NativeBattleFileStaging source = new([]) { BaseAddress = origin, LoaderZeroRanges = [new(origin, 4096)] };
         source = source.Write(origin + 4, [0xA7]).MarkUnknown(origin + 16, 2);
-        NativeFieldRegistrationMemory memory = new(source, origin, origin + 64);
+        using NativeFieldRegistrationMemory memory = new(source, origin, origin + 64);
         Assert.Equal(new byte[4], memory.Read(origin, 4));
         Assert.Equal(new byte[] { 0xA7 }, memory.Read(origin + 4, 1));
         memory.Forget(origin + 8, 2);
         memory.Write32(origin + 12, 0x12345678);
         memory.Copy(origin + 16, origin + 24, 2);
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(source);
         NativeBattleFileStaging result = memory.Finish();
         Assert.Throws<NotSupportedException>(() => result.Read(origin + 8, 2));
         Assert.Throws<NotSupportedException>(() => result.Read(origin + 16, 2));
         Assert.Throws<NotSupportedException>(() => result.Read(origin + 24, 2));
         Assert.Equal(0x12345678u, BitConverter.ToUInt32(result.Read(origin + 12, 4)));
         Assert.Equal(new byte[2], result.Read(origin + 4094, 2));
-        Assert.Equal(new byte[2], source.Read(origin + 8, 2));
-        Assert.Equal(5, result.KnownRanges.Sum(range => range.Data.Length));
+        Assert.Equal(new byte[2], original.Read(origin + 8, 2));
+        Assert.Equal(5, NativeBattleStorageSnapshots.Capture(result).KnownRanges.Sum(range => range.Data.Length));
         Assert.Throws<InvalidDataException>(() => memory.Read(origin + 64, 1));
     }
 
@@ -37,10 +38,11 @@ public sealed class NativeBattleFieldRegistrationTests
         source = source.WriteResourcePointer(origin + 4, pointer);
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(0, cpu.Cpu.Banks[0].Write(4, BitConverter.GetBytes(0x12345678u))).SetItem(1, cpu.Cpu.Banks[1].Write(7, [0xC9])) } };
-        NativeFieldRegistrationMemory memory = new(source, origin, origin + length + 16);
+        using NativeFieldRegistrationMemory memory = new(source, origin, origin + length + 16);
         memory.ObserveCpuBanks(cpu);
         Assert.Equal(0x12345678u, BitConverter.ToUInt32(memory.Read(origin + 4, 4)));
         Assert.Throws<NotSupportedException>(() => memory.Read(origin, 1));
+        NativeBattleFileStaging original = NativeBattleStorageSnapshots.Capture(source);
         NativeBattleFileStaging result = memory.Finish();
         Assert.Equal(0x12345678u, BitConverter.ToUInt32(result.Read(origin + 4, 4)));
         Assert.Equal(pointer, result.ReadResourcePointer(origin + 4));
@@ -48,8 +50,8 @@ public sealed class NativeBattleFieldRegistrationTests
         Assert.Throws<NotSupportedException>(() => result.Read(origin, 1));
         Assert.Throws<NotSupportedException>(() => result.Read(origin + 2 * NativeBattleModelCpuBank.Length, 1));
         Assert.Equal(new byte[2], result.Read(origin + length + 32, 2));
-        Assert.Equal(new byte[1], source.Read(origin, 1));
-        Assert.Equal(5, result.KnownRanges.Sum(range => range.Data.Length));
+        Assert.Equal(new byte[1], original.Read(origin, 1));
+        Assert.Equal(5, NativeBattleStorageSnapshots.Capture(result).KnownRanges.Sum(range => range.Data.Length));
     }
 
     [Theory]

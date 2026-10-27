@@ -44,7 +44,7 @@ public static class NativeBattleCarbuncle278Programme
 
     private static NativeBattleCarbuncle278ProgrammeDraw AdvanceWorkspace(NativeBattleEffectMemory memory, NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, int offset, int length, bool initialize, int depthBias)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), length);
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(source, length);
@@ -67,7 +67,7 @@ public static class NativeBattleCarbuncle278Programme
             allocated = checked(allocated + drawn.Packets.AllocationBytes);
             return current;
         });
-        task = task.WriteRetainedBytes(12 + (offset - 12), advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(task, 12 + (offset - 12), retainUnknown: true);
         return new(memory, task, new(attempts.ToImmutable(), allocated), advanced.Remaining);
     }
 

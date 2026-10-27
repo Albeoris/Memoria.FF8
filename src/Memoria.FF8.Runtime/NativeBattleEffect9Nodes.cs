@@ -27,7 +27,7 @@ public static class NativeBattleEffect9Nodes
             case 0:
                 NativeBattleGfAnimationWorkspace workspace = new(task.ReadBytes(0x94, 840).ToImmutableArray());
                 workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                task = task.WriteBytes(0x94, workspace.Data.AsSpan());
+                task = workspace.CopyTo(task, 0x94, retainUnknown: false);
                 if (secondary)
                 {
                     task = task.WriteDword(0x1C, task.ReadDword(0x3DC)).WriteDword(0x20, task.ReadDword(0x3E0));
@@ -95,7 +95,7 @@ public static class NativeBattleEffect9Nodes
             frame = Emit(frame, task, source, node, context, inputs);
             return currentWorkspace;
         });
-        task = NativeBattleEffect9Controller.Read(frame, address).WriteBytes(0x94, advanced.Workspace.Data.AsSpan());
+        task = advanced.Workspace.CopyTo(NativeBattleEffect9Controller.Read(frame, address), 0x94, retainUnknown: false);
         frame = NativeBattleEffect9Controller.Write(frame, address, task);
         return new(frame, advanced.Remaining);
     }

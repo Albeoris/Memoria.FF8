@@ -57,7 +57,7 @@ public static class NativeBattleDiablos325Construction
         frame = vibration.Frame;
         task = task.WriteDword(0x10, unchecked((uint)vibration.Handle));
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[0xE0].ToImmutableArray()).Initialize7016B0(resources.OpeningProgramme, 0xE0);
-        task.WriteRetainedBytes(0x264, workspace.Data.AsSpan());
+        workspace.CopyTo(task, 0x264, retainUnknown: true);
         NativeBattleEffectParameters parameters = frame.Effect.Parameters ?? throw new NotSupportedException("Native Diablos timeline requires its current action header.");
         NativeBattleActionHeaderSlot header = inputs.Packets.Headers[parameters.HeaderIndex7C];
         int count = header.ReadByte(0x10);

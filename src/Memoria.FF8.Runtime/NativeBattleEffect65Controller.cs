@@ -66,7 +66,7 @@ public static partial class NativeBattleEffect65Controller
             throw new InvalidDataException("Effect65 main bank must have its inactive COMMON owner.");
         }
         NativeBattleEffectTaskPool main = CreatePool(frame, Pools[1], true);
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(main) }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main]) };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(main) }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main]) };
     }
 
     public static NativeBattleEffect65Frame InitializeChildBank(NativeBattleEffect65Frame frame)
@@ -76,7 +76,7 @@ public static partial class NativeBattleEffect65Controller
             throw new InvalidDataException("Effect65 child initialization requires its inactive descriptor and bank.");
         }
         NativeBattleEffectTaskPool child = CreatePool(frame, Pools[2], true);
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(child) }, State = frame.State.DetachChildQueue(), Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [child]) };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(child) }, State = frame.State.DetachChildQueue(), Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [child]) };
     }
 
     private static NativeBattleEffectTaskPool CreatePool(NativeBattleEffect65Frame frame, NativeBattleCureFamilyPool shape, bool common)

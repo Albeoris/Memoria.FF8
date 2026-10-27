@@ -11,7 +11,7 @@ public static class NativeBattleGilgameshSwords
 {
     public static NativeBattleGilgameshSwordStep Step594FD0(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, ImmutableArray<NativeBattleEffectOwnedModelResource> staticModels, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleScriptedGraphicsMemory? registers, uint graphicsFlags)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24 || staticModels.IsDefault || staticModels.Length != 4)
+        if (task.PayloadLength != 24 || staticModels.IsDefault || staticModels.Length != 4)
         {
             throw new InvalidDataException("Native594FD0 requires its raw0x24-byte task and all four selected static model resources.");
         }

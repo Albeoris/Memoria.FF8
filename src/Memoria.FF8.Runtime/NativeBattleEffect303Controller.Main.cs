@@ -28,7 +28,7 @@ public static partial class NativeBattleEffect303Controller
             frame = vibration.Frame;
             frame = Write(frame, main, Read(frame, main).WriteDword(16, unchecked((uint)vibration.Handle)).WriteDword(28, main + 32));
             var workspace = new NativeBattleGfAnimationWorkspace(new byte[MainProgrammeWorkspaceLength].ToImmutableArray()).Initialize7016B0(resources.MainProgramme, MainProgrammeWorkspaceLength);
-            frame = WriteBytes(frame, main + MainProgrammeWorkspaceOffset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), MainProgrammeWorkspaceLength);
+            frame = WriteBytes(frame, main + MainProgrammeWorkspaceOffset, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), MainProgrammeWorkspaceLength);
             frame = inputs.Execute(frame, new NativeBattleEffect303InitializeIo534110(IoOffset));
         }
         int mainSurvivors = 1;

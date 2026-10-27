@@ -44,11 +44,17 @@ public static class NativeBattleGfMorphGeometry
 
     public static ImmutableArray<NativeBattleVector> MorphVertices701390(ImmutableArray<byte> source, int geometryOffset, int firstShape, int secondShape, int ratio)
     {
+        using NativeBattleGfSourceReader reader = new(source);
+        return MorphVertices701390(reader, geometryOffset, firstShape, secondShape, ratio);
+    }
+
+    internal static ImmutableArray<NativeBattleVector> MorphVertices701390(NativeBattleGfSourceReader source, int geometryOffset, int firstShape, int secondShape, int ratio)
+    {
         if (source.IsDefault)
         {
             throw new InvalidDataException("Native701390 requires its current source geometry.");
         }
-        int count = BinaryPrimitives.ReadInt32LittleEndian(Read(source, checked(geometryOffset + 4), 4));
+        int count = source.Int(checked(geometryOffset + 4));
         if (count < 0 || count > source.Length / 8)
         {
             throw new InvalidDataException("Native701390 vertex count exceeds its bounded observed source.");
@@ -60,6 +66,13 @@ public static class NativeBattleGfMorphGeometry
 
     /// <summary>The shared45E9D0/45EBF0 core accepts actual shape pointers; callers retain their original+8/+12 geometry layouts.</summary>
     public static ImmutableArray<NativeBattleVector> MorphVertices45E9D0(ImmutableArray<byte> firstSource, int firstOffset, ImmutableArray<byte> secondSource, int secondOffset, int count, int ratio)
+    {
+        using NativeBattleGfSourceReader first = new(firstSource);
+        using NativeBattleGfSourceReader second = new(secondSource);
+        return MorphVertices45E9D0(first, firstOffset, second, secondOffset, count, ratio);
+    }
+
+    internal static ImmutableArray<NativeBattleVector> MorphVertices45E9D0(NativeBattleGfSourceReader firstSource, int firstOffset, NativeBattleGfSourceReader secondSource, int secondOffset, int count, int ratio)
     {
         Require(firstSource, firstOffset);
         Require(secondSource, secondOffset);
@@ -74,8 +87,8 @@ public static class NativeBattleGfMorphGeometry
             for (int component = 0; component < 3; component++)
             {
                 int offset = component * 2;
-                short a = BinaryPrimitives.ReadInt16LittleEndian(Read(firstSource, unchecked(first + offset), 2));
-                short b = BinaryPrimitives.ReadInt16LittleEndian(Read(secondSource, unchecked(second + offset), 2));
+                short a = firstSource.Short(unchecked(first + offset));
+                short b = secondSource.Short(unchecked(second + offset));
                 // 45E9D0 stores the first rounded product in MAC; 45EBF0 adds a separately rounded product before IR saturation.
                 int mac = unchecked(NativePrecision53.RoundInteger(a * (firstWeight / 4096.0)) + NativePrecision53.RoundInteger(b * (secondWeight / 4096.0)));
                 xyz[component] = (short)Math.Clamp(mac, short.MinValue, short.MaxValue);
@@ -86,7 +99,7 @@ public static class NativeBattleGfMorphGeometry
         }
         return result.MoveToImmutable();
 
-        void Require(ImmutableArray<byte> source, int offset)
+        void Require(NativeBattleGfSourceReader source, int offset)
         {
             if (source.IsDefault || count < 0 || count > 0 && (offset < 0 || offset + (long)(count - 1) * 8 + 6 > source.Length))
             {

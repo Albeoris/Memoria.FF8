@@ -10,7 +10,7 @@ public static partial class NativeBattleStare45Controller
         NativeBattleModulePoolTask task = Read(frame, address);
         NativeBattleGfAnimationSource source = resources.ReadProgramme(task.ReadDword(0x74));
         NativeBattleGfAnimationWorkspace workspace = ProgrammeWorkspace(task, false).Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-        frame = WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan().Slice(0, checked((int)task.ReadDword(0x78)))), checked((int)task.ReadDword(0x78)));
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, workspace);
         NativeBattleGraphicsModel model = inputs.ReadModel(frame, task.ReadByte(0x2C));
         short yaw = model.Rotation14 ?? throw new NotSupportedException("Stare programme requires its current model yaw.");
         frame = Write(frame, address, Read(frame, address).WriteWord(0x60, 0xF00).WriteWord(0x62, unchecked((ushort)yaw)));
@@ -58,11 +58,11 @@ public static partial class NativeBattleStare45Controller
         NativeBattleGfAnimationSource source = resources.ReadProgramme(task.ReadDword(0x74));
         NativeBattleGfAnimationAdvance advanced = ProgrammeWorkspace(task).Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan().Slice(0, checked((int)task.ReadDword(0x78)))), checked((int)task.ReadDword(0x78)));
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, current);
             frame = DrawProgrammeNode45(frame, source, node, composed, Signed(Read(frame, address), 0x88), resources, inputs);
             return ProgrammeWorkspace(Read(frame, address));
         });
-        frame = WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan().Slice(0, checked((int)task.ReadDword(0x78)))), checked((int)task.ReadDword(0x78)));
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, address + 0x94, advanced.Workspace);
         return (frame, advanced.Remaining);
     }
 
@@ -72,7 +72,7 @@ public static partial class NativeBattleStare45Controller
         {
             task.RequireKnownPayload(0x94, checked((int)task.ReadDword(0x78)));
         }
-        return new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
+        return NativeBattleGfAnimationWorkspace.Borrow(task, 0x94, checked((int)task.ReadDword(0x78)));
     }
 
     private static (NativeBattleStare45Frame Frame, NativeBattleActionMatrix Matrix) RotateProgramme45(NativeBattleStare45Frame frame, NativeBattleActionMatrix matrix, char axis, short angle)

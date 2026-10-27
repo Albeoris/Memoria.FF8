@@ -14,8 +14,8 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         NativeBattleQuezacotlWorkspaceWrite childWritten = NativeBattleQuezacotlWorkspace.Write(memory, effect, child);
         memory = childWritten.Memory;
         effect = childWritten.Effect;
-        string beforeEffect = JsonSerializer.Serialize(effect);
-        ImmutableArray<byte> before = memory.QuezacotlExecutableMemory!.Data;
+        string beforeEffect = SnapshotJson(effect);
+        ImmutableArray<byte> before = NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory!).Data;
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory, 0x129CD84);
         NativeBattleGfAnimationWorkspace initialized = NativeBattleQuezacotlWorkspace.ReadExecutable(memory).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.EighthLength);
         memory = NativeBattleQuezacotlWorkspace.WriteExecutable(memory, initialized);
@@ -23,14 +23,14 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         memory = NativeBattleQuezacotlWorkspace.WriteExecutable(memory, advanced.Workspace);
         Assert.Equal(0x129CD84u, advanced.Workspace.ResourceAddress);
         Assert.Equal(1, NativeBattleQuezacotlWorkspace.ReadExecutable(memory).Frame);
-        Assert.Equal(child.Data.ToArray(), NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.SeventhLength).Data.ToArray());
-        Assert.Equal(beforeEffect, JsonSerializer.Serialize(effect));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(child).Data.ToArray(), NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.Read(memory, NativeBattleQuezacotlWorkspace.SeventhLength)).Data.ToArray());
+        Assert.Equal(beforeEffect, SnapshotJson(effect));
         int offset = checked((int)(NativeBattleQuezacotlWorkspace.EighthAddress - NativeBattleQuezacotlExecutableMemory.Address));
-        Assert.Equal(before.AsSpan().Slice(0, offset).ToArray(), memory.QuezacotlExecutableMemory!.Data.AsSpan().Slice(0, offset).ToArray());
-        Assert.Equal(before.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray(), memory.QuezacotlExecutableMemory.Data.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray());
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(restored));
-        Assert.Equal(advanced.Workspace.Data.ToArray(), NativeBattleQuezacotlWorkspace.ReadExecutable(restored).Data.ToArray());
+        Assert.Equal(before.AsSpan().Slice(0, offset).ToArray(), NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory!).Data.AsSpan().Slice(0, offset).ToArray());
+        Assert.Equal(before.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray(), NativeBattleStorageSnapshots.Capture(memory.QuezacotlExecutableMemory).Data.AsSpan().Slice(offset + NativeBattleQuezacotlWorkspace.EighthLength).ToArray());
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(memory))!);
+        Assert.Equal(SnapshotJson(memory), SnapshotJson(restored));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(advanced.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.ReadExecutable(restored)).Data.ToArray());
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.ReadExecutable(memory);
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlWorkspace.ReadExecutable(memory with { QuezacotlExecutableMemory = null }));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlWorkspace.WriteExecutable(memory with { QuezacotlExecutableMemory = null }, workspace));
-        Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlWorkspace.WriteExecutable(memory, new(workspace.Data.RemoveAt(0))));
+        Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlWorkspace.WriteExecutable(memory, new(NativeBattleStorageSnapshots.Capture(workspace).Data.RemoveAt(0))));
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlWorkspace.Write(memory, effect, workspace));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlWorkspace.Source(memory, NativeBattleQuezacotlWorkspace.EighthAddress));
     }
@@ -134,4 +134,6 @@ public sealed class NativeBattleQuezacotlExecutableWorkspaceTests
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [child] };
         return (memory, effect);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

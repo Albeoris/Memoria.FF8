@@ -47,6 +47,7 @@ internal sealed class NativeBattleTaskBankOwner
     private readonly List<int> localScopes = [];
     private DescriptorParticipant? descriptorParticipant;
     private ScopeObserver? scopeObserver;
+    private RetirementParticipant? retirementParticipant;
     private NativeBattleTaskBody? body;
 
     public NativeBattleTaskBankOwner(uint descriptor, uint address, ushort stride, ImmutableArray<NativeBattleTaskSnapshotData> tasks, int? head, int? tail, bool pool)
@@ -123,12 +124,21 @@ internal sealed class NativeBattleTaskBankOwner
     public int BankLength { get; }
     public NativeBattleWorkingMemory Storage { get; private set; }
     public int StorageOffset { get; private set; }
+    //Logical descriptor bookkeeping has no address inside or adjacent to the native task-body window.
     public NativeBattleWorkingMemory DescriptorStorage { get; private set; }
     public bool IsArenaBound => arenaBound;
-    public bool HasLocalCheckpoint => RequireActive().localScopes.Count != 0;
+    public bool HasLocalCheckpoint
+    {
+        get
+        {
+            _ = Storage.CheckpointDepth;
+            return localScopes.Count != 0;
+        }
+    }
+    internal int CurrentCheckpointDepth => localScopes.Count == 0 ? 0 : localScopes[^1];
     public NativeBattleTaskBody Body => body ??= new(this);
     public ImmutableArray<NativeBattleModulePoolTask> Tasks { get; }
-    public bool HasCheckpoint => RequireActive().Storage.HasCheckpoint || DescriptorStorage.HasCheckpoint;
+    public bool HasCheckpoint => RequireActive().localScopes.Count != 0 || Storage.HasCheckpoint || DescriptorStorage.HasCheckpoint;
     public int? Head => DecodeIndex(DescriptorStorage.ReadUInt32(0));
     public int? Tail => DecodeIndex(DescriptorStorage.ReadUInt32(4));
 
@@ -178,6 +188,10 @@ internal sealed class NativeBattleTaskBankOwner
         RequireActive();
         uint first = EncodeIndex(head);
         uint last = EncodeIndex(tail);
+        if (Head == head && Tail == tail)
+        {
+            return;
+        }
         Span<byte> bytes = stackalloc byte[8];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, first);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes[4..], last);
@@ -185,13 +199,145 @@ internal sealed class NativeBattleTaskBankOwner
         DescriptorStorage.Write(0, bytes);
     }
 
-    private void PrepareDescriptorMutation()
+    public bool IsBoundToStorage(NativeBattleEffectArena arena, uint physicalBase)
+    {
+        RequireActive();
+        long relative = (long)Address - physicalBase;
+        return arenaBound && !arena.IsSnapshot && relative >= 0 && relative <= arena.Bound - BankLength && ReferenceEquals(Storage, arena.Working) && StorageOffset == arena.WorkingOffset + relative;
+    }
+
+    public void BindStorage(NativeBattleEffectArena arena, uint physicalBase, NativeBattleTaskStorageBinding binding)
+    {
+        RequireActive();
+        if (!IsPool || !Enum.IsDefined(binding))
+        {
+            throw new InvalidOperationException("Physical task binding requires an identified pool and explicit source authority.");
+        }
+        arena.RequireWritable();
+        long relative = (long)Address - physicalBase;
+        if (relative < 0 || relative > arena.Bound - BankLength)
+        {
+            throw new NotSupportedException("Native task bank is not wholly contained in the declared physical storage area.");
+        }
+        NativeBattleWorkingMemory target = arena.Working;
+        int targetOffset = checked(arena.WorkingOffset + (int)relative);
+        if (arenaBound)
+        {
+            if (ReferenceEquals(Storage, target) && StorageOffset == targetOffset)
+            {
+                return;
+            }
+            throw new InvalidOperationException("A bound task bank requires capture/restore before changing battle storage authority.");
+        }
+        if (HasCheckpoint || arena.Transaction is not null || target.HasCheckpoint || NativeBattleEffectArenaTransaction.HasActive(target))
+        {
+            throw new InvalidOperationException("Native task binding requires its committed physical ownership boundary.");
+        }
+        if (binding == NativeBattleTaskStorageBinding.PublishTaskState)
+        {
+            PublishBody(arena, (int)relative);
+        }
+        else
+        {
+            ValidatePhysicalHeaders(target, targetOffset);
+        }
+        NativeBattleWorkingMemory previous = Storage;
+        Storage = target;
+        StorageOffset = targetOffset;
+        arenaBound = true;
+        if (!ReferenceEquals(previous, target))
+        {
+            previous.Revoke();
+        }
+    }
+
+    private void PublishBody(NativeBattleEffectArena arena, int targetOffset)
+    {
+        byte[] bytes = new byte[Stride];
+        bool[] known = new bool[Stride];
+        using NativeBattleEffectArenaWriter writer = new(arena);
+        for (int slot = 0; slot < Tasks.Length; slot++)
+        {
+            int source = StorageOffset + slot * Stride;
+            Body.ReadWithKnownness(source, bytes, known);
+            int destination = checked(targetOffset + slot * Stride);
+            writer.Write(destination, bytes);
+            for (int index = 0; index < known.Length;)
+            {
+                if (known[index])
+                {
+                    index++;
+                    continue;
+                }
+                int first = index++;
+                while (index < known.Length && !known[index])
+                {
+                    index++;
+                }
+                writer.MarkUnknown(destination + first, index - first);
+            }
+        }
+        using var pointers = Body.EnumerateResourcePointers();
+        while (pointers.MoveNext())
+        {
+            (int offset, NativeBattleResourcePointer? pointer) = pointers.Current;
+            if (pointer is null || !pointer.HasValidOwner())
+            {
+                throw new InvalidDataException("Native task binding cannot publish unresolved pointer ownership.");
+            }
+            writer.SetResourcePointer(checked(targetOffset + offset - StorageOffset), pointer);
+        }
+        writer.Freeze();
+    }
+
+    private void ValidatePhysicalHeaders(NativeBattleWorkingMemory target, int offset)
+    {
+        int?[] next = new int?[Tasks.Length];
+        uint[] callbacks = new uint[Tasks.Length];
+        for (int index = 0; index < Tasks.Length; index++)
+        {
+            int start = checked(offset + index * Stride);
+            ushort flags = target.ReadUInt16(start);
+            _ = target.ReadUInt16(start + 2);
+            uint physicalNext = target.ReadUInt32(start + 4);
+            callbacks[index] = target.ReadUInt32(start + 8);
+            if ((flags & 1) != 0 && callbacks[index] == 0)
+            {
+                throw new InvalidDataException("Adopted native task header has no active callback.");
+            }
+            if (physicalNext != 0)
+            {
+                long relative = (long)physicalNext - Address;
+                if (relative < 0 || relative >= BankLength || relative % Stride != 0)
+                {
+                    throw new InvalidDataException("Adopted native task link leaves its physical bank.");
+                }
+                next[index] = checked((int)(relative / Stride));
+            }
+        }
+        HashSet<int> visited = [];
+        int? last = null;
+        for (int? current = Head; current is int index; current = next[index])
+        {
+            if ((uint)index >= Tasks.Length || !visited.Add(index) || callbacks[index] == 0)
+            {
+                throw new InvalidDataException("Adopted native task queue contradicts its retained descriptor.");
+            }
+            last = index;
+        }
+        if (last != Tail)
+        {
+            throw new InvalidDataException("Adopted native task tail contradicts its retained descriptor.");
+        }
+    }
+
+    internal void PrepareDescriptorMutation()
     {
         if (Storage.HasCheckpoint)
         {
             Storage.EnlistCheckpointParticipant(descriptorParticipant ??= new(this));
         }
-        else if (NativeBattleEffectArenaTransaction.TryRoute(Storage, StorageOffset, BankLength, out _, out _))
+        else if (NativeBattleEffectArenaTransaction.HasActive(Storage))
         {
             throw new InvalidOperationException("Task descriptor mutation inside a public arena transaction requires its physical pool checkpoint.");
         }
@@ -258,7 +404,6 @@ internal sealed class NativeBattleTaskBankOwner
 
     private void RequireCurrentScope()
     {
-        RequireActive();
         if (localScopes.Count == 0 || localScopes[^1] != Storage.CheckpointDepth)
         {
             throw new InvalidOperationException("Task checkpoints sharing a physical kernel must complete in reverse nested order.");
@@ -302,6 +447,29 @@ internal sealed class NativeBattleTaskBankOwner
         }
     }
 
+    private sealed class RetirementParticipant(NativeBattleTaskBankOwner owner) : INativeBattleCheckpointParticipant
+    {
+        private readonly List<bool> previous = [];
+        public void BeginCheckpoint() => previous.Add(owner.revoked);
+        public void CommitCheckpoint()
+        {
+            if (previous.Count == 0)
+            {
+                throw new InvalidOperationException("Native task retirement lost its checkpoint frame.");
+            }
+            previous.RemoveAt(previous.Count - 1);
+        }
+        public void RollbackCheckpoint()
+        {
+            if (previous.Count == 0)
+            {
+                throw new InvalidOperationException("Native task retirement lost its checkpoint frame.");
+            }
+            owner.revoked = previous[^1];
+            previous.RemoveAt(previous.Count - 1);
+        }
+    }
+
     private sealed class ScopeObserver(NativeBattleTaskBankOwner owner) : INativeBattleCheckpointParticipant
     {
         private int frames;
@@ -310,8 +478,18 @@ internal sealed class NativeBattleTaskBankOwner
         public void RollbackCheckpoint() => Complete();
         private void Complete()
         {
+            if (frames <= 0)
+            {
+                throw new InvalidOperationException("Native task scope observer lost its physical checkpoint frame.");
+            }
             int completed = frames--;
-            owner.localScopes.RemoveAll(depth => depth == completed);
+            for (int index = owner.localScopes.Count - 1; index >= 0; index--)
+            {
+                if (owner.localScopes[index] == completed)
+                {
+                    owner.localScopes.RemoveAt(index);
+                }
+            }
         }
     }
 
@@ -402,20 +580,57 @@ internal sealed class NativeBattleTaskBankOwner
         return new(Descriptor, Address, Stride, [.. Enumerable.Range(0, Tasks.Length).Select(slot => ReadTask(slot, context))], Head, Tail, IsPool, kernel, StorageOffset, descriptorKernel, arenaBound);
     }
 
-    public void Revoke()
+    internal void ValidateRetirementBoundary()
     {
         RequireActive();
+        if (arenaBound && Storage.HasCheckpoint)
+        {
+            return;
+        }
         if (HasCheckpoint)
         {
-            throw new InvalidOperationException("Native task authority transfer requires its committed bank boundary.");
+            throw new InvalidOperationException("Native task retirement requires its physical checkpoint boundary.");
         }
-        if (!arenaBound)
+        if (arenaBound)
         {
-            Storage.Revoke();
+            NativeBattleEffectArenaTransaction.RequireCommittedForCapture(Storage);
         }
+        else if (NativeBattleEffectArenaTransaction.HasActive(Storage))
+        {
+            throw new InvalidOperationException("Private task retirement cannot discard an active public arena transaction.");
+        }
+    }
+
+    public void Revoke()
+    {
+        ValidateRetirementBoundary();
+        if (arenaBound)
+        {
+            if (Storage.HasCheckpoint)
+            {
+                Storage.EnlistCheckpointParticipant(retirementParticipant ??= new(this));
+            }
+            else
+            {
+                NativeBattleEffectArenaTransaction.RequireCommittedForCapture(Storage);
+                if (DescriptorStorage.HasCheckpoint)
+                {
+                    throw new InvalidOperationException("Native task retirement requires its descriptor checkpoint boundary.");
+                }
+            }
+            //The shared body remains owned by its physical arena. Retire only this task view; its boolean is journaled.
+            revoked = true;
+            return;
+        }
+        if (HasCheckpoint || NativeBattleEffectArenaTransaction.HasActive(Storage))
+        {
+            throw new InvalidOperationException("Private task authority transfer requires its committed bank boundary.");
+        }
+        Storage.Revoke();
         DescriptorStorage.Revoke();
         revoked = true;
     }
+
 }
 
 internal sealed class NativeBattleModulePoolTaskJsonConverter : JsonConverter<NativeBattleModulePoolTask>

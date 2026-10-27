@@ -25,8 +25,8 @@ public sealed partial class BattleSession
         effect = composed.Effect;
         NativeEffectMemory = memory;
         graphics = graphics with { OriginalEffect = effect };
-        NativeGraphics = graphics;
-        NativeBattleEffectTaskPool before = pool;
+        PublishNativeQuezacotlGraphics(graphics);
+        NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
         using NativeBattleEffectArenaTransaction transaction = new(memory.Arena ?? throw new NotSupportedException("Native ribbon pool requires its retained arena."));
         using NativeBattleLogicalOrderingTransaction ordering = new((graphics.PrimitiveFrame ?? throw new NotSupportedException("Native ribbon pool requires its retained ordering frame.")).Pending);
         using NativeBattleCommonPacketTransaction common = new(memory.PrimitiveProcess ?? throw new NotSupportedException("Native ribbon pool requires its retained common packet owner."));
@@ -34,6 +34,8 @@ public sealed partial class BattleSession
         graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
         NativeBattleEffectMemory committedMemory = memory;
         NativeBattleGraphicsState committedGraphics = graphics;
+        ImmutableArray<NativeBattleEffectTaskPool> checkpointPools = effect.Pools;
+        bool[] ownedPoolCheckpoints = new bool[checkpointPools.Length];
         bool checkpointActive = false;
         try
         {
@@ -42,6 +44,7 @@ public sealed partial class BattleSession
                 transaction.BeginCheckpoint();
                 ordering.BeginCheckpoint();
                 common.BeginCheckpoint();
+                NativeBattleTaskPoolCheckpoints.Begin(checkpointPools, ownedPoolCheckpoints);
                 checkpointActive = true;
                 if (current.Slots[index].Callback != 0x6C8850)
                 {
@@ -69,9 +72,9 @@ public sealed partial class BattleSession
                 NativeBattleEffectPacketWrite taskWrite = NativeBattleEffectPacketArena.Append(memory, address, written.Ordering, new([ribbon.TaskWrites], 0));
                 memory = taskWrite.Memory;
                 pathOutlineDirection = ribbon.PathOutlineDirectionDword;
-                current = current with { Slots = current.Slots.SetItem(index, current.Slots[index] with { Payload = ribbon.Task128.AsSpan().Slice(12).ToArray().ToImmutableArray() }) };
                 effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == current.DescriptorAddress ? current : existing).ToImmutableArray() };
                 graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = taskWrite.Ordering } };
+                NativeBattleTaskPoolCheckpoints.Commit(checkpointPools, ownedPoolCheckpoints);
                 transaction.CommitCheckpoint();
                 ordering.CommitCheckpoint();
                 common.CommitCheckpoint();
@@ -83,29 +86,15 @@ public sealed partial class BattleSession
             transaction.BeginCheckpoint();
             ordering.BeginCheckpoint();
             common.BeginCheckpoint();
+            NativeBattleTaskPoolCheckpoints.Begin(checkpointPools, ownedPoolCheckpoints);
             checkpointActive = true;
             pool = stepped.Pool;
-            for (int index = 0; index < pool.Slots.Length; index++)
-            {
-                int address = checked((int)(pool.BankAddress - 0x20DFAB8) + index * pool.Stride);
-                if (before.Slots[index].Flags != pool.Slots[index].Flags)
-                {
-                    byte[] flags = new byte[2];
-                    BinaryPrimitives.WriteUInt16LittleEndian(flags, pool.Slots[index].Flags);
-                    memory = memory with { Arena = memory.Arena!.Write(address, flags) };
-                }
-                if (before.Slots[index].Next != pool.Slots[index].Next)
-                {
-                    byte[] pointer = new byte[4];
-                    BinaryPrimitives.WriteUInt32LittleEndian(pointer, pool.Slots[index].Next is int next ? checked(pool.BankAddress + (uint)next * pool.Stride) : 0);
-                    memory = memory with { Arena = memory.Arena!.Write(address + 4, pointer) };
-                }
-            }
             memory = memory with { QuezacotlSecondaryHeads = memory.QuezacotlSecondaryHeads!.Value.SetItem(0, pool.Head is int head ? checked(pool.BankAddress + (uint)head * pool.Stride) : 0) };
             effect = effect with { Pools = effect.Pools.Select(existing => existing.DescriptorAddress == pool.DescriptorAddress ? pool : existing).ToImmutableArray() };
             NativeBattleQuezacotlRigWrite restored = NativeBattleQuezacotlRig86.Restore508C90(memory, effect);
             memory = restored.Memory;
             graphics = graphics with { OriginalEffect = restored.Effect };
+            NativeBattleTaskPoolCheckpoints.Commit(checkpointPools, ownedPoolCheckpoints);
             transaction.CommitCheckpoint();
             ordering.CommitCheckpoint();
             common.CommitCheckpoint();
@@ -115,6 +104,7 @@ public sealed partial class BattleSession
         {
             if (checkpointActive)
             {
+                NativeBattleTaskPoolCheckpoints.Rollback(checkpointPools, ownedPoolCheckpoints);
                 transaction.RollbackCheckpoint();
                 ordering.RollbackCheckpoint();
                 common.RollbackCheckpoint();
@@ -127,7 +117,7 @@ public sealed partial class BattleSession
         {
             NativeEffectMemory = memory with { Arena = transaction.Freeze(), PrimitiveProcess = common.Freeze(memory.PrimitiveProcess!) };
             graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
-            NativeGraphics = graphics;
+            PublishNativeQuezacotlGraphics(graphics);
         }
         return (graphics, pathOutlineDirection);
     }

@@ -61,7 +61,7 @@ public static partial class NativeBattleGastricJuice128Controller
                 NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + 0x1280, 616, 1);
                 NativeBattleEffectTaskPool trails = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + 0x1000, 80, 8);
                 NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working, 32, 128);
-                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], targets, trails, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [targets, trails, particles]) };
+                frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], targets, trails, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [targets, trails, particles]) };
                 for (int index = 0; index < PointCount; index++)
                 {
                     frame = WriteArena(frame, working + PointsOffset + (uint)(index * PointStride) + 6, BitConverter.GetBytes((ushort)0xFFFF));
@@ -84,8 +84,8 @@ public static partial class NativeBattleGastricJuice128Controller
                 frame = caster.Frame;
                 int angle = NativePrecision53.RoundInteger(Math.Atan2(anchor.Anchor.X - caster.Anchor.X, anchor.Anchor.Z - caster.Anchor.Z) * (double)BitConverter.Int32BitsToSingle(0x4422F983));
                 target = target.WriteWord(0x14, unchecked((ushort)angle));
-                NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(target.Payload.Slice(0x20 - 12, 0x248)).Initialize7016B0(resources.MainAct, 0x248);
-                frame = Write(frame, address, target.WriteBytes(0x20, workspace.Data.AsSpan()));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (0x20 - 12), 0x248).Initialize7016B0(resources.MainAct, 0x248);
+                frame = Write(frame, address, workspace.CopyTo(target, 0x20, retainUnknown: false));
                 frame = Put(frame, 0, slot, Task(frame, 0, slot).WriteByte(14, unchecked((byte)(ordinal + 1))));
                 frame = inputs.Execute(frame, new NativeBattleGastricJuice128SnapshotBody((byte)actor, Working(frame) + BodyCacheOffset));
             }

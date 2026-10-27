@@ -76,8 +76,8 @@ public sealed partial class BattleSession
                     NativeBattleModulePoolTask target = pools[1].Slots[slot].ClearPayload(0xB38);
                     NativeBattleModuleAnchor position = ReadNativeModelAnchor(graphics, actor);
                     target = WindStore(WindStore(target.WriteWord(14, (ushort)action).WriteDword(16, entity).WriteDword(36, color).WriteWord(26, unchecked((ushort)position.W)), 20, new(position.X, position.Y, position.Z)), 28, ReadNativeGraphicsBone(graphics, actor, 0xF0, 0));
-                    target = Store(target, 44, new NativeBattleGfAnimationWorkspace(target.Payload.Slice(32, 0xA70)).Initialize7016B0(resources.Burst, 0xA70));
-                    target = Store(target, 0xA9C, new NativeBattleGfAnimationWorkspace(target.Payload.Slice(0xA90, 0xA8)).Initialize7016B0(resources.Ring, 0xA8));
+                    target = Store(target, 44, NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (32), 0xA70).Initialize7016B0(resources.Burst, 0xA70));
+                    target = Store(target, 0xA9C, NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (0xA90), 0xA8).Initialize7016B0(resources.Ring, 0xA8));
                     pools[1] = pools[1].WriteSlot(slot, target);
                     root = root.WriteByte(14, unchecked((byte)(action + 1)));
                 }
@@ -237,7 +237,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Play(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleVector anchor, int scale, int depth, out int alive)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(offset - 12, size));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -291,7 +291,7 @@ public sealed partial class BattleSession
         }
         static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
         {
-            return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
+            return workspace.CopyTo(task, offset, retainUnknown: true);
         }
     }
 }

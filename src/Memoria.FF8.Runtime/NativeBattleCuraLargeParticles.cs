@@ -280,7 +280,7 @@ public static partial class NativeBattleCuraParticles
         }
         void WriteWorkspace(NativeBattleGfAnimationWorkspace workspace)
         {
-            task = task.WriteRetainedBytes(0x60, workspace.Data.AsSpan());
+            task = workspace.CopyTo(task, 0x60, retainUnknown: true);
         }
         void CopiedActor()
         {

@@ -17,11 +17,12 @@ public static class NativeBattleQuezacotlFragmentPool
     public static NativeBattleQuezacotlFragmentWrite Initialize6C4725(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
     {
         NativeBattleQuezacotlExecutableMemory executable = Executable(memory);
-        //508330..46 clears every stride DWORD and remainder BYTE, not only the allocation flag WORD.
-        executable = executable.Write(Bank, new byte[Capacity * Stride]);
-        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(Descriptor, Bank, Stride, Capacity);
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C4725 requires its current secondary descriptor owners.");
-        memory = memory with { QuezacotlExecutableMemory = executable, QuezacotlSecondaryHeads = heads.SetItem(4, 0) };
+        heads = heads.SetItem(4, 0);
+        NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(Descriptor, Bank, Stride, Capacity);
+        //Publishing the explicitly cleared bank performs508330's complete physical DWORD/BYTE clear once.
+        pool.BindStorage(executable.Arena, NativeBattleQuezacotlExecutableMemory.Address);
+        memory = memory with { QuezacotlExecutableMemory = executable, QuezacotlSecondaryHeads = heads };
         return new(memory, effect with { Pools = effect.Pools.Where(existing => existing.DescriptorAddress != Descriptor).Append(pool).ToImmutableArray() });
     }
 
@@ -80,7 +81,8 @@ public static class NativeBattleQuezacotlFragmentPool
 
     public static ImmutableArray<byte> ReadTask(NativeBattleEffectMemory memory, int index)
     {
-        return Executable(memory).Data.AsSpan().Slice(Offset(index), Stride).ToArray().ToImmutableArray();
+        _ = Offset(index);
+        return Executable(memory).Read(Bank + checked((uint)(index * Stride)), Stride).ToImmutableArray();
     }
 
     public static NativeBattleEffectMemory WriteTask(NativeBattleEffectMemory memory, int index, ImmutableArray<byte> task)
@@ -113,9 +115,10 @@ public static class NativeBattleQuezacotlFragmentPool
     {
         ValidateHead(memory, pool);
         NativeBattleQuezacotlExecutableMemory executable = Executable(memory);
+        Span<byte> raw = stackalloc byte[Stride];
         for (int index = 0; index < Capacity; index++)
         {
-            ReadOnlySpan<byte> raw = executable.Data.AsSpan().Slice(Offset(index), Stride);
+            executable.ReadInto(Bank + checked((uint)(index * Stride)), raw);
             NativeBattleModulePoolTask task = pool.Slots[index];
             uint next = task.Next is int linked ? Bank + (uint)linked * Stride : 0;
             if (BinaryPrimitives.ReadUInt16LittleEndian(raw) != task.Flags || BinaryPrimitives.ReadUInt16LittleEndian(raw[2..]) != task.State || BinaryPrimitives.ReadUInt32LittleEndian(raw[4..]) != next || BinaryPrimitives.ReadUInt32LittleEndian(raw[8..]) != task.Callback || !raw[12..].SequenceEqual(task.ReadRawPayloadSpan()))

@@ -15,7 +15,8 @@ public static class NativeBattleQuezacotlFragmentPackets
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native6C6660 requires its previously published1D97778 camera matrix.");
         NativeBattleActionMatrix matrix = Compose6C6660(task44, view);
         int offset = checked((int)(MeshAddress - NativeBattleQuezacotlExecutableMemory.Address));
-        return NativeBattleModulePackets.EmitFlatTriangles572200(executable.Data, offset, matrix, projection, 17, 2, observeDepth);
+        using NativeBattleGfSourceReader source = NativeBattleGfAnimationSource.Borrow(NativeBattleQuezacotlExecutableMemory.Address, executable.Arena, 0, NativeBattleQuezacotlExecutableMemory.Length).OpenReader();
+        return NativeBattleModulePackets.EmitFlatTriangles572200(source, offset, matrix, projection, 17, 2, observeDepth);
     }
 
     public static NativeBattleActionMatrix Compose6C6660(ImmutableArray<byte> task44, NativeBattleActionMatrix view)

@@ -23,7 +23,7 @@ public static partial class NativeBattleChoco99ProgramDrawing
     private static NativeBattleChoco99ProgramDraw AdvanceMoving(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, short contextMode40, ImmutableArray<byte> morphScratch, NativeBattleActionMatrix view, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint frozenSecondary, Func<NativeBattleModulePoolTask, NativeBattleChoco99EmissionKind, short, NativeBattleModulePoolTask> emit, bool small)
     {
         ArgumentNullException.ThrowIfNull(emit);
-        if (task.Payload.IsDefault || task.PayloadLength != 0x548 - 12 || task.Callback != (small ? 0x720610u : 0x71FFB0u) || source.Address != 0x19F0F40 || source.Data.IsDefault || source.Data.Length != 0x1638 || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != 0x2C || morphScratch.IsDefault || morphScratch.Length != 0x760)
+        if (task.PayloadLength != 0x548 - 12 || task.Callback != (small ? 0x720610u : 0x71FFB0u) || source.Address != 0x19F0F40 || source.Data.IsDefault || source.Data.Length != 0x1638 || task.ReadDword(0x74) != source.Address || task.ReadDword(0x78) != 0x2C || morphScratch.IsDefault || morphScratch.Length != 0x760)
         {
             throw new InvalidDataException("Native Choco moving program requires its actual task, file, clear and morph owners.");
         }

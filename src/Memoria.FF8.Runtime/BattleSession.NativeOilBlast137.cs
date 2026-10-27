@@ -86,7 +86,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleOilBlast137Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleOilBlast137Controller.Write(current, address, NativeBattleOilBlast137Controller.Read(current, address).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleOilBlast137Controller.Write(current, address, advanced.Workspace.CopyTo(NativeBattleOilBlast137Controller.Read(current, address), offset, retainUnknown: false));
             return new(current, advanced.Remaining);
         }
 
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                 case NativeBattleOilBlast137InitializeAct initializeAct:
                     NativeBattleModulePoolTask task = NativeBattleOilBlast137Controller.Read(current, initializeAct.TaskAddress);
                     NativeBattleGfAnimationWorkspace initialized = new NativeBattleGfAnimationWorkspace(task.ReadBytes(initializeAct.WorkspaceOffset, initializeAct.WorkspaceBytes).ToImmutableArray()).Initialize7016B0(initializeAct.Source, initializeAct.WorkspaceBytes);
-                    return NativeBattleOilBlast137Controller.Write(current, initializeAct.TaskAddress, task.WriteBytes(initializeAct.WorkspaceOffset, initialized.Data.AsSpan()));
+                    return NativeBattleOilBlast137Controller.Write(current, initializeAct.TaskAddress, initialized.CopyTo(task, initializeAct.WorkspaceOffset, retainUnknown: false));
                 case NativeBattleOilBlast137DrawCustom84 custom:
                     NativeBattleEffectArena customContext = ReadTemporary(current, custom.Temporary84, 84);
                     NativeBattleOilBlast137MeshStep customDraw = NativeBattleOilBlast137Mesh.Draw(current.Memory, resources.CustomMesh, customContext, Projection());

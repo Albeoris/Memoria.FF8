@@ -93,5 +93,5 @@ public static class NativeBattleRinoa88Program
     }
 
     private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
-    private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace) => task.WriteBytes(148, workspace.Data.AsSpan());
+    private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace) => workspace.CopyTo(task, 148, retainUnknown: false);
 }

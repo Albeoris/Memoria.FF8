@@ -63,7 +63,7 @@ public sealed partial class BattleSession
                 NativeBattleVector anchor = ReadNativeGraphicsBone(graphics, actor, 0xF1, 0);
                 task = WindStore(task.WriteWord(12, unchecked((ushort)(-contact * 2))).WriteWord(14, (ushort)contact).WriteDword(16, checked(0x1D972C0u + (uint)actor * 156)), 20, anchor);
                 task = task.WriteWord(22, unchecked((ushort)(graphics.Models[actor].Transform?.Angle36 ?? throw new NotSupportedException("Mad Rush requires its target height."))));
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x10, 0x2F4));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Animation, 0x2F4));
                 targets = pool.WriteSlot(slot, task);
                 PublishNativeModuleSound(new(resources.Sound, 0, null) { Pan = 128, RawPan = 128 });
@@ -87,7 +87,7 @@ public sealed partial class BattleSession
                     return new(pool with { Slots = pool.Slots.SetItem(slot, task) }, 0);
                 }
                 NativeBattleVector anchor = WindVector(task, 20);
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x10, 0x2F4));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x10), 0x2F4);
                 NativeBattleGfAnimationAdvance advance = workspace.Advance701970(resources.Animation, 0, (current, node) =>
                 {
                     DrawMesh(node, anchor);

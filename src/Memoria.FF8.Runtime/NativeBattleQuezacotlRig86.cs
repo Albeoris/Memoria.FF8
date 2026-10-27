@@ -183,6 +183,7 @@ public static partial class NativeBattleQuezacotlRig86
             pools = pools.Where(existing => existing.DescriptorAddress != descriptor).Append(pool).ToImmutableArray();
             //508300 clears each entire slot, not only the linked-list header.
             arena = arena.Write(offset, new byte[stride * count]);
+            pool.BindArena(arena, NativeBattleTaskStorageBinding.AdoptPhysicalState);
         }
     }
 

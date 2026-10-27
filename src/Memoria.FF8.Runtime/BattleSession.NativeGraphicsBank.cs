@@ -65,6 +65,18 @@ public sealed partial class BattleSession
         state?.Validate();
         if (state is not null)
         {
+            if (NativeEffectMemory is { } memory)
+            {
+                if (memory.DetachedReturnedTask is { } detached)
+                {
+                    memory = BindNativeEffectTaskStorage(memory, detached);
+                }
+                if (state.OriginalEffect is { } effect)
+                {
+                    memory = BindNativeEffectTaskStorage(memory, effect);
+                }
+                NativeEffectMemory = memory;
+            }
             NativeEffectMemory?.ValidateReturnedTaskOwner(state.OriginalEffect);
             ValidateNativeTriggerWidget(state);
             for (int index = 0; index < 7; index++)

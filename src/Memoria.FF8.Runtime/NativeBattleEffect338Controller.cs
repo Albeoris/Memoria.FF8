@@ -96,7 +96,7 @@ public static partial class NativeBattleEffect338Controller
             }
             pools.Add(pool);
         }
-        return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, pools.ToImmutable().RemoveAt(0)), Effect = frame.Effect with { Pools = pools.ToImmutable() } };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, pools.ToImmutable().RemoveAt(0)), Effect = frame.Effect with { Pools = pools.ToImmutable() } };
     }
 
     private static (NativeBattleEffect338Frame Frame, int Result) AdvanceRoot(NativeBattleEffect338Frame frame, uint address, NativeBattleEffect338Resources resources, NativeBattleEffect338Inputs inputs)

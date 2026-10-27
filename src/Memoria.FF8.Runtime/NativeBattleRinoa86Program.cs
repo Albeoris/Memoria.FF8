@@ -105,6 +105,6 @@ public static class NativeBattleRinoa86Program
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(148, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 148, retainUnknown: true);
     }
 }

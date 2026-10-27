@@ -39,9 +39,9 @@ public static class NativeBattlePandemona291Timeline
             if (age == 10)
             {
                 NativeBattleGfAnimationSource source = frame.Effect.Binding.Pandemona291Resources?.SurfaceProgram ?? throw new NotSupportedException("Native Pandemona requires its original surface programme.");
-                NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x1F0, 0x12C).ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x1F0, 0x12C);
                 workspace = workspace.Initialize7016B0(source, 0x12C);
-                arena = arena.Write(start + 0x1F0, workspace.Data.AsSpan());
+                arena = workspace.CopyTo(arena, start + 0x1F0);
             }
             else if (age >= 18)
             {
@@ -88,9 +88,9 @@ public static class NativeBattlePandemona291Timeline
             if (age == 144)
             {
                 NativeBattleGfAnimationSource source = frame.Effect.Binding.Pandemona291Resources?.RisingProgram ?? throw new NotSupportedException("Native Pandemona requires its original rising surface programme.");
-                NativeBattleGfAnimationWorkspace workspace = new(arena.Read(start + 0x1F0, 0xE0).ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(arena, start + 0x1F0, 0xE0);
                 workspace = workspace.Initialize7016B0(source, 0xE0);
-                arena = arena.Write(start + 0x1F0, workspace.Data.AsSpan());
+                arena = workspace.CopyTo(arena, start + 0x1F0);
                 frame = frame with { Memory = frame.Memory with { Arena = arena } };
             }
             frame = (services.DrawSurface ?? throw new NotSupportedException("Native Pandemona requires its full rising surface callback."))(frame, address, age);

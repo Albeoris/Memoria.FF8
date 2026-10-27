@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Reusable unpublished byte/knowledge/provenance changes over one retained authority.</summary>
-internal sealed class NativeBattleArenaOverlay
+internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindowSource
 {
     private readonly record struct PointerChange(bool Present, NativeBattleResourcePointer? Value);
     private readonly record struct ByteUndo(int Offset, bool Present, byte Data, bool Known, bool DataStore);
@@ -46,20 +46,24 @@ internal sealed class NativeBattleArenaOverlay
         {
             throw new InvalidDataException("Native arena overlay exceeds its bounded packet storage.");
         }
-        NativeBattleArenaCoverage? classified = owner.Classification;
-        if (classified?.Prefix == capacity)
-        {
-            return;
-        }
+        ValidateExplicitCoverageWindow(0, capacity);
+    }
+
+    internal void ValidateExplicitCoverageWindow(int offset, int length)
+    {
+        NativeBattleEffectArena owner = Source;
+        owner.RequireRange(offset, length);
+        NativeBattleArenaCoverage classified = owner.Classification;
         int range = 0;
-        int covered = 0;
-        while (covered < capacity)
+        int covered = offset;
+        int end = offset + length;
+        while (covered < end)
         {
-            while (classified is not null && range < classified.Ranges.Count && classified.Ranges[range].End <= covered)
+            while (range < classified.Ranges.Count && classified.Ranges[range].End <= covered)
             {
                 range++;
             }
-            if (classified is not null && range < classified.Ranges.Count && classified.Ranges[range].Offset <= covered)
+            if (range < classified.Ranges.Count && classified.Ranges[range].Offset <= covered)
             {
                 covered = classified.Ranges[range].End;
             }
@@ -79,7 +83,7 @@ internal sealed class NativeBattleArenaOverlay
         dataRanges.Ranges.Clear();
         foreach (NativeBattleEffectStorageRange range in Source.EnumerateDataRanges(true))
         {
-            dataRanges.Add(range.Offset, range.Length);
+            dataRanges.Ranges.Add((range.Offset, range.Offset + range.Length));
         }
         foreach (int offset in dirty)
         {
@@ -118,6 +122,7 @@ internal sealed class NativeBattleArenaOverlay
         {
             throw new InvalidOperationException("Native arena overlay already has an owner.");
         }
+        readWindowGeneration = checked(readWindowGeneration + 1);
         source = owner;
     }
 
@@ -196,6 +201,7 @@ internal sealed class NativeBattleArenaOverlay
             return;
         }
         PrepareWrite(offset, bytes.Length);
+        ObserveReadWindowWrite(offset, bytes.Length);
         InvalidatePointers(offset, bytes.Length);
         for (int index = 0; index < bytes.Length; index++)
         {
@@ -222,6 +228,7 @@ internal sealed class NativeBattleArenaOverlay
             return;
         }
         PrepareWrite(offset, bytes.Length);
+        ObserveReadWindowWrite(offset, bytes.Length);
         InvalidatePointers(offset, bytes.Length);
         for (int index = 0; index < bytes.Length; index++)
         {
@@ -245,6 +252,7 @@ internal sealed class NativeBattleArenaOverlay
             return;
         }
         PrepareWrite(offset, bytes.Length);
+        ObserveReadWindowWrite(offset, bytes.Length);
         InvalidatePointers(offset, bytes.Length);
         for (int index = 0; index < bytes.Length; index++)
         {
@@ -268,6 +276,7 @@ internal sealed class NativeBattleArenaOverlay
             return;
         }
         PrepareWrite(offset, length);
+        ObserveReadWindowWrite(offset, length);
         InvalidatePointers(offset, length);
         for (int index = 0; index < length; index++)
         {
@@ -309,7 +318,7 @@ internal sealed class NativeBattleArenaOverlay
 
     internal IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers()
     {
-        foreach ((int offset, NativeBattleResourcePointer? pointer) in Source.EnumerateResourcePointers())
+        foreach ((int offset, NativeBattleResourcePointer? pointer) in Source.EnumerateResourcePointers(true))
         {
             if (!pointers.TryGetValue(offset, out PointerChange changed))
             {
@@ -491,12 +500,19 @@ internal sealed class NativeBattleArenaOverlay
         {
             int first = dirty[index++];
             int end = first + 1;
-            while (index < dirty.Count && dirty[index] == end)
+            while (index < dirty.Count && dirty[index] == end && dataStore[end] == dataStore[first])
             {
                 index++;
                 end++;
             }
-            memory.WriteWithKnownness(owner.WorkingOffset + first, data.AsSpan(first, end - first), known.AsSpan(first, end - first));
+            if (dataStore[first])
+            {
+                memory.WriteWithKnownness(owner.WorkingOffset + first, data.AsSpan(first, end - first), known.AsSpan(first, end - first));
+            }
+            else
+            {
+                memory.MarkUnknown(owner.WorkingOffset + first, end - first);
+            }
         }
         foreach ((int offset, PointerChange pointer) in pointers)
         {
@@ -507,63 +523,11 @@ internal sealed class NativeBattleArenaOverlay
         }
     }
 
-    internal void PublishPrepared()
-    {
-        NativeBattleEffectArena owner = Source;
-        owner.EnlistRangeMetadata();
-        for (int index = 0; index < dirty.Count;)
-        {
-            int first = dirty[index++];
-            int end = first + 1;
-            while (index < dirty.Count && dirty[index] == end)
-            {
-                index++;
-                end++;
-            }
-            owner.RecordCoverage(first, end - first);
-            for (int cursor = first; cursor < end;)
-            {
-                bool value = known[cursor];
-                int start = cursor++;
-                while (cursor < end && known[cursor] == value)
-                {
-                    cursor++;
-                }
-                owner.RecordKnowledge(start, cursor - start, value);
-            }
-            for (int cursor = first; cursor < end;)
-            {
-                if (!dataStore[cursor])
-                {
-                    cursor++;
-                    continue;
-                }
-                int start = cursor++;
-                while (cursor < end && dataStore[cursor])
-                {
-                    cursor++;
-                }
-                owner.RecordDataCoverage(start, cursor - start);
-            }
-        }
-        foreach ((int offset, PointerChange pointer) in pointers)
-        {
-            if (pointer.Present)
-            {
-                owner.RecordCoverage(offset, 4);
-                bool numeric = (pointer.Value?.StagingAddress ?? pointer.Value?.Cpu?.PhysicalAddress) is not null;
-                if (numeric)
-                {
-                    owner.RecordDataCoverage(offset, 4);
-                }
-                owner.RecordKnowledge(offset, 4, numeric);
-            }
-        }
-        ClearChanges();
-    }
+    internal void PublishPrepared() => ClearChanges();
 
     internal void Reset()
     {
+        source?.Working.InvalidateReadWindows(this);
         ClearChanges();
         source = null;
     }

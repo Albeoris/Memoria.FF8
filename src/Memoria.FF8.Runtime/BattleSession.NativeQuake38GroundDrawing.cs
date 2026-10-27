@@ -82,7 +82,7 @@ public sealed partial class BattleSession
                         }
                         NativeBattleQuake38WallDraw wall = NativeBattleQuake38GroundBorders.Wall8DA200(entry, Position(border.First), Position(border.Second), edge, index, state.Word(0x2792D70), state.Word(0x2792D6A), state.Read(0x2792E38, 40), resources, Projection, Zsf4);
                         entry = wall.Entry;
-                        Memory = Memory with { Arena = Memory.Arena!.Write(offset, entry.AsSpan()) };
+                        Memory.Arena!.Write(offset, entry.AsSpan());
                         Emit(wall.Batch);
                         if (wall.SpawnChip)
                         {
@@ -104,7 +104,7 @@ public sealed partial class BattleSession
 
         private void SpawnChip(NativeBattleVector first, NativeBattleVector second, int counter)
         {
-            if (Memory.Arena!.Read(counter, 1)[0] != 0 || state.Word(0x2792D70) >= 12 || (Random() & 3) != 0)
+            if (Memory.Arena!.ReadByte(counter) != 0 || state.Word(0x2792D70) >= 12 || (Random() & 3) != 0)
             {
                 return;
             }

@@ -111,7 +111,7 @@ public sealed partial class BattleSession
                 NativeBattleGfAnimationSource source = Program(task.ReadDword(116));
                 NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(148 - 12).ToArray().ToImmutableArray());
                 workspace = workspace.Initialize7016B0(source, checked((int)task.ReadDword(120)));
-                Put(address, task.WriteRetainedBytes(12 + (148 - 12), workspace.Data.AsSpan()));
+                Put(address, workspace.CopyTo(task, 12 + (148 - 12), retainUnknown: true));
                 return Input(address);
             },
             input =>

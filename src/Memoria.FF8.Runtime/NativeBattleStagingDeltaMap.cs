@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Reusable compact journal index. Reset touches active entries, never its retained bucket capacity.</summary>
-internal sealed class NativeBattleStagingDeltaMap<T>
+internal sealed class NativeBattleStagingDeltaMap<T>(int telemetrySite = 1035)
 {
     private struct Entry
     {
@@ -115,8 +115,8 @@ internal sealed class NativeBattleStagingDeltaMap<T>
         int[] grownBuckets = new int[capacity];
         uint[] grownEpochs = new uint[capacity];
         Array.Copy(entries, grown, count);
-        NativeBattleTelemetry.Record(1035, NativeBattleTrafficKind.CpuCopyPayload, (long)count * Unsafe.SizeOf<Entry>());
-        NativeBattleTelemetry.Record(1035, NativeBattleTrafficKind.ZeroFill, (long)grown.Length * Unsafe.SizeOf<Entry>() + capacity * 8L);
+        NativeBattleTelemetry.Record(telemetrySite, NativeBattleTrafficKind.CpuCopyPayload, (long)count * Unsafe.SizeOf<Entry>());
+        NativeBattleTelemetry.Record(telemetrySite, NativeBattleTrafficKind.ZeroFill, (long)grown.Length * Unsafe.SizeOf<Entry>() + capacity * 8L);
         entries = grown;
         buckets = grownBuckets;
         epochs = grownEpochs;

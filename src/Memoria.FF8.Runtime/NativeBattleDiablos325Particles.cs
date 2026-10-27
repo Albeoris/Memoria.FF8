@@ -36,9 +36,9 @@ public static partial class NativeBattleDiablos325Particles
         (pool, int index) = pool.Append(Callback);
         NativeBattleModulePoolTask task = pool.Slots[index].WriteWord(0xC, unchecked((ushort)position.X)).WriteWord(0xE, unchecked((ushort)position.Y)).WriteWord(0x10, unchecked((ushort)position.Z)).WriteWord(0x12, unchecked((ushort)parameter));
         NativeBattleGfAnimationSource source = ReadSource(frame, programme);
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xD0).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0xD0);
         workspace = workspace.Initialize7016B0(source, 0xD0);
-        pool = pool.WriteSlot(index, task.WriteRetainedBytes(12 + (0x18 - 12), workspace.Data.AsSpan()));
+        pool = pool.WriteSlot(index, workspace.CopyTo(task, 12 + (0x18 - 12), retainUnknown: true));
         return Synchronize(Replace(frame, pool), pool);
     }
 
@@ -66,7 +66,7 @@ public static partial class NativeBattleDiablos325Particles
             }
             uint pause = NativeBattleDiablos325Entry.RequireState(frame.Memory).Pause5180;
             NativeBattleVector position = new(unchecked((short)task.ReadWord(0xC)), unchecked((short)task.ReadWord(0xE)), unchecked((short)task.ReadWord(0x10)));
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x18 - 12, 0xD0).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x18 - 12), 0xD0);
             NativeBattleGfAnimationSource source = ReadSource(frame, workspace.ResourceAddress);
             NativeBattleGfAnimationAdvance programme = workspace.Advance701970(source, unchecked((int)pause), (cache, node) =>
             {
@@ -74,7 +74,7 @@ public static partial class NativeBattleDiablos325Particles
                 frame = submit(frame with { Memory = drawn.Memory }, drawn.Packets);
                 return cache;
             });
-            task = task.WriteRetainedBytes(12 + (0x18 - 12), programme.Workspace.Data.AsSpan());
+            task = programme.Workspace.CopyTo(task, 12 + (0x18 - 12), retainUnknown: true);
             if (programme.Remaining != 0 && pause == 0)
             {
                 task = task.WriteWord(0xE, unchecked((ushort)(task.ReadWord(0xE) + 24)));

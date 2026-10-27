@@ -68,7 +68,7 @@ public static partial class NativeBattleElectricDischarge126Controller
             NativeBattleEffectTaskPool bone = NativeBattleEffectTaskPool.Initialize(BoneTrailDescriptor, working + BoneOffset, BoneStride, BoneCount);
             NativeBattleEffectTaskPool sprite = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working + SpriteOffset, SpriteStride, SpriteCount);
             NativeBattleEffectTaskPool act = NativeBattleEffectTaskPool.Initialize(ActDescriptor, working, ActStride, ActCount);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, world, bone, sprite, act] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, world, bone, sprite, act]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, world, bone, sprite, act] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, world, bone, sprite, act]) };
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
             frame = WriteArena(WriteArena(frame, working + BonePointsOffset, new byte[0x5000]), working + WorldPointsOffset, new byte[0x5000]);
             for (int index = 0; index < PointCount; index++)

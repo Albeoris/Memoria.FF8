@@ -173,7 +173,7 @@ public sealed partial class BattleSession
                 current = NativeBattleElectricDischarge126Drawing.EmitNode(current, resources.Act, context, node, Camera().CapturePackedView1D97778(), Camera().Projection ?? throw new NotSupportedException("Electric Discharge requires its projection."), colors, Deliver);
                 return next;
             });
-            current = NativeBattleElectricDischarge126Controller.Write(current, taskAddress, NativeBattleElectricDischarge126Controller.Read(current, taskAddress).WriteBytes(0xC, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleElectricDischarge126Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleElectricDischarge126Controller.Read(current, taskAddress), 0xC, retainUnknown: false));
             return new(current, advanced.Remaining == 0 ? 2 : 0);
         }
 

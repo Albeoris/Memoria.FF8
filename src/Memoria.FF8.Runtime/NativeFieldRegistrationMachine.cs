@@ -121,7 +121,7 @@ public static partial class NativeFieldRegistrationMachine
             throw new InvalidDataException("Native field registration requires retained physical actor order and bounded original models/script ranges.");
         }
         NativeBattleFileStaging staging = retained.FileStaging ?? NativeBattleFileStaging.Unknown();
-        NativeFieldRegistrationMemory memory = new(staging, FieldArena, 0x1DCD6E4);
+        using NativeFieldRegistrationMemory memory = new(staging, FieldArena, 0x1DCD6E4);
         memory.ObserveCpuBanks(retained.ModelCpuResources);
         Context context = new(memory, retained.EffectMemory ?? throw new NotSupportedException("Native kind3 requires the retained shared VRAM and texture process."));
         memory.Fill(CacheRows, 0xC00, 0);
@@ -298,13 +298,15 @@ public static partial class NativeFieldRegistrationMachine
             throw new NotSupportedException("Native field constructed resources exceed their original kind3 arena.");
         }
         NativeFieldRegistrationState state = new(1, source.FieldId, source.ProgramHash, source.One.Sha256, preModel, relocated, sourceLength, cursor, resources.ToImmutableArray(), instances.ToImmutableArray());
-        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Finish(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
+        NativeBattleRetainedMemory result = retained with { FileStaging = memory.Prepare(), EffectMemory = context.Effects, ModelCpuResources = memory.ReconcileCpuBanks(retained.ModelCpuResources), FieldTextureAnimations = NativeFieldTextureAnimations.Register(source.One.Sha256, resources.SelectMany(resource => resource.Textures), source.ExecutableHash) };
         if (source.ExecutableHash == NativeFieldRuntimeProfile.RemasteredEnImageHash)
         {
             result = result with { FieldTexturePlaneCacheFresh = false, FieldTextureAnimations = result.FieldTextureAnimations! with { Planes = retained.FieldTextureAnimations?.Planes ?? result.FieldTextureAnimations!.Planes } };
         }
         state.Validate(result);
-        return new(state, result, context.Uploads.ToImmutableArray());
+        ImmutableArray<NativeBattleEffectVramUpload> uploads = context.Uploads.ToImmutableArray();
+        result = result with { FileStaging = memory.Finish() };
+        return new(state, result, uploads);
     }
 
     private static uint RebindProgram(NativeFieldRegistrationMemory memory, NativeFieldRegistrationLoaderInputs loader, IReadOnlyList<NativeFieldRetainedActor> actors)

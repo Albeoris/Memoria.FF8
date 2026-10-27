@@ -48,28 +48,32 @@ internal readonly struct NativeBattleArenaRanges(NativeBattleArenaCoverage cover
 
 public partial record NativeBattleEffectArena
 {
-    private NativeBattleArenaCoverage? dataCoverage;
-    private NativeBattleArenaCoverage? unknownCoverage;
-    private long metadataVersion = -1;
-    private NativeBattleArenaCoverage? effectiveDataRanges;
-    private NativeBattleArenaCoverage? effectiveUnknownRanges;
+    private NativeBattleArenaCoverage? projectedDataRanges;
+    private NativeBattleArenaCoverage? projectedUnknownRanges;
+    private NativeBattleArenaCoverage? projectedClassification;
+    private NativeBattleArenaCoverage? snapshotDataRanges;
+    private NativeBattleArenaCoverage? snapshotUnknownRanges;
 
     internal NativeBattleArenaRanges EnumerateDataRanges(bool committed = false)
     {
         Validate();
         if (!committed && TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int offset))
         {
-            return ProjectRanges(transaction!.DataRanges(), offset, ref effectiveDataRanges);
+            return new(ProjectRanges(transaction!.DataRanges(), offset, ref projectedDataRanges));
         }
-        if (dataCoverage is null)
+        if (snapshot)
         {
-            InitializeRangeMetadata();
+            if (snapshotDataRanges is null)
+            {
+                snapshotDataRanges = new();
+                foreach (NativeBattleEffectMemoryRegion region in initialRegions)
+                {
+                    snapshotDataRanges.Ranges.Add((region.Offset, region.Offset + region.Data.Length));
+                }
+            }
+            return new(snapshotDataRanges);
         }
-        if (borrowed && !snapshot)
-        {
-            dataCoverage!.Add(0, CommittedStoredLength);
-        }
-        return new(dataCoverage!);
+        return new(ProjectPhysicalRanges(Working.DataFootprint, ref projectedDataRanges));
     }
 
     internal NativeBattleArenaRanges EnumerateUnknownRanges(bool committed = false)
@@ -77,13 +81,35 @@ public partial record NativeBattleEffectArena
         Validate();
         if (!committed && TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int offset))
         {
-            return ProjectRanges(transaction!.UnknownRanges(), offset, ref effectiveUnknownRanges);
+            return new(ProjectRanges(transaction!.UnknownRanges(), offset, ref projectedUnknownRanges));
         }
-        EnsureUnknownMetadata();
-        return new(unknownCoverage!);
+        if (snapshot)
+        {
+            if (snapshotUnknownRanges is null)
+            {
+                snapshotUnknownRanges = new();
+                foreach (NativeBattleEffectUnknownRegion region in initialUnknown)
+                {
+                    snapshotUnknownRanges.Ranges.Add((region.Offset, region.Offset + region.Length));
+                }
+            }
+            return new(snapshotUnknownRanges);
+        }
+        return new(ProjectPhysicalRanges(Working.UnknownCoverage, ref projectedUnknownRanges));
     }
 
-    private NativeBattleArenaRanges ProjectRanges(NativeBattleArenaRanges source, int offset, ref NativeBattleArenaCoverage? target)
+    internal NativeBattleArenaCoverage Classification => snapshot ? SnapshotCoverage.GetValue(this, static arena => arena.ImportCoverage()) : ProjectPhysicalRanges(Working.ExplicitCoverage, ref projectedClassification);
+
+    private NativeBattleArenaCoverage ProjectPhysicalRanges(NativeBattleArenaCoverage physical, ref NativeBattleArenaCoverage? target)
+    {
+        if (workingOffset == 0 && bound == Working.LogicalLength)
+        {
+            return physical;
+        }
+        return ProjectRanges(new(physical), workingOffset, ref target);
+    }
+
+    private NativeBattleArenaCoverage ProjectRanges(NativeBattleArenaRanges source, int offset, ref NativeBattleArenaCoverage? target)
     {
         target ??= new();
         target.Clear();
@@ -93,94 +119,9 @@ public partial record NativeBattleEffectArena
             int end = Math.Min(range.Offset + range.Length, offset + bound);
             if (first < end)
             {
-                target.Add(first - offset, end - first);
+                target.Ranges.Add((first - offset, end - offset));
             }
         }
-        return new(target);
-    }
-
-    private void InitializeRangeMetadata()
-    {
-        dataCoverage = new();
-        unknownCoverage = new();
-        foreach (NativeBattleEffectMemoryRegion region in initialRegions)
-        {
-            dataCoverage.Ranges.Add((region.Offset, region.Offset + region.Data.Length));
-        }
-        foreach (NativeBattleEffectUnknownRegion region in initialUnknown)
-        {
-            unknownCoverage.Add(region.Offset, region.Length);
-        }
-    }
-
-    private void EnsureUnknownMetadata()
-    {
-        if (unknownCoverage is null)
-        {
-            InitializeRangeMetadata();
-        }
-        if (snapshot || metadataVersion == Working.Version)
-        {
-            return;
-        }
-        unknownCoverage!.Reserve(checked(Math.Min(bound, Working.Capacity) / 2 + 1));
-        unknownCoverage.Clear();
-        Span<byte> bytes = stackalloc byte[256];
-        Span<bool> known = stackalloc bool[256];
-        int extent = Working.InitialKnownZero ? CommittedStoredLength : bound;
-        int first = -1;
-        for (int offset = 0; offset < extent;)
-        {
-            int count = Math.Min(bytes.Length, extent - offset);
-            Working.ReadWithKnownness(workingOffset + offset, bytes[..count], known[..count]);
-            for (int index = 0; index < count; index++)
-            {
-                if (!known[index] && first < 0)
-                {
-                    first = offset + index;
-                }
-                else if (known[index] && first >= 0)
-                {
-                    unknownCoverage.Add(first, offset + index - first);
-                    first = -1;
-                }
-            }
-            offset += count;
-        }
-        if (first >= 0)
-        {
-            unknownCoverage.Add(first, extent - first);
-        }
-        metadataVersion = Working.Version;
-    }
-
-    internal void EnlistRangeMetadata()
-    {
-        if (!Working.HasCheckpoint)
-        {
-            return;
-        }
-        int depth = Working.CheckpointDepth;
-        coverage!.ReserveCheckpointDepth(depth);
-        dataCoverage!.ReserveCheckpointDepth(depth);
-        unknownCoverage!.ReserveCheckpointDepth(depth);
-        Working.EnlistCheckpointParticipant(coverage!);
-        Working.EnlistCheckpointParticipant(dataCoverage!);
-        Working.EnlistCheckpointParticipant(unknownCoverage!);
-    }
-
-    internal void RecordDataCoverage(int offset, int length) => dataCoverage!.Add(offset, length);
-
-    internal void RecordKnowledge(int offset, int length, bool known)
-    {
-        if (known)
-        {
-            unknownCoverage!.Remove(offset, length);
-        }
-        else
-        {
-            unknownCoverage!.Add(offset, length);
-        }
-        metadataVersion = Working.Version;
+        return target;
     }
 }

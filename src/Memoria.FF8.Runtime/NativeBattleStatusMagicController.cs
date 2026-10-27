@@ -184,7 +184,7 @@ public static class NativeBattleStatusMagicController
 
         NativeBattleModulePoolTask Play(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source, NativeBattleVector anchor, int depth)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), length);
             NativeBattleGfAnimationAdvance step = workspace.Advance701970(source, 0, (owner, node) =>
             {
                 current = NativeBattleStatusMagicDrawing.Draw(current, resources, source, node, anchor, depth, inputs);
@@ -221,13 +221,13 @@ public static class NativeBattleStatusMagicController
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)
     {
-        NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(offset - 12, length).ToArray().ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), length);
         return StoreWorkspace(task, offset, workspace.Initialize7016B0(source, length));
     }
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, int offset, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(offset, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, offset, retainUnknown: true);
     }
 
     private static NativeBattleVector Vector(NativeBattleModulePoolTask task, int offset) => new(unchecked((short)task.ReadWord(offset)), unchecked((short)task.ReadWord(offset + 2)), unchecked((short)task.ReadWord(offset + 4)));

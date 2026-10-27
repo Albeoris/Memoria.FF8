@@ -355,7 +355,7 @@ public sealed partial class BattleSession
 
         void Play(ref NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, int size, ImmutableArray<uint> flags, NativeBattleActionMatrix context, bool initialize)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x64 - 12, 0x4A0).ToArray().ToImmutableArray());
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x64 - 12), 0x4A0);
             if (initialize)
             {
                 workspace = workspace.Initialize7016B0(source, size);
@@ -397,7 +397,7 @@ public sealed partial class BattleSession
                 Append(NativeBattleModulePackets.EmitBatch572200(source.Data, geometry, vertices, matrix, projection, new(render, node.Scalar36 != 0 ? node.Color32 : 0u, node.Scalar36, null, null, null, 17, 2), colors));
                 return current;
             });
-            task = task.WriteRetainedBytes(0x64, advanced.Workspace.Data.AsSpan());
+            task = advanced.Workspace.CopyTo(task, 0x64, retainUnknown: true);
         }
 
         void Mesh(ImmutableArray<byte> source, NativeBattleActionMatrix world, uint flags)

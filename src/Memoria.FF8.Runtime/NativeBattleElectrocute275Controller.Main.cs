@@ -111,7 +111,7 @@ public static partial class NativeBattleElectrocute275Controller
                 }
                 NativeBattleModulePoolTask act = Read(frame, child);
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(act.Payload).Initialize7016B0(resources.Act, 200);
-                frame = Write(frame, child, act.WriteBytes(12, workspace.Data.AsSpan()));
+                frame = Write(frame, child, workspace.CopyTo(act, 12, retainUnknown: false));
             }
         }
         if (age == 44)

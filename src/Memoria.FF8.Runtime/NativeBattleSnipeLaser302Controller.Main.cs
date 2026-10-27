@@ -43,9 +43,9 @@ public static partial class NativeBattleSnipeLaser302Controller
                     NativeBattleGfAnimationSource[] sources = [resources.ProgrammeA, resources.ProgrammeB, resources.ProgrammeC];
                     for (int programme = 0; programme < offsets.Length; programme++)
                     {
-                        NativeBattleGfAnimationWorkspace workspace = new(TaskView(Read(frame, main), offsets[programme], lengths[programme]).Read(0, lengths[programme]).ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(Read(frame, main), offsets[programme], lengths[programme]), 0, lengths[programme]);
                         workspace = workspace.Initialize7016B0(sources[programme], lengths[programme]);
-                        frame = WriteBytes(frame, main + (uint)offsets[programme], NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), lengths[programme]);
+                        frame = WriteBytes(frame, main + (uint)offsets[programme], workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), lengths[programme]);
                     }
                 }
             }
@@ -177,9 +177,9 @@ public static partial class NativeBattleSnipeLaser302Controller
                         }
                         born = born.WriteDword(32, unchecked((uint)(int)q.X)).WriteDword(36, unchecked((uint)(int)q.Y)).WriteDword(40, unchecked((uint)(int)q.Z));
                         frame = Write(frame, programme, born);
-                        NativeBattleGfAnimationWorkspace workspace = new(TaskView(born, 44, 124).Read(0, 124).ToImmutableArray());
+                        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(TaskView(born, 44, 124), 0, 124);
                         workspace = workspace.Initialize7016B0(resources.ProgrammeD, 124);
-                        frame = WriteBytes(frame, programme + 44, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 124);
+                        frame = WriteBytes(frame, programme + 44, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), 124);
                     }
                 }
                 short width = unchecked((short)(NativeBattleCameraMath.Sine(widthAngle >> 1) >> 3));
@@ -252,7 +252,7 @@ public static partial class NativeBattleSnipeLaser302Controller
 
     private static NativeBattleSnipeLaser302Frame AdvanceWorkspace302(NativeBattleSnipeLaser302Frame frame, uint task, int offset, int length, NativeBattleEffectArena caller, NativeBattleSnipeLaser302Resources resources, NativeBattleSnipeLaser302Inputs inputs)
     {
-        NativeBattleGfAnimationWorkspace Workspace() => new(ReadBytes(frame, task + (uint)offset, length).Read(0, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace Workspace() => NativeBattleGfAnimationWorkspace.Borrow(ReadBytes(frame, task + (uint)offset, length), 0, length);
         NativeBattleGfAnimationSource source = resources.ReadProgramme(Workspace().ResourceAddress);
         NativeBattleGfAnimationAdvance advanced = Workspace().Advance701970(source, 0, (current, node) =>
         {

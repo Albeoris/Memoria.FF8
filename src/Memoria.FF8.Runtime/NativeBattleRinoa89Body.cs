@@ -93,7 +93,7 @@ public static partial class NativeBattleRinoa89Controller
                 Store();
                 NativeBattleEffectTaskTransfer detached = NativeBattleEffectTaskMemory.DetachArenaBank(frame.Memory, frame.Effect, Sprites);
                 NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(Sprites, ArenaAddress + 3136, 48, 32);
-                frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(detached.Memory, [sprites]), Effect = detached.Effect with { Pools = detached.Effect.Pools.Add(sprites) } };
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(detached.Memory, [sprites]), Effect = detached.Effect with { Pools = detached.Effect.Pools.Add(sprites) } };
                 Refresh();
                 Execute(new NativeBattleRinoa89Visibility(0x6FBE00));
             }
@@ -268,7 +268,7 @@ public static partial class NativeBattleRinoa89Controller
         if (Signed(12) >= 271)
         {
             NativeBattleGraphicsModel caster = inputs.ReadModel(actor);
-            bool unknownPadding = task.UnknownPayloadRanges is { } unknown && unknown.Any(range => range.Offset < 232 && range.Offset + range.Length > 230);
+            bool unknownPadding = task.ReadUnknownPayloadRanges() is { } unknown && unknown.Any(range => range.Offset < 232 && range.Offset + range.Length > 230);
             inputs.WriteModel(actor, caster with { Rotation12 = Signed(224), Rotation14 = Signed(226), Rotation16 = Signed(228), RotationPadding18 = unknownPadding ? null : task.ReadWord(230) });
             Store();
             (frame, bool complete) = inputs.Reload534300(frame);

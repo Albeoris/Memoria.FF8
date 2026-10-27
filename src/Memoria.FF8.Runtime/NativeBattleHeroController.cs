@@ -145,7 +145,7 @@ public static class NativeBattleHeroController
             children = Put(children, index, task);
         }
         NativeBattleOriginalEffectState effect = frame.Effect with { Pools = [frame.Effect.Pools[0], children] };
-        return frame with { Effect = effect, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [children]) };
+        return frame with { Effect = effect, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [children]) };
     }
 
     private static NativeBattleHeroFrame AppendChild(NativeBattleHeroFrame frame, NativeBattleHeroResources resources, NativeBattleHeroInputs inputs, byte actor)
@@ -270,14 +270,14 @@ public static class NativeBattleHeroController
             current = Execute(current, inputs, new NativeBattleHeroAct(source, node, selected));
             return state;
         });
-        task = current.Effect.Pools[1].Slots[slot].WriteBytes(offset, step.Workspace.Data.AsSpan());
+        task = step.Workspace.CopyTo(current.Effect.Pools[1].Slots[slot], offset, retainUnknown: false);
         return WithPool(current, 1, Put(current.Effect.Pools[1], slot, task));
     }
 
     private static NativeBattleModulePoolTask InitializeWorkspace(NativeBattleModulePoolTask task, int offset, int length, NativeBattleGfAnimationSource source)
     {
         NativeBattleGfAnimationWorkspace workspace = new(ImmutableArray.CreateRange(new byte[length]));
-        return task.WriteBytes(offset, workspace.Initialize7016B0(source, length).Data.AsSpan());
+        return workspace.Initialize7016B0(source, length).CopyTo(task, offset, retainUnknown: false);
     }
 
     private static NativeBattleHeroFrame Execute(NativeBattleHeroFrame frame, NativeBattleHeroInputs inputs, NativeBattleHeroOperation operation)

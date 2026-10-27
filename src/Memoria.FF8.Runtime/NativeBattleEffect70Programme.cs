@@ -17,18 +17,18 @@ public static class NativeBattleEffect70Programme
             throw new InvalidDataException("Effect70 programme requires its actual bounded DWORD workspace.");
         }
         NativeBattleGfAnimationSource source = resources.Act(sourceAddress);
-        NativeBattleGfAnimationWorkspace workspace = initialize ? new(new byte[clearBytes].ToImmutableArray()) : new(ReadBytes(frame, workspaceAddress, clearBytes).Read(0, clearBytes).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, clearBytes);
         if (initialize)
         {
             workspace = workspace.Initialize7016B0(source, clearBytes);
         }
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
         {
-            frame = WriteBytes(frame, workspaceAddress, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), clearBytes);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, current);
             frame = DrawNode6DE860(frame, source, node, caller36, resources, inputs);
             return current;
         });
-        frame = WriteBytes(frame, workspaceAddress, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), clearBytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspaceAddress, advanced.Workspace);
         return new(frame, advanced.Remaining);
     }
 

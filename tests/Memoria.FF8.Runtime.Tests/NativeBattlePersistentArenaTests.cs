@@ -5,6 +5,142 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePersistentArenaTests
 {
     [Fact]
+    public void Bounded_source_transaction_pointer_enumeration_reads_committed_base_without_routing_recursion()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear();
+        source.WriteResourcePointer(36, new(null, 0x12345678));
+        NativeBattleEffectArena bounded = NativeBattleEffectArena.BorrowWorking(source.Working, 32, 16);
+        using NativeBattleEffectArenaTransaction transaction = new(bounded);
+        transaction.View.WriteResourcePointer(8, new(null, 0x87654321));
+        Assert.Equal(new[] { 4, 8 }, bounded.EnumerateResourcePointers().Select(entry => entry.Key).Order().ToArray());
+        Assert.Equal(new[] { 4, 8 }, transaction.View.EnumerateResourcePointers().Select(entry => entry.Key).Order().ToArray());
+        Assert.Equal(36, Assert.Single(source.EnumerateResourcePointers()).Key);
+        transaction.Freeze();
+        Assert.Equal(new[] { 36, 40 }, source.EnumerateResourcePointers().Select(entry => entry.Key).Order().ToArray());
+    }
+
+    [Fact]
+    public void Borrowed_mutations_are_retained_in_the_canonical_owners_detached_data_footprint()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(8, [1]);
+        NativeBattleEffectArena view = NativeBattleEffectArena.BorrowWorking(source.Working, 32, 8);
+        view.WriteByte(0, 9);
+        view.MarkUnknown(2, 2);
+        NativeBattleEffectArenaSnapshot frozen = source.Capture();
+        Assert.Equal(9, frozen.ReadByte(32));
+        Assert.False(frozen.ReadSnapshot(34, 2).Known[0]);
+        NativeBattleEffectArena parsed = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize<NativeBattleEffectArena>(frozen))!;
+        Assert.Equal(9, parsed.ReadByte(32));
+        Assert.Equal(1, parsed.ReadByte(8));
+        Assert.False(parsed.ReadSnapshot(34, 2).Known[0]);
+        Assert.DoesNotContain(parsed.Regions, region => region.Offset <= 34 && region.Offset + region.Data.Length > 34);
+    }
+
+    [Fact]
+    public void Borrowed_physical_views_route_public_suffixes_but_base_reads_and_private_writers_keep_committed_bytes()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(32, [1, 2, 3, 4]);
+        NativeBattleEffectArena borrowed = NativeBattleEffectArena.BorrowWorking(source.Working, 32, 16);
+        using NativeBattleEffectArenaWriter privateWriter = new(source);
+        privateWriter.Write(32, [9]);
+        using NativeBattleEffectArenaTransaction transaction = new(source);
+        Assert.True(NativeBattleEffectArenaTransaction.HasActive(source.Working));
+        transaction.View.Write(32, [5, 6]);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(32, 4));
+        Assert.Equal(new byte[] { 5, 6, 3, 4 }, borrowed.Read(0, 4));
+        borrowed.WriteByte(2, 7);
+        using (NativeBattleEffectArenaWriter forward = new(borrowed))
+        {
+            forward.Write(3, [8]);
+            Assert.Same(borrowed, forward.Freeze());
+            Assert.Throws<InvalidDataException>(() => forward.Write(16, [1]));
+        }
+        borrowed.WriteResourcePointer(4, new(null, 0x12345678));
+        Assert.Equal(0x12345678u, transaction.View.ReadUInt32(36));
+        Assert.Equal(4, Assert.Single(borrowed.EnumerateResourcePointers()).Key);
+        Assert.False(source.TryGetResourcePointer(36, out _));
+        Assert.Throws<InvalidOperationException>(() => source.Capture());
+        Assert.Throws<InvalidOperationException>(() => borrowed.Capture());
+        Assert.Throws<InvalidOperationException>(() => new NativeBattleEffectArenaTransaction(source));
+        Assert.Equal(9, privateWriter.ReadThrough(32, 1)[0]);
+        transaction.Freeze();
+        Assert.Equal(new byte[] { 5, 6, 7, 8 }, source.Read(32, 4));
+        Assert.Equal(16, borrowed.Capture().LogicalLength);
+        transaction.BeginCheckpoint();
+        Assert.Throws<InvalidOperationException>(() => source.Capture());
+        transaction.RollbackCheckpoint();
+        source.Capture();
+    }
+
+    [Fact]
+    public void Partial_physical_overlap_fails_before_stores_and_disposal_removes_routing()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear();
+        NativeBattleEffectArena window = NativeBattleEffectArena.BorrowWorking(source.Working, 16, 16);
+        NativeBattleEffectArena crossing = NativeBattleEffectArena.BorrowWorking(source.Working, 8, 16);
+        using (NativeBattleEffectArenaTransaction transaction = new(window))
+        {
+            Assert.Throws<NotSupportedException>(() => crossing.Write(0, new byte[16]));
+            Assert.Equal(0, source.ReadByte(8));
+            window.WriteByte(0, 7);
+            Assert.Equal(7, transaction.View.ReadByte(0));
+            Assert.Equal(0, source.ReadByte(16));
+        }
+        Assert.False(NativeBattleEffectArenaTransaction.HasActive(source.Working));
+        Assert.Equal(0, window.ReadByte(0));
+        crossing.WriteByte(8, 9);
+        Assert.Equal(9, source.ReadByte(16));
+    }
+
+    [Fact]
+    public void Routed_raw_stores_preserve_explicit_knowledge_and_retained_hidden_bytes()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(32, [1, 2, 3, 4]);
+        NativeBattleEffectArena borrowed = NativeBattleEffectArena.BorrowWorking(source.Working, 32, 16);
+        using NativeBattleEffectArenaTransaction transaction = new(source);
+        transaction.WriteWithKnownness(32, [9, 8, 7, 6], [true, false, true, false]);
+        transaction.WriteRetainedBytes(32, [5, 4, 3, 2]);
+        var staged = borrowed.ReadSnapshot(0, 4);
+        Assert.Equal(new byte[] { 5, 4, 3, 2 }, staged.Data);
+        Assert.Equal(new[] { true, false, true, false }, staged.Known);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.Read(32, 4));
+        transaction.Freeze();
+        Assert.Equal(staged.Data, source.ReadSnapshot(32, 4).Data);
+        Assert.Equal(staged.Known, source.ReadSnapshot(32, 4).Known);
+    }
+
+    [Fact]
+    public void Bounded_captures_and_json_restore_keep_relative_bounds_and_independent_owners()
+    {
+        NativeBattleEffectArena source = NativeBattleEffectArena.CreateUnknown(64);
+        source.Write(8, [1, 2, 3, 4]);
+        NativeBattleEffectArenaSnapshot captured = source.Capture();
+        Assert.Equal(64, captured.LogicalLength);
+        Assert.Throws<InvalidDataException>(() => captured.ReadByte(64));
+        string json = JsonSerializer.Serialize<NativeBattleEffectArena>(captured);
+        NativeBattleEffectArena parsed = JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!;
+        Assert.Equal(64, parsed.LogicalLength);
+        Assert.Throws<InvalidDataException>(() => parsed.ReadByte(64));
+        NativeBattleEffectArena first = NativeBattleStorageSnapshots.Restore(parsed);
+        NativeBattleEffectArena second = NativeBattleStorageSnapshots.Restore(parsed);
+        Assert.Throws<InvalidDataException>(() => first.WriteByte(64, 9));
+        first.WriteByte(8, 9);
+        Assert.Equal(1, second.ReadByte(8));
+        Assert.Equal(1, parsed.ReadByte(8));
+        Assert.Equal(json, JsonSerializer.Serialize<NativeBattleEffectArena>(captured));
+        NativeBattleEffectArena bounded = NativeBattleEffectArena.BorrowWorking(first.Working, 8, 8);
+        NativeBattleEffectArenaSnapshot projected = bounded.Capture();
+        Assert.Equal(8, projected.LogicalLength);
+        Assert.Equal(new byte[] { 9, 2, 3, 4 }, projected.Read(0, 4));
+        NativeBattleEffectArena reparsed = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize<NativeBattleEffectArena>(projected))!;
+        Assert.Throws<InvalidDataException>(() => reparsed.ReadByte(8));
+        Assert.Equal(projected.ReadSnapshot(0, 8).Data, reparsed.ReadSnapshot(0, 8).Data);
+        Assert.Equal(projected.ReadSnapshot(0, 8).Known, reparsed.ReadSnapshot(0, 8).Known);
+        NativeBattleEffectArena oldDefault = JsonSerializer.Deserialize<NativeBattleEffectArena>("{\"Regions\":[],\"UnknownRegions\":[]}")!;
+        Assert.Equal(NativeBattleEffectArena.Length, oldDefault.LogicalLength);
+    }
+
+    [Fact]
     public void Warmed_state_scalar_writers_allocate_no_records_temporary_arenas_or_encoded_arrays()
     {
         NativeBattleAcid317State direct = NativeBattleAcid317State.FromColdProcess();
@@ -146,9 +282,11 @@ public sealed class NativeBattlePersistentArenaTests
         one.View.WriteByte(13, 3);
         two.View.Write(0, [1, 2]);
         Assert.Throws<InvalidOperationException>(() => NativeBattleEffectArenaTransaction.CommitGroup(new[] { one, two }));
+        Assert.Equal(new byte[] { 9, 8 }, one.View.ReadSnapshot(4, 2).Data);
+        one.Dispose();
+        two.Dispose();
         Assert.Equal(before, JsonSerializer.Serialize<NativeBattleEffectArena>(first.Capture()));
         Assert.Equal(0, second.StoredLength);
-        Assert.Equal(new byte[] { 9, 8 }, one.View.ReadSnapshot(4, 2).Data);
     }
 
     [Fact]

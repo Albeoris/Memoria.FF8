@@ -32,7 +32,7 @@ public static class NativeBattleTheEnd85Drawing
             result = drawn.PublishedFarColor ? drawn : result with { Staging = drawn.Staging };
             return current;
         });
-        return result with { Task = task.WriteRetainedBytes(12 + (148 - 12), advanced.Workspace.Data.AsSpan()), Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
+        return result with { Task = advanced.Workspace.CopyTo(task, 12 + (148 - 12), retainUnknown: true), Remaining = advanced.Remaining, Packets = new(attempts.ToImmutable(), allocation) };
     }
 
     public static NativeBattleTheEnd85DrawingStep DrawNode785790(NativeBattleModulePoolTask task, NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleActionMatrix context, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, NativeBattleFileStaging staging, NativeBattleTheEnd85DrawServices services)

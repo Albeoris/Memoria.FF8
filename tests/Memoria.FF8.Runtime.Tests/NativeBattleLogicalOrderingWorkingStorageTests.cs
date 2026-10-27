@@ -7,6 +7,75 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLogicalOrderingWorkingStorageTests
 {
     [Fact]
+    public void Suspending_latest_primary_callback_keeps_published_prefix_when_secondary_fails_before_publication()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering.Prepend(5, Reference(0), Words, 0, []);
+        NativeBattleLogicalOrdering.Delta suffix;
+        using (NativeBattleLogicalOrderingTransaction primary = new(ordering))
+        {
+            primary.BeginCheckpoint();
+            Append(primary.Writer, 1);
+            primary.CommitCheckpoint();
+            primary.BeginCheckpoint();
+            Append(primary.Writer, 2);
+            suffix = primary.SuspendCheckpointDelta();
+            Assert.Equal(2, ordering.Packets.Length);
+            Assert.Same(ordering, primary.Freeze());
+        }
+        string accepted = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering));
+        Assert.Throws<InvalidDataException>(() => Secondary());
+        Assert.Equal(accepted, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
+        Assert.Equal(new[] { Reference(0), Reference(1) }, ordering.Packets.Select(packet => packet.Reference));
+        Assert.Equal(1, ordering.Table[5].Index);
+
+        void Secondary()
+        {
+            using NativeBattleLogicalOrderingTransaction continuation = new(ordering);
+            continuation.ResumeDelta(suffix);
+            Assert.Equal(3, ordering.Packets.Length);
+            throw new InvalidDataException("Secondary validation failed before publishing its input graphics.");
+        }
+    }
+
+    [Fact]
+    public void Secondary_accepted_prefix_keeps_resumed_primary_suffix_and_discards_later_failed_callback()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        NativeBattleLogicalOrdering.Delta suffix;
+        using (NativeBattleLogicalOrderingTransaction primary = new(ordering))
+        {
+            primary.BeginCheckpoint();
+            Append(primary.Writer, 0);
+            primary.CommitCheckpoint();
+            primary.BeginCheckpoint();
+            Append(primary.Writer, 1);
+            suffix = primary.SuspendCheckpointDelta();
+            primary.Freeze();
+        }
+        using (NativeBattleLogicalOrderingTransaction continuation = new(ordering))
+        {
+            continuation.ResumeDelta(suffix);
+            using (NativeBattleLogicalOrderingTransaction secondary = new(ordering))
+            {
+                secondary.BeginCheckpoint();
+                Append(secondary.Writer, 2);
+                secondary.CommitCheckpoint();
+                secondary.Freeze();
+                secondary.BeginCheckpoint();
+                Append(secondary.Writer, 3);
+                secondary.RollbackCheckpoint();
+                secondary.Freeze();
+            }
+            continuation.Freeze();
+        }
+        Assert.Equal(new[] { Reference(0), Reference(1), Reference(2) }, ordering.Packets.Select(packet => packet.Reference));
+        Assert.Equal(3, ordering.ProxyCursor);
+        Assert.Equal(2, ordering.Table[5].Index);
+        Assert.Equal(3, ordering.Traverse(Lengths).Length);
+    }
+
+    [Fact]
     public void Successive_producers_keep_one_owner_and_current_read_only_collection_views()
     {
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();

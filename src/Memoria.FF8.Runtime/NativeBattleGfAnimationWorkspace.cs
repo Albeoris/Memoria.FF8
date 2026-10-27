@@ -5,7 +5,54 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Caller-owned current bytes at a native model resource address; mutable EXE banks must be supplied from their actual owner.</summary>
-public sealed record NativeBattleGfAnimationSource([property: JsonRequired] uint Address, [property: JsonRequired] ImmutableArray<byte> Data);
+public sealed record NativeBattleGfAnimationSource
+{
+    private ImmutableArray<byte> data;
+    private NativeBattleEffectArena? arena;
+    private int offset;
+    private int length;
+    internal NativeBattleGfSourceReader? ActiveReader;
+
+    public NativeBattleGfAnimationSource(uint Address, ImmutableArray<byte> Data)
+    {
+        this.Address = Address;
+        this.Data = Data;
+    }
+
+    [JsonRequired]
+    public uint Address { get; init; }
+    [JsonRequired]
+    public ImmutableArray<byte> Data
+    {
+        get => arena is null ? data : throw new InvalidOperationException("Borrowed animation sources require bounded readers, not a payload export.");
+        init
+        {
+            data = value;
+            arena = null;
+            offset = 0;
+            length = value.IsDefault ? 0 : value.Length;
+            ActiveReader = null;
+        }
+    }
+    [JsonIgnore]
+    public int Length => length;
+    [JsonIgnore]
+    internal bool IsDefault => arena is null && data.IsDefault;
+    internal NativeBattleEffectArena? Arena => arena;
+    internal int Offset => offset;
+    internal ImmutableArray<byte> CatalogData => data;
+
+    internal static NativeBattleGfAnimationSource Borrow(uint address, NativeBattleEffectArena arena, int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > arena.LogicalLength - length)
+        {
+            throw new InvalidDataException("Native borrowed animation source leaves its actual physical owner.");
+        }
+        return new(address, default) { arena = arena, offset = offset, length = length };
+    }
+
+    internal NativeBattleGfSourceReader OpenReader() => new(this);
+}
 
 /// <summary>701970's explicitly cleared 44-byte callback record, plus decoded source provenance.</summary>
 public sealed record NativeBattleGfAnimationNode(int ResourceOffset, uint AnimationFlags, ImmutableArray<byte> Data)
@@ -29,10 +76,10 @@ public sealed record NativeBattleGfAnimationNode(int ResourceOffset, uint Animat
 public sealed record NativeBattleGfAnimationAdvance(NativeBattleGfAnimationWorkspace Workspace, int Remaining, int EmittedNodes);
 
 /// <summary>7016B0/701970's native pointer/frame header and variable-sized derivative caches. Existing bytes are never assumed zero.</summary>
-public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] ImmutableArray<byte> Data)
+public sealed partial record NativeBattleGfAnimationWorkspace
 {
-    [JsonIgnore] public uint ResourceAddress => BinaryPrimitives.ReadUInt32LittleEndian(Data.AsSpan());
-    [JsonIgnore] public int Frame => BinaryPrimitives.ReadInt32LittleEndian(Data.AsSpan().Slice(4));
+    [JsonIgnore] public uint ResourceAddress => arena.ReadUInt32(0);
+    [JsonIgnore] public int Frame => arena.ReadInt32(4);
 
     public NativeBattleGfAnimationWorkspace Initialize7016B0(NativeBattleGfAnimationSource source, int sizeBytes)
     {
@@ -48,14 +95,15 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
     private NativeBattleGfAnimationWorkspace Initialize(NativeBattleGfAnimationSource source, int sizeBytes)
     {
         Validate(source);
-        if (sizeBytes < 0 || (sizeBytes >> 2) > Data.Length / 4)
+        if (sizeBytes < 0 || (sizeBytes >> 2) > Length / 4)
         {
             throw new InvalidDataException("Native7016B0 DWORD clear exceeds its observed workspace bytes.");
         }
-        Buffer workspace = new(NativeBattleTelemetry.Materialize(1231, Data));
-        workspace.Bytes.AsSpan(0, (sizeBytes >> 2) * 4).Clear();
+        using NativeBattleGfSourceReader resource = source.OpenReader();
+        using MutationScope mutation = new(this);
+        CacheBuffer workspace = new(mutation.View);
+        workspace.Clear((sizeBytes >> 2) * 4);
         workspace.UInt(0, source.Address);
-        Buffer resource = new(NativeBattleTelemetry.Materialize(1232, source.Data));
         int table = resource.Int(4);
         int count = resource.Int(table);
         int cache = 8;
@@ -74,7 +122,8 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
             cache = checked(cache + ((flags & 0x800) != 0 ? 24 : (flags & 0x400) != 0 ? 16 : (flags & 0x200) != 0 ? 8 : 0));
             cache = checked(cache + ((flags & 0x1000) != 0 ? 12 : 0) + ((flags & 0x2000) != 0 ? 16 : 0));
         }
-        return new(NativeBattleTelemetry.Immutable(1236, workspace.Bytes));
+        mutation.PublishPrefix();
+        return this;
     }
 
     public NativeBattleGfAnimationAdvance Advance701970(NativeBattleGfAnimationSource source, int frozen, Func<NativeBattleGfAnimationWorkspace, NativeBattleGfAnimationNode, NativeBattleGfAnimationWorkspace> emit)
@@ -96,8 +145,9 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
         {
             throw new InvalidDataException("Native701970 source bytes do not identify the workspace's retained native resource pointer.");
         }
-        Buffer resource = new(NativeBattleTelemetry.Materialize(1233, source.Data));
-        Buffer workspace = new(NativeBattleTelemetry.Materialize(1234, Data));
+        using NativeBattleGfSourceReader resource = source.OpenReader();
+        using MutationScope mutation = new(this);
+        CacheBuffer workspace = new(mutation.View);
         int table = resource.Int(4);
         int duration = resource.Int(checked(table + 4));
         if (workspace.Int(4) >= duration)
@@ -199,13 +249,14 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
                 output.Short(38, unchecked((short)(workspace.Int(cache + 4) >> 16)));
                 cache += 16;
             }
-            NativeBattleGfAnimationWorkspace beforeCallback = new(NativeBattleTelemetry.Immutable(1237, workspace.Bytes));
+            NativeBattleGfAnimationWorkspace beforeCallback = mutation.View;
             NativeBattleGfAnimationWorkspace afterCallback = emit(beforeCallback, new(node, flags, NativeBattleTelemetry.Immutable(1238, output.Bytes))) ?? throw new InvalidDataException("Native701970 callback lost its workspace owner.");
-            if (afterCallback.Data.IsDefault || afterCallback.Data.Length != Data.Length)
+            if (afterCallback.Length != Length)
             {
                 throw new InvalidDataException("Native701970 callback changed its physical workspace extent.");
             }
-            workspace = new(NativeBattleTelemetry.Materialize(1235, afterCallback.Data));
+            mutation.View.CopyStateFrom(afterCallback);
+            mutation.PublishPrefix();
             emitted++;
 
             int NextStream()
@@ -324,14 +375,14 @@ public sealed record NativeBattleGfAnimationWorkspace([property: JsonRequired] I
         {
             workspace.Int(4, unchecked(workspace.Int(4) + 1));
         }
-        NativeBattleGfAnimationWorkspace completed = new(NativeBattleTelemetry.Immutable(1239, workspace.Bytes));
-        return new(completed, unchecked(duration - workspace.Int(4)), emitted);
+        mutation.PublishPrefix();
+        return new(this, unchecked(duration - workspace.Int(4)), emitted);
     }
 
     private void Validate(NativeBattleGfAnimationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (Data.IsDefault || Data.Length < 8 || source.Data.IsDefault || source.Data.Length < 8)
+        if (Length < 8 || source.IsDefault || source.Length < 8)
         {
             throw new InvalidDataException("Native GF animation requires the actual source and retained pointer/frame workspace bytes.");
         }

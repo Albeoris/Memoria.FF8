@@ -188,10 +188,10 @@ public static class NativeBattleThundaga105ProgramDrawing
         }
     }
 
-    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => new(task.ReadRawPayloadSpan().Slice(WorkspaceOffset - 12, WorkspaceLength).ToArray().ToImmutableArray());
+    private static NativeBattleGfAnimationWorkspace Workspace(NativeBattleModulePoolTask task) => NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (WorkspaceOffset - 12), WorkspaceLength);
 
     private static NativeBattleModulePoolTask Store(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteRetainedBytes(12 + (WorkspaceOffset - 12), workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 12 + (WorkspaceOffset - 12), retainUnknown: true);
     }
 }

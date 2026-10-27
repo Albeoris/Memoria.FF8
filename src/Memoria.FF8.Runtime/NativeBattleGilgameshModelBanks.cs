@@ -17,7 +17,7 @@ public static class NativeBattleGilgameshModelBanks
 
     public static NativeBattleGilgameshModelBankStep Step(NativeBattleGilgameshModelMemory modelMemory, NativeBattleEffectArena arena, NativeBattleModulePoolTask task, NativeBattleGilgameshModelResources resources, NativeBattleActionMatrix worldView, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, uint graphicsFlags)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != 24 || task.Callback is not (0x595D50 or 0x5966B0 or 0x596710 or 0x596800 or 0x596970 or 0x596A60) || resources.Stream749Models.IsDefault || resources.Stream749Models.Length != 5 || resources.StaticModels.IsDefault || resources.StaticModels.Length != 4)
+        if (task.PayloadLength != 24 || task.Callback is not (0x595D50 or 0x5966B0 or 0x596710 or 0x596800 or 0x596970 or 0x596A60) || resources.Stream749Models.IsDefault || resources.Stream749Models.Length != 5 || resources.StaticModels.IsDefault || resources.StaticModels.Length != 4)
         {
             throw new InvalidDataException("Native Gilgamesh model bank callback requires its raw0x24-byte task and all actual model resource owners.");
         }

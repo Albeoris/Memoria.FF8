@@ -12,9 +12,7 @@ public sealed partial class BattleSession
         bool skipped = scale is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0;
         if (node.NodeIndex == 0)
         {
-            byte[] data = workspace.Data.ToArray();
-            BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(18), skipped ? (short)0 : scale.X);
-            workspace = new(data.ToImmutableArray());
+            workspace.WriteWord(18, unchecked((ushort)(skipped ? 0 : scale.X)));
             if (!skipped)
             {
                 if (workspace.Frame == 14)

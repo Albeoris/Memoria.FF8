@@ -146,7 +146,7 @@ public static partial class NativeBattleOilBlast137Controller
 
     private static short? OptionalWord(NativeBattleModulePoolTask task, int offset)
     {
-        if (task.UnknownPayloadRanges is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
+        if (task.ReadUnknownPayloadRanges() is { } ranges && ranges.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset))
         {
             return null;
         }

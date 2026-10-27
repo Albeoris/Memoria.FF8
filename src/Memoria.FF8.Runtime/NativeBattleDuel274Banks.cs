@@ -40,7 +40,7 @@ public static class NativeBattleDuel274Banks
             frame = frame with { Memory = detached.Memory, Effect = detached.Effect };
         }
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, address, stride, count);
-        return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) } };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) } };
     }
 
     public static NativeBattleDuel274Frame Advance508420(NativeBattleDuel274Frame frame, uint descriptor, Func<NativeBattleDuel274Frame, int, NativeBattleDuel274TaskStep> callback)

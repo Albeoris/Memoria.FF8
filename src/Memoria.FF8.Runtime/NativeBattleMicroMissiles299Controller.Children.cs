@@ -116,7 +116,7 @@ public static partial class NativeBattleMicroMissiles299Controller
                 }
                 NativeBattleGfAnimationSource source = variant > 1 ? resources.WideImpact : resources.Impact;
                 int size = variant > 1 ? 0x114 : 0xA0;
-                child = child.WriteBytes(0x30, new NativeBattleGfAnimationWorkspace(child.ReadBytes(0x30, size).ToImmutableArray()).Initialize7016B0(source, size).Data.AsSpan());
+                child = new NativeBattleGfAnimationWorkspace(child.ReadBytes(0x30, size).ToImmutableArray()).Initialize7016B0(source, size).CopyTo(child, 0x30, retainUnknown: false);
                 frame = Write(frame, impact, child);
                 if (variant == 0)
                 {
@@ -180,7 +180,7 @@ public static partial class NativeBattleMicroMissiles299Controller
             frame = inputs.EmitNode(frame, source, context, node);
             return new(Read(frame, address).ReadBytes(offset, size).ToImmutableArray());
         });
-        return (Write(frame, address, Read(frame, address).WriteBytes(offset, advance.Workspace.Data.AsSpan())), advance.Remaining);
+        return (Write(frame, address, advance.Workspace.CopyTo(Read(frame, address), offset, retainUnknown: false)), advance.Remaining);
     }
     private static NativeBattleMicroMissiles299Frame EmitSprite(NativeBattleMicroMissiles299Frame frame, uint address, uint resource, ushort phase, NativeBattleMicroMissiles299Inputs inputs)
     {

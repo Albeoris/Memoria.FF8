@@ -101,7 +101,7 @@ public static partial class NativeBattleElectricDischarge126Controller
                 }
                 NativeBattleModulePoolTask task = Read(frame, actAddress);
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.Payload).Initialize7016B0(resources.Act, 200);
-                frame = Write(frame, actAddress, task.WriteBytes(12, workspace.Data.AsSpan()));
+                frame = Write(frame, actAddress, workspace.CopyTo(task, 12, retainUnknown: false));
             }
         }
         if (age >= 52)

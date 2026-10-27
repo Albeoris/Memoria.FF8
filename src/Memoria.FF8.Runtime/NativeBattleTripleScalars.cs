@@ -72,7 +72,7 @@ public static class NativeBattleTripleScalars
 
     private static void Require(NativeBattleModulePoolTask task, uint callback, int stride)
     {
-        if (task.Callback != callback || task.Payload.IsDefault || task.PayloadLength != stride - 12)
+        if (task.Callback != callback || task.PayloadLength != stride - 12)
         {
             throw new InvalidDataException("Native Triple scalar phase requires its original124-byte private task.");
         }

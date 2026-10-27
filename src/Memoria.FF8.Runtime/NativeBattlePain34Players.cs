@@ -66,6 +66,6 @@ public static class NativeBattlePain34Players
     }
     private static NativeBattleModulePoolTask WithWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
     {
-        return task.WriteBytes(148, workspace.Data.AsSpan());
+        return workspace.CopyTo(task, 148, retainUnknown: false);
     }
 }

@@ -65,7 +65,7 @@ public static partial class NativeBattleOilBlast137Controller
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, ParticleStride, ParticleCount);
             (main, int slot) = main.Append(MainCallback);
             main = main.WriteSlot(slot, main.Slots[slot].WriteBytes(12, new byte[MainStride - 12]).WriteDword(16, target));
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, secondary, particles]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, secondary, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, secondary, particles]) };
             frame = Write(frame, address, Read(frame, address).WriteWord(14, 1));
             NativeBattleOilBlast137PointStep anchor = inputs.ReadBone502170(frame, target, 0xF1, 0);
             frame = anchor.Frame;

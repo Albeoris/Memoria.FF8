@@ -48,7 +48,7 @@ public static partial class NativeBattleEffect210Controller
             throw new InvalidDataException("Effect210 COMMON pool initialization overlaps another active physical owner.");
         }
         NativeBattleEffectTaskPool current = InitializePayload(shape, ReadBytes(frame, shape.Bank, shape.Stride * shape.Capacity));
-        return frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [current]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(current) }, State = frame.State.DetachCommonQueue(descriptor) };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [current]), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(current) }, State = frame.State.DetachCommonQueue(descriptor) };
     }
 
     public static NativeBattleEffect210Frame DetachCommonPool(NativeBattleEffect210Frame frame, uint descriptor, bool clearQueue)

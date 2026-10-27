@@ -113,7 +113,7 @@ public sealed partial class BattleSession
                 current = current with { Memory = written.Memory, State = current.State.WriteDword(NativeBattleEerieSoundWave130Profile.CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Staging = NativeBattleTemporaryMemory.Release5082D0(published, 88) };
                 return next;
             });
-            current = NativeBattleEerieSoundWave130Controller.Write(current, taskAddress, NativeBattleEerieSoundWave130Controller.Read(current, taskAddress).WriteBytes(offset, advanced.Workspace.Data.AsSpan()));
+            current = NativeBattleEerieSoundWave130Controller.Write(current, taskAddress, advanced.Workspace.CopyTo(NativeBattleEerieSoundWave130Controller.Read(current, taskAddress), offset, retainUnknown: false));
             return new(current, advanced.Remaining);
         }
     }

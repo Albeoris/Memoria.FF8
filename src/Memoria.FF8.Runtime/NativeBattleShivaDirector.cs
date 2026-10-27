@@ -25,7 +25,7 @@ public static class NativeBattleShivaDirector
 {
     public static NativeBattleShivaDirectorStep Advance5C0F30(NativeBattleModulePoolTask task, NativeBattleShivaDirectorInputs inputs)
     {
-        if (task.Callback != 0x5C0F30 || task.Payload.IsDefault || task.PayloadLength != 24)
+        if (task.Callback != 0x5C0F30 || task.PayloadLength != 24)
         {
             throw new InvalidDataException("Native Shiva primary requires its original24h task.");
         }

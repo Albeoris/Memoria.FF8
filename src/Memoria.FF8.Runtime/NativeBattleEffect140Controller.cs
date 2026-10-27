@@ -107,7 +107,7 @@ public static partial class NativeBattleEffect140Controller
             pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, slot * stride + 12, CopyBytes(arena, offset, NativeBattleEffectArena.Clear(), 0, stride - 12), stride - 12);
         }
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools.Add(pool);
-        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]) };
+        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
     }
 
     public static uint ModelAddress(int actor) => (uint)actor < 7 ? checked(0x1D972C0u + (uint)(actor * 156)) : throw new InvalidDataException("Effect140 requires a physical model.");

@@ -61,7 +61,7 @@ public static partial class NativeBattleLaserEye71Controller
     private static NativeBattleModulePoolTask CopyPacked(NativeBattleModulePoolTask task, int source, int destination, int length)
     {
         byte[] bytes = task.ReadRawPayloadSpan().Slice(source - 12, length).ToArray();
-        var unknown = task.UnknownPayloadRanges;
+        var unknown = task.ReadUnknownPayloadRanges();
         task = task.WriteBytes(destination, bytes);
         if (unknown is { } ranges)
         {

@@ -77,7 +77,7 @@ public sealed partial class BattleSession
                     int actor = checked((int)((actorPointer - 0x1D972C0) / 156));
                     NativeBattleModulePoolTask target = targets.Slots[targetSlot].WriteDword(12, actorPointer);
                     target = WindStore(target, 16, ReadNativeGraphicsBone(graphics, actor, 0xF1, 0)).WriteWord(22, 0);
-                    NativeBattleGfAnimationWorkspace workspace = new(target.Payload.Slice(12, 2244));
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (12), 2244);
                     workspace = workspace.Initialize7016B0(resources.Layout, 2244);
                     target = StoreWorkspace(target, workspace);
                     targets = targets.WriteSlot(targetSlot, target);
@@ -96,7 +96,7 @@ public sealed partial class BattleSession
             targets = targets!.Advance((pool, slot) =>
             {
                 NativeBattleModulePoolTask task = pool.Slots[slot];
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(12, 2244));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (12), 2244);
                 NativeBattleVector anchor = WindVector(task, 16);
                 NativeBattleGfAnimationAdvance played = workspace.Advance701970(resources.Layout, 0, (current, node) =>
                 {
@@ -167,7 +167,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            return task.WriteRetainedBytes(12 + (12), workspace.Data.AsSpan());
+            return workspace.CopyTo(task, 12 + (12), retainUnknown: true);
         }
 
         void DrawMesh(NativeBattleGfAnimationNode node, NativeBattleVector anchor)

@@ -33,17 +33,19 @@ public sealed class NativeBattleQuezacotlExecutableMemoryTests
     {
         byte[] initial = Enumerable.Repeat((byte)0x5A, NativeBattleQuezacotlExecutableMemory.Length).ToArray();
         NativeBattleQuezacotlExecutableMemory executable = new(initial.ToImmutableArray());
-        NativeBattleGuardianWorkBuffer backup = NativeBattleGuardianWorkBuffer.FromColdProcess().Write(0, executable.Data.AsSpan()).Write(NativeBattleGuardianWorkBuffer.Length - 1, [0xA5]);
+        NativeBattleGuardianWorkBuffer backup = NativeBattleGuardianWorkBuffer.FromColdProcess().Write(0, NativeBattleStorageSnapshots.Capture(executable).Data.AsSpan()).Write(NativeBattleGuardianWorkBuffer.Length - 1, [0xA5]);
         executable = executable.Write(NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.PrimaryLength, [1, 2, 3, 4]);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { QuezacotlExecutableMemory = executable, GuardianWorkBuffer = backup };
         NativeBattleEffectMemory reset = memory.BeginLoad(116);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, reset.QuezacotlExecutableMemory!.Data.AsSpan().Slice(NativeBattleQuezacotlExecutableMemory.PrimaryLength, 4).ToArray());
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(reset))!;
-        Assert.Equal(initial, restored.QuezacotlExecutableMemory!.Restore6C5196(restored.GuardianWorkBuffer!).Data.ToArray());
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, NativeBattleStorageSnapshots.Capture(reset.QuezacotlExecutableMemory!).Data.AsSpan().Slice(NativeBattleQuezacotlExecutableMemory.PrimaryLength, 4).ToArray());
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(reset))!);
+        Assert.Equal(initial, NativeBattleStorageSnapshots.Capture(restored.QuezacotlExecutableMemory!.Restore6C5196(restored.GuardianWorkBuffer!)).Data.ToArray());
         Assert.Equal((byte)0xA5, restored.GuardianWorkBuffer!.Read(NativeBattleGuardianWorkBuffer.Length - 1, 1)[0]);
         Assert.Null(NativeBattleEffectMemory.FromColdProcess().QuezacotlExecutableMemory);
         Assert.Null((memory with { QuezacotlExecutableMemory = null }).BeginLoad(116).QuezacotlExecutableMemory);
         Assert.Throws<InvalidDataException>(() => executable.Write(NativeBattleQuezacotlExecutableMemory.Address - 1, [0]));
         Assert.Throws<InvalidDataException>(() => executable.Write(NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length, [0]));
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

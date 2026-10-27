@@ -141,13 +141,13 @@ public static partial class NativeBattleAquaParticles
     private static ushort? ReadPadding(NativeBattleModulePoolTask task, int matrixOffset)
     {
         int offset = matrixOffset + 18;
-        return task.UnknownPayloadRanges?.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset) == true ? null : task.ReadWord(offset);
+        return task.ReadUnknownPayloadRanges()?.Any(range => range.Offset < offset + 2 && range.Offset + range.Length > offset) == true ? null : task.ReadWord(offset);
     }
 
     private static NativeBattleModulePoolTask CopyPayload(NativeBattleModulePoolTask source, int sourceOffset, NativeBattleModulePoolTask destination, int destinationOffset, int length)
     {
         destination = destination.WriteBytes(destinationOffset, source.ReadRawPayloadSpan().Slice(sourceOffset - 12, length));
-        if (source.UnknownPayloadRanges is { } unknown)
+        if (source.ReadUnknownPayloadRanges() is { } unknown)
         {
             foreach (NativeBattleEffectUnknownRegion range in unknown)
             {

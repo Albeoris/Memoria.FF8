@@ -121,7 +121,7 @@ public static class NativeBattleSiren95Actors
             case 0:
                 NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(0x94 - 12).ToArray().ToImmutableArray());
                 workspace = workspace.Initialize7016B0(source, unchecked((int)task.ReadDword(0x78)));
-                task = task.WriteRetainedBytes(12 + (0x94 - 12), workspace.Data.AsSpan());
+                task = workspace.CopyTo(task, 12 + (0x94 - 12), retainUnknown: true);
                 task = task.WriteDword(0x1C, State(frame).ReadDword(director + 8)).WriteDword(0x20, State(frame).ReadDword(director + 0xC));
                 task = task.WriteWord(0x20, unchecked((ushort)(task.ReadWord(0x20) + zOffset))).WriteWord(0x1E, 0).WriteDword(0x50, 4096).WriteDword(0x54, 4096).WriteDword(0x58, 4096);
                 frame = draw(Write(frame, address, task), address);

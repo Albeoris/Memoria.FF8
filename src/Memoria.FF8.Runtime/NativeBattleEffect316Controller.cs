@@ -83,7 +83,7 @@ public static partial class NativeBattleEffect316Controller
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, bank, MainStride, 1);
         main = NativeBattleEffectTaskMemory.WriteBankSpan(main, 12, CopyBytes(arena, 12, NativeBattleEffectArena.Clear(), 0, MainStride - 12), MainStride - 12);
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools.Add(main);
-        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, pools) };
+        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, pools) };
     }
 
     private static NativeBattleEffect316Frame DetachBanks(NativeBattleEffect316Frame frame)

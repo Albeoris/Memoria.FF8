@@ -94,7 +94,7 @@ public static class NativeBattleDuelEchoDrawing
             NativeBattleFileStaging staging = readStaging(frame);
             int end = checked(offset + length);
             int cursor = offset;
-            if (current.UnknownPayloadRanges is { } ranges)
+            if (current.ReadUnknownPayloadRanges() is { } ranges)
             {
                 foreach (NativeBattleEffectUnknownRegion range in ranges)
                 {

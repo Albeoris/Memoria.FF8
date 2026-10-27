@@ -40,9 +40,11 @@ public partial record NativeBattleEffectArena
     public NativeBattleResourcePointer? ReadResourcePointer(int offset)
         => TryGetResourcePointer(offset, out NativeBattleResourcePointer? pointer) ? pointer : new(null, ReadUInt32(offset));
 
-    public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers()
+    public IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers() => EnumerateResourcePointers(false);
+
+    internal IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> EnumerateResourcePointers(bool committed)
     {
-        if (TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
+        if (!committed && TryEffectiveRoute(0, bound, out NativeBattleEffectArenaTransaction? transaction, out int routedOffset))
         {
             foreach ((int offset, NativeBattleResourcePointer? pointer) in transaction!.EnumerateResourcePointers())
             {
@@ -89,25 +91,7 @@ public partial record NativeBattleEffectArena
         }
         else
         {
-            PrepareCoverage(1);
-            long previousVersion = Working.Version;
-            try
-            {
-                Working.SetResourcePointer(workingOffset + offset, pointer);
-            }
-            finally
-            {
-                if (Working.Version != previousVersion)
-                {
-                    RecordCoverage(offset, 4);
-                    bool numeric = (pointer?.StagingAddress ?? pointer?.Cpu?.PhysicalAddress) is not null;
-                    if (numeric)
-                    {
-                        RecordDataCoverage(offset, 4);
-                    }
-                    RecordKnowledge(offset, 4, numeric);
-                }
-            }
+            Working.SetResourcePointer(workingOffset + offset, pointer);
         }
         return this;
     }

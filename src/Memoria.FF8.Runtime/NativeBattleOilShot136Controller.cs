@@ -74,7 +74,7 @@ public static partial class NativeBattleOilShot136Controller
             NativeBattleEffectTaskPool emitter = NativeBattleEffectTaskPool.Initialize(EmitterDescriptor, working + EmitterOffset, EmitterStride, EmitterCount);
             NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount);
             NativeBattleEffectTaskPool large = NativeBattleEffectTaskPool.Initialize(LargeParticleDescriptor, working + LargeParticleOffset, LargeParticleStride, LargeParticleCount);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, moving, emitter, simple, large] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, moving, emitter, simple, large]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, moving, emitter, simple, large] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, moving, emitter, simple, large]) };
             (frame, uint child) = Append(frame, 1, MainCallback);
             if (child == 0)
             {

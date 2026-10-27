@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect227LowerTests
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(12, (ushort)age).WriteWord(14, 20).WriteWord(16, 30).WriteWord(18, 7).WriteWord(20, unchecked((ushort)-3));
         pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
         frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
-        frame = frame with { Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, frame.Effect.Pools) };
+        frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
         byte[] mesh = new byte[40];
         BinaryPrimitives.WriteUInt32LittleEndian(mesh, 8);
         NativeBattleEffect227Resources resources = Resources() with { Meshes = ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty.Add(0x112DAA8, new(0, 0x112DAA8, mesh.ToImmutableArray())) };

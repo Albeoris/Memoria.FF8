@@ -91,7 +91,7 @@ public static partial class NativeBattleEffect289Controller
                 NativeBattleModulePoolTask task = CopyTask(Read(frame, programme), 0xC, anchor, 8);
                 frame = Write(frame, programme, task);
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[ChildProgrammeWorkspaceLength].ToImmutableArray()).Initialize7016B0(resources.ChildProgramme, ChildProgrammeWorkspaceLength);
-                frame = WriteBytes(frame, programme + ChildProgrammeWorkspaceOffset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), ChildProgrammeWorkspaceLength);
+                frame = WriteBytes(frame, programme + ChildProgrammeWorkspaceOffset, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), ChildProgrammeWorkspaceLength);
             }
             frame = LoadMatrix(frame, basis ?? throw new InvalidDataException("Effect289 lost its current target particle basis."), true, false);
             (frame, uint particle) = Append(frame, ParticleDescriptor, 0x6783F0);

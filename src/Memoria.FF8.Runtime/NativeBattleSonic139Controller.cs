@@ -72,7 +72,7 @@ public static partial class NativeBattleSonic139Controller
             uint working = frame.State.ReadDword(WorkingGlobal);
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, working + MainOffset, 0x4DC, 1);
             NativeBattleEffectTaskPool lower = NativeBattleEffectTaskPool.Initialize(LowerDescriptor, working, 0x298, 4);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, lower] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, lower]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, lower] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, lower]) };
             (frame, uint mainAddress) = Append(frame, 1, MainCallback);
             if (mainAddress == 0)
             {
@@ -80,7 +80,7 @@ public static partial class NativeBattleSonic139Controller
             }
             NativeBattleModulePoolTask task = Read(frame, mainAddress).WriteBytes(12, new byte[0x4D0]);
             NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x30, 0x4AC).ToImmutableArray()).Initialize7016B0(resources.MainAct, 0x4AC);
-            task = task.WriteBytes(0x30, workspace.Data.AsSpan());
+            task = workspace.CopyTo(task, 0x30, retainUnknown: false);
             int header = Parameters(frame).HeaderIndex7C;
             int count = inputs.Packets.Headers[header].ReadByte(16);
             if (count is < 1 or > 3)

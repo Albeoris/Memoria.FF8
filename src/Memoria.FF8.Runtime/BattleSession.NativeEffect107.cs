@@ -72,7 +72,7 @@ public sealed partial class BattleSession
                     NativeBattleVector first = ReadNativeGraphicsBone(graphics, model, 241, 0);
                     NativeBattleVector second = ReadNativeGraphicsBone(graphics, model, 240, 0);
                     target = target.WriteWord(24, unchecked((ushort)((first.X + second.X) >> 1))).WriteWord(26, unchecked((ushort)((first.Y + second.Y) >> 1))).WriteWord(28, unchecked((ushort)((first.Z + second.Z) >> 1)));
-                    NativeBattleGfAnimationWorkspace workspace = new(target.ReadRawPayloadSpan().Slice(20, 632).ToArray().ToImmutableArray());
+                    NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(target, 12 + (20), 632);
                     workspace = workspace.Initialize7016B0(resources.Hierarchy, 632);
                     target = StoreWorkspace(target, workspace);
                     pools[1] = pools[1].WriteSlot(slot, target);
@@ -192,7 +192,7 @@ public sealed partial class BattleSession
             }
             if (frame >= 10)
             {
-                NativeBattleGfAnimationWorkspace workspace = new(task.ReadRawPayloadSpan().Slice(20, 632).ToArray().ToImmutableArray());
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (20), 632);
                 NativeBattleGfAnimationAdvance step = workspace.Advance701970(resources.Hierarchy, 0, (current, node) => AdvanceHierarchy(current, node, anchor, Effect107Arena + (uint)(targetIndex * 664 + 32)));
                 task = StoreWorkspace(task, step.Workspace);
             }
@@ -337,7 +337,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleModulePoolTask StoreWorkspace(NativeBattleModulePoolTask target, NativeBattleGfAnimationWorkspace workspace)
     {
-        return target.WriteRetainedBytes(12 + (20), workspace.Data.AsSpan());
+        return workspace.CopyTo(target, 12 + (20), retainUnknown: true);
     }
     private static short Effect107Word(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
     private static NativeBattleVector Effect107Vector(NativeBattleModulePoolTask task, int offset) => new(Effect107Word(task, offset), Effect107Word(task, offset + 2), Effect107Word(task, offset + 4));

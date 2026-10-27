@@ -78,7 +78,7 @@ public static partial class NativeBattleBreath129Controller
             frame = Write(frame, address, Read(frame, address).WriteByte(15, 1));
             uint working = Working(frame);
             NativeBattleEffectTaskPool[] children = [NativeBattleEffectTaskPool.Initialize(0x2521180, working, 0x18, 9), NativeBattleEffectTaskPool.Initialize(0x2521190, working + 0xD8, 0x1E8, 3), NativeBattleEffectTaskPool.Initialize(0x25211A0, working + 0x690, 0x80, 16), NativeBattleEffectTaskPool.Initialize(0x25211B0, working + 0xE90, 0x20, 64), NativeBattleEffectTaskPool.Initialize(0x25211C0, working + 0x1690, 0x330, 1)];
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], .. children] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, children.ToImmutableArray()) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], .. children] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, children.ToImmutableArray()) };
             frame = WriteBytes(frame, working + 0x19C0, NativeBattleEffectArena.Clear(), 0x1C00);
             for (int index = 0; index < 256; index++)
             {
@@ -97,7 +97,7 @@ public static partial class NativeBattleBreath129Controller
             foreach ((int offset, int size, uint source) in new (int, int, uint)[] { (0x38, 0x108, 0x12239B8), (0x140, 0x68, 0x1226098), (0x1A8, 0x188, 0x122688C) })
             {
                 NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(offset, size).ToImmutableArray()).Initialize7016B0(resources.Act(source), size);
-                task = task.WriteBytes(offset, workspace.Data.AsSpan());
+                task = workspace.CopyTo(task, offset, retainUnknown: false);
             }
             int count = inputs.Packets.Headers[Parameters(frame).HeaderIndex7C].ReadByte(16);
             if (count is < 1 or > 3)

@@ -60,7 +60,7 @@ public sealed partial class BattleSession
                 int contact = header.FirstContactIndex ?? throw new InvalidDataException("Native Stop requires the original selected contact.");
                 int target = nativeActionPackets.ReadContact(contact).Primary.ActorIndex;
                 task = WindStore(task.WriteWord(14, (ushort)action).WriteDword(16, checked(0x1D972C0u + (uint)target * 156)), 20, ReadNativeDefaultPosition571400(graphics, target));
-                NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x4E8));
+                NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x4E8);
                 task = PublishWorkspace(task, 0x1C, workspace.Initialize7016B0(resources.Clock, 0x4E8));
                 targets = pool.WriteSlot(slot, task);
                 root = root.WriteByte(14, unchecked((byte)(action + 1)));
@@ -149,7 +149,7 @@ public sealed partial class BattleSession
 
         void Play(ref NativeBattleModulePoolTask task, NativeBattleActionMatrix context, NativeBattleActionMatrix world, NativeBattleVector anchor)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x1C - 12, 0x4E8));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x1C - 12), 0x4E8);
             int frame = workspace.Frame;
             NativeBattleGfAnimationSource source = resources.Clock;
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>

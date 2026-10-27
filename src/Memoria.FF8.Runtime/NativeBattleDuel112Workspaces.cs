@@ -58,7 +58,7 @@ public static class NativeBattleDuel112Workspaces
             throw new InvalidDataException("Native Duel workspace requires its physical target bank.");
         }
         NativeBattleModulePoolTask task = pool.Slots[slot];
-        task = task.WriteBytes(offset, workspace.Data.AsSpan());
+        task = workspace.CopyTo(task, offset, retainUnknown: false);
         pool = pool.WriteSlot(slot, task);
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }

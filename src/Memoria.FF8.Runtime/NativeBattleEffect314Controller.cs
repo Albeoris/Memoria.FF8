@@ -44,7 +44,7 @@ public static partial class NativeBattleEffect314Controller
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, CommonAddress + MainOffset, MainStride, 1);
         NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, CommonAddress, ParticleStride, ParticleCapacity);
         ImmutableArray<NativeBattleEffectTaskPool> pools = frame.Effect.Pools.Add(main).Add(particles);
-        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, pools) };
+        return frame with { Effect = frame.Effect with { Pools = pools }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, pools) };
     }
 
     private static void RequireBinding(NativeBattleEffect314Frame frame)

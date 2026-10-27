@@ -126,7 +126,7 @@ public static partial class NativeBattleEffect173Controller
             int offset = slot * CommonStride + 12;
             pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, offset, CopyBytes(bank, offset, NativeBattleEffectArena.Clear(), 0, CommonStride - 12), CommonStride - 12);
         }
-        return frame with { State = frame.State.DetachCommonQueue(), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]) };
+        return frame with { State = frame.State.DetachCommonQueue(), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
     }
 
     private static NativeBattleEffect173Frame RestoreCommonBank(NativeBattleEffect173Frame frame)
@@ -138,7 +138,7 @@ public static partial class NativeBattleEffect173Controller
         pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, 0, bytes, CommonStride * CommonCount);
         pool = pool.UpdateLinks(Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(0, 4))), Slot(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(queue.Read(4, 4))));
         pool.Validate();
-        return frame with { State = frame.State.DetachCommonQueue(), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [pool]) };
+        return frame with { State = frame.State.DetachCommonQueue(), Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
 
         int? Slot(uint pointer)
         {

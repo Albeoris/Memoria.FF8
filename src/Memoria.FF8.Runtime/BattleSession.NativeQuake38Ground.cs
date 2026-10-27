@@ -65,7 +65,7 @@ public sealed partial class BattleSession
                     int offset = checked(EntryOffset + primitive * 112);
                     if (state.Word(0x279299E) == 0)
                     {
-                        Memory = Memory with { Arena = NativeBattleQuake38GroundEntries.Build(Memory.Arena!, offset, primitive, vertexBase, polygon, scratch) };
+                        NativeBattleQuake38GroundEntries.Build(Memory.Arena!, offset, primitive, vertexBase, polygon, scratch);
                     }
                     int[] perimeter = polygon.Quad ? [0, 1, 3, 2] : [0, 1, 2];
                     int centroid = polygon.Quad ? 4 : 3;
@@ -75,11 +75,11 @@ public sealed partial class BattleSession
                         int second = perimeter[(edge + 1) % perimeter.Length];
                         if (state.Word(0x279299E) == 0)
                         {
-                            Memory = Memory with { Arena = NativeBattleQuake38GroundZones.Assign8D9950(Memory.Arena!, offset, ZoneOffset, edge, first, second, centroid, resources, state.Word(0x278C8E8), state.Word(0x278C8E6), state.Word(0x2792D6E)) };
+                            NativeBattleQuake38GroundZones.Assign8D9950(Memory.Arena!, offset, ZoneOffset, edge, first, second, centroid, resources, state.Word(0x278C8E8), state.Word(0x278C8E6), state.Word(0x2792D6E));
                         }
                         else if (state.Word(0x279299E) == 1)
                         {
-                            Memory = Memory with { Arena = NativeBattleQuake38Adjacency.Classify8D95E0(Memory.Arena!, EntryOffset, ZoneOffset, state.Word(0x278C8EC), state.Word(0x278C8E4), primitive, edge, first, second, centroid) };
+                            NativeBattleQuake38Adjacency.Classify8D95E0(Memory.Arena!, EntryOffset, ZoneOffset, state.Word(0x278C8EC), state.Word(0x278C8E4), primitive, edge, first, second, centroid);
                         }
                         DrawEdge(offset, edge, first, second, centroid);
                     }

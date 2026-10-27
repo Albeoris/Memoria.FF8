@@ -111,7 +111,7 @@ internal static class NativeBattleEffect308TestFrame
         }
         NativeBattleOriginalEffectState effect = new(308, 307, new(308, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, pools);
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools);
         return new(memory, effect, new(42), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
 

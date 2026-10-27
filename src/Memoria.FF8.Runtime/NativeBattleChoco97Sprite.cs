@@ -118,7 +118,7 @@ public static class NativeBattleChoco97Sprite
 
     private static void Require(NativeBattleModulePoolTask task, NativeBattleChoco97SpriteResources resources, uint sourceAddress, int taskBytes)
     {
-        if (task.Payload.IsDefault || task.PayloadLength != taskBytes - 12 || resources.Address != sourceAddress || resources.Bytes.IsDefault || resources.Bytes.Length != 0x368)
+        if (task.PayloadLength != taskBytes - 12 || resources.Address != sourceAddress || resources.Bytes.IsDefault || resources.Bytes.Length != 0x368)
         {
             throw new InvalidDataException("Native Choco sprite requires its complete physical task and original projected resource.");
         }

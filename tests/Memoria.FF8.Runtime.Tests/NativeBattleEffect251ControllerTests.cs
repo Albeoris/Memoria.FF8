@@ -76,7 +76,7 @@ public sealed class NativeBattleEffect251ControllerTests
         state = state.DetachCommonQueue(MainDescriptor);
         NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [main] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-        return new(NativeBattleEffectTaskMemory.RevokeArenaOwnership(memory, [main]), effect, new(42), state);
+        return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [main]), effect, new(42), state);
     }
 
     private static NativeBattleEffect251Inputs Inputs(List<NativeBattleEffect251Operation> operations, bool busy, int viewY = 0)

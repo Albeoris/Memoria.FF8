@@ -64,7 +64,7 @@ public static partial class NativeBattleSaliva138Controller
             NativeBattleEffectTaskPool curves = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, working + CurveOffset, CurveStride, CurveCount);
             NativeBattleEffectTaskPool moving = NativeBattleEffectTaskPool.Initialize(MovingSpriteDescriptor, working + MovingSpriteOffset, MovingSpriteStride, MovingSpriteCount);
             NativeBattleEffectTaskPool simple = NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, working, SimpleSpriteStride, SimpleSpriteCount);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, curves, moving, simple] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, curves, moving, simple]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, curves, moving, simple] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, curves, moving, simple]) };
             (frame, uint child) = Append(frame, 1, MainCallback);
             if (child == 0)
             {

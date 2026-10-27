@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Memoria.FF8.Runtime;
 
@@ -19,10 +20,18 @@ internal sealed class NativeBattleTaskBody(NativeBattleTaskBankOwner owner)
         }
     }
 
-    private bool TryRoute(int offset, int length, out NativeBattleEffectArenaTransaction? transaction, out int relative)
+    private bool TryRoute(int offset, int length, [NotNullWhen(true)] out NativeBattleEffectArenaTransaction? transaction, out int relative)
     {
         RequireRange(offset, length);
-        return NativeBattleEffectArenaTransaction.TryRoute(Kernel, offset, length, out transaction, out relative);
+        if (NativeBattleEffectArenaTransaction.TryRoute(Kernel, offset, length, out transaction, out relative))
+        {
+            if (transaction is null)
+            {
+                throw new InvalidOperationException("Native task route has no operative arena transaction.");
+            }
+            return true;
+        }
+        return false;
     }
 
     public byte ReadByte(int offset)

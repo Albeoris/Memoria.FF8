@@ -174,7 +174,7 @@ public static partial class NativeBattleEffect322Controller
 
     public static NativeBattleEffect322Frame BirthBurst(NativeBattleEffect322Frame frame, uint main)
     {
-        NativeBattleEffectArena point = TaskView(Read(frame, main), 0x64, 8).Write(6, BitConverter.GetBytes((short)0));
+        NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(TaskView(Read(frame, main), 0x64, 8), 0, NativeBattleEffectArena.CreateUnknown(8), 0, 8).Write(6, BitConverter.GetBytes((short)0));
         NativeBattleVector current = Vector(point);
         NativeBattleVector previous = Vector(TaskView(Read(frame, main), 0x6C, 8));
         NativeBattleActionMatrix basis = NativeBattleFunguarLaser277.Basis50CBA0(previous.X - current.X, 0, current.Z - previous.Z).Matrix;

@@ -70,7 +70,7 @@ public static partial class NativeBattleEffect183Controller
     private static NativeBattleModulePoolTask CopyTaskPoint(NativeBattleModulePoolTask task, NativeBattleModulePoolTask source)
     {
         task = task.WriteBytes(16, source.ReadRawPayloadSpan().Slice(4, 8));
-        if (source.UnknownPayloadRanges is { } ranges)
+        if (source.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

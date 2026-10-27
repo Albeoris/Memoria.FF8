@@ -9,28 +9,28 @@ public static class NativeBattleEffect140Programme
 {
     public static NativeBattleEffect140Frame Initialize(NativeBattleEffect140Frame frame, uint workspace, uint source, int clearBytes, NativeBattleEffect140Resources resources)
     {
-        NativeBattleEffectArena retained = ReadBytes(frame, workspace, clearBytes);
-        NativeBattleGfAnimationWorkspace initialized = new NativeBattleGfAnimationWorkspace(retained.ReadSnapshot(0, clearBytes).Data.ToImmutableArray()).Initialize7016B0(resources.Act(source), clearBytes);
-        return WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, initialized.Data.AsSpan()), clearBytes);
+        NativeBattleGfAnimationWorkspace initialized = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, clearBytes).Initialize7016B0(resources.Act(source), clearBytes);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, initialized);
+        return frame;
     }
 
     public static NativeBattleEffect140Step Advance(NativeBattleEffect140Frame frame, uint workspace, int workspaceLength, NativeBattleEffectArena caller40, NativeBattleEffect140Resources resources, NativeBattleEffect140Inputs inputs)
     {
-        uint sourceAddress = U(ReadBytes(frame, workspace, 4), 0);
+        uint sourceAddress = NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, 4).ResourceAddress;
         int required = resources.WorkspaceLength(sourceAddress);
         if (required > workspaceLength)
         {
             throw new InvalidDataException("Effect140 programme cache leaves its actual physical workspace.");
         }
-        NativeBattleGfAnimationWorkspace Current() => new(ReadBytes(frame, workspace, required).Read(0, required).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace Current() => NativeBattleEffectTaskMemory.BorrowAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, required);
         NativeBattleGfAnimationSource source = resources.Act(sourceAddress);
         NativeBattleGfAnimationAdvance advanced = Current().Advance701970(source, unchecked((int)frame.State.ReadDword(Pause)), (current, node) =>
         {
-            frame = WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, current.Data.AsSpan()), required);
+            NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, current);
             frame = DrawNode(frame, source, node, caller40, resources, inputs);
             return Current();
         });
-        frame = WriteBytes(frame, workspace, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), required);
+        NativeBattleEffectTaskMemory.PublishAnimationWorkspace(frame.Memory, frame.Effect.Pools, workspace, advanced.Workspace);
         return new(frame, advanced.Remaining);
     }
 

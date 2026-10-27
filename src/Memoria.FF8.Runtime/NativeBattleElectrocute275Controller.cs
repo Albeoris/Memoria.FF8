@@ -69,7 +69,7 @@ public static partial class NativeBattleElectrocute275Controller
             NativeBattleEffectTaskPool bones = NativeBattleEffectTaskPool.Initialize(BoneTrailDescriptor, working + 0x9A0, 40, 64);
             NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, working + 0x6A0, 24, 32);
             NativeBattleEffectTaskPool acts = NativeBattleEffectTaskPool.Initialize(ActDescriptor, working, 212, 8);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, worlds, bones, sprites, acts] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [main, worlds, bones, sprites, acts]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, worlds, bones, sprites, acts] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [main, worlds, bones, sprites, acts]) };
             frame = WriteArena(WriteArena(frame, working + BonePointsOffset, new byte[0x5000]), working + WorldPointsOffset, new byte[0x5000]);
             for (int index = 0; index < PointCount; index++)
             {

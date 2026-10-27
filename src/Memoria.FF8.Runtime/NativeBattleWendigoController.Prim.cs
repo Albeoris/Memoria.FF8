@@ -27,12 +27,12 @@ public static partial class NativeBattleWendigoController
         }
         private static NativeBattleModulePoolTask PrimWorkspace(NativeBattleModulePoolTask task, NativeBattleGfAnimationWorkspace workspace)
         {
-            return task.WriteRetainedBytes(0x94, workspace.Data.AsSpan());
+            return workspace.CopyTo(task, 0x94, retainUnknown: true);
         }
         private void InitializePrim(uint address)
         {
             NativeBattleModulePoolTask task = Read(address);
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(0x94 - 12, 0x84));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (0x94 - 12), 0x84);
             workspace = workspace.Initialize7016B0(PrimSource(task), checked((int)task.ReadDword(0x78)));
             Store(address, PrimWorkspace(task, workspace));
         }
@@ -97,7 +97,7 @@ public static partial class NativeBattleWendigoController
             NativeBattleActionMatrix view = inputs.Projection.View ?? throw new NotSupportedException("Native Shoot requires its camera matrix.");
             NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(view, world);
             NativeBattleGfAnimationSource source = PrimSource(Read(address));
-            NativeBattleGfAnimationWorkspace workspace = new(Read(address).Payload.Slice(0x94 - 12, 0x84));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(Read(address), 12 + (0x94 - 12), 0x84);
             NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (currentWorkspace, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)

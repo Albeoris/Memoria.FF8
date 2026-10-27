@@ -68,7 +68,7 @@ public sealed class NativeBattleDuel216ControllerTests
         }
         NativeBattleEffectTaskPool root = frame.Effect.Pools[0];
         root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteByte(14, 1)) };
-        frame = frame with { Effect = frame.Effect with { Pools = new[] { root }.Concat(banks).ToImmutableArray() }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, banks.ToImmutableArray()) };
+        frame = frame with { Effect = frame.Effect with { Pools = new[] { root }.Concat(banks).ToImmutableArray() }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, banks.ToImmutableArray()) };
         frame = frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 11408) };
         foreach ((short file, short type) in new (short, short)[] { (360, 1), (361, 1), (362, 0) })
         {

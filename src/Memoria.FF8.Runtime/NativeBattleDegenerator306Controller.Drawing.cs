@@ -181,7 +181,7 @@ public static partial class NativeBattleDegenerator306Controller
     private static NativeBattleEffectArena TaskView(NativeBattleModulePoolTask task, int offset, int length)
     {
         NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, task.ReadRawPayloadSpan().Slice(offset - 12, length));
-        if (task.UnknownPayloadRanges is { } ranges)
+        if (task.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

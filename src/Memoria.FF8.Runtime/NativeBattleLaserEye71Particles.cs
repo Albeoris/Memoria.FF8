@@ -55,7 +55,7 @@ public static class NativeBattleLaserEye71Particles
             return frame;
         }
         NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(frame.Staging ?? throw new NotSupportedException("Laser Eye particle requires its retained temporary memory."), 180);
-        short? w = task.UnknownPayloadRanges?.Any(region => region.Offset < 0x24 && region.Offset + region.Length > 0x22) == true ? null : unchecked((short)task.ReadWord(0x22));
+        short? w = task.ReadUnknownPayloadRanges()?.Any(region => region.Offset < 0x24 && region.Offset + region.Length > 0x22) == true ? null : unchecked((short)task.ReadWord(0x22));
         NativeBattleVector position = new(unchecked((short)task.ReadWord(0x1C)), unchecked((short)task.ReadWord(0x1E)), unchecked((short)task.ReadWord(0x20)));
         NativeBattleEffectMemory memory = NativeBattleModuleSpriteSetup.Setup571BC0(frame.Memory, inputs.Camera, position, w, 4096, unchecked((short)task.ReadWord(0x54)));
         uint source = task.ReadDword(0x4C);

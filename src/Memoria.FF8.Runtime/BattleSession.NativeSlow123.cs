@@ -136,7 +136,7 @@ public sealed partial class BattleSession
 
         int Play(ref NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source, NativeBattleActionMatrix context, int scale)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(offset - 12, size));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             NativeBattleGfAnimationAdvance advance = workspace.Advance701970(source, 0, (current, node) =>
             {
                 if (node.Vector24 is { X: 0, Y: 0, Z: 0 } || node.Scalar36 >= 4096 && node.Color32 == 0)
@@ -179,7 +179,7 @@ public sealed partial class BattleSession
 
         NativeBattleModulePoolTask Init(NativeBattleModulePoolTask task, int offset, int size, NativeBattleGfAnimationSource source)
         {
-            NativeBattleGfAnimationWorkspace workspace = new(task.Payload.Slice(offset - 12, size));
+            NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(task, 12 + (offset - 12), size);
             return PublishWorkspace(task, offset, workspace.Initialize7016B0(source, size));
         }
     }

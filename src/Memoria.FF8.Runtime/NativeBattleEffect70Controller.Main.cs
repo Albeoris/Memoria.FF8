@@ -153,7 +153,7 @@ public static partial class NativeBattleEffect70Controller
         (byte[] bytes, bool[] known) = ReadBytes(frame, address, length).ReadSnapshot(0, length);
         NativeBattleGfAnimationWorkspace workspace = new(bytes.ToImmutableArray());
         workspace = workspace.Initialize7016B0(source, clear);
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan());
+        NativeBattleEffectArena result = workspace.CopyTo(NativeBattleEffectArena.Clear(), 0);
         for (int index = clear; index < length; index++)
         {
             if (!known[index])

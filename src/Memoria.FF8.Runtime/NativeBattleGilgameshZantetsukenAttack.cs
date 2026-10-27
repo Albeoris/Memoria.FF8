@@ -142,7 +142,7 @@ internal static class NativeBattleZantetsukenTasks
     internal static NativeBattleModulePoolTask CopyAnchor(NativeBattleModulePoolTask destination, NativeBattleModulePoolTask source)
     {
         NativeBattleModulePoolTask result = destination.WriteBytes(0x10, source.ReadRawPayloadSpan().Slice(4, 8));
-        if (source.UnknownPayloadRanges is { } ranges)
+        if (source.ReadUnknownPayloadRanges() is { } ranges)
         {
             foreach (NativeBattleEffectUnknownRegion range in ranges)
             {

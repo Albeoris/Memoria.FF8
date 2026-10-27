@@ -60,7 +60,7 @@ public static partial class NativeBattleMicroMissiles299Controller
             NativeBattleEffectTaskPool missiles = NativeBattleEffectTaskPool.Initialize(MissileDescriptor, working + 0x1518, 0x80C, 6);
             NativeBattleEffectTaskPool impacts = NativeBattleEffectTaskPool.Initialize(ImpactDescriptor, working + 0xD80, 0x144, 6);
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, working, 0x24, 96);
-            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], missiles, impacts, particles] }, Memory = NativeBattleEffectTaskMemory.RevokeArenaOwnership(frame.Memory, [missiles, impacts, particles]) };
+            frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], missiles, impacts, particles] }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [missiles, impacts, particles]) };
             byte caster = (byte)Actor(frame.State.ReadDword(CasterGlobal));
             frame = inputs.Execute(frame, new NativeBattleMicroMissiles299BindCaster(caster, working + BindingOffset, 0x1047120));
             frame = inputs.Execute(frame, new NativeBattleMicroMissiles299RingSequence(caster, 2));
@@ -158,7 +158,7 @@ public static partial class NativeBattleMicroMissiles299Controller
         NativeBattleActionMatrix rotated = NativeBattleGfMatrices.Multiply56C090(basis, roll);
         task = Read(frame, address).WriteWord(0x20, unchecked((ushort)length)).WriteWord(0x22, variant).WriteWord(0x1E, 0);
         task = WriteRotation(task, 0xC, rotated);
-        task = task.WriteBytes(0x34, new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x34, 0x7D8).ToImmutableArray()).Initialize7016B0(resources.Missile, 0x7D8).Data.AsSpan());
+        task = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x34, 0x7D8).ToImmutableArray()).Initialize7016B0(resources.Missile, 0x7D8).CopyTo(task, 0x34, retainUnknown: false);
         return Write(frame, address, task);
     }
 

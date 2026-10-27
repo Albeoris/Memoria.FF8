@@ -65,8 +65,8 @@ public sealed partial class BattleSession
                             throw new InvalidDataException("Native Quake chip completion leaves its original arena counter byte.");
                         }
                         int offset = checked((int)(address - 0x20DFAB8));
-                        byte value = Memory.Arena!.Read(offset, 1)[0];
-                        Memory = Memory with { Arena = Memory.Arena.Write(offset, [unchecked((byte)(value - 1))]) };
+                        byte value = Memory.Arena!.ReadByte(offset);
+                        Memory.Arena.WriteByte(offset, unchecked((byte)(value - 1)));
                     }
                     task = Next(task);
                 }

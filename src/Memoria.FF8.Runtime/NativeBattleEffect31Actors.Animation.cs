@@ -101,9 +101,9 @@ public static partial class NativeBattleEffect31Actors
         NativeBattleModulePoolTask task = Read(frame, address);
         int length = checked((int)task.ReadDword(0x78));
         NativeBattleGfAnimationSource source = resources.Programme(task.ReadDword(0x74));
-        NativeBattleGfAnimationWorkspace workspace = new(ReadBytes(frame, address + 0x94, length).Read(0, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(ReadBytes(frame, address + 0x94, length), 0, length);
         workspace = workspace.Initialize7016B0(source, length);
-        return WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), length);
+        return WriteBytes(frame, address + 0x94, workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), length);
     }
 
     private static (NativeBattleEffect31Frame Frame, int Remaining) AdvanceProgramme(NativeBattleEffect31Frame frame, uint address, NativeBattlePackedMatrix32 world, NativeBattleEffect31Resources resources, NativeBattleEffect31Inputs inputs)
@@ -111,7 +111,7 @@ public static partial class NativeBattleEffect31Actors
         NativeBattleModulePoolTask task = Read(frame, address);
         int length = checked((int)task.ReadDword(0x78));
         NativeBattleGfAnimationSource source = resources.Programme(task.ReadDword(0x74));
-        NativeBattleGfAnimationWorkspace workspace = new(ReadBytes(frame, address + 0x94, length).Read(0, length).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(ReadBytes(frame, address + 0x94, length), 0, length);
         NativeBattleActionMatrix camera = NativeBattleGfMatrices.Compose56C2F0(inputs.ReadView(frame).ReadMatrix(), world.ReadMatrix());
         NativeBattlePackedMatrix32 context = NativeBattlePackedMatrix32.FromMatrix(camera, Padding(world));
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, node) =>
@@ -120,7 +120,7 @@ public static partial class NativeBattleEffect31Actors
             frame = DrawNode(frame, source, node, context, resources, inputs);
             return new(ReadBytes(frame, address + 0x94, length).Read(0, length).ToImmutableArray());
         });
-        frame = WriteBytes(frame, address + 0x94, NativeBattleEffectArena.Clear().Write(0, advanced.Workspace.Data.AsSpan()), length);
+        frame = WriteBytes(frame, address + 0x94, advanced.Workspace.CopyTo(NativeBattleEffectArena.Clear(), 0), length);
         return (frame, advanced.Remaining);
     }
 
