@@ -9,11 +9,8 @@ public static class NativePocketStationInitialization
     public static NativePocketStationState Read(byte[] initial)
     {
         string hash = Convert.ToHexString(SHA256.HashData(initial));
-        if (initial.Length != 2812 || hash != NativeInputConfiguration.OriginalInitHash)
-        {
-            throw new InvalidDataException("PocketStation initialization requires the authentic original New Game template.");
-        }
-        //56D9F0/47E410 clear1CFDC58..1CFEFF8;56DA10 copies init.out only through1CFE7A4.
+        NativeInitialData.Validate(initial);
+        //56D9F0/47E410 clear1CFDC58..1CFEFF8;56DA10 copies the supported initialization prefix no later than1CFE928.
         return new(hash, ImmutableArray.CreateRange(new byte[64])) { ChocoboName = ImmutableArray.CreateRange(new byte[12]) };
     }
 }

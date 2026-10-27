@@ -9,7 +9,8 @@ public static class NativeShotAvailabilityInitialization
 {
     public static NativeShotAvailabilityState Read(byte[] initial, byte[] kernel)
     {
-        if (initial.Length != 2812 || kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
+        NativeInitialData.Validate(initial);
+        if (kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
         {
             throw new InvalidDataException("Native shot availability requires the complete original New Game and kernel structures.");
         }

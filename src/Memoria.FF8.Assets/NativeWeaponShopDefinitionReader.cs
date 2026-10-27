@@ -10,10 +10,7 @@ public static class NativeWeaponShopDefinitionReader
 {
     public static NativeWeaponRecipes ReadNewGameRecipes(byte[] initial)
     {
-        if (initial.Length != 2812)
-        {
-            throw new InvalidDataException("Native known-weapon recipes require the complete original New Game template.");
-        }
+        NativeInitialData.Validate(initial);
         NativeWeaponRecipes result = new(Convert.ToHexString(SHA256.HashData(initial)), BinaryPrimitives.ReadUInt32LittleEndian(initial.AsSpan(2728)));
         result.Validate();
         return result;

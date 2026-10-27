@@ -1,3 +1,4 @@
+using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Collections;
 using System.Globalization;
@@ -66,10 +67,7 @@ public static partial class LocalizationSourceExporter
         private void GuardianDefaults()
         {
             byte[] initial = Required("main/init.out");
-            if (initial.Length != 2812)
-            {
-                throw new InvalidDataException("Default guardian names require the complete original initialization template.");
-            }
+            NativeInitialData.Validate(initial);
             for (int ordinal = 0; ordinal < 16; ordinal++)
             {
                 ReadOnlySpan<byte> name = initial.AsSpan(ordinal * 68, 12);

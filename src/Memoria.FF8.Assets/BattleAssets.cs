@@ -44,10 +44,7 @@ public sealed partial class BattleAssets : IDisposable
             byte[] kernel = resources.Read(new ResourceKey("main/kernel.bin"));
             WeaponDefinitions = BattleKernelReader.Weapons(kernel);
             byte[] initialContent = resources.Read(new ResourceKey("main/init.out"));
-            if (initialContent.Length != 2812)
-            {
-                throw new NotSupportedException("Battle GF labels require the authentic New Game name template.");
-            }
+            NativeInitialData.Validate(initialContent);
             string GuardianName(int id)
             {
                 ReadOnlySpan<byte> name = initialContent.AsSpan(id * 68, 12);

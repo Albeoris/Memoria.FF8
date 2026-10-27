@@ -18,9 +18,9 @@ public sealed record NativeInputConfiguration([property: JsonRequired] string In
 
     public void Validate()
     {
-        if (InitOutSha256 != OriginalInitHash || (Options & 0x00FFFFFF) != 0x00020001 || ButtonMap.IsDefault || ButtonMap.Length != 12 || !ButtonMap.SequenceEqual(Enumerable.Range(1, 12).Select(value => (byte)value)))
+        if (!NativeInitialData.IsFingerprint(InitOutSha256) || (Options & 0x00FFFFFF) != 0x00020001 || ButtonMap.IsDefault || ButtonMap.Length != 12 || !ButtonMap.SequenceEqual(Enumerable.Range(1, 12).Select(value => (byte)value)))
         {
-            throw new InvalidDataException("Native input options require the authentic56DA10 template producer; a changed options-menu mapping has no implemented producer; the high BYTE is owned by native command sealing.");
+            throw new InvalidDataException("Native input options require the supported56DA10 template producer; a changed options-menu mapping has no implemented producer; the high BYTE is owned by native command sealing.");
         }
     }
 

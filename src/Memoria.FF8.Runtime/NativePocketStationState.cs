@@ -15,7 +15,7 @@ public sealed record NativePocketStationState([property: JsonRequired] string In
 
     public void Validate()
     {
-        if (InitOutSha256 != NativeInputConfiguration.OriginalInitHash || Raw.IsDefault || Raw.Length != 64)
+        if (!NativeInitialData.IsFingerprint(InitOutSha256) || Raw.IsDefault || Raw.Length != 64)
         {
             throw new InvalidDataException("Native PocketStation state requires its original cleared64-byte saved block.");
         }

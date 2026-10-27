@@ -10,10 +10,7 @@ public static class NativeShopDefinitionReader
 {
     public static NativeShopHistory ReadNewGameHistory(byte[] initial)
     {
-        if (initial.Length != 2812)
-        {
-            throw new InvalidDataException("Native shop history requires the complete original init.out.");
-        }
+        NativeInitialData.Validate(initial);
         NativeShopHistory result = new(Convert.ToHexString(SHA256.HashData(initial)), ImmutableArray.CreateRange(initial.AsSpan(2304, 400).ToArray()));
         result.Validate();
         return result;

@@ -451,10 +451,7 @@ public sealed partial class LiveMenuCatalog
         ArgumentNullException.ThrowIfNull(assets);
         byte[] Read(string name) => assets.ReadResource(new ResourceKey("main/" + name));
         byte[] initial = Read("init.out");
-        if (initial.Length != 2812)
-        {
-            throw new InvalidDataException("Menu default GF names require the complete original New Game template.");
-        }
+        NativeInitialData.Validate(initial);
         System.Text.Encoding encoding = FF8Encoding.CreateEuropean();
         string[] guardianForceNames = Enumerable.Range(0, 16).Select(id =>
         {

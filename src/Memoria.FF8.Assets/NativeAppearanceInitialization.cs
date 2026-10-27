@@ -7,10 +7,7 @@ public static class NativeAppearanceInitialization
 {
     public static NativeCharacterAppearance Read(byte[] initial)
     {
-        if (initial.Length != 2812)
-        {
-            throw new InvalidDataException("Original New Game appearance template structure is unsupported.");
-        }
+        NativeInitialData.Validate(initial);
         NativeCharacterDress[] records = new NativeCharacterDress[8];
         for (int index = 0; index < records.Length; index++)
         {

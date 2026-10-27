@@ -92,7 +92,8 @@ public sealed partial class NativeTutorialCatalog
     public static NativeTutorialCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel)
     {
         ArgumentNullException.ThrowIfNull(memory);
-        if (menuHeader.Length != 256 * 8 || initial.Length != 2812)
+        NativeInitialData.Validate(initial);
+        if (menuHeader.Length != 256 * 8)
         {
             throw new InvalidDataException("Native tutorials require the complete original menu directory and initialization template.");
         }

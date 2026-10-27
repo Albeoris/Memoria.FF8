@@ -9,7 +9,8 @@ public static class NativeCharacterInitialization
 {
     public static NativeCharacterVitals Read(byte[] initial, byte[] kernel)
     {
-        if (initial.Length != 2812 || kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
+        NativeInitialData.Validate(initial);
+        if (kernel.Length < 228 || BinaryPrimitives.ReadUInt32LittleEndian(kernel) != 56)
         {
             throw new InvalidDataException("Original New Game template/kernel structure is unsupported.");
         }
