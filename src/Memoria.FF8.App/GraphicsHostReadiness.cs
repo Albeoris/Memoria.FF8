@@ -49,8 +49,13 @@ internal sealed class GraphicsHostReadiness
         }
         // Creation validates the target actually required by every hardware scene renderer.
         using RenderTarget2D target = new(device, 16, 16, false, color, depth, samples, RenderTargetUsage.PreserveContents);
+        using RenderTarget2D titleTarget = new(device, 16, 16, false, SurfaceFormat.HalfVector4, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
+        if (titleTarget.Format != SurfaceFormat.HalfVector4)
+        {
+            throw new NotSupportedException($"The {Backend} device cannot provide the required HalfVector4 title render target (actual {titleTarget.Format}).");
+        }
         string identity = string.IsNullOrWhiteSpace(device.Adapter.Description) ? device.Adapter.DeviceName : device.Adapter.Description;
-        capabilities = new(identity, device.Adapter.VendorId, device.Adapter.DeviceId, device.GraphicsProfile.ToString(), target.Format.ToString(), target.DepthStencilFormat.ToString(), device.PresentationParameters.MultiSampleCount, target.MultiSampleCount);
+        capabilities = new(identity, device.Adapter.VendorId, device.Adapter.DeviceId, device.GraphicsProfile.ToString(), target.Format.ToString(), target.DepthStencilFormat.ToString(), titleTarget.Format.ToString(), device.PresentationParameters.MultiSampleCount, target.MultiSampleCount);
         Console.WriteLine($"graphics-backend={Backend} device={capabilities.Device} profile={capabilities.Profile} target={capabilities.ColorFormat}/{capabilities.DepthFormat} samples={capabilities.SceneSamples}");
     }
 
@@ -82,7 +87,7 @@ internal sealed class GraphicsHostReadiness
         reported = true;
     }
 
-    private sealed record GraphicsHostCapabilities(string Device, int VendorId, int DeviceId, string Profile, string ColorFormat, string DepthFormat, int BackBufferSamples, int SceneSamples, int BackBufferWidth = 0, int BackBufferHeight = 0, int ViewportWidth = 0, int ViewportHeight = 0, int? ClientWidth = null, int? ClientHeight = null);
+    private sealed record GraphicsHostCapabilities(string Device, int VendorId, int DeviceId, string Profile, string ColorFormat, string DepthFormat, string TitleColorFormat, int BackBufferSamples, int SceneSamples, int BackBufferWidth = 0, int BackBufferHeight = 0, int ViewportWidth = 0, int ViewportHeight = 0, int? ClientWidth = null, int? ClientHeight = null);
 }
 
 internal sealed class GraphicsInitializationException(string message, Exception innerException) : Exception(message, innerException);
