@@ -6,6 +6,23 @@ namespace Memoria.FF8.Mods;
 /// <summary>Declarative resource settings and package relationships selected from a Junction manifest.</summary>
 public sealed record JunctionSettingConstraint(string? MyId, int? MyValue, Guid ModId, string TheirId, int? Require, IReadOnlyList<int> Forbid);
 
+public enum JunctionGameplaySetting
+{
+    DrawBonus,
+    ApMultiplier,
+    ExperienceMultiplier,
+    GuardianExperienceMultiplier,
+    UnlimitedMagic,
+    MaximumDamage,
+    RareItemFirst,
+    RareItemSecond,
+    RareItemThird,
+    RareItemFourth,
+    UnrestrictedScanRotation
+}
+
+public sealed record JunctionGameplayOverride(JunctionGameplaySetting Setting, decimal Value);
+
 public sealed record JunctionManifestMetadata
 {
     public Guid? Id { get; init; }
@@ -19,6 +36,7 @@ public sealed record JunctionManifestMetadata
     public string? PsfBiosPath { get; init; }
     public IReadOnlyDictionary<string, string> PresentationHints { get; init; } = new Dictionary<string, string>();
     public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
+    public IReadOnlyList<JunctionGameplayOverride> GameplayOverrides { get; init; } = Array.Empty<JunctionGameplayOverride>();
     public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
     public IReadOnlyList<JunctionSettingConstraint> SettingConstraints { get; init; } = Array.Empty<JunctionSettingConstraint>();
     public IReadOnlyList<Guid> RequiredMods { get; init; } = Array.Empty<Guid>();

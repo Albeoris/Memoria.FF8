@@ -131,7 +131,7 @@ public static partial class JunctionModImporter
         {
             throw new NotSupportedException("Junction package does not support the current English game language.");
         }
-        Dictionary<string, JunctionBehavior> reviewed = ReadReviewedBehaviors(sourceFiles);
+        Dictionary<string, ReviewedJunctionPayload> reviewed = ReadReviewedBehaviors(sourceFiles);
         List<string> folders = [];
         foreach (XElement folder in root.Elements("ModFolder"))
         {
@@ -148,9 +148,10 @@ public static partial class JunctionModImporter
         }
         Dictionary<string, JunctionReplacement> replacements = new(StringComparer.OrdinalIgnoreCase);
         HashSet<JunctionBehavior> behaviors = [];
-        if (reviewed.ContainsValue(JunctionBehavior.InstantManualSkip))
+        Dictionary<JunctionGameplaySetting, decimal> gameplay = [];
+        foreach (ReviewedJunctionPayload payload in reviewed.Values.Where(payload => payload.Intrinsic))
         {
-            behaviors.Add(JunctionBehavior.InstantManualSkip);
+            behaviors.Add(payload.Behavior!.Value);
         }
         foreach (string folder in folders)
         {
@@ -161,9 +162,24 @@ public static partial class JunctionModImporter
                 {
                     continue;
                 }
-                if (reviewed.TryGetValue(file.SourcePath, out JunctionBehavior behavior))
+                if (reviewed.TryGetValue(file.SourcePath, out ReviewedJunctionPayload? payload))
                 {
-                    behaviors.Add(behavior);
+                    if (payload.Denial is string denial)
+                    {
+                        throw new NotSupportedException($"Reviewed Junction behavior is unavailable: {file.SourcePath}. {denial}");
+                    }
+                    if (payload.Behavior is JunctionBehavior behavior)
+                    {
+                        behaviors.Add(behavior);
+                    }
+                    foreach (JunctionGameplayOverride setting in payload.GameplayOverrides ?? [])
+                    {
+                        if (gameplay.TryGetValue(setting.Setting, out decimal previous) && previous != setting.Value)
+                        {
+                            throw new InvalidDataException($"Conflicting active Junction gameplay setting: {setting.Setting}.");
+                        }
+                        gameplay[setting.Setting] = setting.Value;
+                    }
                     continue;
                 }
                 string relativePath = ResourceFolderPrefix(folder) + file.SourcePath[prefix.Length..];
@@ -182,6 +198,7 @@ public static partial class JunctionModImporter
         metadata = metadata with
         {
             Behaviors = Array.AsReadOnly(behaviors.Order().ToArray()),
+            GameplayOverrides = Array.AsReadOnly(gameplay.OrderBy(pair => pair.Key).Select(pair => new JunctionGameplayOverride(pair.Key, pair.Value)).ToArray()),
             Options = ExcludeIntrinsicOptions(root, sourceFiles, reviewed, options, metadata)
         };
         return new JunctionModPackage(name, sourcePath, Array.AsReadOnly(replacements.Values.ToArray()), diagnostics.AsReadOnly()) { Manifest = metadata };

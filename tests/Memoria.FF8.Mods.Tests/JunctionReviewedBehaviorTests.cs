@@ -43,7 +43,7 @@ public sealed class JunctionReviewedBehaviorTests : IDisposable
     {
         JunctionArchive archive = OptionalArchive();
         JunctionModPackage original = JunctionModImporter.Open(archive.SourcePath);
-        Assert.Equal(Enum.GetValues<JunctionBehavior>(), original.Manifest.Behaviors);
+        Assert.Equal(new[] { JunctionBehavior.SkipPublisherMovie, JunctionBehavior.SkipSquareLogo, JunctionBehavior.SkipCreditsPause, JunctionBehavior.SkipCreditsImages, JunctionBehavior.InstantManualSkip }, original.Manifest.Behaviors);
         Assert.Equal(4, original.Manifest.Options.Count);
         Assert.Empty(original.Files);
         JunctionArchiveEntry[] payloads = archive.Entries.Where(entry => entry.RelativePath.EndsWith(".hext", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -81,7 +81,7 @@ public sealed class JunctionReviewedBehaviorTests : IDisposable
             Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(root));
             Directory.Delete(Path.Combine(root, "Selection"), recursive: true);
         }
-        Assert.Equal(Enum.GetValues<JunctionBehavior>().Order(), recognized.Select(pair => pair.Behavior).Order());
+        Assert.Equal(new[] { JunctionBehavior.SkipPublisherMovie, JunctionBehavior.SkipSquareLogo, JunctionBehavior.SkipCreditsPause, JunctionBehavior.SkipCreditsImages, JunctionBehavior.InstantManualSkip }.Order(), recognized.Select(pair => pair.Behavior).Order());
         Write("mod.xml", Manifest(5));
         for (int index = 0; index < recognized.Count; index++)
         {

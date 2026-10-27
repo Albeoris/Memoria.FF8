@@ -89,7 +89,7 @@ public sealed partial class ModRuntime
                         files.Add(previous.File);
                     }
                 }
-                if (status == ModEffectiveStatus.Active && imported.Files.Count == 0 && imported.Manifest.Behaviors.Count == 0)
+                if (status == ModEffectiveStatus.Active && imported.Files.Count == 0 && imported.Manifest.Behaviors.Count == 0 && imported.Manifest.GameplayOverrides.Count == 0)
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
