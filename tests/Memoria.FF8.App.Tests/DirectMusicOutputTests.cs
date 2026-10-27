@@ -13,7 +13,7 @@ public sealed class MusicWorkerOutputTests
     {
         using HelperFixture fixture = new("normal");
         using MusicWorkerOutput music = new(fixture.StartInfo(), TimeSpan.FromSeconds(5));
-        using FieldAudioPresentation presentation = new(0, "", "");
+        using FieldAudioPresentation presentation = new("", "");
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
         typeof(FieldAudioPresentation).GetField("music", flags)!.SetValue(presentation, music);
         if (nativePaused)
@@ -39,7 +39,7 @@ public sealed class MusicWorkerOutputTests
         using MusicWorkerOutput failed = new(failedFixture.StartInfo(), TimeSpan.FromSeconds(5));
         failed.Play("segment.sgt", -10000);
         await WaitUntil(() => failed.Error is not null);
-        using FieldAudioPresentation presentation = new(0, "", "");
+        using FieldAudioPresentation presentation = new("", "");
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
         var musicField = typeof(FieldAudioPresentation).GetField("music", flags)!;
         var pausedField = typeof(FieldAudioPresentation).GetField("nativeMidiPaused", flags)!;

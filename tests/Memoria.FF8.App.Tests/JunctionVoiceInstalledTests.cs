@@ -131,7 +131,7 @@ public sealed class JunctionVoiceInstalledTests
             }
             string tools = MediaToolsInstallation.ResolveDirectory();
             bool canDecode = File.Exists(Path.Combine(tools, "ffmpeg.exe"));
-            using FieldAudioPresentation? output = canDecode ? new FieldAudioPresentation(GetDesktopWindow(), game.GameDirectory, tools) : null;
+            using FieldAudioPresentation? output = canDecode ? new FieldAudioPresentation(game.GameDirectory, tools) : null;
             output?.SetOutputPreferences(0, 0, 0);
             List<object> clips = [];
             foreach (Clip clip in fixture.Clips)

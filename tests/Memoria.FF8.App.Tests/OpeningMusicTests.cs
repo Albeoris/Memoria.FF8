@@ -21,7 +21,7 @@ public sealed class OpeningMusicTests
         session.StartNewGame();
         var clock = new MovieClock(session, directory);
         using var world = new GameWorld(session, directory, clock);
-        using FieldAudioPresentation? audio = devices ? new FieldAudioPresentation(GetDesktopWindow(), directory, clock.ToolsDirectory) : null;
+        using FieldAudioPresentation? audio = devices ? new FieldAudioPresentation(directory, clock.ToolsDirectory) : null;
         audio?.SetOutputPreferences(0, 0);
         audio?.Attach(world.Events);
         List<NativeMusicPlayRequest> requests = [];

@@ -65,7 +65,7 @@ function Invoke-TestProcess {
 }
 
 function Get-TestSettings([string]$Path) {
-    $settings = @{ Distro = 'Ubuntu-24.04'; GameDirectory = $null; DlsPath = $null; SgtPath = $null; SshHost = ''; TargetDirectory = '.local/share/memoria-linux-test'; HardwareGameDirectory = $null; HardwareDlsPath = $null; HardwareSgtPath = $null; GraphicalEnvironment = @{}; StreamCommand = @(); ScreenshotCommand = @(); Targets = @{} }
+    $settings = @{ Distro = ''; GameDirectory = $null; DlsPath = $null; SgtPath = $null; SshHost = ''; TargetDirectory = '.local/share/memoria-linux-test'; HardwareGameDirectory = $null; HardwareDlsPath = $null; HardwareSgtPath = $null; GraphicalEnvironment = @{}; StreamCommand = @(); ScreenshotCommand = @(); Targets = @{} }
     if (Test-Path -LiteralPath $Path) {
         $configured = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
         foreach ($key in $configured.Keys) {
@@ -81,6 +81,26 @@ function Get-TestSettings([string]$Path) {
         }
     }
     return $settings
+}
+
+function Select-WslDistribution([string]$Inventory, [string]$Configured) {
+    if ($Configured) {
+        return $Configured
+    }
+    $candidates = @($Inventory.Replace([string][char]0, '').Split("`n") | ForEach-Object {
+        if ($_ -match '^\s*(?:\*\s*)?(?<name>.+?)\s+\S+\s+2\s*$') {
+            $Matches.name.Trim()
+        }
+    })
+    foreach ($preferred in @('Ubuntu-24.04', 'Ubuntu', 'Ubuntu-22.04')) {
+        if ($candidates -contains $preferred) {
+            return $preferred
+        }
+    }
+    if ($candidates.Count -gt 0) {
+        return $candidates[0]
+    }
+    throw 'No WSL2 distribution is available. Install Ubuntu-24.04, or explicitly convert a suitable existing distro with wsl --set-version <name> 2. No system changes were attempted.'
 }
 
 function Select-HardwareTarget($Settings, [string]$Name) {
@@ -154,6 +174,12 @@ function Get-PayloadManifest([string]$Root) {
         $manifest[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     return $manifest
+}
+
+function Assert-UnchangedBuildSource([string]$ProductRoot, [string]$Fingerprint) {
+    if ((Get-SourceFingerprint $ProductRoot) -cne $Fingerprint) {
+        throw 'The source or toolchain changed while publishing. The candidate was not marked verified; rerun the command to build the current source.'
+    }
 }
 
 function Test-PayloadCache([string]$Cache, [string]$Fingerprint) {

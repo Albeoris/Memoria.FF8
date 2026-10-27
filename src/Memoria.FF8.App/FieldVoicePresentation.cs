@@ -80,6 +80,15 @@ internal sealed class FieldVoicePresentation(Func<string, int, int, int, int?, E
         window.Started = selection is not null && play(dialogue.Channel, selection.Key, selection.Gain);
     }
 
+    public void PlaybackFailed(int channel)
+    {
+        if (windows.TryGetValue(channel, out Window? window))
+        {
+            window.Started = false;
+            window.AutoPending = false;
+        }
+    }
+
     public bool CanAutoAdvance(int channel)
     {
         if (!windows.TryGetValue(channel, out Window? window) || !window.AutoPending)

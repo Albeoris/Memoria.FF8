@@ -85,7 +85,7 @@ public sealed class NativeBattleModuleSoundTests
             try
             {
                 string tools = new MovieClock(GameSession.CreateColdProcess(), directory).ToolsDirectory;
-                using FieldAudioPresentation output = new(GetDesktopWindow(), directory, tools);
+                using FieldAudioPresentation output = new(directory, tools);
                 output.SetOutputPreferences(0, 0);
                 NativeGlobalSoundProcess process = NativeGlobalSoundProcess.FromBufferlessColdProcess();
                 foreach ((uint sound, ushort flags) in new (uint, ushort)[] { (0x0D, 8), (0x0E, 16), (0x72, 0x8000), (300000, 0x100) })

@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Memoria.FF8;
 
@@ -20,6 +21,10 @@ internal sealed record FfmpegDownloadOptions(Uri ReleaseUrl, string ArchiveName,
     }
 
 }
+
+internal sealed record MediaToolsDiscoveryOptions(string ManagedDirectory, string? ConfiguredDirectory, string? SearchPath);
+
+internal sealed record MediaToolProbeResult(int ExitCode, string Output, string Error = "");
 
 internal enum MediaToolsStage
 {
@@ -42,11 +47,17 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
     private readonly TimeSpan timeout = responseTimeout ?? TimeSpan.FromSeconds(15);
     private readonly Func<string, Task<bool>> validator = validate ?? ValidateAsync;
 
-    public static void PrepareForStartup(string directory, Func<string, bool> consent, Action<string> report)
+    public static string PrepareForStartup(string directory, Func<string, bool> consent, Action<string> report, string? installDirectory = null)
     {
-        if (ValidateAsync(directory).GetAwaiter().GetResult())
+        if (ValidateAsync(directory, report).GetAwaiter().GetResult())
         {
-            return;
+            return directory;
+        }
+        directory = installDirectory ?? directory;
+        if (IsUnmanagedPathDirectory(directory))
+        {
+            report("The selected system FFmpeg pair is unavailable or violates the LGPL policy. Automatic setup will not change a PATH directory. Select another LGPL pair or use the managed media-tools directory.");
+            return directory;
         }
         try
         {
@@ -60,13 +71,14 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             report($"FFmpeg setup failed: {exception.Message}");
             report(ManualInstructions(directory));
         }
+        return directory;
     }
 
     private static string ManualInstructions(string directory, string? archiveName = null)
     {
         string tools = OperatingSystem.IsWindows() ? "ffmpeg.exe and ffprobe.exe" : "ffmpeg and ffprobe";
         string source = OperatingSystem.IsMacOS() ? "Obtain trusted Intel x64 FFmpeg tools built for macOS; automatic macOS download is not configured. See https://ffmpeg.org/download.html and retain the matching source/license information." : $"Download {archiveName ?? (OperatingSystem.IsWindows() ? "ffmpeg-master-latest-win64-lgpl.zip" : "ffmpeg-master-latest-linux64-lgpl.tar.xz")} (x64, LGPL, static) from {LatestReleaseUrl}.";
-        return $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {source}\nPlace {tools} in:\n{directory}\nKeep copyright, license and other notices alongside the tools. On Unix, grant executable permission to both tools. Movie-dependent scenes may require FFmpeg to continue.";
+        return $"Continuing without FFmpeg video playback (and replacement audio decoding).\nManual installation: {source}\nPlace {tools} in:\n{directory}\nKeep copyright, license and other notices alongside the tools. Use native x64 builds with a reported build configuration that does not enable GPL or nonfree components. On Unix, grant executable permission to both tools. Movie-dependent scenes may require FFmpeg to continue.";
     }
 
     public static string ResolveExecutable(string directory, string toolName) => Memoria.FF8.Platform.MediaToolPaths.ResolveExecutable(directory, toolName);
@@ -81,6 +93,86 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         return Path.Combine(Memoria.FF8.Platform.ApplicationPaths.Current.LegacyState, "media-tools");
     }
 
+    public static Task<string> ResolveDirectoryAsync(string? directory = null, Action<string>? report = null, CancellationToken cancellationToken = default)
+    {
+        string? configured = directory ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS");
+        MediaToolsDiscoveryOptions sources = new(Path.Combine(ApplicationPaths.Current.LegacyState, "media-tools"), configured, Environment.GetEnvironmentVariable("PATH"));
+        return ResolveDirectoryAsync(sources, candidate => ToolNames.All(tool => File.Exists(ResolveExecutable(candidate, tool))), (candidate, token) => ValidateAsync(candidate, report, token), cancellationToken);
+    }
+
+    internal static Task<string> ResolveDirectoryAsync(MediaToolsDiscoveryOptions sources, Func<string, bool> hasPair, Func<string, CancellationToken, Task<bool>> validate, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(async () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(sources.ConfiguredDirectory))
+            {
+                return Path.GetFullPath(sources.ConfiguredDirectory);
+            }
+            string managed = Path.GetFullPath(sources.ManagedDirectory);
+            if (hasPair(managed))
+            {
+                if (await validate(managed, cancellationToken).ConfigureAwait(false))
+                {
+                    return managed;
+                }
+            }
+            HashSet<string> seen = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+            seen.Add(managed);
+            foreach (string entry in (sources.SearchPath ?? "").Split(Path.PathSeparator))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string candidate = entry.Trim().Trim('"');
+                if (!IsLocalSearchDirectory(candidate))
+                {
+                    continue;
+                }
+                candidate = Path.GetFullPath(candidate);
+                if (seen.Add(candidate) && hasPair(candidate) && await validate(candidate, cancellationToken).ConfigureAwait(false))
+                {
+                    return candidate;
+                }
+            }
+            return managed;
+        }, cancellationToken);
+    }
+
+    private static bool IsLocalSearchDirectory(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || directory.StartsWith("\\", StringComparison.Ordinal) || directory.StartsWith("//", StringComparison.Ordinal) || !Path.IsPathFullyQualified(directory))
+        {
+            return false;
+        }
+        try
+        {
+            return !OperatingSystem.IsWindows() || new DriveInfo(Path.GetPathRoot(directory)!).DriveType != DriveType.Network;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsUnmanagedPathDirectory(string directory)
+    {
+        string managed = Path.GetFullPath(Path.Combine(ApplicationPaths.Current.LegacyState, "media-tools"));
+        StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        string selected = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        if (comparer.Equals(selected, Path.TrimEndingDirectorySeparator(managed)))
+        {
+            return false;
+        }
+        foreach (string entry in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        {
+            string candidate = entry.Trim().Trim('"');
+            if (Path.IsPathFullyQualified(candidate) && comparer.Equals(selected, Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidate))))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public async Task<bool> EnsureAsync(string directory, Func<string, bool> consent, Action<string> report, Action<MediaToolsProgress>? progress = null)
     {
         try
@@ -88,6 +180,11 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
             if (await validator(directory))
             {
                 return true;
+            }
+            if (IsUnmanagedPathDirectory(directory))
+            {
+                report("Automatic FFmpeg setup cannot replace files in a system PATH directory. Select an LGPL pair or choose a separate managed/user media-tools directory.");
+                return false;
             }
             Directory.CreateDirectory(directory);
             if (options.RuntimeIdentifier == "osx-x64")
@@ -352,47 +449,78 @@ internal sealed class MediaToolsInstallation(HttpClient client, FfmpegDownloadOp
         }
     }
 
-    public static async Task<bool> ValidateAsync(string directory)
+    public static Task<bool> ValidateAsync(string directory) => ValidateAsync(directory, report: null);
+
+    public static Task<bool> ValidateAsync(string directory, Action<string>? report, CancellationToken cancellationToken = default) => Task.Run(() => ValidateToolsAsync(directory, IsHostExecutable, ProbeAsync, report, cancellationToken), cancellationToken);
+
+    internal static async Task<bool> ValidateToolsAsync(string directory, Func<string, bool> isNativeExecutable, Func<string, CancellationToken, Task<MediaToolProbeResult>> probe, Action<string>? report = null, CancellationToken cancellationToken = default)
     {
-        foreach (string executable in ToolNames)
+        foreach (string tool in ToolNames)
         {
-            string path = ResolveExecutable(directory, executable);
-            if (!File.Exists(path) || !IsHostExecutable(path))
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = ResolveExecutable(directory, tool);
+            if (!isNativeExecutable(path))
             {
+                report?.Invoke($"{tool} is missing or is not a native x64 executable for this platform: {path}. Select a complete matching FFmpeg/FFprobe LGPL pair.");
                 return false;
             }
             try
             {
-                using var process = new Process { StartInfo = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true } };
-                process.StartInfo.ArgumentList.Add("-version");
-                process.Start();
-                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                try
+                MediaToolProbeResult result = await probe(path, cancellationToken).ConfigureAwait(false);
+                string output = result.Output + "\n" + result.Error;
+                string[] lines = output.Split('\n').Select(line => line.Trim()).ToArray();
+                if (result.ExitCode != 0 || !lines.Any(line => line.StartsWith(tool + " version ", StringComparison.Ordinal)))
                 {
-                    Task<string> output = process.StandardOutput.ReadToEndAsync(deadline.Token);
-                    Task<string> errors = process.StandardError.ReadToEndAsync(deadline.Token);
-                    await process.WaitForExitAsync(deadline.Token);
-                    string version = await output;
-                    await errors;
-                    if (process.ExitCode != 0 || !version.StartsWith(Path.GetFileNameWithoutExtension(executable) + " version ", StringComparison.Ordinal))
-                    {
-                        return false;
-                    }
+                    report?.Invoke($"{tool} did not report a successful FFmpeg tool version. Install a matching native x64 LGPL pair.");
+                    return false;
                 }
-                finally
+                string[] configurations = lines.Where(line => line.StartsWith("configuration:", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (configurations.Length == 0)
                 {
-                    if (!process.HasExited)
-                    {
-                        process.Kill(true);
-                        await process.WaitForExitAsync();
-                    }
+                    report?.Invoke($"{tool} did not report its build configuration. Its LGPL/nonfree policy cannot be verified; install a build that reports configuration with -version.");
+                    return false;
                 }
+                if (Regex.IsMatch(output, "(?:^|[\\s'\"])--enable-(?:gpl|nonfree)(?:$|[\\s'\"=])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                {
+                    report?.Invoke($"{tool} enables GPL or nonfree components. Memoria requires an LGPL build without --enable-gpl or --enable-nonfree; select another pair or use the checked managed installer.");
+                    return false;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException or OperationCanceledException or InvalidOperationException)
             {
+                report?.Invoke($"Could not validate {tool}: {exception.Message}. Check executable permissions and install a native x64 LGPL pair.");
                 return false;
             }
         }
         return true;
+    }
+
+    private static async Task<MediaToolProbeResult> ProbeAsync(string path, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using Process process = new() { StartInfo = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true } };
+        process.StartInfo.ArgumentList.Add("-version");
+        process.Start();
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            Task<string> output = process.StandardOutput.ReadToEndAsync(deadline.Token);
+            Task<string> error = process.StandardError.ReadToEndAsync(deadline.Token);
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+            return new MediaToolProbeResult(process.ExitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false));
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(true);
+                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
     }
 }

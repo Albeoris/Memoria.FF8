@@ -7,7 +7,7 @@ param(
     [string]$Config = '',
     [string]$Distro = '',
     [string]$GameDirectory = '',
-    [ValidateRange(1, 3600)][int]$TimeoutSeconds = 15,
+    [ValidateRange(1, 3600)][int]$TimeoutSeconds = 3600,
     [ValidateSet('Auto', 'Software', 'Hardware', 'None')][string]$Vulkan = 'Auto',
     [switch]$SetupDependencies,
     [switch]$SyncGameAssets
@@ -15,6 +15,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($Phase -eq 'Test' -and !$PSBoundParameters.ContainsKey('TimeoutSeconds')) {
+    $TimeoutSeconds = 15
+}
 . (Join-Path $PSScriptRoot 'linux-testing/Common.ps1')
 $product = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (!$Config) {
@@ -42,7 +45,7 @@ try {
     }
     $profile = Get-LinuxBuildProfile $product
     $selectedComponent = if ($Component -eq 'Auto') { if ($profile.gameHost) { 'Game' } else { 'Launcher' } } else { $Component }
-    $targetDisplay = if ($Mode -eq 'Hardware') { $Target } else { $settings.Distro }
+    $targetDisplay = if ($Mode -eq 'Hardware') { $Target } elseif ($settings.Distro) { $settings.Distro } else { 'WSL2 (auto)' }
     Write-Host "Linux testing: mode=$Mode target=$targetDisplay phase=$Phase component=$selectedComponent"
     Write-Host "Evidence directory: $localRun"
     if (!$profile.gameHost) {
@@ -61,6 +64,8 @@ try {
             if ($inventory.ExitCode -ne 0) {
                 throw 'WSL2 is not installed or unavailable. In an administrator terminal run: wsl --install -d Ubuntu-24.04 . Restart if requested, complete the Ubuntu first-run user setup, then retry this command. No installation or system changes were attempted.'
             }
+            $settings.Distro = Select-WslDistribution $inventory.Output $settings.Distro
+            Write-Host "Selected WSL2 distribution: $($settings.Distro)"
             $probe = Invoke-WslCommand $settings.Distro @('python3', '-c', 'import json,os,platform; print(json.dumps({"machine":platform.machine(),"release":platform.release(),"wslg":os.path.isdir("/mnt/wslg"),"display":os.environ.get("DISPLAY"),"wayland":os.environ.get("WAYLAND_DISPLAY")}))') -AllowFailure -TimeoutSeconds 30
             ($probe.Output + $probe.Error) | Set-Content -LiteralPath (Join-Path $localRun 'host-probe.txt') -Encoding utf8
             if ($probe.ExitCode -ne 0) {
@@ -73,7 +78,7 @@ try {
             if ($SetupDependencies) {
                 Write-Host 'Explicit setup: installing ordinary Ubuntu runtime/diagnostic packages from configured distro repositories. sudo may request your Linux password.'
                 # Sudo runs interactively; credentials are never captured by this script.
-                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y python3 fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
+                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y python3 fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
                 if ($LASTEXITCODE -ne 0) {
                     throw 'Explicit Ubuntu dependency setup failed. Review apt output; no external repository or graphics driver was requested.'
                 }
@@ -167,6 +172,7 @@ try {
         if ((Get-SourceFingerprint $product) -cne $fingerprint) {
             throw 'Source files changed during the build. Partial output was preserved; rerun after edits settle to create a verified current build.'
         }
+        Assert-UnchangedBuildSource $product $fingerprint
         Get-PayloadManifest $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $cache 'payload-manifest.json') -Encoding utf8
         @{ schemaVersion = 1; fingerprint = $fingerprint; runtimeIdentifier = 'linux-x64'; gameHost = [bool]$profile.gameHost } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $cache 'build.json') -Encoding utf8
         if (!(Test-PayloadCache $cache $fingerprint)) {
@@ -227,7 +233,7 @@ try {
         $exitCode = 0
         return
     }
-    $request = @{ fingerprint = $fingerprint; vulkan = $Vulkan; root = $targetRoot; runId = $runId; mode = $Mode; component = $selectedComponent; timeoutSeconds = $TimeoutSeconds; smoke = $Phase -ne 'Launch'; gameHost = [bool]$profile.gameHost; gameExecutable = $profile.gameExecutable; graphicalEnvironment = $settings.GraphicalEnvironment; screenshotCommand = @($settings.ScreenshotCommand); audioSeconds = [Math]::Min(10, $TimeoutSeconds); gameDirectory = $null; dlsPath = $null; sgtPath = $null }
+    $request = @{ fingerprint = $fingerprint; vulkan = $Vulkan; root = $targetRoot; runId = $runId; mode = $Mode; component = $selectedComponent; timeoutSeconds = $TimeoutSeconds; smoke = $Phase -eq 'Test'; gameHost = [bool]$profile.gameHost; gameExecutable = $profile.gameExecutable; graphicalEnvironment = $settings.GraphicalEnvironment; screenshotCommand = @($settings.ScreenshotCommand); audioSeconds = [Math]::Min(10, $TimeoutSeconds); gameDirectory = $null; dlsPath = $null; sgtPath = $null }
     if ($Mode -eq 'Wsl') {
         $request.gameDirectory = ConvertTo-WslPath $settings.Distro $settings.GameDirectory
         $request.dlsPath = ConvertTo-WslPath $settings.Distro $settings.DlsPath
@@ -249,6 +255,12 @@ try {
     $requestPath = Join-Path $localRun 'request.json'
     $request | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $requestPath -Encoding utf8
     Write-Host 'Launch/test phase: existing graphical session, bounded process tree, separate staging settings and diagnostics.'
+    if ($request.smoke) {
+        Write-Host "Bounded smoke interval: $TimeoutSeconds seconds."
+    }
+    elseif ($selectedComponent -ne 'Audio') {
+        Write-Host 'Interact with the window or configured streaming client; close the application to collect its exit status. Ctrl+C cancels and cleans up owned processes.'
+    }
     $started = $true
     if ($Mode -eq 'Wsl') {
         $run = Invoke-WslCommand $settings.Distro @('python3', $targetRunner, 'run', (ConvertTo-WslPath $settings.Distro $requestPath)) -AllowFailure -TimeoutSeconds ($TimeoutSeconds + 660)

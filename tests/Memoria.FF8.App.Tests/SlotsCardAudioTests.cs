@@ -17,7 +17,7 @@ public sealed class SlotsCardAudioTests
         {
             try
             {
-                using FieldAudioPresentation output = new(GetDesktopWindow(), directory, "");
+                using FieldAudioPresentation output = new(directory, "");
                 output.SetOutputPreferences(0, 0);
                 output.PlayBattleMusicCommand(new(2, new(0, 5, true, true, false, 127, null), PauseOutput: true));
                 Stopwatch deadline = Stopwatch.StartNew();

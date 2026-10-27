@@ -14,10 +14,18 @@ public sealed class UiTextOverflowRenderingTests
 
     [Theory]
     [InlineData(24, 100, false)]
+    [InlineData(48, 150, false)]
     [InlineData(48, 150, true)]
     public void ControlsKeyboardMappingHelpOnlyScrollsWhenItExceedsItsActualMenuPanel(int fontSize, int scale, bool overflows)
     {
         MenuController menus = new();
+        string expectedHelp = "Player controls shared across saves for this user.";
+        if (overflows)
+        {
+            expectedHelp = string.Join(" ", Enumerable.Repeat(expectedHelp, 4));
+            string key = Memoria.FF8.Resources.Localization.SystemTextCatalog.Key("ui.configentries.entry.help.player.controls.shared.across.saves.for.this.user");
+            menus.ConnectLocalizationText((id, original) => id == key ? expectedHelp : original);
+        }
         menus.ConnectPreferences(() => new UiPreferences { UiFontSize = fontSize, TextScale = scale }, _ => { });
         menus.Open("config-controls", true);
         menus.Data.Settings["Text scale"] = scale + "%";
@@ -29,7 +37,7 @@ public sealed class UiTextOverflowRenderingTests
         view.Resize(960, 672);
         UiPanel help = Assert.Single(Descendants(view.Root).OfType<UiPanel>(), panel => panel.Caption == "HELP");
         UiLabel label = Assert.Single(help.Children.OfType<UiLabel>());
-        Assert.Equal("Assign keyboard actions and combinations. Bindings are saved globally for every game save.", label.Text);
+        Assert.Equal(expectedHelp, label.Text);
         using Bitmap wrapped = SystemTextLayout.Rasterize(label.Text, label.FontSize, label.Bounds.Width);
         Assert.Equal(overflows, wrapped.Height / (float)SystemTextLayout.RasterScale > label.Bounds.Height);
         using Bitmap bitmap = new(960, 672);

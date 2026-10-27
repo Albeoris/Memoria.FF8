@@ -57,6 +57,20 @@ public sealed class PortableAudioTests
     }
 
     [Fact]
+    public void ACompletedBufferCanBeExplicitlyPlayedAgain()
+    {
+        var mixer = new PcmMixer(1);
+        using PcmMixer.Voice voice = mixer.Create(Bytes(1000), 1, 1);
+        short[] frame = new short[2];
+        voice.Play(false);
+        mixer.Render(frame);
+        Assert.False(voice.IsPlaying);
+        voice.Play(false);
+        mixer.Render(frame);
+        Assert.Equal(new short[] { 1000, 1000 }, frame);
+    }
+
+    [Fact]
     public void MixerResamplesAndLoopsWithChannelGain()
     {
         var mixer = new PcmMixer(4);

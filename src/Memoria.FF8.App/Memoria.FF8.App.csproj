@@ -36,10 +36,10 @@
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
-    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" AdditionalProperties="RuntimeIdentifier=win-x64;SelfContained=true" />
+    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" AdditionalProperties="TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true" />
   </ItemGroup>
   <Target Name="CopyMusicHost" AfterTargets="Build">
-    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true">
+    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=win-x64;SelfContained=true">
       <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
     </MSBuild>
     <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Audio;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
@@ -62,31 +63,55 @@ internal static class PcmAudioDecoder
         return stream.ToArray();
     }
 
-    public static PcmAudio ReadFile(string toolsDirectory, string path) => new(Decode(toolsDirectory, path, null, 44100, 2), 44100, 2);
+    public static PcmAudio ReadFile(string toolsDirectory, string path)
+    {
+        return ReadFileAsync(toolsDirectory, path, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    public static async Task<PcmAudio> ReadFileAsync(string toolsDirectory, string path, CancellationToken cancellationToken)
+    {
+        byte[] pcm = await DecodeAsync(toolsDirectory, path, null, 44100, 2, cancellationToken).ConfigureAwait(false);
+        return new PcmAudio(pcm, 44100, 2);
+    }
+
+    internal static PcmAudio ReadWave(byte[] source)
+    {
+        DecodedWave wave = WaveFileDecoder.Read(source);
+        if (wave.SampleRate == 44100 && wave.Channels == 2)
+        {
+            return new PcmAudio(wave.Pcm, wave.SampleRate, wave.Channels);
+        }
+        int frames = wave.Pcm.Length / (wave.Channels * 2);
+        int outputFrames = checked((int)(((long)frames * 44100 + wave.SampleRate - 1) / wave.SampleRate));
+        byte[] output = new byte[checked(outputFrames * 4)];
+        var mixer = new PcmMixer();
+        using PcmMixer.Voice voice = mixer.Create(wave.Pcm, wave.SampleRate, wave.Channels);
+        voice.Play(false);
+        short[] block = new short[882];
+        for (int offset = 0; offset < outputFrames; offset += block.Length / 2)
+        {
+            int count = Math.Min(block.Length, (outputFrames - offset) * 2);
+            mixer.Render(block.AsSpan(0, count));
+            for (int i = 0; i < count; i++)
+            {
+                System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(output.AsSpan(offset * 4 + i * 2), block[i]);
+            }
+        }
+        return new PcmAudio(output, 44100, 2);
+    }
 
     internal static byte[] Decode(string toolsDirectory, string path, byte[]? input, int rate, int channels)
     {
+        return DecodeAsync(toolsDirectory, path, input, rate, channels, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    internal static Task<byte[]> DecodeAsync(string toolsDirectory, string path, byte[]? input, int rate, int channels, CancellationToken cancellationToken, TimeSpan? timeout = null)
+    {
         var start = new ProcessStartInfo(MediaToolsInstallation.ResolveExecutable(toolsDirectory, "ffmpeg")) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = input is not null, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in new[] { "-v", "error", "-i", path, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", rate.ToString(System.Globalization.CultureInfo.InvariantCulture), "-ac", channels.ToString(System.Globalization.CultureInfo.InvariantCulture), "pipe:1" })
+        foreach (string argument in new[] { "-nostdin", "-v", "error", "-i", path, "-vn", "-f", "s16le", "-acodec", "pcm_s16le", "-ar", rate.ToString(System.Globalization.CultureInfo.InvariantCulture), "-ac", channels.ToString(System.Globalization.CultureInfo.InvariantCulture), "pipe:1" })
         {
             start.ArgumentList.Add(argument);
         }
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the PCM decoder.");
-        using var output = new MemoryStream();
-        Task<string> errors = process.StandardError.ReadToEndAsync();
-        Task read = process.StandardOutput.BaseStream.CopyToAsync(output);
-        if (input is not null)
-        {
-            process.StandardInput.BaseStream.Write(input);
-            process.StandardInput.Close();
-        }
-        read.GetAwaiter().GetResult();
-        process.WaitForExit();
-        string error = errors.GetAwaiter().GetResult();
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidDataException($"Audio decode failed: {error}");
-        }
-        return output.ToArray();
+        return AudioDecodeProcess.RunAsync(start, input, cancellationToken, timeout);
     }
 }

@@ -31,7 +31,7 @@ public sealed class FocusAudioTests
         ManualTimeProvider time = new();
         FieldAudioPresentation.Ramp midi = new(100, 0, 1000, time);
         FieldAudioPresentation.Ramp stream = new(0, 100, 1000, time);
-        using FieldAudioPresentation output = new(0, "", "");
+        using FieldAudioPresentation output = new("", "");
         SetField(output, "midiRamp", midi);
         SetField(output, "streamRamp", stream);
         time.Advance(250);
@@ -55,7 +55,7 @@ public sealed class FocusAudioTests
     public async Task PortableDevicePausePreservesCursorAndPlaybackMode(bool loop)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_AUDIO_DEVICE_TESTS") == "1", "Set MEMORIA_FF8_AUDIO_DEVICE_TESTS=1 to exercise an actual playback device.");
-        using PcmAudioOutput output = new(0);
+        using PcmAudioOutput output = new();
         using PcmAudioOutput.Buffer buffer = output.Create(new byte[44100 * 2 * 5], 44100, 1);
         buffer.Play(loop);
         Assert.True(SpinWait.SpinUntil(() => buffer.PositionBytes > 0, TimeSpan.FromSeconds(2)), "DirectSound did not advance its playback cursor.");
@@ -78,7 +78,7 @@ public sealed class FocusAudioTests
     public void PortableDeviceFocusResumeDoesNotRestartACompletedBuffer()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_AUDIO_DEVICE_TESTS") == "1", "Set MEMORIA_FF8_AUDIO_DEVICE_TESTS=1 to exercise an actual playback device.");
-        using PcmAudioOutput output = new(0);
+        using PcmAudioOutput output = new();
         using PcmAudioOutput.Buffer buffer = output.Create(new byte[882], 44100, 1);
         buffer.Play(false);
         Assert.True(SpinWait.SpinUntil(() => !buffer.IsPlaying, TimeSpan.FromSeconds(2)), "The short DirectSound buffer did not finish.");

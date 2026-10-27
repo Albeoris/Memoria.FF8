@@ -5,26 +5,36 @@ namespace Memoria.FF8;
 /// <summary>Compatibility facade over the common portable PCM mixer and SDL3 device.</summary>
 internal sealed class PcmAudioOutput : IDisposable
 {
-    private readonly SdlAudioOutput output = new();
+    private readonly SdlAudioOutput? output;
+    private readonly PcmMixer mixer;
 
-    public PcmAudioOutput(nint window)
+    public PcmAudioOutput()
     {
+        output = new SdlAudioOutput();
+        mixer = output.Mixer;
     }
+
+    internal PcmAudioOutput(PcmMixer mixer)
+    {
+        this.mixer = mixer;
+    }
+
+    public Exception? Error => output?.Error;
 
     public Buffer Create(byte[] pcm, int rate, int channels)
     {
-        output.ThrowIfFailed();
-        return new Buffer(output.Mixer.Create(pcm, rate, channels));
+        output?.ThrowIfFailed();
+        return new Buffer(mixer.Create(pcm, rate, channels));
     }
 
     public void ThrowIfFailed()
     {
-        output.ThrowIfFailed();
+        output?.ThrowIfFailed();
     }
 
     public void Dispose()
     {
-        output.Dispose();
+        output?.Dispose();
     }
 
     internal sealed class Buffer(PcmMixer.Voice voice) : IDisposable
@@ -32,6 +42,7 @@ internal sealed class PcmAudioOutput : IDisposable
         public bool IsPlaying => voice.IsPlaying;
         internal int PositionBytes => voice.PositionBytes;
         internal int PanValue { get; private set; }
+        internal int GainValue { get; private set; }
         internal bool IsDisposed { get; private set; }
         public void Play(bool loop)
         {
@@ -52,6 +63,7 @@ internal sealed class PcmAudioOutput : IDisposable
         public void Volume(int hundredthDecibels)
         {
             voice.Volume(hundredthDecibels);
+            GainValue = hundredthDecibels;
         }
         public void Position(int pcmByteOffset)
         {

@@ -45,7 +45,7 @@ public sealed class TripleTriadAudioPresentationTests
         {
             try
             {
-                using var output = new FieldAudioPresentation(GetDesktopWindow(), directory, "");
+                using var output = new FieldAudioPresentation(directory, "");
                 output.SetOutputPreferences(0, 0);
                 output.PlayTripleTriadMusic();
                 var deadline = Stopwatch.StartNew();

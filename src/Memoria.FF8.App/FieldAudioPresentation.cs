@@ -7,7 +7,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Device output is transient. Executed VM audio receipts keep their deterministic headless contract.</summary>
-internal sealed partial class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory, Func<ModCatalogSnapshot>? modCatalog = null) : IDisposable
+internal sealed partial class FieldAudioPresentation(string gameDirectory, string toolsDirectory, Func<ModCatalogSnapshot>? modCatalog = null) : IDisposable
 {
     private readonly GameFileResources gameFiles = new(gameDirectory);
     private readonly Dictionary<int, PcmAudio> samples = [];
@@ -74,8 +74,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     internal int SoundVoiceCount => voices.Count;
     internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameFiles.Resources);
-    private PcmAudioOutput Sound => sound ??= new PcmAudioOutput(window);
-    private MusicWorkerOutput Music => music ??= new MusicWorkerOutput(window, Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
+    private PcmAudioOutput Sound => sound ??= OutputFactory?.Invoke() ?? new PcmAudioOutput();
+    private MusicWorkerOutput Music => music ??= new MusicWorkerOutput(Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
 
     public void Attach(EventEngine next)
     {
@@ -347,7 +347,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
-    private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false, bool noIntro = false)
+    internal void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false, bool identityResolved = false, bool noIntro = false)
     {
         if (volume is not (>= 0 and <= 127))
         {
@@ -370,6 +370,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         string path = gameFiles.ResolveInstallationFile(selectedFilename);
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
+            CancelMusicDecode(MusicKind.Midi);
             Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
             nativeMidiPaused = false;
             musicKinds[slot] = MusicKind.Midi;
@@ -378,15 +379,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         }
         else
         {
-            PcmAudio pcm = PcmAudioDecoder.ReadFile(toolsDirectory, path);
-            streamedMusic?.Dispose();
-            streamedMusic = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
-            streamedMusicPaused = false;
-            streamedMusic.Volume(OutputGain(Catalog.SoundVolume(volume.Value), musicPreference));
-            streamedMusic.Play(true);
-            musicKinds[slot] = MusicKind.Stream;
-            streamVolume = volume.Value;
-            streamRamp = null;
+            QueueStreamMusic(path, slot, track, volume.Value);
+            return;
         }
         musicIds[slot] = track;
         Console.WriteLine($"field-music=Playing track={track} slot={slot} file={Path.GetFileName(path)}");
@@ -397,7 +391,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         DispatchNativeMusicVolume(request, (slot, gain) => SetMusicGain(slot, request.FadeInitialVolumeOperand, gain, request.EffectiveDuration));
     }
 
-    private void SetMusicGain(int slot, int? initialVolume, int requestedVolume, int duration)
+    internal void SetMusicGain(int slot, int? initialVolume, int requestedVolume, int duration)
     {
         if (requestedVolume is < 0 or > 127 || initialVolume is < 0 or > 127 || duration < 0)
         {
@@ -468,6 +462,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void Update()
     {
+        TryOutput(() => decodeQueue?.Pump());
         if (focusPaused)
         {
             return;
@@ -579,6 +574,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     private void StopMusicSlot(int slot)
     {
         MusicKind kind = musicKinds[slot];
+        CancelMusicDecode(kind);
         try
         {
             StopExternalMusic(kind);
@@ -633,6 +629,8 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void StopAll()
     {
+        decodeQueue?.CancelAll();
+        pendingDialogueDecodes.Clear();
         StopSounds();
         TryOutput(StopDialogueVoices);
         TryOutput(() => StopMusicSlot(0));
@@ -641,6 +639,13 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     public void Dispose()
     {
+        if (audioDisposed)
+        {
+            return;
+        }
+        audioDisposed = true;
+        decodeQueue?.Dispose();
+        decodeQueue = null;
         if (engine is not null)
         {
             engine.AudioCommandExecuted -= Execute;

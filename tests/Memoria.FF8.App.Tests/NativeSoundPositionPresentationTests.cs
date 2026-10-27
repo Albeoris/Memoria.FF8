@@ -25,7 +25,7 @@ public sealed class NativeSoundPositionPresentationTests
                 GameSession session = GameSession.CreateColdProcess();
                 EventEngine engine = new(session) { ResolveGlobalSoundResource = sample => GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, sample)) };
                 string tools = new MovieClock(session, directory).ToolsDirectory;
-                using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, tools);
+                using FieldAudioPresentation presentation = new(directory, tools);
                 presentation.Attach(engine);
                 engine.LoadField(100, Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SEPOSTRANS, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.SEPOS, 0), (Jsm.Opcode.RET, 8)), []);
                 engine.Step();

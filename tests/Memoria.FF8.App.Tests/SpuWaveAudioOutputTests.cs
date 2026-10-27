@@ -7,6 +7,58 @@ namespace Memoria.FF8.App.Tests;
 public sealed class SpuWaveAudioOutputTests
 {
     [Fact]
+    public void MissingDeviceReportsAnAccurateNonPlaybackReceiptAfterManagedDecode()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "Memoria-spu-cue-" + Guid.NewGuid().ToString("N"));
+        string music = Path.Combine(directory, "Data", "music");
+        Directory.CreateDirectory(music);
+        string path = Path.Combine(music, "cue.wav");
+        byte[] wave;
+        using (var bytes = new MemoryStream())
+        {
+            using var writer = new BinaryWriter(bytes);
+            writer.Write("RIFF"u8);
+            writer.Write(40);
+            writer.Write("WAVEfmt "u8);
+            writer.Write(16);
+            writer.Write((ushort)1);
+            writer.Write((ushort)2);
+            writer.Write(44100);
+            writer.Write(176400);
+            writer.Write((ushort)4);
+            writer.Write((ushort)16);
+            writer.Write("data"u8);
+            writer.Write(4);
+            writer.Write((short)100);
+            writer.Write((short)-100);
+            wave = bytes.ToArray();
+        }
+        File.WriteAllBytes(path, wave);
+        try
+        {
+            MusicCueResource resource = new(MusicCue.EyesOnMe, "Data/music/cue.wav");
+            using SpuWaveAudioOutput output = new(directory, resource, true)
+            {
+                OutputFactory = () => throw new IOException("Reconnect an audio device and restart audio.")
+            };
+            NativeSpuAudioAttempt receipt = output.Prepare();
+            receipt.Validate();
+            Assert.Equal(4, receipt.PcmBytes);
+            Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(wave)), receipt.SourceSha256);
+            Assert.False(receipt.PlaybackStarted);
+            Assert.False(output.HasLiveAudio);
+            Assert.Contains("Reconnect", output.Error);
+        }
+        finally
+        {
+            File.Delete(path);
+            Directory.Delete(music);
+            Directory.Delete(Path.Combine(directory, "Data"));
+            Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
     public void ClassicCueUsesARelativeResourceAndRejectsEscapingPaths()
     {
         MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
@@ -22,8 +74,7 @@ public sealed class SpuWaveAudioOutputTests
         string game = TestResources.GameDirectory;
         MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
         Assert.SkipUnless(File.Exists(Path.Combine(game, resource.RelativePath)), "The installed EyesOnMe resource is required.");
-        MovieClock tools = new(new GameSession(new GameState()), game);
-        using SpuWaveAudioOutput output = new(game, tools.ToolsDirectory, resource, 0, false);
+        using SpuWaveAudioOutput output = new(game, resource, false);
         NativeSpuAudioAttempt receipt = output.Prepare();
         Assert.Equal("EyesOnMe", receipt.ResourceId);
         Assert.Equal(64, receipt.SourceSha256.Length);
@@ -42,13 +93,12 @@ public sealed class SpuWaveAudioOutputTests
         string game = TestResources.GameDirectory;
         MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
         Assert.SkipUnless(File.Exists(Path.Combine(game, resource.RelativePath)), "The installed EyesOnMe resource is required.");
-        MovieClock tools = new(new GameSession(new GameState()), game);
         Exception? failure = null;
         Thread thread = new(() =>
         {
             try
             {
-                using SpuWaveAudioOutput output = new(game, tools.ToolsDirectory, resource, GetDesktopWindow(), true);
+                using SpuWaveAudioOutput output = new(game, resource, true);
                 NativeSpuAudioAttempt receipt = output.Prepare();
                 Assert.True(receipt.PlaybackStarted);
                 Assert.True(output.HasLiveAudio);

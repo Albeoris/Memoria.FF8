@@ -6,7 +6,7 @@ From the public product directory, after the one-time setup:
 pwsh ./tools/Test-Linux.ps1
 ```
 
-The default uses x64 WSL2 Ubuntu 24.04 and WSLg. It detects the host, builds or verifies a matching cached Linux payload, transfers changed files, runs portable tests, opens the launcher for a bounded 15-second smoke, and retrieves diagnostics. This currently validates the launcher, shared presentation services and audio implementation. The Linux game host is not implemented; no launcher, Vulkan cube or audio result is recorded as successful gameplay.
+The default detects an installed WSL2 distro, preferring Ubuntu 24.04, and uses WSLg. It probes the x64 host, builds or verifies a matching cached Linux payload, transfers changed files, runs portable tests and opens the application for interaction. Close the application to collect its exit status and diagnostics; Ctrl+C cancels. The default guard timeout is one hour. Use `-Phase Test` for a quick 15-second smoke instead. This currently validates the launcher, shared presentation services and audio implementation. The Linux game host is not implemented; no launcher, Vulkan cube or audio result is recorded as successful gameplay.
 
 WSLg uses a virtualized graphics path. Native Linux/Steam Deck graphics acceptance remains a separate hardware gate.
 
@@ -26,7 +26,7 @@ The Windows checkout needs the repository's .NET SDK, PowerShell 7 and Git. The 
 pwsh ./tools/Test-Linux.ps1 -SetupDependencies
 ```
 
-This asks `sudo apt-get` to install Python, DejaVu/Noto core and CJK fonts, X11/font/audio libraries, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
+This asks `sudo apt-get` to install Python, DejaVu/Noto core and CJK fonts, X11/font/audio/GTK libraries, standard desktop-portal services, Vulkan tools, Mesa utilities and the standard `mesa-vulkan-drivers` package containing Lavapipe. It does not add repositories, experimental packages or vendor GPU drivers. Later runs reuse these packages. Without this flag the script performs no package installation.
 
 Create optional local settings, which Git ignores:
 
@@ -46,15 +46,15 @@ pwsh ./tools/Test-Linux.ps1 -GameDirectory $env:MEMORIA_FF8_GAME_DIR
 
 | Command | Behavior |
 | --- | --- |
-| `pwsh ./tools/Test-Linux.ps1` | Detect, build/reuse, deploy, portable tests and bounded launcher smoke. |
+| `pwsh ./tools/Test-Linux.ps1` | Detect, build/reuse, deploy, portable tests and interactive launch. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Diagnostics` | Gather available Linux graphics/system diagnostics without requiring a build. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Build` | Build/verify Linux payload from Windows; no installed WSL/SSH target required. |
 | `pwsh ./tools/Test-Linux.ps1 -Phase Deploy` | Deploy a matching previously built payload. |
-| `pwsh ./tools/Test-Linux.ps1 -Phase Test` | Verify/deploy a matching cache and run tests/smoke. |
-| `pwsh ./tools/Test-Linux.ps1 -Phase Launch -TimeoutSeconds 3600` | Verify/deploy and open the launcher for manual interaction until exit or timeout. |
+| `pwsh ./tools/Test-Linux.ps1 -Phase Test` | Verify/deploy a matching cache and run tests plus a 15-second smoke. |
+| `pwsh ./tools/Test-Linux.ps1 -Phase Launch` | Verify/deploy and open the application for manual interaction until exit or timeout. |
 | `pwsh ./tools/Test-Linux.ps1 -Component Audio` | Play explicit `DlsPath`/`SgtPath` fixtures through the common audio harness. |
 
-Build identity hashes tracked and untracked nonignored working files, deleted files, dependency pins, scripts, capability declarations and the SDK version. Reuse additionally verifies every payload file against its SHA-256 manifest. A corrupted cache is retained under a separate diagnostic name. Current launcher builds and test publishes use an isolated reusable output tree. Four self-contained Linux test executables are staged: Platform, Audio, Launcher and Presentation. Successful portable test results are reused on the same target only for the same verified build fingerprint; failures are not cached as successes. Optional original-resource tests retain their explicit fixture requirements and skip when absent. No battle-effect test project is selected.
+Build identity hashes tracked and untracked nonignored working files, deleted files, dependency pins, scripts, capability declarations and the SDK version. Source identity is checked again before sealing the build receipt; edits during publishing cannot produce a falsely verified cache. Reuse additionally verifies every payload file against its SHA-256 manifest. A corrupted cache is retained under a separate diagnostic name. Current launcher builds and test publishes use an isolated reusable output tree. Four self-contained Linux test executables are staged: Platform, Audio, Launcher and Presentation. Successful portable test results are reused on the same target only for the same verified build fingerprint; failures are not cached as successes. Optional original-resource tests retain their explicit fixture requirements and skip when absent. No battle-effect test project is selected.
 
 Evidence is stored under `artifacts/linux-test/runs/<run-id>/`: orchestration/build/transport logs, per-project portable test logs, `result.json`, system information, Vulkan ICD descriptors, full Vulkan surface/device information and presentation-probe results. Process stdout/stderr and nonzero exit status are preserved. The console prints target failures and structured status. Configuration, cache and test state are separate from ordinary launcher/player data. The source tree never contains copied original game assets or credentials.
 

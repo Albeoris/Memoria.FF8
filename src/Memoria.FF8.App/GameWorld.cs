@@ -38,7 +38,7 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null)
     {
         this.session = session;
         this.readSceneMods = readSceneMods;
@@ -115,7 +115,7 @@ internal sealed partial class GameWorld : IDisposable
         Events = new EventEngine(session);
         Events.PreparingCheckpoint += CaptureNativeTutorialPlayback;
         Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
-        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, clock.ToolsDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioWindow, audioEnabled)).Prepare();
+        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
         Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
         Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);

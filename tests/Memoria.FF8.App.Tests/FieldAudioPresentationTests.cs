@@ -17,7 +17,7 @@ public sealed class FieldAudioPresentationTests
     public void FieldDepartureDisposesPrimaryAndPendingOrPlayingLoop(bool startLoop)
     {
         string directory = InstalledGame();
-        using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, "");
+        using FieldAudioPresentation presentation = new(directory, "");
         GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(directory, 2253))!;
         Assert.True(resource.LoopPolicy.LoopStartPcmByte > 0);
         presentation.Execute(new GlobalSoundRequest(10103, 1, 1, 1, 128, 64, 0, 100, resource));
@@ -125,14 +125,14 @@ public sealed class FieldAudioPresentationTests
             try
             {
                 nint window = GetDesktopWindow();
-                using var sound = new PcmAudioOutput(window);
+                using var sound = new PcmAudioOutput();
                 PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, 69);
                 using PcmAudioOutput.Buffer buffer = sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
                 buffer.Volume(-10000);
                 buffer.Pan(0);
                 buffer.Play(false);
                 buffer.Stop();
-                using var music = new MusicWorkerOutput(window, Path.Combine(directory, "Data", "Music", "dmusic"));
+                using var music = new MusicWorkerOutput(Path.Combine(directory, "Data", "Music", "dmusic"));
                 music.Play(Path.Combine(directory, "Data", "Music", "dmusic", "026s-garden.sgt"), -10000);
                 var deadline = Stopwatch.StartNew();
                 while (!music.IsPlaying && deadline.ElapsedMilliseconds < 3000)

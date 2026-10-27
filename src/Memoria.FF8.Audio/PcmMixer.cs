@@ -123,6 +123,10 @@ public sealed class PcmMixer(int sampleRate = 44100)
             lock (owner.gate)
             {
                 ObjectDisposedException.ThrowIf(disposed, this);
+                if (cursor >= pcm.Length / (channels * 2))
+                {
+                    cursor = 0;
+                }
                 loop = repeat;
                 playing = true;
                 paused = false;

@@ -14,25 +14,66 @@ public sealed class SdlAudioOutput : IDisposable
 
     public SdlAudioOutput()
     {
+        nint stream = OpenDevice(Mixer.SampleRate);
+        worker = Task.Run(() => Run(stream));
+    }
+
+    private static nint OpenDevice(int rate)
+    {
+        bool initialized = false;
         try
         {
             if (!SDL_InitSubSystem(0x10))
             {
                 throw Failure("Initialize audio");
             }
+            initialized = true;
+            AudioSpec spec = new() { Format = 0x8010, Channels = 2, Frequency = rate };
+            nint stream = SDL_OpenAudioDeviceStream(uint.MaxValue, ref spec, 0, 0);
+            if (stream == 0)
+            {
+                throw Failure("Open the default playback device. Select or reconnect an audio device and restart audio");
+            }
+            return stream;
         }
-        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+        catch (Exception exception) when (IsBindingFailure(exception))
         {
-            throw new IOException("The matching x64 SDL3 audio runtime is unavailable. Repair the installation's native dependencies and restart audio.", exception);
+            if (initialized)
+            {
+                QuitInitialization();
+            }
+            throw BindingFailure(exception);
         }
-        AudioSpec spec = new() { Format = 0x8010, Channels = 2, Frequency = Mixer.SampleRate };
-        nint stream = SDL_OpenAudioDeviceStream(uint.MaxValue, ref spec, 0, 0);
-        if (stream == 0)
+        catch
+        {
+            if (initialized)
+            {
+                QuitInitialization();
+            }
+            throw;
+        }
+    }
+
+    private static bool IsBindingFailure(Exception exception)
+    {
+        return exception is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException;
+    }
+
+    private static IOException BindingFailure(Exception exception)
+    {
+        return new IOException("The matching x64 SDL3 audio runtime is unavailable or incompatible. Repair the installation's native dependencies and restart audio.", exception);
+    }
+
+    private static void QuitInitialization()
+    {
+        try
         {
             SDL_QuitSubSystem(0x10);
-            throw Failure("Open the default playback device. Select or reconnect an audio device and restart audio");
         }
-        worker = Task.Run(() => Run(stream));
+        catch (Exception exception) when (IsBindingFailure(exception))
+        {
+            // Preserve the initialization failure if the incompatible runtime also lacks cleanup exports.
+        }
     }
 
     public void ThrowIfFailed()
@@ -78,12 +119,26 @@ public sealed class SdlAudioOutput : IDisposable
         }
         catch (Exception exception)
         {
-            Volatile.Write(ref error, exception);
+            Volatile.Write(ref error, IsBindingFailure(exception) ? BindingFailure(exception) : exception);
         }
         finally
         {
-            SDL_DestroyAudioStream(stream);
-            SDL_QuitSubSystem(0x10);
+            try
+            {
+                SDL_DestroyAudioStream(stream);
+            }
+            catch (Exception exception)
+            {
+                Interlocked.CompareExchange(ref error, IsBindingFailure(exception) ? BindingFailure(exception) : exception, null);
+            }
+            try
+            {
+                SDL_QuitSubSystem(0x10);
+            }
+            catch (Exception exception)
+            {
+                Interlocked.CompareExchange(ref error, IsBindingFailure(exception) ? BindingFailure(exception) : exception, null);
+            }
         }
     }
 

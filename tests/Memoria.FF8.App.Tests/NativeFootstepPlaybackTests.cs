@@ -52,7 +52,7 @@ public sealed class NativeFootstepPlaybackTests
         {
             try
             {
-                using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, string.Empty);
+                using FieldAudioPresentation presentation = new(directory, string.Empty);
                 presentation.SetOutputPreferences(0, 0);
                 for (int step = 0; step < 64; step++)
                 {

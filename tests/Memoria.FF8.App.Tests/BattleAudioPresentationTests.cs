@@ -123,7 +123,7 @@ public sealed class BattleAudioPresentationTests
             try
             {
                 string tools = new MovieClock(GameSession.CreateColdProcess(), directory).ToolsDirectory;
-                using FieldAudioPresentation presentation = new(GetDesktopWindow(), directory, tools);
+                using FieldAudioPresentation presentation = new(directory, tools);
                 presentation.SetOutputPreferences(0, 0);
                 presentation.ResumeMusic(NativeMusicPlaybackState.FromColdProcess().PlayEncoded46B530(0, 6, 127));
                 Assert.Null(presentation.Error);

@@ -12,11 +12,11 @@ internal static class MusicProgram
             {
                 return AudioHarness.Run(args);
             }
-            if (args.Length != 2)
+            if (args.Length != 1)
             {
-                throw new ArgumentException("The music worker requires its compatibility window token and music directory.");
+                throw new ArgumentException("The music worker requires its music directory.");
             }
-            using var output = new PortableMusicOutput(args[1]);
+            using var output = new PortableMusicOutput(args[0]);
             Reply(true);
             while (Console.ReadLine() is string line)
             {

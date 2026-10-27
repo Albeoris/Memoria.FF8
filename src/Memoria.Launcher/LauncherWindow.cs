@@ -21,7 +21,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
     private readonly StackPanel mediaProgressPanel = new() { IsVisible = false, Margin = new Thickness(0, 10, 0, 0) };
     private readonly TextBox status = new() { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
-    private readonly string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
+    private string mediaDirectory = MediaToolsInstallation.ResolveDirectory();
     private readonly Button cancel = new() { Content = "Cancel scan", IsVisible = false };
     private readonly CancellationTokenSource discoveryLifetime = new();
     private bool busy;
@@ -214,6 +214,15 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task<bool> EnsureMediaAsync()
     {
+        IProgress<string> discoveryReport = new Progress<string>(message => status.Text = message);
+        mediaDirectory = await MediaToolsInstallation.ResolveDirectoryAsync(report: discoveryReport.Report, cancellationToken: updateLifetime.Token);
+        if (await MediaToolsInstallation.ValidateAsync(mediaDirectory, discoveryReport.Report, updateLifetime.Token))
+        {
+            mediaStatus.Text = "FFmpeg is ready for video and audio playback.";
+            return true;
+        }
+        // Only the configured or managed destination may receive an installation, never a PATH discovery result.
+        mediaDirectory = MediaToolsInstallation.ResolveDirectory();
         using HttpClient client = new() { Timeout = Timeout.InfiniteTimeSpan };
         FfmpegDownloadOptions options = FfmpegDownloadOptions.FromEnvironment();
         MediaToolsInstallation installation = new(client, options);
@@ -260,8 +269,15 @@ internal sealed partial class LauncherWindow : Window
 
     private async Task RefreshMediaStatusAsync()
     {
-        bool ready = await MediaToolsInstallation.ValidateAsync(mediaDirectory);
-        mediaStatus.Text = ready ? "FFmpeg is ready for video and audio playback." : "FFmpeg is not installed.";
+        IProgress<string> report = new Progress<string>(message => status.Text = message);
+        mediaDirectory = await MediaToolsInstallation.ResolveDirectoryAsync(report: report.Report, cancellationToken: updateLifetime.Token);
+        List<string> diagnostics = [];
+        bool ready = await MediaToolsInstallation.ValidateAsync(mediaDirectory, diagnostics.Add, updateLifetime.Token);
+        mediaStatus.Text = ready ? "FFmpeg is ready for video and audio playback." : "FFmpeg is unavailable. Use setup or select an LGPL tool pair.";
+        if (!ready && diagnostics.Count > 0)
+        {
+            status.Text = string.Join(Environment.NewLine, diagnostics);
+        }
     }
 
     private async Task PlayAsync(UpdateResume? resume = null)
@@ -297,6 +313,7 @@ internal sealed partial class LauncherWindow : Window
             {
                 return;
             }
+            start = GameInstallationSelection.CreateStartInfo(AppContext.BaseDirectory, selected.Directory, localOnly, mediaDirectory);
             status.Text = "Starting the game…";
             GameUpdateSession control = new();
             start.ArgumentList.Add("--update-control-dir");

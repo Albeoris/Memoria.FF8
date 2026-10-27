@@ -67,7 +67,7 @@ public sealed class WorldMusicTests
         Assert.Equal(expected == NativeWorldMusicOperation.Play ? 0 : 1, loaded.Bank);
         if (selected == 41)
         {
-            using var audio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(session, game).ToolsDirectory);
+            using var audio = new FieldAudioPresentation(game, new MovieClock(session, game).ToolsDirectory);
             audio.SetOutputPreferences(0, 0);
             audio.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
             Assert.Null(audio.Error);
@@ -100,7 +100,7 @@ public sealed class WorldMusicTests
         Assert.Equal(41, world.Events.Scene.WorldMusicSelection!.Music);
         byte? storedVolume = world.Events.Scene.SoundMusicVolume197;
         byte? bank = world.Events.Scene.MusicProcess!.Bank201;
-        using var audio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(session, game).ToolsDirectory);
+        using var audio = new FieldAudioPresentation(game, new MovieClock(session, game).ToolsDirectory);
         audio.SetOutputPreferences(0, 0);
         audio.Attach(world.Events);
         audio.ResumeMusic(session.State.GlobalSoundProcess?.MusicPlayback);
@@ -152,7 +152,7 @@ public sealed class WorldMusicTests
         using var restored = new GameWorld(restoredSession, game);
         restored.EnsureField();
         restored.SetRenderSize(320, 224);
-        using (var resumedAudio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(new GameSession(recreated), game).ToolsDirectory))
+        using (var resumedAudio = new FieldAudioPresentation(game, new MovieClock(new GameSession(recreated), game).ToolsDirectory))
         {
             resumedAudio.SetOutputPreferences(0, 0);
             resumedAudio.Attach(restored.Events);

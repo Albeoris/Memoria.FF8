@@ -23,6 +23,10 @@ public static class WaveDecoder
         }
         if (tag == 1 && bits == 8)
         {
+            if (input.Length % channels != 0)
+            {
+                throw new InvalidDataException("PCM8 data is not frame aligned.");
+            }
             byte[] pcm = new byte[checked(input.Length * 2)];
             for (int i = 0; i < input.Length; i++)
             {

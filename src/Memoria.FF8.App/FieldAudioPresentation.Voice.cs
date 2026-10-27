@@ -18,7 +18,7 @@ internal sealed partial class FieldAudioPresentation
         {
             return;
         }
-        voicePresentation ??= new FieldVoicePresentation((name, channel, message, page, choice) => currentVoiceResolver?.Resolve(name, channel, message, page, choice, currentVoiceGameMoment), (channel, key, gain) => PlayDialogueVoice(channel, resources.Get(key), gain), StopDialogueVoice, channel => dialogueVoices.TryGetValue(channel, out PcmAudioOutput.Buffer? buffer) && buffer.IsPlaying);
+        voicePresentation ??= new FieldVoicePresentation((name, channel, message, page, choice) => currentVoiceResolver?.Resolve(name, channel, message, page, choice, currentVoiceGameMoment), (channel, key, gain) => PlayDialogueVoice(channel, resources.Get(key), gain), StopDialogueVoice, channel => pendingDialogueDecodes.Contains(channel) || IsDialogueVoicePlaying(channel));
         currentVoiceResolver = resolver;
         currentVoiceGameMoment = gameMoment;
         TryOutput(() => voicePresentation.Synchronize(field, owner, dialogues));
@@ -45,32 +45,53 @@ internal sealed partial class FieldAudioPresentation
 
     public bool CanVoiceAutoAdvance(int channel) => voicePresentation?.CanAutoAdvance(channel) == true;
 
-    private bool PlayDialogueVoice(int channel, ResourceContent resource, double gain)
+    internal bool PlayDialogueVoice(int channel, ResourceContent resource, double gain)
     {
-        using Stream input = resource.OpenRead();
-        using MemoryStream encoded = new();
-        input.CopyTo(encoded);
-        byte[] pcm = PcmAudioDecoder.Decode(toolsDirectory, "pipe:0", encoded.ToArray(), 44100, 2);
-        ApplyVoiceGain(pcm, gain);
-        PcmAudioOutput.Buffer next = Sound.Create(pcm, 44100, 2);
         try
         {
-            next.Volume(OutputGain(0, voicePreference));
-            next.Play(false);
-            if (focusPaused || voiceUiPaused)
+            Decoder.Queue(new DialogueDecodeOwner(channel), async token =>
             {
-                next.Pause();
-            }
+                using Stream input = resource.OpenRead();
+                using MemoryStream encoded = new();
+                await input.CopyToAsync(encoded, token).ConfigureAwait(false);
+                PcmAudio pcm = await DecodeAsync("pipe:0", encoded.ToArray(), token).ConfigureAwait(false);
+                ApplyVoiceGain(pcm.Bytes, gain);
+                return pcm;
+            }, pcm =>
+            {
+                pendingDialogueDecodes.Remove(channel);
+                PcmAudioOutput.Buffer next = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+                try
+                {
+                    next.Volume(OutputGain(0, voicePreference));
+                    next.Play(false);
+                    if (focusPaused || voiceUiPaused)
+                    {
+                        next.Pause();
+                    }
+                }
+                catch
+                {
+                    next.Dispose();
+                    throw;
+                }
+                StopDialogueVoice(channel);
+                dialogueVoices[channel] = next;
+                Console.WriteLine($"field-voice=Playing channel={channel} resource={resource.Key} owner={resource.Provenance}");
+            }, exception =>
+            {
+                pendingDialogueDecodes.Remove(channel);
+                voicePresentation?.PlaybackFailed(channel);
+                ReportOutputFailure(exception);
+            });
+            pendingDialogueDecodes.Add(channel);
+            return true;
         }
         catch
         {
-            next.Dispose();
+            pendingDialogueDecodes.Remove(channel);
             throw;
         }
-        StopDialogueVoice(channel);
-        dialogueVoices[channel] = next;
-        Console.WriteLine($"field-voice=Playing channel={channel} resource={resource.Key} owner={resource.Provenance}");
-        return true;
     }
 
     internal static void ApplyVoiceGain(byte[] pcm, double gain)
@@ -87,8 +108,10 @@ internal sealed partial class FieldAudioPresentation
         }
     }
 
-    private void StopDialogueVoice(int channel)
+    internal void StopDialogueVoice(int channel)
     {
+        decodeQueue?.Cancel(new DialogueDecodeOwner(channel));
+        pendingDialogueDecodes.Remove(channel);
         if (dialogueVoices.Remove(channel, out PcmAudioOutput.Buffer? buffer))
         {
             buffer.Dispose();
@@ -98,7 +121,7 @@ internal sealed partial class FieldAudioPresentation
     private void StopDialogueVoices()
     {
         voicePresentation?.Clear();
-        foreach (int channel in dialogueVoices.Keys.ToArray())
+        foreach (int channel in pendingDialogueDecodes.Concat(dialogueVoices.Keys).Distinct().ToArray())
         {
             StopDialogueVoice(channel);
         }

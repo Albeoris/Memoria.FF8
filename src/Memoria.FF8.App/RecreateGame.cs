@@ -119,7 +119,7 @@ internal sealed partial class RecreateGame : Game
         fieldTexture = new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height);
         if (options.AudioEnabled)
         {
-            fieldAudio = new FieldAudioPresentation(Window.Handle, options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
+            fieldAudio = new FieldAudioPresentation(options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
         }
         InitializeGameUi();
         if (options.ControlDirectory is not null)
@@ -422,7 +422,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;

@@ -50,7 +50,7 @@ internal sealed class TripleTriadPracticeGame : Game
         pixel.SetData([Color.White]);
         canvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, gameDirectory, resourceHost?.Resources);
         canvas.PrepareTripleTriad(controller);
-        audio = new FieldAudioPresentation(Window.Handle, gameDirectory, "");
+        audio = new FieldAudioPresentation(gameDirectory, "");
         cardAudio = new TripleTriadAudioPresentation(audio, controller);
     }
 

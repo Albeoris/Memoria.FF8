@@ -2,7 +2,7 @@
 
 `Memoria.FF8.Audio` contains the shared format readers, sample-clock scheduler, DLS synthesizer and PCM mixer. The same managed implementation runs on every supported RID. SDL3 is the device adapter; sound effects use the same PCM mixer as the music worker. The x64 music worker keeps the released Windows updater entry `Data/audio-host/Memoria.FF8.Music.exe`; the Unix executable name is `Memoria.FF8.Music`.
 
-The worker preserves the line-delimited JSON command protocol: `Play`, `Volume`, `Stop`, `Pause`, `Resume`, `Playing` and `Quit`. Its first compatibility argument is retained for existing callers; playback does not use a window handle. Commands are queued outside the game update thread. Device timing never changes deterministic gameplay state.
+The worker preserves the line-delimited JSON command protocol: `Play`, `Volume`, `Stop`, `Pause`, `Resume`, `Playing` and `Quit`. The worker accepts exactly one startup argument: its music directory. Music, PCM and SPU output APIs do not take window identifiers. Commands are queued outside the game update thread. Device timing never changes deterministic gameplay state.
 
 ## Supported format contract
 
@@ -19,6 +19,10 @@ The shared reverb uses the MIT-licensed MeltySynth implementation of Freeverb, w
 Unknown essential sequence/codec/articulation features are errors. An existing instrument with no region covering a note produces its defined silence and appears in the instrument-coverage report; an unavailable instrument fails before playback. Original-resource tests inspect every note's band, bank, program, key and velocity selection rather than inferring support from a decoded formation or a short render.
 
 ## Thread and device ownership
+
+External/replacement music, native stream music and dialogue voice decoding use a bounded single-worker queue. Both queued jobs and decoded completions awaiting the presentation owner are bounded. Replacing a backend or dialogue channel cancels its old generation; stop, field/owner changes and shutdown invalidate delayed completions. The presentation thread alone creates playback buffers, applying its current gain and focus/UI/native pause state. A pending voice cannot trigger auto-advance; a decoder failure cannot masquerade as a completed voice. FFmpeg transfers are cancellable, have a two-minute deadline, and terminate the owned process tree on cancellation or timeout.
+
+The typed SPU WAVE cue uses managed PCM/MS ADPCM decoding, including declared sample counts, and common PCM normalization. Its whole-source SHA256, decoded byte count and actual playback outcome remain synchronous resource-preparation results; no FFmpeg process runs in SPUREADY. A missing device reports an accurate non-playback receipt and an actionable failure without changing the VM state schema.
 
 Each SDL output owns one task that supplies 10 ms stereo blocks at a logical 44.1 kHz rate, maintaining roughly 25–35 ms of managed queued audio. SDL handles conversion to the device's rate. Mixer and synthesizer state are synchronized; commands retain musical/sample cursors while paused. Shutdown cancels and joins the output task before releasing SDL resources.
 

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -17,7 +16,7 @@ internal sealed class MusicWorkerOutput : IDisposable
     private Exception? error;
     private int disposed;
 
-    public MusicWorkerOutput(nint window, string directory) : this(CreateStartInfo(window, directory), TimeSpan.FromSeconds(10))
+    public MusicWorkerOutput(string directory) : this(CreateStartInfo(directory), TimeSpan.FromSeconds(10))
     {
     }
 
@@ -51,11 +50,10 @@ internal sealed class MusicWorkerOutput : IDisposable
         }
     }
 
-    private static ProcessStartInfo CreateStartInfo(nint window, string directory)
+    private static ProcessStartInfo CreateStartInfo(string directory)
     {
         string helper = Path.Combine(AppContext.BaseDirectory, "audio-host", OperatingSystem.IsWindows() ? "Memoria.FF8.Music.exe" : "Memoria.FF8.Music");
         var start = new ProcessStartInfo(helper) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
-        start.ArgumentList.Add(window.ToInt64().ToString(CultureInfo.InvariantCulture));
         start.ArgumentList.Add(directory);
         return start;
     }
@@ -71,7 +69,7 @@ internal sealed class MusicWorkerOutput : IDisposable
         {
             InvalidOperationException queueFailure = new("Music output command queue is full or closed.");
             Fail(queueFailure);
-                ExceptionDispatchInfo.Capture(Error ?? queueFailure).Throw();
+            ExceptionDispatchInfo.Capture(Error ?? queueFailure).Throw();
         }
     }
 

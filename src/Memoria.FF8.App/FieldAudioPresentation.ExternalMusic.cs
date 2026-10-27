@@ -27,10 +27,55 @@ internal sealed partial class FieldAudioPresentation
             return false;
         }
         MusicKind kind = Path.GetExtension(nativeFilename).Equals(".sgt", StringComparison.OrdinalIgnoreCase) ? MusicKind.Midi : MusicKind.Stream;
-        byte[] encoded = selection.File.ReadBytes();
-        PcmAudio pcm = new(PcmAudioDecoder.Decode(toolsDirectory, "pipe:0", encoded, 44100, 2), 44100, 2);
-        ExternalMusicLoop loop = ExternalMusicLoop.Read(encoded, pcm);
-        int offset = ExternalMusicPcm.OffsetBytes(pcm, selection.OffsetSeconds);
+        nativeMidiPaused = false;
+        musicKinds[slot] = kind;
+        musicIds[slot] = track;
+        if (kind == MusicKind.Midi)
+        {
+            midiVolume = volume;
+            midiRamp = null;
+        }
+        else
+        {
+            streamVolume = volume;
+            streamRamp = null;
+            streamedMusicPaused = false;
+        }
+        try
+        {
+            Decoder.Queue(kind, async token =>
+            {
+                byte[] encoded = selection.File.ReadBytes();
+                token.ThrowIfCancellationRequested();
+                PcmAudio decoded = await DecodeAsync("pipe:0", encoded, token).ConfigureAwait(false);
+                ExternalMusicLoop loop = ExternalMusicLoop.Read(encoded, decoded);
+                int offset = ExternalMusicPcm.OffsetBytes(decoded, selection.OffsetSeconds);
+                if (offset >= loop.EndByte)
+                {
+                    throw new InvalidDataException("External music offset exceeds its loop end.");
+                }
+                PcmAudio primary = new(decoded.Bytes.AsSpan(0, loop.EndByte).ToArray(), decoded.SampleRate, decoded.Channels);
+                byte[]? repeat = loop.StartByte > 0 ? decoded.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray() : null;
+                return new DecodedExternalMusic(primary, loop, offset, repeat);
+            }, prepared => StartExternalMusic(selection, kind, slot, track, prepared), exception => MusicDecodeFailed(slot, exception));
+        }
+        catch
+        {
+            musicKinds[slot] = MusicKind.None;
+            musicIds[slot] = -1;
+            throw;
+        }
+        return true;
+    }
+
+    private sealed record DecodedExternalMusic(PcmAudio Primary, ExternalMusicLoop Loop, int Offset, byte[]? Repeat);
+
+    private void StartExternalMusic(ExternalMusicSelection selection, MusicKind kind, int slot, int track, DecodedExternalMusic prepared)
+    {
+        PcmAudio pcm = prepared.Primary;
+        ExternalMusicLoop loop = prepared.Loop;
+        int offset = prepared.Offset;
+        int volume = Math.Clamp((int)(kind == MusicKind.Midi ? midiVolume : streamVolume), 0, 127);
         if (kind == MusicKind.Midi)
         {
             music?.Stop();
@@ -44,7 +89,7 @@ internal sealed partial class FieldAudioPresentation
         {
             throw new InvalidDataException("External music offset exceeds its loop end.");
         }
-        PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes.AsSpan(0, loop.EndByte).ToArray(), pcm.SampleRate, pcm.Channels);
+        PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
         PcmAudioOutput.Buffer? repeat = null;
         ExternalMusicOutput output;
         try
@@ -53,12 +98,12 @@ internal sealed partial class FieldAudioPresentation
             buffer.Position(offset);
             if (loop.StartByte > 0)
             {
-                repeat = Sound.Create(pcm.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray(), pcm.SampleRate, pcm.Channels);
+                repeat = Sound.Create(prepared.Repeat!, pcm.SampleRate, pcm.Channels);
                 repeat.Volume(ExternalGain(kind, volume, selection.Volume));
             }
             buffer.Play(repeat is null);
             output = new ExternalMusicOutput(buffer, repeat, selection.Volume, (loop.EndByte - offset) / (double)(pcm.SampleRate * pcm.Channels * sizeof(short)), pcm.SampleRate * pcm.Channels * sizeof(short), loop.EndByte - loop.StartByte);
-            if (focusPaused)
+            if (focusPaused || nativeMidiPaused)
             {
                 output.Pause(true);
             }
@@ -73,20 +118,8 @@ internal sealed partial class FieldAudioPresentation
         externalMusic[(int)kind] = output;
         musicKinds[slot] = kind;
         musicIds[slot] = track;
-        if (kind == MusicKind.Midi)
-        {
-            midiVolume = volume;
-            midiRamp = null;
-            nativeMidiPaused = false;
-        }
-        else
-        {
-            streamVolume = volume;
-            streamRamp = null;
-            streamedMusicPaused = false;
-        }
         Console.WriteLine($"field-music=Playing track={track} slot={slot} package={selection.File.PackageId} file={selection.File.RelativePath} offset={selection.OffsetSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)} loop={loop.StartByte}:{loop.EndByte}");
-        return true;
+
     }
 
     private int ExternalGain(MusicKind kind, int volume, int percentage)
