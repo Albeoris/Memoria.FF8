@@ -41,6 +41,9 @@ internal sealed class GpuTestDevice : IDisposable
 
     private static void RequirePresentationOutput()
     {
+#if MEMORIA_VULKAN
+        throw new PlatformNotSupportedException("The WindowsDX offscreen HWND helper cannot initialize a Native SDL graphics host. Use a native Game host for Vulkan rendering checks.");
+#else
         using SharpDX.DXGI.Factory1 factory = new();
         int outputs = 0;
         for (int index = 0; index < factory.GetAdapterCount(); index++)
@@ -49,6 +52,7 @@ internal sealed class GpuTestDevice : IDisposable
             outputs += adapter.GetOutputCount();
         }
         Assert.SkipUnless(outputs != 0, "MonoGame WindowsDX exposes adapters only for DXGI presentation outputs; none are accessible in this process. GPU rendering was not verified.");
+#endif
     }
 
     public GraphicsDevice Device { get; }

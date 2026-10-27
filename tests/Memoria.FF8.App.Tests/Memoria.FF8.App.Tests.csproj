@@ -5,8 +5,12 @@
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <ApplicationManifest>../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
+    <UseWindowsForms Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">true</UseWindowsForms>
+    <!-- WinForms compiles existing DX11 test fixtures; the native host retains its own DPI-aware manifest. -->
+    <NoWarn Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'">$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Using Remove="System.Windows.Forms;System.Drawing" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
     <Content Include="../../Mods/Memoria/Depixelation/fields/*.json" Link="BundledMods/Memoria/Depixelation/fields/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
     <Using Include="Memoria.FF8.Tests" />
