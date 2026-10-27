@@ -127,10 +127,10 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(hd[0, 0], first[0, 0]);
         renderer.RenderNativePrimitiveFrame(frame, state, replacements: [replacement]);
         Assert.Same(first, capture.Texture);
-        NativeBattleEffectTextureState unrelated = state.Upload45BD30(400, 400, 1, 1, [1, 2]);
+        NativeBattleEffectTextureState unrelated = CloneForTextureBranch(state).Upload45BD30(400, 400, 1, 1, [1, 2]);
         renderer.RenderNativePrimitiveFrame(frame, unrelated, replacements: [replacement]);
         Assert.Same(first, capture.Texture);
-        NativeBattleEffectTextureState changedPalette = state.Upload45BD30(0, 0, 1, 1, [1, 0]);
+        NativeBattleEffectTextureState changedPalette = CloneForTextureBranch(state).Upload45BD30(0, 0, 1, 1, [1, 0]);
         renderer.RenderNativePrimitiveFrame(frame, changedPalette, replacements: [replacement]);
         Assert.NotSame(first, capture.Texture);
         Assert.Equal(originalUv, capture.Uv);
@@ -181,14 +181,13 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattleEffectTextureState initial = Texture(31);
         renderer.RenderNativePrimitiveFrame(frame, initial);
         object first = capture.Texture!;
-        NativeBattleEffectArena bank = new(initial.VramRegions);
-        NativeBattleEffectTextureState unrelated = initial with { VramRegions = bank.Write(2 * (400 * 1024 + 400), [9, 10]).Regions };
+        NativeBattleEffectTextureState unrelated = CloneForTextureBranch(initial).Upload45BD30(400, 400, 1, 1, [9, 10]);
         renderer.RenderNativePrimitiveFrame(frame, unrelated);
         Assert.Same(first, capture.Texture);
         renderer.RenderNativePrimitiveFrame(frame, Texture(0x3E0));
         Assert.NotSame(first, capture.Texture);
         object changedPalette = capture.Texture!;
-        NativeBattleEffectTextureState changedPage = Texture(0x3E0) with { VramRegions = new NativeBattleEffectArena(Texture(0x3E0).VramRegions).Write(0, [0x22, 0x22]).Regions };
+        NativeBattleEffectTextureState changedPage = CloneForTextureBranch(Texture(0x3E0)).Upload45BD30(0, 0, 1, 1, [0x22, 0x22]);
         renderer.RenderNativePrimitiveFrame(frame, changedPage);
         Assert.NotSame(changedPalette, capture.Texture);
         NativeBattleEffectTextureState invalid = changedPage with { Slots = [] };
@@ -211,7 +210,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         cache = cache with { Rows = cache.Rows.SetItem(selection.Row, row with { Regions = [region] }) };
         renderer.RenderNativePrimitiveFrame(frame, initial, textureWindowCache: cache);
         object first = capture.Texture!;
-        NativeBattleEffectTextureState changedPage = initial with { VramRegions = new NativeBattleEffectArena(initial.VramRegions).Write(0, [0x22, 0x22]).Regions };
+        NativeBattleEffectTextureState changedPage = CloneForTextureBranch(initial).Upload45BD30(0, 0, 1, 1, [0x22, 0x22]);
         renderer.RenderNativePrimitiveFrame(frame, changedPage, textureWindowCache: cache);
         Assert.Same(first, capture.Texture);
         NativeBattlePcTextureWindowRegion changed = region with { RetainedPixels = NativeBattlePcTextureWindowPixels.Capture(selection.Row, rectangle, changedPage) };
@@ -541,4 +540,6 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         BinaryPrimitives.WriteUInt16LittleEndian(palette.AsSpan(2), color);
         return NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, ImmutableArray.Create((byte)0x11, (byte)0x11)), new(2 * 256 * 1024, palette.ToImmutableArray())] };
     }
+    // Divergent fixture histories own independent VRAM; production render inputs stay bounded.
+    private static NativeBattleEffectTextureState CloneForTextureBranch(NativeBattleEffectTextureState texture) => texture with { VramRegions = [new(0, texture.ReadVram().ToImmutableArray())] };
 }

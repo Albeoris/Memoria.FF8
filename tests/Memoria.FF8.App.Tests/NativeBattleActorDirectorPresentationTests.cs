@@ -1522,7 +1522,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal(2, source.Combatants.Length);
                 Assert.Null(source.NativeEffectMemory!.RequireMeltingBubble43().Nodes);
                 Assert.Equal(1u, source.NativeEffectMemory.MeltingBubble43Executable!.InitializationFlag);
-                Assert.Equal(260, source.NativeEffectMemory.MeltingBubble43Executable.Data!.Value.Length);
+                Assert.Equal(260, source.NativeEffectMemory.MeltingBubble43Executable.Data!.Length);
                 meltingPoseSource = assets.ReadEnemyNativeGraphicsResource(enemy.ModelId).PoseSource ?? throw new InvalidDataException("Melting Bubble requires its original caster skeleton.");
             }
             if (effectId == 62)
@@ -5093,8 +5093,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     if (!curseBankRestored && curse.NodeProgram is { InitializationFlag: 1, Data: not null } program)
                     {
                         Assert.Equal(0x17B97A4u, program.ResourceAddress);
-                        Assert.Equal(6544, program.Data.Value.Length);
-                        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(program.Data.Value.AsSpan()));
+                        Assert.Equal(6544, program.Data.Length);
+                        Assert.Equal(1u, program.Data.ReadUInt32(0));
                         ColdNext("node-bank-initialized", current);
                         curseBankRestored = true;
                     }
@@ -5111,7 +5111,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     NativeBattleDoom8State doom = current.NativeEffectMemory.Doom8 ?? throw new InvalidDataException("Doom requires its reached cold-source preparation.");
                     if (!doomBankRestored && doom.NodeProgram is { InitializationFlag: 1, Data: not null })
                     {
-                        Assert.Equal(17460, doom.NodeProgram.Data.Value.Length);
+                        Assert.Equal(17460, doom.NodeProgram.Data.Length);
                         Assert.Equal(0x1818B78u, doom.NodeProgram.ResourceAddress);
                         ColdNext("node-bank-initialized", current);
                         doomBankRestored = true;
@@ -6149,7 +6149,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     Assert.Equal(NativeBattleLaserEye71Profile.Pools.Select(pool => pool.Descriptor).ToArray(), after.Pools.Select(pool => pool.DescriptorAddress).ToArray());
                     Assert.Equal(new ushort[] { 100, 88, 676, 148, 96, 64 }, after.Pools.Select(pool => pool.Stride).ToArray());
                     Assert.Equal(new int[] { 2, 4, 3, 10, 60, 10 }, after.Pools.Select(pool => pool.Slots.Length).ToArray());
-                    if (!laserBankRestored && laser.ExecutableBytes is { } bank && BinaryPrimitives.ReadUInt32LittleEndian(bank.AsSpan()) == 1)
+                    if (!laserBankRestored && laser.ExecutableBytes is { } bank && bank.ReadUInt32(0) == 1)
                     {
                         Assert.False(laser.ColdSourcePending);
                         Assert.Equal(0x60B0, bank.Length);
@@ -6865,8 +6865,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         NativeBattleCuragaExecutableState directoryState = current.NativeEffectMemory.MeltingBubble43Executable!;
                         Assert.Equal(1u, directoryState.InitializationFlag);
                         Assert.Equal(0x15C6080u, directoryState.ResourceAddress);
-                        Assert.Equal(260, directoryState.Data!.Value.Length);
-                        Assert.Equal(original.MeltingBubble43Resources!.Executable.Data.ToArray(), directoryState.Data.Value.ToArray());
+                        Assert.Equal(260, directoryState.Data!.Length);
+                        Assert.Equal(original.MeltingBubble43Resources!.Executable.Data.ToArray(), directoryState.Data!.Data.ToArray());
                         Assert.Equal(560, original.MeltingBubble43Resources.ReadResource(0x15C3684).Length);
                         ColdNext("absolute-resources", current);
                         meltingResourcesRestored = true;
@@ -6883,8 +6883,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (effectId == 29 && !windBlastBankRestored && current.NativeEffectMemory!.WindBlast29Executable is { InitializationFlag: 1, Data: not null } windBank)
                 {
                     Assert.Equal(0x17D27DCu, windBank.ResourceAddress);
-                    Assert.Equal(14192, windBank.Data.Value.Length);
-                    Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(windBank.Data.Value.AsSpan()));
+                    Assert.Equal(14192, windBank.Data.Length);
+                    Assert.Equal(1u, windBank.Data.ReadUInt32(0));
                     ColdNext("node-bank-initialized", current);
                     windBlastBankRestored = true;
                 }
@@ -6892,12 +6892,12 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 {
                     NativeBattleDeathState state = current.NativeEffectMemory!.LevelDeath74!;
                     Assert.False(state.PendingColdSources);
-                    if (!levelDeathAuraRestored && state.AuraActors is { } aura && BinaryPrimitives.ReadUInt32LittleEndian(aura.AsSpan()) == 1)
+                    if (!levelDeathAuraRestored && state.AuraActors is { } aura && aura.ReadUInt32(0) == 1)
                     {
                         ColdNext("aura-bank-initialized", current);
                         levelDeathAuraRestored = true;
                     }
-                    if (!levelDeathDarkRestored && state.DarkActors is { } dark && BinaryPrimitives.ReadUInt32LittleEndian(dark.AsSpan()) == 1)
+                    if (!levelDeathDarkRestored && state.DarkActors is { } dark && dark.ReadUInt32(0) == 1)
                     {
                         ColdNext("dark-bank-initialized", current);
                         levelDeathDarkRestored = true;
@@ -6956,8 +6956,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.Equal(1u, current.NativeEffectMemory.Effect60PrimaryExecutable!.InitializationFlag);
                         Assert.Equal(0x1797CC0u, current.NativeEffectMemory.Effect60PrimaryExecutable.ResourceAddress);
                         Assert.Equal(0x179C998u, current.NativeEffectMemory.Effect60SecondaryExecutable.ResourceAddress);
-                        Assert.Equal(19672, current.NativeEffectMemory.Effect60PrimaryExecutable.Data!.Value.Length);
-                        Assert.Equal(17260, current.NativeEffectMemory.Effect60SecondaryExecutable.Data!.Value.Length);
+                        Assert.Equal(19672, current.NativeEffectMemory.Effect60PrimaryExecutable.Data!.Length);
+                        Assert.Equal(17260, current.NativeEffectMemory.Effect60SecondaryExecutable.Data!.Length);
                         ColdNext("secondary-bank-initialized", current);
                         secondaryBankRestored = true;
                     }
@@ -8113,14 +8113,14 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if ((contact.Primary.HitFlags3 & 4) != 0)
                 {
                     Assert.False(levelDeathDarkRestored);
-                    Assert.Equal(original.DeathResources!.DarkActors.ToArray(), state.DarkActors!.Value.ToArray());
+                    Assert.Equal(original.DeathResources!.DarkActors.ToArray(), state.DarkActors!.Data.ToArray());
                     Assert.DoesNotContain(completed.NativeGraphics!.OriginalEffect!.Pools[4].Slots, task => task.Callback == profile.Callback(0x8B78C0) && task.ReadDword(0x30) == profile.DarkAddress);
                     Assert.DoesNotContain(completed.NativeGraphics.OriginalEffect.Pools[6].Slots, task => task.Callback == profile.Callback(0x8BD840));
                 }
                 else
                 {
                     Assert.True(levelDeathDarkRestored);
-                    Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(state.DarkActors!.Value.AsSpan()));
+                    Assert.Equal(1u, state.DarkActors!.ReadUInt32(0));
                     Assert.Contains(completed.NativeGraphics!.OriginalEffect!.Pools[6].Slots, task => task.Callback == profile.Callback(0x8BD840));
                 }
                 for (int group = 0; group < completed.NativeStage!.Groups.Length; group++)

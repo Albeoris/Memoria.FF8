@@ -41,7 +41,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
             Assert.Equal(Pools.Length, effect.Pools.Length);
             Assert.All(state.BankStorage, bank => Assert.Null(bank));
             Assert.NotNull(state.NodeData);
-            Assert.Equal(NodeSourceLength, state.NodeData!.Value.Length);
+            Assert.Equal(NodeSourceLength, state.NodeData!.Length);
             for (int index = 0; index < effect.Pools.Length; index++)
             {
                 NativeBattleCureFamilyPool expected = Pools[index];

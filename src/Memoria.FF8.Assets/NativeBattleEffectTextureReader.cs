@@ -19,6 +19,8 @@ public static partial class NativeBattleEffectTextureReader
             throw new NotSupportedException("Native texture page pixel depth3 is reserved.");
         }
         pixelWords?.Validate();
+        previous.Validate();
+        current.Validate();
         if (depth < 2)
         {
             int paletteX = (clut & 63) * 16;
@@ -111,6 +113,7 @@ public static partial class NativeBattleEffectTextureReader
         {
             throw new NotSupportedException("Native texture page pixel depth3 is reserved.");
         }
+        state.Validate();
         int pageX = (texturePage & 15) * 64;
         int pageY = (texturePage & 16) * 16;
         int paletteX = (clut & 63) * 16;

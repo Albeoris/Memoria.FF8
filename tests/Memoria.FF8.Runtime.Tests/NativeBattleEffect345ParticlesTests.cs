@@ -197,8 +197,8 @@ public sealed class NativeBattleEffect345ParticlesTests
             return current;
         })
         {
-            ReadModel = _ => throw new InvalidOperationException("Sprite delivery does not read an actor model."),
-            ReadPoseSource = _ => throw new InvalidOperationException("Sprite delivery does not read an actor pose.")
+            ReadModel = (_, _) => throw new InvalidOperationException("Sprite delivery does not read an actor model."),
+            ReadPoseSource = (_, _) => throw new InvalidOperationException("Sprite delivery does not read an actor pose.")
         };
         NativeBattleEffect345Step result = NativeBattleEffect345Particles.Advance7075D0(frame, task, null!, inputs);
         Assert.Equal(2, batches.Count);

@@ -88,6 +88,52 @@ public sealed class NativeRetainedStorageGraphTests
         Assert.Equal((byte)0, live.Memory.EffectMemory!.Rinoa88!.NodeData!.ReadByte(4));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_second_graph_root_cannot_change_already_finalized_reference_metadata(bool firstHasAlias)
+    {
+        NativeBattleRetainedMemory firstLive = Process().Memory;
+        if (!firstHasAlias)
+        {
+            firstLive = firstLive with { EffectMemory = firstLive.EffectMemory! with { Recover93 = null } };
+        }
+        NativeBattleEffectArena firstArena = firstLive.EffectMemory!.Arena!;
+        NativeBattleEffectArena otherArena = NativeBattleEffectArena.Clear().Write(Offset + 4, [71]);
+        NativeBattleNodeSource otherSource = NativeBattleNodeSource.Borrow(otherArena, Offset, NativeBattleRecover93Nodes.SourceLength);
+        NativeBattleRecover93NodeState nodes = NativeBattleRecover93NodeState.FromColdProcess() with { Data = otherSource };
+        NativeBattleRetainedMemory secondLive = firstLive with
+        {
+            EffectMemory = firstLive.EffectMemory with
+            {
+                Arena = otherArena,
+                Recover93 = new(null, [], null, null, null, 0, 0, nodes),
+                Reflect106 = new(0, 0, firstArena, 0),
+                Death14 = NativeBattleDeathState.FromColdProcess() with { Module = firstArena }
+            }
+        };
+        NativeBattleStorageCaptureContext context = new();
+        NativeBattleRetainedMemory first = context.AttachStorageGraph(context.Map(firstLive));
+        string before = JsonSerializer.Serialize(first);
+        NativeBattleRetainedMemory secondPending = context.Map(secondLive);
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => context.AttachStorageGraph(secondPending));
+        Assert.Contains("only one persistence root", failure.Message, StringComparison.Ordinal);
+        Assert.Equal(before, JsonSerializer.Serialize(first));
+        NativeBattleRetainedMemory restoredFirst = new NativeFieldEyeProcess(1, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(before)!, null).RestoreOwned().Memory;
+        Assert.Equal((byte)0, restoredFirst.EffectMemory!.Arena!.ReadByte(Offset + 4));
+        if (firstHasAlias)
+        {
+            AssertAliases(restoredFirst);
+        }
+        NativeBattleRetainedMemory independent = NativeBattleStorageSnapshots.Capture(secondLive);
+        NativeBattleRetainedMemory restoredSecond = new NativeFieldEyeProcess(1, JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(independent))!, null).RestoreOwned().Memory;
+        Assert.Equal((byte)71, restoredSecond.EffectMemory!.Recover93!.Nodes.Data!.ReadByte(4));
+        Assert.Same(restoredSecond.EffectMemory.Arena!.Working, restoredSecond.EffectMemory.Recover93.Nodes.Data.Arena.Working);
+        Assert.Same(restoredSecond.EffectMemory.Reflect106!.Packets.Working, restoredSecond.EffectMemory.Death14!.Module.Working);
+        Assert.NotSame(restoredSecond.EffectMemory.Arena.Working, restoredSecond.EffectMemory.Reflect106.Packets.Working);
+        Assert.Equal(before, JsonSerializer.Serialize(first));
+    }
+
     private static NativeFieldEyeProcess Process()
     {
         NativeBattleRetainedMemory memory = new NativeFieldEyeProcess(1, NativeBattleRetainedMemory.FromColdProcess(), null).RestoreOwned().Memory;

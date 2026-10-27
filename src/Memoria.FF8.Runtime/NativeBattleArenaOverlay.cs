@@ -22,6 +22,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     private readonly HashSet<int> pointerSaved = [];
     private bool checkpoint;
     private bool publicationNested;
+    private int publicationDepth;
     private int checkpointDirtyCount;
     private int checkpointExtent;
     private int extent;
@@ -444,38 +445,75 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
 
     internal void BeginPublication()
     {
-        publicationNested = Kernel.HasCheckpoint;
+        if (publicationDepth != 0)
+        {
+            throw new InvalidOperationException("Native arena publication is already active.");
+        }
+        NativeBattleWorkingMemory memory = Kernel;
+        NativeBattleTaskOperation.EnlistRetained(memory);
+        publicationNested = memory.HasCheckpoint;
         if (publicationNested)
         {
-            Kernel.BeginNestedCheckpoint();
+            memory.BeginNestedCheckpoint();
         }
         else
         {
-            Kernel.BeginCheckpoint();
+            memory.BeginCheckpoint();
         }
+        publicationDepth = memory.CheckpointDepth;
     }
 
     internal void CommitPublication()
     {
-        if (publicationNested)
+        RequirePublicationTop();
+        try
         {
-            Kernel.CommitNestedCheckpoint();
+            if (publicationNested)
+            {
+                Kernel.CommitNestedCheckpoint();
+            }
+            else
+            {
+                Kernel.CommitCheckpoint();
+            }
         }
-        else
+        finally
         {
-            Kernel.CommitCheckpoint();
+            if (Kernel.CheckpointDepth < publicationDepth)
+            {
+                publicationDepth = 0;
+            }
         }
     }
 
     internal void RollbackPublication()
     {
-        if (publicationNested)
+        RequirePublicationTop();
+        try
         {
-            Kernel.RollbackNestedCheckpoint();
+            if (publicationNested)
+            {
+                Kernel.RollbackNestedCheckpoint();
+            }
+            else
+            {
+                Kernel.RollbackCheckpoint();
+            }
         }
-        else
+        finally
         {
-            Kernel.RollbackCheckpoint();
+            if (Kernel.CheckpointDepth < publicationDepth)
+            {
+                publicationDepth = 0;
+            }
+        }
+    }
+
+    private void RequirePublicationTop()
+    {
+        if (publicationDepth == 0 || Kernel.CheckpointDepth != publicationDepth)
+        {
+            throw new InvalidOperationException("Native arena publication journals must complete in physical nesting order.");
         }
     }
 

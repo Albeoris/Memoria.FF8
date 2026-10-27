@@ -245,6 +245,60 @@ public sealed class NativeBattleLogicalOrderingWorkingStorageTests
         Assert.Equal(0x01000000u, ordering.Packets[0].Words[1]);
     }
 
+    [Fact]
+    public void Model_producer_scope_ends_before_render_tail_resets_and_next_frame_reuses_the_same_packet_bank()
+    {
+        NativeBattlePrimitiveReference packet = new("off_B6D070", 0, 0);
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ProduceAndReset(ordering, packet, closeBeforeTail: true);
+        Assert.Equal(0, ordering.ProxyCursor);
+        Assert.Empty(ordering.Packets);
+        Assert.DoesNotContain(ordering.Table, link => link.Proxy);
+        Assert.DoesNotContain(ordering.OtherTable!.Value, link => link.Proxy);
+        using (NativeBattleLogicalOrderingTransaction next = new(ordering))
+        {
+            next.Writer.Prepend(5, packet, Words, 0, []);
+            next.Freeze();
+        }
+        Assert.Equal(1, ordering.ProxyCursor);
+        Assert.Single(ordering.Packets);
+        Assert.Single(ordering.Traverse(Lengths));
+
+        NativeBattleLogicalOrdering incorrectLifetime = NativeBattleLogicalOrdering.Clear();
+        ProduceAndReset(incorrectLifetime, packet, closeBeforeTail: false);
+        Assert.Equal(1, incorrectLifetime.ProxyCursor);
+        incorrectLifetime.Prepend(5, packet, Words, 0, []);
+        Assert.Throws<InvalidDataException>(() => incorrectLifetime.Traverse(Lengths));
+    }
+
+    [Fact]
+    public void Ending_the_owned_model_producer_does_not_accept_an_enclosing_automatic_ordering_scope()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering));
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            operation.AdmitOrdering(ordering);
+            ProduceAndReset(ordering, new("off_B6D070", 0, 0), closeBeforeTail: true);
+            ordering.Prepend(7, new("off_B6D070", 0, 0), Words, 0, []);
+            Assert.Single(ordering.Traverse(Lengths));
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)));
+    }
+
+    private static void ProduceAndReset(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveReference packet, bool closeBeforeTail)
+    {
+        using NativeBattleLogicalOrderingTransaction producer = new(ordering);
+        producer.Writer.Prepend(5, packet, Words, 0, []);
+        Assert.Same(ordering, producer.Freeze());
+        Assert.Single(ordering.Traverse(Lengths));
+        if (closeBeforeTail)
+        {
+            producer.Dispose();
+        }
+        ordering.ResetAfterDraw45D080().ClearRoots45D550();
+    }
+
     private static NativeBattlePrimitiveReference Reference(int index) => new("logical-test", 0, index * 8);
     private static readonly ImmutableArray<uint> Words = [0x01000000, 0x01000000];
     private static readonly ImmutableArray<byte> Lengths = Enumerable.Repeat((byte)1, 256).ToImmutableArray();

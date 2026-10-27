@@ -140,10 +140,11 @@ internal sealed class NativeBattleEffect345PresentationObserver
         }
         foreach (NativeBattleEffect345NodeResourceBank bank in resources.Nodes)
         {
-            if (state.NodeData is null || !state.NodeData.TryGetValue(bank.Address, out ImmutableArray<byte> data) || BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan()) != 1)
+            if (state.NodeData is null || !state.NodeData.TryGetValue(bank.Address, out NativeBattleNodeSource? source) || BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()) != 1)
             {
                 continue;
             }
+            ImmutableArray<byte> data = source.Data;
             for (int table = 0; table < 4; table++)
             {
                 for (int index = 0; index < 16; index++)

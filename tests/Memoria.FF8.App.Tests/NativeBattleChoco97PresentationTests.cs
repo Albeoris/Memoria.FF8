@@ -285,7 +285,7 @@ public sealed class NativeBattleChoco97PresentationTests
         {
             return "model-pose0";
         }
-        if (requested.Contains("static-node-live") && state?.Nodes.StaticData is { } data && U32(data, 0) == 1 && Tasks(effect, NativeBattleChoco97Nodes.Callback).Any(task => task.ReadDword(0x30) == NativeBattleChoco97Nodes.StaticAddress && task.ReadByte(0x29) == 1 && task.ReadWord(0x34 + 0x14) > 0 && task.ReadWord(0x34 + 0x16) > 0))
+        if (requested.Contains("static-node-live") && state?.Nodes.StaticData is { } data && data.ReadUInt32(0) == 1 && Tasks(effect, NativeBattleChoco97Nodes.Callback).Any(task => task.ReadDword(0x30) == NativeBattleChoco97Nodes.StaticAddress && task.ReadByte(0x29) == 1 && task.ReadWord(0x34 + 0x14) > 0 && task.ReadWord(0x34 + 0x16) > 0))
         {
             return "static-node-live";
         }
@@ -314,9 +314,10 @@ public sealed class NativeBattleChoco97PresentationTests
 
     private static void ObserveNodes(NativeBattleChoco97State state, NativeBattleChoco97Resources resources, HashSet<uint> relocated, HashSet<uint> mutated)
     {
+        // The observation loop supplies detached state from BattleSession.Capture.
         foreach (NativeBattleChoco97NodeResource resource in resources.Nodes)
         {
-            ImmutableArray<byte>? current = resource.Address == NativeBattleChoco97Nodes.StaticAddress ? state.Nodes.StaticData : ReadKnownBank(state.Io, resource.Address, resource.Data.Length);
+            ImmutableArray<byte>? current = resource.Address == NativeBattleChoco97Nodes.StaticAddress ? state.Nodes.StaticData?.Data : ReadKnownBank(state.Io, resource.Address, resource.Data.Length);
             if (current is not { } data || U32(data, 0) == 0)
             {
                 continue;

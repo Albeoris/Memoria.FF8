@@ -95,6 +95,7 @@ public sealed class NativeBattleChoco100NodeResourcesTests
             {
                 frame = frame with { Memory = frame.Memory with { PrimitiveProcess = frame.Memory.PrimitiveProcess!.Initialize500400() } };
                 frame = NativeBattleChoco100Nodes.BeginPass(frame, view, 0x1000);
+                string? continuation = callback % 17 == 0 ? SnapshotJson(frame) : null;
                 NativeBattleChoco100NodeStep step;
                 try
                 {
@@ -106,7 +107,7 @@ public sealed class NativeBattleChoco100NodeResourcesTests
                 }
                 if (callback % 17 == 0)
                 {
-                    NativeBattleChoco100NodeFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleChoco100NodeFrame>(SnapshotJson(frame))!);
+                    NativeBattleChoco100NodeFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleChoco100NodeFrame>(continuation!)!);
                     NativeBattleChoco100NodeStep next = NativeBattleChoco100Nodes.AdvanceContext(restored, contexts[sourceIndex], Model, projection, 0, NativeBattleLogicalOrdering.Clear(), rules.SummonColors!);
                     Assert.Equal(SnapshotJson(step), SnapshotJson(next));
                     coldBoundaries++;

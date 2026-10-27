@@ -90,7 +90,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
                     }
                 }
             }
-            foreach ((uint address, ImmutableArray<byte> bytes) in state.NodeBanks)
+            foreach ((uint address, NativeBattleNodeSource bytes) in state.NodeBanks)
             {
                 Assert.Equal(NodeSourceLengths[address], bytes.Length);
                 if (state.ReadDword(address) == 1 && relocated.Add(address))

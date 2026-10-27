@@ -27,9 +27,9 @@ public sealed partial class GameSession
         {
             reloaded.Validate();
             NativeBattleRetainedMemory allowed = memory with { FileStaging = reloaded.FileStaging, EffectMemory = reloaded.EffectMemory, ModelCpuResources = reloaded.ModelCpuResources };
-            NativeBattleStorageCaptureContext capture = new();
-            NativeBattleRetainedMemory detachedAllowed = capture.AttachStorageGraph(capture.Map(allowed));
-            NativeBattleRetainedMemory detachedReloaded = capture.AttachStorageGraph(capture.Map(reloaded));
+            // These lifecycle receipts need independent ownership metadata as well as detached bytes.
+            NativeBattleRetainedMemory detachedAllowed = NativeBattleStorageSnapshots.Capture(allowed);
+            NativeBattleRetainedMemory detachedReloaded = NativeBattleStorageSnapshots.Capture(reloaded);
             if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(detachedAllowed), System.Text.Json.JsonSerializer.SerializeToElement(detachedReloaded)))
             {
                 throw new InvalidDataException("Native field resource reload changed an unrelated retained battle owner.");

@@ -120,9 +120,9 @@ public sealed class NativeBattleEffect345PresentationTests
                     }
                     NativeBattleEffect345State state = current.NativeEffectMemory!.Effect345!;
                     NativeBattleEffect345Resources resources = effect.Binding.Effect345Resources!;
-                    foreach ((uint address, ImmutableArray<byte> data) in state.NodeData ?? ImmutableDictionary<uint, ImmutableArray<byte>>.Empty)
+                    foreach ((uint address, NativeBattleNodeSource data) in state.NodeData ?? ImmutableDictionary<uint, NativeBattleNodeSource>.Empty)
                     {
-                        if (BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan()) == 1)
+                        if (BinaryPrimitives.ReadUInt32LittleEndian(data.Data.AsSpan()) == 1)
                         {
                             relocatedNodes.Add(address);
                         }

@@ -6,6 +6,18 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattleBoundedVramTextureTests
 {
     [Fact]
+    public void Cached_version_identity_does_not_accept_invalid_upload_metadata()
+    {
+        NativeBattleEffectTextureState current = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [1, 0]);
+        NativeBattleEffectTextureState invalid = current with { Slots = [] };
+        Assert.Same(current.VramPublicationIdentity, invalid.VramPublicationIdentity);
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.HasSamePcRegionSource(current, invalid, 0, 0, 0, 0, 1, 1));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureReader.DecodeRegion(invalid, 0, 0, 0, 0, 1, 1));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.HasSamePcRegionSource(current, invalid, 0x180, 0, 0, 0, 1, 1));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffectTextureReader.DecodeRegion(invalid, 0x180, 0, 0, 0, 1, 1));
+    }
+
+    [Fact]
     public void Small_region_decoding_uses_current_palette_without_exporting_the_full_bank()
     {
         NativeBattleEffectTextureState previous = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [1, 0]).Upload45BD30(17, 0, 1, 1, [31, 0]);

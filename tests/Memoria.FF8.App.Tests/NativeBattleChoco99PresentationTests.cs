@@ -377,9 +377,10 @@ public sealed class NativeBattleChoco99PresentationTests
 
     private static void ObserveNodes(NativeBattleChoco99State state, NativeBattleChoco99Resources resources, HashSet<uint> relocated, HashSet<uint> mutated, HashSet<uint> morphed)
     {
+        // The observation loop supplies detached state from BattleSession.Capture.
         foreach (NativeBattleChoco97NodeResource resource in resources.Nodes)
         {
-            ImmutableArray<byte>? current = resource.Address == NativeBattleChoco99Nodes.StaticAddress ? state.Nodes.StaticData : ReadKnownBank(state.Io, resource.Address, resource.Data.Length);
+            ImmutableArray<byte>? current = resource.Address == NativeBattleChoco99Nodes.StaticAddress ? state.Nodes.StaticData?.Data : ReadKnownBank(state.Io, resource.Address, resource.Data.Length);
             if (current is not { } data || U32(data, 0) == 0)
             {
                 continue;

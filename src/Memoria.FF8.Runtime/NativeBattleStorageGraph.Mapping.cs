@@ -118,11 +118,30 @@ internal static class NativeBattleStorageGraphViews
 internal sealed partial class NativeBattleStorageCaptureContext
 {
     private readonly HashSet<NativeBattleEffectArena> capturedArenas = new(ReferenceEqualityComparer.Instance);
+    private bool graphFinalized;
 
     internal void RegisterCapturedArena(NativeBattleEffectArena arena) => capturedArenas.Add(arena);
 
-    internal BattleSnapshot AttachStorageGraph(BattleSnapshot snapshot) => capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
-    internal NativeBattleRetainedMemory AttachStorageGraph(NativeBattleRetainedMemory snapshot) => capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
+    internal BattleSnapshot AttachStorageGraph(BattleSnapshot snapshot)
+    {
+        BeginGraphFinalization();
+        return capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
+    }
+
+    internal NativeBattleRetainedMemory AttachStorageGraph(NativeBattleRetainedMemory snapshot)
+    {
+        BeginGraphFinalization();
+        return capturedArenas.Count == 0 ? snapshot : snapshot with { StorageGraph = BuildStorageGraph(snapshot) };
+    }
+
+    private void BeginGraphFinalization()
+    {
+        if (graphFinalized)
+        {
+            throw new InvalidOperationException("A storage capture context can finalize only one persistence root.");
+        }
+        graphFinalized = true;
+    }
 
     private NativeBattleStorageGraph? BuildStorageGraph(object snapshot)
     {
