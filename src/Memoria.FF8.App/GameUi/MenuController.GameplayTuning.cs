@@ -42,10 +42,10 @@ public sealed partial class MenuController
         "UnlimitedMagic" => "Infinite magic",
         "MaximumDamage" => "Maximum damage",
         "UnrestrictedScanRotation" => "Free Scan rotation",
-        "First" => "Rare Item Ã‚Â· Slot 1",
-        "Second" => "Rare Item Ã‚Â· Slot 2",
-        "Third" => "Rare Item Ã‚Â· Slot 3",
-        "Fourth" => "Rare Item Ã‚Â· Slot 4",
+        "First" => "Rare Item \u00B7 Slot 1",
+        "Second" => "Rare Item \u00B7 Slot 2",
+        "Third" => "Rare Item \u00B7 Slot 3",
+        "Fourth" => "Rare Item \u00B7 Slot 4",
         _ => throw new ArgumentOutOfRangeException(nameof(field))
     };
 
@@ -74,7 +74,7 @@ public sealed partial class MenuController
             bool enabled = field == "UnlimitedMagic" ? gameplayTuningDraft.UnlimitedMagic : gameplayTuningDraft.UnrestrictedScanRotation;
             return enabled ? "On" : "Off";
         }
-        return GameplayTuningValue(field).ToString("0.######", CultureInfo.InvariantCulture) + (IsRareItemField(field) ? "%" : field.EndsWith("Multiplier", StringComparison.Ordinal) ? "Ãƒâ€”" : "");
+        return GameplayTuningValue(field).ToString("0.######", CultureInfo.InvariantCulture) + (IsRareItemField(field) ? "%" : field.EndsWith("Multiplier", StringComparison.Ordinal) ? "\u00D7" : "");
     }
 
     private void RegisterGameplayTuningScreens()
@@ -104,8 +104,8 @@ public sealed partial class MenuController
         foreach (string field in GameplayTuningFields[gameplayTuningPage])
         {
             string? locked = GameplayTuningLock(field);
-            string help = locked ?? (field == "UnlimitedMagic" ? "Cast without consuming magic stock or cooldown costs. Takes precedence over Limited magic." : IsRareItemField(field) ? "Percentage from 0 to 100. All four slots must total exactly 100%." : field == "UnrestrictedScanRotation" ? "Allow rotation of every scanned target." : field == "MaximumDamage" ? "Cap all positive HP damage, including attacks that break the normal limit: 0â€“100000. Healing and instant KO are unchanged." : "Whole number from 0 to 100. Zero disables this bonus or reward.");
-            rows.Add(new MenuEntry(field, GameplayTuningLabel(field) + "   " + GameplayTuningDisplay(field) + (locked is null ? "" : " Ã‚Â· Locked"), help, Action: new MenuAction("gameplay-rule-edit", field), Enabled: GameplayTuningAvailable && locked is null));
+            string help = locked ?? (field == "UnlimitedMagic" ? "Cast without consuming magic stock or cooldown costs. Takes precedence over Limited magic." : IsRareItemField(field) ? "Percentage from 0 to 100. All four slots must total exactly 100%." : field == "UnrestrictedScanRotation" ? "Allow rotation of every scanned target." : field == "MaximumDamage" ? "Cap all positive HP damage, including attacks that break the normal limit: 0-100000. Healing and instant KO are unchanged." : "Whole number from 0 to 100. Zero disables this bonus or reward.");
+            rows.Add(new MenuEntry(field, GameplayTuningLabel(field) + "   " + GameplayTuningDisplay(field) + (locked is null ? "" : " \u00B7 Locked"), help, Action: new MenuAction("gameplay-rule-edit", field), Enabled: GameplayTuningAvailable && locked is null));
         }
         rows.Add(new("previous", "Previous page", "Keep the draft and show the previous group.", Action: new("gameplay-rule-page", Value: "-1")));
         rows.Add(new("next", "Next page", "Keep the draft and show the next group.", Action: new("gameplay-rule-page", Value: "1")));
@@ -118,10 +118,10 @@ public sealed partial class MenuController
     {
         UiGrid page = Grid([1.1f, 0.55f, 6.3f, 1.4f], [1], 6);
         Place(page, Header(), 0);
-        string title = new[] { "1 / 3 Ã‚Â· Rewards & Draw", "2 / 3 Ã‚Â· Magic & damage", "3 / 3 Ã‚Â· Rare Item & Scan" }[gameplayTuningPage];
+        string title = new[] { "1 / 3 \u00B7 Rewards & Draw", "2 / 3 \u00B7 Magic & damage", "3 / 3 \u00B7 Rare Item & Scan" }[gameplayTuningPage];
         Place(page, Panel(null, Label(title, 21)), 1);
         Place(page, Panel(null, Commands(36, 21)), 2);
-        string total = "Rare Item total: " + RareItemTotal.ToString("0.######", CultureInfo.InvariantCulture) + "%" + (RareItemTotal == 100m ? "" : " Ã‚Â· Must equal 100%");
+        string total = "Rare Item total: " + RareItemTotal.ToString("0.######", CultureInfo.InvariantCulture) + "%" + (RareItemTotal == 100m ? "" : " \u00B7 Must equal 100%");
         Place(page, Panel(null, Label(total + "\n" + (gameplayTuningStatus?.Invoke() ?? "Current game only. Save normally to retain changes. Battle changes may wait until the next battle."), 17, UiTextFlow.Wrap)), 3);
         return page;
     }
@@ -146,7 +146,7 @@ public sealed partial class MenuController
             Place(keypad, button, index / 4, index % 4);
         }
         Place(page, Panel(null, keypad), 2);
-        Place(page, Panel(null, Label(IsRareItemField(gameplayNumberField) ? "0Ã¢â‚¬â€œ100%, up to six decimal places. Total must equal 100%." : gameplayNumberField == "MaximumDamage" ? "Whole number: 0Ã¢â‚¬â€œ100000" : "Whole number: 0Ã¢â‚¬â€œ100", 17)), 3);
+        Place(page, Panel(null, Label(IsRareItemField(gameplayNumberField) ? "0-100%, up to six decimal places. Total must equal 100%." : gameplayNumberField == "MaximumDamage" ? "Whole number: 0-100000" : "Whole number: 0-100", 17)), 3);
         return page;
     }
 
@@ -269,7 +269,7 @@ public sealed partial class MenuController
         int decimalPlaces = gameplayNumberDraft.Contains('.') ? gameplayNumberDraft.Length - gameplayNumberDraft.IndexOf('.') - 1 : 0;
         if (!decimal.TryParse(gameplayNumberDraft, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal value) || value < 0 || value > maximum || decimalPlaces > (rare ? 6 : 0))
         {
-            Message = rare ? "Enter 0Ã¢â‚¬â€œ100 with up to six decimal places." : $"Enter a whole number from 0 to {maximum}.";
+            Message = rare ? "Enter 0-100 with up to six decimal places." : $"Enter a whole number from 0 to {maximum}.";
             return;
         }
         gameplayTuningDraft = gameplayNumberField switch
@@ -288,4 +288,3 @@ public sealed partial class MenuController
         Back();
     }
 }
-
