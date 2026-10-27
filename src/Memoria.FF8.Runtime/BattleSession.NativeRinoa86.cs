@@ -10,6 +10,10 @@ public sealed partial class BattleSession
         NativeBattleRinoa86Resources resources = effect.Binding.Rinoa86Resources ?? throw new NotSupportedException("Native Rinoa86 requires its original resources.");
         NativeBattleRinoa86Frame frame = NativeBattleRinoa86Controller.Initialize(NativeEffectMemory ?? throw new NotSupportedException("Native Rinoa86 requires its retained process."), effect, nativeActionPackets, resources);
         NativeEffectMemory = frame.Memory with { Rinoa86 = frame.State };
+        if ((effect.Parameters!.Flags79 & 1) == 0)
+        {
+            NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native77F250 requires its current camera owner.")).RegisterControlResource(frame.Memory.Textures!.Animation);
+        }
         return graphics with { OriginalEffect = frame.Effect };
     }
 
