@@ -15,6 +15,8 @@ internal static class SnapshotInitialStateMigration
             initialOptions.Converters.Remove(converter);
         }
         JsonObject initial = JsonSerializer.SerializeToNode(GameSession.CreateColdProcess().State, initialOptions)!.AsObject();
+        // Sigh has its own versioned initialization and execution guard, including when an entire parent owner is absent.
+        initial[nameof(GameState.NativeBattleMemory)]![nameof(NativeBattleRetainedMemory.EffectMemory)]!.AsObject().Remove(nameof(NativeBattleEffectMemory.Sigh46));
         SnapshotDefaults.CompleteSelphieCardSlots(saved);
         SnapshotDefaults.Complete(saved, initial);
         JsonObject retained = initial[nameof(GameState.NativeBattleMemory)]!.AsObject();

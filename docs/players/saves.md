@@ -71,6 +71,8 @@ When loading a snapshot outside an executing battle, properties absent from the 
 
 Initial process values do not reset the current field or story progress. A running battle, an incomplete battle snapshot or an effect process with an executed entry must retain its recorded execution state; missing live counters are not synthesized. Existing validation still checks saved types, resource ownership, consistency and compressed-file checksums. Snapshots therefore remain validated engine state rather than a promise of compatibility with every historical revision. Changes that require information beyond known initial values may still need a migration.
 
+Schema 3 initializes absent Sigh state and complete legacy uninitialized Sigh placeholders when loading older snapshots. This covers the retained field and battle copies, including saves immediately before Sigh starts. Initialized effects, partial state and current-schema owners retain their saved values.
+
 When a migration is necessary:
 
 1. Preserve the source file.

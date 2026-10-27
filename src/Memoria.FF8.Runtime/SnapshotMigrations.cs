@@ -33,6 +33,9 @@ internal static class SnapshotMigrations
                     SnapshotBattleMetadataMigration.Apply(saved, options);
                     SnapshotInitialStateMigration.Apply(saved, options);
                     break;
+                case 2:
+                    SnapshotSigh46Migration.Apply(saved, options);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }
