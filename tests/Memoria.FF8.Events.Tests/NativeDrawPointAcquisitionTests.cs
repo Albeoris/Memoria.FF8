@@ -15,8 +15,9 @@ internal static partial class Program
         NativeDrawPointParticleTables particles = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
         byte drawAbility = checked((byte)(20 + Array.IndexOf(catalog.CommandIds.ToArray(), (byte)6)));
         int regeneratingIndex = Enumerable.Range(0, 256).First(index => (catalog.PointBytes[index] & 0x40) != 0 && (catalog.PointBytes[index] & 63) is > 0 and < 57);
-        foreach ((int index, bool full, bool cancel) in new[] { (13, false, true), (13, true, false), (13, false, false), (regeneratingIndex, false, false) })
+        foreach ((int index, int initialCount, bool cancel, int bonus) in new[] { (13, 98, true, 0), (13, 100, false, 0), (13, 98, false, 0), (regeneratingIndex, 98, false, 0), (13, 1, false, 5), (13, 1, false, 100), (13, 98, true, 100), (13, 100, false, 100) })
         {
+            bool full = initialCount == 100;
             int magic = catalog.PointBytes[index] & 63;
             byte[] content = SyntheticObjects([1, (8 << 7) | 1], [
                 [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, index + 1), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.RET, 8)],
@@ -27,12 +28,13 @@ internal static partial class Program
             {
                 GameSession session = GameSession.CreateColdProcess();
                 session.StartNewGame();
+                session.SetGameplayPreferences(session.State.GameplayPreferences with { Tuning = new GameplayTuning { DrawBonus = bonus } });
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
                 NativeCharacterVitals initial = session.CharacterVitals!;
                 NativeCharacterVital[] records = initial.Records.ToArray();
                 NativeMagicStock[] inventory = records[0].MagicInventory.ToArray();
-                inventory[0] = new NativeMagicStock((byte)magic, full ? (byte)100 : (byte)98);
+                inventory[0] = new NativeMagicStock((byte)magic, checked((byte)initialCount));
                 // Declared component stock/command bytes exercise native acquisition, not an original gameplay input journal.
                 records[0] = records[0] with { Junction = records[0].Junction with { Commands = drawAbility }, MagicInventory = inventory };
                 session.SetCharacterVitals(initial with { Records = records });
@@ -72,6 +74,14 @@ internal static partial class Program
             byte expectedEligible = (byte)(1 << Array.IndexOf(session.CharacterVitals!.CombatParty, (byte)0));
             Require(engine.Scene.DrawPointInteraction is { Message: 2, RandomStateBefore: 1, RandomStateAfter: 1103527590 } issued && issued.PointIndex == index && issued.EligibleCombatSlots == expectedEligible && issued.Quantity > 2 && Phase() == 1 && engine.CurrentDialogue?.Text == catalog.FormatMessage(2, magic), "Eligible draw point lost its original message, equipped command, point index, sampled quantity or first phase.");
             short quantity = engine.Scene.DrawPointInteraction!.Quantity;
+            int basis = unchecked((sbyte)catalog.PointBytes[index]) < 0 ? 20 : 10;
+            int nativeQuantity = basis * (198 + 128) / 512 + 1;
+            Require(quantity == nativeQuantity + bonus && engine.Scene.DrawPointInteraction.DrawBonus == bonus, "Draw bonus did not preserve the native RNG quantity and issued save-owned bonus.");
+            int expectedAcquired = Math.Min(quantity, 100 - initialCount);
+            if (bonus == 5)
+            {
+                session.SetGameplayPreferences(session.State.GameplayPreferences with { Tuning = new GameplayTuning() });
+            }
             Require(engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 66) == 1 && session.EventRandom!.State == 1103527590, "Eligible draw point omitted native sound66 or drew script RNG more than once.");
             StepRestored();
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Eligible discovery message refused ordinary acknowledgement.");
@@ -84,7 +94,7 @@ internal static partial class Program
             {
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Original draw selection Cancel refused.");
                 StepRestored();
-                Require(engine.Scene.DrawPointInteraction is null && session.CharacterVitals!.Records[0].MagicInventory[0].Count == 98 && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Canceled selection awarded/depleted or retained its operand/control wait.");
+                Require(engine.Scene.DrawPointInteraction is null && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Canceled selection awarded/depleted or retained its operand/control wait.");
                 continue;
             }
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Choose, 2)).Accepted, "Explicit character draw selection refused.");
@@ -98,7 +108,7 @@ internal static partial class Program
             {
                 engine.Step();
             }
-            Require(Phase() == 6 && !engine.NativeDrawPointAcquisitionActive && engine.Frame - launched >= 38 && session.CharacterVitals!.Records[0].MagicInventory[0].Count == (full ? 100 : 98), "Acquisition did not wait for all eight native spark records before stock writes.");
+            Require(Phase() == 6 && !engine.NativeDrawPointAcquisitionActive && engine.Frame - launched >= 38 && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount, "Acquisition did not wait for all eight native spark records before stock writes.");
             StepRestored();
             Require(session.EventRandom!.State == 1103527590 && engine.Scene.DrawPointInteraction!.Quantity == quantity, "Draw acquisition or wait resampled script RNG/quantity.");
             if (full)
@@ -114,9 +124,9 @@ internal static partial class Program
             }
             else
             {
-                Require(Phase() == 7 && engine.Scene.DrawPointInteraction is { Message: 5, Acquired: 2 } && session.MessageVariables!.At(7) == 2 && session.CharacterVitals!.Records[0].MagicInventory[0] == new NativeMagicStock((byte)magic, 100), "Successful native acquisition did not stop at100 and publish the actual accepted count to message variable7.");
+                Require(Phase() == 7 && engine.Scene.DrawPointInteraction is { Message: 5 } acquired && acquired.Acquired == expectedAcquired && session.MessageVariables!.At(7) == expectedAcquired && session.CharacterVitals!.Records[0].MagicInventory[0] == new NativeMagicStock((byte)magic, checked((byte)(initialCount + expectedAcquired))), "Successful native acquisition did not stop at100 and publish the actual accepted count to message variable7.");
                 StepRestored();
-                Require(engine.CurrentDialogue!.Text.Contains("2", StringComparison.Ordinal), "Successful draw text did not expand canonical message variable7.");
+                Require(engine.CurrentDialogue!.Text.Contains(expectedAcquired.ToString(), StringComparison.Ordinal), "Successful draw text did not expand canonical message variable7.");
                 Require(session.EventRandom.DrawPoints!.Depletion.All(value => value == 0), "Successful draw depleted before final message acknowledgement.");
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Successful acquisition message refused acknowledgement.");
                 StepRestored();

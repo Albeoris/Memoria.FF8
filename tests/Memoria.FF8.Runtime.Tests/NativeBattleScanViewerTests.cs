@@ -235,6 +235,36 @@ public sealed class NativeBattleScanViewerTests
         Assert.False(left.Models[4].Known[0x52]);
     }
 
+    [Theory]
+    [InlineData(0x8000, 0x0E, 128)]
+    [InlineData(0x2000, 0x0E, 3968)]
+    [InlineData(0x1000, 0x0C, 3968)]
+    [InlineData(0x4000, 0x0C, 128)]
+    public void Unrestricted_rotation_overrides_each_native_direction_permission_and_restores_identically(ushort held, int angle, ushort expected)
+    {
+        var fixture = Fixture();
+        NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
+        frame = Modify(frame, fixture.Address, task => task.WriteWord(0x70, 1).WriteWord(0x72, 50));
+        NativeBattleScanViewerInputs inputs = fixture.Inputs with { Input = Input(held), ReadProfile = _ => Profile().WithByte(0x0C, 2).WithByte(0x0D, 0), UnrestrictedRotation = true };
+        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanViewerFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs);
+        NativeBattleScanViewerFrame resumed = NativeBattleScanViewer.Advance84FD90(restored, fixture.Address, inputs);
+        Assert.Equal(expected, result.Models[4].ReadWord(angle));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(resumed));
+        NativeBattleScanViewerFrame restricted = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, inputs with { UnrestrictedRotation = false });
+        Assert.Equal((ushort)0, restricted.Models[4].ReadWord(angle));
+    }
+
+    [Fact]
+    public void Unrestricted_rotation_enables_automatic_yaw_without_mutating_profile_permissions()
+    {
+        var fixture = Fixture();
+        NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
+        NativeBattleScanViewerFrame result = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { UnrestrictedRotation = true });
+        Assert.Equal((ushort)64, result.Models[4].ReadWord(0x0E));
+        Assert.Equal((byte)0, fixture.Inputs.ReadProfile(4).Bytes16.ReadByte(0x0D));
+    }
+
     private static NativeBattleScanViewerProfile Profile() => new(12, Known(16).WriteWord(8, 1));
     private static NativeBattleScanInputBank Input(ushort held) => new([Known(196).WriteByte(0xC2, 0).WriteByte(0x18, 0).WriteByte(0x1C, 1).WriteWord(0x1E, held), Known(196)]);
     private static NativeBattleScanByteOwner Known(int length) => new(new byte[length].ToImmutableArray(), Enumerable.Repeat(true, length).ToImmutableArray());

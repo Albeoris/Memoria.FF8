@@ -4,7 +4,10 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleScanViewerFrame(NativeBattleScanFrame Scan, ImmutableArray<NativeBattleScanByteOwner> Models, NativeBattleScanByteOwner CameraTarget8, NativeBattleScanTextFrame Text);
 public sealed record NativeBattleScanViewerProfile(ushort Category, NativeBattleScanByteOwner Bytes16);
-public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<int, NativeBattleScanByteOwner> ReadName24, Func<int, uint> ReadDescriptionPointer, Func<int, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, int, byte, int, NativeBattleVector> ReadBone502170);
+public sealed record NativeBattleScanViewerInputs(NativeBattleActionPacketsState Packets, NativeBattleScanInputBank Input, uint Options, IReadOnlyList<byte> ButtonMap, Func<int, NativeBattleScanByteOwner> ReadName24, Func<int, uint> ReadDescriptionPointer, Func<int, NativeBattleScanViewerProfile> ReadProfile, Func<NativeBattleScanViewerFrame, int, byte, int, NativeBattleVector> ReadBone502170)
+{
+    public bool UnrestrictedRotation { get; init; }
+}
 public sealed record NativeBattleScanViewerStep(NativeBattleScanViewerFrame Frame, int Result);
 
 public static class NativeBattleScanViewer
@@ -159,7 +162,7 @@ public static class NativeBattleScanViewer
         if (unchecked((short)task.ReadWord(0x70)) == 0)
         {
             task = task.WriteWord(0x72, 75);
-            if (profile.Bytes16.ReadByte(0x0D) == 1)
+            if (inputs.UnrestrictedRotation || profile.Bytes16.ReadByte(0x0D) == 1)
             {
                 model = model.WriteWord(0x0E, unchecked((ushort)(model.ReadWord(0x0E) + 64)));
             }
@@ -228,7 +231,7 @@ public static class NativeBattleScanViewer
             if (value > 0)
             {
                 Manual();
-                if (profile.Bytes16.ReadByte(permission) == 1)
+                if (inputs.UnrestrictedRotation || profile.Bytes16.ReadByte(permission) == 1)
                 {
                     model = model.WriteWord(angle, unchecked((ushort)(model.ReadWord(angle) + value * factor)));
                 }

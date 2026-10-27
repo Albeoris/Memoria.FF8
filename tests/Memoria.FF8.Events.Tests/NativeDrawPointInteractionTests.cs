@@ -21,6 +21,7 @@ internal static partial class Program
             {
                 GameSession session = GameSession.CreateColdProcess();
                 session.StartNewGame();
+                session.SetGameplayPreferences(session.State.GameplayPreferences with { Tuning = new GameplayTuning { DrawBonus = 100 } });
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
                 EventEngine engine = new(session)
@@ -47,7 +48,7 @@ internal static partial class Program
             (GameSession restoredSession, EventEngine restored) = Create();
             restored.Restore(pending);
             Require(JsonElement.DeepEquals(pending, restored.Capture()), "Pending DRAWPOINT did not restore independently.");
-            foreach (string field in new[] { "Quantity", "RandomStateAfter", "PointByte", "OwnerSequence" })
+            foreach (string field in new[] { "Quantity", "DrawBonus", "RandomStateAfter", "PointByte", "OwnerSequence" })
             {
                 JsonNode malformed = JsonNode.Parse(pending.GetRawText())!;
                 malformed["Scene"]!["DrawPointInteraction"]![field] = 999;

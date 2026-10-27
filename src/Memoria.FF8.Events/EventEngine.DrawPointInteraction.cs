@@ -7,6 +7,7 @@ namespace Memoria.FF8.Events;
 /// <summary>Executed522770 request and its process selection globals; actor WORD516 is the sole phase word.</summary>
 public sealed record NativeDrawPointInteraction([property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long OwnerSequence, [property: JsonRequired] int RawArgument, [property: JsonRequired] byte PointIndex, [property: JsonRequired] byte PointByte, [property: JsonRequired] byte DepletionAtIssue, [property: JsonRequired] uint RandomStateBefore, [property: JsonRequired] uint RandomStateAfter, [property: JsonRequired] short Quantity, [property: JsonRequired] string CommonMessageHash)
 {
+    public int DrawBonus { get; init; }
     public byte EligibleCombatSlots { get; init; }
     public int Message { get; init; } = 7;
     public int? Selection { get; init; }
@@ -143,8 +144,9 @@ public sealed partial class EventEngine
                 basis /= 2;
             }
             NativeEventRandomState next = before.Draw(out int draw);
-            short quantity = (short)(basis * ((draw & 255) + 128) / 512 + 1);
             int message = eligible == 0 ? 7 : depletion is 2 or 3 ? 3 : 2;
+            int drawBonus = message == 2 ? (services as GameSession)?.State.GameplayPreferences.Tuning.DrawBonus ?? 0 : 0;
+            short quantity = checked((short)(basis * ((draw & 255) + 128) / 512 + 1 + drawBonus));
             PreparedGlobalSoundEmission? sound = message == 2 ? PrepareDrawPointSound(66) : null;
             try
             {
@@ -155,7 +157,7 @@ public sealed partial class EventEngine
                 throw NativeOwnerPublicationFault(fiber, exception);
             }
             Scene.DrawPointIndex = index;
-            Scene.DrawPointInteraction = new NativeDrawPointInteraction(FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, raw, index, point, depletion, before.State, next.State, quantity, catalog.CommonMessageHash) { EligibleCombatSlots = eligible, Message = message };
+            Scene.DrawPointInteraction = new NativeDrawPointInteraction(FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, raw, index, point, depletion, before.State, next.State, quantity, catalog.CommonMessageHash) { DrawBonus = drawBonus, EligibleCombatSlots = eligible, Message = message };
             actor.NativeMovementAccelerationTarget = 1;
             PublishDrawPointSound(sound);
             ShowDrawPointMessage(fiber, catalog, message);
@@ -365,9 +367,9 @@ public sealed partial class EventEngine
         {
             basis /= 2;
         }
-        int quantity = basis * ((int)((next >> 16) & 255) + 128) / 512 + 1;
+        int quantity = basis * ((int)((next >> 16) & 255) + 128) / 512 + 1 + current.DrawBonus;
         DialogueState? dialogue = saved.Dialogues.FirstOrDefault(dialogue => dialogue.Channel == 6);
-        if (current.FieldId != saved.FieldId || current.ProgramHash != saved.ProgramHash || current.Frame < 0 || current.Frame > saved.Frame || (uint)current.ObjectId >= saved.Actors.Length || owner is null || owner.Complete || owner.ObjectId != current.ObjectId || owner.ScriptId != current.ScriptId || owner.Position != current.Operation || owner.WaitReason != WaitReason.Frames || owner.Stack.Length == 0 || !owner.Stack[0].IsExact || owner.Stack[0].RequireExact() != current.RawArgument || (uint)current.Operation >= program!.Operations.Count || program.Operations[current.Operation].Opcode != Jsm.Opcode.DRAWPOINT || saved.Actors[current.ObjectId].NativeMovementAccelerationTarget is null or < 1 or > 7 || saved.Scene.DrawPointIndex != index || current.PointIndex != index || current.PointByte != catalog.PointBytes[index] || current.CommonMessageHash != catalog.CommonMessageHash || current.DepletionAtIssue > 3 || current.RandomStateAfter != next || current.Quantity != quantity || saved.EventRandom is null || saved.CharacterVitals?.KernelSha256 != catalog.KernelHash || current.EligibleCombatSlots > 7 || current.Message is < 2 or > 7)
+        if (current.FieldId != saved.FieldId || current.ProgramHash != saved.ProgramHash || current.Frame < 0 || current.Frame > saved.Frame || (uint)current.ObjectId >= saved.Actors.Length || owner is null || owner.Complete || owner.ObjectId != current.ObjectId || owner.ScriptId != current.ScriptId || owner.Position != current.Operation || owner.WaitReason != WaitReason.Frames || owner.Stack.Length == 0 || !owner.Stack[0].IsExact || owner.Stack[0].RequireExact() != current.RawArgument || (uint)current.Operation >= program!.Operations.Count || program.Operations[current.Operation].Opcode != Jsm.Opcode.DRAWPOINT || saved.Actors[current.ObjectId].NativeMovementAccelerationTarget is null or < 1 or > 7 || saved.Scene.DrawPointIndex != index || current.PointIndex != index || current.PointByte != catalog.PointBytes[index] || current.CommonMessageHash != catalog.CommonMessageHash || current.DepletionAtIssue > 3 || current.RandomStateAfter != next || current.Quantity != quantity || current.DrawBonus is < 0 or > 100 || current.DepletionAtIssue is 2 or 3 && current.DrawBonus != 0 || saved.EventRandom is null || saved.CharacterVitals?.KernelSha256 != catalog.KernelHash || current.EligibleCombatSlots > 7 || current.Message is < 2 or > 7)
         {
             throw new InvalidDataException("Saved DRAWPOINT lost its issued operand, sampled random/depletion quantity, common message or shared phase.");
         }
