@@ -52,7 +52,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         Assert.Same(original.Potion52Executable, updated.Potion52Executable);
         ushort other = effect == 16 ? (ushort)61 : (ushort)16;
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaFamilyProfile.ForGenericNodes(other).RequireExecutable(updated));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(updated))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(updated))!;
         Assert.Equal(state.Read(profile.ExecutableAddress, profile.ExecutableLength), profile.RequireExecutable(restored).Read(profile.ExecutableAddress, profile.ExecutableLength));
         Assert.Throws<InvalidDataException>(() => state.Read(profile.ExecutableAddress + (uint)profile.ExecutableLength, 1));
         Assert.Throws<NotSupportedException>(() => new NativeBattleCuragaExecutableState(1, null) { ResourceAddress = profile.ExecutableAddress }.Initialize87EA20(source));
@@ -155,7 +155,7 @@ public sealed class NativeBattleActorDirectorGenericTests
         view = view.Write(144, [0x78, 0x56, 0x34, 0x12]);
         memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(memory.CaptureProcessMemory(), view));
         written = memory.Flush();
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(written.Memory))!;
         Assert.Equal(new byte[] { 0xCD, 0xAB, 0x34, 0xFE, 0x78, 0x56, 0x34, 0x12 }, restored.NodeScratch2793E30!.Bytes);
         Assert.Equal(unchecked((short)0x5678), memory.ReadPlacementEuler().Z);
     }

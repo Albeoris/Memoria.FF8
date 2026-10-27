@@ -49,12 +49,12 @@ public sealed class NativeBattleWaterIoServiceTests
     {
         var fixture = Fixture(364);
         NativeBattleWaterIoQueued queued = NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory, NativeBattleFileIoState.FromColdProcess(), fixture.Request, fixture.Resources);
-        NativeBattleWaterIoQueued restored = JsonSerializer.Deserialize<NativeBattleWaterIoQueued>(JsonSerializer.Serialize(queued))!;
+        NativeBattleWaterIoQueued restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterIoQueued>(NativeBattleTestSnapshots.Json(queued))!;
         for (int pass = 0; pass < 2; pass++)
         {
             queued = Pump(queued, () => { });
             restored = Pump(restored, () => { });
-            Assert.Equal(JsonSerializer.Serialize(queued), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(queued), NativeBattleTestSnapshots.Json(restored));
         }
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaRectangle505DF0(new(768, 256, 64, 256), restored.Memory.Arena!, DestinationOffset);
         Assert.Equal(fixture.Resources.Files[1].Bytes, textures.Drain505D20(restored.Memory.Arena).Uploads.Single().Bytes);
@@ -86,9 +86,9 @@ public sealed class NativeBattleWaterIoServiceTests
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = null }, io, fixture.Request, fixture.Resources));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { Arena = null }, io, fixture.Request, fixture.Resources));
         NativeBattleScriptedEffectMemory core = fixture.Memory.ScriptedEffects!;
-        Assert.Throws<InvalidDataException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = core.Write(0x2798219, new byte[] { 0 }) }, io, fixture.Request, fixture.Resources));
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = core.MarkUnknown(Manager + 0xB4, 4) }, io, fixture.Request, fixture.Resources));
-        Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = core.MarkUnknown(0x27973EC, 4) }, io, fixture.Request, fixture.Resources));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = NativeBattleTestSnapshots.Independent(core).Write(0x2798219, new byte[] { 0 }) }, io, fixture.Request, fixture.Resources));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = NativeBattleTestSnapshots.Independent(core).MarkUnknown(Manager + 0xB4, 4) }, io, fixture.Request, fixture.Resources));
+        Assert.Throws<NotSupportedException>(() => NativeBattleWaterIoService.CopyAndQueueFile(fixture.Memory with { ScriptedEffects = NativeBattleTestSnapshots.Independent(core).MarkUnknown(0x27973EC, 4) }, io, fixture.Request, fixture.Resources));
     }
 
     private static NativeBattleWaterIoQueued Pump(NativeBattleWaterIoQueued queued, Action completed)

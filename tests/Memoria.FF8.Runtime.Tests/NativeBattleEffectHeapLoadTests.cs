@@ -24,8 +24,8 @@ public sealed class NativeBattleEffectHeapLoadTests
         Assert.Equal(new byte[] { 5, 6 }, second.Memory.Allocations[1]!.Data.ToArray());
         Assert.Equal(0, second.Memory.Textures!.Count);
         Assert.Null(second.Memory.Textures.Animation);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(second.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(second.Memory), JsonSerializer.Serialize(restored));
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Memory)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Memory)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         NativeBattleEffectMemory released = restored.BeginLoad(199);
         Assert.Equal(0, released.AllocationCount);
         Assert.Null(released.Allocations[0]);
@@ -49,9 +49,9 @@ public sealed class NativeBattleEffectHeapLoadTests
         Assert.Equal(0, memory.Cursor);
         Assert.Equal(256, memory.AllocationCount);
         Assert.Equal(new byte[] { 255 }, memory.Allocations[255]!.Data.ToArray());
-        string before = JsonSerializer.Serialize(memory);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory));
         Assert.Throws<NotSupportedException>(() => memory.LoadHeap5718E0(new("overflow", [0])));
-        Assert.Equal(before, JsonSerializer.Serialize(memory));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)));
         NativeBattleEffectMemory freed = memory.BeginLoad(198);
         Assert.All(freed.Allocations, allocation => Assert.Null(allocation));
         Assert.Equal(0, freed.LoadHeap5718E0(new("reused", [7])).AllocationIndex);

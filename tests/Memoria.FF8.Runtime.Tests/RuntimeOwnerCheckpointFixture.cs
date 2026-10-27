@@ -8,7 +8,7 @@ internal static class RuntimeOwnerCheckpointFixture
 {
     public static JsonElement Capture(GameState state)
     {
-        JsonObject owners = JsonSerializer.SerializeToNode(state)!.AsObject();
+        JsonObject owners = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(state))!.AsObject();
         owners.Remove(nameof(GameState.Scene));
         owners.Remove(nameof(GameState.EventState));
         owners.Remove(nameof(GameState.DepartingFieldState));

@@ -10,6 +10,7 @@ public sealed partial class NativeBattleWaterParticlesTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x7006, 0xFFFF, 0x7FFF, 2);
         frame = frame with { Arena = frame.Arena.Write(Particle + 0x14, BitConverter.GetBytes(128u)).Write(Particle + 0x18, BitConverter.GetBytes(0xFFF00000u)).Write(Particle + 0x1C, BitConverter.GetBytes(0xFFFFFF00u)).MarkUnknown(Particle + 0x10, 4) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = One(frame);
         Assert.Equal(0xFFFFFF80u, Dword(result, 0x14));
         Assert.Equal(0x006FFF00u, Dword(result, 0x18));
@@ -17,7 +18,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Throws<NotSupportedException>(() => Dword(result, 0x10));
         Assert.Equal(frame.Random, result.Random);
         Assert.Equal(0x1008u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(One(replayFrame)));
     }
 
     [Fact]

@@ -111,9 +111,9 @@ public sealed class NativeBattleEffect283NodeTests
         {
             Assert.Equal(Enumerable.Repeat((byte)0xA5, 16).ToArray(), after.Read(0, 16));
         }
-        NativeBattleEffect283Frame restored = JsonSerializer.Deserialize<NativeBattleEffect283Frame>(JsonSerializer.Serialize(actual))!;
+        NativeBattleEffect283Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect283Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)))!);
         NativeBattleEffect283Frame Next(NativeBattleEffect283Frame current) => DrawProgrammeNode67C8A0(current, resources.MainProgramme, node, Caller(), resources, Inputs((retained, _) => retained));
-        Assert.Equal(JsonSerializer.Serialize(Next(actual)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(actual))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(actual.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
 

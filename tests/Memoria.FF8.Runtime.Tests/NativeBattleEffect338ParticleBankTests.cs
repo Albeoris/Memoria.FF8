@@ -52,7 +52,7 @@ public sealed class NativeBattleEffect338ParticleBankTests
     public void Physics_wraps_WORDs_and_applies_Z_acceleration_only_to_position()
     {
         NativeBattleEffect338ParticleBank bank = NativeBattleEffect338ParticleBank.FromColdProcess().Reset6EC0C0().WriteWord(4, 32767).WriteWord(6, 0).WriteWord(8, 65535).WriteWord(10, 1).WriteWord(12, 2).WriteWord(14, 65535).WriteWord(16, 5).WriteByte(20, 255).WriteByte(21, 128).WriteByte(22, 127);
-        bank = JsonSerializer.Deserialize<NativeBattleEffect338ParticleBank>(JsonSerializer.Serialize(bank))!;
+        bank = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect338ParticleBank>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(bank)))!);
         bank = bank.Advance6EC9D0();
         Assert.Equal((ushort)32769, bank.ReadWord(4));
         Assert.Equal((ushort)65535, bank.ReadWord(6));

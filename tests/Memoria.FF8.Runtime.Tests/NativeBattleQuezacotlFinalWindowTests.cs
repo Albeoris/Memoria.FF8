@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -28,7 +28,7 @@ public sealed class NativeBattleQuezacotlFinalWindowTests
         {
             Assert.Throws<NotSupportedException>(() => unknown.Read(0, 4).ToArray());
         }
-        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(original))!);
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(SnapshotJson(original))!;
         using NativeBattleGfSourceReader roundTrip = NativeBattleQuezacotlWorkspace.Source(restored, source.Address, 4).OpenReader();
         Assert.Equal(observed.Read(0, 4).ToArray(), roundTrip.Read(0, 4).ToArray());
     }
@@ -48,11 +48,12 @@ public sealed class NativeBattleQuezacotlFinalWindowTests
     public void FinalWorkspaceWritesOnlyIts354PrefixAndMirrorsTheExistingChildPayload()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
-        memory = memory with { Arena = memory.Arena!.Write(0xD2, [0x11, 0x22]).Write(0x428, [0x33, 0x44]) };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
         (pool, _) = pool.Append(0x6C3940);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [pool] };
         NativeBattleGfAnimationWorkspace workspace = new(Enumerable.Repeat((byte)0xA7, NativeBattleQuezacotlWorkspace.TenthLength).ToImmutableArray());
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
+        memory = memory with { Arena = memory.Arena!.Write(0xD2, [0x11, 0x22]).Write(0x428, [0x33, 0x44]) };
         NativeBattleQuezacotlWorkspaceWrite written = NativeBattleQuezacotlWorkspace.Write(memory, effect, workspace);
         Assert.Equal(NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(NativeBattleQuezacotlWorkspace.Read(written.Memory, NativeBattleQuezacotlWorkspace.TenthLength)).Data.ToArray());
         Assert.Equal(new byte[] { 0x11, 0x22 }, written.Memory.Arena!.Read(0xD2, 2));
@@ -99,6 +100,6 @@ public sealed class NativeBattleQuezacotlFinalWindowTests
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFragmentPool.Validate(memory, pool));
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.ValidateHead(memory with { QuezacotlSecondaryHeads = [0, 0, 0, 0, NativeBattleQuezacotlFragmentPool.Bank] }, pool));
     }
-    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static string SnapshotJson<T>(T value) => NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(value));
 
 }

@@ -66,9 +66,9 @@ public sealed class NativeBattleDegenerator306CustomMeshTests
     public void Warm_context_and_GTE_continue_identically_after_JSON_roundtrip()
     {
         NativeBattleDegenerator306CustomMeshStep first = Draw(Source(), Context().Write(0x1C, BitConverter.GetBytes(0xF3u)).Write(12, BitConverter.GetBytes(2048)));
-        NativeBattleDegenerator306CustomMeshStep restored = JsonSerializer.Deserialize<NativeBattleDegenerator306CustomMeshStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleDegenerator306CustomMeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306CustomMeshStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleDegenerator306CustomMeshStep Next(NativeBattleDegenerator306CustomMeshStep step) => NativeBattleDegenerator306CustomMesh.Draw5A3AC0(step.Memory, Source(), step.Context108, new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
         Assert.Equal(2048u, first.Memory.ScriptedColorRegisters!.Ir0);
     }
 

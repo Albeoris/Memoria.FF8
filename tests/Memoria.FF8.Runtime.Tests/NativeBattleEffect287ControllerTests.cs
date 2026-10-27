@@ -63,8 +63,9 @@ public sealed class NativeBattleEffect287ControllerTests
         Assert.Equal(2, Read(frame, RootBank).ReadWord(12));
         Assert.Equal(Arena + SecondPacketOffset, frame.State.ReadDword(CursorGlobal));
         Assert.Equal(1, harness.Polls);
-        NativeBattleEffect287Frame restored = JsonSerializer.Deserialize<NativeBattleEffect287Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffect287Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect287Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         harness.Complete = true;
+        restored = restored with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(restored.Memory, restored.Effect.Pools) };
         restored = Advance(restored, null!, harness.Inputs());
         Assert.Empty(restored.Effect.Pools);
         Assert.Equal(0u, restored.Effect.ReturnedDescriptor);
@@ -220,7 +221,7 @@ public sealed class NativeBattleEffect287ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, initialized ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, initialized ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (initialized)
         {

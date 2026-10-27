@@ -122,9 +122,9 @@ public sealed class NativeBattleBadBreath131ControllerTests
             ];
             (pools[0], _) = pools[0].Append(RootCallback);
             (pools[1], _) = pools[1].Append(MainCallback);
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+            pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
             NativeBattleModulePoolTask main = pools[1].Slots[0].WriteBytes(12, new byte[40]).WriteWord(14, 3).WriteDword(16, ModelAddress(4)).WriteByte(0x1C, 2);
-            pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(0, main) };
+            pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, main) });
             NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleBadBreath131State state = new(NativeBattleEffectArena.Clear(), mesh.ToImmutableArray(), mesh.ToImmutableArray()) { PendingColdSources = false };
             Frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(ScratchOffset, ScratchLength) }, effect, new(11), state.WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, ModelAddress(0))) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

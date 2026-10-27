@@ -33,6 +33,7 @@ public sealed class NativeBattleCinematicMatrixCompose7ATests
             Assert.Equal(selector, actual);
             return NativeBattleEffectNodeMemory.ArenaAddress + 0x2100;
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(turn, Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(result.Core.Read(Matrices + 32 + (uint)(index * 2), 2))));
         Assert.Equal(210u, WaterSchedulerFixture.ReadCoreDword(result, Matrices + 52));
@@ -41,7 +42,7 @@ public sealed class NativeBattleCinematicMatrixCompose7ATests
         Assert.Equal(padding, BinaryPrimitives.ReadUInt16LittleEndian(result.Core.Read(Matrices + 50, 2)));
         Assert.Equal(0x80001006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 
     private static NativeBattleWaterExecutionFrame Matrix(NativeBattleWaterExecutionFrame frame, uint address, short[] rotation, int x, int y, int z)

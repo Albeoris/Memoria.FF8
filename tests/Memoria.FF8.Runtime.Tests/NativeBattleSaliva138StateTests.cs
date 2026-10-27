@@ -26,14 +26,14 @@ public sealed class NativeBattleSaliva138StateTests
     public void Reached_matrix_word_write_materializes_only_that_word_and_survives_JSON()
     {
         NativeBattleSaliva138State state = NativeBattleSaliva138State.FromUnknown().WriteWord(MatrixAddress + 16, 4096).WriteDword(WorkingGlobal, 0x20DFAB8);
-        NativeBattleSaliva138State restored = JsonSerializer.Deserialize<NativeBattleSaliva138State>(JsonSerializer.Serialize(state))!;
+        NativeBattleSaliva138State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSaliva138State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.PendingColdSources);
         Assert.Equal((ushort)4096, restored.ReadWord(MatrixAddress + 16));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress + 18));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(WorkingGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteWord(MatrixAddress + 16, 2048)), JsonSerializer.Serialize(restored.WriteWord(MatrixAddress + 16, 2048)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WriteWord(MatrixAddress + 16, 2048)), NativeBattleTestSnapshots.Json(restored.WriteWord(MatrixAddress + 16, 2048)));
     }
 
     [Fact]

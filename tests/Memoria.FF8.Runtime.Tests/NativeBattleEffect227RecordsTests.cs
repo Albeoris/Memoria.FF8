@@ -64,7 +64,7 @@ public sealed class NativeBattleEffect227RecordsTests
         NativeBattleEffect227Frame frame = Frame();
         NativeBattleEffectArena row = NativeBattleEffectArena.Clear().MarkUnknown(0, 4).Write(4, BitConverter.GetBytes((short)32767)).Write(12, [1, 255, 2, 1]);
         frame = WriteBytes(frame, First, row, 16);
-        frame = JsonSerializer.Deserialize<NativeBattleEffect227Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect227Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleEffectArena result = ReadBytes(NativeBattleEffect227Records.Advance(frame), First, 16);
         Assert.Equal(unchecked((short)(32767 + 4)), I16(result, 4));
         Assert.Equal(-4, I16(result, 6));

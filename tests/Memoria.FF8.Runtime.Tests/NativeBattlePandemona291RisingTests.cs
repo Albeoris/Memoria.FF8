@@ -50,16 +50,16 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(1000, NativeBattleArenaPose.ReadMatrix(composed.Memory.Arena!, 0x40020).Z);
         NativeBattleCameraProjection projection = new(BodyIdentity, 100, 160, 100);
         NativeBattleSummonColors colors = new(0, 0, 1f / 4096f, 4503601774854144d);
+        NativeBattlePandemona291Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(composed))!;
         NativeBattlePandemona291BodyDraw drawn = NativeBattlePandemona291BodyDrawing.Render5099D0(composed, fixture.Address, projection, colors);
         Assert.Equal(32, drawn.Packets.AllocationBytes);
         Assert.Single(drawn.Packets.Attempts);
         Assert.Equal(0x20DFAB8u + 0x4103C, drawn.SourceCursor);
         Assert.Equal(24, drawn.Frame.Memory.Arena!.Read(0x31D4, 24).Length);
         Assert.Throws<NotSupportedException>(() => drawn.Frame.Memory.Arena.Read(0x31D4 + 24, 1));
-        NativeBattlePandemona291Frame restoredPose = NativeBattlePandemona291BodyDrawing.Restore508C90(drawn.Frame, bounds.SkeletonOffset, bounds.BoneCount);
+        NativeBattlePandemona291Frame restoredPose = NativeBattlePandemona291BodyDrawing.Restore508C90(NativeBattleTestSnapshots.Independent(drawn.Frame), bounds.SkeletonOffset, bounds.BoneCount);
         Assert.Equal(0, NativeBattleArenaPose.ReadMatrix(restoredPose.Memory.Arena!, 0x40020).Z);
-        NativeBattlePandemona291Frame independent = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(composed))!;
-        Assert.Equal(JsonSerializer.Serialize(drawn), JsonSerializer.Serialize(NativeBattlePandemona291BodyDrawing.Render5099D0(independent, fixture.Address, projection, colors)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(drawn), NativeBattleTestSnapshots.Json(NativeBattlePandemona291BodyDrawing.Render5099D0(independent, fixture.Address, projection, colors)));
     }
 
     [Theory]

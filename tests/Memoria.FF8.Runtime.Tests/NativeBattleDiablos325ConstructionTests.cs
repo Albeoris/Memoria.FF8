@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -20,10 +20,11 @@ public sealed class NativeBattleDiablos325ConstructionTests
             Assert.Equal((byte)0, current.Memory.Arena!.Read(0x4C6B, 1)[0]);
             return new(current, 7);
         });
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Construction.Initialize6543BA(frame, inputs);
         Assert.Equal(1, calls);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
         Assert.Equal((byte)0, result.Memory.Diablos325!.Mode51F0);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x4C5Cu, result.Memory.Diablos325.ParticleCursor51F4);
         for (int index = 0; index < 160; index++)
@@ -38,7 +39,7 @@ public sealed class NativeBattleDiablos325ConstructionTests
         Assert.Equal(0x1D972C0u + 0x9Cu, task.ReadDword(0xA0));
         Assert.Equal((ushort)4096, task.ReadWord(0x9E));
         Assert.Equal((ushort)4096, task.ReadWord(0xAA));
-        Assert.Equal(task.Payload.ToArray(), result.Memory.Arena!.Read(12, task.Payload.Length));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.ToArray(), result.Memory.Arena!.Read(12, NativeBattleStorageSnapshots.Capture(task).Payload.Length));
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, result.Memory.Arena.Read(0x4C14, 5));
         Assert.Equal(new byte[] { 0, 0, 0, 16 }, result.Memory.Arena.Read(0x994, 4));
         Assert.Equal(new byte[] { 0, 16, 0, 0 }, result.Memory.Arena.Read(0x994 + 64 * 4, 4));

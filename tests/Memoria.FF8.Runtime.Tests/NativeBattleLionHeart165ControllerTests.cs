@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 using Xunit;
@@ -12,12 +12,13 @@ public sealed class NativeBattleLionHeart165ControllerTests
     {
         const uint address = 0x23C6744;
         NativeBattleFileStaging cold = NativeBattleFileStaging.FromColdProcess();
+        NativeBattleFileStaging preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(cold));
         NativeBattleFileStaging result = NativeBattleLionHeart165Controller.CopyRawPosition5E9650(cold, address, new(1, 0));
         Assert.All(result.ReadSnapshot(address, 8).Known, value => Assert.False(value));
         Assert.Throws<NotSupportedException>(() => result.Read(address, 8));
         Assert.Equal(new byte[1], result.Read(address - 1, 1));
         Assert.Equal(new byte[1], result.Read(address + 8, 1));
-        Assert.Equal(new byte[8], cold.Read(address, 8));
+        Assert.Equal(new byte[8], preserved.Read(address, 8));
     }
 
     [Fact]
@@ -78,7 +79,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void StageFadePublishesBeforePauseAndClearsStageBitsOnlyAtItsRealEnd()
     {
         (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5E9D50, 15);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 16).WriteWord(24, 2048).WriteWord(26, 1)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 16).WriteWord(24, 2048).WriteWord(26, 1)) });
         List<NativeBattleLionHeart165Operation> operations = [];
         NativeBattleLionHeart165ChildStep paused = NativeBattleLionHeart165Controller.Advance5E9D50(frame, pool, 0, Inputs(1, operations));
         Assert.Equal(3968, Assert.IsType<NativeBattleLionHeart165Stage>(Assert.Single(operations)).Intensity);
@@ -128,7 +129,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void CommonBillboardWritesItsOriginalRadiusWordAndDepthShiftWhilePaused()
     {
         (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EE850, 16);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 4096)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 4096)) });
         List<NativeBattleLionHeart165Operation> operations = [];
         NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.AdvanceBillboardMesh(frame, pool, 0, Inputs(1, operations), Identity());
         NativeBattleLionHeart165MeshDraw mesh = Assert.IsType<NativeBattleLionHeart165MeshDraw>(Assert.Single(operations));
@@ -143,7 +144,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void FirstColumnParticleDrawsBeforeItsNativeScaleUpdateWithoutDrawingRandomNumbers()
     {
         (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EAAF0, 1);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30)) });
         List<NativeBattleLionHeart165Operation> operations = [];
         NativeBattleLionHeart165ChildStep step = NativeBattleLionHeart165Controller.AdvanceMeshParticles(frame, pool, 0, Inputs(0, operations), Identity());
         NativeBattleLionHeart165MeshDraw mesh = Assert.IsType<NativeBattleLionHeart165MeshDraw>(Assert.Single(operations));
@@ -162,7 +163,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void FinalParticleRetiresBeforeItsProducerReleasesAndPausedProducerDoesNeither()
     {
         (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5ED8E0, 13);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7)) });
         byte[] row = new byte[32];
         BinaryPrimitives.WriteInt32LittleEndian(row, 7);
         BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(4), 24);
@@ -229,7 +230,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
     public void LateParticleRetiresInTheExistingResourceArenaWithoutCreatingStagingBytes()
     {
         (NativeBattleLionHeart165Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5EE980, 25);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 7)) });
         byte[] bank = new byte[500 * 24];
         BinaryPrimitives.WriteInt32LittleEndian(bank, 7);
         BinaryPrimitives.WriteInt16LittleEndian(bank.AsSpan(6), 4096);
@@ -257,7 +258,7 @@ public sealed class NativeBattleLionHeart165ControllerTests
         (main, _) = main.Append(0x5F01F0);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23C5910, 0x23C5920, 36, 100);
         (children, _) = children.Append(callback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { LionHeart165 = new(true, parameters, 3, null, null) };
         NativeBattleOriginalEffectState effect = new(165, 164, new(165, 0x5E9470, 0x5E9450), parameters, 0x23C34B0) { Pools = [main, children] };

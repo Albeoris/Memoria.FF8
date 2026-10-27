@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -11,11 +11,12 @@ public sealed class NativeBattleDiablos325PuffTests
         NativeBattleDiablos325Frame frame = Frame();
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x4C5C, Enumerable.Repeat((byte)0xCC, 2560).ToArray()) } };
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { EyePaddingF6 = 7, TargetPaddingFE = 9 };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325TailStep step = NativeBattleDiablos325OpeningTail.Advance656203(frame, camera, 0);
         NativeBattleCameraPose expected = new(new(0, -1796, 5667), new(0, -3166, -3315), 288, 0);
         Assert.Equal(camera.WriteEffectGlobals(expected), step.Camera);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
         Assert.Equal((byte)0, step.Frame.Memory.Diablos325!.Mode51F0);
         for (int index = 0; index < 160; index++)
         {
@@ -45,6 +46,7 @@ public sealed class NativeBattleDiablos325PuffTests
         Assert.Equal((byte)((shade & 15) + 64), bytes[11]);
         Assert.Equal(unchecked((byte)(x / ((-1 - count) * 4))), bytes[12]);
         Assert.Equal((byte)count, bytes[15]);
+        NativeBattleDiablos325Frame preservedBorn = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(born));
         NativeBattleDiablos325Frame moved = NativeBattleDiablos325Puffs.Rise658D30(born);
         byte[] after = moved.Memory.Arena!.Read(0x4C5C, 16);
         Assert.Equal(unchecked((short)(x + (unchecked((sbyte)bytes[12]) << 2))), BinaryPrimitives.ReadInt16LittleEndian(after.AsSpan(4)));
@@ -52,7 +54,7 @@ public sealed class NativeBattleDiablos325PuffTests
         Assert.Equal((byte)(count - 1), after[15]);
         Assert.Equal(unchecked((byte)(bytes[11] - 2)), after[11]);
         Assert.Equal(random, moved.Random);
-        Assert.Equal((byte)16, NativeBattleDiablos325Puffs.Shrink658C80(born).Memory.Arena!.Read(0x4C69, 1)[0]);
+        Assert.Equal((byte)16, NativeBattleDiablos325Puffs.Shrink658C80(preservedBorn).Memory.Arena!.Read(0x4C69, 1)[0]);
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public sealed class NativeBattleDiablos325PuffTests
             arena = arena.Write(0x4C6B + index * 16, [1]);
         }
         frame = frame with { Memory = frame.Memory with { Arena = arena, Diablos325 = frame.Memory.Diablos325! with { ParticleCursor51F4 = NativeBattleEffectNodeMemory.ArenaAddress + 0x4CAC } } };
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleDiablos325Puffs.Spawn658B90(frame, 4, 0, false)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleDiablos325Puffs.Spawn658B90(frame, 4, 0, false)));
         frame = frame with { Memory = frame.Memory with { Arena = arena.Write(0x4C6B, [0]) } };
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Puffs.Spawn658B90(frame, 1, 0, false);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x4C6Cu, result.Memory.Diablos325!.ParticleCursor51F4);

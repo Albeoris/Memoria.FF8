@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -18,7 +18,7 @@ public sealed class NativeBattleSiren95ContactTests
             Assert.InRange(sequence, 4, 6);
             return current;
         });
-        var rejected = NativeBattleSiren95Contacts.Advance7447C0(appended.Frame, appended.Address, services);
+        var rejected = NativeBattleSiren95Contacts.Advance7447C0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(appended.Frame)), appended.Address, services);
         Assert.True(rejected.Complete);
         Assert.Equal(0, selections);
         model = Model();
@@ -43,7 +43,7 @@ public sealed class NativeBattleSiren95ContactTests
         {
             expected = expected.Draw(out _);
         }
-        string saved = JsonSerializer.Serialize(frame);
+        string saved = NativeBattleTestSnapshots.Json(frame);
         NativeBattleSiren95ContactServices services = new(fixture.Inputs.Packets, _ => Model(), (_, _, _) => throw new InvalidOperationException());
         var result = NativeBattleSiren95Contacts.Advance7447C0(frame, appended.Address, services);
         Assert.Equal(expected, result.Frame.Random);
@@ -54,8 +54,8 @@ public sealed class NativeBattleSiren95ContactTests
         Assert.Equal((ushort)0, children[0].ReadWord(0x8C));
         Assert.Equal((ushort)0, children[0].ReadWord(0x90));
         Assert.InRange(unchecked((short)children[1].ReadWord(0x8E)), -3583, -1536);
-        var restored = NativeBattleSiren95Contacts.Advance7447C0(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, appended.Address, services);
-        Assert.Equal(JsonSerializer.Serialize(result.Frame), JsonSerializer.Serialize(restored.Frame));
+        var restored = NativeBattleSiren95Contacts.Advance7447C0(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, appended.Address, services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
     }
 
     [Theory]

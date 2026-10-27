@@ -62,7 +62,7 @@ public sealed class NativeBattleShockwavePulsar260BodyTests
         var actual = Draw(Geometry(false), Context(1));
         Assert.Single(actual.Batch.Attempts);
         Assert.Throws<NotSupportedException>(() => actual.Context44.Read(0x24, 4));
-        Assert.Equal(JsonSerializer.Serialize(Memory().ScriptedColorRegisters), JsonSerializer.Serialize(actual.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Memory().ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Memory.ScriptedColorRegisters));
         Assert.Equal(Memory().GeometryRegisters!.Sxy, actual.Memory.GeometryRegisters!.Sxy);
         Assert.Equal(new int?[] { 0, 0, 2000 }, actual.Memory.GeometryRegisters.Translation);
         Assert.Equal(0x1939C30u + 52, Dword(actual.Context44, 0));
@@ -75,10 +75,10 @@ public sealed class NativeBattleShockwavePulsar260BodyTests
         NativeBattleEffectArena context = Context(1).Write(0x24, BitConverter.GetBytes((short)1024));
         var first = Draw(Geometry(true), context);
         Assert.Null(first.Memory.ScriptedColorRegisters!.Ir0);
-        var restored = JsonSerializer.Deserialize<NativeBattleModelContext44Step>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelContext44Step>(NativeBattleTestSnapshots.Json(first))!;
         var next = Draw(Geometry(true), first.Context44, first.Memory, first.ProjectedScratch);
         var resumed = Draw(Geometry(true), restored.Context44, restored.Memory, restored.ProjectedScratch);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(resumed));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(resumed));
     }
 
     private static NativeBattleModelContext44Step Draw(byte[] bytes, NativeBattleEffectArena context, NativeBattleEffectMemory? memory = null, NativeBattleEffectArena? scratch = null) => NativeBattleModelContext44.Draw(memory ?? Memory(), context, [NativeBattlePackedMatrix32.FromMatrix(Identity with { Z = 2000 }, null)], (offset, count) => bytes.AsSpan(offset, count).ToArray(), 0x1939C30, scratch ?? NativeBattleEffectArena.Clear().MarkUnknown(0, 64), 64, Projection, Constants, false, 17, 4);

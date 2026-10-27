@@ -18,7 +18,7 @@ public sealed class NativeBattleWhiteWindActMeshTests
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0xAEC + 119 * 8 + 6, 2));
         NativeBattleWhiteWindActMeshStep unknown = Draw(Source(120), Node(0x200, 2048), NativeBattleEffectArena.Clear().MarkUnknown(0xAEC, 0x3E0));
         Assert.Throws<NotSupportedException>(() => unknown.Arena.Read(0xEAC, 32));
-        Assert.Equal(JsonSerializer.Serialize(result.Batch), JsonSerializer.Serialize(unknown.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Batch), NativeBattleTestSnapshots.Json(unknown.Batch));
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public sealed class NativeBattleWhiteWindActMeshTests
     public void Cold_restored_morph_and_register_owners_produce_the_same_next_draw()
     {
         NativeBattleWhiteWindActMeshStep first = Draw(Source(4), Node(0x200, 2048), NativeBattleEffectArena.Clear().MarkUnknown(0xAEC, 0x3E0));
-        NativeBattleWhiteWindActMeshStep restored = JsonSerializer.Deserialize<NativeBattleWhiteWindActMeshStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleWhiteWindActMeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWhiteWindActMeshStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleWhiteWindActMeshStep Next(NativeBattleWhiteWindActMeshStep prior) => Draw(Source(4), Node(0x200, 1024), prior.Arena, registers: prior.Registers);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleWhiteWindActMeshStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena arena, NativeBattleActionMatrix? billboard = null, NativeBattleGeometryRegisterStep? registers = null)

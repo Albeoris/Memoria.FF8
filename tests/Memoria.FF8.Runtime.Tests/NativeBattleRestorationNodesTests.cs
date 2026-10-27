@@ -29,8 +29,8 @@ public sealed class NativeBattleRestorationNodesTests
         Assert.Equal((byte)3, second.Frame.Memory.Arena!.Read(geometry + 0x1D9, 1)[0]);
         Assert.Equal((ushort)1, new NativeBattleEffectHierarchy(second.Frame.Effect.Pools).Read(fixture.Task).ReadWord(0x34 + 0x14));
         Assert.Equal((ushort)1, new NativeBattleEffectHierarchy(second.Frame.Effect.Pools).Read(fixture.Task).ReadWord(0x34 + 0x16));
-        NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(second.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleRestorationNodes.AllocateEmitter(second.Frame, fixture.Task, 0, 1, 0)), JsonSerializer.Serialize(NativeBattleRestorationNodes.AllocateEmitter(clone, fixture.Task, 0, 1, 0)));
+        NativeBattleRestorationFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(NativeBattleTestSnapshots.Json(second.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleRestorationNodes.AllocateEmitter(second.Frame, fixture.Task, 0, 1, 0)), NativeBattleTestSnapshots.Json(NativeBattleRestorationNodes.AllocateEmitter(clone, fixture.Task, 0, 1, 0)));
     }
 
     [Theory]

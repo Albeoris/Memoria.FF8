@@ -82,8 +82,8 @@ public sealed class NativeBattleEffect65ControllerTests
         frame = frame with { State = frame.State.WriteDword(ControlGlobal, 1) };
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 1));
         NativeBattleEffect65Step first = AdvanceRoot6E03F0(frame, RootBank, Resources(), Inputs());
-        NativeBattleEffect65Step second = AdvanceRoot6E03F0(first.Frame, RootBank, Resources(), Inputs());
         Assert.Equal(ArenaAddress + SecondPacketOffset, first.Frame.State.ReadDword(CursorGlobal));
+        NativeBattleEffect65Step second = AdvanceRoot6E03F0(first.Frame, RootBank, Resources(), Inputs());
         Assert.Equal(ArenaAddress + FirstPacketOffset, second.Frame.State.ReadDword(CursorGlobal));
         Assert.Equal(1, Read(second.Frame, RootBank).ReadWord(12));
         Assert.Equal(0, Read(second.Frame, RootBank).ReadByte(15));
@@ -97,18 +97,18 @@ public sealed class NativeBattleEffect65ControllerTests
         (frame, uint first) = Append(frame, ChildDescriptor, ChildCallback);
         (frame, uint second) = Append(frame, ChildDescriptor, ChildCallback);
         frame = Write(frame, first, Read(frame, first).WriteDword(0x14, 0xAABBCCDD).MarkPayloadUnknown(0x90, 2));
-        NativeBattleEffectTaskPool before = frame.Effect.Pools[2];
+        NativeBattleEffectTaskPool before = NativeBattleStorageSnapshots.Capture(frame.Effect.Pools[2]);
         frame = WriteBytes(frame, ChildDescriptor, NativeBattleEffectArena.Clear().Write(0, new byte[8]), 8);
         NativeBattleEffectTaskPool after = frame.Effect.Pools[2];
         Assert.Null(after.Head);
         Assert.Null(after.Tail);
-        Assert.Equal(before.Slots, after.Slots);
+        Assert.Equal(JsonSerializer.Serialize(before.Slots), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(after).Slots));
         Assert.Equal(1, Read(frame, first).Next);
         Assert.Equal(0xAABBCCDDu, Read(frame, first).ReadDword(0x14));
         Assert.Equal(1, Read(frame, second).Flags);
         Assert.Throws<NotSupportedException>(() => Read(frame, first).ReadWord(0x90));
-        NativeBattleEffect65Frame restored = JsonSerializer.Deserialize<NativeBattleEffect65Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(Read(frame, first).Payload.ToArray(), Read(restored, first).Payload.ToArray());
+        NativeBattleEffect65Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect65Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(Read(frame, first)).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(Read(restored, first)).Payload.ToArray());
         Assert.Throws<NotSupportedException>(() => Read(restored, first).ReadWord(0x90));
     }
 

@@ -26,7 +26,7 @@ public sealed class NativeBattleGastricJuice128ControllerTests
     {
         Fixture fixture = new();
         NativeBattleEffectTaskPool root = fixture.Frame.Effect.Pools[0];
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 1).WriteDword(16, 0)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 1).WriteDword(16, 0)) });
         NativeBattleGastricJuice128Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [root] } };
         frame = fixture.Step(frame);
         Assert.Equal(4, frame.Effect.Pools.Length);
@@ -139,10 +139,10 @@ public sealed class NativeBattleGastricJuice128ControllerTests
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, _) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 2).WriteByte(15, 1)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 2).WriteByte(15, 1)) });
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(MainDescriptor, ArenaAddress + 0x1280, 616, 1);
             (target, _) = target.Append(MainCallback);
-            target = target with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) };
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) });
             NativeBattleOriginalEffectState effect = new(128, 128, new(128, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(CurveDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, 32, 128)] };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
             for (int index = 0; index < PointCount; index++)

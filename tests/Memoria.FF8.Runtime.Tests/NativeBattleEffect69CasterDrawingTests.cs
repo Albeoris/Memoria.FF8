@@ -54,7 +54,7 @@ public sealed class NativeBattleEffect69CasterDrawingTests
         Assert.Null(result.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
         Assert.All(result.Scratch.ReadSnapshot(24, 8).Known, value => Assert.True(value));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect69CasterDrawingStep>(JsonSerializer.Serialize(result))));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect69CasterDrawingStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))))));
     }
 
     [Fact]

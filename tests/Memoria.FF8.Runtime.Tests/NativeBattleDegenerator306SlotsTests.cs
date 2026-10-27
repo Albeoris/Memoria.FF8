@@ -41,7 +41,7 @@ public sealed class NativeBattleDegenerator306SlotsTests
         (NativeBattleDegenerator306Frame frame, int result) = NativeBattleDegenerator306Slots.Advance(before, fixture.Address, Resources, fixture.Inputs(0x201));
         Assert.Equal(0, result);
         Assert.Equal(1, fixture.Draws);
-        Assert.Equal(JsonSerializer.Serialize(before.State), JsonSerializer.Serialize(frame.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(before.State), NativeBattleTestSnapshots.Json(frame.State));
         Assert.Equal(before.Random, frame.Random);
         Assert.Equal((ushort)4, NativeBattleDegenerator306Controller.Read(frame, fixture.Address).ReadWord(12));
         Assert.Equal((ushort)0xCAFE, fixture.ObservedW);
@@ -77,11 +77,11 @@ public sealed class NativeBattleDegenerator306SlotsTests
         {
             frame = frame with { State = frame.State.WriteDword(SlotBank + (uint)(index * SlotStride), 1) };
         }
-        NativeBattleDegenerator306Frame restored = JsonSerializer.Deserialize<NativeBattleDegenerator306Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDegenerator306Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var first = NativeBattleDegenerator306Slots.Advance(frame, fixture.Address, Resources, fixture.Inputs());
         var second = NativeBattleDegenerator306Slots.Advance(restored, fixture.Address, Resources, fixture.Inputs());
         Assert.Equal(frame.Random, first.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(first.Frame), JsonSerializer.Serialize(second.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Frame), NativeBattleTestSnapshots.Json(second.Frame));
         Assert.Equal(first.Result, second.Result);
     }
 

@@ -66,7 +66,7 @@ public sealed class NativeBattleAngelWing84SceneTests
         hierarchy = hierarchy.Write(appended.Address, hierarchy.Read(appended.Address).WriteByte(41, 11));
         NativeBattleAngelWing84SceneMemory scene = frame.State.Scene.WriteWord(64, 4).WriteWord(66, 4).WriteWord(68, 4);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools }, State = frame.State with { Scene = scene } };
-        frame = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleAngelWing84Frame>(NativeBattleTestSnapshots.Json(frame))!;
         models[3] = models[3] with { Flags0 = 0x86 };
         frame = NativeBattleAngelWing84Scene.Advance(frame, appended.Address, inputs).Frame;
         Assert.Equal((ushort)0x82, models[3].Flags0);

@@ -51,10 +51,10 @@ public sealed class NativeBattleEffect66DrawingTests
         Assert.Equal(2000u, U(actual, 0xA0));
         Assert.Equal(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4).ToArray(), result.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4).ToArray());
         Assert.Equal(0x1D8E054u, Assert.Single(deliveries).CursorGlobal);
-        NativeBattleEffect66Frame restored = JsonSerializer.Deserialize<NativeBattleEffect66Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect66Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect66Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         restored = PublishContext(restored, address, Context(restored, address, 180).Write(4, new byte[2]), 180);
         result = PublishContext(result, address, actual.Write(4, new byte[2]), 180);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect66Drawing.DrawSprite(result, address, 2, CursorGlobal, resources, Inputs([], address, 180))), JsonSerializer.Serialize(NativeBattleEffect66Drawing.DrawSprite(restored, address, 2, CursorGlobal, resources, Inputs([], address, 180))));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect66Drawing.DrawSprite(result, address, 2, CursorGlobal, resources, Inputs([], address, 180)))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect66Drawing.DrawSprite(restored, address, 2, CursorGlobal, resources, Inputs([], address, 180)))));
     }
 
     private static ushort W(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(offset, 2));

@@ -52,7 +52,7 @@ public sealed class NativeBattleEffect308StateTests
         };
         uint address = ScriptRanges[0].Address + 16;
         state = state.WriteWord(address, 17);
-        state = JsonSerializer.Deserialize<NativeBattleEffect308State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect308State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Same(state, state.BindOriginalScriptSources(null!));
         Assert.Equal((ushort)17, state.ReadWord(address));
@@ -84,8 +84,8 @@ public sealed class NativeBattleEffect308StateTests
     [Fact]
     public void JSON_requires_programme_binding_history()
     {
-        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(NativeBattleEffect308State.FromColdProcess()));
+        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect308State.FromColdProcess())));
         Dictionary<string, JsonElement> fields = document.RootElement.EnumerateObject().Where(property => property.Name != nameof(NativeBattleEffect308State.ScriptSourcesBound)).ToDictionary(property => property.Name, property => property.Value.Clone());
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect308State>(JsonSerializer.Serialize(fields)));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect308State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fields)))));
     }
 }

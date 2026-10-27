@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -13,13 +13,13 @@ public sealed class BattleExpandedCoordinateOrderingTests
     public void Pending_and_executed_coordinates_round_trip_without_changing_packet_words_or_payloads()
     {
         NativeBattleLogicalOrdering source = Ordering();
-        NativeBattleLogicalOrdering restored = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(source))!;
+        NativeBattleLogicalOrdering restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(source))!;
         Assert.Equal(Coordinates, restored.Packets[0].ProjectedCoordinates!.Value);
         NativeBattleLogicalCommand command = Assert.Single(restored.Traverse(Lengths()));
         Assert.Equal(Coordinates, command.ProjectedCoordinates!.Value);
         Assert.Equal(Packet().Skip(1), command.Words);
         Assert.Equal(new int[] { 1000, 1100, 1200, 0 }, command.VertexPayload4);
-        NativeBattleLogicalCommand restoredCommand = JsonSerializer.Deserialize<NativeBattleLogicalCommand>(JsonSerializer.Serialize(command))!;
+        NativeBattleLogicalCommand restoredCommand = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalCommand>(NativeBattleTestSnapshots.Json(command))!;
         Assert.Equal(Coordinates, restoredCommand.ProjectedCoordinates!.Value);
         Assert.Equal(command.Words, restoredCommand.Words);
     }
@@ -27,7 +27,7 @@ public sealed class BattleExpandedCoordinateOrderingTests
     [Fact]
     public void Physical_reread_retains_coordinates_only_when_current_packed_coordinates_match()
     {
-        NativeBattleLogicalOrdering ordering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(Ordering().ResetAfterDraw45D080()))!;
+        NativeBattleLogicalOrdering ordering = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(Ordering().ResetAfterDraw45D080()))!;
         uint[] words = Packet().ToArray();
         words[0] |= 0xD8E098;
         NativeBattleLogicalCommand retained = Assert.Single(ordering.Traverse(Lengths(), Reader(words)));
@@ -55,12 +55,13 @@ public sealed class BattleExpandedCoordinateOrderingTests
     public void Physical_overlap_invalidates_coordinates_even_after_a_retained_packet_reset(bool reset)
     {
         NativeBattleLogicalOrdering source = reset ? Ordering().ResetAfterDraw45D080() : Ordering();
-        NativeBattleLogicalOrdering.Builder builder = new(source);
+        NativeBattleLogicalOrdering preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
+        using NativeBattleLogicalOrdering.Builder builder = new(source);
         builder.InvalidatePacketRange(new(Reference.Bank, Reference.Buffer, 8), 4);
         NativeBattleLogicalPacket packet = Assert.Single(builder.ToImmutable().Packets);
         Assert.True(packet.RequiresPhysicalRead);
         Assert.Null(packet.ProjectedCoordinates);
-        Assert.Equal(Coordinates, source.Packets[0].ProjectedCoordinates!.Value);
+        Assert.Equal(Coordinates, preserved.Packets[0].ProjectedCoordinates!.Value);
     }
 
     private static NativeBattleLogicalOrdering Ordering() => NativeBattleLogicalOrdering.Clear().Prepend(17, Reference, Packet(), 0, [1000, 1100, 1200, 0], projectedCoordinates: Coordinates);

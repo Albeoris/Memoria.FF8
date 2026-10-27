@@ -119,8 +119,8 @@ public sealed class NativeBattleEffect283ControllerTests
         Assert.Empty(frame.Effect.Pools);
         Assert.Equal((ushort)60, BitConverter.ToUInt16(frame.State.RootBankStorage!.Read(12, 2)));
         Assert.Equal(new NativeBattleEffect283Stage5713E0(0, 0), harness.Operations[^1]);
-        NativeBattleEffect283Frame restored = JsonSerializer.Deserialize<NativeBattleEffect283Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(Advance(restored, Resources(), harness.Inputs())));
+        NativeBattleEffect283Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect283Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, Resources(), harness.Inputs()))));
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public sealed class NativeBattleEffect283ControllerTests
         foreach ((NativeBattleGfAnimationSource source, int offset, int length) in new[] { (Resources().MainProgramme, MainProgrammeWorkspaceOffset, MainProgrammeWorkspaceLength), (Resources().SecondaryProgramme, SecondaryProgrammeWorkspaceOffset, SecondaryProgrammeWorkspaceLength) })
         {
             NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(new byte[length].ToImmutableArray()).Initialize7016B0(source, length);
-            frame = WriteBytes(frame, ArenaAddress + (uint)offset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), length);
+            frame = WriteBytes(frame, ArenaAddress + (uint)offset, NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan()), length);
         }
         return frame;
     }

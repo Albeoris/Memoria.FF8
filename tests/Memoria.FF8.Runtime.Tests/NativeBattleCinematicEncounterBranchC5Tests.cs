@@ -11,10 +11,10 @@ public sealed class NativeBattleCinematicEncounterBranchC5Tests
     public void Matching_encounter_branches_from_instruction_start_and_survives_snapshot(int encounter, short operand, short displacement, uint expected)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(operand, displacement);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicEncounterBranchC5.Execute(frame, new(0x1000, 6, 0x1000), (ushort)encounter);
         Assert.Equal(expected, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicEncounterBranchC5.Execute(restored, new(0x1000, 6, 0x1000), (ushort)encounter)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicEncounterBranchC5.Execute(restored, new(0x1000, 6, 0x1000), (ushort)encounter)));
         Assert.Equal(frame.Arena, result.Arena);
     }
 

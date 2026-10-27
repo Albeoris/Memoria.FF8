@@ -224,12 +224,12 @@ public sealed class NativeBattleShotgun281ControllerTests
         var frame = MainAt(13);
         (frame, uint impact) = Append(frame, Pools[2].Descriptor, 0x67E6B0);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[312].ToImmutableArray()).Initialize7016B0(Resources().ProgrammeB, 312);
-        frame = WriteBytes(frame, impact + 20, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 312);
+        frame = WriteBytes(frame, impact + 20, NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan()), 312);
         frame = Advance(frame, Resources(), Inputs([]));
         Assert.Empty(frame.Effect.Pools);
         Assert.NotNull(frame.State.RootBankStorage);
         Assert.Equal(1, frame.Memory.Arena!.Read(0x1400, 1)[0] & 1);
-        frame = JsonSerializer.Deserialize<NativeBattleShotgun281Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleShotgun281Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = Initialize(frame, Resources(), Inputs([]));
         Assert.Single(frame.Effect.Pools);
         Assert.Equal(1, frame.Memory.Arena!.Read(0x1400, 1)[0] & 1);

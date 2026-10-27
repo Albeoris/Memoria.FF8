@@ -26,7 +26,7 @@ public sealed class NativeBattleVictoryResourceTests
     {
         uint address = NativeBattleFileStaging.Address;
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().WriteResourcePointer(address + 4, new(null, address + 100, 8)).Rebase(0x18DD018);
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
         Assert.Equal(staging.ResourcePointers[address + 4], restored.ReadResourcePointer(address + 4));
         Assert.Equal(address + 100, BinaryPrimitives.ReadUInt32LittleEndian(restored.Read(address + 4, 4)));
         Assert.Equal(staging.BaseAddress, restored.BaseAddress);
@@ -61,8 +61,8 @@ public sealed class NativeBattleVictoryResourceTests
             Assert.Null(bound.Staging.ReadResourcePointer(row + 28));
             Assert.Throws<NotSupportedException>(() => bound.Staging.Read(row + 28, 4));
         }
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(bound.Staging))!;
-        Assert.Equal(JsonSerializer.Serialize(bound.Staging), JsonSerializer.Serialize(restored));
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(bound.Staging))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(bound.Staging), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -95,10 +95,10 @@ public sealed class NativeBattleVictoryResourceTests
     {
         NativeBattleDecodedPose decoded = new(new(10, 20, 30), [new(new(1, 2, 3), new(4096, 4096, 4096))], false);
         NativeBattleSequenceState state = new() { DecodedPose = decoded, LinkedDecodedPose = decoded, LinkedPose = new(0, 1, 1, 0) };
-        state = JsonSerializer.Deserialize<NativeBattleSequenceState>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleTestSnapshots.RestoreJson<NativeBattleSequenceState>(NativeBattleTestSnapshots.Json(state))!;
         NativeBattlePoseSource differentResource = new([], []);
-        Assert.Equal(JsonSerializer.Serialize(decoded), JsonSerializer.Serialize(NativeBattlePoseMatrices.ReadDecodedPose(state, differentResource)));
-        Assert.Equal(JsonSerializer.Serialize(decoded), JsonSerializer.Serialize(NativeBattlePoseMatrices.ReadLinkedDecodedPose(state, differentResource)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(decoded), NativeBattleTestSnapshots.Json(NativeBattlePoseMatrices.ReadDecodedPose(state, differentResource)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(decoded), NativeBattleTestSnapshots.Json(NativeBattlePoseMatrices.ReadLinkedDecodedPose(state, differentResource)));
         Assert.Throws<NotSupportedException>(() => NativeBattlePoseMatrices.ReadDecodedPose(state with { DecodedPose = null }, differentResource));
     }
 

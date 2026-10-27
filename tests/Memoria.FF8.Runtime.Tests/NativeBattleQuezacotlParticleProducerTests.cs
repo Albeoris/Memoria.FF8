@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -11,7 +11,7 @@ public sealed class NativeBattleQuezacotlParticleProducerTests
     {
         var (memory, effect) = Fixture();
         NativeBattleEffectTaskPool pool = effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Flags = 0xA500 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Flags = 0xA500 })) });
         effect = effect with { Pools = [pool] };
         memory = memory with { Arena = Word(memory.Arena!, 0x3C27C, unchecked((short)0xA500)).MarkUnknown(0x3C27C + 2, 58) };
         NativeBattleQuezacotlParticleSpawn spawned = NativeBattleQuezacotlParticleProducer.Spawn6C7D10(memory, effect, new(new(1, 2, 3), new(4, 5, 6), new(7, 8, 9), new(10, 11, 12), -1, 0, 256, 250, 0, 3));
@@ -20,7 +20,7 @@ public sealed class NativeBattleQuezacotlParticleProducerTests
         Assert.Equal((ushort)0xA501, BinaryPrimitives.ReadUInt16LittleEndian(task));
         Assert.Equal(new byte[] { 10, 0, 11, 0, 12, 0, 0xFF, 0xFF }, task.AsSpan(0x30, 8).ToArray());
         Assert.Equal((ushort)1, spawned.Effect.Quezacotl!.Random17A0);
-        Assert.Equal(task.AsSpan(12).ToArray(), spawned.Effect.Pools[0].Slots[0].Payload.ToArray());
+        Assert.Equal(task.AsSpan(12).ToArray(), NativeBattleStorageSnapshots.Capture(spawned.Effect.Pools[0].Slots[0]).Payload.ToArray());
     }
 
     [Fact]
@@ -46,6 +46,8 @@ public sealed class NativeBattleQuezacotlParticleProducerTests
     {
         var (memory, effect) = Fixture();
         NativeBattleQuezacotlParticleArguments args = new(new(9, 8, 7), new(1, 2, 3), new(4, 5, 6), null, 0, 0, 256, 250, 0, 3);
+        NativeBattleEffectMemory originalMemory = NativeBattleTestSnapshots.Independent(memory);
+        NativeBattleOriginalEffectState originalEffect = NativeBattleTestSnapshots.Independent(effect);
         NativeBattleQuezacotlParticleSpawn spawned = NativeBattleQuezacotlParticleProducer.Spawn6C7D10(memory, effect, args);
         Assert.Equal(0, spawned.Slot);
         Assert.Equal(Row, spawned.Row);
@@ -61,8 +63,8 @@ public sealed class NativeBattleQuezacotlParticleProducerTests
         Assert.Equal(new byte[6], spawned.Memory.Arena.Read(Row + 8, 6));
         Assert.Equal(0x211C4B4u, U32(spawned.Memory, 0x3C28C));
         Assert.Equal(0x211BD34u, spawned.Memory.QuezacotlSecondaryHeads!.Value[1]);
-        memory = memory with { Arena = memory.Arena!.Write(Row + 8, Enumerable.Repeat((byte)0xA5, 6).ToArray()) };
-        NativeBattleQuezacotlParticleSpawn explicitVelocity = NativeBattleQuezacotlParticleProducer.Spawn6C7D10(memory, effect, args with { TrailVelocity = new(100, -200, 300), VelocityScale = -1 });
+        memory = originalMemory with { Arena = originalMemory.Arena!.Write(Row + 8, Enumerable.Repeat((byte)0xA5, 6).ToArray()) };
+        NativeBattleQuezacotlParticleSpawn explicitVelocity = NativeBattleQuezacotlParticleProducer.Spawn6C7D10(memory, originalEffect, args with { TrailVelocity = new(100, -200, 300), VelocityScale = -1 });
         Assert.Equal((ushort)1, explicitVelocity.Effect.Quezacotl!.Random17A0);
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 6), explicitVelocity.Memory.Arena!.Read(Row + 8, 6));
         Assert.Equal((short)-1, I16(explicitVelocity.Memory, 0x3C27C + 0x36));

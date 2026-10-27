@@ -19,6 +19,7 @@ public sealed class NativeBattleWaterIoCommandTests
     {
         NativeBattleEffectArena arena = Program(instruction).MarkUnknown(0x1002, 8).MarkUnknown(0x158, 0x100);
         NativeBattleScriptedEffectMemory core = Core();
+        NativeBattleScriptedEffectMemory before = NativeBattleStorageSnapshots.Capture(core);
         NativeBattleWaterIoCommandResult result = Run(core, arena, length: 2);
         Assert.Equal(new NativeBattleWaterFileReadRequest(file, Destination, 0, 0xAA0ED0), result.Request);
         Assert.Equal((byte)0xFF, result.Core.Read(0x2798219, 1)[0]);
@@ -27,7 +28,8 @@ public sealed class NativeBattleWaterIoCommandTests
         Assert.Equal(0u, result.NextInstructionPointer);
         Assert.Null(result.YieldWait);
         Assert.Equal(core.Read(0x2798A68, 8), result.Core.Read(0x2798A68, 8));
-        Assert.Equal((byte)0, core.Read(0x2798219, 1)[0]);
+        Assert.Equal((byte)0, before.Read(0x2798219, 1)[0]);
+        Assert.Same(core, result.Core);
     }
 
     [Theory]
@@ -42,7 +44,7 @@ public sealed class NativeBattleWaterIoCommandTests
         Assert.Equal(Pc, result.NextInstructionPointer);
         Assert.Equal((ushort?)0xFFFF, result.YieldWait);
         Assert.Null(result.Request);
-        Assert.Equal(JsonSerializer.Serialize(core), JsonSerializer.Serialize(result.Core));
+        Assert.Equal(NativeBattleTestSnapshots.Json(core), NativeBattleTestSnapshots.Json(result.Core));
         Assert.Null(result.Textures);
     }
 
@@ -70,7 +72,7 @@ public sealed class NativeBattleWaterIoCommandTests
         Assert.Equal((byte)0, result.Read(0x2798219, 1)[0]);
         Assert.Throws<NotSupportedException>(() => result.Read(0x2798218, 1));
         Assert.Throws<NotSupportedException>(() => result.Read(Manager + 0xB4, 8));
-        Assert.Equal(JsonSerializer.Serialize(core with { Core = core.Core.Write((int)(0x2798219 - NativeBattleScriptedEffectMemory.Address), new byte[] { 0 }) }), JsonSerializer.Serialize(result));
+        Assert.Equal(NativeBattleTestSnapshots.Json(core with { Core = core.Core.Write((int)(0x2798219 - NativeBattleScriptedEffectMemory.Address), new byte[] { 0 }) }), NativeBattleTestSnapshots.Json(result));
     }
 
     [Fact]
@@ -86,12 +88,12 @@ public sealed class NativeBattleWaterIoCommandTests
         Assert.Equal(1, result.Textures!.Count);
         Assert.Equal(new NativeBattleEffectTextureRectangle(704, 256, 2, 2), result.Textures.Slots[0]!.Rectangle);
         Assert.Equal(0x4000, result.Textures.Slots[0]!.ArenaOffset);
-        result = JsonSerializer.Deserialize<NativeBattleWaterIoCommandResult>(JsonSerializer.Serialize(result))!;
+        result = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterIoCommandResult>(NativeBattleTestSnapshots.Json(result))!;
         arena = arena.Write(0x4000, new byte[] { 9, 10, 11, 12, 13, 14, 15, 16 });
         NativeBattleEffectTextureDrain drained = result.Textures!.Drain505D20(arena);
         Assert.Equal(new byte[] { 9, 10, 11, 12, 13, 14, 15, 16 }, drained.Uploads.Single().Bytes);
         Assert.Equal(new byte[] { 9, 10, 11, 12 }, drained.State.ReadVram().AsSpan(2 * (256 * 1024 + 704), 4).ToArray());
-        Assert.Equal(JsonSerializer.Serialize(core), JsonSerializer.Serialize(result.Core));
+        Assert.Equal(NativeBattleTestSnapshots.Json(core), NativeBattleTestSnapshots.Json(result.Core));
     }
 
     [Fact]
@@ -99,7 +101,7 @@ public sealed class NativeBattleWaterIoCommandTests
     {
         NativeBattleEffectArena arena = Program(0xC006).Write(0x3FFF, new byte[] { 0xA5 }).Write(0xC000, new byte[] { 0x5A });
         NativeBattleWaterIoCommandResult pending = Run(Core(), arena, length: 2);
-        pending = JsonSerializer.Deserialize<NativeBattleWaterIoCommandResult>(JsonSerializer.Serialize(pending))!;
+        pending = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterIoCommandResult>(NativeBattleTestSnapshots.Json(pending))!;
         Assert.Equal((byte)0xFF, pending.Core.Read(0x2798219, 1)[0]);
         byte[] delivered = Enumerable.Range(0, 0x8000).Select(index => (byte)(index * 17 + 3)).ToArray();
         int offset = checked((int)(pending.Request!.DestinationAddress - NativeBattleEffectNodeMemory.ArenaAddress));

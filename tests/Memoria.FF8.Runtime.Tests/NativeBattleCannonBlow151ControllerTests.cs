@@ -20,7 +20,7 @@ public sealed class NativeBattleCannonBlow151ControllerTests
         Assert.Throws<NotSupportedException>(() => frame.State.ReadWord(0x244E010));
         Assert.Null(frame.State.RootBankStorage);
         Assert.Null(frame.State.ChildBankStorage);
-        Assert.All(frame.Effect.Pools[1].Slots.Skip(1), task => Assert.All(task.Payload, value => Assert.Equal((byte)0, value)));
+        Assert.All(frame.Effect.Pools[1].Slots.Skip(1), task => Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload, value => Assert.Equal((byte)0, value)));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class NativeBattleCannonBlow151ControllerTests
     {
         NativeBattleCannonBlow151Frame frame = Active(0x60CA90);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })), Head = null, Tail = null });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         int requests = 0;
         NativeBattleCannonBlow151Inputs inputs = Inputs((current, operation) =>
@@ -148,7 +148,7 @@ public sealed class NativeBattleCannonBlow151ControllerTests
         Assert.Equal((ushort)1, frame.Effect.Pools[0].Slots[1].ReadWord(12));
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
-        frame = JsonSerializer.Deserialize<NativeBattleCannonBlow151Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleCannonBlow151Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         frame = frame with { Effect = WriteCompletionByte(frame.Effect, 0x244D696, 0xFF) };

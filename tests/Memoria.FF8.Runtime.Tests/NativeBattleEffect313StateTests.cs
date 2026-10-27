@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect313StateTests
     {
         uint last = RecordsAddress + (RecordCount - 1) * RecordStride;
         NativeBattleEffect313State state = NativeBattleEffect313State.FromUnknown().WriteDword(last, 1).WriteWord(last + 6, 512).WriteDword(CursorGlobal, 123);
-        state = JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(1u, state.ReadDword(last));
         Assert.Equal((ushort)512, state.ReadWord(last + 6));
@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect313StateTests
         NativeBattleEffectArena child = state.ReadBank(1).Write(3596, BitConverter.GetBytes(456u));
         state = state.DetachBank(0).DetachBank(1);
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
-        state = JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state = state.AttachBank(0, root).AttachBank(1, child);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(1, child));
         Assert.Equal((ushort)0xABCD, BitConverter.ToUInt16(state.ReadBank(0).Read(14, 2)));

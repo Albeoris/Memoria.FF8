@@ -47,6 +47,7 @@ public sealed class NativeBattlePandemona291VortexTests
         arena = arena.Write(0x44A, BitConverter.GetBytes((ushort)1)).MarkUnknown(0x444, 6).MarkUnknown(0x44C, 16);
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 4096);
         List<ImmutableArray<byte>> inputs = [];
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
         NativeBattleEffectArena result = NativeBattlePandemona291Vortex.Advance6F1A30(arena, Task, matrix, 0, 0, Trig(), (input, _) => inputs.Add(input));
         Assert.Single(inputs);
         Assert.Equal((ushort)112, Word(result, 0x42C));
@@ -57,8 +58,7 @@ public sealed class NativeBattlePandemona291VortexTests
         Assert.Equal((ushort)8, Word(result, 0x43E));
         Assert.Equal(Task + 0x444, BinaryPrimitives.ReadUInt32LittleEndian(result.Read(0x102C, 4)));
         Assert.Throws<NotSupportedException>(() => result.Read(0x44C, 2));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattlePandemona291Vortex.Advance6F1A30(restored, Task, matrix, 0, 0, Trig())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattlePandemona291Vortex.Advance6F1A30(restored, Task, matrix, 0, 0, Trig())));
     }
 
     [Fact]

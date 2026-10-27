@@ -67,6 +67,7 @@ public static class NativeBattleBlizzaraController
                 tertiary = NativeBattleEffectTaskPool.Initialize(TertiaryDescriptor, PrimaryBank + 0xFD44, 0x20, 1);
                 smoke = NativeBattleEffectTaskPool.Initialize(SmokeDescriptor, PrimaryBank + 0xFD64, 0x24, 32);
                 trail = NativeBattleEffectTaskPool.Initialize(TrailDescriptor, PrimaryBank + 0x101E4, 0x28, 64);
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, secondary, tertiary, smoke, trail]) };
                 task = WriteByte(task, 15, 1);
             }
             if (Word(task, 12) == 1 && task.ReadByte(14) <= Header(0).ReadByte(17))

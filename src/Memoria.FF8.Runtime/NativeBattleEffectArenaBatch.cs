@@ -18,6 +18,7 @@ internal sealed class NativeBattleEffectArenaBatch(NativeBattleEffectArena sourc
         ObjectDisposedException.ThrowIf(disposed, this);
         if (arena.Transaction is null)
         {
+            NativeBattleTaskOperation.EnlistRetained(arena.Working);
             owned = new(arena);
             arena = owned.View;
         }

@@ -65,9 +65,9 @@ public sealed class NativeBattleTonberry90IoTests
         BinaryPrimitives.WriteUInt32LittleEndian(script.AsSpan(12), Base + 0x20100);
         shared = shared with { Io = shared.Io with { Script = script.ToImmutableArray() } };
         frame = frame with { Memory = frame.Memory with { Tonberry90 = shared, Arena = frame.Memory.Arena!.Write(0x20100, BitConverter.GetBytes(9)) } };
-        NativeBattleTonberry90Frame restored = JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleTonberry90Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleTonberry90Io.Complete(frame, 0x762A80);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleTonberry90Io.Complete(restored, 0x762A80)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleTonberry90Io.Complete(restored, 0x762A80)));
         Assert.Equal(690009, frame.Memory.SummonStream!.Number);
         Assert.Equal(Base + 0x20100, frame.Memory.SummonStream.SourceAddress);
         Assert.Equal((ushort)0, frame.Memory.Tonberry90!.ReadWord(Control + 0x164));

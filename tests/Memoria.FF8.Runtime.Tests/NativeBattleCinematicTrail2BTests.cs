@@ -72,6 +72,7 @@ public sealed class NativeBattleCinematicTrail2BTests
             packets++;
             return frame;
         });
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(initial))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicTrail2B.Draw(initial, services);
         Assert.Equal(4, setup);
         Assert.Equal(5, packets);
@@ -83,8 +84,7 @@ public sealed class NativeBattleCinematicTrail2BTests
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x3146, 2));
         projected = 0;
         packets = 0;
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(initial))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicTrail2B.Draw(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicTrail2B.Draw(restored, services)));
     }
 
     [Theory]

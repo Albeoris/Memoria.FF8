@@ -49,10 +49,10 @@ public sealed class NativeBattleEffect218GuardianCameraTests
         Assert.Equal(first.Pose.Roll, paused.Pose.Roll);
         Assert.Equal(first.Task.Frame, paused.Task.Frame);
         Assert.Equal(first.Task.Process.Target, paused.Task.Process.Target);
-        NativeBattleGuardianCameraTask restored = JsonSerializer.Deserialize<NativeBattleGuardianCameraTask>(JsonSerializer.Serialize(paused.Task))!;
+        NativeBattleGuardianCameraTask restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGuardianCameraTask>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(paused.Task)))!);
         NativeBattleGuardianCameraStep second = NativeBattleGuardianCameraProgram.Advance63E9C0(restored, matrix, paused.Pose, false);
         NativeBattleGuardianCameraStep expected = NativeBattleGuardianCameraProgram.Advance63E9C0(first.Task, matrix, first.Pose, false);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(second));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second)));
         Assert.Equal(unchecked((short)(300 + 2 * delta / 3)), second.Pose.Roll);
         NativeBattleGuardianCameraStep third = NativeBattleGuardianCameraProgram.Advance63E9C0(second.Task, matrix, second.Pose, false);
         Assert.Equal((short)-32768, third.Pose.Roll);

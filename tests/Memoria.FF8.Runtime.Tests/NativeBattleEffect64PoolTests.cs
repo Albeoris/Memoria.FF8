@@ -10,9 +10,9 @@ public sealed class NativeBattleEffect64PoolTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2545058, 0x20DFDD0, 0x488, 1);
         (pool, int slot) = pool.Append(0x6E53F0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Flags = 0, State = 0, Next = null }) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].UpdateHeader(0, 0, null, pool.Slots[slot].Callback));
         pool.Validate();
-        pool = JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(pool))!;
+        pool = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(pool)))!);
         int calls = 0;
         NativeBattleEffectTaskStep step = pool.Advance((current, index) =>
         {
@@ -20,7 +20,7 @@ public sealed class NativeBattleEffect64PoolTests
             NativeBattleModulePoolTask task = current.Slots[index];
             Assert.Equal((ushort)0, task.Flags);
             Assert.Equal(0x6E53F0u, task.Callback);
-            return new(current with { Slots = current.Slots.SetItem(index, task.WriteWord(12, 1)) }, 0);
+            return new(current.WriteSlot(index, task.WriteWord(12, 1)), 0);
         });
         Assert.Equal(1, calls);
         Assert.Equal(1, step.Survivors);
@@ -36,7 +36,7 @@ public sealed class NativeBattleEffect64PoolTests
     public void Cleared_allocation_flag_does_not_allow_a_linked_null_callback()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2545058, 0x20DFDD0, 0x488, 1);
-        pool = pool with { Head = 0, Tail = 0 };
+        pool = pool.UpdateLinks(0, 0);
         Assert.Throws<InvalidDataException>(() => pool.Validate());
     }
 
@@ -44,7 +44,8 @@ public sealed class NativeBattleEffect64PoolTests
     public void Cleared_allocation_flag_does_not_allow_a_link_cycle()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2545058, 0x20DFDD0, 0x488, 1);
-        pool = pool with { Head = 0, Tail = 0, Slots = ImmutableArray.Create(pool.Slots[0] with { Callback = 0x6E53F0, Next = 0 }) };
+        pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, 0, 0x6E53F0);
+        pool.UpdateLinks(0, 0);
         Assert.Throws<InvalidDataException>(() => pool.Validate());
     }
 }

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -12,7 +12,7 @@ public sealed class NativeBattleDuel274DolphinTests
         Fixture fixture = new();
         NativeBattleEffectTaskPool old = NativeBattleEffectTaskPool.Initialize(0x2508498, NativeBattleEffectNodeMemory.ArenaAddress + 0x9000, 36, 64);
         (old, _) = old.Append(0x68B140);
-        old = old with { Slots = old.Slots.SetItem(0, old.Slots[0].WriteWord(26, 3).MarkPayloadUnknown(34, 2)) };
+        old = NativeBattleTaskFixture.EditPool(old, data => data with { Slots = old.Slots.SetItem(0, old.Slots[0].WriteWord(26, 3).MarkPayloadUnknown(34, 2)) });
         NativeBattleDuel274Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.Add(old) } };
         frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [old]) };
         frame = fixture.Advance(frame);
@@ -30,9 +30,9 @@ public sealed class NativeBattleDuel274DolphinTests
         Assert.Equal((ushort)1, BitConverter.ToUInt16(frame.Memory.Arena.Read(0x9000, 2)));
         Assert.Throws<NotSupportedException>(() => frame.Memory.Arena.Read(0x9022, 2));
         Assert.All(frame.Effect.Pools[2].Slots, particle => Assert.Equal(0, particle.Flags));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena.Read(0x1000 + 1128, 1));
+        Assert.Equal(new byte[] { unchecked((byte)frame.Effect.Pools[2].Slots[0].Flags) }, frame.Memory.Arena.Read(0x1000 + 1128, 1));
         Assert.Equal(new byte[] { 0xAA, 0xBB }, frame.Staging.Read(0x2508452, 2));
-        NativeBattleDuel274Frame restored = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDuel274Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal(frame.Memory.Arena.Read(0x1000, 224), restored.Memory.Arena!.Read(0x1000, 224));
     }
 
@@ -79,7 +79,7 @@ public sealed class NativeBattleDuel274DolphinTests
     private static NativeBattleDuel274Frame At(NativeBattleDuel274Frame frame, ushort phase)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase)) });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }
 
@@ -101,7 +101,7 @@ public sealed class NativeBattleDuel274DolphinTests
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (targets, _) = targets.Append(0x689AC0);
             NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(14, 2).WriteByte(15, 6).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000);
-            targets = targets with { Slots = targets.Slots.SetItem(0, task) };
+            targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
             NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0) { Parameter80 = 6 };
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), parameters, root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };

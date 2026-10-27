@@ -77,11 +77,11 @@ public sealed class NativeBattleCinematicActorResourceABTests
     {
         NativeBattleResourcePointer pointer = new(new(2, 40), null);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().WriteResourcePointer(100, pointer);
-        arena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        arena = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
         arena.Validate();
         Assert.Equal(pointer, arena.ReadResourcePointer(100));
         arena = arena.Write(101, [7]);
-        Assert.Null(arena.ResourcePointers);
+        Assert.Null(NativeBattleStorageSnapshots.Capture(arena).ResourcePointers);
         Assert.Null(arena.ReadResourcePointer(100)!.Cpu);
         Assert.Equal(0x01980740u, arena.ReadResourcePointer(100)!.StagingAddress);
     }
@@ -107,17 +107,17 @@ public sealed class NativeBattleCinematicActorResourceABTests
         transaction.BeginCheckpoint();
         transaction.View.WriteResourcePointer(20, pointer);
         transaction.CommitCheckpoint();
-        string first = JsonSerializer.Serialize(transaction.Freeze());
+        string first = NativeBattleTestSnapshots.Json(transaction.Freeze());
         transaction.BeginCheckpoint();
         transaction.View.Write(21, [5]);
         Assert.Null(transaction.View.ReadResourcePointer(20)!.Cpu);
         transaction.RollbackCheckpoint();
         Assert.Equal(pointer, transaction.View.ReadResourcePointer(20));
-        Assert.Equal(first, JsonSerializer.Serialize(transaction.Freeze()));
+        Assert.Equal(first, NativeBattleTestSnapshots.Json(transaction.Freeze()));
         transaction.BeginCheckpoint();
         transaction.View.Write(20, [1, 2, 3, 4]);
         transaction.CommitCheckpoint();
-        Assert.Null(transaction.Freeze().ResourcePointers);
+        Assert.Null(NativeBattleStorageSnapshots.Capture(transaction.Freeze()).ResourcePointers);
         Assert.Equal(0x04030201u, transaction.View.ReadResourcePointer(20)!.StagingAddress);
     }
 }

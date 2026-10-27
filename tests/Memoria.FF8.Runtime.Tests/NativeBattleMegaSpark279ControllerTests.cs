@@ -54,7 +54,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         }
         Assert.Throws<NotSupportedException>(() => actual.Memory.Arena.Read(LinkedRowsOffset + 8, 2));
         Assert.Equal(new byte[4], actual.Memory.Arena.Read(LinkedHintOffset, 4));
-        var cold = JsonSerializer.Deserialize<NativeBattleMegaSpark279Frame>(JsonSerializer.Serialize(actual))!;
+        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleMegaSpark279Frame>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Equal(actual.Memory.Arena.ReadSnapshot(LinkedRowsOffset, 40).Known, cold.Memory.Arena!.ReadSnapshot(LinkedRowsOffset, 40).Known);
     }
 
@@ -134,7 +134,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         Assert.Equal(90u, BinaryPrimitives.ReadUInt32LittleEndian(Resources().ProgrammeA.Data.AsSpan().Slice(0x104)));
         frame = Write(frame, Pools[6].Bank, Read(frame, Pools[6].Bank).WriteWord(12, 60));
         var after = AdvanceMain(frame, Pools[6].Bank, Resources(), harness.Inputs()).Frame;
-        Assert.Equal(workspace.Data.ToArray(), ReadBytes(after, Pools[6].Bank + 40, ProgrammeAWorkspaceLength).Read(0, ProgrammeAWorkspaceLength));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray(), ReadBytes(after, Pools[6].Bank + 40, ProgrammeAWorkspaceLength).Read(0, ProgrammeAWorkspaceLength));
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(0, 2)) & 1);
         Assert.Equal(new[] { typeof(NativeBattleMegaSpark279ComposeCaster5095B0), typeof(NativeBattleMegaSpark279RestoreCaster508C90), typeof(NativeBattleMegaSpark279DrawSprite180) }, harness.Operations.Select(operation => operation.GetType()));
-        var cold = JsonSerializer.Deserialize<NativeBattleMegaSpark279Frame>(JsonSerializer.Serialize(actual))!;
+        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleMegaSpark279Frame>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Equal(actual.Memory.Arena.Read(0, 20), cold.Memory.Arena!.Read(0, 20));
     }
 
@@ -233,11 +233,11 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         Harness harness = new();
         var frame = MainAt(40);
         ushort expected = frame.StackBytes!.ReadUInt16(-0x76);
-        var cold = JsonSerializer.Deserialize<NativeBattleMegaSpark279Frame>(JsonSerializer.Serialize(frame))!;
+        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleMegaSpark279Frame>(NativeBattleTestSnapshots.Json(frame))!;
         cold = cold with { Memory = cold.Memory with { Arena = cold.Memory.Arena!.Write(LinkedRowsOffset + 6, new byte[] { 255, 255 }) } };
         var actual = AdvanceMain(cold, Pools[6].Bank, Resources(), harness.Inputs()).Frame;
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(LinkedRowsOffset + 6, 2)));
-        Assert.Equal(JsonSerializer.Serialize(frame.StackBytes), JsonSerializer.Serialize(actual.StackBytes));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.StackBytes), NativeBattleTestSnapshots.Json(actual.StackBytes));
     }
 
     private static NativeBattleMegaSpark279Frame MainAt(ushort age)
@@ -252,12 +252,12 @@ public sealed class NativeBattleMegaSpark279ControllerTests
         frame = Write(frame, Pools[6].Bank, task);
         NativeBattleGfAnimationWorkspace workspace = new(new byte[ProgrammeAWorkspaceLength].ToImmutableArray());
         workspace = workspace.Initialize7016B0(Resources().ProgrammeA, ProgrammeAWorkspaceLength);
-        frame = WriteBytes(frame, Pools[6].Bank + 40, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), ProgrammeAWorkspaceLength);
+        frame = WriteBytes(frame, Pools[6].Bank + 40, NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan()), ProgrammeAWorkspaceLength);
         for (int index = 0; index < 3; index++)
         {
             NativeBattleGfAnimationWorkspace b = new(new byte[ProgrammeBWorkspaceLength].ToImmutableArray());
             b = b.Initialize7016B0(Resources().ProgrammeB, ProgrammeBWorkspaceLength);
-            frame = WriteBytes(frame, Pools[6].Bank + (uint)(0x75C + index * 328), NativeBattleEffectArena.Clear().Write(0, b.Data.AsSpan()), ProgrammeBWorkspaceLength);
+            frame = WriteBytes(frame, Pools[6].Bank + (uint)(0x75C + index * 328), NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(b).Data.AsSpan()), ProgrammeBWorkspaceLength);
         }
         NativeBattleActionMatrix world = NativeBattleCuragaMatrices.Identity8DD770();
         NativeBattleActionMatrix lastInput = world with { X = 123, Y = -456, Z = 789 };

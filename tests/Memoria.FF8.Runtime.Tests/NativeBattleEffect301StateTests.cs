@@ -33,7 +33,7 @@ public sealed class NativeBattleEffect301StateTests
         Assert.False(state.ScriptSourcePending);
         Assert.Equal(0x12345678u, state.ReadDword(NativeBattleEffect301State.ScriptPointerAddress));
         state = state.WriteDword(NativeBattleEffect301State.ScriptPointerAddress, 0x12345890);
-        state = JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(0x12345890u, state.BindSources(resources).ReadDword(NativeBattleEffect301State.ScriptPointerAddress));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect301State.FromUnknown().BindSources(resources));
         NativeBattleEffect301State observed = NativeBattleEffect301State.FromColdProcess().Write(NativeBattleEffect301State.ScriptPointerAddress, new byte[] { 42 });
@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect301StateTests
         NativeBattleEffect301Resources resources = Synthetic(0x12345678);
         NativeBattleEffect301State state = NativeBattleEffect301State.FromColdProcess().BindSources(resources);
         state = state.WriteView(NativeBattleEffect301State.ScriptPointerAddress + 1, NativeBattleEffectArena.Clear().MarkUnknown(0, 2), 2);
-        state = JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         state = state.BindSources(resources);
         Assert.Equal((byte)0x78, state.Read(NativeBattleEffect301State.ScriptPointerAddress, 1)[0]);
@@ -64,7 +64,7 @@ public sealed class NativeBattleEffect301StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect301State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4, state.ReadWord(0x2507744));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(0x2507744));

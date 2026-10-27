@@ -22,7 +22,7 @@ public sealed class NativeBattleRestorationMeshPacketsTests
         Assert.Equal(0x30u, first.Context.Flags);
         Assert.Null(first.Context.FarColor);
         Assert.Null(first.Context.Fade);
-        NativeBattleModulePoolTask clone = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.Task))!;
+        NativeBattleModulePoolTask clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.Task))!;
         NativeBattleEsunaMeshPreparation second = NativeBattleRestorationMeshPackets.Prepare88E090(clone, source, 1, -20, 0xAABBCC);
         Assert.Equal((ushort)0, second.Task.ReadWord(0x34 + 0x2A));
         Assert.Equal((ushort)0, second.Context.VOffset);
@@ -81,7 +81,7 @@ public sealed class NativeBattleRestorationMeshPacketsTests
         byte[] lengths = new byte[256];
         lengths[0xE2] = 1;
         lengths[(byte)(polygon.Words[1] >> 24)] = (byte)(polygonBytes / 4 - 1);
-        NativeBattleLogicalOrdering clone = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
+        NativeBattleLogicalOrdering clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(written.Ordering))!;
         ImmutableArray<NativeBattleLogicalCommand> commands = clone.Traverse(lengths.ToImmutableArray());
         Assert.Equal(new byte[] { 0xE2, (byte)(polygon.Words[1] >> 24), 0xE2 }, commands.Select(command => command.Opcode));
         NativeBattlePrimitiveDrawMode mode = new(0) { TextureWindowBits = 0x1234 };
@@ -170,7 +170,7 @@ public sealed class NativeBattleRestorationMeshPacketsTests
         NativeBattleFullLifeMeshContext context = FullLife with { Flags = flags, FarColor = 0x404040, Fade = 2048 };
         NativeBattleGfGeometryBatch full = NativeBattleRestorationMeshPackets.EmitF4_8846C0(Face(1), index => Corners()[index], context, constants);
         NativeBattleGfGeometryBatch curaga = NativeBattleCuragaMeshPackets.EmitF4_87F200(Face(1), index => Corners()[index], Curaga with { Flags = flags, FarColor = context.FarColor, Fade = context.Fade }, constants);
-        Assert.Equal(JsonSerializer.Serialize(curaga), JsonSerializer.Serialize(full));
+        Assert.Equal(NativeBattleTestSnapshots.Json(curaga), NativeBattleTestSnapshots.Json(full));
         Assert.Equal(24, full.AllocationBytes);
         Assert.Equal(273, full.Attempts[0].Primitive!.Bucket);
         Assert.Equal(fade ? 0x2A606060u : 0x28808080u, full.Attempts[0].Primitive!.Words[1]);

@@ -19,7 +19,7 @@ public sealed class NativeBattleStageTests
         stage = stage.Step500FD0(camera);
         Assert.Equal((byte)3, stage.Groups[0].Counter);
         Assert.Equal(10, stage.Groups[0].Matrices[0].X);
-        stage = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        stage = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!;
         stage.Validate();
         stage = stage.Step500FD0(camera);
         Assert.Equal((byte)1, stage.Groups[0].Counter);

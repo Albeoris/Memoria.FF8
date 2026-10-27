@@ -97,8 +97,8 @@ public sealed class NativeBattleEffect315ModeMesh96Tests
         NativeBattleEffect315ModeMesh96Step result = Draw(Mesh(reverse: true), Context(0xF3));
         Assert.True(unchecked((int)U(result.Context96, 0x24)) < 0);
         Assert.Equal(33 * 44, result.Batch.AllocationBytes);
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect315ModeMesh96Step>(json)!));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315ModeMesh96Step>(json)!))));
     }
 
     [Fact]

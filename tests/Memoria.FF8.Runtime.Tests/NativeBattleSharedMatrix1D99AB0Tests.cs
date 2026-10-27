@@ -13,7 +13,7 @@ public sealed class NativeBattleSharedMatrix1D99AB0Tests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().PublishEffectLight1D99AB0(packed);
         Assert.Equal(packed.Bytes, memory.SharedCustomMatrix!.Bytes);
         Assert.Equal(packed.Known, memory.SharedCustomMatrix.Known);
-        Assert.Equal(JsonSerializer.Serialize(packed.ReadMatrix()), JsonSerializer.Serialize(memory.SharedCustomMatrix.ReadMatrix50D790()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(packed.ReadMatrix()), NativeBattleTestSnapshots.Json(memory.SharedCustomMatrix.ReadMatrix50D790()));
         Assert.False(memory.CaptureEffectLight1D99AB0().Known[18]);
         Assert.False(memory.CaptureEffectLight1D99AB0().Known[19]);
     }
@@ -23,17 +23,17 @@ public sealed class NativeBattleSharedMatrix1D99AB0Tests
     {
         NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = -123, Z = 456 }, 0xBEEF);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { SharedCustomMatrix = new(packed.Bytes, packed.Known) };
-        Assert.Equal(JsonSerializer.Serialize(packed), JsonSerializer.Serialize(memory.CaptureEffectLight1D99AB0()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(packed), NativeBattleTestSnapshots.Json(memory.CaptureEffectLight1D99AB0()));
         Assert.Equal(packed.Bytes, memory.EffectLight1D99AB0);
         Assert.Null(memory.EffectLightKnown1D99AB0);
-        string json = JsonSerializer.Serialize(memory);
+        string json = NativeBattleTestSnapshots.Json(memory);
         JsonObject document = JsonNode.Parse(json)!.AsObject();
         Assert.True(document.ContainsKey("SharedCustomMatrix"));
         Assert.False(document.ContainsKey("EffectLight1D99AB0"));
         Assert.False(document.ContainsKey("EffectLightKnown1D99AB0"));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(packed), JsonSerializer.Serialize(restored.CaptureEffectLight1D99AB0()));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(packed), NativeBattleTestSnapshots.Json(restored.CaptureEffectLight1D99AB0()));
     }
 
     [Fact]
@@ -56,9 +56,9 @@ public sealed class NativeBattleSharedMatrix1D99AB0Tests
     [InlineData("EffectLightKnown1D99AB0")]
     public void Separate_legacy_owners_require_explicit_migration_instead_of_selecting_one_copy(string property)
     {
-        JsonObject document = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess()))!.AsObject();
+        JsonObject document = JsonNode.Parse(NativeBattleTestSnapshots.Json(NativeBattleEffectMemory.FromColdProcess()))!.AsObject();
         document[property] = property == "EffectLight1D99AB0" ? JsonSerializer.SerializeToNode(new byte[32].ToImmutableArray()) : JsonSerializer.SerializeToNode(new bool[32].ToImmutableArray());
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffectMemory>(document.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(document.ToJsonString()));
     }
 
     [Fact]

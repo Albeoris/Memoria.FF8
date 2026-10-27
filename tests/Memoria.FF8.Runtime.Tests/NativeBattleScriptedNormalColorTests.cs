@@ -22,7 +22,7 @@ public sealed class NativeBattleScriptedNormalColorTests
         Assert.Equal(new int?[] { 0, 1024, 512 }, second.Ir);
         Assert.Equal(0x7F204000u, second.Rgb[2]);
         Assert.Equal(0u, second.Flags);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(Transform(original)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(Transform(original)));
         Assert.Equal(0xAD, light.Bytes[18]);
         Assert.Equal(0xDE, light.Bytes[19]);
         for (int index = 0; index < 18; index++)
@@ -121,12 +121,12 @@ public sealed class NativeBattleScriptedNormalColorTests
         NativeBattleScriptedLightingMemory lighting = Lighting(Identity(), Identity(), new(16, 32, 48));
         NativeBattleScriptedColorRegisters first = NativeBattleScriptedNormalColor.Transform4601B0(lighting, new(4096, 2048, 1024), 0x7F804020, NativeBattleScriptedColorRegisters.Unknown());
         NativeBattleEffectMemory live = NativeBattleEffectMemory.FromColdProcess() with { ScriptedLighting = lighting, ScriptedColorRegisters = first };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(live))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(live))!;
         NativeBattleScriptedColorRegisters next = NativeBattleScriptedNormalColor.Transform4601B0(live.ScriptedLighting!, new(1, -2, 3), 0x6180FF00, live.ScriptedColorRegisters!);
         NativeBattleScriptedColorRegisters restoredNext = NativeBattleScriptedNormalColor.Transform4601B0(restored.ScriptedLighting!, new(1, -2, 3), 0x6180FF00, restored.ScriptedColorRegisters!);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored.ScriptedColorRegisters));
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restoredNext));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleScriptedColorRegisters>("{}"));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(restored.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(restoredNext));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedColorRegisters>("{}"));
     }
 
     private static short[] Identity() => [4096, 0, 0, 0, 4096, 0, 0, 0, 4096];

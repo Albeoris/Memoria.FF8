@@ -61,7 +61,7 @@ public sealed class NativeBattleEffect283MeshInterleavingTests
         NativeBattleEffect283MeshContext108Step ordinary = Draw(offset => (Vertex(offset), (short?)0), null, reject);
         List<(int Offset, int Allocation)> writes = [];
         NativeBattleEffect283MeshContext108Step observed = Draw(offset => (Vertex(offset), (short?)0), (attempt, allocation) => writes.Add((attempt.ByteOffsetRelative, allocation)), reject);
-        Assert.Equal(JsonSerializer.Serialize(ordinary), JsonSerializer.Serialize(observed));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordinary)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(observed)));
         Assert.Equal(2, writes.Count);
         Assert.Equal(0, writes[0].Offset);
         Assert.Equal(writes[0].Allocation, writes[1].Offset);

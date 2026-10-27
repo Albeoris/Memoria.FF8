@@ -77,9 +77,9 @@ public sealed class NativeBattleBeamLaser134ContextsTests
     {
         NativeBattlePackedMatrix32 matrix = Camera(NativeBattleCuragaMatrices.Identity8DD770());
         NativeBattleBeamLaser134PointMemoryStep first = NativeBattleBeamLaser134Contexts.RotatePoint(Memory(), matrix, new(10, 20, 30), null, new(1, 2, 3), matrix, Morph);
-        NativeBattleBeamLaser134PointMemoryStep restored = JsonSerializer.Deserialize<NativeBattleBeamLaser134PointMemoryStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleBeamLaser134PointMemoryStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBeamLaser134PointMemoryStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleBeamLaser134PointMemoryStep Next(NativeBattleBeamLaser134PointMemoryStep value) => NativeBattleBeamLaser134Contexts.RotatePoint(value.Memory, matrix, value.UpdatedLocal, value.LocalW, new(1, 2, 3), matrix, Morph);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static int I32(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt32LittleEndian(arena.Read(offset, 4));

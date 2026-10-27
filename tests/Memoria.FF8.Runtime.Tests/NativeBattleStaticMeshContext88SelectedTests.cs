@@ -95,10 +95,10 @@ public sealed class NativeBattleStaticMeshContext88SelectedTests
     public void Selected_context_and_current_registers_restore_the_same_next_step()
     {
         var first = Draw(3, Context(0x20F3), reader: offset => (new((short)offset, (short)(offset * 2), 0), null));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first.Memory))!;
         var expected = Draw(3, first.Context, memory: first.Memory, reader: offset => (new((short)offset, (short)(offset * 2), 0), null));
         var actual = Draw(3, first.Context, memory: restored, reader: offset => (new((short)offset, (short)(offset * 2), 0), null));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleStaticMeshContext88Step Draw(int group, NativeBattleEffectArena context, int z = 2000, NativeBattleEffectMemory? memory = null, Func<int, (NativeBattleVector Vertex, short? W)>? reader = null) => NativeBattleStaticMeshContext88.DrawLoaded(memory ?? Memory(z), Mesh(group), new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, selectedVerticesAddress: Selected, readSelectedVertex: reader);

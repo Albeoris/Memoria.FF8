@@ -28,7 +28,7 @@ public sealed class NativeBattleFlare124Tests
         Assert.Equal(new byte[] { 32, 32, 32 }, result.Staging.Read(address + 28, 3));
         Assert.Throws<NotSupportedException>(() => result.Staging.Read(address + 31, 1));
         NativeBattleModulePacketBatch expected = NativeBattleModulePackets.EmitSprite571DC0(draw, projection, 0, 17, 2);
-        Assert.Equal(JsonSerializer.Serialize(expected.Primitives), JsonSerializer.Serialize(result.Batch.Primitives));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Primitives), NativeBattleTestSnapshots.Json(result.Batch.Primitives));
     }
 
     [Theory]
@@ -63,10 +63,10 @@ public sealed class NativeBattleFlare124Tests
         task = task.WriteWord(12, 2048).WriteWord(14, 2048).WriteWord(16, 8).WriteWord(40, 7);
         (NativeBattleModulePoolTask before, _) = NativeBattleFlare124Geometry.PrepareParticle(task);
         Assert.Equal((ushort)2048, before.ReadWord(12));
-        (NativeBattleModulePoolTask collapsed, int mode) = NativeBattleFlare124Geometry.PrepareParticle(task.WriteWord(40, 16));
+        (NativeBattleModulePoolTask collapsed, int mode) = NativeBattleFlare124Geometry.PrepareParticle(NativeBattleTestSnapshots.Independent(task).WriteWord(40, 16));
         Assert.Equal((ushort)0, collapsed.ReadWord(12));
         Assert.Equal(-1, mode);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task.WriteWord(40, 56).WriteWord(32, 32)))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task.WriteWord(40, 56).WriteWord(32, 32)))!;
         (NativeBattleModulePoolTask faded, int terminal) = NativeBattleFlare124Geometry.PrepareParticle(restored);
         Assert.Equal((ushort)2560, faded.ReadWord(12));
         Assert.Equal((ushort)1536, faded.ReadWord(14));

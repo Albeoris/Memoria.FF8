@@ -35,11 +35,11 @@ public sealed class NativeBattleEerieSoundWave130StateTests
     public void Partial_import_retains_warm_values_and_unknowns_through_JSON()
     {
         NativeBattleEerieSoundWave130State state = NativeBattleEerieSoundWave130State.FromUnknown().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset);
-        NativeBattleEerieSoundWave130State restored = JsonSerializer.Deserialize<NativeBattleEerieSoundWave130State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEerieSoundWave130State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEerieSoundWave130State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(ArenaAddress, restored.ReadDword(WorkingGlobal));
         Assert.Equal(ArenaAddress + FirstPacketOffset, restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CasterGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteDword(CursorGlobal, 0xABCDEF)), JsonSerializer.Serialize(restored.WriteDword(CursorGlobal, 0xABCDEF)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state.WriteDword(CursorGlobal, 0xABCDEF))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.WriteDword(CursorGlobal, 0xABCDEF))));
     }
 }

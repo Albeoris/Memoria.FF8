@@ -26,7 +26,7 @@ public sealed class NativeBattleEffect319StateTests
     public void Width_specific_knownness_survives_JSON_without_fabricating_current_pose_or_pointer_bytes()
     {
         NativeBattleEffect319State state = NativeBattleEffect319State.FromUnknown().WriteWord(CasterGlobal, 0xCAFE).WriteDword(CursorGlobal, 123).WriteDword(ArenaGlobal, 456);
-        state = JsonSerializer.Deserialize<NativeBattleEffect319State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect319State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)0xCAFE, state.ReadWord(CasterGlobal));
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -45,7 +45,7 @@ public sealed class NativeBattleEffect319StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect319State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect319State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xBEEF), state.ReadBank(0).Read(14, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(16, 4));

@@ -49,8 +49,8 @@ public sealed class NativeBattleSiren95ScreenTests
         Assert.Equal(new byte[] { 0x12, 0x34 }, state.Read(0x258EE3E, 2));
         Assert.Equal((short)288, BinaryPrimitives.ReadInt16LittleEndian(state.Read(0x258EE38, 2)));
         Assert.Equal((short)-10240, BinaryPrimitives.ReadInt16LittleEndian(state.Read(0x258EF7C, 2)));
-        var restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleSiren95Screens.Initialize745BF0(restored, row, 2)));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleSiren95Screens.Initialize745BF0(restored, row, 2)));
     }
 
     [Fact]

@@ -56,12 +56,12 @@ public sealed class NativeBattleTornado146FunnelTests
     public void Final_callback_releases_at76_and_independent_JSON_next_keeps_all_physical_owners()
     {
         NativeBattleTornado146FunnelFrame before = Advance(Initial(), Task(74), new(31), Staging(), 0);
-        NativeBattleTornado146FunnelFrame restored = JsonSerializer.Deserialize<NativeBattleTornado146FunnelFrame>(JsonSerializer.Serialize(before))!;
+        NativeBattleTornado146FunnelFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleTornado146FunnelFrame>(NativeBattleTestSnapshots.Json(before))!;
         NativeBattleTornado146FunnelFrame expected = Advance(before.State, before.Task, before.Random, before.Staging, 0);
         NativeBattleTornado146FunnelFrame actual = Advance(restored.State, restored.Task, restored.Random, restored.Staging, 0);
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)76, actual.Task.ReadWord(12));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleTornado146State Initial() => NativeBattleTornado146Funnel.Initialize6152E0(NativeBattleTornado146State.FromColdProcess());

@@ -106,9 +106,9 @@ public sealed class NativeBattleBeamLaser134StaticTests
     public void G4_then_FT4_JSON_continuation_preserves_native_feedback_and_partial_context()
     {
         NativeBattleStaticMeshContext88Step first = Draw(5, Context(0xF0, 2048));
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(first))!;
+        NativeBattleStaticMeshContext88Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step current) => Draw(3, current.Context, current.Memory);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleEffectArena Context(uint flags, uint cue) => NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0, BitConverter.GetBytes(Address)).Write(8, [0, 0, 0]).Write(12, BitConverter.GetBytes(cue)).Write(0x1C, BitConverter.GetBytes(flags));

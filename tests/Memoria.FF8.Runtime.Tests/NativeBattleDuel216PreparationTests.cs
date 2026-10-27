@@ -126,7 +126,7 @@ public sealed class NativeBattleDuel216PreparationTests
         NativeBattleDuel216Resources resources = new(bytes.ToImmutableArray(), [], new("operands", []), []);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel216Controller.Main, 0x20DFAB8, 6128, 1);
         (pool, int slot) = pool.Append(0x6960E0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[6116])) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[6116])) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), parameters, NativeBattleDuel216Controller.Root) { Pools = [pool] };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x2508880, BitConverter.GetBytes(0x1D972C0u)).Write(0x2508884, BitConverter.GetBytes(0x1D972C0u + 3 * 156));

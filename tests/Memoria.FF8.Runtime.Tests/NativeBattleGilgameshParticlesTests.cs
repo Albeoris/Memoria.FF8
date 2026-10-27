@@ -64,7 +64,7 @@ public sealed class NativeBattleGilgameshParticlesTests
         Assert.Same(task, step.UpdatedTask);
         Assert.Equal(new NativeCrtRandomState(9), step.Random);
         Assert.Single(step.Packets);
-        Assert.Equal(JsonSerializer.Serialize(arena), JsonSerializer.Serialize(step.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(arena), NativeBattleTestSnapshots.Json(step.Arena));
         Assert.Equal(0, step.Result);
     }
 
@@ -123,9 +123,10 @@ public sealed class NativeBattleGilgameshParticlesTests
         NativeBattleEffectArena arena = Record(NativeBattleEffectArena.Clear(), bank, 1, 6);
         arena = PutWord(arena, bank + 0x0E, 8192);
         NativeBattleModulePoolTask task = Task(0x591B80, 3);
-        NativeBattleGilgameshParticleStep step = Run(task, arena, new(1), 0x201);
-        NativeBattleGilgameshParticleStep before = Run(task, PutWord(arena, bank + 4, 5), new(1), 0x201);
-        Assert.Equal(JsonSerializer.Serialize(before.Packets), JsonSerializer.Serialize(step.Packets));
+        NativeBattleModulePoolTask independentTask = NativeBattleTestSnapshots.Independent(task);
+        NativeBattleGilgameshParticleStep step = Run(task, NativeBattleTestSnapshots.Independent(arena), new(1), 0x201);
+        NativeBattleGilgameshParticleStep before = Run(independentTask, PutWord(arena, bank + 4, 5), new(1), 0x201);
+        Assert.Equal(NativeBattleTestSnapshots.Json(before.Packets), NativeBattleTestSnapshots.Json(step.Packets));
         Assert.Equal((short)8192, Word(step.Arena, bank + 6));
         Assert.Same(task, step.UpdatedTask);
         NativeBattleGilgameshParticleStep alive = Run(task, PutWord(arena, bank + 4, 11), new(1));
@@ -158,8 +159,8 @@ public sealed class NativeBattleGilgameshParticlesTests
     public void Task_raw_banks_and_random_json_roundtrip_produce_the_same_next_callback(uint callback)
     {
         NativeBattleGilgameshParticleStep first = Run(Task(callback, 0), NativeBattleEffectArena.Clear(), new(101));
-        NativeBattleGilgameshParticleStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshParticleStep>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(first.UpdatedTask, first.Arena, first.Random)), JsonSerializer.Serialize(Run(restored.UpdatedTask, restored.Arena, restored.Random)));
+        NativeBattleGilgameshParticleStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshParticleStep>(NativeBattleTestSnapshots.Json(first))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(first.UpdatedTask, first.Arena, first.Random)), NativeBattleTestSnapshots.Json(Run(restored.UpdatedTask, restored.Arena, restored.Random)));
     }
 
     [Theory]

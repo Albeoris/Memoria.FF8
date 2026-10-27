@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect207StateTests
     public void Partial_matrix_writes_preserve_unknown_offdiagonals_and_padding_through_JSON()
     {
         NativeBattleEffect207State state = NativeBattleEffect207State.FromUnknown().WriteWord(MatrixAddress, 320).WriteWord(MatrixAddress + 8, 256).WriteDword(MatrixAddress + 20, 512).WriteDword(MatrixAddress + 24, 384);
-        state = JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)320, state.ReadWord(MatrixAddress));
         Assert.Equal(512u, state.ReadDword(MatrixAddress + 20));
@@ -48,7 +48,7 @@ public sealed class NativeBattleEffect207StateTests
             state = state.AttachCommonQueue(shape.Descriptor, queue);
             Assert.Throws<InvalidDataException>(() => state.AttachCommonQueue(shape.Descriptor, queue));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         foreach (NativeBattleCureFamilyPool shape in CommonPools)
         {
@@ -65,10 +65,10 @@ public sealed class NativeBattleEffect207StateTests
         state = state.DetachBank(0);
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
-        state = JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect207State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal((ushort)0xBEEF, state.ReadWord(MutableMeshAddress + 14));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(MutableMeshAddress));
         Assert.Equal(BitConverter.GetBytes((ushort)0xCAFE), state.ReadBank(0).Read(14, 2));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect207 = null }))!.Effect207);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect207 = null })))!).Effect207);
     }
 }

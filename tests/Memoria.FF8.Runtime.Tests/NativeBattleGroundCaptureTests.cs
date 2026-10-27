@@ -51,8 +51,8 @@ public sealed class NativeBattleGroundCaptureTests
         Assert.Equal(0x08000000u, written.Ordering.Packets[1].Words[0]);
         Assert.Equal(0x02000000u, written.Ordering.Packets[1].Words[6]);
         Assert.Throws<NotSupportedException>(() => written.Memory.GroundCapture!.Read(parity * 64 + 24, 1));
-        string json = JsonSerializer.Serialize(written.Memory.GroundCapture);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGroundCaptureMemory>(json)));
+        string json = NativeBattleTestSnapshots.Json(written.Memory.GroundCapture);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleGroundCaptureMemory>(json)));
     }
 
     [Theory]

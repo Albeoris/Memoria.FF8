@@ -80,18 +80,19 @@ public sealed class NativeBattleEffect183ChildrenTests
             calls++;
             return current;
         });
+        NativeBattleEffect183Frame pausedFrame = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         var step = Advance(frame, second, inputs);
         Assert.Equal(1, calls);
         Assert.Equal(result, step.Result);
         Assert.Equal((ushort)(age + 1), Read(step.Frame, Address).ReadWord(12));
         Assert.Equal(unchecked((ushort)(second ? -32760 : -32780)), Read(step.Frame, Address).ReadWord(0x1C));
         Assert.Equal((ushort)20, Read(step.Frame, Address).ReadWord(0x1E));
-        var paused = Advance(frame, second, inputs with { GraphicsFlags = 0x201 });
+        var paused = Advance(pausedFrame, second, inputs with { GraphicsFlags = 0x201 });
         Assert.Equal(2, calls);
         Assert.Equal(0, paused.Result);
-        Assert.Equal(Read(frame, Address), Read(paused.Frame, Address));
-        NativeBattleEffect183Frame restored = JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(step.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(step.Frame, second, Inputs()).Frame), JsonSerializer.Serialize(Advance(restored, second, Inputs()).Frame));
+        Assert.Equal(Read(pausedFrame, Address), Read(paused.Frame, Address));
+        NativeBattleEffect183Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(step.Frame, second, Inputs()).Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, second, Inputs()).Frame)));
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public sealed class NativeBattleEffect183ChildrenTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22F33F0, Address, 36, 1);
         (pool, _) = pool.Append(second ? 0x5C9DD0u : 0x5C9C40u);
         NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(24, 0).WriteWord(28, 4096).WriteWord(30, 512);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = pool.WriteSlot(0, task);
         NativeBattleOriginalEffectState effect = new(183, 182, new(183, 0x5C9A50, 0x5C9A30), null, 0x22F33E0) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(memory, effect, NativeBattleEffect183State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

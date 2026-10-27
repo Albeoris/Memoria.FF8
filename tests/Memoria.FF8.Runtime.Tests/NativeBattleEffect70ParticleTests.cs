@@ -60,8 +60,8 @@ public sealed class NativeBattleEffect70ParticleTests
         Assert.Equal((short)0, Word(frame, RingOffset));
         Assert.Equal(short.MinValue, Word(frame, RingOffset + 4));
         Assert.Equal(short.MaxValue, Word(frame, RingOffset + 6));
-        NativeBattleEffect70Frame restored = JsonSerializer.Deserialize<NativeBattleEffect70Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect70Particles.AdvanceRings(frame)), JsonSerializer.Serialize(NativeBattleEffect70Particles.AdvanceRings(restored)));
+        NativeBattleEffect70Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect70Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect70Particles.AdvanceRings(frame))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect70Particles.AdvanceRings(restored))));
     }
 
     [Fact]

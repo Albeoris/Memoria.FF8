@@ -59,7 +59,7 @@ public sealed class NativeBattleSaliva138WindowedMeshTests
     [InlineData(7)]
     public void U_offset_and_both_window_layouts_survive_JSON_without_alias_context(int group)
     {
-        NativeBattleEffectArena context = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(Context(240)))!;
+        NativeBattleEffectArena context = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(Context(240)))!;
         NativeBattleWindowedMeshStep step = Draw(Source(group), context, SelectedMemory());
         NativeBattleGfGeometryAttempt polygon = Assert.Single(step.Batch.Attempts, attempt => attempt.Primitive is not null && attempt.ByteOffsetRelative == 0);
         int[] offsets = group == 3 ? [12, 20, 28, 36] : [12, 24, 36, 48];

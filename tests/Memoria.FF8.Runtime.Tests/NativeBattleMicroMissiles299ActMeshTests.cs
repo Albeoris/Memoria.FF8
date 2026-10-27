@@ -38,7 +38,7 @@ public sealed class NativeBattleMicroMissiles299ActMeshTests
         Assert.Equal((byte?)0, result.Registers.Geometry.Rotation20[0]);
         Assert.Equal((byte?)16, result.Registers.Geometry.Rotation20[1]);
         NativeBattleMicroMissiles299ActMeshStep extra = Draw(Source(4), Node(0x49000, 0, 10000), NativeBattleEffectArena.Clear(), Context(matrix));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(extra));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(extra));
     }
 
     [Fact]
@@ -95,9 +95,9 @@ public sealed class NativeBattleMicroMissiles299ActMeshTests
         NativeBattleMicroMissiles299Frame result = NativeBattleMicroMissiles299Drawing.EmitNode(frame, Source(4), Context(), Node(0x200, 0), new(null, 100, 160, 108), Constants, Deliver);
         Assert.Equal(1, calls);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        NativeBattleMicroMissiles299Frame restored = JsonSerializer.Deserialize<NativeBattleMicroMissiles299Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleMicroMissiles299Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMicroMissiles299Frame>(NativeBattleTestSnapshots.Json(result))!;
         NativeBattleMicroMissiles299Frame Next(NativeBattleMicroMissiles299Frame current) => NativeBattleMicroMissiles299Drawing.EmitNode(current, Source(4), Context(), Node(0x200, 2048), new(null, 100, 160, 108), Constants, (next, _) => next);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]

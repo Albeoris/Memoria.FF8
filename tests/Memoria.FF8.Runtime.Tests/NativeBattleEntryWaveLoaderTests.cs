@@ -76,7 +76,7 @@ public sealed class NativeBattleEntryWaveLoaderTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(address, tim);
         var queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueStagingTim505E30(staging, address);
         Assert.Equal(address + (uint)tim.Length, queued.NextAddress);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued.State))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(queued.State)))!);
         Assert.Null(restored.Slots[0]!.Source);
         Assert.Equal(address, restored.Slots[0]!.StagingAddress);
         Assert.Throws<NotSupportedException>(() => restored.Drain505D20());
@@ -108,8 +108,8 @@ public sealed class NativeBattleEntryWaveLoaderTests
         foreach (NativeBattleEffectTextureState replacement in replacements)
         {
             Assert.Null(replacement.Slots[0]!.StagingAddress);
-            Assert.DoesNotContain("StagingAddress", JsonSerializer.Serialize(replacement));
-            Assert.Equal(0x4321, BinaryPrimitives.ReadUInt16LittleEndian(replacement.Drain505D20(arena).State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
+            Assert.DoesNotContain("StagingAddress", JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(replacement)));
+            Assert.Equal(0x4321, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(replacement)).Drain505D20(arena).State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
         }
     }
 

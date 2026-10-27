@@ -35,11 +35,11 @@ public sealed class NativeBattleBreath157StateTests
     {
         NativeBattleEffectArena sample = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 0, 2, 0, 3, 0 });
         NativeBattleBreath157State state = NativeBattleBreath157State.FromUnknown().WriteView(TravelPointsAddress, sample, 8);
-        NativeBattleBreath157State restored = JsonSerializer.Deserialize<NativeBattleBreath157State>(JsonSerializer.Serialize(state))!;
+        NativeBattleBreath157State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath157State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 0, 2, 0, 3, 0 }, restored.Read(TravelPointsAddress, 6));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(TravelPointsAddress + 6));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class NativeBattleBreath157StateTests
     public void Inactive_banks_transfer_ownership_and_reject_oversized_storage()
     {
         NativeBattleBreath157State state = NativeBattleBreath157State.FromUnknown() with { RootBankStorage = NativeBattleEffectArena.Clear().MarkUnknown(0, RootBankLength).Write(30, BitConverter.GetBytes((ushort)1234)) };
-        NativeBattleBreath157State restored = JsonSerializer.Deserialize<NativeBattleBreath157State>(JsonSerializer.Serialize(state))!;
+        NativeBattleBreath157State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath157State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)1234, BitConverter.ToUInt16(restored.RootBankStorage!.Read(30, 2)));
         Assert.Throws<NotSupportedException>(() => restored.RootBankStorage.Read(2, 2));
@@ -87,7 +87,7 @@ public sealed class NativeBattleBreath157StateTests
         NativeBattleBreath157State warm = NativeBattleBreath157State.FromUnknown().WriteWord(ScratchRotationAddress + 18, 0xCAFE).WriteDword(WorkspaceGlobal, ArenaAddress);
         Assert.Equal((ushort)0xCAFE, warm.ReadWord(ScratchRotationAddress + 18));
         Assert.Throws<NotSupportedException>(() => warm.ReadDword(ScratchRotationAddress));
-        NativeBattleBreath157State restored = JsonSerializer.Deserialize<NativeBattleBreath157State>(JsonSerializer.Serialize(warm))!;
+        NativeBattleBreath157State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath157State>(NativeBattleTestSnapshots.Json(warm))!;
         restored.Validate();
         Assert.Equal((ushort)0xCAFE, restored.ReadWord(ScratchRotationAddress + 18));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ScratchRotationAddress));

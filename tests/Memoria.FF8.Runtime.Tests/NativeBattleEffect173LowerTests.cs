@@ -104,7 +104,7 @@ public sealed class NativeBattleEffect173LowerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2397C40, 0x2397C50, 36, 100);
         (pool, _) = pool.Append(0x5D7E70);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 0).WriteWord(14, 3)) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 0).WriteWord(14, 3));
         NativeBattleEffect173Frame frame = Frame() with { Effect = Frame().Effect with { Pools = [pool] } };
         NativeBattleEffect173Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, null!, null!, null!, _ => throw new InvalidOperationException("Delay must not read the view."), null!, null!, null!, (_, _) => throw new InvalidOperationException("Delay must not draw."));
         NativeBattleEffect173Step result = NativeBattleEffect173Lower.Advance(frame, 0x2397C50, null!, inputs);

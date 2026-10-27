@@ -28,7 +28,7 @@ public sealed class NativeBattleQuezacotlRibbonProducerTests
     {
         var (memory, effect) = Fixture();
         NativeBattleEffectTaskPool pool = effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Flags = 0xA500 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Flags = 0xA500 })) });
         effect = effect with { Pools = [pool] };
         memory = memory with { Arena = memory.Arena!.Write(0x3BA5C, [0, 0xA5]).MarkUnknown(0x3BA5C + 2, 126) };
         NativeBattleQuezacotlRibbonSpawn spawned = NativeBattleQuezacotlRibbonProducer.Spawn6C87B0(memory, effect, 1);
@@ -36,7 +36,7 @@ public sealed class NativeBattleQuezacotlRibbonProducerTests
         Assert.Equal((ushort)0xA501, BinaryPrimitives.ReadUInt16LittleEndian(task));
         Assert.Equal(0x6C8850u, BinaryPrimitives.ReadUInt32LittleEndian(task.AsSpan(8)));
         Assert.Equal(0x20DFB7Cu, BinaryPrimitives.ReadUInt32LittleEndian(task.AsSpan(0x1C)));
-        Assert.Equal(task.AsSpan(12).ToArray(), spawned.Effect.Pools[0].Slots[0].Payload.ToArray());
+        Assert.Equal(task.AsSpan(12).ToArray(), NativeBattleStorageSnapshots.Capture(spawned.Effect.Pools[0].Slots[0]).Payload.ToArray());
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class NativeBattleQuezacotlRibbonProducerTests
         Assert.Equal(0x211B594u, BinaryPrimitives.ReadUInt32LittleEndian(second.Memory.Arena!.Read(0x3BA60, 4)));
         Assert.Equal(0x211B514u, second.Memory.QuezacotlSecondaryHeads!.Value[0]);
         Assert.Equal(1, second.Effect.Pools[0].Slots[0].Next);
-        Assert.Equal(second.Memory.Arena.Read(0x3BADC + 12, 116), second.Effect.Pools[0].Slots[1].Payload.ToArray());
+        Assert.Equal(second.Memory.Arena.Read(0x3BADC + 12, 116), NativeBattleStorageSnapshots.Capture(second.Effect.Pools[0].Slots[1]).Payload.ToArray());
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -23,8 +23,9 @@ public sealed class NativeBattleZombieOverlayBatchTests
         source = source.WriteResourcePointer(workspace + 8, new(new(0, 0), null));
         NativeBattleRawMesh mesh = new([new(new(1, 2, 1000), 0), new(new(1, 2, 0), 0), new(new(3, 4, -1), 0), new(new(5, 6, 1000), 0), new(new(0, 0, 0), 0), new(new(1, 2, 1), 0), new(new(3, 4, 3), 0)], []);
         ImmutableArray<short> wave = new short[4096].ToImmutableArray();
-        string original = JsonSerializer.Serialize(source);
-        NativeBattleFileStaging expected = source;
+        string original = NativeBattleTestSnapshots.Json(source);
+        NativeBattleFileStaging preserved = NativeBattleStorageSnapshots.Capture(source);
+        NativeBattleFileStaging expected = NativeBattleTestSnapshots.Independent(source);
         for (int index = 0; index < mesh.Vertices.Length; index++)
         {
             NativeBattleModuleDepthCueVertex native = NativeBattleModuleProjection.ProjectWithCue45FAA0(Identity, mesh.Vertices[index].Position, Projection, 0, 0);
@@ -43,8 +44,8 @@ public sealed class NativeBattleZombieOverlayBatchTests
             }
         }
         NativeBattleZombieOverlayDraw actual = NativeBattleZombieOverlay.Draw([mesh], [Identity], Projection, 0, 1, null, workspace, 56, source, wave, 0, 0, 0, 0, 0);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual.Staging));
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual.Staging));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -78,11 +79,12 @@ public sealed class NativeBattleZombieOverlayBatchTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(NativeBattleFileStaging.Address, new byte[2 * 1024 * 1024]);
         NativeBattleRawMesh mesh = new(Enumerable.Range(0, 400).Select(index => new NativeBattleRawVertex(new((short)index, 0, 1000), 0)).ToImmutableArray(), []);
         ImmutableArray<short> wave = new short[4096].ToImmutableArray();
+        NativeBattleFileStaging preserved = NativeBattleStorageSnapshots.Capture(staging);
         long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleZombieOverlayDraw actual = NativeBattleZombieOverlay.Draw([mesh], [Identity], Projection, 0, 1, null, workspace, 3200, staging, wave, 0, 0, 0, 0, 0);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 16 * 1024 * 1024, $"Projection allocated {allocated} bytes for one 2 MiB staging region.");
         Assert.Equal(3200, actual.Staging.Read(workspace, 3200).Length);
-        Assert.All(staging.Read(workspace, 3200), value => Assert.Equal(0, value));
+        Assert.All(preserved.Read(workspace, 3200), value => Assert.Equal(0, value));
     }
 }

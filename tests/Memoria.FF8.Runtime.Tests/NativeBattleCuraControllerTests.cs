@@ -80,10 +80,10 @@ public sealed class NativeBattleCuraControllerTests
         Assert.Equal((byte)128, sound.Pan);
         Assert.Equal(127u, sound.Volume);
         Assert.Null(sound.Anchor);
-        NativeBattleCuraFrame restored = JsonSerializer.Deserialize<NativeBattleCuraFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCuraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraFrame>(NativeBattleTestSnapshots.Json(frame))!;
         var next = NativeBattleCuraController.Advance889E40(frame, fixture.Inputs, Resources(), Leaf);
         var independent = NativeBattleCuraController.Advance889E40(restored, fixture.Inputs, Resources(), Leaf);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
         Assert.Empty(next.Contacts);
     }
 

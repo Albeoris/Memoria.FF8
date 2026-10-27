@@ -25,11 +25,11 @@ public sealed class NativeBattleAngelWing84CameraTests
         Assert.NotNull(frame.State.Scene!.Camera);
         frame = NativeBattleAngelWing84Camera.Advance(frame, appended.Address, inputs).Frame;
         Assert.Equal(new[] { (0x1575DE0u, (ushort)1) }, publications);
-        NativeBattleAngelWing84Frame clone = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAngelWing84Frame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleAngelWing84Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleAngelWing84Camera.Advance(frame, appended.Address, inputs).Frame;
         Assert.Equal(new[] { (0x1575DE0u, (ushort)1), (0x1575DE0u, (ushort)2), (0x1575E28u, (ushort)1) }, publications);
         Assert.Equal((byte)3, new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(appended.Address).ReadByte(41));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleAngelWing84Camera.Advance(clone, appended.Address, inputs).Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleAngelWing84Camera.Advance(clone, appended.Address, inputs).Frame));
     }
 
     private static NativeBattleAngelWing84CameraResources Resources()

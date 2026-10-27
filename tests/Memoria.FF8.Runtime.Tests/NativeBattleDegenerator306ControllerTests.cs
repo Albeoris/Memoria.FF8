@@ -64,7 +64,7 @@ public sealed class NativeBattleDegenerator306ControllerTests
         NativeBattleDegenerator306DrawStatic88 draw = Assert.Single(fixture.Operations.OfType<NativeBattleDegenerator306DrawStatic88>());
         Assert.Equal(4122, draw.TableBaseBucket);
         Assert.Equal(14, draw.DepthShift);
-        Assert.Equal(task.Payload.ToArray(), NativeBattleDegenerator306Controller.Read(result, address).Payload.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(NativeBattleDegenerator306Controller.Read(result, address)).Payload.ToArray());
         Assert.Equal(new int?[] { 0, 0, 777 }, result.Memory.GeometryRegisters!.Translation);
     }
 
@@ -92,11 +92,11 @@ public sealed class NativeBattleDegenerator306ControllerTests
         {
             frame = first.Step(frame);
         }
-        NativeBattleDegenerator306Frame restored = JsonSerializer.Deserialize<NativeBattleDegenerator306Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDegenerator306Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Fixture second = first.CopyModels();
         first.Operations.Clear();
-        Assert.Equal(JsonSerializer.Serialize(first.Step(frame)), JsonSerializer.Serialize(second.Step(restored)));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(second.Operations));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(frame)), NativeBattleTestSnapshots.Json(second.Step(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations.ToImmutableArray()), NativeBattleTestSnapshots.Json(second.Operations.ToImmutableArray()));
     }
 
     private sealed class Fixture

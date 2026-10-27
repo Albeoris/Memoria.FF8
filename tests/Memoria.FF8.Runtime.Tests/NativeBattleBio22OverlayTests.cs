@@ -82,9 +82,9 @@ public sealed class NativeBattleBio22OverlayTests
         NativeBattleModulePoolTask task = Task();
         for (int callback = 0; callback < 4; callback++)
         {
-            NativeBattleBio22OverlayStep expected = Advance(task, program);
-            NativeBattleBio22OverlayStep restored = Advance(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!, JsonSerializer.Deserialize<NativeBattleEffectHeapAllocation>(JsonSerializer.Serialize(program))!);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored));
+            NativeBattleBio22OverlayStep expected = Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(program)));
+            NativeBattleBio22OverlayStep restored = Advance(NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHeapAllocation>(NativeBattleTestSnapshots.Json(program))!);
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(restored));
             Assert.Equal(callback == 3 ? 0 : 36, expected.Packets.AllocationBytes);
             Assert.Equal(callback == 3 ? 2u : 0u, expected.Result);
             task = expected.Task;

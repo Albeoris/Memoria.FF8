@@ -81,11 +81,11 @@ public sealed class NativeBattleElectrocute275ControllerTests
     public void Cold_JSON_chain_repeats_next_callback_without_replaying_births()
     {
         Fixture fixture = new(2);
-        NativeBattleElectrocute275Frame restored = JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
         var expected = NativeBattleElectrocute275Controller.AdvanceWorldTrail(fixture.Frame, fixture.TaskAddress, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleElectrocute275Controller.AdvanceWorldTrail(restored, fixture.TaskAddress, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
     }
 
     private sealed class Fixture

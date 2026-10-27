@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect3Tests
             contacts.AddRange(step.Contacts);
             int flashesThisCallback = step.Draws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Flash);
             Assert.Equal((callback % 2 == 0 ? 0x8000 : 0) + 24 * flashesThisCallback, step.Effect.DrawArenaOffset);
-            effect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(step.Effect))!;
+            effect = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Effect)))!);
             effect.Validate();
             callback++;
         }
@@ -62,15 +62,15 @@ public sealed class NativeBattleEffect3Tests
             (children, int slot) = children.Append(0x700DE0);
             byte[] payload = new byte[16];
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), checked(0x1D972C0u + 156u * (uint)model));
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+            children = children.WriteSlot(slot, children.Slots[slot].WriteBytes(12, payload.ToImmutableArray().AsSpan()));
         }
         NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, children) };
         NativeBattleEffect3Step step = NativeBattleEffect3.Step(effect, fixture.Inputs);
         Assert.Equal(new int?[] { 0x8000, 0x8018 }, step.Draws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Flash).Select(draw => draw.NativeEffectArenaOffset).ToArray());
         Assert.Equal(0x8030, step.Effect.DrawArenaOffset);
-        NativeBattleOriginalEffectState restored = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(step.Effect))!;
+        NativeBattleOriginalEffectState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Effect)))!);
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect3.Step(step.Effect, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleEffect3.Step(restored, fixture.Inputs)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect3.Step(step.Effect, fixture.Inputs))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect3.Step(restored, fixture.Inputs))));
     }
 
     [Fact]

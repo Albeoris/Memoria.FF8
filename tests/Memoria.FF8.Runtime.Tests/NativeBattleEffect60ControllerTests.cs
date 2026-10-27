@@ -77,8 +77,8 @@ public sealed class NativeBattleEffect60ControllerTests
         Fixture fixture = new();
         NativeBattleEffect60Frame frame = fixture.Step(fixture.Frame);
         frame = frame with { State = frame.State with { Shared84 = frame.State.Shared84.MarkUnknown(6, 2), SavedRotation8 = frame.State.SavedRotation8.MarkUnknown(6, 2), MorphScratch = frame.State.MorphScratch.MarkUnknown(966, 2) } };
-        NativeBattleEffect60Frame restored = JsonSerializer.Deserialize<NativeBattleEffect60Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleEffect60Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect60Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Step(frame))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Step(restored))));
         Assert.Null(restored.State.Nodes!.CopiedCamera);
         Assert.NotNull(restored.Memory.SharedEffectView2793E58);
     }

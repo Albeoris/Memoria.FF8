@@ -125,7 +125,7 @@ public sealed class NativeBattleRenzokuken334337Tests
         frame = NativeBattleRenzokukenSpecialController.Store(frame, state with { ExtraStorage = storage.ToImmutableArray() });
         frame = NativeBattleRenzokukenSpecialController.SetExtraPaddingUnknown(frame, 99, true);
         (NativeBattleEffectTaskPool pool, int slot) = Controller(334, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Callback = 0x589400 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, NativeBattleTaskFixture.EditTask(pool.Slots[slot], taskData => taskData with { Callback = 0x589400 })) });
         byte[] spriteBytes = new byte[18];
         BinaryPrimitives.WriteUInt16LittleEndian(spriteBytes.AsSpan(8), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(spriteBytes.AsSpan(10), 14);
@@ -141,7 +141,7 @@ public sealed class NativeBattleRenzokuken334337Tests
         {
             Assert.Equal(row == 99 || row >= firstRow && row < firstRow + 3, NativeBattleRenzokukenSpecialController.ReadExtraPaddingUnknown(step.Frame, row));
         }
-        NativeBattleRenzokukenSpecialState restored = JsonSerializer.Deserialize<NativeBattleRenzokukenSpecialState>(JsonSerializer.Serialize(actual))!;
+        NativeBattleRenzokukenSpecialState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRenzokukenSpecialState>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Equal(actual.ExtraStorageUnknownPaddingLow, restored.ExtraStorageUnknownPaddingLow);
         Assert.Equal(actual.ExtraStorageUnknownPaddingHigh, restored.ExtraStorageUnknownPaddingHigh);
         Assert.Equal(actual.ExtraStorage.ToArray(), restored.ExtraStorage.ToArray());
@@ -164,6 +164,6 @@ public sealed class NativeBattleRenzokuken334337Tests
         NativeBattleRenzokukenSpecialProfile profile = NativeBattleRenzokukenSpecialProfiles.ForEffect(effect);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (pool, int slot) = pool.Append(profile.ControllerCallback);
-        return (pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) }, slot);
+        return (NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) }), slot);
     }
 }

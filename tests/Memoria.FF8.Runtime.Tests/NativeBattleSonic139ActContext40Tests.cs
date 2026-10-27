@@ -31,7 +31,7 @@ public sealed class NativeBattleSonic139ActContext40Tests
     public void Actual_48_vertex_morph_preserves_W_and_remaining_201_record_scratch_after_JSON()
     {
         NativeBattleEffectMemory memory = Memory() with { Arena = Memory().Arena!.Write(0x1584, [1, 2, 3, 4]).Write(0x1EF0, [5, 6, 7, 8]) };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleDefaultActContext40Step step = Draw(Policy, Source(48, 2), Node(ratio: 2048, second: 1), memory: restored);
         Assert.Equal((short)98, BinaryPrimitives.ReadInt16LittleEndian(step.Memory.Arena!.Read(MorphOffset + 47 * 8, 2)));
         Assert.Throws<NotSupportedException>(() => step.Memory.Arena.Read(MorphOffset + 47 * 8 + 6, 2));
@@ -39,7 +39,7 @@ public sealed class NativeBattleSonic139ActContext40Tests
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, step.Memory.Arena.Read(0x1584, 4));
         Assert.Equal(new byte[] { 5, 6, 7, 8 }, step.Memory.Arena.Read(0x1EF0, 4));
         Assert.Equal(MorphAddress, U32(step.Temporary88, 4));
-        Assert.Equal(JsonSerializer.Serialize(Draw(Policy, Source(48, 2), Node(ratio: 2048, second: 1), memory: memory)), JsonSerializer.Serialize(step));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(Policy, Source(48, 2), Node(ratio: 2048, second: 1), memory: memory)), NativeBattleTestSnapshots.Json(step));
         Assert.Throws<InvalidDataException>(() => Draw(Policy, Source(48, 2), Node(ratio: 2048, second: 1), Context().Write(36, BitConverter.GetBytes(MorphAddress + 8))));
     }
 

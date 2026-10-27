@@ -55,7 +55,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         (NativeBattleFatedCircle162Frame frame, _) = Frame(0);
         NativeBattleEffectTaskPool main = frame.Effect.Pools[0];
         (main, int loader) = main.Append(0x5FCFF0);
-        main = main with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(12, 2)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(12, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main) } };
         uint completion = 0;
         NativeBattleFatedCircle162Frame step = NativeBattleFatedCircle162Controller.Advance5FD090(frame, (current, pool, _) => new(current, pool, 2), (current, address) =>
@@ -68,7 +68,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         Assert.Equal(loader, step.Effect.Pools[0].Head);
         Assert.Equal(3, step.Effect.Pools[0].Slots[loader].ReadWord(12));
         main = step.Effect.Pools[0];
-        main = main with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(14, 1)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(loader, main.Slots[loader].WriteWord(14, 1)) });
         step = step with { Effect = step.Effect with { Pools = step.Effect.Pools.SetItem(0, main) } };
         step = NativeBattleFatedCircle162Controller.Advance5FD090(step, (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException());
         Assert.Equal(0u, step.Effect.ReturnedDescriptor);
@@ -111,7 +111,7 @@ public sealed class NativeBattleFatedCircle162ControllerTests
         (main, _) = main.Append(0x5FD090);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23CF430, 0x23CF440, 36, 100);
         (children, _) = children.Append(0x5F91D0);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { FatedCircle162 = new(true, parameters, null) };
         NativeBattleOriginalEffectState effect = new(162, 161, new(162, 0x5F90F0, 0x5F90D0), parameters, 0x23CE640) { Pools = [main, children] };

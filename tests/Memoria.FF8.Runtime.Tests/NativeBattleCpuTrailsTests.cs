@@ -117,7 +117,7 @@ public sealed class NativeBattleCpuTrailsTests
         {
             Assert.Equal(binding.StagingAddress, task.ReadDword(36));
         }
-        NativeBattleCpuTrailFrame restored = JsonSerializer.Deserialize<NativeBattleCpuTrailFrame>(JsonSerializer.Serialize(created.Frame))!;
+        NativeBattleCpuTrailFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCpuTrailFrame>(NativeBattleTestSnapshots.Json(created.Frame))!;
         int draws = 0;
         NativeBattleCpuTrailTaskStep Step(NativeBattleCpuTrailFrame frame) => NativeBattleCpuTrails.AdvanceBoneTrail(frame, created.Address, fixture.Layout, fixture.Path, (current, row, head, count) =>
         {
@@ -133,7 +133,7 @@ public sealed class NativeBattleCpuTrailsTests
         Assert.Equal(0, actual.Result);
         Assert.NotNull(actual.Frame.Staging);
         Assert.Equal(new NativeBattleSharedEffectRandomState(99), actual.Frame.Memory.SharedEffectRandom);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
     }
 
     [Fact]
@@ -176,7 +176,8 @@ public sealed class NativeBattleCpuTrailsTests
             {
                 arena = arena.Write(WorldPointsOffset + index * 40 + 6, BitConverter.GetBytes((short)-1)).Write(BonePointsOffset + index * 40, BitConverter.GetBytes((short)-1));
             }
-            Frame = new(NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(1) with { Arena = arena }, effect);
+            NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(1) with { Arena = arena }, effect.Pools);
+            Frame = new(memory, effect);
         }
         public short Path(uint address)
         {

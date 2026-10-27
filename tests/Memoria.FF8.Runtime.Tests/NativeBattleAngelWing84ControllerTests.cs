@@ -20,9 +20,9 @@ public sealed class NativeBattleAngelWing84ControllerTests
         hierarchy = new(frame.Effect.Pools);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(40, 0));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
-        NativeBattleAngelWing84Frame clone = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAngelWing84Frame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleAngelWing84Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleAngelWing84Controller.Advance(frame, fixture.Inputs);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleAngelWing84Controller.Advance(clone, fixture.Inputs)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleAngelWing84Controller.Advance(clone, fixture.Inputs)));
         Assert.Equal(256 + 98304, frame.State.Emitters);
         Assert.Equal(frame.State.Emitters + 432, frame.State.Geometry);
         Assert.Equal(frame.State.Emitters + 27312, frame.State.AuxiliaryCursor);

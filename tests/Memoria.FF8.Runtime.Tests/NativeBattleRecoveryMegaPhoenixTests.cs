@@ -34,8 +34,10 @@ public sealed class NativeBattleRecoveryMegaPhoenixTests
         var fixture = NativeBattleRecoveryControllerTests.Fixture(7);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.MegaPhoenix;
         NativeBattleRecoveryResources resources = new(7, 300185, new(7, []));
+        NativeBattleRecoveryFrame baseline = NativeBattleStorageSnapshots.Capture(fixture.Frame);
         NativeBattleRecoveryFrame Target(byte phase, ushort counter)
         {
+            fixture.Frame = NativeBattleStorageSnapshots.Restore(baseline);
             NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
             uint root = hierarchy.Address(0, 0);
             hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(0x29, 10).WriteByte(0x63, 1));
@@ -78,8 +80,8 @@ public sealed class NativeBattleRecoveryMegaPhoenixTests
         NativeBattleModulePoolTask context = Assert.Single(frame.Effect.Pools[2].Slots, slot => slot.Callback == 0x8CE910);
         Assert.Equal(0x163E198u, context.ReadDword(0x30));
         Assert.Equal((ushort)45, context.ReadWord(0x29E));
-        NativeBattleRecoveryFrame restored = JsonSerializer.Deserialize<NativeBattleRecoveryFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(context.Payload.ToArray(), Assert.Single(restored.Effect.Pools[2].Slots, slot => slot.Callback == 0x8CE910).Payload.ToArray());
+        NativeBattleRecoveryFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRecoveryFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(context).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(Assert.Single(restored.Effect.Pools[2].Slots, slot => slot.Callback == 0x8CE910)).Payload.ToArray());
         Assert.Null(restored.Memory.GetRecoveryExecutable(7));
     }
 }

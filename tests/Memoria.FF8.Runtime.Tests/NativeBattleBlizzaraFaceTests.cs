@@ -91,12 +91,13 @@ public sealed class NativeBattleBlizzaraFaceTests
         }
         Assert.Equal((ushort)1, step.Task.ReadWord(0x32));
         Assert.Equal((ushort)0, step.Task.ReadWord(0x32 + 111 * 0x48));
-        string json = JsonSerializer.Serialize(step);
-        NativeBattleBlizzaraFaceStep restored = JsonSerializer.Deserialize<NativeBattleBlizzaraFaceStep>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        NativeBattleBlizzaraFaceStep first = NativeBattleBlizzaraFaces.Advance(step.Memory, step.Task, 1, 48, step.Random);
+        string json = NativeBattleTestSnapshots.Json(step);
+        NativeBattleBlizzaraFaceStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzaraFaceStep>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
+        NativeBattleBlizzaraFaceStep predecessor = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(step));
+        NativeBattleBlizzaraFaceStep first = NativeBattleBlizzaraFaces.Advance(predecessor.Memory, predecessor.Task, 1, 48, predecessor.Random);
         NativeBattleBlizzaraFaceStep second = NativeBattleBlizzaraFaces.Advance(restored.Memory, restored.Task, 1, 48, restored.Random);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Equal((ushort)1, second.Task.ReadWord(0x32 + 111 * 0x48));
         Assert.NotEqual(step.Random, second.Random);
         NativeCrtRandomState expected = step.Random;
@@ -108,7 +109,7 @@ public sealed class NativeBattleBlizzaraFaceTests
         ImmutableArray<byte> vertices = NativeBattleBlizzaraFaces.ExpandedVertices(second.Task);
         Assert.Equal(101, BinaryPrimitives.ReadInt16LittleEndian(vertices.AsSpan().Slice(6)));
         Assert.Equal(201, BinaryPrimitives.ReadInt16LittleEndian(vertices.AsSpan().Slice(111 * 3 * 8 + 6)));
-        Assert.Equal(json, JsonSerializer.Serialize(step));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(step));
     }
 
     [Fact]

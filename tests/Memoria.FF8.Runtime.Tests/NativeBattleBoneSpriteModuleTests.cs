@@ -75,9 +75,9 @@ public sealed class NativeBattleBoneSpriteModuleTests
         Assert.Equal(expected, step.CrtRandomAfter);
         NativeBattleModuleTask child = step.State.Slots[1];
         Assert.Equal(NativeBattleModuleKind.BoneSprite573640, child.Kind);
-        Assert.Equal((ushort)1, Word(child.Payload, 0));
-        Assert.Equal((ushort)0xA5A5, Word(child.Payload, 10));
-        Assert.Equal(state.Slots[1].Payload.AsSpan().Slice(12, 4).ToArray(), child.Payload.AsSpan().Slice(12, 4).ToArray());
+        Assert.Equal((ushort)1, Word(NativeBattleStorageSnapshots.Capture(child).Payload, 0));
+        Assert.Equal((ushort)0xA5A5, Word(NativeBattleStorageSnapshots.Capture(child).Payload, 10));
+        Assert.Equal(state.Slots[1].Payload.AsSpan().Slice(12, 4).ToArray(), NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(12, 4).ToArray());
         NativeBattleModuleDraw draw = Assert.Single(step.Draws);
         Assert.Equal(new(-100, 200, -300, unchecked((short)0xA5A5)), draw.Anchor);
         Assert.Equal(third % 1152 + 2560, draw.Scale);

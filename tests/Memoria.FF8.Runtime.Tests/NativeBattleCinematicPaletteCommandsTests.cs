@@ -36,7 +36,7 @@ public sealed class NativeBattleCinematicPaletteCommandsTests
         Assert.Equal(2u, result.ReadTemporaryDword(0xF4));
         Assert.Equal(Palette + 2, result.ReadTemporaryDword(0xF8));
         Assert.Equal(0x301u, result.ReadTemporaryDword(0xFC));
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(textures))!;
+        NativeBattleEffectTextureState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(textures))!;
         Assert.Throws<NotSupportedException>(() => restored.Drain505D20());
         NativeBattleScriptedEffectMemory later = result.Core.Write(Palette + 2, [1, 2, 3, 4]);
         NativeBattleEffectTextureDrain drained = restored.Drain505D20(scriptedSource: later);

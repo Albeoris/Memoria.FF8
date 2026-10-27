@@ -11,7 +11,7 @@ public sealed class NativeBattleGilgameshSwordTrailTests
     {
         NativeBattleEffectArena memory = NativeBattleEffectArena.Clear().Write(NativeBattleGilgameshSwordTrailState.History, Enumerable.Repeat((byte)0xA5, 200).ToArray()).Write(NativeBattleGilgameshSwordTrailState.GatherA, Enumerable.Repeat((byte)0xA5, 80).ToArray());
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         NativeBattleGilgameshSwordTrailInitialization initialized = NativeBattleGilgameshSwordTrail.Initialize5943A0(pool, new(memory));
         for (int index = 0; index < 10; index++)
         {
@@ -60,8 +60,8 @@ public sealed class NativeBattleGilgameshSwordTrailTests
         Assert.Equal((short)10, Word(repeated.State.Memory, NativeBattleGilgameshSwordTrailState.GatherA + 8));
         Assert.Equal((short)30, Word(repeated.State.Memory, NativeBattleGilgameshSwordTrailState.CurveA));
         Assert.Equal((short)10, Word(repeated.State.Memory, NativeBattleGilgameshSwordTrailState.CurveA + 31 * 8));
-        NativeBattleGilgameshSwordTrailStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailStep>(JsonSerializer.Serialize(repeated))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(repeated.State, repeated.UpdatedTask, 40)), JsonSerializer.Serialize(Run(restored.State, restored.UpdatedTask, 40)));
+        NativeBattleGilgameshSwordTrailStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshSwordTrailStep>(NativeBattleTestSnapshots.Json(repeated))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(repeated.State, repeated.UpdatedTask, 40)), NativeBattleTestSnapshots.Json(Run(restored.State, restored.UpdatedTask, 40)));
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public sealed class NativeBattleGilgameshSwordTrailTests
     [Fact]
     public void Missing_imported_banks_or_color_table_do_not_hydrate_and_state_regions_are_bounded()
     {
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailState>("{}"));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshSwordTrailResources>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshSwordTrailState>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshSwordTrailResources>("{}"));
         Assert.Throws<InvalidDataException>(() => new NativeBattleGilgameshSwordTrailState(NativeBattleEffectArena.Clear().Write(0x200, new byte[4])).Validate());
     }
 

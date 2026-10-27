@@ -32,10 +32,10 @@ public sealed class NativeBattleEffect227BonePointTests
         Assert.Equal(short.MinValue, BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(2, 2)));
         Assert.Equal((ushort)0xA55A, BinaryPrimitives.ReadUInt16LittleEndian(result.Output8.Read(6, 2)));
         Assert.NotEqual(0u, result.Memory.ScriptedColorRegisters.Flags);
-        NativeBattleEffect227BonePointStep restored = JsonSerializer.Deserialize<NativeBattleEffect227BonePointStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect227BonePointStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect227BonePointStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         NativeBattleEffect227BonePointStep directNext = NativeBattleEffect227BonePoint.Transform693990(result.Memory, world, bone, Point(), result.Output8);
         NativeBattleEffect227BonePointStep restoredNext = NativeBattleEffect227BonePoint.Transform693990(restored.Memory, world, bone, Point(), restored.Output8);
-        Assert.Equal(JsonSerializer.Serialize(directNext), JsonSerializer.Serialize(restoredNext));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(directNext)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredNext)));
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

@@ -22,7 +22,7 @@ public sealed class NativeBattleUltraWavesCurrentStageGeometryTests
         Assert.Equal((directory + 64, 64), stage.CurrentGroupGeometryRange(1, staging.Read)!.Value);
         NativeBattleStageReloadCopy copy = NativeBattleStageReload512AC0.Plan(stage, 1, loaded, staging.Read);
         staging = staging.Write(copy.Destination, staging.Read(copy.Source, copy.Length));
-        stage = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        stage = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!;
 
         (uint address, int length) = stage.CurrentGroupGeometryRange(1, staging.Read)!.Value;
         Assert.Equal(directory + 96, address);

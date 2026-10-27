@@ -70,12 +70,12 @@ public sealed class NativeBattleGilgameshCommonParticlesTests
         NativeBattleModulePoolTask task = Task(callback, 0).WriteWord(16, 2300).WriteWord(18, 4500).WriteWord(20, 6700);
         NativeBattleGilgameshParticleStep step = Run(task, arena, new(5), 0x201);
         Assert.Same(task, step.UpdatedTask);
-        Assert.Equal(JsonSerializer.Serialize(arena), JsonSerializer.Serialize(step.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(arena), NativeBattleTestSnapshots.Json(step.Arena));
         Assert.Equal(new NativeCrtRandomState(5), step.Random);
         NativeBattleModuleResource resource = Resources().Sprite;
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(0), Anchor = new(100, -20, 300, 0), Scale = 4096, DepthOffset = 0, SpriteFlags = 0 };
         NativeBattleModulePacketBatch expected = NativeBattleModulePackets.EmitSprite571DC0(draw, Projection() with { View = View() }, 0, 17, 2);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(Assert.Single(step.Packets)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(Assert.Single(step.Packets)));
     }
 
     [Fact]
@@ -96,9 +96,9 @@ public sealed class NativeBattleGilgameshCommonParticlesTests
         Assert.Equal((short)1234, Word(step.Arena, bank + 0x12));
         Assert.Equal(1, step.Survivors);
         Assert.Equal(0, step.Result);
-        NativeBattleGilgameshParticleStep expected = Run(step.UpdatedTask, step.Arena, step.Random);
+        NativeBattleGilgameshParticleStep expected = Run(NativeBattleTestSnapshots.Independent(step.UpdatedTask), NativeBattleTestSnapshots.Independent(step.Arena), step.Random);
         NativeBattleGilgameshParticleStep actual = Run(RoundTrip(step.UpdatedTask), RoundTrip(step.Arena), RoundTrip(step.Random));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public sealed class NativeBattleGilgameshCommonParticlesTests
     public void Nested_parent_appends_at_native_remainder_boundaries_preserving_child_suffix()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         NativeBattleModulePoolTask parent = Task(0x593C70, 0);
         NativeCrtRandomState random = new(1);
         NativeCrtRandomState expected = random;
@@ -166,7 +166,7 @@ public sealed class NativeBattleGilgameshCommonParticlesTests
         NativeBattleGilgameshMeshAuxiliaryStep paused = NativeBattleGilgameshCommonParticles.Step593D20(task, Resources(), View(), Projection(), 0x200);
         Assert.Same(task, paused.UpdatedTask);
         NativeBattleGilgameshMeshAuxiliaryStep step = NativeBattleGilgameshCommonParticles.Step593D20(task, Resources(), View(), Projection(), 0);
-        Assert.Equal(JsonSerializer.Serialize(paused.Batch), JsonSerializer.Serialize(step.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(paused.Batch), NativeBattleTestSnapshots.Json(step.Batch));
         Assert.Equal((ushort)65534, step.UpdatedTask.ReadWord(24));
         Assert.Equal((ushort)32747, step.UpdatedTask.ReadWord(32));
         Assert.Equal(unchecked((ushort)-14), step.UpdatedTask.ReadWord(34));
@@ -175,15 +175,15 @@ public sealed class NativeBattleGilgameshCommonParticlesTests
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 2, 0)), 4096, 32760, 4096);
         NativeBattleModuleMeshContext context = new(counter >= 18 ? 0xF3u : 0x33u, 0, counter >= 18 ? 341 * (counter - 18) : null, null, null, null, 17, 2);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(Resources().NestedMesh.Bytes, 0, default, NativeBattleGfMatrices.Compose56C2F0(View(), local), Projection(), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(step.Batch));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(step.UpdatedTask, Resources(), View(), Projection(), 0)), JsonSerializer.Serialize(NativeBattleGilgameshCommonParticles.Step593D20(RoundTrip(step.UpdatedTask), Resources(), View(), Projection(), 0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGilgameshCommonParticles.Step593D20(NativeBattleTestSnapshots.Independent(step.UpdatedTask), Resources(), View(), Projection(), 0)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshCommonParticles.Step593D20(RoundTrip(step.UpdatedTask), Resources(), View(), Projection(), 0)));
     }
 
     private static NativeBattleGilgameshParticleStep Run(NativeBattleModulePoolTask task, NativeBattleEffectArena arena, NativeCrtRandomState random, uint flags = 0) => NativeBattleGilgameshCommonParticles.Step(task, arena, random, Resources(), View(), Projection(), flags);
     private static NativeBattleModulePoolTask Task(uint callback, int counter) => new NativeBattleModulePoolTask(1, 0, null, callback, new byte[24].ToImmutableArray()).WriteWord(12, unchecked((ushort)counter));
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 3000, 4096);
     private static NativeBattleCameraProjection Projection() => new(null, 288, 160, 108);
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private static NativeBattleEffectArena Put(NativeBattleEffectArena arena, int offset, uint value)

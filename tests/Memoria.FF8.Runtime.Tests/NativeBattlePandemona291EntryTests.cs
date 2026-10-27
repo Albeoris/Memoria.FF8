@@ -27,7 +27,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(0x25562B8u, result.Effect.ReturnedDescriptor);
         Assert.Equal(0x25562C8u, pool.BankAddress);
         Assert.Equal(0x6ED350u, Assert.Single(pool.Slots).Callback);
-        Assert.Equal(new byte[8], pool.Slots[0].Payload);
+        Assert.Equal(new byte[8], NativeBattleStorageSnapshots.Capture(pool.Slots[0]).Payload);
         Assert.Equal(fixture.Frame.Random, result.Random);
         Assert.Equal(0, fixture.Frame.Memory.Textures!.Count);
     }
@@ -36,10 +36,10 @@ public sealed partial class NativeBattlePandemona291EntryTests
     public void EntryStandaloneSnapshotReproducesTheSameCurrentStateWithoutDefaultingWarmOwners()
     {
         var fixture = Fixture();
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
         var live = NativeBattlePandemona291Entry.Initialize6ED250(fixture.Frame, fixture.Resources, fixture.Packets, ReadModel);
         var resumed = NativeBattlePandemona291Entry.Initialize6ED250(restored, fixture.Resources, fixture.Packets, ReadModel);
-        Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(resumed));
+        Assert.Equal(NativeBattleTestSnapshots.Json(live), NativeBattleTestSnapshots.Json(resumed));
         Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Entry.Initialize6ED250(restored with { Memory = restored.Memory with { Pandemona291 = null } }, fixture.Resources, fixture.Packets, ReadModel));
     }
 
@@ -62,10 +62,10 @@ public sealed partial class NativeBattlePandemona291EntryTests
             frame = NativeBattlePandemona291Controller.Advance6ED350(frame, (_, _) => { });
         }
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(0xC));
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(frame))!;
-        string before = JsonSerializer.Serialize(restored);
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        string before = NativeBattleTestSnapshots.Json(restored);
         Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Controller.Advance6ED350(restored, (_, _) => throw new InvalidOperationException()));
-        Assert.Equal(before, JsonSerializer.Serialize(restored));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         NativeBattlePandemona291Frame frame = NativeBattlePandemona291Entry.Initialize6ED250(fixture.Frame, fixture.Resources, fixture.Packets, ReadModel);
         NativeBattleEffectTaskPool master = frame.Effect.Pools[0];
         NativeBattleModulePoolTask root = master.Slots[0].WriteByte(0xF, 1).WriteDword(0x10, 0);
-        master = master with { Slots = master.Slots.SetItem(0, root) };
+        master = NativeBattleTaskFixture.EditPool(master, data => data with { Slots = master.Slots.SetItem(0, root) });
         ImmutableArray<NativeBattleEffectTaskPool> children = new uint[] { 0x25562A8, 0x2556298, 0x2556288, 0x2556278, 0x2556268 }.Select((descriptor, index) => NativeBattleEffectTaskPool.Initialize(descriptor, 0x20DFAB8u + (uint)(index * 0x100), 0x20, 1)).ToImmutableArray();
         var spawned = children[0].Append(0x6ED900);
         children = children.SetItem(0, spawned.Item1);

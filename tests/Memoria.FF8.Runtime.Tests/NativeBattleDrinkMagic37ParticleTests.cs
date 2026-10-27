@@ -35,17 +35,17 @@ public sealed class NativeBattleDrinkMagic37ParticleTests
         NativeBattleEffectHierarchy hierarchy = fixture.Hierarchy.Write(fixture.Address, task);
         NativeBattleDrawStock15ParticleStep step = NativeBattleDrawStock15Particles.AdvanceDrinkMagic37Leaf(hierarchy, fixture.Address, new(1), Inputs(), []);
         NativeBattleModulePoolTask sparkle = Assert.Single(step.Hierarchy.Pools[3].Slots, slot => slot.Callback == 0x85F060);
-        Assert.Equal(292, sparkle.Payload.Length);
+        Assert.Equal(292, NativeBattleStorageSnapshots.Capture(sparkle).Payload.Length);
         Assert.Equal((ushort)0, sparkle.ReadWord(0x12C));
         Assert.Equal((ushort)0, sparkle.ReadWord(0x12E));
         Assert.Equal((ushort)0xBEEF, step.Hierarchy.Read(fixture.Address).ReadWord(0x12C));
         Assert.Equal((ushort)0x9876, step.Hierarchy.Read(fixture.Address).ReadWord(0x12E));
         Assert.Equal(new NativeCrtRandomState(1), step.Random);
-        NativeBattleEffectHierarchy restored = JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(JsonSerializer.Serialize(step.Hierarchy))!;
+        NativeBattleEffectHierarchy restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHierarchy>(NativeBattleTestSnapshots.Json(step.Hierarchy))!;
         uint sparkleAddress = step.Hierarchy.Address(3, step.Hierarchy.Pools[3].Slots.IndexOf(sparkle));
         NativeBattleDrawStock15ParticleStep next = NativeBattleDrawStock15Particles.AdvanceDrinkMagic37Leaf(step.Hierarchy, sparkleAddress, step.Random, Inputs(), []);
         NativeBattleDrawStock15ParticleStep restoredNext = NativeBattleDrawStock15Particles.AdvanceDrinkMagic37Leaf(restored, sparkleAddress, step.Random, Inputs(), []);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restoredNext));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(restoredNext));
         Assert.Equal(0x15D9504u, next.Hierarchy.Read(sparkleAddress).ReadDword(0x4C));
     }
 

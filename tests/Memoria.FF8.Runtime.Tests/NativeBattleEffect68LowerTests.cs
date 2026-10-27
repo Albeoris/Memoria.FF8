@@ -137,7 +137,7 @@ public sealed class NativeBattleEffect68LowerTests
         Assert.Equal(new int?[] { 100, -100, 100 }, frame.Memory.ScriptedColorRegisters!.Ir);
         Assert.Equal(2048u, frame.Memory.ScriptedColorRegisters.Ir0);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        frame = JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleEffect68Frame second = NativeBattleEffect68Lower.MorphVertices(frame, 0x159390C, 0x1593A94, 0x1591C44, 0, resources, harness.Inputs());
         Assert.Equal((ushort)0xCAFE, second.Memory.Scan!.MutableMeshes[0x1591C44].ReadWord(14));
         Assert.True(second.State.MeshSourcesBound);

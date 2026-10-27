@@ -20,12 +20,13 @@ public sealed class NativeBattleCinematicControlCommandsTests
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 4) };
         }
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.DebugParametersB7(frame, Program);
         Assert.Equal(consumes ? 0x1006u : 0x1000u, Pc(result));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.DebugParametersB7(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.DebugParametersB7(replayFrame, Program)));
     }
 
     [Theory]
@@ -42,12 +43,13 @@ public sealed class NativeBattleCinematicControlCommandsTests
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x20C8, 2) };
         }
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(frame, Program);
         Assert.Equal(wait ? 0x1000u : 0x1006u, Pc(result));
         Assert.Equal(wait ? (ushort)0xFF80 : frame.ReadTemporaryWord(0x13E), result.ReadTemporaryWord(0x13E));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.WaitWhileCachedAtLeastFB(replayFrame, Program)));
     }
 
     [Theory]
@@ -57,6 +59,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xB2, value);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x1003, 3), Core = frame.Core.MarkUnknown(0x2797690 + 0xA1, 1).MarkUnknown(0x2797690 + 0xA3, 1) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.StoreRenderMaskB2(frame, Program);
         Assert.Equal(value, result.Core.Read(0x2797690 + 0xA2, 1)[0]);
         Assert.Throws<NotSupportedException>(() => result.Core.Read(0x2797690 + 0xA1, 1));
@@ -64,7 +67,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
         Assert.Equal(0x1004u, Pc(result));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.StoreRenderMaskB2(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.StoreRenderMaskB2(replayFrame, Program)));
     }
 
     [Theory]
@@ -75,12 +78,13 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(instruction, 0);
         frame = frame with { Arena = frame.Arena.Write(0x20DE, [0xFF]).MarkUnknown(0x1000, 6).MarkUnknown(0x20C0, 4) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.ClearFlags9B(frame);
         Assert.Equal(expected, result.Arena.Read(0x20DE, 1)[0]);
         Assert.Equal(0x1002u, Pc(result));
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x20C0, 4));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.ClearFlags9B(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.ClearFlags9B(replayFrame)));
     }
 
     [Theory]
@@ -90,6 +94,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xF0F2, 0);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x1002, 4).MarkUnknown(0x205C, 12).MarkUnknown(0x2018, 1).Write(0x2094, BitConverter.GetBytes(x)).Write(0x2096, BitConverter.GetBytes(y)).Write(0x2098, BitConverter.GetBytes(z)) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.BakeCachedPositionF2(frame);
         Assert.Equal(unchecked((uint)(x << 16)), BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x205C, 4)));
         Assert.Equal(unchecked((uint)(y << 16)), BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x2060, 4)));
@@ -98,7 +103,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
         Assert.Equal(0x1002u, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.BakeCachedPositionF2(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.BakeCachedPositionF2(replayFrame)));
     }
 
     [Theory]
@@ -109,13 +114,14 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xF01A, operand);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2018, 1).MarkUnknown(0x20A0, 4).MarkUnknown(0x1004, 0x40) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.RegisterUpdateBlock1A(frame, Program);
         Assert.Equal(kind, result.Arena.Read(0x2018, 1)[0]);
         Assert.Equal(0x1004u, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x20A0, 4)));
         Assert.Equal(next, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.RegisterUpdateBlock1A(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.RegisterUpdateBlock1A(replayFrame, Program)));
     }
 
     [Theory]
@@ -131,6 +137,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
         {
             frame = frame with { Arena = frame.Arena.MarkUnknown(0x1005, 1) };
         }
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.StoreRelative1C(frame, Program);
         Assert.Equal(width == 1 ? new byte[] { 0xA5 } : new byte[] { 0xA5, 0x5A }, result.Arena.Read(0x2000 + displacement, width));
         if (width == 1)
@@ -140,7 +147,7 @@ public sealed class NativeBattleCinematicControlCommandsTests
         Assert.Equal(0x1006u, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.StoreRelative1C(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.StoreRelative1C(replayFrame, Program)));
     }
 
     [Theory]
@@ -152,11 +159,12 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xF0B0, unchecked((ushort)operand)).WriteTemporaryWord(0x13E, 0xCAFE);
         frame = frame with { Random = NativeCrtRandomState.FromColdProcess(), Arena = frame.Arena.Write(0x20C8, BitConverter.GetBytes(multiplier)).MarkUnknown(0x1004, 2) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.WaitRandomB0(frame, Program);
         Assert.Equal(expected, result.ReadTemporaryWord(0x13E));
         Assert.Equal(0x1004u, Pc(result));
         Assert.Equal(2745024u, result.Random.Seed);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.WaitRandomB0(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.WaitRandomB0(replayFrame, Program)));
     }
 
     [Theory]
@@ -172,11 +180,12 @@ public sealed class NativeBattleCinematicControlCommandsTests
             Assert.Equal((short)-2, selector);
             return NativeBattleEffectNodeMemory.ArenaAddress + Model;
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(expected, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x20CC, 4)));
         Assert.Equal(0x1004u, Pc(result));
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 
     [Theory]
@@ -188,12 +197,13 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xF0CE, offset);
         frame = frame with { Arena = frame.Arena.Write(0x201B, [actor]).MarkUnknown(0x2012, 2).MarkUnknown(0x1004, 2) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.SetRelativeActorIdCE(frame, Program);
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(result.Arena.Read(0x2012, 2)));
         Assert.Equal(0x1004u, Pc(result));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicControlCommands.SetRelativeActorIdCE(replayFrame, Program)));
     }
 
     [Theory]
@@ -288,13 +298,13 @@ public sealed class NativeBattleCinematicControlCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x1041, 0xFFFE);
         frame = frame with { Arena = frame.Arena.Write(Model + 2, [0x80]).MarkUnknown(Model + 3, 1).MarkUnknown(0x1004, 2) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicModel.Control41(frame, Program);
         Assert.Equal((byte)0x84, result.Arena.Read(Model + 2, 1)[0]);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(Model + 3, 1));
         Assert.Equal(0x1002u, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(Model + 0x7C, 4)));
         Assert.Equal(0x1006u, Pc(result));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicModel.Control41(restored, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicModel.Control41(restored, Program)));
     }
 
     [Fact]

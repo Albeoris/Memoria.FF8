@@ -42,8 +42,8 @@ public sealed class NativeBattleModuleImpactPacketTests
     public void JSON_restores_released_temporary_and_geometry_for_the_next_callback()
     {
         NativeBattleModuleImpactPacketStep first = Draw(0);
-        NativeBattleModuleImpactPacketStep restored = JsonSerializer.Deserialize<NativeBattleModuleImpactPacketStep>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(1, first.Memory, first.Staging)), JsonSerializer.Serialize(Draw(1, restored.Memory, restored.Staging)));
+        NativeBattleModuleImpactPacketStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleImpactPacketStep>(NativeBattleTestSnapshots.Json(first))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(1, first.Memory, first.Staging)), NativeBattleTestSnapshots.Json(Draw(1, restored.Memory, restored.Staging)));
         Assert.Throws<NotSupportedException>(() => Draw(1, staging: NativeBattleFileStaging.Unknown()));
     }
 

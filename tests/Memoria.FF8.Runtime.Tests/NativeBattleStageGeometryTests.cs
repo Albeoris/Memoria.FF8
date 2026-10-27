@@ -11,7 +11,7 @@ public sealed class NativeBattleStageGeometryTests
     {
         BattleSession battle = Session(NativeBattleStage137.CallbackAddress, Mesh(10));
         NativeBattleStageState state = NativeBattleStageState.FromColdProcess() with { MutableGeometry = [Mesh(25)] };
-        SetStage(battle, JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(state))!);
+        SetStage(battle, NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(state))!);
         Assert.Equal(new NativeBattleVector(25, 0, 0), Geometry(battle)[0].Vertices[0].Position);
         SetStage(battle, state with { MutableGeometry = [Mesh(40)] });
         Assert.Equal(new NativeBattleVector(40, 0, 0), Geometry(battle)[0].Vertices[0].Position);
@@ -31,7 +31,7 @@ public sealed class NativeBattleStageGeometryTests
     {
         BattleSession battle = Session(0x5149A0, Mesh(10));
         NativeBattleStageState state = NativeBattleStageState.FromColdProcess() with { MutableGeometry = [Mesh(25)] };
-        SetStage(battle, JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(state))!);
+        SetStage(battle, NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(state))!);
         Assert.Equal(new NativeBattleVector(25, 0, 0), Geometry(battle)[0].Vertices[0].Position);
     }
 

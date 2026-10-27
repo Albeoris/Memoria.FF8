@@ -211,7 +211,7 @@ public sealed class NativeBattleEffect313ControllerTests
         NativeBattleEffect313Frame frame = Frame(0, null);
         frame = WriteBytes(frame, ChildBank + 12, NativeBattleEffectArena.Clear().Write(0, new byte[] { 1, 2, 3, 4 }).MarkUnknown(2, 1), 4);
         frame = Advance(frame, null!, new Harness().Inputs());
-        NativeBattleEffect313State copy = JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(frame.State))!;
+        NativeBattleEffect313State copy = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect313State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.State)))!);
         Assert.Equal(new[] { true, true, false, true }, copy.ReadBank(ChildBank).ReadSnapshot(12, 4).Known);
         Assert.Equal(new byte[] { 1, 2 }, copy.ReadBank(ChildBank).Read(12, 2));
         Assert.Equal(new byte[] { 4 }, copy.ReadBank(ChildBank).Read(15, 1));
@@ -228,12 +228,12 @@ public sealed class NativeBattleEffect313ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, (ushort)rootAge)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, (ushort)rootAge));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         if (mainAge is int age)
         {
             (child, _) = child.Append(MainCallback);
-            child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteBytes(12, new byte[24]).WriteWord(12, (ushort)age)) };
+            child = child.WriteSlot(0, child.Slots[0].WriteBytes(12, new byte[24]).WriteWord(12, (ushort)age));
         }
         NativeBattleEffect313State state = NativeBattleEffect313State.FromColdProcess().DetachBank(RootBank).DetachBank(ChildBank).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8);
         NativeBattleOriginalEffectState effect = new(313, 312, new(313, Entry, Initializer), new(3, 0, 0x15, 0, 0, 0), RootDescriptor) { Pools = [root, child] };

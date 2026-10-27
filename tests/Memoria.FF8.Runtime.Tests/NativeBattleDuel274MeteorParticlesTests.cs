@@ -11,7 +11,7 @@ public sealed class NativeBattleDuel274MeteorParticlesTests
     {
         NativeBattleDuel274Frame frame = Frame();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].MarkPayloadUnknown(26, 2).MarkPayloadUnknown(34, 2).MarkPayloadUnknown(42, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].MarkPayloadUnknown(26, 2).MarkPayloadUnknown(34, 2).MarkPayloadUnknown(42, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
         NativeCrtRandomState expected = frame.Random;
         for (int index = 0; index < draws; index++)
@@ -26,7 +26,7 @@ public sealed class NativeBattleDuel274MeteorParticlesTests
         Assert.Throws<NotSupportedException>(() => first.ReadWord(34));
         Assert.Throws<NotSupportedException>(() => first.ReadWord(42));
         Assert.Equal(2, frame.Effect.Pools[0].Slots.Count(task => (task.Flags & 1) != 0));
-        NativeBattleDuel274Frame restored = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDuel274Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Throws<NotSupportedException>(() => restored.Effect.Pools[0].Slots[0].ReadWord(42));
         if (grounded)
         {
@@ -45,7 +45,7 @@ public sealed class NativeBattleDuel274MeteorParticlesTests
         NativeBattleDuel274Frame frame = NativeBattleDuel274MeteorParticles.Emit68CA60(Frame(), new(100, -2, 300), 0, 1, true);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
         NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(12, 100).WriteWord(14, unchecked((ushort)-2)).WriteWord(16, 300).WriteWord(18, 19).WriteWord(20, 3).WriteWord(22, unchecked((ushort)-10)).WriteWord(24, 4).WriteWord(28, 100).WriteWord(30, 200).WriteWord(32, 300).WriteWord(36, 1).WriteWord(38, 2).WriteWord(40, 3);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) });
         frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
         NativeBattleActionMatrix view = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         int calls = 0;

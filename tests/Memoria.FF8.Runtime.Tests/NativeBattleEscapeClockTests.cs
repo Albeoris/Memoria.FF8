@@ -70,7 +70,7 @@ public sealed class NativeBattleEscapeClockTests
         Tick(battle, 7);
         Tick(restored, 7);
 
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(battle.Capture())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.Capture())));
         Assert.Equal(BattleAtbMode.TurnBased, restored.Mode);
         restored.PublishNativeEscapeButtons(1);
         restored = RoundTrip(restored);
@@ -145,7 +145,7 @@ public sealed class NativeBattleEscapeClockTests
 
     private static BattleSession RoundTrip(BattleSession battle)
     {
-        return BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        return BattleSession.Restore(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(battle.Capture())))!));
     }
 
     private static void AssertGaugesEqual(BattleSession expected, BattleSession actual)

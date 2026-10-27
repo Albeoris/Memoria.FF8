@@ -23,11 +23,11 @@ public sealed class NativeBattleAuxiliaryTextureLoadTests
         Assert.Equal((ushort)0xA501, task.Flags);
         Assert.Equal((ushort)0, task.State);
         Assert.Equal(NativeBattleAuxiliaryKind.CommonTextureLoad508660, task.Kind);
-        Assert.Equal((byte)0, task.Payload[0]);
-        Assert.Equal(Destination, BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(4)));
-        Assert.Equal(Completion, BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(8)));
+        Assert.Equal((byte)0, NativeBattleStorageSnapshots.Capture(task).Payload[0]);
+        Assert.Equal(Destination, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(4)));
+        Assert.Equal(Completion, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(8)));
         Assert.Equal(uint.MaxValue & ~0xFF1u, task.UnknownByteMask);
-        Assert.All(new[] { 1, 2, 3 }.Concat(Enumerable.Range(12, 20)), index => Assert.Equal((byte)0xCC, task.Payload[index]));
+        Assert.All(new[] { 1, 2, 3 }.Concat(Enumerable.Range(12, 20)), index => Assert.Equal((byte)0xCC, NativeBattleStorageSnapshots.Capture(task).Payload[index]));
         result.Validate();
     }
 

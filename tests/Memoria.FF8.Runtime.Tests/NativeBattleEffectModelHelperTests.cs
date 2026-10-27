@@ -30,8 +30,8 @@ public sealed class NativeBattleEffectModelHelperTests
         Assert.Equal(2, observed.Count);
         Assert.Equal((short)0, observed[0].Distance);
         Assert.Equal((short)200, observed[1].Distance);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 240, 0)), JsonSerializer.Serialize(observed[0]));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 241, 0)), JsonSerializer.Serialize(observed[1]));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 240, 0))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(observed[0])));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattlePoseMatrices.ResolveBoneAnchor502170(models[selected], source, 241, 0))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(observed[1])));
         Assert.Equal(models[selected].Transform!.Angle36, unchecked((short)updated.ReadWord(0x32)));
     }
 
@@ -129,9 +129,9 @@ public sealed class NativeBattleEffectModelHelperTests
         {
             model = NativeBattleBodyBoneMatrices.Compose5095B0(model, new([-4096, 0, 0, 0, 4096, 0, 0, 0, -4096], 1000, -2000, 3000, 4096));
         }
-        string originalModel = JsonSerializer.Serialize(model);
+        string originalModel = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(model));
         NativeBattleModulePoolTask task = Task().WriteWord(0x4E, 0xA55A).WriteWord(0x56, 0xB66B);
-        string originalTask = JsonSerializer.Serialize(task);
+        string originalTask = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(task));
 
         NativeBattleModulePoolTask updated = NativeBattleEffectModelHelpers.UpdateBounds8DC870(task, model, source);
 
@@ -141,13 +141,13 @@ public sealed class NativeBattleEffectModelHelperTests
         Assert.Equal((ushort)0xB66B, updated.ReadWord(0x56));
         Assert.Null(model.SequenceState!.Pose);
         Assert.Null(model.SequenceState.DecodedPose);
-        Assert.Equal(originalModel, JsonSerializer.Serialize(model));
-        Assert.Equal(originalTask, JsonSerializer.Serialize(task));
+        Assert.Equal(originalModel, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(model)));
+        Assert.Same(task, updated);
 
-        NativeBattleGraphicsModel restoredModel = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(originalModel)!;
-        NativeBattlePoseSource restoredSource = JsonSerializer.Deserialize<NativeBattlePoseSource>(JsonSerializer.Serialize(source))!;
-        NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(originalTask)!;
-        Assert.Equal(JsonSerializer.Serialize(updated), JsonSerializer.Serialize(NativeBattleEffectModelHelpers.UpdateBounds8DC870(restoredTask, restoredModel, restoredSource)));
+        NativeBattleGraphicsModel restoredModel = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(originalModel)!);
+        NativeBattlePoseSource restoredSource = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePoseSource>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source)))!);
+        NativeBattleModulePoolTask restoredTask = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(originalTask)!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(updated)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectModelHelpers.UpdateBounds8DC870(restoredTask, restoredModel, restoredSource))));
     }
 
     [Fact]

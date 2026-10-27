@@ -11,7 +11,7 @@ public sealed class NativeBattleCarbuncle278ReturnParticleTests
         NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Carbuncle278 = NativeBattleCarbuncle278State.FromColdProcess() with { Base81CC = -200, Pause8114 = 1 } };
         NativeBattleCarbuncle278Frame frame = new(memory, effect, NativeCrtRandomState.FromColdProcess());
-        NativeBattleCarbuncle278Frame spawned = NativeBattleCarbuncle278ReturnParticles.Spawn681C31(frame, 231);
+        NativeBattleCarbuncle278Frame spawned = NativeBattleCarbuncle278ReturnParticles.Spawn681C31(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), 231);
         NativeBattleSharedEffectRandomState random = memory.SharedEffectRandom!.Draw7059E0(out ushort x);
         random = random.Draw7059E0(out ushort z);
         random = random.Draw7059E0(out ushort speed);
@@ -25,7 +25,7 @@ public sealed class NativeBattleCarbuncle278ReturnParticleTests
         Assert.Equal((ushort)(kind & 1), task.ReadWord(0x1A));
         Assert.Equal((ushort)0, task.ReadWord(0x12));
         Assert.Equal(random, spawned.Memory.SharedEffectRandom);
-        Assert.Equal(task.Payload, spawned.Memory.Arena!.Read(0x22C4 + 12, 16));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, spawned.Memory.Arena!.Read(0x22C4 + 12, 16));
         Assert.Same(frame, NativeBattleCarbuncle278ReturnParticles.Spawn681C31(frame, 230));
         Assert.Same(frame, NativeBattleCarbuncle278ReturnParticles.Spawn681C31(frame, 235));
         for (int index = 0; index < 8; index++)

@@ -72,8 +72,8 @@ public sealed class NativeBattleOilShot136MeshTests
         Assert.Equal(40100, actual.Memory.ScriptedColorRegisters.Mac[0]!.Value);
         Assert.Equal(frame.State.ReadMesh(), actual.State.ReadMesh());
         Assert.Equal(frame.Random, actual.Random);
-        NativeBattleOilShot136Frame restored = JsonSerializer.Deserialize<NativeBattleOilShot136Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        NativeBattleOilShot136Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilShot136Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

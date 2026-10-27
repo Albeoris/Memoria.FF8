@@ -51,7 +51,7 @@ public sealed class NativeBattleJunk44LowerTests
         Assert.Equal((short)(z / 8), Signed(task, 0x18));
         Assert.Equal((ushort)(scale * 2000 / 32768 + 2000), task.ReadWord(0x1C));
         var untouched = SpawnPointSprites6E8360(frame, 0, null!, 0, 0, 0, null!, null!);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(untouched));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(untouched));
     }
 
     [Theory]
@@ -185,7 +185,7 @@ public sealed class NativeBattleJunk44LowerTests
         (frame, uint address) = Append(frame, 0x2545110, 0x6E8810);
         var task = Read(frame, address).WriteWord(0x14, 100).WriteWord(0x16, 33);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[64].ToImmutableArray()).Initialize7016B0(resources.Programme, 64);
-        byte[] bytes = workspace.Data.ToArray();
+        byte[] bytes = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 11);
         frame = WriteBytes(Write(frame, address, task), address + 0x18, NativeBattleEffectArena.Clear().Write(0, bytes), 64);
         var actual = AdvanceProgramme6E8810(frame, address, resources, Inputs());

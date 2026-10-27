@@ -53,10 +53,10 @@ public sealed class NativeBattleCameraAliases146Tests
     public void Retained_aliases_round_trip_and_legacy_missing_owner_remains_missing()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { CameraAliases = new(2, 6) };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(memory.CameraAliases, restored.CameraAliases);
-        string legacy = JsonSerializer.Serialize(memory with { CameraAliases = null });
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(legacy)!.CameraAliases);
+        string legacy = NativeBattleTestSnapshots.Json(memory with { CameraAliases = null });
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(legacy)!.CameraAliases);
     }
 
     private static NativeBattleCameraPoint Transform(NativeBattleCameraAliases aliases, byte reference, NativeBattleActionGeometry? context)

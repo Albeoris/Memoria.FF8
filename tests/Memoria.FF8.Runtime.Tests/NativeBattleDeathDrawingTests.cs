@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -47,10 +47,10 @@ public sealed class NativeBattleDeathDrawingTests
         Assert.Equal((uint?)1024, draw.Frame.Memory.GeometryRegisters!.Otz);
         Assert.NotNull(draw.Frame.Memory.ScriptedColorRegisters!.Flags);
         Assert.Equal(new byte[] { 0xEF, 0xBE }, fixture.Resources.Profile.RequireState(draw.Frame.Memory).Module.Read(0x6D0 + 6, 2));
-        NativeBattleDeathFrame restored = JsonSerializer.Deserialize<NativeBattleDeathFrame>(JsonSerializer.Serialize(draw.Frame))!;
+        NativeBattleDeathFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDeathFrame>(NativeBattleTestSnapshots.Json(draw.Frame))!;
         NativeBattleDeathDraw expected = NativeBattleDeathDrawing.Dark(draw.Frame, draw.Task, fixture.Model, fixture.Resources, NativeBattlePackedMatrix32.FromMatrix(fixture.Projection.View!, null), fixture.Projection, Shadow, new(true));
         NativeBattleDeathDraw actual = NativeBattleDeathDrawing.Dark(restored, draw.Task, fixture.Model, fixture.Resources, NativeBattlePackedMatrix32.FromMatrix(fixture.Projection.View!, null), fixture.Projection, Shadow, new(true));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Theory]
@@ -61,7 +61,7 @@ public sealed class NativeBattleDeathDrawingTests
         var fixture = Fixture(4096, effect);
         NativeBattleDeathFrame missing = fixture.Frame with { Staging = null };
         Assert.Throws<NotSupportedException>(() => Draw((missing, fixture.Task, fixture.Model, fixture.Resources, fixture.Projection)));
-        missing = fixture.Frame with { Staging = fixture.Frame.Staging!.MarkUnknown(NativeBattleTemporaryMemory.Cursor, 4) };
+        missing = fixture.Frame with { Staging = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame.Staging!)).MarkUnknown(NativeBattleTemporaryMemory.Cursor, 4) };
         Assert.Throws<NotSupportedException>(() => Draw((missing, fixture.Task, fixture.Model, fixture.Resources, fixture.Projection)));
         NativeBattleDeathFrame unknownPadding = fixture.Frame with { Staging = fixture.Frame.Staging!.MarkUnknown(NativeBattleTemporaryMemory.Address + 0x2E, 2) };
         NativeBattleDeathDraw draw = Draw((unknownPadding, fixture.Task, fixture.Model, fixture.Resources, fixture.Projection));

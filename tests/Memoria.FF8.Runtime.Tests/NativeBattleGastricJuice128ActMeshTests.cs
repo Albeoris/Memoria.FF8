@@ -42,7 +42,7 @@ public sealed class NativeBattleGastricJuice128ActMeshTests
         byte[] bytes = node.Data.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), 0xC6300);
         NativeBattleBillboardActContext12Step actual = Draw(node with { Data = bytes.ToImmutableArray() }, Context(0));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]

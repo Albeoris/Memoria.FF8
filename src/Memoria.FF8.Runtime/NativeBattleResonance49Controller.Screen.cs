@@ -85,8 +85,8 @@ public static partial class NativeBattleResonance49Controller
         NativeBattleEffectArena original = inputs.ReadEnvironment92(frame, parity);
         uint beforeAddress = checked(0x2646700 + (uint)(parity * 92));
         uint captureAddress = checked(0x2647760 + (uint)(parity * 92));
-        NativeBattleEffectArena before = original.Write(0x18, new byte[1]);
-        NativeBattleEffectArena capture = original.Write(0, BitConverter.GetBytes((short)576)).Write(2, BitConverter.GetBytes((short)256)).Write(4, BitConverter.GetBytes((short)320)).Write(6, BitConverter.GetBytes((short)240)).Write(8, BitConverter.GetBytes((short)576)).Write(10, BitConverter.GetBytes((short)256)).Write(0x18, new byte[] { 1, 0, 0, 0 });
+        NativeBattleEffectArena before = NativeBattleEffectNodeContextMemory.Copy(original, 0, NativeBattleEffectArena.Clear(), 0, 92).Write(0x18, new byte[1]);
+        NativeBattleEffectArena capture = NativeBattleEffectNodeContextMemory.Copy(original, 0, NativeBattleEffectArena.Clear(), 0, 92).Write(0, BitConverter.GetBytes((short)576)).Write(2, BitConverter.GetBytes((short)256)).Write(4, BitConverter.GetBytes((short)320)).Write(6, BitConverter.GetBytes((short)240)).Write(8, BitConverter.GetBytes((short)576)).Write(10, BitConverter.GetBytes((short)256)).Write(0x18, new byte[] { 1, 0, 0, 0 });
         frame = frame with { State = frame.State.WriteView(beforeAddress, before, 92).WriteView(captureAddress, capture, 92) };
         uint capturePacket = checked(0x26472D8 + (uint)(parity * 64));
         uint restorePacket = checked(0x2647820 + (uint)(parity * 64));

@@ -34,8 +34,8 @@ public sealed class NativeBattleShot195Tests
         }
         frame = NativeBattleShot195.Advance(frame, inputs, Resources());
         Assert.Equal((byte)1, frame.Effect.Parameters!.Parameter81);
-        NativeBattleShot195Frame restored = JsonSerializer.Deserialize<NativeBattleShot195Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleShot195.Advance(frame, inputs, Resources())), JsonSerializer.Serialize(NativeBattleShot195.Advance(restored, Inputs(packets, []), Resources())));
+        NativeBattleShot195Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShot195Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleShot195.Advance(frame, inputs, Resources())), NativeBattleTestSnapshots.Json(NativeBattleShot195.Advance(restored, Inputs(packets, []), Resources())));
         frame = NativeBattleShot195.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters with { Parameter80 = 1, Parameter81 = 0 } } }, packets);
         for (int callback = 0; callback < 100 && frame.Effect.ReturnedDescriptor != 0; callback++)
         {
@@ -59,7 +59,7 @@ public sealed class NativeBattleShot195Tests
         }
         NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(0x226EDB8, 0x226EDC8, 36, 100);
         (particles, int task) = particles.Append(0x5B3A80);
-        particles = particles with { Slots = particles.Slots.SetItem(task, particles.Slots[task].WriteWord(12, 0).WriteWord(14, (ushort)serial).WriteWord(22, 7)) };
+        particles = NativeBattleTaskFixture.EditPool(particles, data => data with { Slots = particles.Slots.SetItem(task, particles.Slots[task].WriteWord(12, 0).WriteWord(14, (ushort)serial).WriteWord(22, 7)) });
         frame = frame with { Memory = frame.Memory with { Shot195 = frame.Memory.Shot195! with { ParticleStorage = bytes.ToImmutableArray() } }, Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], NativeBattleEffectTaskPool.Initialize(0x226B7E0, 0x226A9C0, 36, 100), particles] } };
         List<int> bones = [];
         NativeBattleShot195Inputs inputs = Inputs(packets, []) with { ReadBone = (_, bone, _) => { bones.Add(bone); return new(100, 200, 300); } };

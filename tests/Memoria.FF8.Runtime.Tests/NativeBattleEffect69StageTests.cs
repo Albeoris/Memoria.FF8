@@ -121,10 +121,10 @@ public sealed class NativeBattleEffect69StageTests
         NativeBattleEffect69StageStep result = NativeBattleEffect69StageDrawing.StageDraw6FF6E0(frame, 1, 0, 63, Metric, negative.Inputs());
         Assert.Empty(negative.LastBatch!.Attempts);
         Assert.True(unchecked((int)result.Frame.Memory.GeometryRegisters!.Mac0!.Value) < 0);
-        NativeBattleEffect69Frame restored = JsonSerializer.Deserialize<NativeBattleEffect69Frame>(JsonSerializer.Serialize(result.Frame))!;
+        NativeBattleEffect69Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect69Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Frame)))!);
         NativeBattleEffect69Frame first = NativeBattleEffect69StageDrawing.StageDraw6FF6E0(result.Frame, 1, 1, 63, Metric, negative.Inputs()).Frame;
         NativeBattleEffect69Frame second = NativeBattleEffect69StageDrawing.StageDraw6FF6E0(restored, 1, 1, 63, Metric, negative.Inputs()).Frame;
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second)));
     }
 
     [Fact]

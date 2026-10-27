@@ -35,11 +35,11 @@ public sealed class NativeBattleWildCannonBlow156StateTests
     {
         NativeBattleEffectArena sample = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 0, 2, 0, 3, 0 });
         NativeBattleWildCannonBlow156State state = NativeBattleWildCannonBlow156State.FromUnknown().WriteView(SamplesAddress, sample, 8);
-        NativeBattleWildCannonBlow156State restored = JsonSerializer.Deserialize<NativeBattleWildCannonBlow156State>(JsonSerializer.Serialize(state))!;
+        NativeBattleWildCannonBlow156State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWildCannonBlow156State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 0, 2, 0, 3, 0 }, restored.Read(SamplesAddress, 6));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(SamplesAddress + 6));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class NativeBattleWildCannonBlow156StateTests
     public void Inactive_banks_transfer_ownership_and_reject_oversized_storage()
     {
         NativeBattleWildCannonBlow156State state = NativeBattleWildCannonBlow156State.FromUnknown() with { RootBankStorage = NativeBattleEffectArena.Clear().MarkUnknown(0, RootBankLength).Write(30, BitConverter.GetBytes((ushort)1234)) };
-        NativeBattleWildCannonBlow156State restored = JsonSerializer.Deserialize<NativeBattleWildCannonBlow156State>(JsonSerializer.Serialize(state))!;
+        NativeBattleWildCannonBlow156State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWildCannonBlow156State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)1234, BitConverter.ToUInt16(restored.RootBankStorage!.Read(30, 2)));
         Assert.Throws<NotSupportedException>(() => restored.RootBankStorage.Read(2, 2));

@@ -18,8 +18,8 @@ public sealed class NativeBattleEffect65ProgrammeTests
         frame = Write(frame, ArenaAddress + FileOffset, NativeBattleEffectArena.Clear().Write(0, new byte[32]), 32);
         NativeBattleGfAnimationSource result = NativeBattleEffect65Programme.ReadSource(frame, address, Resources());
         Assert.Equal(address, result.Address);
-        Assert.Equal(length, result.Data.Length);
-        Assert.All(result.Data, value => Assert.Equal((byte)0xA7, value));
+        Assert.Equal(length, result.OpenReader().Length);
+        Assert.All(result.OpenReader().Read(0, length).ToArray(), value => Assert.Equal((byte)0xA7, value));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffect65Programme.ReadSource(frame, address + 1, Resources()));
     }
 
@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect65ProgrammeTests
         uint address = ArenaAddress + FileOffset + (uint)BundleProgrammeOffsets[394][4];
         int length = BundleLengths[394] - BundleProgrammeOffsets[394][4];
         frame = Write(frame, address, NativeBattleEffectArena.Clear().MarkUnknown(length - 1, 1), length);
-        Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Programme.ReadSource(frame, address, Resources()));
+        Assert.Throws<NotSupportedException>(() => NativeBattleEffect65Programme.ReadSource(frame, address, Resources()).OpenReader().Read(length - 1, 1));
     }
 
     [Fact]

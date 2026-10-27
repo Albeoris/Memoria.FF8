@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -50,7 +50,7 @@ public sealed class NativeBattleShivaBillboardBanksTests
         NativeBattleModulePacketBatch first = NativeBattleShivaBillboardBanks.Emit571C80(draw, projection, 0);
         NativeBattleModulePacketBatch rotated = NativeBattleShivaBillboardBanks.Emit571C80(draw, projection, 1024);
         Assert.NotEmpty(first.Primitives);
-        Assert.Equal(same, JsonSerializer.Serialize(first) == JsonSerializer.Serialize(rotated));
+        Assert.Equal(same, NativeBattleTestSnapshots.Json(first) == NativeBattleTestSnapshots.Json(rotated));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class NativeBattleShivaBillboardBanksTests
             return current;
         });
         Assert.Equal(cloud.Memory.Shiva!.BillboardMatrix22BD0E8.ToArray(), result.Frame.Memory.Shiva!.BillboardMatrix22BD0E8.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(cloud), JsonSerializer.Serialize(result.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(cloud), NativeBattleTestSnapshots.Json(result.Frame));
     }
 
     [Theory]
@@ -136,13 +136,14 @@ public sealed class NativeBattleShivaBillboardBanksTests
     public void Fresh_spawns_have_exact_random_budgets_and_are_excluded_from_current_completion(int kind, int records, uint seed)
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(kind, 3);
+        string replay = NativeBattleTestSnapshots.Json(frame);
         NativeBattleShivaEarlyTaskStep result = Advance(frame, kind, 0, NativeBattleCuragaMatrices.Identity8DD770(), (_, _) => throw new InvalidOperationException("New records cannot draw in the spawn pass."));
         Assert.Equal(new NativeCrtRandomState(seed), result.Frame.Random);
         Assert.Equal(records, Enumerable.Range(0, 150).Count(index => Dword(result.Frame.Memory.Arena!, 0x2C000 + index * 24) != 0));
         Assert.Equal(2, result.Result);
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(replay)!;
         NativeBattleShivaEarlyTaskStep independent = Advance(restored, kind, 0, NativeBattleCuragaMatrices.Identity8DD770(), null!);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(independent));
     }
 
     [Theory]
@@ -188,7 +189,7 @@ public sealed class NativeBattleShivaBillboardBanksTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         uint callback = kind switch { 0 => 0x5C62F0u, 1 => 0x5C6BB0u, 2 => 0x5C71B0u, _ => 0x5C7CA0u };
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) });
         byte[] matrix = new byte[32];
         short[] rotation = [11, 13, 17, 19, 23, 29, 31, 37, 41];
         for (int index = 0; index < rotation.Length; index++)

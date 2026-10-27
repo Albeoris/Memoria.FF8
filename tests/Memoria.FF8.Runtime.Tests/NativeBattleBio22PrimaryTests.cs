@@ -95,7 +95,7 @@ public sealed class NativeBattleBio22PrimaryTests
         NativeBattleBio22PrimaryStep step = NativeBattleBio22Primary.Advance89A8D0(wait.Task.WriteWord(0x80, 1), inputs);
         Assert.Equal(1, contacts);
         Assert.Equal(0u, step.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(step.Task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(step.Task))!;
         NativeBattleBio22PrimaryStep complete = NativeBattleBio22Primary.Advance89A8D0(restored.WriteByte(0x28, 0), inputs);
         Assert.Equal(1, contacts);
         Assert.Equal(2u, complete.Result);

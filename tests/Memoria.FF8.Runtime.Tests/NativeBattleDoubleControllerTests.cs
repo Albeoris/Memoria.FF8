@@ -119,16 +119,16 @@ public sealed class NativeBattleDoubleControllerTests
             current = step.Frame;
             random = step.Random;
         }
-        string json = JsonSerializer.Serialize(current);
-        NativeBattleDoubleFrame first = JsonSerializer.Deserialize<NativeBattleDoubleFrame>(json)!;
-        NativeBattleDoubleFrame second = JsonSerializer.Deserialize<NativeBattleDoubleFrame>(json)!;
+        string json = NativeBattleTestSnapshots.Json(current);
+        NativeBattleDoubleFrame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleDoubleFrame>(json)!;
+        NativeBattleDoubleFrame second = NativeBattleTestSnapshots.RestoreJson<NativeBattleDoubleFrame>(json)!;
         List<string> left = [];
         List<string> right = [];
         NativeBattleDoubleInputs firstInputs = fixture.Inputs with
         {
             Execute = (frame, operation) =>
             {
-                left.Add(JsonSerializer.Serialize(operation, operation.GetType()));
+                left.Add(NativeBattleTestSnapshots.Json(operation, operation.GetType()));
                 return frame;
             }
         };
@@ -136,13 +136,13 @@ public sealed class NativeBattleDoubleControllerTests
         {
             Execute = (frame, operation) =>
             {
-                right.Add(JsonSerializer.Serialize(operation, operation.GetType()));
+                right.Add(NativeBattleTestSnapshots.Json(operation, operation.GetType()));
                 return frame;
             }
         };
         NativeBattleDoubleStep a = NativeBattleDoubleController.Advance8D5180(first, fixture.Resources, firstInputs, random);
         NativeBattleDoubleStep b = NativeBattleDoubleController.Advance8D5180(second, fixture.Resources, secondInputs, random);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Equal(left, right);
         Assert.Empty(a.Sounds);
     }
@@ -183,10 +183,10 @@ public sealed class NativeBattleDoubleControllerTests
         Assert.Equal(new byte[] { 0xA5, 0x5A }, next.Bytes.AsSpan().Slice(14, 2).ToArray());
         Assert.Equal(destination.AsSpan(0, 8).ToArray(), next.Bytes.AsSpan().Slice(0, 8).ToArray());
         Assert.Equal(destination.AsSpan(16).ToArray(), next.Bytes.AsSpan().Slice(16).ToArray());
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleDoubleMorph>(JsonSerializer.Serialize(next))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoubleMorph>(NativeBattleTestSnapshots.Json(next))));
         var fixture = Particle(0x8D5750);
         Assert.Throws<NotSupportedException>(() => NativeBattleDoubleController.AdvancePrivate(fixture.Frame with { Memory = fixture.Frame.Memory with { DoubleMorph = null } }, fixture.Address, fixture.Resources, fixture.Inputs, NativeCrtRandomState.FromColdProcess()));
-        Assert.DoesNotContain("DoubleMorph", JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess()));
+        Assert.DoesNotContain("DoubleMorph", NativeBattleTestSnapshots.Json(NativeBattleEffectMemory.FromColdProcess()));
     }
 
     [Fact]

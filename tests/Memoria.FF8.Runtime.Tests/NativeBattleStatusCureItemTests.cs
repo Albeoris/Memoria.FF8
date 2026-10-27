@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -48,8 +48,8 @@ public sealed class NativeBattleStatusCureItemTests
         Assert.Equal(profile.SourceAddress, child.ReadDword(20));
         Assert.Equal(1u, child.ReadDword(24));
         Assert.Equal(effect == 293 ? unchecked((ushort)0xBEEF) : unchecked((ushort)-47), child.ReadWord(18));
-        Assert.Throws<NotSupportedException>(() => started.Frame.Memory.Arena!.Read(256, 1));
-        NativeBattleStatusCureItemFrame restored = JsonSerializer.Deserialize<NativeBattleStatusCureItemFrame>(JsonSerializer.Serialize(started.Frame))!;
+        Assert.Equal(BitConverter.GetBytes(child.Flags), started.Frame.Memory.Arena!.Read(256, 2));
+        NativeBattleStatusCureItemFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStatusCureItemFrame>(NativeBattleTestSnapshots.Json(started.Frame))!;
         NativeBattleStatusCureItemStep complete = NativeBattleStatusCureItemController.Advance(restored, resources, inputs);
         Assert.Equal(new[] { 0 }, complete.Contacts);
         Assert.Empty(complete.Sounds);

@@ -28,8 +28,8 @@ public sealed class NativeBattleApocalypse221Breakup50Tests
         Assert.Equal(age + 1, Word(result, Record + 2));
         Assert.Equal((byte)4, result.Arena.Read(Offset(Record + 0x18), 1)[0]);
         Assert.Equal(frame.Random, result.Random);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleApocalypse221Breakup50.Integrate(result, Record)), JsonSerializer.Serialize(NativeBattleApocalypse221Breakup50.Integrate(restored, Record)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(result))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleApocalypse221Breakup50.Integrate(result, Record)), NativeBattleTestSnapshots.Json(NativeBattleApocalypse221Breakup50.Integrate(restored, Record)));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class NativeBattleApocalypse221Breakup50Tests
         }
         Assert.Equal(expected, first.Random);
         Assert.Equal(Basis + 0x4098, WaterSchedulerFixture.ReadCoreDword(first, 0x2797690 + 0x74));
-        NativeBattleWaterExecutionFrame next = NativeBattleApocalypse221Breakup50.Draw(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first))!, services);
+        NativeBattleWaterExecutionFrame next = NativeBattleApocalypse221Breakup50.Draw(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first))!, services);
         Assert.Equal(first.Random, next.Random);
         Assert.Equal(1, transformations);
         Assert.Equal(2, draws);

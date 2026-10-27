@@ -136,7 +136,7 @@ public sealed class NativeBattleGatlingGun150ControllerTests
     {
         NativeBattleGatlingGun150Frame frame = Frame(MainCallback);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })), Head = null, Tail = null });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, age));
         NativeBattleGatlingGun150Frame result = Advance(frame, Resources(), Inputs([]));
@@ -144,7 +144,7 @@ public sealed class NativeBattleGatlingGun150ControllerTests
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Empty(result.Effect.Pools);
         Assert.Equal((ushort)(age + 1), BitConverter.ToUInt16(result.State.RootBankStorage!.Read(12, 2)));
-        NativeBattleGatlingGun150Frame restored = JsonSerializer.Deserialize<NativeBattleGatlingGun150Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleGatlingGun150Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGatlingGun150Frame>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(cursor, restored.State.ReadDword(CursorGlobal));
         Assert.Equal(result.State.ChildBankStorage!.Read(0, 36), restored.State.ChildBankStorage!.Read(0, 36));
     }

@@ -15,11 +15,11 @@ public sealed class NativeBattleHeroControllerTests
         NativeBattleHeroFrame frame = fixture.Frame;
         Assert.Equal(main, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)20, Assert.Single(frame.Effect.Pools).Stride);
-        frame = NativeBattleHeroController.Advance(frame, fixture.Resources, fixture.Inputs);
+        frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs);
         Assert.Single(frame.Effect.Pools);
         Assert.Equal((ushort)1, frame.Effect.Pools[0].Slots[0].ReadWord(12));
         Assert.Equal(0x1000 + firstDraw + 0x10000, frame.State.PacketCursor);
-        frame = NativeBattleHeroController.Advance(frame, fixture.Resources, fixture.Inputs);
+        frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         Assert.Equal(children, pool.DescriptorAddress);
         Assert.Equal(0x20E0AB8u, pool.BankAddress);
@@ -36,7 +36,7 @@ public sealed class NativeBattleHeroControllerTests
             Assert.Equal((ushort)0xA5A5, task.ReadWord(row + 6));
             Assert.Equal((ushort)0xA5A5, task.ReadWord(row + 14));
         }
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(0x1000 + 12, 2));
+        Assert.Equal(task.ReadBytes(12, 2), frame.Memory.Arena!.Read(0x1000 + 12, 2));
         Assert.All(fixture.Operations.OfType<NativeBattleHeroAct>(), operation => Assert.Equal(true, operation.Context.ScaleEnabled));
         Assert.All(fixture.Operations.OfType<NativeBattleHeroAct>().Where(operation => operation.Source.Address == frame.Profile.OrbitSource), operation => Assert.Null(operation.Context.AnchorWord6));
         Assert.All(fixture.Operations.OfType<NativeBattleHeroAct>().Where(operation => operation.Source.Address == frame.Profile.MainSource), operation => Assert.Equal((short)0x1234, operation.Context.AnchorWord6));
@@ -63,7 +63,7 @@ public sealed class NativeBattleHeroControllerTests
     public void Spokes_consume_exactly48_ordered_raw_draws_and_preserve_unwritten_WORDs()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 0x3CC, 1);
-        NativeBattleModulePoolTask input = pool.Slots[0] with { Payload = Enumerable.Repeat((byte)0xA5, 0x3CC - 12).ToImmutableArray() };
+        NativeBattleModulePoolTask input = NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 0x3CC - 12).ToImmutableArray() });
         NativeCrtRandomState expected = new(123);
         var result = NativeBattleHeroController.InitializeSpokes(input, expected, 16);
         for (int index = 0; index < 16; index++)
@@ -98,12 +98,12 @@ public sealed class NativeBattleHeroControllerTests
         } };
         for (tick = 1; tick <= 41; tick++)
         {
-            frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
+            frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, inputs);
             Assert.Equal(tick == 41 ? 0u : frame.Profile.MainDescriptor, frame.Effect.ReturnedDescriptor);
             if (tick == 20)
             {
-                NativeBattleHeroFrame restored = JsonSerializer.Deserialize<NativeBattleHeroFrame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleHeroController.Advance(frame, fixture.Resources, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleHeroController.Advance(restored, fixture.Resources, fixture.Inputs)));
+                NativeBattleHeroFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleHeroController.Advance(restored, fixture.Resources, fixture.Inputs)));
             }
         }
         var sound = Assert.Single(observed, item => item.Operation is NativeBattleHeroSound);
@@ -124,12 +124,12 @@ public sealed class NativeBattleHeroControllerTests
     {
         var fixture = Fixture(309, [3]);
         NativeBattleHeroFrame frame = NativeBattleHeroController.Advance(fixture.Frame, fixture.Resources, fixture.Inputs);
-        frame = NativeBattleHeroController.Advance(frame, fixture.Resources, fixture.Inputs);
+        frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs);
         NativeCrtRandomState before = frame.Random;
         NativeBattleEffectTaskPool roots = frame.Effect.Pools[0];
-        roots = roots with { Slots = roots.Slots.SetItem(0, roots.Slots[0].WriteWord(12, 1)) };
+        roots = NativeBattleTaskFixture.EditPool(roots, data => data with { Slots = roots.Slots.SetItem(0, roots.Slots[0].WriteWord(12, 1)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, roots) } };
-        frame = NativeBattleHeroController.Advance(frame, fixture.Resources, fixture.Inputs);
+        frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, fixture.Inputs);
         Assert.Equal(before, frame.Random);
         Assert.Equal((ushort)2, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(12));
@@ -153,7 +153,7 @@ public sealed class NativeBattleHeroControllerTests
         } };
         for (tick = 1; tick <= 51; tick++)
         {
-            frame = NativeBattleHeroController.Advance(frame, fixture.Resources, inputs);
+            frame = NativeBattleHeroController.Advance(NativeBattleTestSnapshots.Independent(frame), fixture.Resources, inputs);
             if (tick == 6)
             {
                 Assert.Single(frame.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0));
@@ -269,6 +269,7 @@ public sealed class NativeBattleHeroControllerTests
         memory = memory with { Arena = memory.Arena!.Write(256, tim).Write(0x1000, Enumerable.Repeat((byte)0xA5, profile.ChildStride * profile.ChildCapacity).ToArray()) };
         NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, profile.Entry, profile.Initializer), new(0, 0, 8, 0, 0, 0), null) { ResourcePointers = [new(profile.InitializerGlobal, 256)] };
         NativeBattleHeroFrame frame = NativeBattleHeroController.Initialize(memory, selected, new(1), resources, 0x1000);
+        frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
         NativeBattleExecutionStack execution = new(0x200000, 0x569C3D, NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('A', 64), 1, 2);
         NativeBattleStackBytes word = NativeBattleStackBytes.Unknown("common47CF60:0", -0x88, 4).StoreUInt32(-0x88, 0x1A7904C, 0x4B04C6, "vitals");
         List<NativeBattleHeroOperation> operations = [];

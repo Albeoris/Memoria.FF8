@@ -32,7 +32,7 @@ public sealed class NativeBattleFireEffectTests
         Assert.Equal((ushort)36, effect.Pools[1].Stride);
         Assert.Equal(callback, effect.Pools[1].Slots[0].Callback);
         Assert.Equal(targets == 1 ? (ushort)4 : (ushort)0, effect.Pools[1].Slots[0].ReadWord(32));
-        Assert.All(effect.Pools[1].Slots[0].Payload.Take(20), value => Assert.Equal((byte)0, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(effect.Pools[1].Slots[0]).Payload.Take(20), value => Assert.Equal((byte)0, value));
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class NativeBattleFireEffectTests
         (NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets) = Fixture(1);
         effect = NativeBattleFireEffect.InitializePools(effect, packets);
         NativeBattleEffectTaskPool main = effect.Pools[0];
-        effect = effect with { Pools = effect.Pools.SetItem(0, main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, ushort.MaxValue)) }) };
+        effect = effect with { Pools = effect.Pools.SetItem(0, NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, ushort.MaxValue)) })) };
         int calls = 0;
         effect = NativeBattleFireEffect.Advance(effect, (pool, slot, buffer) =>
         {
@@ -53,10 +53,10 @@ public sealed class NativeBattleFireEffectTests
         Assert.Equal(1, calls);
         Assert.Equal((ushort)0, effect.Pools[0].Slots[0].ReadWord(12));
         Assert.NotEqual((uint?)0, effect.ReturnedDescriptor);
-        string json = JsonSerializer.Serialize(effect);
-        effect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(json)!;
+        string json = NativeBattleTestSnapshots.Json(effect);
+        effect = NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(json)!;
         effect.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(effect));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(effect));
         effect = NativeBattleFireEffect.Advance(effect, (pool, slot, buffer) =>
         {
             calls++;

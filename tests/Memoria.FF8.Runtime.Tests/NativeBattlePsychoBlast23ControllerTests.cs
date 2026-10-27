@@ -83,8 +83,8 @@ public sealed class NativeBattlePsychoBlast23ControllerTests
         Assert.Equal(new byte[] { 0, 0 }, frame.State.Basis56.Read(18, 2));
         Assert.Single(fixture.Operations.OfType<NativeBattlePsychoBlast23LookBasis>());
         Assert.Single(fixture.Operations.OfType<NativeBattlePsychoBlast23TargetAnchor>());
-        NativeBattlePsychoBlast23Frame restored = JsonSerializer.Deserialize<NativeBattlePsychoBlast23Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattlePsychoBlast23Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePsychoBlast23Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
     [Theory]

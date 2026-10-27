@@ -32,7 +32,7 @@ public sealed class NativeBattleTonberry90MeshPacketsTests
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
         lengths[polygonOpcode] = (byte)(polygonBytes / 4 - 1);
-        NativeBattleLogicalOrdering restored = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
+        NativeBattleLogicalOrdering restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(written.Ordering))!;
         Assert.Equal(new[] { polygonOpcode, (byte)0xE1 }, restored.Traverse(lengths.ToImmutableArray()).Select(command => command.Opcode));
     }
 

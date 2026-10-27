@@ -60,9 +60,9 @@ public sealed class NativeBattleUltraWavesGridTests
     {
         NativeBattleUltraWavesGridInitialization initialized = Initialize(true);
         NativeBattleUltraWavesGridDraw drawn = Draw(Memory(), initialized.Grid, initialized.Quads);
-        NativeBattleUltraWavesGridDraw restored = JsonSerializer.Deserialize<NativeBattleUltraWavesGridDraw>(JsonSerializer.Serialize(drawn))!;
+        NativeBattleUltraWavesGridDraw restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWavesGridDraw>(NativeBattleTestSnapshots.Json(drawn))!;
         NativeBattleUltraWavesGridDraw Next(NativeBattleUltraWavesGridDraw current) => Draw(current.Memory, NativeBattleUltraWavesGrid.Wave(current.Grid, 18), current.Quads);
-        Assert.Equal(JsonSerializer.Serialize(Next(drawn)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(drawn)), NativeBattleTestSnapshots.Json(Next(restored)));
         Assert.Throws<NotSupportedException>(() => Draw(Memory() with { GeometryRegisters = null }, initialized.Grid, initialized.Quads));
     }
 

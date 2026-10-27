@@ -64,11 +64,11 @@ public sealed class NativeBattleReflectBeam135SecondaryTests
     public void JSON_restored_secondary_repeats_current_frame_state_without_a_saved_bone_copy()
     {
         Fixture f = new(3, true);
-        NativeBattleReflectBeam135Frame restored = JsonSerializer.Deserialize<NativeBattleReflectBeam135Frame>(JsonSerializer.Serialize(f.Frame))!;
+        NativeBattleReflectBeam135Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleReflectBeam135Frame>(NativeBattleTestSnapshots.Json(f.Frame))!;
         var expected = NativeBattleReflectBeam135Controller.AdvanceSecondary(f.Frame, f.Address, f.Resources, f.Inputs);
         var actual = NativeBattleReflectBeam135Controller.AdvanceSecondary(restored, f.Address, f.Resources, f.Inputs);
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
     }
 
     [Fact]
@@ -102,12 +102,12 @@ public sealed class NativeBattleReflectBeam135SecondaryTests
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, Address, SecondaryStride, SecondaryCount);
             (pool, int slot) = pool.Append(SecondaryCallback);
             NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, age).WriteWord(14, 0).WriteDword(0x10, BoneSelectorsAddress).MarkPayloadUnknown(0x14, SecondaryStride - 0x14);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
             NativeBattleOriginalEffectState effect = new(135, 134, new(135, Entry, Initializer), null, RootDescriptor) { Pools = [pool] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
             NativeBattleReflectBeam135State state = NativeBattleReflectBeam135State.FromColdProcess().WriteDword(CasterGlobal, 0x1D972C0 + 3 * 156).WriteDword(WorkingGlobal, ArenaAddress);
             state = state with { Globals = state.Globals.MarkUnknown(checked((int)(ScaleMatrixGlobal - BaseAddress)) + 18, 14) };
-            Frame = new(memory, effect, new(44), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(44), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), (_, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, actor, selector) =>
             {
                 Assert.Equal(3, actor);

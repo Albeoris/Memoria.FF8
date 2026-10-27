@@ -52,7 +52,7 @@ public sealed class NativeBattleAeroDrawingTests
     public void Morph_uses_twelve_byte_shape_header_and_preserves_fourth_WORDs_and_unused_shared_scratch()
     {
         NativeBattleEffectMemory memory = Memory();
-        NativeBattleAeroNodeDraw draw = Draw(memory, Node(ratio: 2048));
+        NativeBattleAeroNodeDraw draw = Draw(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(memory)), Node(ratio: 2048));
         byte[] scratch = draw.Memory.Arena!.Read(0x22A4, 0x2E0);
         Assert.Equal(-10, BinaryPrimitives.ReadInt16LittleEndian(scratch));
         Assert.Equal(-20, BinaryPrimitives.ReadInt16LittleEndian(scratch.AsSpan(2)));
@@ -95,10 +95,10 @@ public sealed class NativeBattleAeroDrawingTests
     public void Morph_owner_restores_to_the_same_next_draw_and_particle_uses_zero_flags_source_colors()
     {
         NativeBattleEffectMemory memory = Draw(Memory(), Node(ratio: 1024)).Memory;
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleAeroNodeDraw first = Draw(memory, Node(ratio: 3072));
         NativeBattleAeroNodeDraw second = Draw(restored, Node(ratio: 3072));
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         byte[] mesh = new byte[76];
         BinaryPrimitives.WriteUInt32LittleEndian(mesh, 32);
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(4), 3);

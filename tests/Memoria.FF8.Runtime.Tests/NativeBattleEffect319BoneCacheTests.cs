@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect319BoneCacheTests
         Assert.Equal(new short[] { 500, 1000, 750, 2000, 2500, 1500, 3500, 4000, 2250 }, scaled.Rotation);
         Assert.Equal((matrix.X, matrix.Y, matrix.Z), (scaled.X, scaled.Y, scaled.Z));
         Assert.Equal(matrix, original.CurrentBodyBoneMatrices!.Matrices[1]);
-        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(result, 1, 4096, 2048)), JsonSerializer.Serialize(NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(restored, 1, 4096, 2048)));
+        NativeBattleGraphicsModel restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(result, 1, 4096, 2048))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(restored, 1, 4096, 2048))));
     }
 }

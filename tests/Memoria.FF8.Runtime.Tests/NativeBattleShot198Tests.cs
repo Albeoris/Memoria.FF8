@@ -53,8 +53,8 @@ public sealed class NativeBattleShot198Tests
         }
         frame = NativeBattleShot198.Advance(frame, inputs, Resources());
         Assert.Equal((byte)1, frame.Effect.Parameters!.Parameter81);
-        NativeBattleShot198Frame restored = JsonSerializer.Deserialize<NativeBattleShot198Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleShot198.Advance(frame, inputs, Resources())), JsonSerializer.Serialize(NativeBattleShot198.Advance(restored, Inputs(packets, []), Resources())));
+        NativeBattleShot198Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShot198Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleShot198.Advance(frame, inputs, Resources())), NativeBattleTestSnapshots.Json(NativeBattleShot198.Advance(restored, Inputs(packets, []), Resources())));
         frame = NativeBattleShot198.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters with { Parameter80 = 1, Parameter81 = 0 } } }, packets);
         for (int callback = 0; callback < 100 && frame.Effect.ReturnedDescriptor != 0; callback++)
         {
@@ -71,7 +71,7 @@ public sealed class NativeBattleShot198Tests
         NativeBattleShot198Frame frame = NativeBattleShot198.Enter(Fixture(), packets);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x225DDB0, 0x225DDC0, 36, 100);
         (children, int beam) = children.Append(0x5AD7C0);
-        children = children with { Slots = children.Slots.SetItem(beam, children.Slots[beam].WriteWord(12, 0).WriteWord(14, 0).WriteWord(28, 13312).WriteWord(30, 332).WriteWord(32, 1000).WriteWord(34, 1000)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(beam, children.Slots[beam].WriteWord(12, 0).WriteWord(14, 0).WriteWord(28, 13312).WriteWord(30, 332).WriteWord(32, 1000).WriteWord(34, 1000)) });
         NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 777, 0, 4096);
         frame = frame with { Memory = frame.Memory with { Shot198 = frame.Memory.Shot198! with { Anchors = frame.Memory.Shot198!.Anchors.SetItem(0, new(new(10, 20, 30), new(0, 0, -4096), identity)) } }, Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], NativeBattleEffectTaskPool.Initialize(0x225B778, 0x225A958, 36, 100), children] } };
         List<NativeBattleShot198Operation> operations = [];
@@ -118,7 +118,7 @@ public sealed class NativeBattleShot198Tests
         }
         NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(0x225DDB0, 0x225DDC0, 36, 100);
         (particles, int task) = particles.Append(0x5AD480);
-        particles = particles with { Slots = particles.Slots.SetItem(task, particles.Slots[task].WriteWord(12, 0).WriteWord(14, (ushort)(6 + serial))) };
+        particles = NativeBattleTaskFixture.EditPool(particles, data => data with { Slots = particles.Slots.SetItem(task, particles.Slots[task].WriteWord(12, 0).WriteWord(14, (ushort)(6 + serial))) });
         frame = frame with { Memory = frame.Memory with { Shot198 = frame.Memory.Shot198! with { ParticleStorage = bytes.ToImmutableArray() } }, Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], NativeBattleEffectTaskPool.Initialize(0x225B778, 0x225A958, 36, 100), particles] } };
         List<int> bones = [];
         NativeBattleShot198Inputs inputs = Inputs(packets, []) with { ReadBone = (_, bone, _) => { bones.Add(bone); return new(100, 200, 300); } };

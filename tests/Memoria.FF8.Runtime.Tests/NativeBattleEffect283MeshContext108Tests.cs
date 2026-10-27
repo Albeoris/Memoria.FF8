@@ -94,9 +94,9 @@ public sealed class NativeBattleEffect283MeshContext108Tests
     public void Canonical_gouraud_packets_and_current_render_state_survive_JSON(int group)
     {
         NativeBattleEffect283MeshContext108Step actual = Draw(Memory(2000), Mesh(group), Context(0x20F0), offset => (Vertex(offset), (short?)0));
-        string json = System.Text.Json.JsonSerializer.Serialize(actual);
-        NativeBattleEffect283MeshContext108Step restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleEffect283MeshContext108Step>(json)!;
-        Assert.Equal(json, System.Text.Json.JsonSerializer.Serialize(restored));
+        string json = System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual));
+        NativeBattleEffect283MeshContext108Step restored = NativeBattleStorageSnapshots.Restore(System.Text.Json.JsonSerializer.Deserialize<NativeBattleEffect283MeshContext108Step>(json)!);
+        Assert.Equal(json, System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(actual.Memory.GeometryRegisters!.Otz, restored.Memory.GeometryRegisters!.Otz);
         Assert.Equal(actual.Memory.ScriptedColorRegisters!.Ir0, restored.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Equal(U(actual.Context108, 0x40), U(restored.Context108, 0x40));

@@ -26,7 +26,7 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
         Assert.Throws<InvalidDataException>(() => resources.ResolveBank(0x12AF828, 0x12AF828));
         Assert.Throws<InvalidDataException>(() => resources.ResolveBank(0x12AF801, 0x12AF828));
         Assert.Throws<InvalidDataException>(() => resources.ResolveBank(0x12AF800, 0x12AE840));
-        Assert.Equal(JsonSerializer.Serialize(resources), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlRibbonResources>(JsonSerializer.Serialize(resources))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(resources), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlRibbonResources>(NativeBattleTestSnapshots.Json(resources))));
     }
 
     [Theory]
@@ -56,7 +56,8 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
         int offset = checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address));
         current[offset] = 0xA7;
         memory = memory with { QuezacotlExecutableMemory = new(current.ToImmutableArray()), Arena = memory.Arena!.Write(0xD4 + length, [0xCC, 0xDD]) };
-        Assert.Equal((byte)0xA7, NativeBattleQuezacotlWorkspace.Source(memory, address).Data[0]);
+        using NativeBattleGfSourceReader reader = NativeBattleQuezacotlWorkspace.Source(memory, address).OpenReader();
+        Assert.Equal((byte)0xA7, reader.Byte(0));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
         (pool, _) = pool.Append(0x6C3940);
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [pool] };
@@ -74,12 +75,12 @@ public sealed class NativeBattleQuezacotlLaterWindowTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2521738, 0x20DFAB8, 0x8D0, 1);
         (pool, _) = pool.Append(0x6C3940);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase)) });
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { Pools = [pool] };
         NativeBattleQuezacotlWorkspaceWrite result = NativeBattleQuezacotlWorkspace.AdvancePhase6C51F1(memory, effect);
         Assert.Equal(expected, result.Effect.Pools[0].Slots[0].ReadWord(12));
         Assert.Equal(expected, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Arena!.Read(12, 2)));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlWorkspaceWrite>(JsonSerializer.Serialize(result))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlWorkspaceWrite>(NativeBattleTestSnapshots.Json(result))));
     }
 
     [Theory]

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -35,10 +35,11 @@ public sealed class NativeBattleCinematicPositionModeA4Tests
             Assert.Equal(10u, current.ReadTemporaryDword(0xFC));
             return current;
         });
+        string original = NativeBattleTestSnapshots.Json(frame);
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(1, updates);
         Assert.Equal(0x1006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(original)!)));
     }
 
     [Theory]

@@ -13,12 +13,12 @@ public sealed class NativeBattleHoly175SpriteDrawingTests
     public void Orbital_row_draws_actual_terminal_frame_and_returns_resource_next_offset_without_mutating_retained_rows()
     {
         NativeBattleHoly175State state = NativeBattleHoly175State.FromColdProcess();
-        string retained = JsonSerializer.Serialize(state);
+        string retained = NativeBattleTestSnapshots.Json(state);
         NativeBattleModulePoolTask task = new NativeBattleModulePoolTask(1, 0, null, 0x5D3180, new byte[24].ToImmutableArray()).WriteWord(0x10, 100).WriteWord(0x12, 5000).WriteWord(0x14, 10);
         NativeBattleHoly175Sprite31Row row = new(4, 1, 4096, 64, 20, 1024);
         NativeBattleHoly175DrawingResult result = NativeBattleHoly175Drawing.DrawSprite31(task, row, state, Resources(), View, Projection, 0);
         Assert.Same(state, result.State);
-        Assert.Equal(retained, JsonSerializer.Serialize(result.State));
+        Assert.Equal(retained, NativeBattleTestSnapshots.Json(result.State));
         Assert.False(result.Common);
         Assert.Null(result.Geometry);
         Assert.Equal((short?)-7, result.NextOffset);
@@ -26,7 +26,7 @@ public sealed class NativeBattleHoly175SpriteDrawingTests
         Assert.Equal(40, result.Sprites.AllocationBytes);
         Assert.Equal(0x2C808080u, primitive.Primitive.Words[1]);
         NativeBattleHoly175DrawingResult changedAnchorY = NativeBattleHoly175Drawing.DrawSprite31(task.WriteWord(0x12, unchecked((ushort)-5000)), row, state, Resources(), View, Projection, 0);
-        Assert.Equal(JsonSerializer.Serialize(result.Sprites), JsonSerializer.Serialize(changedAnchorY.Sprites));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Sprites), NativeBattleTestSnapshots.Json(changedAnchorY.Sprites));
         NativeBattleHoly175DrawingResult rolled = NativeBattleHoly175Drawing.DrawSprite31(task, row, state, Resources(), View, Projection, 512);
         Assert.False(primitive.Primitive.Words.SequenceEqual(Assert.Single(rolled.Sprites!.Primitives).Primitive.Words));
         Assert.Throws<InvalidDataException>(() => NativeBattleHoly175Drawing.DrawSprite31(task, row with { Frame = 2 }, state, Resources(), View, Projection, 0));
@@ -54,11 +54,11 @@ public sealed class NativeBattleHoly175SpriteDrawingTests
         Assert.Equal(24u, primitive.Primitive.Words[7] >> 8 & 255u);
         NativeBattleCameraProjection unrelatedView = Projection with { View = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 9999, 8888, -7777, 4096) };
         NativeBattleHoly175DrawingResult independent = NativeBattleHoly175Drawing.DrawSprite4(row, state, Resources(), unrelatedView, 0);
-        Assert.Equal(JsonSerializer.Serialize(result.Sprites), JsonSerializer.Serialize(independent.Sprites));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Sprites), NativeBattleTestSnapshots.Json(independent.Sprites));
         NativeBattleHoly175DrawingResult rolled = NativeBattleHoly175Drawing.DrawSprite4(row, state, Resources(), Projection, 512);
         Assert.False(primitive.Primitive.Words.SequenceEqual(Assert.Single(rolled.Sprites!.Primitives).Primitive.Words));
-        NativeBattleHoly175State restored = JsonSerializer.Deserialize<NativeBattleHoly175State>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleHoly175Drawing.DrawSprite4(row, restored, Resources(), Projection, 0)));
+        NativeBattleHoly175State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHoly175State>(NativeBattleTestSnapshots.Json(state))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleHoly175Drawing.DrawSprite4(row, restored, Resources(), Projection, 0)));
     }
 
     private static NativeBattleHoly175Resources Resources() => new(new("animation", []), new("texture", []), [Sprite(0xD524C4), Sprite(0xD52374)], [], new("sound", [0, 0, 0, 0]));

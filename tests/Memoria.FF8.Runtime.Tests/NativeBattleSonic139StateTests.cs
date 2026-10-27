@@ -23,9 +23,9 @@ public sealed class NativeBattleSonic139StateTests
         Assert.Equal(before.Otz, after.Otz);
         Assert.Equal(before.Sxy, after.Sxy);
         Assert.Equal(before.Rotation20, after.Rotation20);
-        Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGeometryRegisters>(JsonSerializer.Serialize(after))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(after), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleGeometryRegisters>(NativeBattleTestSnapshots.Json(after))));
         Assert.Null(NativeBattleGeometryRegisters.Unknown().Lzcs);
-        Assert.DoesNotContain("Lzcs", JsonSerializer.Serialize(NativeBattleGeometryRegisters.Unknown()));
+        Assert.DoesNotContain("Lzcs", NativeBattleTestSnapshots.Json(NativeBattleGeometryRegisters.Unknown()));
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public sealed class NativeBattleSonic139StateTests
         NativeBattleSonic139State next = state.CopyEntrySnapshot6A8860(resources);
         Assert.Equal(0xCAFEBABEu, next.ReadDword(MutableFramesAddress + 12));
         Assert.Equal(0xCAFEBABEu, next.ReadDword(CopiedMeshAddress + MutableFramesAddress - SourceMeshAddress + 12));
-        NativeBattleSonic139State restored = JsonSerializer.Deserialize<NativeBattleSonic139State>(JsonSerializer.Serialize(next))!;
+        NativeBattleSonic139State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSonic139State>(NativeBattleTestSnapshots.Json(next))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => resources.Read(MutableFramesAddress, 4));
         Assert.Equal(VertexCount, BitConverter.ToInt32(resources.Read(Frame0Address + 4, 4).AsSpan()));
     }

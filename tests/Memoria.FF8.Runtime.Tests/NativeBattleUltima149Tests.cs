@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -22,8 +22,8 @@ public sealed class NativeBattleUltima149Tests
         Assert.Equal(original.VibrationHandle, entered.VibrationHandle);
         Assert.Equal(original.SideFlags, entered.SideFlags);
         Assert.Equal(original.CoreVertices, entered.CoreVertices);
-        NativeBattleUltima149State cold = JsonSerializer.Deserialize<NativeBattleUltima149State>(JsonSerializer.Serialize(entered))!;
-        Assert.Equal(JsonSerializer.Serialize(entered.Initialize()), JsonSerializer.Serialize(cold.Initialize()));
+        NativeBattleUltima149State cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltima149State>(NativeBattleTestSnapshots.Json(entered))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(entered.Initialize()), NativeBattleTestSnapshots.Json(cold.Initialize()));
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public sealed class NativeBattleUltima149Tests
         NativeBattleUltima149Particle spark = NativeBattleUltima149Motion.Move(particle, 16);
         Assert.Equal((short)15, spark.Velocity.X);
         Assert.Equal((short)-12, spark.Velocity.Z);
-        NativeBattleUltima149Particle cold = JsonSerializer.Deserialize<NativeBattleUltima149Particle>(JsonSerializer.Serialize(streak))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleUltima149Motion.Move(streak, 2)), JsonSerializer.Serialize(NativeBattleUltima149Motion.Move(cold, 2)));
+        NativeBattleUltima149Particle cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltima149Particle>(NativeBattleTestSnapshots.Json(streak))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleUltima149Motion.Move(streak, 2)), NativeBattleTestSnapshots.Json(NativeBattleUltima149Motion.Move(cold, 2)));
     }
 
     [Fact]
@@ -54,11 +54,12 @@ public sealed class NativeBattleUltima149Tests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 36, 1);
         (pool, int slot) = pool.Append(0x610700);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 33).WriteWord(24, 32760).WriteWord(26, 40).WriteWord(28, 32760).WriteWord(30, 64);
+        NativeBattleModulePoolTask original = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task));
         NativeBattleModulePoolTask first = NativeBattleUltima149Motion.Energy(task);
         Assert.Equal((ushort)32767, first.ReadWord(28));
         Assert.Equal(unchecked((ushort)-32736), first.ReadWord(24));
         Assert.Equal((ushort)66, first.ReadWord(30));
-        NativeBattleModulePoolTask second = NativeBattleUltima149Motion.Energy(task.WriteWord(12, 34));
+        NativeBattleModulePoolTask second = NativeBattleUltima149Motion.Energy(original.WriteWord(12, 34));
         Assert.Equal((ushort)69, second.ReadWord(30));
     }
 

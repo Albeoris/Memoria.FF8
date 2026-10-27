@@ -20,13 +20,13 @@ public sealed class NativeBattleRinoa87MotionTests
     public void Overshoot_copies_the_complete_raw_destination_before_adding_arc()
     {
         NativeBattleModulePoolTask task = Task().WriteWord(360, 4000).WriteWord(362, 200).WriteWord(366, unchecked((ushort)-7)).WriteDword(328, 0x0014000A).WriteDword(332, 0xBEEF001E);
-        NativeBattleModulePoolTask clone = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        NativeBattleModulePoolTask clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
         task = NativeBattleRinoa87Motion.Move7762D0(task);
         Assert.Equal((ushort)4096, task.ReadWord(360));
         Assert.Equal((ushort)10, task.ReadWord(76));
         Assert.Equal((ushort)13, task.ReadWord(78));
         Assert.Equal(0xBEEF001Eu, task.ReadDword(80));
-        Assert.Equal(JsonSerializer.Serialize(task), JsonSerializer.Serialize(NativeBattleRinoa87Motion.Move7762D0(clone)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(task), NativeBattleTestSnapshots.Json(NativeBattleRinoa87Motion.Move7762D0(clone)));
     }
 
     [Fact]

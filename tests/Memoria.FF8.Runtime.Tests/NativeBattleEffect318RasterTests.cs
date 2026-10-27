@@ -97,9 +97,9 @@ public sealed class NativeBattleEffect318RasterTests
     public void Unknown_padding_and_corner_W_survive_JSON_next_draw()
     {
         NativeBattleEffect318RasterStep result = NativeBattleEffect318Raster.DrawLoaded(Memory(), Temporary(), Source(), Projection);
-        NativeBattleEffect318RasterStep restored = JsonSerializer.Deserialize<NativeBattleEffect318RasterStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect318RasterStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect318RasterStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         NativeBattleEffect318RasterStep Next(NativeBattleEffect318RasterStep value) => NativeBattleEffect318Raster.DrawLoaded(value.Memory, value.Temporary180, Source(), Projection);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(result))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
     }
 
     internal static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Otz = 999, Mac0 = 777 }, ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };

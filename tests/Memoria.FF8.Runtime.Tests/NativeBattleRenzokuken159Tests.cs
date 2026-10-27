@@ -77,7 +77,7 @@ public sealed class NativeBattleRenzokuken159Tests
     {
         List<NativeBattleRenzokuken159Operation> operations = [];
         (NativeBattleEffectTaskPool pool, int slot) = Controller(100);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0x800)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0x800)) });
         NativeBattleRenzokuken159Inputs inputs = Inputs() with { ReadModel = _ => new(0, 0x0101), Execute = (frame, operation) =>
             {
                 operations.Add(operation);
@@ -126,7 +126,7 @@ public sealed class NativeBattleRenzokuken159Tests
         Assert.Same(pool, paused.Pool);
         NativeBattleRenzokuken159ChildStep step = NativeBattleRenzokuken159Controller.Advance600CC0(frame, pool, slot, Inputs(), Resources());
         NativeBattleRenzokuken159State actual = step.Frame.Memory.Renzokuken159!;
-        NativeBattleRenzokuken159State restored = JsonSerializer.Deserialize<NativeBattleRenzokuken159State>(JsonSerializer.Serialize(actual))!;
+        NativeBattleRenzokuken159State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRenzokuken159State>(NativeBattleTestSnapshots.Json(actual))!;
         restored.Validate();
         Assert.Equal(actual.Debris.ToArray(), restored.Debris.ToArray());
         Assert.Equal(actual.TrailHistory.ToArray(), restored.TrailHistory.ToArray());
@@ -147,7 +147,7 @@ public sealed class NativeBattleRenzokuken159Tests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23D6C38, 0x23D6C48, 36, 100);
         (pool, int slot) = pool.Append(0x600CC0);
-        return (pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) }, slot);
+        return (NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) }), slot);
     }
 
     private static NativeCrtRandomState Advance(NativeCrtRandomState random, int count)

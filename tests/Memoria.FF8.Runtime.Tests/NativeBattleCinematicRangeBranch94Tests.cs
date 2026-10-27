@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -32,11 +32,11 @@ public sealed class NativeBattleCinematicRangeBranch94Tests
         NativeBattleWaterExecutionFrame frame = Create(1, 2, 1, 2, 0, 0, 20);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0x14, 7);
         frame = frame with { Arena = frame.Arena.Write(0x1002, BitConverter.GetBytes((short)-1)) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame expected = NativeBattleCinematicRangeBranch94.Execute(frame, Bank, Program);
         NativeBattleWaterExecutionFrame actual = NativeBattleCinematicRangeBranch94.Execute(restored, Bank, Program);
         Assert.Equal(Program.Address + 20, WaterSchedulerFixture.ReadCoreDword(actual, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]
@@ -46,7 +46,8 @@ public sealed class NativeBattleCinematicRangeBranch94Tests
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2098, 2).MarkUnknown(0x2198, 2).MarkUnknown(0x1008, 2) };
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicRangeBranch94.Execute(frame, Bank, Program);
         Assert.Equal(Program.Address + 10, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        NativeBattleWaterExecutionFrame missingTolerance = frame with { Arena = frame.Arena.MarkUnknown(0x1006, 2) };
+        NativeBattleWaterExecutionFrame missingTolerance = Create(0, 0, 100, 0, 1, 1, 4);
+        missingTolerance = missingTolerance with { Arena = missingTolerance.Arena.MarkUnknown(0x1006, 2) };
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicRangeBranch94.Execute(missingTolerance, Bank, Program));
     }
 
@@ -56,7 +57,8 @@ public sealed class NativeBattleCinematicRangeBranch94Tests
         NativeBattleWaterExecutionFrame frame = Create(0, 0, 0, 0, 0, 0, 4);
         foreach (int offset in new[] { 0x1008, 0x2094, 0x2098, 0x2194, 0x2198 })
         {
-            NativeBattleWaterExecutionFrame missing = frame with { Arena = frame.Arena.MarkUnknown(offset, 2) };
+            NativeBattleWaterExecutionFrame independent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
+            NativeBattleWaterExecutionFrame missing = independent with { Arena = independent.Arena.MarkUnknown(offset, 2) };
             Assert.Throws<NotSupportedException>(() => NativeBattleCinematicRangeBranch94.Execute(missing, Bank, Program));
         }
     }

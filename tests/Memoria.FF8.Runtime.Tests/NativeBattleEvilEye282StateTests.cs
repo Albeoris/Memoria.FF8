@@ -25,13 +25,13 @@ public sealed class NativeBattleEvilEye282StateTests
     {
         var state = NativeBattleEvilEye282State.FromUnknown().WriteWord(NormalizedViewAddress, 4096) with { RootBankStorage = null };
         state.Validate();
-        var restored = JsonSerializer.Deserialize<NativeBattleEvilEye282State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEvilEye282State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)4096, restored.ReadWord(NormalizedViewAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(NormalizedViewAddress + 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ArenaGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]

@@ -14,7 +14,7 @@ public sealed class NativeBattleGilgameshSchedulerTests
     {
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
         (NativeBattleEffectTaskPool particles, _) = pools.Particles!.Append(0x592B00);
-        pools = pools with { Particles = particles, Main = pools.Main with { Slots = pools.Main.Slots.SetItem(0, pools.Main.Slots[0].WriteWord(12, ushort.MaxValue)) } };
+        pools = pools with { Particles = particles, Main = NativeBattleTaskFixture.EditPool(pools.Main, data => data with { Slots = pools.Main.Slots.SetItem(0, pools.Main.Slots[0].WriteWord(12, ushort.MaxValue)) }) };
         List<uint> order = [];
         NativeBattleGuardianPoolStep step = NativeBattleGilgameshScheduler.Advance(pools, (state, descriptor, slot) =>
         {
@@ -65,12 +65,12 @@ public sealed class NativeBattleGilgameshSchedulerTests
     {
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
         pools = NativeBattleGilgameshScheduler.Advance(pools, (state, _, _) => new(state, 0)).Pools;
-        string json = JsonSerializer.Serialize(pools);
-        NativeBattleGuardianEffectPools restored = JsonSerializer.Deserialize<NativeBattleGuardianEffectPools>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleTestSnapshots.Json(pools);
+        NativeBattleGuardianEffectPools restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGuardianEffectPools>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         NativeBattleGuardianPoolStep first = NativeBattleGilgameshScheduler.Advance(pools, (state, _, _) => new(state, 2));
         NativeBattleGuardianPoolStep second = NativeBattleGilgameshScheduler.Advance(restored, (state, _, _) => new(state, 2));
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Equal((ushort)2, second.Pools.Main.Slots[0].ReadWord(12));
         Assert.Equal(0, second.Survivors);
     }
@@ -81,9 +81,9 @@ public sealed class NativeBattleGilgameshSchedulerTests
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
         Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshScheduler.Advance(pools with { Particles = null }, (state, _, _) => new(state, 0)));
         Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshScheduler.Advance(NativeBattleGuardianEffectPools.Odin(), (state, _, _) => new(state, 0)));
-        Assert.Throws<InvalidDataException>(() => NativeBattleGilgameshScheduler.Advance(pools, (state, _, _) => new(state with { Children = state.Children with { BankAddress = 4 } }, 0)));
+        Assert.Throws<InvalidOperationException>(() => pools.Children with { BankAddress = 4 });
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshScheduler.Advance(pools, (_, _, _) => throw new NotSupportedException("Native592300 requires its implemented child controller.")));
-        NativeBattleGuardianEffectPools unsupported = pools with { Main = pools.Main with { Slots = pools.Main.Slots.SetItem(0, pools.Main.Slots[0] with { Callback = 0x1234 }) } };
+        NativeBattleGuardianEffectPools unsupported = pools with { Main = NativeBattleTaskFixture.EditPool(pools.Main, data => data with { Slots = pools.Main.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pools.Main.Slots[0], taskData => taskData with { Callback = 0x1234 })) }) };
         int callbacks = 0;
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshScheduler.Advance(unsupported, (state, _, _) =>
         {

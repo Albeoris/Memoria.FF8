@@ -19,7 +19,7 @@ public sealed class NativeBattleModuleMeshTemporaryTests
 
         NativeBattleModuleMeshTemporaryResult result = NativeBattleModulePackets.EmitRetainedBatch572200(allocated.Staging, address, mesh, bytes.ToImmutableArray(), identity, null!, new(0, null, null, null, null, null, 17, 2), null!);
         staging = NativeBattleTemporaryMemory.Release5082D0(result.Staging, 88);
-        staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        staging = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
 
         Assert.Empty(result.Batch.Attempts);
         Assert.Equal(address, BitConverter.ToUInt32(staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));

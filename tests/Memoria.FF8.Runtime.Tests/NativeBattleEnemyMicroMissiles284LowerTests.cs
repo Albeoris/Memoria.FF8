@@ -53,7 +53,7 @@ public sealed class NativeBattleEnemyMicroMissiles284LowerTests
         frame = Fill(frame, 1, 96, 0x67C240);
         var impactPool = frame.Effect.Pools[2];
         var retained = CopyTask(impactPool.Slots[0], 208, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 116).ToArray()), 116);
-        impactPool = impactPool with { Slots = impactPool.Slots.SetItem(0, retained) };
+        impactPool = impactPool.WriteSlot(0, retained);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, impactPool) } };
         List<NativeBattleEnemyMicroMissiles284Operation> operations = [];
         var actual = AdvanceMissile67BBB0(frame, address, resources, Inputs((current, operation) =>
@@ -204,7 +204,7 @@ public sealed class NativeBattleEnemyMicroMissiles284LowerTests
     private static NativeBattleModulePoolTask Cache(NativeBattleModulePoolTask task, int offset, int bytes, NativeBattleGfAnimationSource source, int frame)
     {
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[bytes].ToImmutableArray()).Initialize7016B0(source, bytes);
-        byte[] data = workspace.Data.ToArray();
+        byte[] data = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(4), frame);
         return CopyTask(task, offset, NativeBattleEffectArena.Clear().Write(0, data), bytes);
     }

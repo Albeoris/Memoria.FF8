@@ -13,7 +13,7 @@ public sealed class NativeBattleAcid317TrailTests
         NativeBattleAcid317Frame frame = Frame();
         frame = Point(frame, 0, 100, 200, 512, 32, 2048, Address(1));
         frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
-        string registers = JsonSerializer.Serialize(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
+        string registers = NativeBattleTestSnapshots.Json(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
         var actual = NativeBattleAcid317Trail.Draw(frame, Address(0), 2, Resources());
         Assert.Equal(52, actual.Batch.AllocationBytes);
         NativeBattleGfGeometryAttempt packet = Assert.Single(actual.Batch.Attempts);
@@ -36,7 +36,7 @@ public sealed class NativeBattleAcid317TrailTests
         {
             Assert.Equal(index is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known, packet.WriteMask[index]);
         }
-        Assert.Equal(registers, JsonSerializer.Serialize(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
+        Assert.Equal(registers, NativeBattleTestSnapshots.Json(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
         Assert.Equal(frame.Random, actual.Frame.Random);
         Assert.Equal(frame.State, actual.Frame.State);
     }
@@ -121,11 +121,11 @@ public sealed class NativeBattleAcid317TrailTests
         NativeBattleAcid317Frame frame = Frame();
         frame = Point(frame, 0, 100, 200, 512, 32, 2048, Address(1));
         frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
-        NativeBattleAcid317Frame restored = JsonSerializer.Deserialize<NativeBattleAcid317Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = NativeBattleAcid317Trail.Draw(frame, Address(0), 2, Resources());
         var actual = NativeBattleAcid317Trail.Draw(restored, Address(0), 2, Resources());
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
-        Assert.Equal(JsonSerializer.Serialize(expected.Batch), JsonSerializer.Serialize(actual.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
     }
 
     private static uint Address(int index) => ArenaAddress + (uint)(PointsOffset + index * PointStride);

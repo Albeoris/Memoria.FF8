@@ -43,7 +43,7 @@ public sealed class NativeBattleRinoa89SpritesTests
         var fixture = Fixture();
         (NativeBattleEffectTaskPool pool, int slot) = fixture.Pool.Append(0x6FD3C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 10).WriteWord(14, 20).WriteWord(16, 30).WriteBytes(26, [255, 128]).WriteBytes(31, [1]).MarkPayloadUnknown(20, 6);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         int draws = 0;
         NativeBattleRinoa89SpriteServices services = new((_, _, _, _, _) => throw new InvalidOperationException(), (frame, pose, _) =>
         {
@@ -67,7 +67,7 @@ public sealed class NativeBattleRinoa89SpritesTests
         var fixture = Fixture();
         (NativeBattleEffectTaskPool pool, int slot) = fixture.Pool.Append(0x6FD3C0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 32767).WriteWord(14, unchecked((ushort)initialY)).WriteWord(16, 30).WriteWord(20, 1).WriteWord(22, unchecked((ushort)velocityY)).WriteWord(24, 2).WriteBytes(26, [255, 128, 236, 2, 255, 2]);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         NativeBattleRinoa89SpriteServices services = new((_, _, _, _, _) => throw new InvalidOperationException(), (frame, _, _) => frame);
         NativeBattleRinoa89TaskStep result = NativeBattleRinoa89Controller.AdvanceSprite6FD3C0(fixture.Frame, pool, slot, services);
         task = result.Pool.Slots[slot];
@@ -82,7 +82,7 @@ public sealed class NativeBattleRinoa89SpritesTests
     {
         var fixture = Fixture();
         NativeBattleRinoa89SpriteBirth born = NativeBattleRinoa89Controller.SpawnSprites6FD1B0(fixture.Frame, fixture.Pool, new(1, 2, 3), 0);
-        NativeBattleEffectTaskPool pool = born.Pool with { Slots = born.Pool.Slots.SetItem(0, born.Pool.Slots[0].WriteBytes(31, [11])) };
+        NativeBattleEffectTaskPool pool = NativeBattleTaskFixture.EditPool(born.Pool, data => data with { Slots = born.Pool.Slots.SetItem(0, born.Pool.Slots[0].WriteBytes(31, [11])) });
         int draws = 0;
         NativeBattleRinoa89SpriteServices services = new((frame, point, scale, displacement, phase) =>
         {

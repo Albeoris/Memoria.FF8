@@ -21,7 +21,7 @@ public sealed class NativeBattleRayBomb10ControllerTests
     {
         NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(0x24C91F8, 0x24C91D8, 16, 2);
         (roots, int index) = roots.Append(0x6296F0);
-        roots = roots with { Slots = roots.Slots.SetItem(index, roots.Slots[index].WriteWord(12, 0).WriteWord(14, 0xFFFF)) };
+        roots = NativeBattleTaskFixture.EditPool(roots, data => data with { Slots = roots.Slots.SetItem(index, roots.Slots[index].WriteWord(12, 0).WriteWord(14, 0xFFFF)) });
         List<NativeBattleRayBomb10Operation> operations = [];
         NativeBattleRayBomb10Frame frame = Frame(roots);
         NativeBattleRayBomb10Frame first = NativeBattleRayBomb10Controller.Advance629730(frame, Resources(), Inputs(0x201, operations));
@@ -32,12 +32,12 @@ public sealed class NativeBattleRayBomb10ControllerTests
         Assert.Equal((ushort)0, first.Effect.Pools[0].Slots[0].ReadWord(14));
         Assert.Equal(0x24C91F8u, first.Effect.ReturnedDescriptor);
         first = first with { Effect = NativeBattleRayBomb10Controller.WriteCompletionByte(first.Effect, restore.Completion, 255) };
-        string json = JsonSerializer.Serialize(first);
+        string json = NativeBattleTestSnapshots.Json(first);
         operations.Clear();
-        NativeBattleRayBomb10Frame left = NativeBattleRayBomb10Controller.Advance629730(JsonSerializer.Deserialize<NativeBattleRayBomb10Frame>(json)!, Resources(), Inputs(0x201, operations));
-        NativeBattleRayBomb10Frame right = NativeBattleRayBomb10Controller.Advance629730(JsonSerializer.Deserialize<NativeBattleRayBomb10Frame>(json)!, Resources(), Inputs(0x201, operations));
+        NativeBattleRayBomb10Frame left = NativeBattleRayBomb10Controller.Advance629730(NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb10Frame>(json)!, Resources(), Inputs(0x201, operations));
+        NativeBattleRayBomb10Frame right = NativeBattleRayBomb10Controller.Advance629730(NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb10Frame>(json)!, Resources(), Inputs(0x201, operations));
         Assert.Empty(operations);
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
         Assert.Equal(0u, left.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)2, left.Effect.Pools[0].Slots[0].ReadWord(12));
     }
@@ -50,7 +50,7 @@ public sealed class NativeBattleRayBomb10ControllerTests
         NativeBattleRayBomb10Frame frame = Frame(roots);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
         (children, int index) = children.Append(0x627F10);
-        children = children with { Slots = children.Slots.SetItem(index, children.Slots[index].WriteWord(12, 160)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(index, children.Slots[index].WriteWord(12, 160)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         NativeBattleRayBomb10State state = Assert.IsType<NativeBattleRayBomb10State>(frame.Memory.RayBomb10);
         state = state with { Particles = state.Particles.SetItem(23, 0xD7) };

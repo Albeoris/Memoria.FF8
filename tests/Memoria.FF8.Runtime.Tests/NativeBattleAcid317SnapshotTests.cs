@@ -26,12 +26,12 @@ public sealed class NativeBattleAcid317SnapshotTests
     public void Linked_capture_continues_the_same_physical_cache_and_JSON_random_state()
     {
         NativeBattleAcid317SnapshotStep first = Capture(new(1), Temporary());
-        NativeBattleAcid317SnapshotStep restored = JsonSerializer.Deserialize<NativeBattleAcid317SnapshotStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleAcid317SnapshotStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317SnapshotStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleAcid317SnapshotStep Next(NativeBattleAcid317SnapshotStep current) => Capture(current.Random, current.Temporary12, current.Memory);
         NativeBattleAcid317SnapshotStep next = Next(first);
         Assert.Equal(CacheAddress + 4, U32(next.Temporary12, 8));
         Assert.Equal(first.Memory.Arena!.Read(CacheOffset, 2), next.Memory.Arena!.Read(CacheOffset, 2));
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]

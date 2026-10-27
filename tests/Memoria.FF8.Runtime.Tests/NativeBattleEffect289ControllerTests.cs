@@ -132,8 +132,8 @@ public sealed class NativeBattleEffect289ControllerTests
             Assert.Equal((ushort)16, BinaryPrimitives.ReadUInt16LittleEndian(particleBank.Read(offset + 0x22, 2)));
         }
         Assert.Equal(1, survivors);
-        NativeBattleEffect289Frame restored = JsonSerializer.Deserialize<NativeBattleEffect289Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(Advance(restored, resources, harness.Inputs())));
+        NativeBattleEffect289Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect289Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, resources, harness.Inputs()))));
     }
 
     private static NativeBattleEffect289Frame Inactive()

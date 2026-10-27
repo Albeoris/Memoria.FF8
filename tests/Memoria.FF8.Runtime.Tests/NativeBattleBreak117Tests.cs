@@ -118,8 +118,8 @@ public sealed class NativeBattleBreak117Tests
         Assert.Equal((ushort)0, debris.ReadWord(18));
         Assert.Equal(unchecked((ushort)-15), debris.ReadWord(26));
         Assert.Equal((ushort)100, debris.ReadWord(32));
-        NativeBattleModulePoolTask cold = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(debris))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleBreak117Geometry.DebrisMove(debris)), JsonSerializer.Serialize(NativeBattleBreak117Geometry.DebrisMove(cold)));
+        NativeBattleModulePoolTask cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(debris))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleBreak117Geometry.DebrisMove(debris)), NativeBattleTestSnapshots.Json(NativeBattleBreak117Geometry.DebrisMove(cold)));
         NativeBattleModulePoolTask spark = Task(0x28).WriteWord(24, 5).WriteWord(32, unchecked((ushort)-1));
         spark = NativeBattleBreak117Geometry.SparkMove(spark);
         Assert.Equal((ushort)4, spark.ReadWord(24));
@@ -130,6 +130,6 @@ public sealed class NativeBattleBreak117Tests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, checked((ushort)size), 1);
         (pool, int slot) = pool.Append(0x3000);
-        return pool.Slots[slot] with { Payload = new byte[size - 12].ToImmutableArray() };
+        return NativeBattleTaskFixture.EditTask(pool.Slots[slot], taskData => taskData with { Payload = new byte[size - 12].ToImmutableArray() });
     }
 }

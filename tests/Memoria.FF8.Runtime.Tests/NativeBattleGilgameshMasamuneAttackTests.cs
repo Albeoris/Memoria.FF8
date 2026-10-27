@@ -164,19 +164,19 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     public void Restored_raw_banks_produce_the_same_next_contact_boundary()
     {
         NativeBattleGilgameshFrame original = Fixture(17);
-        NativeBattleGilgameshFrame restored = JsonSerializer.Deserialize<NativeBattleGilgameshFrame>(JsonSerializer.Serialize(original))!;
+        NativeBattleGilgameshFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshFrame>(NativeBattleTestSnapshots.Json(original))!;
         NativeBattleGilgameshMasamuneAttackStep first = NativeBattleGilgameshMasamuneAttack.Advance(original, Parent, 0, [], (_, _) => throw new InvalidOperationException());
         NativeBattleGilgameshMasamuneAttackStep second = NativeBattleGilgameshMasamuneAttack.Advance(restored, Parent, 0, [], (_, _) => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
     }
 
     private static NativeBattleGilgameshFrame Fixture(ushort counter)
     {
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x21FFD58, Parent, 36, 100);
-        children = children with { Slots = children.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         int slot;
         (children, slot) = children.Append(0x590510);
-        children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, counter)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, counter)) });
         NativeBattleOriginalEffectState effect = new(328, 327, new(328, 0x58D930, 0x58D700), null, null)
         {
             Pools = [NativeBattleEffectTaskPool.Initialize(0x2200D00, 0x2200D10, 100, 2), children, NativeBattleEffectTaskPool.Initialize(0x2201000, 0x2201010, 24, 2)]
@@ -191,7 +191,7 @@ public sealed class NativeBattleGilgameshMasamuneAttackTests
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         int index = checked((int)((address - Parent) / 36));
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(index, child) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(index, child) })) } };
     }
 
     private static NativeBattleGilgameshFrame Anchor(NativeBattleGilgameshFrame frame, NativeBattleGilgameshMasamuneAnchor anchor)

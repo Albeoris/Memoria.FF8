@@ -70,10 +70,10 @@ public sealed class NativeBattlePotion51Tests
             sounds.AddRange(step.Sounds);
             frame = step.Frame;
         }
-        NativeBattleCuraFrame restored = JsonSerializer.Deserialize<NativeBattleCuraFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCuraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleCuraControllerStep next = NativeBattleCuraController.Advance889E40(frame, fixture.Inputs, Resources(), Leaf);
         NativeBattleCuraControllerStep independent = NativeBattleCuraController.Advance889E40(restored, fixture.Inputs, Resources(), Leaf);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
         Assert.Equal(new[] { 0 }, next.Contacts);
         Assert.Equal(300077u, Assert.Single(sounds).Sound);
         Assert.Equal((short?)-7, next.Frame.Memory.Potion51ContextF4);

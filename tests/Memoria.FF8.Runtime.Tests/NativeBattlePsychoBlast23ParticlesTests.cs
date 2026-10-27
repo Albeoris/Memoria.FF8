@@ -75,7 +75,7 @@ public sealed class NativeBattlePsychoBlast23ParticlesTests
         NativeBattlePsychoBlast23Inputs inputs = fixture.Inputs with { Execute = (frame, operation) =>
         {
             Assert.IsType<NativeBattlePsychoBlast23DebrisDraw>(operation);
-            draws.Add(new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address));
+            draws.Add(NativeBattleTaskFixture.ObserveTask(new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address)));
             return frame;
         } };
         NativeBattlePsychoBlast23LeafStep step = NativeBattlePsychoBlast23Particles.Advance(fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } }, append.Address, inputs);

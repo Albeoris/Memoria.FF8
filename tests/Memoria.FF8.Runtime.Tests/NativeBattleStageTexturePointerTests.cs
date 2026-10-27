@@ -21,7 +21,7 @@ public sealed class NativeBattleStageTexturePointerTests
         {
             Assert.Null(stage.TextureAnimations);
         }
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!;
         restored.Validate();
         Assert.Equal(stage.TextureAnimations is null, restored.TextureAnimations is null);
         if (populated)
@@ -36,7 +36,7 @@ public sealed class NativeBattleStageTexturePointerTests
         NativeBattleStageState stage = NativeBattleStageState.FromColdProcess().Initialize500EA0(Source([]));
         stage = stage with { Task = new(new(NativeBattleFinalStage142.CallbackAddress, null), 0) };
         stage.Validate();
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!;
         restored.Validate();
         Assert.Null(restored.TextureAnimations);
         Assert.Null(restored.Task!.Callback.UpdateTexture0);

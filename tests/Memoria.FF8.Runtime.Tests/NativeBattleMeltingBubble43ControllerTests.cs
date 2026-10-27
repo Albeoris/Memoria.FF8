@@ -138,8 +138,8 @@ public sealed class NativeBattleMeltingBubble43ControllerTests
         frame = frame.WithGeneric(generic with { State = generic.State with { PrimaryDrawCursor = 12345 } });
         Assert.Null(frame.State.Nodes!.CopiedCamera);
         Assert.Equal(12345, frame.State.PrimaryDrawCursor);
-        NativeBattleMeltingBubble43Frame restored = JsonSerializer.Deserialize<NativeBattleMeltingBubble43Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleMeltingBubble43Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltingBubble43Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
     internal sealed class Fixture

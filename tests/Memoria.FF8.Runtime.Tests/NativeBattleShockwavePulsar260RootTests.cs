@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -81,11 +81,11 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             Assert.Equal((ushort)0, task.State);
             Assert.Equal(0u, task.Callback);
             Assert.Null(task.Next);
-            Assert.Null(task.ResourcePointers);
-            Assert.Null(task.UnknownPayloadRanges);
-            Assert.All(task.Payload, value => Assert.Equal((byte)0, value));
+            Assert.Null(NativeBattleStorageSnapshots.Capture(task).ResourcePointers);
+            Assert.Null(NativeBattleStorageSnapshots.Capture(task).UnknownPayloadRanges);
+            Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload, value => Assert.Equal((byte)0, value));
         });
-        Assert.Throws<NotSupportedException>(() => captured.Memory.Arena.Read(ChildrenOffset + 12, 1));
+        Assert.Equal(captured.Effect.Pools[2].Slots[0].ReadBytes(12, 1), captured.Memory.Arena.Read(ChildrenOffset + 12, 1));
         Assert.Equal(new byte[] { 0, 0, 0, 0 }, captured.Effect.Pools[1].Slots[0].ReadBytes(0x1294, 4));
     }
 
@@ -152,8 +152,8 @@ public sealed class NativeBattleShockwavePulsar260RootTests
     public void Root_parity_and_retained_scalar_JSON_next_are_exact_without_replaying_entry()
     {
         Fixture fixture = new();
-        NativeBattleShockwavePulsar260Frame restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(fixture.Frame)), JsonSerializer.Serialize(new Fixture().Step(restored)));
+        NativeBattleShockwavePulsar260Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(fixture.Frame)), NativeBattleTestSnapshots.Json(new Fixture().Step(restored)));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
         Fixture fixture = new();
         NativeBattleScriptedColorRegisters colors = NativeBattleScriptedColorRegisters.Unknown() with { Material = 0xA5000000, Rgb = [0x11111111, 0x22222222, 0x33333333], NormalInput = new byte[8].ToImmutableArray(), NormalInputKnown = [true, true, true, true, true, true, false, false] };
         NativeBattleShockwavePulsar260Frame frame = fixture.Frame with { State = fixture.Frame.State.WriteWord(0x25086A0, 100).WriteWord(0x25086A4, 20000), Memory = fixture.Frame.Memory with { ScriptedColorRegisters = colors } };
-        string beforeGeometry = JsonSerializer.Serialize(frame.Memory.GeometryRegisters);
+        string beforeGeometry = NativeBattleTestSnapshots.Json(frame.Memory.GeometryRegisters);
         NativeBattleShockwavePulsar260Frame result = NativeBattleShockwavePulsar260Controller.AdvanceMainCamera(frame, 148, fixture.Inputs);
         NativeBattleCameraPose pose = Assert.Single(fixture.Operations.OfType<NativeBattleShockwavePulsar260CameraPose>()).Pose;
         Assert.Equal(2013u, result.Memory.ScriptedColorRegisters!.Ir0);
@@ -171,7 +171,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
         Assert.Equal(new int?[] { pose.Eye.X, pose.Eye.Y, pose.Eye.Z }, result.Memory.ScriptedColorRegisters.Mac.ToArray());
         Assert.Equal(0x00380000u, result.Memory.ScriptedColorRegisters.Flags);
         Assert.Equal(0xA5000000u, result.Memory.ScriptedColorRegisters.Material);
-        Assert.Equal(beforeGeometry, JsonSerializer.Serialize(result.Memory.GeometryRegisters));
+        Assert.Equal(beforeGeometry, NativeBattleTestSnapshots.Json(result.Memory.GeometryRegisters));
         Assert.False(result.Memory.ScriptedColorRegisters.NormalInputKnown!.Value[6]);
         Assert.False(result.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
         Assert.Equal((short)321, pose.Roll);
@@ -228,10 +228,27 @@ public sealed class NativeBattleShockwavePulsar260RootTests
     {
         Fixture fixture = new();
         NativeBattleShockwavePulsar260Frame first = NativeBattleShockwavePulsar260Controller.AdvanceMainCamera(fixture.Frame, 147, fixture.Inputs);
-        NativeBattleShockwavePulsar260Frame restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260Frame>(JsonSerializer.Serialize(first))!;
+        NativeBattleShockwavePulsar260Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260Frame>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleShockwavePulsar260Frame Next(NativeBattleShockwavePulsar260Frame current) => NativeBattleShockwavePulsar260Controller.AdvanceMainCamera(current, 148, new Fixture().Inputs);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
         Assert.All(first.Memory.ScriptedColorRegisters!.Rgb, value => Assert.Null(value));
+    }
+
+    private static NativeBattleShockwavePulsar260Frame Observe(NativeBattleShockwavePulsar260Frame current)
+    {
+        ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>();
+        foreach (NativeBattleEffectTaskPool source in current.Effect.Pools)
+        {
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(source.DescriptorAddress, source.BankAddress, source.Stride, checked((ushort)source.Slots.Length));
+            for (int index = 0; index < source.Slots.Length; index++)
+            {
+                pool.WriteSlot(index, NativeBattleTaskFixture.ObserveTask(source.Slots[index]));
+            }
+            pools.Add(pool.UpdateLinks(source.Head, source.Tail));
+        }
+        NativeBattleEffectArena arena = NativeBattleEffectNodeContextMemory.Copy(current.Memory.Arena!, 0, NativeBattleEffectArena.Clear(), 0, current.Memory.Arena!.StoredLength);
+        NativeBattleEffectArena globals = NativeBattleEffectNodeContextMemory.Copy(current.State.Globals, 0, NativeBattleEffectArena.Clear(), 0, NativeBattleShockwavePulsar260State.GlobalsLength);
+        return current with { Memory = current.Memory with { Arena = arena }, Effect = current.Effect with { Pools = pools.ToImmutable() }, State = current.State with { Globals = globals } };
     }
 
     private const int TimOffset = 0x30000;
@@ -262,7 +279,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 0x2E50).ToArray()).Write(TimOffset, tim);
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             (roots, int slot) = roots.Append(RootCallback);
-            roots = roots with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(0xC, 0)) };
+            roots = NativeBattleTaskFixture.EditPool(roots, data => data with { Slots = roots.Slots.SetItem(slot, roots.Slots[slot].WriteDword(0xC, 0)) });
             NativeBattleOriginalEffectState effect = new(260, 259, new(260, Entry, Initializer), new(0, 0, 0x18, 0, 0, 0), RootDescriptor) { Pools = [roots] };
             NativeBattleEffectArena euler = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)11)).Write(2, BitConverter.GetBytes((short)-22)).Write(4, BitConverter.GetBytes((short)33));
             NativeBattleShockwavePulsar260State state = NativeBattleShockwavePulsar260State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0).WriteView(0x2508690, euler, 8);
@@ -276,7 +293,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             {
                 if (CaptureBeforeMain)
                 {
-                    Captured = current;
+                    Captured = Observe(current);
                     throw new ProbeException();
                 }
                 return NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 123, Y = -456, Z = 789 }, 0x1234);
@@ -299,7 +316,7 @@ public sealed class NativeBattleShockwavePulsar260RootTests
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, ArenaAddress + MainOffset, MainStride, 1);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ArenaAddress + ChildrenOffset, ChildStride, ChildCount);
             (children, int slot) = children.Append(ChildActCallback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(0xC, 10).WriteWord(0xE, 20).WriteWord(0x10, 30)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(0xC, 10).WriteWord(0xE, 20).WriteWord(0x10, 30)) });
             frame = frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], main, children] } };
             frame = SetRoot(frame, 2, 0, 1);
             return NativeBattleShockwavePulsar260Controller.InitializeAct(frame, ArenaAddress + ChildrenOffset, 0x14, 0xD8, 0x111D424, Resources);

@@ -41,13 +41,15 @@ public sealed class NativeBattleEffect321PacketArenaTests
     {
         NativeBattleEffect321State state = NativeBattleEffect321State.FromUnknown().WriteDword(Cursor, Base + 0xE000);
         NativeBattleEffect321PacketWrite first = NativeBattleEffect321PacketArena.Append(state, NativeBattleLogicalOrdering.Clear(), Accepted(0xE1000220));
-        NativeBattleEffect321PacketWrite restored = JsonSerializer.Deserialize<NativeBattleEffect321PacketWrite>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect321PacketWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect321PacketWrite>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         Assert.Throws<NotSupportedException>(() => restored.State.Read(Base, 4));
         NativeBattleEffect321PacketWrite Next(NativeBattleEffect321PacketWrite current) => NativeBattleEffect321PacketArena.Append(current.State, current.Ordering, Accepted(0xE1000221));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        var expected = Next(first);
+        var actual = Next(restored);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
-        NativeBattleEffect321PacketWrite next = Next(restored);
+        NativeBattleEffect321PacketWrite next = actual;
         NativeBattleLogicalCommand[] commands = next.Ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => NativeBattleEffect321PacketArena.Read(next.State, reference, count)).ToArray();
         Assert.Equal(new uint[] { 0xE1000221, 0xE1000220 }, commands.Select(command => command.Words[0]));
     }

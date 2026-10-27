@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -13,7 +13,8 @@ public sealed class NativeBattleDiablos325LateResetTests
         byte[] records = Enumerable.Repeat((byte)0xA5, 160 * 16).ToArray();
         NativeBattleEffectArena arena = frame.Memory.Arena!.Write(0x4C5C, records).MarkUnknown(0x4C5C, 15);
         frame = frame with { Memory = frame.Memory with { Arena = arena, Diablos325 = frame.Memory.Diablos325! with { Mode51F0 = 3, ParticleCursor51F4 = 0x20DFAB8u + 0x564C, FarZ51DC = 40000 } } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { Projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 30, 4096), 123, 160, 108), FocalLength = 123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };
         NativeBattleDiablos325TailStep result = NativeBattleDiablos325LateReset.Reset65659F(frame, camera);
         Assert.Equal((byte)0, result.Frame.Memory.Diablos325!.Mode51F0);
@@ -30,7 +31,7 @@ public sealed class NativeBattleDiablos325LateResetTests
         Assert.Throws<NotSupportedException>(() => result.Frame.Memory.Arena!.Read(0x4C5C, 15));
         Assert.Equal(camera.WriteEffectGlobals(new(new(375, -8170, -25825), new(-175, -8111, -25776), 123, 17)), result.Camera);
         Assert.Same(camera.Projection, result.Camera.Projection);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -40,9 +41,10 @@ public sealed class NativeBattleDiablos325LateResetTests
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2505190, 0x20DFAB8u + 0x3505C, 0xE8, 16);
         (pool, int index) = pool.Append(0x659960);
-        pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(0xC, 1234)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(0xC, 1234)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.Add(pool) }, Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x3505C, Enumerable.Repeat((byte)0xAA, 64).ToArray()) } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325Frame result = NativeBattleDiablos325LateReset.ClearParticleLinks655567(frame);
         NativeBattleEffectTaskPool cleared = result.Effect.Pools.Single(item => item.DescriptorAddress == 0x2505190);
         cleared.Validate();
@@ -51,7 +53,7 @@ public sealed class NativeBattleDiablos325LateResetTests
         Assert.Equal(pool.Slots, cleared.Slots);
         Assert.Same(frame.Memory, result.Memory);
         Assert.Equal(Enumerable.Repeat((byte)0xAA, 64), result.Memory.Arena!.Read(0x3505C, 64));
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Theory]

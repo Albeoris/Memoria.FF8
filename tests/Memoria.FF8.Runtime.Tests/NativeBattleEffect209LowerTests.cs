@@ -97,10 +97,10 @@ public sealed class NativeBattleEffect209LowerTests
     {
         Fixture fixture = new((uint)callback);
         fixture.Flags = 0x201;
-        NativeBattleModulePoolTask before = Read(fixture.Frame, ChildBank);
+        NativeBattleModulePoolTask before = NativeBattleStorageSnapshots.Capture(Read(fixture.Frame, ChildBank));
         NativeBattleEffect209Step result = NativeBattleEffect209Lower.Advance(fixture.Frame, ChildBank, fixture.Resources, fixture.Inputs());
         Assert.Single(fixture.Batches);
-        Assert.Equal(before.Payload, Read(result.Frame, ChildBank).Payload);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(before).Payload, NativeBattleStorageSnapshots.Capture(Read(result.Frame, ChildBank)).Payload);
         Assert.Equal(0, result.Result);
         Assert.Equal(NativeBattleTemporaryMemory.Address, U(result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
@@ -211,7 +211,7 @@ public sealed class NativeBattleEffect209LowerTests
     {
         Fixture fixture = new();
         fixture.Frame = NativeBattleEffect209Lower.InitializeGrid7F40(fixture.Frame);
-        NativeBattleEffect209Frame restored = JsonSerializer.Deserialize<NativeBattleEffect209Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleEffect209Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect209Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
         Assert.Equal(fixture.Frame.State.Read(GridAddress, GridLength), restored.State.Read(GridAddress, GridLength));
         Assert.Equal(fixture.Frame.Memory.GuardianWorkBuffer!.Read(0, 96), restored.Memory.GuardianWorkBuffer!.Read(0, 96));
     }
@@ -234,7 +234,7 @@ public sealed class NativeBattleEffect209LowerTests
             if (callback != 0)
             {
                 (pool, _) = pool.Append(callback);
-                pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x1C, 4096).WriteWord(0x20, 4096)) };
+                pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(0x1C, 4096).WriteWord(0x20, 4096));
             }
             Frame = new(memory, new(209, 208, new(209, Entry, Initializer), null, null) { Pools = [pool] }, new(123), NativeBattleEffect209State.FromColdProcess().WriteDword(GuardianGlobal, 0x209FAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             ImmutableDictionary<uint, NativeBattleStaticMeshResource> meshes = new uint[] { 0xE277B8, 0xE290E0, 0xE29588 }.ToImmutableDictionary(value => value, value => Mesh(value, 4, 3));

@@ -98,7 +98,7 @@ public sealed class NativeBattleShadowTests
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(expected.AsSpan(4 * index), tail[index]);
         }
         Assert.Equal(expected, written.Process.ReadCommonPacket(16, 20));
-        NativeBattlePrimitiveProcess clone = System.Text.Json.JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(System.Text.Json.JsonSerializer.Serialize(written.Process))!;
+        NativeBattlePrimitiveProcess clone = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(written.Process))!;
         Assert.Equal(expected, clone.ReadCommonPacket(16, 20));
         Assert.Throws<NotSupportedException>(() => clone.ReadCommonPacket(36, 1));
     }

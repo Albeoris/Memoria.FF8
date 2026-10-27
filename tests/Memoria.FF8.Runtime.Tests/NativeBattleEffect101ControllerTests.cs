@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect101ControllerTests
         Assert.Single(fixture.Operations.OfType<NativeBattleEffect101Sound>());
         Assert.Equal((ushort)1, main.ReadWord(12));
         Assert.Equal(fixture.Frame.Random, next.Random);
-        Assert.Throws<NotSupportedException>(() => next.Memory.Arena!.Read(12, 1));
+        Assert.Equal(main.ReadBytes(12, 2), next.Memory.Arena!.Read(12, 2));
     }
 
     [Fact]
@@ -135,18 +135,18 @@ public sealed class NativeBattleEffect101ControllerTests
     {
         Fixture fixture = new();
         NativeBattleEffect101Frame frame = Age(fixture.Step(fixture.Frame), 38);
-        NativeBattleEffect101Frame imported = JsonSerializer.Deserialize<NativeBattleEffect101Frame>(JsonSerializer.Serialize(frame))!;
-        Dictionary<int, NativeBattleGraphicsModel> models = new(fixture.Models);
-        NativeBattleEffect101Frame expected = fixture.Step(frame);
-        string expectedModels = JsonSerializer.Serialize(fixture.Models);
+        NativeBattleEffect101Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffect101Frame>(NativeBattleTestSnapshots.Json(frame));
+        Dictionary<int, NativeBattleGraphicsModel> models = fixture.Models.ToDictionary(pair => pair.Key, pair => NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(pair.Value)));
+        NativeBattleEffect101Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(frame));
+        string expectedModels = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Models));
         fixture.Models.Clear();
         foreach ((int index, NativeBattleGraphicsModel model) in models)
         {
             fixture.Models[index] = model;
         }
         NativeBattleEffect101Frame actual = fixture.Step(imported);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(expectedModels, JsonSerializer.Serialize(fixture.Models));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
+        Assert.Equal(expectedModels, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Models)));
         Assert.Equal(frame.Random, actual.Random);
     }
 
@@ -178,7 +178,7 @@ public sealed class NativeBattleEffect101ControllerTests
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) };
+            root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1));
             NativeBattleOriginalEffectState effect = new(101, 100, new(101, Entry, Initializer), new(4, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);

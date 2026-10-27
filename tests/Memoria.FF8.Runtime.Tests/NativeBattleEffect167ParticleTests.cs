@@ -47,7 +47,7 @@ public sealed class NativeBattleEffect167ParticleTests
         Assert.Equal(0u, step.Frame.State.ReadDword(FirstRecordsAddress + 5 * FirstRecordStride));
         Assert.Equal(2, Read(step.Frame, ChildBank).ReadWord(12));
         Assert.Equal(0, step.Result);
-        NativeBattleEffect167Frame restored = JsonSerializer.Deserialize<NativeBattleEffect167Frame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleEffect167Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect167Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
         Assert.Equal(step.Frame.State.Read(FirstRecordsAddress, 120), restored.State.Read(FirstRecordsAddress, 120));
         Assert.Equal(step.Frame.Random, restored.Random);
     }

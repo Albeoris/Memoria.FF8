@@ -96,12 +96,12 @@ public sealed class NativeBattleHeroDrawingTests
         var fixture = Fixture(309);
         NativeBattleTemporaryAllocation allocation = Allocate(136);
         NativeBattleHeroDrawResult first = NativeBattleHeroDrawing.DrawFan(fixture.Frame, Fan(fixture.Frame.Profile, 0), fixture.Resources, fixture.Projection, Colors, fixture.View, allocation.Staging, allocation.Address);
-        NativeBattleHeroFrame restored = JsonSerializer.Deserialize<NativeBattleHeroFrame>(JsonSerializer.Serialize(first.Frame))!;
-        NativeBattleFileStaging staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(first.Staging))!;
+        NativeBattleHeroFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHeroFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
+        NativeBattleFileStaging staging = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(first.Staging))!;
         NativeBattleHeroFan next = Fan(fixture.Frame.Profile, 1) with { Angles = new(0, 20, 256) };
         NativeBattleHeroDrawResult expected = NativeBattleHeroDrawing.DrawFan(first.Frame, next, fixture.Resources, fixture.Projection, Colors, fixture.View, first.Staging, allocation.Address);
         NativeBattleHeroDrawResult actual = NativeBattleHeroDrawing.DrawFan(restored, next, fixture.Resources, fixture.Projection, Colors, fixture.View, staging, allocation.Address);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(allocation.Address + 136, Read(actual.Staging, NativeBattleTemporaryMemory.Cursor));
         NativeBattleFileStaging broken = first.Staging.MarkUnknown(allocation.Address + 0x28, 4);
         Assert.Throws<NotSupportedException>(() => NativeBattleHeroDrawing.DrawFan(first.Frame, next, fixture.Resources, fixture.Projection, Colors, fixture.View, broken, allocation.Address));

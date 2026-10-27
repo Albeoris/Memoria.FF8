@@ -16,7 +16,7 @@ public sealed class NativeBattleDirectEntryTests
         memory = memory.RetainReturnedTaskOnModuleLoad(task).PublishEntry50AF20(new(2, 0x6298A0, 0x629880), false).SetDirectParameters(0x50BEE0, 0xED, 0, 0);
         Assert.Equal(task.ReturnedDescriptor, memory.ReturnedTaskPointer1D96AAC);
         Assert.Same(task, memory.DetachedReturnedTask);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         restored.Validate();
         Assert.Equal(1, restored.ReadReturnedTask5044B0());
         Assert.Equal(task.ReturnedDescriptor, restored.DetachedReturnedTask!.ReturnedDescriptor);
@@ -35,7 +35,7 @@ public sealed class NativeBattleDirectEntryTests
         Assert.Equal(first, memory.Entry21DFEC8);
         Assert.Equal(second, memory.Entry21DFEC0);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, memory.MagicTextureBufferAddress1D99A88);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(first.Entry, restored.Entry21DFEC4!.Entry);
         Assert.Equal(second.Entry, restored.Entry21DFEC0!.Entry);
         Assert.Equal(first.Entry, restored.Entry21DFEC8!.Entry);

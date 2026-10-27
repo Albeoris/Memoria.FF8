@@ -84,9 +84,9 @@ public sealed class NativeBattleGilgameshExcalipoorAttackTests
     {
         NativeBattleModulePoolTask task = Task(18);
         NativeBattleEffectTaskPool pool = Pool();
-        NativeBattleGilgameshAttackStep expected = Step(task, pool);
-        NativeBattleGilgameshAttackStep restored = Step(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!, JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(pool))!);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored));
+        NativeBattleGilgameshAttackStep expected = Step(NativeBattleTestSnapshots.Independent(task), NativeBattleTestSnapshots.Independent(pool));
+        NativeBattleGilgameshAttackStep restored = Step(NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTaskPool>(NativeBattleTestSnapshots.Json(pool))!);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -106,6 +106,6 @@ public sealed class NativeBattleGilgameshExcalipoorAttackTests
     private static NativeBattleEffectTaskPool Pool()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        return pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        return NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
     }
 }

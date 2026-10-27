@@ -39,10 +39,10 @@ public sealed class NativeBattlePotion50Tests
         List<NativeBattleModuleSound> sounds = [];
         for (int callback = 1; callback <= 19; callback++)
         {
-            NativeBattleCureFrame restored = JsonSerializer.Deserialize<NativeBattleCureFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleCureFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleCureControllerStep step = Advance(frame, true);
             NativeBattleCureControllerStep independent = Advance(restored, false);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(independent));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(independent));
             frame = step.Frame;
             contacts.AddRange(step.Contacts);
             sounds.AddRange(step.Sounds);

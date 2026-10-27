@@ -34,7 +34,7 @@ public sealed class NativeBattleEffect66StageRegistersTests
         NativeBattleEffectMemory partial = NativeBattleEffect66StageRegisters.Publish5099D0(memory, mesh, Matrices(), Scratch(), 0, Context(2048).MarkUnknown(0x26, 2), NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Null(partial.ScriptedColorRegisters!.Ir0);
         Assert.Equal(result.ScriptedColorRegisters.Rgb, partial.ScriptedColorRegisters.Rgb);
-        NativeBattleGeometryRegisters imported = JsonSerializer.Deserialize<NativeBattleGeometryRegisters>(JsonSerializer.Serialize(result.GeometryRegisters))!;
+        NativeBattleGeometryRegisters imported = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGeometryRegisters>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.GeometryRegisters)))!);
         Assert.Equal(result.GeometryRegisters!.Translation, imported.Translation);
     }
 

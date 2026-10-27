@@ -45,7 +45,7 @@ public sealed class NativeBattleEerieSoundWave130ContextsTests
     {
         NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null);
         NativeBattleEffectArena context = NativeBattleEerieSoundWave130Contexts.Impact(packed, new(-12, 34, -56), ArenaAddress + MorphOffset);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(context))!;
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(context)))!);
         Assert.Equal(context.ReadSnapshot(0, 40).Known, restored.ReadSnapshot(0, 40).Known);
         Assert.Equal(context.ReadSnapshot(0, 40).Data, restored.ReadSnapshot(0, 40).Data);
         packed = packed with { Known = packed.Known.SetItem(0, false) };

@@ -41,9 +41,9 @@ public sealed class NativeBattleEffect315SpriteTests
     {
         (NativeBattleEffectMemory memory, NativeBattleEffectArena context, NativeBattleModuleResource resource) = Fixture();
         NativeBattleModuleSpriteDraw first = NativeBattleModuleSpriteDrawing.Draw571C80(memory, context, _ => resource, Projection, 0, allowCallerScale: true);
-        NativeBattleModuleSpriteDraw restored = JsonSerializer.Deserialize<NativeBattleModuleSpriteDraw>(JsonSerializer.Serialize(first))!;
+        NativeBattleModuleSpriteDraw restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModuleSpriteDraw>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleModuleSpriteDraw Next(NativeBattleModuleSpriteDraw retained) => NativeBattleModuleSpriteDrawing.Draw571C80(retained.Memory, retained.Temporary180.Write(4, [0, 0]), _ => resource, Projection, 0, allowCallerScale: true);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(first))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         Assert.Equal((short)-1, unchecked((short)W(Next(restored).Temporary180, 0x28)));
     }
 

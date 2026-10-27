@@ -95,10 +95,10 @@ public sealed class NativeBattleGatlingGun305ControllerTests
     {
         Fixture first = new();
         NativeBattleGatlingGun305Frame frame = NativeBattleGatlingGun305Controller.Write(first.Frame, ChildBank, NativeBattleGatlingGun305Controller.Read(first.Frame, ChildBank).WriteWord(12, 1));
-        NativeBattleGatlingGun305Frame restored = JsonSerializer.Deserialize<NativeBattleGatlingGun305Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleGatlingGun305Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGatlingGun305Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Fixture second = new();
-        Assert.Equal(JsonSerializer.Serialize(first.Step(frame)), JsonSerializer.Serialize(second.Step(restored)));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(second.Operations));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(frame)), NativeBattleTestSnapshots.Json(second.Step(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations), NativeBattleTestSnapshots.Json(second.Operations));
     }
 
     private sealed class Fixture
@@ -124,7 +124,7 @@ public sealed class NativeBattleGatlingGun305ControllerTests
             Frame = new(memory, effect, new(1), NativeBattleGatlingGun305State.FromColdProcess().WriteDword(TargetGlobal, 3).WriteDword(CasterGlobal, 0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             resources = new(new("fixture", []), new("fixture", []), new(0, 0xCED698, []), new(0, 0xCED998, []), new(0, 0xCEDC60, []), new(0, 0xCED358, 0, 0, []), new(0, 0xCED15C, 0, 0, []), new(0, 0xCED504, 0, 0, []), 0x61AD6);
         }
-        public NativeBattleGatlingGun305Frame WithOnlyChild(uint callback) => NativeBattleGatlingGun305Controller.Write(Frame, ChildBank, NativeBattleGatlingGun305Controller.Read(Frame, ChildBank) with { Callback = callback });
+        public NativeBattleGatlingGun305Frame WithOnlyChild(uint callback) => NativeBattleGatlingGun305Controller.Write(Frame, ChildBank, NativeBattleTaskFixture.EditTask(NativeBattleGatlingGun305Controller.Read(Frame, ChildBank), taskData => taskData with { Callback = callback }));
         public NativeBattleGatlingGun305Frame Step(NativeBattleGatlingGun305Frame frame, uint flags = 0) => NativeBattleGatlingGun305Controller.Advance(frame, resources, new(flags, packets, actor => new(actor, 2) { Rotation14 = 0, GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770(), GeometryBounds52 = new(new(-10, -800, -10), new(10, 0, 10)) }, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0), (current, actor, bone, distance) =>
         {
             Bones.Add((actor, bone, distance));

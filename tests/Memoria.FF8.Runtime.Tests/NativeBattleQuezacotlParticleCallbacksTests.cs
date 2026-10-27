@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -52,7 +52,7 @@ public sealed class NativeBattleQuezacotlParticleCallbacksTests
         NativeBattleQuezacotlParticleStep modeZero = Advance(memory, effect);
         Assert.Equal((short)4096, Read16(modeZero.Memory, 0x3C27C + 0x1E));
         (memory, effect) = Fixture(3840, 1);
-        NativeBattleQuezacotlParticleStep disabledImpact = Advance(memory, effect);
+        NativeBattleQuezacotlParticleStep disabledImpact = Advance(NativeBattleTestSnapshots.Independent(memory), NativeBattleTestSnapshots.Independent(effect));
         Assert.Equal((short)4096, Read16(disabledImpact.Memory, 0x3C27C + 0x1E));
         memory = memory with { Arena = memory.Arena!.Write(0x28E50, [1, 0, 0, 0]) };
         Assert.Contains("6C8430", Assert.Throws<NotSupportedException>(() => Advance(memory, effect)).Message);

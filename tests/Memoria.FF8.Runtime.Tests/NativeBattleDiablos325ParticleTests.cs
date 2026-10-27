@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -10,7 +10,8 @@ public sealed class NativeBattleDiablos325ParticleTests
     public void Bank_constructor_clears_previous_shape_bytes_then_links_five_exact_programmes_and_workspaces()
     {
         NativeBattleDiablos325Frame source = Fixture();
-        string original = JsonSerializer.Serialize(source);
+        var preserved = NativeBattleStorageSnapshots.Capture(source);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Particles.Initialize6548B9(source);
         NativeBattleEffectTaskPool pool = Pool(frame);
         Assert.Equal(0x20DFAB8u + 0x3505C, pool.BankAddress);
@@ -29,12 +30,12 @@ public sealed class NativeBattleDiablos325ParticleTests
             Assert.Equal((short)-128, unchecked((short)task.ReadWord(0x12)));
             Assert.Equal(0x20DFAB8u + programme[index], task.ReadDword(0x18));
             Assert.Equal(0u, task.ReadDword(0x1C));
-            Assert.Equal(task.Payload, frame.Memory.Arena!.Read(0x3505C + index * 0xE8 + 12, 0xDC).ToImmutableArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, frame.Memory.Arena!.Read(0x3505C + index * 0xE8 + 12, 0xDC).ToImmutableArray());
             Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena.Read(0x3505C + index * 0xE8, 2)));
             Assert.Equal(0x659960u, BinaryPrimitives.ReadUInt32LittleEndian(frame.Memory.Arena.Read(0x3505C + index * 0xE8 + 8, 4)));
         }
         Assert.All(frame.Memory.Arena!.Read(0x3505C + 5 * 0xE8, 11 * 0xE8), value => Assert.Equal((byte)0, value));
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Theory]

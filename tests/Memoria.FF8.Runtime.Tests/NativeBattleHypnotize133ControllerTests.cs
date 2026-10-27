@@ -18,7 +18,7 @@ public sealed class NativeBattleHypnotize133ControllerTests
         Assert.Single(fixture.Operations.OfType<NativeBattleHypnotize133Sound>());
         Assert.Equal((ushort)1, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(12));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(0x7C0 + 12, 1));
+        Assert.Equal(frame.Effect.Pools[2].Slots[0].ReadBytes(12, 1), frame.Memory.Arena!.Read(0x7C0 + 12, 1));
         NativeBattleHypnotize133Frame next = fixture.Step(frame);
         Assert.Equal(ArenaAddress + FirstPacketOffset, next.State.ReadDword(CursorGlobal));
     }
@@ -106,7 +106,7 @@ public sealed class NativeBattleHypnotize133ControllerTests
         for (int index = 0; index < pool.Slots.Length; index++)
         {
             (pool, int slot) = pool.Append(0x6B1900);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12]).WriteDword(20, fixture.Resources.FadingActs[0].Address)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12]).WriteDword(20, fixture.Resources.FadingActs[0].Address)) });
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(3, pool) } };
         fixture.Clear();
@@ -132,10 +132,10 @@ public sealed class NativeBattleHypnotize133ControllerTests
     {
         Fixture fixture = new();
         NativeBattleHypnotize133Frame frame = Age(fixture.Step(fixture.Frame), 18);
-        NativeBattleHypnotize133Frame imported = JsonSerializer.Deserialize<NativeBattleHypnotize133Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleHypnotize133Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleHypnotize133Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleHypnotize133Frame expected = fixture.Step(frame);
         NativeBattleHypnotize133Frame actual = fixture.Step(imported);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleHypnotize133Frame Age(NativeBattleHypnotize133Frame frame, int age) => NativeBattleHypnotize133Controller.Write(frame, frame.Effect.Pools[1].BankAddress, frame.Effect.Pools[1].Slots[0].WriteWord(12, unchecked((ushort)age)));
@@ -168,10 +168,10 @@ public sealed class NativeBattleHypnotize133ControllerTests
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) });
             NativeBattleOriginalEffectState effect = new(133, 132, new(133, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
-            Frame = new(memory, effect, new(123), NativeBattleHypnotize133State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(123), NativeBattleHypnotize133State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D97494)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Inputs = new(packets, _ => 7, (current, actor, bone, distance) =>
             {
                 Bones.Add((actor, bone, distance));

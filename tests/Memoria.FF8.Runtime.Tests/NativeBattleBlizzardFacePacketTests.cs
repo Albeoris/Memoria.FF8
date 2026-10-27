@@ -176,8 +176,8 @@ public sealed class NativeBattleBlizzardFacePacketTests
         Assert.All(commands.Where(command => command.Packet.ByteOffset == 160), command => Assert.Equal(new int[4], command.VertexPayload4.ToArray()));
         NativeBattleLogicalCommand primary = Assert.Single(commands, command => command.Packet.ByteOffset == 128);
         Assert.Equal(new[] { depth, depth, depth, 0 }, primary.VertexPayload4.ToArray());
-        NativeBattleEffectPacketWrite restored = JsonSerializer.Deserialize<NativeBattleEffectPacketWrite>(JsonSerializer.Serialize(written))!;
-        Assert.Equal(JsonSerializer.Serialize(commands), JsonSerializer.Serialize(restored.Ordering.Traverse(lengths.ToImmutableArray())));
+        NativeBattleEffectPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectPacketWrite>(NativeBattleTestSnapshots.Json(written))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(commands), NativeBattleTestSnapshots.Json(restored.Ordering.Traverse(lengths.ToImmutableArray())));
     }
 
     [Fact]

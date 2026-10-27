@@ -207,5 +207,5 @@ public sealed class NativeBattleEffectArenaTransactionTests
         Assert.Throws<InvalidOperationException>(() => new NativeBattleEffectArenaTransaction(transaction.View));
     }
 
-    private static string SnapshotJson(NativeBattleEffectArena arena) => JsonSerializer.Serialize(arena.Capture());
+    private static string SnapshotJson(NativeBattleEffectArena arena) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(arena.Capture()));
 }

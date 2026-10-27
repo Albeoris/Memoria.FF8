@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect322StateTests
         NativeBattleEffect322State state = NativeBattleEffect322State.FromUnknown().WriteWord(CasterGlobal, 4).WriteDword(CursorGlobal, 123);
         NativeBattleEffectArena point = NativeBattleEffectArena.Clear().MarkUnknown(6, 2).Write(0, BitConverter.GetBytes((short)-123));
         state = state.WriteView(PointAddress, point, 8);
-        state = JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4, state.ReadWord(CasterGlobal));
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect322StateTests
     public void Cold_point_becomes_current_retained_state_without_per_entry_refill()
     {
         NativeBattleEffect322State state = NativeBattleEffect322State.FromColdProcess().WriteDword(PointAddress, 0x12345678).WriteWord(PointAddress + 6, 0xBEEF);
-        state = JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(0x12345678u, state.ReadDword(PointAddress));
         Assert.Equal((ushort)0xBEEF, state.ReadWord(PointAddress + 6));
         Assert.Equal(ThirdPacketOffset + 4, MorphOffset);
@@ -59,7 +59,7 @@ public sealed class NativeBattleEffect322StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect322State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xABCD), state.ReadBank(0).Read(14, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(16, 4));

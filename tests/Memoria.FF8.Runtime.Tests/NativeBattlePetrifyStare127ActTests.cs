@@ -94,9 +94,9 @@ public sealed class NativeBattlePetrifyStare127ActTests
     public void Current_memory_and_partial_temporary_survive_JSON_next()
     {
         NativeBattlePetrifyStare127ActStep first = Draw(Source(4, 2, 4), Node(ratio: 2048, second: 1, cue: 2048, color: 0xC08040));
-        NativeBattlePetrifyStare127ActStep restored = JsonSerializer.Deserialize<NativeBattlePetrifyStare127ActStep>(JsonSerializer.Serialize(first))!;
+        NativeBattlePetrifyStare127ActStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePetrifyStare127ActStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattlePetrifyStare127ActStep Next(NativeBattlePetrifyStare127ActStep current) => NativeBattlePetrifyStare127Act.Draw(current.Memory, Source(4, 2, 4), Node(ratio: 2048, second: 1, cue: 2048, color: 0xC08040), Context(), Packed(), current.Temporary88, new(null, 100, 160, 108), Colors, MorphAddress);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattlePetrifyStare127ActStep Draw(NativeBattleGfAnimationSource source, NativeBattleGfAnimationNode node, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null, NativeBattleActionMatrix? camera = null) => NativeBattlePetrifyStare127Act.Draw(memory ?? Memory(), source, node, context ?? Context(), Packed(camera), NativeBattleEffectArena.Clear().MarkUnknown(0, 88), new(null, 100, 160, 108), Colors, MorphAddress);

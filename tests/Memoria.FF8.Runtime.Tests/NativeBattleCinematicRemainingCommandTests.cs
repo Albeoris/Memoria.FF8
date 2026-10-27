@@ -60,6 +60,7 @@ public sealed class NativeBattleCinematicRemainingCommandTests
         Assert.Same(frame, NativeBattleCinematicContextCommandAF.Execute(frame, Program()));
         frame = frame with { Arena = frame.Arena.Write(0x1002, new byte[2]).Write(0x1004, BitConverter.GetBytes(short.MinValue)).Write(0x1006, BitConverter.GetBytes(short.MaxValue)).Write(0x1008, BitConverter.GetBytes((short)-1)) };
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0xC0, NativeBattleEffectNodeMemory.ArenaAddress + 0x3000);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicContextCommandAF.Execute(frame, Program());
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x1004, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xB8));
         int[] values = [short.MinValue, short.MaxValue, -1];
@@ -68,8 +69,7 @@ public sealed class NativeBattleCinematicRemainingCommandTests
             Assert.Equal(unchecked(NativeBattleEffectNodeMemory.ArenaAddress + 0x1004u + (uint)values[index]), BitConverter.ToUInt32(result.Arena.Read(0x3008 + 4 * index, 4)));
         }
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + 0x1050, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicContextCommandAF.Execute(restored, Program())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicContextCommandAF.Execute(restored, Program())));
     }
 
     [Theory]

@@ -55,7 +55,7 @@ public sealed class NativeBattleQuezacotlFlashTests
         Assert.Equal(new[] { 128, 136, 160 }, ordering.Packets.Select(packet => packet.Reference.ByteOffset).ToArray());
         Assert.Equal(new ushort[] { 0, 1, 0 }, ordering.Proxies.Select(proxy => proxy.Flags20).ToArray());
         Assert.Equal(3, memory.Arena!.Read(128, 3).Length);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(memory.Arena!.Read(136 + 4, 20), restored.Arena!.Read(136 + 4, 20));
     }
 
@@ -73,13 +73,13 @@ public sealed class NativeBattleQuezacotlFlashTests
         NativeBattleQuezacotlResources original = Resources();
         Assert.Single(NativeBattleQuezacotlFlash.Emit(228, original));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFlash.Emit(229, original));
-        Assert.DoesNotContain("Frame229FlashColor", JsonSerializer.Serialize(original));
+        Assert.DoesNotContain("Frame229FlashColor", NativeBattleTestSnapshots.Json(original));
         NativeBattleQuezacotlResources observed = original with { Frame229FlashColor = 0x00505050 };
         NativeBattleQuezacotlScreenPacket packet = Assert.Single(NativeBattleQuezacotlFlash.Emit(229, observed));
         Assert.Equal(0x2A505050u, packet.Batch.Attempts[0].Primitive!.Words[1]);
         Assert.Equal(original.FlashColors, observed.FlashColors);
         Assert.Single(NativeBattleQuezacotlFlash.Emit(229, observed with { FlashColors = null }));
-        Assert.Equal(JsonSerializer.Serialize(observed), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleQuezacotlResources>(JsonSerializer.Serialize(observed))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(observed), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlResources>(NativeBattleTestSnapshots.Json(observed))));
     }
 
     private static NativeBattleQuezacotlResources Resources() => new(new("mag115.tim", []), new("source0", []), new("source1", []), new("test", [], [])) { FlashColors = [0x010203, 0x040506, 0x070809] };

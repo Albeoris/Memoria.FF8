@@ -47,9 +47,9 @@ public sealed class NativeBattleShivaEarlyGeometryTests
         {
             Assert.Equal(new NativeBattleShivaRetainedVector(0, 0, 0, 1), Read(complete.Arena, index));
         }
-        var restored = JsonSerializer.Deserialize<NativeBattleShivaGeometryStep>(JsonSerializer.Serialize(suffix))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaGeometryStep>(NativeBattleTestSnapshots.Json(suffix))!;
         NativeBattleShivaGeometryStep continued = NativeBattleShivaEarlyGeometry.Regenerate5C1470(restored.Arena, restored.State, source, 36);
-        Assert.Equal(JsonSerializer.Serialize(complete), JsonSerializer.Serialize(continued));
+        Assert.Equal(NativeBattleTestSnapshots.Json(complete), NativeBattleTestSnapshots.Json(continued));
     }
 
     [Fact]

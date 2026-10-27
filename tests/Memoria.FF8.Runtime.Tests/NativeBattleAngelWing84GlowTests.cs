@@ -19,8 +19,8 @@ public sealed class NativeBattleAngelWing84GlowTests
         Assert.Equal(unchecked((ushort)-512), task.ReadWord(82));
         Assert.Equal(caster ? 0x15720B0u : 0x1572810u, task.ReadDword(76));
         Assert.Equal((ushort)(caster ? 33 : 777), task.ReadWord(32));
-        NativeBattleAngelWing84Frame restored = JsonSerializer.Deserialize<NativeBattleAngelWing84Frame>(JsonSerializer.Serialize(step.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleAngelWing84Glows.Advance(step.Frame, fixture.Address, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleAngelWing84Glows.Advance(restored, fixture.Address, fixture.Inputs)));
+        NativeBattleAngelWing84Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAngelWing84Frame>(NativeBattleTestSnapshots.Json(step.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleAngelWing84Glows.Advance(step.Frame, fixture.Address, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleAngelWing84Glows.Advance(restored, fixture.Address, fixture.Inputs)));
     }
 
     [Fact]

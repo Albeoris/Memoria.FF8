@@ -9,7 +9,7 @@ public sealed class NativeBattleEffect344TextBankTests
     public void Presentation_text_bank_is_independent_of_AI_and_retains_exact_values_after_JSON()
     {
         NativeBattleGraphicsResource current = new([1, 0, 4, 0, 0]) { AnimationFrames = [], TextBank = ImmutableArray.Create("First", "Second") };
-        NativeBattleGraphicsResource restored = JsonSerializer.Deserialize<NativeBattleGraphicsResource>(JsonSerializer.Serialize(current))!;
+        NativeBattleGraphicsResource restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGraphicsResource>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(current)))!);
         Assert.Equal("Second", restored.ReadText91(1));
         NativeBattleGraphicsResource replacement = restored with { TextBank = ImmutableArray.Create("Replacement") };
         Assert.Equal("Replacement", replacement.ReadText91(0));

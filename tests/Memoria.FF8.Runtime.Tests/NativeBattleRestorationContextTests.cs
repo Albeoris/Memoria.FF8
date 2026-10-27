@@ -33,8 +33,8 @@ public sealed class NativeBattleRestorationContextTests
         Assert.Equal(NativeBattleRestorationProfile.ForEffect(effect).ExecutableAddress + 4, task.ReadDword(0x34 + 0x224));
         Assert.Equal(1u, Bank(initialized.Memory, effect)!.InitializationFlag);
         Assert.Equal(0u, Bank(fixture.Frame.Memory, effect)!.InitializationFlag);
-        NativeBattleRestorationFrame independent = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(initialized), JsonSerializer.Serialize(NativeBattleRestorationContext.Initialize(independent, fixture.Address, Resources(effect), fixture.Inputs)));
+        NativeBattleRestorationFrame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(initialized), NativeBattleTestSnapshots.Json(NativeBattleRestorationContext.Initialize(independent, fixture.Address, Resources(effect), fixture.Inputs)));
     }
 
     [Theory]

@@ -53,7 +53,7 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
         Assert.Equal(fixture.Profile.RootDescriptor, contacted.Effect.ReturnedDescriptor);
         fixture.Operations.Clear();
         NativeBattleModulePoolTask scheduler = contacted.Effect.Pools[1].Slots[0].WriteWord(12, finalAge);
-        contacted = contacted with { Effect = contacted.Effect with { Pools = contacted.Effect.Pools.SetItem(1, contacted.Effect.Pools[1] with { Slots = contacted.Effect.Pools[1].Slots.SetItem(0, scheduler) }) } };
+        contacted = contacted with { Effect = contacted.Effect with { Pools = contacted.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(contacted.Effect.Pools[1], data => data with { Slots = contacted.Effect.Pools[1].Slots.SetItem(0, scheduler) })) } };
         NativeBattleNeedlesFamilyFrame done = fixture.Step(contacted);
         Assert.Equal(0u, done.Effect.ReturnedDescriptor);
         Assert.Empty(fixture.Operations);
@@ -128,8 +128,8 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
     {
         Fixture fixture = new(177, age: 40, main: true);
         fixture.Frame = fixture.Frame with { State = fixture.Frame.State.WriteDword(fixture.Profile.SparkBank, 1).Write(fixture.Profile.SparkBank + 4, BitConverter.GetBytes((short)2)) };
-        NativeBattleNeedlesFamilyFrame restored = JsonSerializer.Deserialize<NativeBattleNeedlesFamilyFrame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(fixture.Frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleNeedlesFamilyFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNeedlesFamilyFrame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(fixture.Frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
     private sealed class Fixture
@@ -155,10 +155,10 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
             Resources = CreateResources(Profile);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(Profile.RootDescriptor, Profile.RootBank, 16, 1);
             (root, _) = root.Append(Profile.RootCallback);
-            root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) });
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(Profile.ChildDescriptor, Profile.ChildBank, 36, 100);
             (children, _) = children.Append(main ? Profile.MainCallback : Profile.SchedulerCallback);
-            children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteDword(0x10, 0).WriteDword(0x14, 0)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteDword(0x10, 0).WriteDword(0x14, 0)) });
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
             (packets, _) = packets.Prepare(new(3, 8, 13, 0, effect == 177 ? (ushort)25 : (ushort)230, effect, null));
             (packets, _) = packets.AppendContact(new(new(0, 5, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
@@ -207,7 +207,7 @@ public sealed class NativeBattleNeedlesFamilyControllerTests
             NativeCrtRandomState random = Frame.Random;
             for (int index = 0; index <= 250; index++)
             {
-                if (JsonSerializer.Serialize(random) == JsonSerializer.Serialize(next.Random))
+                if (NativeBattleTestSnapshots.Json(random) == NativeBattleTestSnapshots.Json(next.Random))
                 {
                     return index;
                 }

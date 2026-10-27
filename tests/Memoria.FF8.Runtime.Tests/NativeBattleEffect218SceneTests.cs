@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect218SceneTests
         NativeBattleCureFamilyPool profile = Pools[1];
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(0x634B90);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 40)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, 0).WriteWord(14, 40));
         NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect218State.FromColdProcess());
         uint address = pool.BankAddress + (uint)(slot * pool.Stride);

@@ -34,10 +34,10 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
         var result = Draw(memory, geometry, Temporary(), 4096);
         NativeBattleRawMesh mesh = Assert.Single(NativeBattleRawGeometryReader.Read(geometry, 1));
         NativeBattleRawModelBodyDraw expected = NativeBattleRawModelBodyDrawing.Draw5099D0(mesh, [Matrix], Projection, 0x00808080, 1, new byte[32].ToImmutableArray(), Constants, 6, new(0, 0, 320, 216), 4122, 4096);
-        Assert.Equal(JsonSerializer.Serialize(expected.Packets), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Packets), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.Equal(expected.ProjectedScratch.ToArray(), result.ProjectedScratch.Read(0, 32));
         Assert.Throws<NotSupportedException>(() => result.ProjectedScratch.Read(32, 1));
-        Assert.Equal(JsonSerializer.Serialize(memory.ScriptedColorRegisters), JsonSerializer.Serialize(result.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(result.Memory.ScriptedColorRegisters));
         Assert.Equal(memory.GeometryRegisters!.Sxy, result.Memory.GeometryRegisters!.Sxy);
         Assert.Equal(memory.GeometryRegisters.Sz, result.Memory.GeometryRegisters.Sz);
         Assert.Equal(memory.GeometryRegisters.Mac0, result.Memory.GeometryRegisters.Mac0);
@@ -78,7 +78,7 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
         NativeBattleEffectMemory memory = Memory();
         var actual = Draw(memory, Geometry(true), Temporary(), 1024, Matrix with { X = 30000 });
         Assert.Empty(actual.Batch.Attempts);
-        Assert.Equal(JsonSerializer.Serialize(memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Memory.ScriptedColorRegisters));
         Assert.Equal((uint?)2048, actual.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarBlue);
     }
 
@@ -102,7 +102,7 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
         NativeBattleEffectMemory memory = Memory();
         var actual = Draw(memory, new byte[4], Temporary(), 100);
         Assert.Same(memory.GeometryRegisters, actual.Memory.GeometryRegisters);
-        Assert.Equal(JsonSerializer.Serialize(memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Memory.ScriptedColorRegisters));
         Assert.Equal((uint?)2048, actual.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Empty(actual.Batch.Attempts);
     }
@@ -111,11 +111,11 @@ public sealed class NativeBattleUltraWavesStageCapture84Tests
     public void Cold_JSON_next_draw_preserves_unknown_padding_and_matches_registers_and_packets()
     {
         var first = Draw(Memory(), Geometry(true), Temporary().MarkUnknown(0x4E, 2), 1024);
-        string json = JsonSerializer.Serialize(first);
-        NativeBattleUltraWavesStageCapture84Step restored = JsonSerializer.Deserialize<NativeBattleUltraWavesStageCapture84Step>(json)!;
+        string json = NativeBattleTestSnapshots.Json(first);
+        NativeBattleUltraWavesStageCapture84Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWavesStageCapture84Step>(json)!;
         var expected = Draw(first.Memory, Geometry(true), first.Temporary84, 1024, previous: first.ProjectedScratch);
         var actual = Draw(restored.Memory, Geometry(true), restored.Temporary84, 1024, previous: restored.ProjectedScratch);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Null(actual.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Null(actual.Memory.GeometryRegisters!.Rotation20[18]);
     }

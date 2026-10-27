@@ -16,13 +16,15 @@ public sealed class NativeBattleGilgameshMasamuneProjectionTests
         {
             task = task.MarkPayloadUnknown(0x16, 2);
         }
+        NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory));
+        NativeBattleModulePoolTask restoredTask = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task));
         NativeBattleGilgameshMasamuneProjectionStep step = NativeBattleGilgameshMasamuneProjection.Project(memory, task, Projection(), 0x2468);
         Assert.Equal((ushort)920, step.Task.ReadWord(0x10));
         Assert.Equal((ushort)588, step.Task.ReadWord(0x12));
         Assert.Equal((ushort)256, step.Task.ReadWord(0x14));
-        Assert.Equal(task.Payload.AsSpan().Slice(10, 2).ToArray(), step.Task.Payload.AsSpan().Slice(10, 2).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(10, 2).ToArray(), NativeBattleStorageSnapshots.Capture(step.Task).Payload.AsSpan().Slice(10, 2).ToArray());
         Assert.Equal(task.Next, step.Task.Next);
-        Assert.Equal(JsonSerializer.Serialize(task.UnknownPayloadRanges), JsonSerializer.Serialize(step.Task.UnknownPayloadRanges));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(task).UnknownPayloadRanges), NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(step.Task).UnknownPayloadRanges));
         NativeBattleGeometryRegisters geometry = step.Memory.GeometryRegisters!;
         Assert.Equal(new uint?[] { 22, 33, 0x03800500 }, geometry.Sxy);
         Assert.Equal(new uint?[] { 2, 3, 4, 256 }, geometry.Sz);
@@ -40,9 +42,7 @@ public sealed class NativeBattleGilgameshMasamuneProjectionTests
         Assert.Equal(memory.ScriptedColorRegisters!.Rgb, colors.Rgb);
         Assert.Equal(!unknownW, colors.NormalInputKnown!.Value[6]);
         Assert.Equal(!unknownW, colors.NormalInputKnown.Value[7]);
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleGilgameshMasamuneProjection.Project(restoredMemory, restoredTask, Projection(), 0x2468)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleGilgameshMasamuneProjection.Project(restoredMemory, restoredTask, Projection(), 0x2468)));
     }
 
     [Fact]
@@ -75,8 +75,8 @@ public sealed class NativeBattleGilgameshMasamuneProjectionTests
         Assert.Equal(0u, colors.Ir0);
         Assert.Equal(0u, colors.Flags);
         Assert.Equal(new bool[] { true, true, true, true, true, true, false, false }, colors.NormalInputKnown!.Value);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleGilgameshMasamuneProjection.Project(restored, Task().MarkPayloadUnknown(0x16, 2), Projection(), null)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleGilgameshMasamuneProjection.Project(restored, Task().MarkPayloadUnknown(0x16, 2), Projection(), null)));
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshMasamuneProjection.Project(memory, Task().MarkPayloadUnknown(0x10, 2), Projection(), null));
         Assert.Throws<NotSupportedException>(() => NativeBattleGilgameshMasamuneProjection.Project(memory, Task(), Projection() with { FocalLength = null }, null));
     }

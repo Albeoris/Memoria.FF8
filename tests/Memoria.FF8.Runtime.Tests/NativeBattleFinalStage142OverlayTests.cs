@@ -11,7 +11,7 @@ public sealed class NativeBattleFinalStage142OverlayTests
     {
         NativeBattleFinalStage142State initial = WarmState(0xA5);
         NativeBattleFinalStage142Command command = new(NativeBattleFinalStage142CommandKind.Overlay, 2048, 64, 3, 0x1D9A420);
-        NativeBattleFinalStage142OverlayStep result = NativeBattleFinalStage142Overlay.Build(initial, command, Environment(), 0xAB123456);
+        NativeBattleFinalStage142OverlayStep result = NativeBattleFinalStage142Overlay.Build(NativeBattleTestSnapshots.Independent(initial), command, Environment(), 0xAB123456);
         Assert.Equal(new[] { 12, 12, 16, 12, 12, 8 }, result.Packets.Select(packet => packet.AllocatedBytes));
         Assert.Equal(new uint[] { 0x1D9A420, 0x1D9A42C, 0x1D9A438, 0x1D9A448, 0x1D9A454, 0x1D9A460 }, result.Packets.Select(packet => packet.Address));
         Assert.All(result.Packets, packet => Assert.Equal(4385, packet.Bucket));
@@ -42,14 +42,14 @@ public sealed class NativeBattleFinalStage142OverlayTests
         NativeBattleFinalStage142State initial = NativeBattleFinalStage142State.FromColdProcess();
         NativeBattleGfPacketByteState[] unknown = Enumerable.Repeat(NativeBattleGfPacketByteState.Unknown, 72).ToArray();
         initial = initial.WriteOverlay(0x1D9A020, new byte[72].ToImmutableArray(), unknown.ToImmutableArray());
-        NativeBattleFinalStage142OverlayStep result = NativeBattleFinalStage142Overlay.Build(initial, new(NativeBattleFinalStage142CommandKind.Overlay, 0, -1, -1, 0x1D9A020), Environment(), 0xFF010203);
+        NativeBattleFinalStage142OverlayStep result = NativeBattleFinalStage142Overlay.Build(NativeBattleTestSnapshots.Independent(initial), new(NativeBattleFinalStage142CommandKind.Overlay, 0, -1, -1, 0x1D9A020), Environment(), 0xFF010203);
         Assert.Throws<NotSupportedException>(() => result.State.ReadOverlay(0x1D9A020, 3));
         Assert.Throws<NotSupportedException>(() => result.State.ReadOverlay(0x1D9A034, 4));
         Assert.Equal(0x03000000u, Dword(result.State.ReadOverlay(0x1D9A038, 4), 0));
         Assert.Equal(0xFFFF00FFu, Dword(result.State.ReadOverlay(0x1D9A044, 4), 0));
         Assert.Equal(0xE1000FFFu, Dword(result.State.ReadOverlay(0x1D9A064, 4), 0));
         Assert.All(result.Packets[1].WriteMask.AsSpan().Slice(8).ToArray(), value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
-        NativeBattleFinalStage142State restored = JsonSerializer.Deserialize<NativeBattleFinalStage142State>(JsonSerializer.Serialize(result.State))!;
+        NativeBattleFinalStage142State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFinalStage142State>(NativeBattleTestSnapshots.Json(result.State))!;
         Assert.Equal(result.State.ReadOverlay(0x1D9A038, 16), restored.ReadOverlay(0x1D9A038, 16));
     }
 

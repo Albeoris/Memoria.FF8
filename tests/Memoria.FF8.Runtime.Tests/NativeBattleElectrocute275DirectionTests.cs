@@ -45,8 +45,8 @@ public sealed class NativeBattleElectrocute275BoneProjectionTests
         NativeBattlePackedMatrix32 bone = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, null);
         NativeBattleEffectMemory projected = Project(memory, bone);
         Assert.Equal(575u, U32(projected.Arena!, Offset + 40 + 0x14));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(projected))!;
-        Assert.Equal(JsonSerializer.Serialize(Project(projected, bone)), JsonSerializer.Serialize(Project(restored, bone)));
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(projected)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Project(projected, bone))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Project(restored, bone))));
     }
 
     [Fact]

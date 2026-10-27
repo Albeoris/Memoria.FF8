@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -30,13 +30,14 @@ public sealed class NativeBattleCinematicSequence42Tests
             Assert.Equal((byte)3, actor);
             return complete;
         }));
+        string original = NativeBattleTestSnapshots.Json(frame);
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(next, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(instruction == 0x42 ? 1 : 0, selections);
         Assert.Equal(instruction == 0x442 ? 1 : 0, polls);
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(original)!)));
     }
 
     [Fact]

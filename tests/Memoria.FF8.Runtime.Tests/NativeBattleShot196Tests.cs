@@ -99,15 +99,15 @@ public sealed class NativeBattleShot196Tests
         frame = NativeBattleShot196.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Parameter80 = 2, Parameter81 = 0 } } }, packets);
         frame = NativeBattleShot196.Advance(frame, Inputs(packets, initial), resources);
         frame = NativeBattleShot196.Advance(frame, Inputs(packets, initial), resources);
-        NativeBattleShot196Frame restored = JsonSerializer.Deserialize<NativeBattleShot196Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShot196Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShot196Frame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int callback = 0; callback < 20; callback++)
         {
             List<NativeBattleShot196Operation> first = [];
             List<NativeBattleShot196Operation> second = [];
             frame = NativeBattleShot196.Advance(frame, Inputs(packets, first), resources);
             restored = NativeBattleShot196.Advance(restored, Inputs(packets, second), resources);
-            Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
-            Assert.Equal(first.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())), second.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
+            Assert.Equal(first.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType())), second.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType())));
         }
     }
 

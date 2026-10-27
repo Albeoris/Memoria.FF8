@@ -14,7 +14,7 @@ public sealed class NativeBattleOilShot136StateTests
         NativeBattleOilShot136State unknown = NativeBattleOilShot136State.FromUnknown();
         Assert.All(unknown.ReadCurrentMatrix().Known, Assert.False);
         NativeBattleOilShot136State written = unknown.WriteWord(CurrentMatrixAddress + 16, 1234);
-        NativeBattleOilShot136State restored = JsonSerializer.Deserialize<NativeBattleOilShot136State>(JsonSerializer.Serialize(written))!;
+        NativeBattleOilShot136State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilShot136State>(NativeBattleTestSnapshots.Json(written))!;
         restored.Validate();
         Assert.Equal((ushort)1234, restored.ReadWord(CurrentMatrixAddress + 16));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CurrentMatrixAddress));
@@ -43,14 +43,14 @@ public sealed class NativeBattleOilShot136StateTests
     public void Reached_matrix_word_write_materializes_only_that_word_and_survives_JSON()
     {
         NativeBattleOilShot136State state = NativeBattleOilShot136State.FromUnknown().WriteWord(MatrixAddress + 16, 4096).WriteDword(WorkingGlobal, 0x20DFAB8);
-        NativeBattleOilShot136State restored = JsonSerializer.Deserialize<NativeBattleOilShot136State>(JsonSerializer.Serialize(state))!;
+        NativeBattleOilShot136State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilShot136State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.PendingColdSources);
         Assert.Equal((ushort)4096, restored.ReadWord(MatrixAddress + 16));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress + 18));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(WorkingGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteWord(MatrixAddress + 16, 2048)), JsonSerializer.Serialize(restored.WriteWord(MatrixAddress + 16, 2048)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WriteWord(MatrixAddress + 16, 2048)), NativeBattleTestSnapshots.Json(restored.WriteWord(MatrixAddress + 16, 2048)));
     }
 
     [Fact]

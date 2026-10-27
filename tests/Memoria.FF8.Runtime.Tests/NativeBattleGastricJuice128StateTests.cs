@@ -24,14 +24,14 @@ public sealed class NativeBattleGastricJuice128StateTests
     public void Current_matrix_and_curve_parameters_survive_JSON_without_duplicate_owners()
     {
         NativeBattleGastricJuice128State state = NativeBattleGastricJuice128State.FromUnknown().WriteWord(CurrentMatrixAddress + 16, 4096).WriteDword(CurveParametersGlobal, 1234);
-        NativeBattleGastricJuice128State restored = JsonSerializer.Deserialize<NativeBattleGastricJuice128State>(JsonSerializer.Serialize(state))!;
+        NativeBattleGastricJuice128State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGastricJuice128State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)4096, restored.ReadWord(CurrentMatrixAddress + 16));
         Assert.Equal(1234u, restored.ReadDword(CurveParametersGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CurrentMatrixAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CurrentMatrixAddress + 18));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CurveParametersGlobal + 4));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

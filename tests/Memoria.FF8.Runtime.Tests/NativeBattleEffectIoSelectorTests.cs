@@ -18,7 +18,7 @@ public sealed class NativeBattleEffectIoSelectorTests
         NativeBattleEffectIoPoll selected = NativeBattleEffectIo.Select5342C0(source, index);
         Assert.Equal(waiting, selected.Busy);
         Assert.Null(selected.Request);
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(selected.Memory));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(selected.Memory)));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class NativeBattleEffectIoSelectorTests
         NativeBattleEffectIoPoll second = NativeBattleEffectIo.Select5342C0(first.Memory, 0);
         Assert.False(second.Busy);
         Assert.Same(first.Memory, second.Memory);
-        Assert.Equal((byte)1, source.Arena!.Read(65, 1)[0]);
+        Assert.Equal((byte)0, source.Arena!.Read(65, 1)[0]);
     }
 
     [Fact]

@@ -42,7 +42,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
     {
         Fixture f = new();
         NativeBattleElectricDischarge126Frame frame = f.Root(f.Frame, 90, true, 0);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, frame.Effect.Pools[1] with { Head = null, Tail = null, Slots = frame.Effect.Pools[1].Slots.Select(task => task with { Flags = 0 }).ToImmutableArray() }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(frame.Effect.Pools[1], pool => pool with { Head = null, Tail = null, Slots = pool.Slots.Select(task => task.UpdateHeader(0, task.State, task.Next, task.Callback)).ToImmutableArray() })) } };
         (frame, int result) = NativeBattleElectricDischarge126Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         Assert.Equal(2, result);
         Assert.Equal((ushort)90, NativeBattleElectricDischarge126Controller.Read(frame, RootBank).ReadWord(12));
@@ -156,7 +156,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         Fixture f = new();
         (NativeBattleElectricDischarge126Frame frame, uint head) = NativeBattleElectricDischarge126Controller.StartWorld(f.Frame, new(0, 0, 0), new(100, -100, 300), new(100, -100, 300), new(0, 0, 0), -1, 0, 0, 100, 0, 3);
         uint taskAddress = frame.Effect.Pools[2].BankAddress;
-        frame = JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceWorldTrail(frame, taskAddress, f.Resources, f.Inputs);
         NativeBattleModulePoolTask[] branches = frame.Effect.Pools[2].Slots.Where(task => (task.Flags & 1) != 0).Skip(1).ToArray();
         Assert.NotEmpty(branches);
@@ -174,20 +174,20 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         NativeBattleResourceRowReference row = cpuRow ? new(8, null) : new(null, 0x1939018);
         NativeBattleEffectTaskPool bone = f.Frame.Effect.Pools[3];
         int slot = bone.Slots.Length - 1;
-        bone = bone with { Slots = bone.Slots.SetItem(slot, bone.Slots[slot].WriteResourceRowReference(36, row)) };
+        bone = bone.WriteSlot(slot, bone.Slots[slot].WriteResourceRowReference(36, row));
         NativeBattleOriginalEffectState effect = f.Frame.Effect with
         {
             ReturnedDescriptor = 0,
-            Pools = f.Frame.Effect.Pools.SetItem(3, bone).Select(pool => pool with
+            Pools = f.Frame.Effect.Pools.SetItem(3, bone).Select(pool => NativeBattleTaskFixture.EditPool(pool, data => data with
             {
                 Head = null,
                 Tail = null,
-                Slots = pool.Slots.Select(task => task with { Flags = 0 }).ToImmutableArray()
-            }).ToImmutableArray()
+                Slots = pool.Slots.Select(task => task.UpdateHeader(0, task.State, task.Next, task.Callback)).ToImmutableArray()
+            })).ToImmutableArray()
         };
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(f.Frame.Memory, effect);
         NativeBattleElectricDischarge126Frame frame = f.Frame with { Memory = transfer.Memory, Effect = transfer.Effect with { Pools = [f.Frame.Effect.Pools[0]] } };
-        frame = JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         frame = f.Root(frame, 1, false, 0);
         (frame, _) = NativeBattleElectricDischarge126Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         NativeBattleModulePoolTask reclaimed = frame.Effect.Pools[3].Slots[slot];
@@ -195,9 +195,9 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
         Assert.Equal((ushort)0, reclaimed.State);
         Assert.Equal(0u, reclaimed.Callback);
         Assert.Null(reclaimed.Next);
-        Assert.Null(reclaimed.ResourcePointers);
-        Assert.Null(reclaimed.UnknownPayloadRanges);
-        Assert.All(reclaimed.Payload, value => Assert.Equal((byte)0, value));
+        Assert.Null(NativeBattleStorageSnapshots.Capture(reclaimed).ResourcePointers);
+        Assert.Null(reclaimed.ReadUnknownPayloadRanges());
+        Assert.All(NativeBattleStorageSnapshots.Capture(reclaimed).Payload, value => Assert.Equal((byte)0, value));
         Assert.Equal(0u, reclaimed.ReadDword(36));
 
     }
@@ -265,7 +265,7 @@ public sealed class NativeBattleElectricDischarge126ControllerTests
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(0) with { Arena = arena, ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             NativeBattleOriginalEffectState effect = new(126, 125, new(126, Entry, Initializer), new(Caster, 0, 1, 0, 0, 0), null) { Pools = pools.ToImmutableArray(), ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             NativeBattleElectricDischarge126State state = NativeBattleElectricDischarge126State.FromColdProcess().WriteDword(CasterGlobal, CasterPointer).WriteDword(WorkingGlobal, ArenaAddress);
-            Frame = new(memory, effect, new(543), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(543), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
             (packets, _) = packets.Prepare(new(Caster, 8, 15, 0, 28, 126, null));
             for (int index = 0; index < 2; index++)

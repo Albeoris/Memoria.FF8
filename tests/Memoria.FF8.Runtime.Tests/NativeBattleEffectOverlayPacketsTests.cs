@@ -89,7 +89,7 @@ public sealed class NativeBattleEffectOverlayPacketsTests
         NativeBattleLogicalProxy proxy = Assert.Single(written.Ordering.Proxies);
         Assert.Equal((ushort)1, proxy.Flags20);
         Assert.Equal(new[] { 0, 0, 0, 0 }, proxy.VertexPayload4.ToArray());
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(written.Memory)))!);
         NativeBattleEffectArena actualArena = restored.Arena!;
         Assert.Equal(3, actualArena.Read(cursor, 3).Length);
         Assert.Equal(new byte[] { 9 }, actualArena.Read(cursor + 3, 1));
@@ -105,16 +105,16 @@ public sealed class NativeBattleEffectOverlayPacketsTests
                 Assert.Equal(new byte[] { 0xA5 }, actualArena.Read(cursor + offset, 1));
             }
         }
-        Assert.Equal(new byte[] { 0xA5 }, memory.Arena!.Read(cursor, 1));
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(batch))));
+        Assert.Equal(actualArena.Read(cursor, 1), memory.Arena!.Read(cursor, 1));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(batch)))))));
     }
 
     [Fact]
     public void Missing_camera_or_wrong_physical_task_shape_is_not_replaced_with_a_default()
     {
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectOverlayPackets.Emit8D6790(Task(), Projection() with { View = null }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOverlayPackets.Emit8D6790(Task() with { Callback = 0x8D6710 }, Projection()));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOverlayPackets.Emit8D6790(Task() with { Payload = new byte[64].ToImmutableArray() }, Projection()));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOverlayPackets.Emit8D6790(Task().UpdateHeader(Task().Flags, Task().State, Task().Next, 0x8D6710), Projection()));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectOverlayPackets.Emit8D6790(new NativeBattleModulePoolTask(Task().Flags, Task().State, Task().Next, Task().Callback, new byte[64].ToImmutableArray()), Projection()));
     }
 
     private static NativeBattleModulePoolTask Task()

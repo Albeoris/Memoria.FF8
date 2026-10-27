@@ -77,13 +77,13 @@ public sealed class NativeBattleEffectTaskTests
         Assert.Equal(1, state.Head);
         Assert.Equal(0, state.Tail);
         state = state.Advance(Models(), _ => new(160, 100)).State;
-        NativeBattleEffectsState restored = JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffectsState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectsState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         for (int frame = 0; frame < 12; frame++)
         {
             state = state.Advance(Models(), _ => new(160, 100)).State;
             restored = restored.Advance(Models()).State;
         }
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(0, state.Head);
         Assert.Equal(0, state.Tail);
         Assert.Equal((byte)1, state.PublishedCount);

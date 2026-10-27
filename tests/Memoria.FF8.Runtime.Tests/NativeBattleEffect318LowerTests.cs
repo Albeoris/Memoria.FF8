@@ -86,7 +86,7 @@ public sealed class NativeBattleEffect318LowerTests
             if (append)
             {
                 (pool, int slot) = pool.Append(callback);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[stride - 12])) };
+                pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[stride - 12]));
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);

@@ -17,6 +17,7 @@ public sealed class NativeBattleEffectIoTests
         memory = NativeBattleEffectIo.Queue5341D0(memory, 520, pointer, type);
         memory = NativeBattleEffectIo.Advance534210(memory).Memory;
         memory = memory with { Arena = memory.Arena!.Write(sourceOffset, [119, 0, 0, 0]).MarkUnknown(sourceOffset + 4, NativeBattleEffectArena.Length - sourceOffset - 4) };
+        NativeBattleEffectMemory pending = NativeBattleStorageSnapshots.Capture(memory);
         List<(uint Address, int? Length)> reads = [];
         NativeBattleEffectIoCompletion completed = NativeBattleEffectIo.Complete6C3580(memory, (address, length) =>
         {
@@ -29,9 +30,10 @@ public sealed class NativeBattleEffectIoTests
         Assert.Equal(new NativeBattleSummonStreamState(690119, pointer), completed.Memory.SummonStream);
         Assert.Equal(new byte[] { 0, delay, 1, 1, 1 }, completed.Memory.Arena!.Read(64, 5));
         Assert.Throws<NotSupportedException>(() => completed.Memory.Arena.Read(sourceOffset + 4, 1));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(completed.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(completed.Memory)))!);
         Assert.Equal(completed.Memory.SummonStream, restored.SummonStream);
         Assert.Throws<NotSupportedException>(() => restored.Arena!.Read(sourceOffset + 4, 1));
+        memory = NativeBattleStorageSnapshots.Restore(pending);
         memory = memory with { Arena = memory.Arena!.MarkUnknown(sourceOffset, 1) };
         Assert.Throws<NotSupportedException>(() => NativeBattleEffectIo.Complete6C3580(memory, (address, length) => new("unknown leading DWORD", memory.Arena!.Read(checked((int)(address - 0x20DFAB8)), length!.Value).ToImmutableArray())));
     }
@@ -60,7 +62,7 @@ public sealed class NativeBattleEffectIoTests
         NativeBattleEffectIoPoll completed = NativeBattleEffectIo.Poll534270(delay.Memory);
         Assert.False(completed.Busy);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, completed.Memory.Arena!.Read(64, 5));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(completed.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(completed.Memory)))!);
         Assert.Equal(new uint[] { 0, 0, 0, 0, 0 }, restored.BeginLoad(1).QuezacotlSecondaryHeads!.Value.ToArray());
         Assert.Null((restored with { QuezacotlSecondaryHeads = null }).BeginLoad(1).QuezacotlSecondaryHeads);
     }

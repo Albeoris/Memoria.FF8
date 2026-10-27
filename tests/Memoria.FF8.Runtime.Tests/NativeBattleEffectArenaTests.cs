@@ -11,16 +11,16 @@ public sealed class NativeBattleEffectArenaTests
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(10, [1, 2, 3]);
         NativeBattleEffectArena equal = source with { };
         int hash = source.GetHashCode();
-        string serialized = JsonSerializer.Serialize(source);
+        string serialized = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source));
         source.Validate();
         source.Validate();
         Assert.Equal(equal, source);
         Assert.Equal(hash, source.GetHashCode());
-        Assert.Equal(serialized, JsonSerializer.Serialize(source));
-        NativeBattleEffectArena invalid = source with { Regions = [new(-1, [1])] };
+        Assert.Equal(serialized, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source)));
+        NativeBattleEffectArena invalid = new([new(-1, [1])]);
         Assert.Throws<InvalidDataException>(() => invalid.Validate());
         Assert.Throws<InvalidDataException>(() => invalid.Validate());
-        NativeBattleEffectArena unknown = source with { UnknownRegions = [new(10, 1), new(11, 1)] };
+        NativeBattleEffectArena unknown = new([]) { UnknownRegions = [new(10, 1), new(11, 1)] };
         Assert.Throws<InvalidDataException>(() => unknown.Read(0, 1));
     }
 
@@ -31,9 +31,9 @@ public sealed class NativeBattleEffectArenaTests
         Assert.All(arena.Read(0xFFFF0, 16), value => Assert.Equal((byte)0, value));
         arena = arena.Write(10, [1, 2, 3]).Write(12, [8, 9]).Write(8, [4]);
         Assert.Equal(new byte[] { 0, 4, 0, 1, 2, 8, 9, 0 }, arena.Read(7, 8));
-        Assert.Equal(2, arena.Regions.Length);
-        Assert.Equal(10, arena.Regions[1].Offset);
-        Assert.Equal(new byte[] { 1, 2, 8, 9 }, arena.Regions[1].Data);
+        Assert.Equal(2, NativeBattleStorageSnapshots.Capture(arena).Regions.Length);
+        Assert.Equal(10, NativeBattleStorageSnapshots.Capture(arena).Regions[1].Offset);
+        Assert.Equal(new byte[] { 1, 2, 8, 9 }, NativeBattleStorageSnapshots.Capture(arena).Regions[1].Data);
         arena.Validate();
     }
 
@@ -41,12 +41,12 @@ public sealed class NativeBattleEffectArenaTests
     public void ArenaSnapshotRestoresWrittenRegionsWithoutStoringInventedUnknownBytes()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x30000, [5, 6, 7]);
-        string json = JsonSerializer.Serialize(arena);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(arena));
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(arena.Read(0x2FFFF, 5), restored.Read(0x2FFFF, 5));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffectArena>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>("{}")));
     }
 
     [Fact]
@@ -64,8 +64,10 @@ public sealed class NativeBattleEffectArenaTests
         byte[] bytes = [1, 2, 3, 4];
         NativeBattleEffectArena first = NativeBattleEffectArena.Clear().Write(0x100, bytes);
         bytes[0] = 99;
+        NativeBattleEffectArena preserved = NativeBattleStorageSnapshots.Capture(first);
         NativeBattleEffectArena second = first.Write(0x101, [8, 9]);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, first.Read(0x100, 4));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, preserved.Read(0x100, 4));
+        Assert.Same(first, second);
         Assert.Equal(new byte[] { 1, 8, 9, 4 }, second.Read(0x100, 4));
         byte[] exposedRead = second.Read(0x100, 4);
         exposedRead[0] = 77;

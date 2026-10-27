@@ -36,9 +36,9 @@ public sealed class NativeBattleEffect285BonePointTests
     public void Restored_arithmetic_owners_produce_the_same_next_point_without_allocating_temporary_memory()
     {
         NativeBattleEffectMemory memory = Memory();
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
         NativeBattleEffect285BonePointResult Next(NativeBattleEffectMemory current) => NativeBattleEffect285BonePoint.Transform(current, Identity(100, 200, 300), Identity(4, 5, 6), Point(1, 2, 3, 10), NativeBattleEffectArena.Clear().MarkUnknown(6, 2));
-        Assert.Equal(JsonSerializer.Serialize(Next(memory)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(memory))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect285BonePoint.Transform(memory, Identity(0, 0, 0), Identity(0, 0, 0), Point(1, 2, 3, 10).MarkUnknown(6, 2), NativeBattleEffectArena.Clear()));
     }
 

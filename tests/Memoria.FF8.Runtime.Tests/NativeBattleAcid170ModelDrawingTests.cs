@@ -85,9 +85,9 @@ public sealed class NativeBattleAcid170ModelDrawingTests
     public void JSON_preserves_current_partial_LIGHT_and_next_deformation()
     {
         var first = Draw(Geometry(true), Context(0), 2000);
-        var restored = JsonSerializer.Deserialize<NativeBattleAcid170ModelStep>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid170ModelStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleAcid170ModelStep Next(NativeBattleAcid170ModelStep current) => Draw(Geometry(true), current.Temporary172, 2000, memory: current.Memory, scratch: current.VertexScratch);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static uint Dword(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(view.Read(offset, 4));

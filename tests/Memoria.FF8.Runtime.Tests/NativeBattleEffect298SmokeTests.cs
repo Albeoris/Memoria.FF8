@@ -150,7 +150,7 @@ public sealed class NativeBattleEffect298SmokeTests
         var first = DrawSmoke672C40(Row(Frame(), 1), Main, Resources(), firstHarness.Inputs());
         Assert.Single(firstHarness.Batches);
         Assert.Equal((short)0, W(ReadBytes(first, RowAddress, 12), 6));
-        var cold = JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(first))!;
+        var cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         var secondHarness = new Harness();
         var second = DrawSmoke672C40(cold, Main, Resources(), secondHarness.Inputs());
         Assert.Empty(secondHarness.Batches);

@@ -29,7 +29,7 @@ public sealed class NativeBattleFireCallbackTests
             {
                 resources.Add(draw.Resource!.Address);
             }
-            effect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(step.Effect))!;
+            effect = NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(NativeBattleTestSnapshots.Json(step.Effect))!;
             inputs = inputs with { CrtRandom = step.CrtRandomAfter };
             frames++;
         }
@@ -68,9 +68,9 @@ public sealed class NativeBattleFireCallbackTests
         NativeBattleFireStep first = NativeBattleFireEffect.Step(effect, inputs);
         NativeBattleFireStep second = NativeBattleFireEffect.Step(first.Effect, inputs);
         Assert.NotEmpty(first.Draws);
-        Assert.Equal(JsonSerializer.Serialize(first.Draws), JsonSerializer.Serialize(second.Draws));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Draws), NativeBattleTestSnapshots.Json(second.Draws));
         Assert.Equal(inputs.CrtRandom, first.CrtRandomAfter);
-        Assert.Equal(JsonSerializer.Serialize(effect.Pools[1]), JsonSerializer.Serialize(first.Effect.Pools[1]));
+        Assert.Equal(NativeBattleTestSnapshots.Json(effect.Pools[1]), NativeBattleTestSnapshots.Json(first.Effect.Pools[1]));
         Assert.Empty(first.Contacts);
         Assert.Empty(first.Sounds);
     }
@@ -80,9 +80,9 @@ public sealed class NativeBattleFireCallbackTests
     {
         var fixture = Fixture(1);
         NativeBattleEffectTaskPool children = fixture.Effect.Pools[1];
-        NativeBattleModulePoolTask task = children.Slots[0] with { Callback = 0x629C10 };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Callback = 0x629C10 });
         task = task.WriteWord(12, 0).WriteWord(14, 0).WriteWord(16, 100).WriteWord(18, unchecked((ushort)-600)).WriteWord(20, 300).WriteWord(22, 25).WriteWord(28, 4096);
-        NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, children with { Slots = children.Slots.SetItem(0, task) }) };
+        NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, task) })) };
         NativeBattleFireStep step = NativeBattleFireEffect.Step(effect, fixture.Inputs);
         NativeCrtRandomState expected = fixture.Inputs.CrtRandom;
         for (int index = 0; index < 114; index++)
@@ -106,9 +106,9 @@ public sealed class NativeBattleFireCallbackTests
     {
         var fixture = Fixture(1);
         NativeBattleEffectTaskPool children = fixture.Effect.Pools[1];
-        NativeBattleModulePoolTask task = children.Slots[0] with { Callback = callback };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Callback = callback });
         task = task.WriteWord(12, callback == 0x629F90 ? (ushort)7 : (ushort)0).WriteWord(14, 0).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300).WriteWord(22, unchecked((ushort)-33)).WriteWord(24, unchecked((ushort)-17)).WriteWord(26, unchecked((ushort)-33)).WriteWord(28, callback == 0x629F90 ? (ushort)17 : (ushort)4096).WriteWord(32, 3000);
-        NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, children with { Slots = children.Slots.SetItem(0, task) }) };
+        NativeBattleOriginalEffectState effect = fixture.Effect with { Pools = fixture.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, task) })) };
         NativeBattleFireStep result = NativeBattleFireEffect.Step(effect, fixture.Inputs);
         NativeBattleModulePoolTask moved = result.Effect.Pools[1].Slots[0];
         Assert.Single(result.Draws);

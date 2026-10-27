@@ -63,7 +63,7 @@ public sealed class NativeBattleAcid170ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         for (int index = 1; index <= 2; index++)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(16, 0xCAFE).MarkPayloadUnknown(30, 2)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(16, 0xCAFE).MarkPayloadUnknown(30, 2)) });
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattleAcid170Operation> operations = [];
@@ -136,7 +136,7 @@ public sealed class NativeBattleAcid170ControllerTests
         foreach (NativeBattleActionHeaderSlot header in new[] { captured with { Payload = captured.Payload.SetItem(16, 0) }, captured with { UnknownByteMask = 1u << 16 } })
         {
             List<NativeBattleAcid170Operation> operations = [];
-            NativeBattleAcid170Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs(operations, []) with { Packets = packets with { Headers = packets.Headers.SetItem(1, header) } }).Frame;
+            NativeBattleAcid170Frame result = AdvanceMain(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), ChildBank, Resources(), Inputs(operations, []) with { Packets = packets with { Headers = packets.Headers.SetItem(1, header) } }).Frame;
             NativeBattleAcid170Contact506690 contact = Assert.IsType<NativeBattleAcid170Contact506690>(Assert.Single(operations));
             Assert.Equal(1, contact.ContactIndex);
             Assert.Equal((byte)0, packets.ReadContact(contact.ContactIndex).Primary.ActorIndex);
@@ -198,11 +198,11 @@ public sealed class NativeBattleAcid170ControllerTests
         NativeBattleAcid170Frame frame = Frame(1);
         frame = frame with { State = frame.State with { Globals = frame.State.Globals.MarkUnknown(checked((int)(Bone40PointGlobal + 6 - BaseAddress)), 2) } };
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(30, 2)) }) } };
-        NativeBattleAcid170Frame restored = JsonSerializer.Deserialize<NativeBattleAcid170Frame>(JsonSerializer.Serialize(frame))!;
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(30, 2)) })) } };
+        NativeBattleAcid170Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid170Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleAcid170Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
         NativeBattleAcid170Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([], [])).Frame;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<NotSupportedException>(() => actual.State.ReadWord(Bone40PointGlobal + 6));
         Assert.Throws<NotSupportedException>(() => Read(actual, ChildBank + ChildStride).ReadWord(30));
     }
@@ -214,7 +214,7 @@ public sealed class NativeBattleAcid170ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
         return frame with { Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteDword(CasterGlobal, 3).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null } };
     }
 

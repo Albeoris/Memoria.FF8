@@ -71,11 +71,11 @@ public sealed class NativeBattleBio22ParticleTests
                 return current with { Memory = current.Memory with { Parameter80 = 67 } };
             }
         };
-        NativeBattleBio22ParticleStep hidden = NativeBattleBio22Particles.Advance89C930(emitted, inputs);
+        NativeBattleBio22ParticleStep hidden = NativeBattleBio22Particles.Advance89C930(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(emitted)), inputs);
         Assert.True(hidden.CompleteRequested);
         Assert.Equal((byte?)67, hidden.Frame.Memory.Parameter80);
         Assert.Equal(1, draws);
-        NativeBattleBio22ParticleFrame billboard = emitted with { Task = emitted.Task with { Callback = 0x89BD20 } };
+        NativeBattleBio22ParticleFrame billboard = emitted with { Task = NativeBattleTaskFixture.EditTask(emitted.Task, taskData => taskData with { Callback = 0x89BD20 }) };
         NativeBattleBio22ParticleStep visible = NativeBattleBio22Particles.Advance89BD20(billboard, Inputs());
         Assert.False(visible.CompleteRequested);
         Assert.Equal((byte)0, visible.Frame.Task.ReadByte(0x26));
@@ -120,7 +120,7 @@ public sealed class NativeBattleBio22ParticleTests
                 appends++;
                 Assert.Equal(99u, request.ParentAddress);
                 Assert.Equal((ushort)7, request.Variant);
-                Assert.Equal(frame.Task.Payload.AsSpan().Slice(0x30 - 12, 16).ToArray(), request.ScaleBlock16.ToArray());
+                Assert.Equal(NativeBattleStorageSnapshots.Capture(frame.Task).Payload.AsSpan().Slice(0x30 - 12, 16).ToArray(), request.ScaleBlock16.ToArray());
                 Assert.Equal(0xDDEEFF11u, BinaryPrimitives.ReadUInt32LittleEndian(request.ScaleBlock16.AsSpan().Slice(12)));
                 Assert.Equal((byte)4, current.Task.ReadByte(0x26));
                 return current with { Task = current.Task.WriteByte(0x28, 1) };
@@ -155,10 +155,10 @@ public sealed class NativeBattleBio22ParticleTests
         frame = frame with { Task = frame.Task.WriteWord(0x6E, 0xCAFE).WriteWord(0x1E, unchecked((ushort)-1000)) };
         for (int tick = 0; tick < 25; tick++)
         {
-            NativeBattleBio22ParticleFrame restored = JsonSerializer.Deserialize<NativeBattleBio22ParticleFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleBio22ParticleFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22ParticleFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleBio22ParticleStep expected = Advance(callback, restored, Inputs());
             NativeBattleBio22ParticleStep step = Advance(callback, frame, Inputs());
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(step));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step));
             Assert.Equal((ushort)0xCAFE, step.Frame.Task.ReadWord(0x6E));
             frame = step.Frame;
             if (step.CompleteRequested)

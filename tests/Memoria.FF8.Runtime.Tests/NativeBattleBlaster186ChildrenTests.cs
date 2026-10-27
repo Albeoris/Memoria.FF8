@@ -137,8 +137,8 @@ public sealed class NativeBattleBlaster186ChildrenTests
         }
         Assert.Throws<NotSupportedException>(() => actual.Frame.State.ReadWord(ParticleBase + 22));
         Assert.Equal(NativeBattleTemporaryMemory.Address, Cursor(actual.Frame));
-        NativeBattleBlaster186Frame restored = JsonSerializer.Deserialize<NativeBattleBlaster186Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
+        NativeBattleBlaster186Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
     [Fact]

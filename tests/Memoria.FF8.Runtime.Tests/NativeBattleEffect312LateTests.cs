@@ -202,7 +202,7 @@ public sealed class NativeBattleEffect312LateTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x223E1A8, TaskAddress, 36, 100);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, age)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, age));
         NativeBattleOriginalEffectState effect = new(312, 311, new(312, 0x59CB90, 0x59CB70), new(3, 0, 1, 0, 0, 0), null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(83), NativeBattleEffect312State.FromColdProcess().DetachBank(1));
     }

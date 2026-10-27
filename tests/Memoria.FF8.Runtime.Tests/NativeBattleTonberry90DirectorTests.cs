@@ -52,7 +52,7 @@ public sealed class NativeBattleTonberry90DirectorTests
         Assert.Equal((ushort)0, frame.Memory.Tonberry90.ReadWord(Director + 0x46));
         NativeBattleModulePoolTask particle = frame.Effect.Pools[3].Slots[0];
         Assert.Equal(0x763EB0u, particle.Callback);
-        Assert.Equal(0x520 - 12, particle.Payload.Length);
+        Assert.Equal(0x520 - 12, NativeBattleStorageSnapshots.Capture(particle).Payload.Length);
         Assert.Equal(0x16D7DECu, particle.ReadDword(0x74));
         Assert.Equal(0x48Cu, particle.ReadDword(0x78));
         Assert.Equal((ushort)0, particle.ReadWord(0x80));
@@ -133,7 +133,7 @@ public sealed class NativeBattleTonberry90DirectorTests
         frame = NativeBattleTonberry90Director.Advance762C60(frame, TaskAddress, services).Frame;
         Assert.Empty(stopped);
         frame = Word(Word(Word(Word(frame, Director + 0x40, 8), Director + 0x42, 8), Director + 0x44, 8), Director + 0x52, unchecked((ushort)-5));
-        NativeBattleTonberry90Frame restored = JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleTonberry90Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleTonberry90Director.Advance762C60(restored, TaskAddress, services).Frame;
         Assert.Equal(new short[] { -5 }, stopped);
         Assert.Equal((ushort)9, frame.Memory.Tonberry90!.ReadWord(Director + 0x44));

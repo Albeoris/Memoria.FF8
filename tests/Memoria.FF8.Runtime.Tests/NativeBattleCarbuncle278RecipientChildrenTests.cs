@@ -10,7 +10,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
     public void Initial_birth_uses_ordered_shared_random_draws_physical_parent_and_exact_clears()
     {
         var fixture = Fixture();
-        NativeBattleCarbuncle278ChildBirth result = NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(fixture.Frame, fixture.Parent, 0x20E1A64, fixture.Bounds);
+        NativeBattleCarbuncle278ChildBirth result = NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Parent)), 0x20E1A64, fixture.Bounds);
         NativeBattleSharedEffectRandomState random = fixture.Frame.Memory.SharedEffectRandom!.Draw7059E0(out ushort angle);
         NativeBattleEffectTaskPool rays = result.Frame.Effect.Pools[0];
         for (int index = 0; index < 8; index++)
@@ -26,7 +26,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
             Assert.Equal(unchecked((ushort)(-37 - (drift & 31))), task.ReadWord(0x14));
             Assert.Equal((ushort)0, task.ReadWord(0x16));
             Assert.Equal(0x20E1A64u, task.ReadDword(0x18));
-            Assert.Equal(task.Payload, result.Frame.Memory.Arena!.Read(0x1C04 + index * 0x1C + 12, 16));
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, result.Frame.Memory.Arena!.Read(0x1C04 + index * 0x1C + 12, 16));
         }
         random = random.Draw7059E0(out ushort seed);
         NativeBattleEffectTaskPool shards = result.Frame.Effect.Pools[1];
@@ -45,8 +45,8 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
         Assert.Equal(unchecked((ushort)-100), result.Parent.ReadWord(0x56));
         Assert.Equal((ushort)200, result.Parent.ReadWord(0x58));
         Assert.All(fixture.Frame.Effect.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal((ushort)0, task.Flags));
-        NativeBattleCarbuncle278Frame independent = JsonSerializer.Deserialize<NativeBattleCarbuncle278Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(independent, fixture.Parent, 0x20E1A64, fixture.Bounds)));
+        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278RecipientChildren.Spawn6823F0(independent, fixture.Parent, 0x20E1A64, fixture.Bounds)));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class NativeBattleCarbuncle278RecipientChildrenTests
     {
         NativeBattleEffectTaskPool rays = NativeBattleEffectTaskPool.Initialize(0x2508138, 0x20DFAB8 + 0x1C04, 0x1C, 24);
         NativeBattleEffectTaskPool shards = NativeBattleEffectTaskPool.Initialize(0x2508128, 0x20DFAB8 + 4, 0x1C, 256);
-        shards = shards with { Slots = shards.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 16).ToImmutableArray() }).ToImmutableArray() };
+        shards = NativeBattleTaskFixture.EditPool(shards, data => data with { Slots = shards.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 16).ToImmutableArray() })).ToImmutableArray() });
         NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60), new(0, 0, 3, 0, 0, 0), null) { Pools = [rays, shards] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
         NativeBattleModulePoolTask parent = new(1, 0, null, 0x6822F0, new byte[256].ToImmutableArray());

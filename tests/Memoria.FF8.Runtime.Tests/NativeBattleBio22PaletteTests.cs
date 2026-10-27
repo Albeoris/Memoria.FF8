@@ -55,19 +55,19 @@ public sealed class NativeBattleBio22PaletteTests
         NativeCrtRandomState random = new(17);
         NativeCrtRandomState expectedRandom = random.Draw(out ushort value);
         NativeBattleBio22Palette palette = new(Tim(0));
-        NativeBattleBio22PaletteStep expected = NativeBattleBio22PaletteTask.Advance89CA70(task, primary, palette, resources, random);
+        NativeBattleBio22PaletteStep expected = NativeBattleBio22PaletteTask.Advance89CA70(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(primary)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(palette)), resources, random);
         Assert.Equal(expectedRandom, expected.Random);
         Assert.Equal((ushort)2, expected.Task.ReadWord(0x32));
         Assert.Equal((ushort)((2 + (value & 1) + 1) % 3), expected.Task.ReadWord(0x34));
         Assert.Equal((ushort)0, expected.Task.ReadWord(0x24));
         Assert.Equal(0u, expected.Result);
         NativeBattleBio22PaletteStep restored = NativeBattleBio22PaletteTask.Advance89CA70(RoundTrip(task), RoundTrip(primary), RoundTrip(palette), RoundTrip(resources), RoundTrip(random));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(restored));
         Assert.Null(NativeBattleEffectMemory.FromColdProcess().Bio22Palette);
         Assert.Throws<InvalidDataException>(() => NativeBattleBio22Palette.FromColdProcess(new("FF8_EN:1614908", Tim(0))));
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
     private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x89CA70, new byte[0x38 - 12].ToImmutableArray());
 
     internal static ImmutableArray<byte> Tim(ushort color)

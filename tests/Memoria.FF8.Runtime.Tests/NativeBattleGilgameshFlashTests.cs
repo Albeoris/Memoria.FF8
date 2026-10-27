@@ -65,8 +65,8 @@ public sealed class NativeBattleGilgameshFlashTests
         NativeBattleGilgameshFlashStep first = NativeBattleGilgameshFlash.Step592BC0(task, 0);
         Assert.Equal((ushort)0x8000, first.UpdatedTask.ReadWord(12));
         Assert.Equal(0, first.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshFlash.Step592BC0(first.UpdatedTask, 0)), JsonSerializer.Serialize(NativeBattleGilgameshFlash.Step592BC0(restored, 0)));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.UpdatedTask))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGilgameshFlash.Step592BC0(first.UpdatedTask, 0)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshFlash.Step592BC0(restored, 0)));
     }
 
     [Fact]

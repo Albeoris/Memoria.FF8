@@ -8,15 +8,15 @@ public sealed class NativeBattleEffect76FileAudioTests
     public void Bufferless_file_request_retains_three_operands_and_does_not_mutate_other_sound_owners()
     {
         NativeGlobalSoundProcess process = NativeGlobalSoundProcess.FromBufferlessColdProcess();
-        string before = JsonSerializer.Serialize(process);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process));
         NativeBattleFileAudioRequest request = NativeBattleFileAudioRequest.Create46CBB0(process, 0, "field2.fs", 127);
         Assert.Equal(0, request.Channel);
         Assert.Equal("field2.fs", request.ResourceName);
         Assert.Equal(127, request.Gain);
         Assert.Equal(0, request.Result);
-        Assert.Equal(before, JsonSerializer.Serialize(process));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process)));
         BattleEvent item = new(0, "NativeFileAudio", null, null, 0, string.Empty) { NativeFileAudio = request };
-        BattleEvent restored = JsonSerializer.Deserialize<BattleEvent>(JsonSerializer.Serialize(item))!;
+        BattleEvent restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<BattleEvent>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(item)))!);
         restored.NativeFileAudio!.Validate();
         Assert.Equal(request, restored.NativeFileAudio);
     }

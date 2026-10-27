@@ -38,11 +38,12 @@ public sealed class NativeBattleCinematicMatrixCopy84Tests
         int source = 0x2000 + sourceOffset;
         int destination = 0x2000 + destinationOffset;
         frame = frame with { Arena = frame.Arena.Write(source, Enumerable.Range(0, 36).Select(value => (byte)value).ToArray()).MarkUnknown(source + 6, 2) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame, Base + 0x2000);
         var actual = result.Arena.ReadSnapshot(destination, 32);
         Assert.Equal(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 4, 5, 6, 7, 12, 13, 14, 15, 12, 13, 14, 15, 20, 21, 22, 23, 20, 21, 22, 23, 28, 29, 30, 31 }, actual.Data);
         Assert.Equal(new[] { 6, 7, 10, 11 }, Enumerable.Range(0, 32).Where(index => !actual.Known[index]));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, Base + 0x2000)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame, Base + 0x2000)));
     }
 
     private static NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame frame, uint selected) => NativeBattleCinematicMatrixCopy84.Execute(frame, new(0x1000, 8, Pc), (_, selector) =>

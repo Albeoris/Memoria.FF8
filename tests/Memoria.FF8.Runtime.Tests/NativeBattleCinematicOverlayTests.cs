@@ -66,8 +66,8 @@ public sealed class NativeBattleCinematicOverlayTests
         Assert.Equal(24, drawMode.ByteOffsetRelative);
         Assert.Equal(0x424u, WaterSchedulerFixture.ReadCoreDword(step.Frame, 0x2797690 + 0x7C));
         Assert.Equal(mode, step.Frame.ReadTemporaryDword(0xF0));
-        string json = JsonSerializer.Serialize(step);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleCinematicOverlayStep>(json)!));
+        string json = NativeBattleTestSnapshots.Json(step);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleCinematicOverlayStep>(json)!));
     }
 
     [Theory]
@@ -92,8 +92,8 @@ public sealed class NativeBattleCinematicOverlayTests
             Assert.Equal(2, written.Ordering.Packets.Length);
             Assert.Equal(Enumerable.Repeat((byte)0xA5, 16), written.Memory.Arena.Read(164, 16));
         }
-        string json = JsonSerializer.Serialize(written);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectPacketWrite>(json)!));
+        string json = NativeBattleTestSnapshots.Json(written);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectPacketWrite>(json)!));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(short red, short green, short blue)

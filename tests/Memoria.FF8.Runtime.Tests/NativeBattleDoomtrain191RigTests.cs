@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -16,6 +16,7 @@ public sealed class NativeBattleDoomtrain191RigTests
             streams++;
             return current;
         });
+        string replay = NativeBattleTestSnapshots.Json(frame);
         NativeBattleDoomtrain191LeafStep result = NativeBattleDoomtrain191Rigs.Advance(frame, 0, services);
         NativeBattleEffectTaskPool children = result.Frame.Effect.Pools[1];
         Assert.Equal(new uint[] { 0x63FB40, 0x63FDB0, 0x63FEC0, 0x63FFD0, 0x640280, 0x640140 }, Active(children).Select(task => task.Callback));
@@ -33,9 +34,9 @@ public sealed class NativeBattleDoomtrain191RigTests
         Assert.Equal((ushort)0xFC00, children.Slots[3].ReadWord(0x18));
         Assert.Equal((ushort)0xFFCD, children.Slots[3].ReadWord(0x1A));
         streams = 0;
-        NativeBattleDoomtrain191LeafStep restored = NativeBattleDoomtrain191Rigs.Advance(RoundTrip(frame), 0, services);
+        NativeBattleDoomtrain191LeafStep restored = NativeBattleDoomtrain191Rigs.Advance(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(replay)!, 0, services);
         Assert.Equal(1, streams);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Theory]
@@ -115,13 +116,13 @@ public sealed class NativeBattleDoomtrain191RigTests
         var fixture = NativeBattleDoomtrain191Tests.Fixture();
         NativeBattleDoomtrain191Frame frame = NativeBattleDoomtrain191Tests.Initialize(fixture);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        ImmutableArray<NativeBattleModulePoolTask> tasks = children.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray();
-        NativeBattleModulePoolTask selected = tasks[0] with { Callback = callback };
+        ImmutableArray<NativeBattleModulePoolTask> tasks = children.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray();
+        NativeBattleModulePoolTask selected = NativeBattleTaskFixture.EditTask(tasks[0], data => data with { Callback = callback });
         selected = selected.WriteWord(0xC, unchecked((ushort)age)).WriteWord(0xE, 0).WriteWord(0x10, unchecked((ushort)-100)).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteWord(0x16, 103).WriteWord(0x18, 0xFC00).WriteWord(0x1A, 0xFFCD).WriteWord(0x1C, 4096).WriteWord(0x20, callback == 0x63FB40 ? (ushort)1 : (ushort)4096);
-        children = children with { Slots = tasks.SetItem(0, selected) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = tasks.SetItem(0, selected) });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
     }
 
     private static IEnumerable<NativeBattleModulePoolTask> Active(NativeBattleEffectTaskPool pool) => pool.Slots.Where(task => (task.Flags & 1) != 0);
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 }

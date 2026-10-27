@@ -124,7 +124,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         Assert.Equal(PointView(expected.Position).Read(0, 6), actual.Point8.Read(0, 6));
         Assert.Throws<NotSupportedException>(() => actual.Point8.Read(6, 2));
         Assert.Equal(0x99AABBCCu, actual.Frame.Memory.ScriptedColorRegisters!.Rgb[0]);
-        Assert.Equal(JsonSerializer.Serialize(expected.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Frame.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Frame.Memory.ScriptedColorRegisters));
         Assert.Equal(frame.Memory.GeometryRegisters, actual.Frame.Memory.GeometryRegisters);
     }
 
@@ -252,7 +252,7 @@ public sealed class NativeBattleBoomerangSword304ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(0xC58, 2)) & 1);
         Assert.NotNull(actual.State.RootBankStorage);
-        var cold = JsonSerializer.Deserialize<NativeBattleBoomerangSword304Frame>(JsonSerializer.Serialize(actual))!;
+        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleBoomerangSword304Frame>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Equal(actual.Memory.Arena!.Read(0xC58, 36), cold.Memory.Arena!.Read(0xC58, 36));
         Assert.Single(Initialize(cold, Resources(), Inputs([])).Effect.Pools);
     }

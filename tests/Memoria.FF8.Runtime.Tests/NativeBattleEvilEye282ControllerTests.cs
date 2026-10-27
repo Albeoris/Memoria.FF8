@@ -177,14 +177,14 @@ public sealed class NativeBattleEvilEye282ControllerTests
         frame = frame with { State = frame.State.WriteView(NormalizedViewAddress, frame.State.ReadView(NormalizedViewAddress, 32).MarkUnknown(18, 2), 32) };
         (frame, uint target) = Append(frame, Pools[2].Descriptor, 0x67DB20);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[384].ToImmutableArray()).Initialize7016B0(Resources().ProgrammeB, 384);
-        frame = WriteBytes(frame, target + 24, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), 384);
+        frame = WriteBytes(frame, target + 24, NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan()), 384);
         frame = Write(frame, target, Read(frame, target).WriteDword(20, ModelAddressFor(0)));
         frame = Advance(frame, Resources(), Inputs([]));
         Assert.NotEmpty(frame.Effect.Pools);
         Assert.Null(frame.Effect.Pools[3].Head);
         Assert.Throws<NotSupportedException>(() => frame.State.ReadWord(NormalizedViewAddress + 18));
-        var restored = JsonSerializer.Deserialize<NativeBattleEvilEye282Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEvilEye282Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<NotSupportedException>(() => restored.State.ReadWord(NormalizedViewAddress + 18));
     }
 

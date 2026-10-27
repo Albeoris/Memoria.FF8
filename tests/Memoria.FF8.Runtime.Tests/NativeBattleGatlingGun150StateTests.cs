@@ -44,7 +44,7 @@ public sealed class NativeBattleGatlingGun150StateTests
     {
         NativeBattleEffectArena partial = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(2, new byte[] { 0x12, 0x34 });
         NativeBattleGatlingGun150State state = NativeBattleGatlingGun150State.FromUnknown().WriteDword(CursorGlobal, PacketBase + 8).WriteView(PacketBase, partial, 8).Write(PacketBase + PacketBankBytes, new byte[] { 9 }).WriteView(ParticleBBase + 8, partial, 8);
-        NativeBattleGatlingGun150State restored = JsonSerializer.Deserialize<NativeBattleGatlingGun150State>(JsonSerializer.Serialize(state))!;
+        NativeBattleGatlingGun150State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGatlingGun150State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(PacketBase + 8, restored.ReadDword(CursorGlobal));
         Assert.Equal(new byte[] { 0x12, 0x34 }, restored.ReadView(PacketBase, 8).Read(2, 2));
@@ -52,7 +52,7 @@ public sealed class NativeBattleGatlingGun150StateTests
         Assert.Equal(new byte[] { 9 }, restored.Read(PacketBase + PacketBankBytes, 1));
         Assert.Throws<NotSupportedException>(() => restored.Read(PacketBase, 1));
         Assert.Throws<NotSupportedException>(() => restored.Read(PacketBase + PacketBankBytes + 1, 1));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

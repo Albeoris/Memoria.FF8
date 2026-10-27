@@ -76,11 +76,11 @@ public sealed class NativeBattleGilgamesh329VariantTests
         NativeBattleGilgameshDirectorStep blocked = NativeBattleGilgameshDirector.Advance592300(original, new(0, () => calls.Add("view"), () => { calls.Add("pending"); return -1; }, _ => throw new InvalidOperationException()) { Effect = 329 });
         Assert.Same(original, blocked.Task);
         Assert.Equal(new[] { "view", "pending" }, calls);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(blocked.Task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(blocked.Task))!;
         List<NativeBattleGilgameshDirectorOperation> operations = [];
         NativeBattleGilgameshDirectorStep resumed = NativeBattleGilgameshDirector.Advance592300(restored, new(0, () => { }, () => 0, operations.Add) { Effect = 329 });
         Assert.Equal((ushort)(counter + 1), resumed.Task.ReadWord(12));
-        Assert.Equal(original.Payload.AsSpan().Slice(2).ToArray(), resumed.Task.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(original).Payload.AsSpan().Slice(2).ToArray(), NativeBattleStorageSnapshots.Capture(resumed.Task).Payload.AsSpan().Slice(2).ToArray());
         Assert.Single(operations);
         Assert.Equal(counter switch { 237 => NativeBattleGilgameshDirectorService.Upload, 253 => NativeBattleGilgameshDirectorService.File, _ => NativeBattleGilgameshDirectorService.BeginWave }, operations[0].Service);
     }

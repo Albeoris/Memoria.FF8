@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -13,7 +13,7 @@ public sealed class NativeBattleShivaOpeningParticlesTests
         NativeBattleModulePoolTask task = frame.Pool.Slots[0].WriteWord(0x20, 8192);
         NativeBattleEffectArena arena = Record(frame.Memory.Arena!, 0, 1, 0);
         arena = Record(arena, 1, 2, 0);
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, task) }, Memory = frame.Memory with { Arena = arena }, Geometry = new(new(1, -2, 3, 72), new(9, 8, 7, 6)) };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, task) }), Memory = frame.Memory with { Arena = arena }, Geometry = new(new(1, -2, 3, 72), new(9, 8, 7, 6)) };
         List<uint> drawOrder = [];
         NativeBattleActionMatrix world = new([0, 0, 4096, 0, 4096, 0, -4096, 0, 0], 1000, 2000, 3000, 4096);
         NativeBattleShivaOpeningParticleInputs inputs = Inputs((current, draw) =>
@@ -48,7 +48,7 @@ public sealed class NativeBattleShivaOpeningParticlesTests
         }) with { EntryWorld = world };
         NativeBattleShivaEarlyTaskStep result = NativeBattleShivaOpeningParticles.Advance5C16B0(frame, 0, 0x201, inputs);
         Assert.Equal(new uint[] { 0xD215C4, 0xD209F4, 0xD20C7C }, drawOrder);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(result.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(result.Frame));
         Assert.Equal(0, result.Result);
     }
 
@@ -81,7 +81,7 @@ public sealed class NativeBattleShivaOpeningParticlesTests
         NativeBattleModulePoolTask task = frame.Pool.Slots[0].WriteWord(0x0E, 0x8000);
         NativeBattleEffectArena arena = Record(frame.Memory.Arena!, 0, 0x80000000, 1);
         arena = Record(arena, 1, 2, 1);
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, task) }, Memory = frame.Memory with { Arena = arena } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, task) }), Memory = frame.Memory with { Arena = arena } };
         int draws = 0;
         NativeBattleShivaEarlyTaskStep result = NativeBattleShivaOpeningParticles.Advance5C16B0(frame, 0, 0, Inputs(null!, (current, draw) =>
         {
@@ -122,6 +122,7 @@ public sealed class NativeBattleShivaOpeningParticlesTests
             return current;
         }, (_, _) => throw new InvalidOperationException("No preexisting record belongs to this mask, and new spawns cannot draw immediately."));
         inputs = inputs with { EntryWorld = NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = 200, Z = 300 } };
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleShivaEarlyTaskStep result = NativeBattleShivaOpeningParticles.Advance5C16B0(frame, 0, 0, inputs);
         NativeBattleEffectArena after = result.Frame.Memory.Arena!;
         Assert.Equal(1, draws);
@@ -137,9 +138,8 @@ public sealed class NativeBattleShivaOpeningParticlesTests
         Assert.Throws<NotSupportedException>(() => after.Read(0x2C00E, 2));
         Assert.Throws<NotSupportedException>(() => after.Read(0x2C016, 2));
         Assert.Equal(new NativeCrtRandomState(0x3D6C1037), result.Frame.Random);
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleShivaEarlyTaskStep independent = NativeBattleShivaOpeningParticles.Advance5C16B0(restored, 0, 0, inputs);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(independent));
     }
 
     private static NativeBattleShivaOpeningParticleInputs Inputs(Func<NativeBattleShivaEarlyTaskFrame, NativeBattleShivaOpeningMeshDraw, NativeBattleShivaEarlyTaskFrame> mesh, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleModuleDraw, NativeBattleShivaEarlyTaskFrame> sprite)
@@ -152,7 +152,7 @@ public sealed class NativeBattleShivaOpeningParticlesTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         (pool, int slot) = pool.Append(0x5C16B0);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x0C, counter).WriteWord(0x0E, 1).WriteWord(0x10, 7).WriteWord(0x12, 9).WriteWord(0x14, 11).WriteWord(0x18, 0).WriteWord(0x1A, 60).WriteWord(0x1C, 4096).WriteWord(0x20, 4096).WriteWord(0x22, 0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), new(new(0, 0, 0, 0), new(0, 0, 0, 0)));
     }
 

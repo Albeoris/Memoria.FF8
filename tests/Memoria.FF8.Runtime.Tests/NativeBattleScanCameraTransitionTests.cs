@@ -84,7 +84,7 @@ public sealed class NativeBattleScanCameraTransitionTests
         var fixture = Fixture(mode);
         NativeBattleScanCameraInputs inputs = Inputs();
         NativeBattleScanCameraFrame frame = NativeBattleScanCameraTransition.Advance84E810(fixture.Frame, fixture.Address, inputs).Frame;
-        frame = JsonSerializer.Deserialize<NativeBattleScanCameraFrame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanCameraFrame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int callback = 1; callback <= callbacks; callback++)
         {
             NativeBattleScanCameraStep step = NativeBattleScanCameraTransition.Advance84E810(frame, fixture.Address, inputs);

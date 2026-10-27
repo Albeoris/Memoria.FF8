@@ -155,7 +155,7 @@ public sealed class NativeBattleEffect209ControllerTests
         Harness harness = new() { Flags = 0x201 };
         NativeBattleEffect209Frame frame = Frame(130);
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, 9));
-        NativeBattleEffect209Step first = AdvanceRoot639100(frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, frame.Effect.Pools[1] with { Head = null, Tail = null }) } }, RootBank, null!, harness.Inputs());
+        NativeBattleEffect209Step first = AdvanceRoot639100(frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, frame.Effect.Pools[1].UpdateLinks(null, null)) } }, RootBank, null!, harness.Inputs());
         uint cleanup = RootBank + 16;
         frame = first.Frame;
         frame = Write(frame, cleanup, Read(frame, cleanup).WriteWord(12, 1));
@@ -163,7 +163,7 @@ public sealed class NativeBattleEffect209ControllerTests
         Assert.Equal(new NativeBattleEffect209CommonTextureLoad508630(0x20DFAB8, cleanup + 14), harness.Operations.Last());
         Assert.Equal(0, waiting.Result);
         frame = WriteCompletionByte(waiting.Frame, cleanup + 15, 1);
-        frame = JsonSerializer.Deserialize<NativeBattleEffect209Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect209Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleEffect209Step completed = AdvanceCleanup639170(frame, cleanup, harness.Inputs());
         Assert.Equal(2, completed.Result);
         Assert.Equal(3, Read(completed.Frame, cleanup).ReadWord(12));
@@ -183,10 +183,10 @@ public sealed class NativeBattleEffect209ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (child, _) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(209, 208, new(209, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(42), NativeBattleEffect209State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(GuardianGlobal, 0x209FAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

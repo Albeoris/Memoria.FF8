@@ -65,7 +65,7 @@ public sealed class NativeBattleAdditional182ChildrenTests
         Assert.Equal((ushort)expected, Read(actual.Frame, ChildBank).ReadWord(offset));
         Assert.Equal((ushort)0, Read(actual.Frame, ChildBank).ReadWord(12));
         Assert.Equal(frame.Random, actual.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.Staging), JsonSerializer.Serialize(actual.Frame.Staging));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Staging), NativeBattleTestSnapshots.Json(actual.Frame.Staging));
     }
 
     [Theory]
@@ -183,8 +183,8 @@ public sealed class NativeBattleAdditional182ChildrenTests
             Assert.Equal((ushort)0, actual.Frame.State.ReadWord(bank + 14));
         }
         Assert.Equal(NativeBattleTemporaryMemory.Address, Cursor(actual.Frame));
-        var restored = JsonSerializer.Deserialize<NativeBattleAdditional182Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
     [Fact]

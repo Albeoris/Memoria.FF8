@@ -10,7 +10,7 @@ public sealed class NativeBattleScriptedGraphicsDepthTests
         NativeBattleScriptedGraphicsMemory state = NativeBattleScriptedGraphicsMemory.FromColdProcess();
         state = state with { Depths = state.Depths.Write(0, BitConverter.GetBytes(1234u)).MarkUnknown(4, 4).Write(1472 - 4, BitConverter.GetBytes(5678u)) };
         state.Validate();
-        NativeBattleScriptedGraphicsMemory restored = JsonSerializer.Deserialize<NativeBattleScriptedGraphicsMemory>(JsonSerializer.Serialize(state))!;
+        NativeBattleScriptedGraphicsMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedGraphicsMemory>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(1234u, BitConverter.ToUInt32(restored.Depths.Read(0, 4)));
         Assert.Throws<NotSupportedException>(() => restored.Depths.Read(4, 4));

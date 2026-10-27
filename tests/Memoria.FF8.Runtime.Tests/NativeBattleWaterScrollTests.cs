@@ -66,11 +66,11 @@ public sealed class NativeBattleWaterScrollTests
         Assert.Equal(2, textures.Count);
         Assert.All(textures.Slots.Take(2), slot => Assert.Null(slot!.Source));
         arena = arena.Write(file0 + 0x104, [0xAA, 0xBB]);
-        NativeBattleEffectTextureState restoredTextures = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(textures))!;
-        NativeBattleEffectArena restoredArena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        NativeBattleEffectTextureState restoredTextures = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(textures))!;
+        NativeBattleEffectArena restoredArena = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
         NativeBattleEffectTextureDrain current = textures.Drain505D20(arena);
         NativeBattleEffectTextureDrain cold = restoredTextures.Drain505D20(restoredArena);
-        Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold));
+        Assert.Equal(NativeBattleTestSnapshots.Json(current), NativeBattleTestSnapshots.Json(cold));
         Assert.Equal(new byte[] { 0xAA, 0xBB }, current.Uploads[0].Bytes.Take(2));
         Assert.Equal((short)20, current.Uploads[0].Y);
         Assert.Equal((short)23, current.Uploads[1].Y);

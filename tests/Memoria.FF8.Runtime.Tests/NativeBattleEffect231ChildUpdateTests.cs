@@ -59,12 +59,12 @@ public sealed class NativeBattleEffect231ChildUpdateTests
     {
         NativeBattleWaterExecutionFrame frame = Create();
         frame = frame with { Core = frame.Core.Write(NativeBattleScriptedEffectMemory.Address + 0x41, [1]).Write(NativeBattleScriptedEffectMemory.Address + 0x48, [6]) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         int calls = 0;
         NativeBattleWaterExecutionFrame expected = Run(frame);
         NativeBattleWaterExecutionFrame actual = Run(restored);
         Assert.Equal(2, calls);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         Assert.Equal(Address(0x2000), WaterSchedulerFixture.ReadCoreDword(actual, 0x27973E8));
         Assert.Equal(Address(0x2100), actual.ReadTemporaryDword(0xFC));
         Assert.Equal(0xAABBCCDDu, actual.ReadTemporaryDword(0xF8));

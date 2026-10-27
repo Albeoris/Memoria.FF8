@@ -207,7 +207,7 @@ public sealed class NativeBattleEvilEye282LowerTests
         var frame = Frame();
         (frame, uint address) = Append(frame, 0x2507EB0, 0x67DB20);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[384].ToImmutableArray()).Initialize7016B0(resources.ProgrammeB, 384);
-        byte[] cache = workspace.Data.ToArray();
+        byte[] cache = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(cache.AsSpan(4), 31 - remaining);
         var task = Read(frame, address).WriteWord(12, 100).WriteWord(14, 200).WriteWord(16, 300).WriteDword(20, 0x1D972C0);
         task = CopyTask(task, 24, NativeBattleEffectArena.Clear().Write(0, cache), 384);

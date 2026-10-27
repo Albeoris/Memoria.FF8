@@ -19,9 +19,9 @@ public sealed class NativeBattleStare45PacketDeliveryTests
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(first.Memory.PrimitiveProcess.ReadCommonPacket(64, 4)));
         Assert.Same(state, first.State);
         Assert.Same(memory.Arena, first.Memory.Arena);
-        NativeBattleStare45PacketStep restored = JsonSerializer.Deserialize<NativeBattleStare45PacketStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleStare45PacketStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStare45PacketStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleStare45PacketStep Next(NativeBattleStare45PacketStep step) => NativeBattleStare45PacketDelivery.Deliver(step.Memory, step.State, step.Ordering, batch, 0x1D8E054, 0);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Theory]

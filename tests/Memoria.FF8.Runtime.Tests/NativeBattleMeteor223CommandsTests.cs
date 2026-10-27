@@ -15,7 +15,7 @@ public sealed class NativeBattleMeteor223CommandsTests
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, opcode);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, Arena + 0x1000);
         frame = frame with { Core = frame.Core.Write(0x2798BF4, [255]), Arena = frame.Arena.Write(0x1000, Words(opcode, 16, unchecked((ushort)-1))).Write(0x1010, Words(3, 4, 2, 1)) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         int calls = 0;
         NativeBattleMeteor223TextureServices services = new(Arena + 0x6000, (current, rectangle, pointer, capture) =>
         {
@@ -31,7 +31,7 @@ public sealed class NativeBattleMeteor223CommandsTests
         NativeBattleWaterExecutionFrame cold = NativeBattleMeteor223Commands.Execute(restored, new(0x1000, 0x100, Arena + 0x1000), NativeBattleCinematicTextureMetadataTests.Resources(), services);
         Assert.Equal(2, calls);
         Assert.Equal(Arena + 0x1006, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(cold));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(cold));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public sealed class NativeBattleMeteor223CommandsTests
         Assert.Equal(new[] { 0, 1, 2 }, contacts);
         Assert.Equal(new byte[] { 77, 77, 77 }, frame.Arena.Read(0x4000, 3));
         Assert.Equal(7u, WaterSchedulerFixture.ReadSlotDword(frame, 0, 0xBC));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleMeteor223Commands.SpreadResults(restored, 0, Apply)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleMeteor223Commands.SpreadResults(restored, 0, Apply)));
     }
 
     [Fact]

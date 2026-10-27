@@ -493,7 +493,31 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 operationDepth--;
             }
         }
-        internal void InvalidatePacketRange(NativeBattlePrimitiveReference reference, int length) => Run(() => InvalidatePacketRangeCore(reference, length), () => InvalidatePacketRange(reference, length));
+        internal void InvalidatePacketRange(NativeBattlePrimitiveReference reference, int length)
+        {
+            operationDepth++;
+            try
+            {
+                bool changed = InvalidatePacketRangeCore(reference, length);
+                if (changed && operationDepth == 1)
+                {
+                    version++;
+                    if (HasMarks)
+                    {
+                        RetainInvalidation(reference, length);
+                    }
+                }
+            }
+            finally
+            {
+                operationDepth--;
+            }
+        }
+
+        private void RetainInvalidation(NativeBattlePrimitiveReference reference, int length)
+        {
+            edits.Add(() => InvalidatePacketRange(reference, length));
+        }
         internal void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates, string? textureSourceOwner)
         {
             Run(() => PrependCore(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner), () => Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner));
@@ -502,13 +526,14 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         {
             Run(() => PrependAddressedCore(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw), () => PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw));
         }
-        private void InvalidatePacketRangeCore(NativeBattlePrimitiveReference reference, int length)
+        private bool InvalidatePacketRangeCore(NativeBattlePrimitiveReference reference, int length)
         {
             reference = NativeBattlePrimitiveProcess.NormalizeCommonReference(reference);
             if (length == 0 || !packetRanges.TryGetValue((reference.Bank, reference.Buffer), out PacketRangeIndex? ranges))
             {
-                return;
+                return false;
             }
+            bool changed = false;
             int minimum = Math.Max(0, reference.ByteOffset - maximumPacketBytes + 1);
             int maximum = checked(reference.ByteOffset + length - 1);
             for (PacketRangeIndex.Node? node = ranges.FirstAtOrAfter((minimum, int.MinValue)); node is not null && node.Key.Offset <= maximum; node = ranges.Next(node))
@@ -523,8 +548,10 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                         packetUndo.Add((packets, index, packet));
                     }
                     packets[index] = packet with { RequiresPhysicalRead = true, ProjectedCoordinates = null, TextureSourceOwner = null };
+                    changed = true;
                 }
             }
+            return changed;
         }
 
         private void RegisterPacketRange(NativeBattleLogicalPacket packet, int index)

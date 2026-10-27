@@ -38,10 +38,10 @@ public sealed class NativeBattleElectrocute275StateTests
     {
         NativeBattleElectrocute275State state = NativeBattleElectrocute275State.FromUnknown().WriteDword(0x2508374, 0x12ABCDEF).WriteDword(0x25083A4, 0x20EBF2C) with { FlashThreshold = 0x7000 };
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleElectrocute275State restored = JsonSerializer.Deserialize<NativeBattleElectrocute275State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleElectrocute275State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(0x7000u, restored.ReadFlashThreshold());
         Assert.Equal(0x12ABCDEFu, restored.ReadDword(0x2508374));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(0x2508408));

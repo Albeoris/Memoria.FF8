@@ -12,7 +12,7 @@ public sealed class NativeBattleResonance49ProgrammeTests
     {
         var frame = Frame(3, 19);
         var actual = InitializeProgramme(frame, 0x2646BF0, null!, null!);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Theory]
@@ -61,10 +61,10 @@ public sealed class NativeBattleResonance49ProgrammeTests
         var resources = Resources();
         frame = InitializeProgramme(frame, 0x2646BF0, resources, Inputs());
         Assert.Equal((ushort)0xCAFE, Read(frame, 0x2646BF0).ReadWord(0x94 + 712));
-        var restored = JsonSerializer.Deserialize<NativeBattleResonance49Frame>(JsonSerializer.Serialize(frame))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var next = DrawProgramme(frame, 0x2646BF0, resources, Inputs());
         Assert.Equal(0, next.Remaining);
-        Assert.Equal(JsonSerializer.Serialize(next.Frame), JsonSerializer.Serialize(DrawProgramme(restored, 0x2646BF0, resources, Inputs()).Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next.Frame), NativeBattleTestSnapshots.Json(DrawProgramme(restored, 0x2646BF0, resources, Inputs()).Frame));
     }
 
     [Fact]

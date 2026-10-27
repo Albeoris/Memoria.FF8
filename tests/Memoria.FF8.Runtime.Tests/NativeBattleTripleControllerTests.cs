@@ -26,7 +26,7 @@ public sealed class NativeBattleTripleControllerTests
         Assert.Equal((ushort)1, root.ReadWord(0x5A));
         Assert.Null(frame.Memory.TripleMorph);
         Assert.Null(frame.State.DrawCursor);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleTripleFrame>(JsonSerializer.Serialize(frame))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleTripleFrame>(NativeBattleTestSnapshots.Json(frame))));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class NativeBattleTripleControllerTests
     public void Missing_curve_and_wrong_private_stride_fail_before_inventing_a_value()
     {
         Assert.Throws<NotSupportedException>(() => NativeBattleTripleScalars.Curve89E620(1, Resources() with { Curve89E620 = [] }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleTripleScalars.AdvancePrimaryPhase89E560(Task(0x89E250) with { Payload = new byte[96].ToImmutableArray() }, Resources()));
+        Assert.Throws<InvalidDataException>(() => NativeBattleTripleScalars.AdvancePrimaryPhase89E560(new NativeBattleModulePoolTask(1, 0, null, 0x89E250, new byte[96].ToImmutableArray()), Resources()));
     }
 
     internal static NativeBattleTripleResources Resources() => new(new("unused-controlled-animation", []), [], [], [], [], [0, 1243, 2091, 2657, 3060, 3383, 3635, 3822, 3954, 4038, 4083, 4096], [0, 893, 1611, 2198, 2664, 3016, 3303, 3561, 3779, 3948, 4057, 4096], 300027);

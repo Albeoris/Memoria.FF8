@@ -13,6 +13,7 @@ public sealed class NativeBattleScriptedMotionResetTests
         frame = frame with { Arena = frame.Arena.Write(0x2050, Enumerable.Repeat((byte)0xA5, 24).ToArray()).Write(0x2018, [3]).MarkUnknown(0x208C, 6) };
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0xBAD000);
         NativeBattleWaterSlotBank bank = new(0, 0x3000, 2, 0x2000);
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Execute(frame);
         Assert.Equal(0x9002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal((ushort)0x1234, result.ReadTemporaryWord(0x13E));
@@ -20,7 +21,7 @@ public sealed class NativeBattleScriptedMotionResetTests
         Assert.Equal((ushort)0xFFFF, WaterSchedulerFixture.ReadSlotWord(result, 1, 0x8C));
         Assert.Equal((ushort)0x8000, WaterSchedulerFixture.ReadSlotWord(result, 1, 0x8E));
         Assert.Equal((ushort)0x1234, WaterSchedulerFixture.ReadSlotWord(result, 1, 0x90));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Execute(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(replayFrame)));
 
         NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame current)
         {

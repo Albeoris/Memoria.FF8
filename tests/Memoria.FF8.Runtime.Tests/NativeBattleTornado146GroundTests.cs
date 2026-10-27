@@ -24,7 +24,7 @@ public sealed class NativeBattleTornado146GroundTests
         Assert.Equal(1u, work.Dword(0x2491E50 + 521 * 12));
         Assert.Equal(0xAABBCCDDu, work.Dword(0x2491E50 + 521 * 12 + 4));
         Assert.Equal(mesh.Address + 84, context[0x38]);
-        NativeBattleTornado146State restored = JsonSerializer.Deserialize<NativeBattleTornado146State>(JsonSerializer.Serialize(state))!;
+        NativeBattleTornado146State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleTornado146State>(NativeBattleTestSnapshots.Json(state))!;
         NativeBattleTornado146GroundVertex result = NativeBattleTornado146Ground.Deform6167E0(new(restored), mesh, new(0, -900, 0), new(0, 0, 0), 4096);
         Assert.Equal((short)700, result.Position.Y);
     }

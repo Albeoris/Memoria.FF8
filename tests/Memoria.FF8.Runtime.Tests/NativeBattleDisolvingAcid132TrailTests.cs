@@ -83,8 +83,8 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
         Assert.Equal((ushort)256, task.ReadWord(30));
         Assert.Equal((ushort)7, task.ReadWord(60));
         Assert.Equal(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4), actual.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
-        NativeBattleDisolvingAcid132Frame restored = JsonSerializer.Deserialize<NativeBattleDisolvingAcid132Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        NativeBattleDisolvingAcid132Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDisolvingAcid132Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class NativeBattleDisolvingAcid132TrailTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         ImmutableArray<NativeBattleEffectTaskPool> pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1), NativeBattleEffectTaskPool.Initialize(MainDescriptor, Working + MainOffset, MainStride, MainCount), NativeBattleEffectTaskPool.Initialize(ActDescriptor, Working + ActOffset, ActStride, ActCount), NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, Working + SimpleSpriteOffset, SimpleSpriteStride, SimpleSpriteCount), NativeBattleEffectTaskPool.Initialize(CurveDescriptor, Working + CurveOffset, CurveStride, CurveCount), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, Working, SpriteStride, SpriteCount)];
         NativeBattleOriginalEffectState effect = new(132, 131, new(132, Entry, Initializer), null, RootDescriptor) { Pools = pools };
-        return new(memory, effect, new(123), NativeBattleDisolvingAcid132State.FromColdProcess().WriteDword(WorkingGlobal, Working)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+        return new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(123), NativeBattleDisolvingAcid132State.FromColdProcess().WriteDword(WorkingGlobal, Working)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleDisolvingAcid132Inputs Inputs() => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, 0), _ => new(null, 100, 160, 108), (_, _, _, _, _, _) => throw new InvalidOperationException(), (frame, _) => frame);
     private static NativeBattleDisolvingAcid132Resources Resources()

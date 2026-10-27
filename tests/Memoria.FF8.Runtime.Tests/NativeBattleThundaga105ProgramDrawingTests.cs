@@ -85,8 +85,8 @@ public sealed class NativeBattleThundaga105ProgramDrawingTests
             Assert.Equal(0xA5, result[vertex * 8 + 7]);
         }
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 8).ToArray(), result[32..]);
-        string json = JsonSerializer.Serialize(draw.Memory);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)));
+        string json = NativeBattleTestSnapshots.Json(draw.Memory);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)));
     }
 
     [Fact]

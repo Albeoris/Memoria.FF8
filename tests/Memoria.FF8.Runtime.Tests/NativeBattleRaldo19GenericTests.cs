@@ -18,7 +18,7 @@ public sealed class NativeBattleRaldo19GenericTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), primitive.Words[1]);
         NativeBattleGfGeometryBatch batch = new([new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 8).ToImmutableArray(), primitive)], 8);
         NativeBattleCuragaNodeDrawStep sprite = NativeBattleCuragaNodeKinematics.CommitBatch(frame, NativeBattleLogicalOrdering.Clear(), batch, false);
-        NativeBattleCuragaNodeDrawStep restored = JsonSerializer.Deserialize<NativeBattleCuragaNodeDrawStep>(JsonSerializer.Serialize(sprite))!;
+        NativeBattleCuragaNodeDrawStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaNodeDrawStep>(NativeBattleTestSnapshots.Json(sprite))!;
         NativeBattleCuragaNodeDrawStep mesh = NativeBattleCuragaNodeKinematics.CommitBatch(sprite.Frame, sprite.Ordering, batch, true);
         NativeBattleCuragaNodeDrawStep restoredMesh = NativeBattleCuragaNodeKinematics.CommitBatch(restored.Frame, restored.Ordering, batch, true);
         Assert.Equal(16, mesh.Frame.Memory.PrimitiveProcess!.ByteCursor);
@@ -26,7 +26,7 @@ public sealed class NativeBattleRaldo19GenericTests
         Assert.Equal(new byte[] { 11, 22, 33, 44 }, mesh.Frame.Memory.Arena!.Read(0x1000, 4));
         Assert.Equal(new[] { 0, 8 }, mesh.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset));
         Assert.All(mesh.Ordering.Proxies, proxy => Assert.Equal("off_B6D070", proxy.Packet.Bank));
-        Assert.Equal(JsonSerializer.Serialize(mesh), JsonSerializer.Serialize(restoredMesh));
+        Assert.Equal(NativeBattleTestSnapshots.Json(mesh), NativeBattleTestSnapshots.Json(restoredMesh));
     }
 
     [Fact]

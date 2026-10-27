@@ -27,6 +27,7 @@ public sealed class NativeBattleMeteor223GridTests
             packets = batch;
             return prepared;
         }, (_, _) => throw new InvalidOperationException()));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame));
         NativeBattleWaterExecutionFrame result = Draw(frame);
         Assert.Equal(9, projected);
         Assert.Equal(4 * 0x44, packets!.AllocationBytes);
@@ -36,10 +37,9 @@ public sealed class NativeBattleMeteor223GridTests
         Assert.Equal(Arena + 0x8000 + 4 * 0x44, WaterSchedulerFixture.ReadCoreDword(result, Manager + 0x7C));
         Assert.Equal(uint.MaxValue, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xC4));
         Assert.Equal(0x27971E4u, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xBC));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        string packetJson = JsonSerializer.Serialize(packets);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored)));
-        Assert.Equal(packetJson, JsonSerializer.Serialize(packets));
+        string packetJson = NativeBattleTestSnapshots.Json(packets);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Draw(restored)));
+        Assert.Equal(packetJson, NativeBattleTestSnapshots.Json(packets));
     }
 
     [Fact]

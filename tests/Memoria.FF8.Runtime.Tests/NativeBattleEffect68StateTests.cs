@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect68StateTests
     public void Unknown_core_and_header_partial_writes_keep_independent_knownness_after_JSON()
     {
         NativeBattleEffect68State state = NativeBattleEffect68State.FromUnknown().WriteWord(CameraAddress + 0x30, 123).WriteDword(ResultCountAddress, 2);
-        NativeBattleEffect68State restored = JsonSerializer.Deserialize<NativeBattleEffect68State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect68State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect68State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal((ushort)123, restored.ReadWord(CameraAddress + 0x30));
         Assert.Equal(2u, restored.ReadDword(ResultCountAddress));
@@ -81,7 +81,7 @@ public sealed class NativeBattleEffect68StateTests
         (NativeBattleEffect68State state, NativeBattleEffectMemory memory) = NativeBattleEffect68State.FromColdProcess().BindMeshSources(NativeBattleEffectMemory.FromColdProcess(), resources);
         NativeBattleScanByteOwner warm = memory.Scan!.MutableMeshes[MutableMeshAddresses[0]].WriteWord(8, 0x8123).WriteWord(14, 0xCAFE);
         memory = memory with { Scan = memory.Scan! with { MutableMeshes = memory.Scan!.MutableMeshes.SetItem(MutableMeshAddresses[0], warm) } };
-        memory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        memory = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
         (state, memory) = state.BindMeshSources(memory, resources);
         Assert.Equal((ushort)0x8123, memory.Scan!.MutableMeshes[MutableMeshAddresses[0]].ReadWord(8));
         Assert.Equal((ushort)0xCAFE, memory.Scan!.MutableMeshes[MutableMeshAddresses[0]].ReadWord(14));

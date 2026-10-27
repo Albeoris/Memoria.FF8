@@ -32,7 +32,7 @@ public sealed class NativeBattleCarbuncle278ProgrammeTests
         Assert.Equal(View.Rotation.ToArray(), direct.Rotation.ToArray());
         Assert.Equal((110, 220, 330), (direct.X, direct.Y, direct.Z));
         NativeBattleActionMatrix ordinary = NativeBattleCarbuncle278Programme.Compose681FD0(Node(), context);
-        Assert.Equal(JsonSerializer.Serialize(ordinary), JsonSerializer.Serialize(NativeBattleCarbuncle278Programme.Compose681FD0(Node(0x1000), context)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(ordinary), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Programme.Compose681FD0(Node(0x1000), context)));
         NativeBattleActionMatrix fractional = context with { Rotation = [3, 0, 0, 0, 4096, 0, 0, 0, 4096] };
         Assert.Equal((short)1, NativeBattleCarbuncle278Programme.Compose681FD0(Node(scale: new(2048, 4096, 4096)), fractional).Rotation[0]);
         Assert.Equal((short)2, NativeBattleCarbuncle278Programme.Compose681FD0(Node(0x100, scale: new(2048, 4096, 4096)), fractional).Rotation[0]);
@@ -42,7 +42,7 @@ public sealed class NativeBattleCarbuncle278ProgrammeTests
     public void Morph_reuses_shared_xyz_only_stores_and_packet_depth_bias_without_touching_padding()
     {
         NativeBattleEffectMemory source = Memory();
-        NativeBattleCarbuncle278ProgrammeNode draw = Draw(source, Node(ratio: 2048));
+        NativeBattleCarbuncle278ProgrammeNode draw = Draw(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)), Node(ratio: 2048));
         Assert.True(draw.Active);
         Assert.Null(draw.FarColor);
         Assert.Equal((short)-10, BinaryPrimitives.ReadInt16LittleEndian(draw.Memory.Arena!.Read(0x2E84, 2)));
@@ -53,8 +53,8 @@ public sealed class NativeBattleCarbuncle278ProgrammeTests
         NativeBattleGeometryPrimitive primitive = Assert.Single(draw.Packets.Attempts).Primitive!;
         Assert.Equal(208, primitive.Bucket);
         Assert.All(source.Arena!.Read(0x2E84, 22), value => Assert.Equal((byte)0xA5, value));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(Draw(restored, Node(ratio: 2048))));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(source))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(draw), NativeBattleTestSnapshots.Json(Draw(restored, Node(ratio: 2048))));
     }
 
     [Theory]

@@ -55,7 +55,7 @@ public sealed class NativeBattleDrawStock15NodeTests
         Assert.Equal(SourceAddress + 24, Read(initialized, 0x10C8));
         Assert.Equal(SourceAddress, Read(initialized, 0x10CC));
         Assert.Same(initialized, initialized.Initialize87EA20(source));
-        NativeBattleCuragaExecutableState restored = JsonSerializer.Deserialize<NativeBattleCuragaExecutableState>(JsonSerializer.Serialize(initialized))!;
+        NativeBattleCuragaExecutableState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaExecutableState>(NativeBattleTestSnapshots.Json(initialized))!;
         Assert.Equal(initialized.Read(SourceAddress, 0x5944), restored.Initialize87EA20(source).Read(SourceAddress, 0x5944));
         Assert.Empty(initialized.Read(SourceAddress + 0x5944, 0));
         Assert.Throws<InvalidDataException>(() => initialized.Read(SourceAddress + 0x5944, 1));
@@ -76,7 +76,7 @@ public sealed class NativeBattleDrawStock15NodeTests
         Assert.Same(original.CuragaExecutable, updated.CuragaExecutable);
         Assert.Same(original.Potion52Executable, updated.Potion52Executable);
         Assert.Throws<InvalidDataException>(() => profile.WithExecutable(original, NativeBattleCuragaExecutableState.FromColdProcess()));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(updated))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(updated))!;
         Assert.Equal(SourceAddress, profile.RequireExecutable(restored).ResourceAddress);
         Assert.Null(profile.RequireExecutable(restored).Data);
     }
@@ -98,8 +98,8 @@ public sealed class NativeBattleDrawStock15NodeTests
         Assert.Equal(0x20DFAB8u + Second, task.ReadDword(0x64));
         Assert.Throws<NotSupportedException>(() => geometry.Frame.Memory.Arena!.Read(First - 1, 1));
         Assert.Throws<NotSupportedException>(() => geometry.Frame.Memory.Arena!.Read(Second + 0x6900, 1));
-        NativeBattleCuragaFrame clone = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(geometry.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaNodes.Unlink882960(geometry.Frame, fixture.Address, First)), JsonSerializer.Serialize(NativeBattleCuragaNodes.Unlink882960(clone, fixture.Address, First)));
+        NativeBattleCuragaFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaFrame>(NativeBattleTestSnapshots.Json(geometry.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCuragaNodes.Unlink882960(geometry.Frame, fixture.Address, First)), NativeBattleTestSnapshots.Json(NativeBattleCuragaNodes.Unlink882960(clone, fixture.Address, First)));
     }
 
     [Fact]

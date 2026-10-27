@@ -24,7 +24,7 @@ public sealed class NativeBattleBio22SpritesTests
         Assert.Equal(new[] { 768, 768, 768, 768 }, packet.VertexPayload4);
         Assert.Equal(65, packet.Bucket);
         Assert.Equal(40, batch.AllocationBytes);
-        Assert.NotEqual(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleBio22Sprites.Emit89BD90(task, 2048, Projection, 0, Resource())));
+        Assert.NotEqual(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(NativeBattleBio22Sprites.Emit89BD90(task, 2048, Projection, 0, Resource())));
     }
 
     [Fact]
@@ -34,10 +34,10 @@ public sealed class NativeBattleBio22SpritesTests
         NativeBattleCameraProjection projection = Projection with { View = NativeBattleCuragaMatrices.RotateY8DD8A0(Projection.View!, 127) with { X = 11, Y = -23, Z = 512 } };
         NativeBattleGfGeometryBatch batch = NativeBattleBio22Sprites.Emit89BF80(task, projection, 319, Resource());
         Assert.Equal(40, batch.AllocationBytes);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-        Assert.Equal(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleBio22Sprites.Emit89BF80(restored.WriteWord(0x54, 32767), projection, 319, Resource())));
-        Assert.NotEqual(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleBio22Sprites.Emit89BF80(task.WriteWord(0x42, 0), projection, 319, Resource())));
-        Assert.NotEqual(JsonSerializer.Serialize(batch), JsonSerializer.Serialize(NativeBattleBio22Sprites.Emit89BF80(task, projection, 0, Resource())));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(NativeBattleBio22Sprites.Emit89BF80(restored.WriteWord(0x54, 32767), projection, 319, Resource())));
+        Assert.NotEqual(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(NativeBattleBio22Sprites.Emit89BF80(task.WriteWord(0x42, 0), projection, 319, Resource())));
+        Assert.NotEqual(NativeBattleTestSnapshots.Json(batch), NativeBattleTestSnapshots.Json(NativeBattleBio22Sprites.Emit89BF80(task, projection, 0, Resource())));
     }
 
     private static NativeBattleModulePoolTask Task() => new NativeBattleModulePoolTask(1, 0, null, 0, new byte[0x70 - 12].ToImmutableArray()).WriteWord(0x20, 1024).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);

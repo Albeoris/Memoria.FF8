@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -57,7 +57,7 @@ public sealed class NativeBattleShivaEarlyTasksTests
     public void Counters_use_signed_completion_WORD_wrap_and_signed_geometry_limit(short counter, short extent, int requested, short afterCounter, short afterExtent, int result)
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture();
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x0C, unchecked((ushort)counter)).WriteWord(0x0E, unchecked((ushort)extent))) } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x0C, unchecked((ushort)counter)).WriteWord(0x0E, unchecked((ushort)extent))) }) };
         NativeBattleShivaEarlyTaskStep step = NativeBattleShivaEarlyTasks.Advance5C1390(frame, 0, 0, (current, count) =>
         {
             Assert.Equal(requested, count);
@@ -79,6 +79,7 @@ public sealed class NativeBattleShivaEarlyTasksTests
         {
             BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(index * 2), row[index % 8]);
         }
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(source))!;
         NativeBattleShivaEarlyTaskFrame result = NativeBattleShivaEarlyTasks.Spawn5C4820(source, bytes.ToImmutableArray());
         short[][] expected = [[1, -4, 2238, 190, -1, 2], [4, -3, 2386, 194, -1, -5], [5, -9, 1769, 101, -3, 3], [9, -7, 3719, 174, -1, 5]];
         for (int index = 0; index < expected.Length; index++)
@@ -96,8 +97,7 @@ public sealed class NativeBattleShivaEarlyTasksTests
         }
         Assert.Equal(new NativeCrtRandomState(0x994439), result.Random);
         Assert.Equal(source.Geometry, result.Geometry);
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleShivaEarlyTasks.Spawn5C4820(restored, bytes.ToImmutableArray())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleShivaEarlyTasks.Spawn5C4820(restored, bytes.ToImmutableArray())));
         Assert.Throws<InvalidDataException>(() => NativeBattleShivaEarlyTasks.Spawn5C4820(source, []));
         Assert.Throws<ArgumentNullException>(() => NativeBattleShivaEarlyTasks.Advance5C1390(source, 0, 0, null!));
     }
@@ -105,9 +105,9 @@ public sealed class NativeBattleShivaEarlyTasksTests
     private static NativeBattleShivaEarlyTaskFrame Fixture()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         (pool, int slot) = pool.Append(0x5C1390);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, 0).WriteWord(0x0E, 0)) });
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), new(new(0, 0, 0, 0), new(1, 2, 3, 4)));
     }
 }

@@ -41,12 +41,12 @@ public sealed class NativeBattleReflectBeam135StateTests
         Assert.Throws<NotSupportedException>(() => state.ReadDword(CasterGlobal));
         (byte[] bytes, bool[] known) = state.ReadView(ScaleMatrixGlobal, 32).ReadSnapshot(0, 32);
         Assert.Equal(new[] { 0, 1, 8, 9, 16, 17 }, known.Select((value, index) => (value, index)).Where(item => item.value).Select(item => item.index));
-        NativeBattleReflectBeam135State restored = JsonSerializer.Deserialize<NativeBattleReflectBeam135State>(JsonSerializer.Serialize(state))!;
+        NativeBattleReflectBeam135State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleReflectBeam135State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         NativeBattleEffectArena continuation = NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(20, BitConverter.GetBytes(123));
         NativeBattleReflectBeam135State expected = state.WriteView(ScaleMatrixGlobal, continuation, 32);
         NativeBattleReflectBeam135State actual = restored.WriteView(ScaleMatrixGlobal, continuation, 32);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(123u, actual.ReadDword(ScaleMatrixGlobal + 20));
         Assert.Throws<NotSupportedException>(() => actual.ReadWord(ScaleMatrixGlobal));
         Assert.Equal((byte)0, bytes[0]);

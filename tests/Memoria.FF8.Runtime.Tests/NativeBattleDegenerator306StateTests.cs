@@ -51,11 +51,11 @@ public sealed class NativeBattleDegenerator306StateTests
     {
         NativeBattleResourcePointer pointer = new(null, 0xCE4560, 0x1634);
         NativeBattleDegenerator306State state = NativeBattleDegenerator306State.FromUnknown().WriteResourcePointer(BindingSave + 8, pointer).WriteWord(SlotBank + 12, 0x8040).ClearSlotHeads();
-        NativeBattleDegenerator306State restored = JsonSerializer.Deserialize<NativeBattleDegenerator306State>(JsonSerializer.Serialize(state))!;
+        NativeBattleDegenerator306State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(pointer, restored.ReadResourcePointer(BindingSave + 8));
         Assert.Equal((ushort)0x8040, restored.ReadWord(SlotBank + 12));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(state.ClearSlotHeads()), JsonSerializer.Serialize(restored.ClearSlotHeads()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.ClearSlotHeads()), NativeBattleTestSnapshots.Json(restored.ClearSlotHeads()));
     }
 }

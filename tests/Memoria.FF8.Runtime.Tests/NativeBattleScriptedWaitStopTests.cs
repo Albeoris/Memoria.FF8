@@ -15,7 +15,7 @@ public sealed class NativeBattleScriptedWaitStopTests
         Assert.Equal(0x1000u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.Core, result.Core);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, NativeBattleEffectNodeMemory.ArenaAddress + 0x2100)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!, NativeBattleEffectNodeMemory.ArenaAddress + 0x2100)));
     }
 
     [Fact]

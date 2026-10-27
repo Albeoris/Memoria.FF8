@@ -119,8 +119,8 @@ public sealed partial class NativeBattlePandemona291EntryTests
             Assert.Equal((short)(719 + index), BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x231D4 + 10 + 8 * index, 2)));
         }
         Assert.Throws<NotSupportedException>(() => arena.Read(0x21D2, 2));
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(second.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(second.Frame), JsonSerializer.Serialize(restored));
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(second.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(second.Frame), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => NativeBattlePandemona291Timeline.Advance6ED900(second.Frame, 0x20DFAB8u + 0x21A4, second.Task.WriteWord(0xC, 18), services));
     }
 
@@ -138,7 +138,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal((short)7, first.TargetPaddingFE);
         NativeBattleCameraState second = NativeBattlePandemona291Timeline.AdvanceOpeningCamera(first, 4000, 1);
         Assert.Equal(new NativeBattleCameraPoint(0, -1200, 4087), second.CurrentPose!.Eye);
-        NativeBattleCameraState independent = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(NativeBattlePandemona291Timeline.AdvanceOpeningCamera(independent, 4000, 1)));
+        NativeBattleCameraState independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCameraState>(NativeBattleTestSnapshots.Json(first))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattlePandemona291Timeline.AdvanceOpeningCamera(independent, 4000, 1)));
     }
 }

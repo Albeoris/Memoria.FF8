@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -204,8 +204,9 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x87, 1, 0);
         Assert.Equal(2u, WaterSchedulerFixture.ReadCoreDword(Run(frame, Services()), 0x2797450));
-        frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
-        Assert.Throws<NotSupportedException>(() => Run(frame, Services()));
+        NativeBattleWaterExecutionFrame missing = Fixture(0x87, 1, 0);
+        missing = missing with { Arena = missing.Arena.MarkUnknown(0x1004, 2) };
+        Assert.Throws<NotSupportedException>(() => Run(missing, Services()));
     }
 
     [Fact]
@@ -217,12 +218,12 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
         frame = SlotWord(frame, Reference, 0x96, 600);
         frame = SlotWord(frame, Reference, 0x98, unchecked((ushort)-1000));
         frame = SlotDword(frame, Slot, 0xCC, 0xAB123456);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame, Services());
         Assert.Equal(0xABFF0002u, WaterSchedulerFixture.ReadSlotDword(result, 0, 0xCC));
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Equal(frame.Random, result.Random);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(restored, Services())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(restored, Services())));
     }
 
     private static NativeBattleWaterScalarReferenceServices Services() => new((frame, selector) => ArenaBase + Reference, UnexpectedParameter, UnexpectedActor, UnexpectedAnchor, UnexpectedPost, UnexpectedPost, NativeBattleActorAnchorRegisterFixture.Services());

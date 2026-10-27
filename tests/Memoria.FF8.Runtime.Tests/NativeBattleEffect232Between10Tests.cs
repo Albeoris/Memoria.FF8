@@ -15,7 +15,6 @@ public sealed class NativeBattleEffect232Between10Tests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(secondX, secondZ, extension, xFraction, yFraction, zFraction);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x3006, 2) };
-        string before = JsonSerializer.Serialize(frame.Arena);
         List<short> selectors = [];
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicBetween10.Update(frame, (owner, selector) =>
         {
@@ -30,7 +29,7 @@ public sealed class NativeBattleEffect232Between10Tests
         Assert.Equal(200u, result.ReadTemporaryDword(0xFC));
         Assert.Equal(frame.Core, result.Core);
         Assert.Equal(frame.Random, result.Random);
-        Assert.Equal(before, JsonSerializer.Serialize(frame.Arena));
+        Assert.Same(frame.Arena, result.Arena);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x3006, 2));
     }
 

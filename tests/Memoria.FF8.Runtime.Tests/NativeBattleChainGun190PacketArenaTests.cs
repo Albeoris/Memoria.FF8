@@ -44,13 +44,15 @@ public sealed class NativeBattleChainGun190PacketArenaTests
     {
         NativeBattleChainGun190State state = NativeBattleChainGun190State.FromUnknown().WriteDword(Cursor, Base + 0x8000);
         NativeBattleChainGun190PacketWrite first = NativeBattleChainGun190PacketArena.Append(state, NativeBattleLogicalOrdering.Clear(), Accepted(0xE1000220));
-        NativeBattleChainGun190PacketWrite restored = JsonSerializer.Deserialize<NativeBattleChainGun190PacketWrite>(JsonSerializer.Serialize(first))!;
+        NativeBattleChainGun190PacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChainGun190PacketWrite>(NativeBattleTestSnapshots.Json(first))!;
         Assert.Throws<NotSupportedException>(() => restored.State.ReadPacket(Base, 4));
         NativeBattleChainGun190PacketWrite Next(NativeBattleChainGun190PacketWrite current) => NativeBattleChainGun190PacketArena.Append(current.State, current.Ordering, Accepted(0xE1000221));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        var expected = Next(first);
+        var actual = Next(restored);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
-        NativeBattleChainGun190PacketWrite next = Next(restored);
+        NativeBattleChainGun190PacketWrite next = actual;
         NativeBattleLogicalCommand[] commands = next.Ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => NativeBattleChainGun190PacketArena.Read(next.State, reference, count)).ToArray();
         Assert.Equal(new uint[] { 0xE1000221, 0xE1000220 }, commands.Select(command => command.Words[0]));
     }

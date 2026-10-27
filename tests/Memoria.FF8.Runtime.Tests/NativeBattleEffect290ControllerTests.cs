@@ -73,8 +73,8 @@ public sealed class NativeBattleEffect290ControllerTests
         Assert.Equal(2, complete.Result);
         Assert.Equal(new byte[2], complete.Frame.Staging!.Read(0x106E64E, 2));
         Assert.Equal(new byte[] { 2, 0 }, resources.OriginalScriptCount(0x106E64E));
-        NativeBattleFileStaging staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(complete.Frame.Staging))!;
-        NativeBattleEffect290State state = JsonSerializer.Deserialize<NativeBattleEffect290State>(JsonSerializer.Serialize(complete.Frame.State))!;
+        NativeBattleFileStaging staging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(complete.Frame.Staging)))!);
+        NativeBattleEffect290State state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect290State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(complete.Frame.State)))!);
         frame = BirthScript675650(complete.Frame with { Staging = staging, State = state }, 0x106E648, resources);
         uint warm = Script + 36;
         NativeBattleEffect290Step warmYield = AdvanceScript6756A0(frame, warm, resources, harness.Inputs());
@@ -300,7 +300,7 @@ public sealed class NativeBattleEffect290ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, (uint)rootAge | 0x01000000).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, (uint)rootAge | 0x01000000).WriteDword(16, 0));
         ImmutableArray<NativeBattleEffectTaskPool>.Builder pools = ImmutableArray.CreateBuilder<NativeBattleEffectTaskPool>();
         pools.Add(root);
         foreach (NativeBattleCureFamilyPool shape in CommonPools)
@@ -308,12 +308,12 @@ public sealed class NativeBattleEffect290ControllerTests
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(shape.Descriptor, Arena + shape.Bank, shape.Stride, shape.Capacity);
             for (int slot = 0; slot < shape.Capacity; slot++)
             {
-                pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[shape.Stride - 12])) };
+                pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[shape.Stride - 12]));
             }
             if (shape.Descriptor == MainDescriptor && mainAge is int age)
             {
                 (pool, _) = pool.Append(MainCallback);
-                pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, (ushort)age).WriteDword(0x64D8, Main + 0x1D8)) };
+                pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, (ushort)age).WriteDword(0x64D8, Main + 0x1D8));
             }
             pools.Add(pool);
         }

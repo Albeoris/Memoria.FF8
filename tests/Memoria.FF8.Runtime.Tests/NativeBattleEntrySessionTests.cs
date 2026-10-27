@@ -28,7 +28,7 @@ public sealed class NativeBattleEntrySessionTests
         Assert.Equal(0x800000u, snapshot.Combatants[1].NativeStatus!.Battle & 0x800000u);
         Assert.Equal((byte)3, snapshot.Random!.Indexes[0]);
         BattleSession restored = BattleSession.Restore(snapshot);
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(snapshot)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.Capture())));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativeEntryAdvantage = null }));
     }
 

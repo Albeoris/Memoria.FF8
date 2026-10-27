@@ -17,7 +17,7 @@ public sealed class NativeBattleDuelEchoDrawingTests
         NativeBattleGraphicsModel model = new(0, 3) { GeometryWorldMatrix = identity, SequenceState = new() { MeshMask124 = 0x12345678 } };
 
         frame = NativeBattleDuel274Echo.Draw68A7B0(frame, model, echo, 0x1000, (_, _, _) => throw new InvalidOperationException("Empty history must not read geometry."), 1, identity, new(identity, 256, 160, 112), (_, _) => throw new InvalidOperationException("Empty history must not submit packets."), 0x155, 0x100);
-        NativeBattleDuel274Frame restored = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDuel274Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
 
         Assert.Equal(address, BitConverter.ToUInt32(restored.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
         Assert.Equal(0x12345678u, BitConverter.ToUInt32(restored.Staging.Read(address + 56, 4)));

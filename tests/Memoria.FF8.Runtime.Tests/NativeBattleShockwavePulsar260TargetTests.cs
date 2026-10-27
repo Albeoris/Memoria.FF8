@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -163,16 +163,16 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
     {
         Fixture fixture = new(LateTargetCallback, 19);
         NativeBattleShockwavePulsar260TaskStep first = fixture.Advance(fixture.Frame);
-        NativeBattleShockwavePulsar260Frame restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260Frame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleShockwavePulsar260Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260Frame>(NativeBattleTestSnapshots.Json(first.Frame))!;
         Fixture other = new(LateTargetCallback, 19);
         Array.Copy(fixture.Positions, other.Positions, fixture.Positions.Length);
         Array.Copy(fixture.Models, other.Models, fixture.Models.Length);
         fixture.Operations.Clear();
         NativeBattleShockwavePulsar260TaskStep expected = fixture.Advance(first.Frame);
         NativeBattleShockwavePulsar260TaskStep actual = other.Advance(restored);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(fixture.Operations), JsonSerializer.Serialize(other.Operations));
-        Assert.Equal(JsonSerializer.Serialize(fixture.Positions), JsonSerializer.Serialize(other.Positions));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Operations.ToImmutableArray()), NativeBattleTestSnapshots.Json(other.Operations.ToImmutableArray()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Positions.ToImmutableArray()), NativeBattleTestSnapshots.Json(other.Positions.ToImmutableArray()));
     }
 
     private const uint MainBank = ArenaAddress + MainOffset;
@@ -207,7 +207,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
             {
                 task = task.WriteWord(0xC, 111).WriteWord(0xE, 222).WriteWord(0x10, 333);
             }
-            children = children with { Slots = children.Slots.SetItem(slot, task) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, task) });
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(PuffsOffset, PuffsCount * 16);
             for (int index = 0; index < PuffsCount; index++)
             {
@@ -216,6 +216,7 @@ public sealed class NativeBattleShockwavePulsar260TargetTests
             NativeBattleOriginalEffectState effect = new(260, 259, new(260, Entry, Initializer), null, RootDescriptor) { Pools = [root, main, children] };
             NativeBattleShockwavePulsar260State state = NativeBattleShockwavePulsar260State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(0x2508614, ArenaAddress + PuffsOffset);
             NativeBattleShockwavePulsar260Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = arena }, effect, new(123), state);
+            frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, effect.Pools) };
             NativeBattleEffectArena record = NativeBattleEffectArena.Clear().MarkUnknown(0, 0x24).Write(0, BitConverter.GetBytes(0x1D972C0u + 3 * 156u)).Write(6, BitConverter.GetBytes((short)700)).Write(0xC, BitConverter.GetBytes((short)100)).Write(0xE, BitConverter.GetBytes((short)-200)).Write(0x10, BitConverter.GetBytes((short)300)).Write(0x14, BitConverter.GetBytes(linked ? 1u : 0u)).Write(0x18, BitConverter.GetBytes(2048u)).Write(0x1C, BitConverter.GetBytes(4096u)).Write(0x20, BitConverter.GetBytes((short)-400)).Write(0x22, BitConverter.GetBytes((short)99));
             frame = NativeBattleShockwavePulsar260Controller.WriteView(frame, RecordAddress, record, 0x24);
             int size = callback == TargetCallback ? 0xBC : callback == LateTargetCallback ? 0x100 : 0xD8;

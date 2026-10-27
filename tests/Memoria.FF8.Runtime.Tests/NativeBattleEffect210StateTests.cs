@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect210StateTests
     public void Partial_view_writes_preserve_unknown_padding_and_retained_source_values()
     {
         NativeBattleEffect210State state = NativeBattleEffect210State.FromUnknown().WriteWord(ViewAddress, 4096).WriteDword(ViewAddress + 20, 512).WriteDword(FrozenGlobal, 7);
-        state = JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4096, state.ReadWord(ViewAddress));
         Assert.Equal(512u, state.ReadDword(ViewAddress + 20));
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect210StateTests
             state = state.AttachCommonQueue(shape.Descriptor, queue);
             Assert.Throws<InvalidDataException>(() => state.AttachCommonQueue(shape.Descriptor, queue));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         foreach (NativeBattleCureFamilyPool shape in CommonPools)
         {
@@ -67,10 +67,10 @@ public sealed class NativeBattleEffect210StateTests
         state = state.DetachBank(0);
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
-        state = JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal((ushort)0xBEEF, state.ReadWord(RetainedPairAddress + 6));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(RetainedPairAddress));
         Assert.Equal(BitConverter.GetBytes((ushort)0xCAFE), state.ReadBank(0).Read(14, 2));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect210 = null }))!.Effect210);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect210 = null })))!).Effect210);
     }
 }

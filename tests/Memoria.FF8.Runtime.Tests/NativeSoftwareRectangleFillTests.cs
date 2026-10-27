@@ -62,8 +62,8 @@ public sealed class NativeSoftwareRectangleFillTests
         Assert.Equal((ushort)0, Word(image, 384, 256));
         Assert.Equal((ushort)0, Word(image, 511, 511));
         Assert.Same(unrelated, execution.State.Environment);
-        string retained = JsonSerializer.Serialize(execution.Textures);
-        Assert.Equal(image, JsonSerializer.Deserialize<NativeBattleEffectTextureState>(retained)!.ReadVram());
+        string retained = NativeBattleTestSnapshots.Json(execution.Textures);
+        Assert.Equal(image, NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(retained)!.ReadVram());
         Assert.True(NativeSoftwareRectangleFill.Fill466EF0(image, Packet(1023, 511, 1, 1, 0xFFFFFF)));
         Assert.Equal((ushort)0x7FFF, Word(image, 1023, 511));
     }

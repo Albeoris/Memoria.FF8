@@ -33,7 +33,7 @@ public sealed class NativeBattleRinoa89BeamCallbacksTests
     {
         var fixture = Fixture(true, 0);
         NativeBattleModulePoolTask task = fixture.Pool.Slots[0].WriteWord(16, unchecked((ushort)-3)).WriteWord(22, 3).WriteWord(28, unchecked((ushort)-5));
-        NativeBattleEffectTaskPool pool = fixture.Pool with { Slots = fixture.Pool.Slots.SetItem(0, task) };
+        NativeBattleEffectTaskPool pool = NativeBattleTaskFixture.EditPool(fixture.Pool, data => data with { Slots = fixture.Pool.Slots.SetItem(0, task) });
         NativeBattleRinoa89TaskStep step = NativeBattleRinoa89Controller.AdvanceBeam6FDC20(fixture.Frame, pool, 0, Services((frame, _, _) => frame, _ => throw new InvalidOperationException()));
         Assert.Equal(101u, step.Pool.Slots[0].ReadDword(32));
         Assert.Equal(199u, step.Pool.Slots[0].ReadDword(36));
@@ -109,7 +109,7 @@ public sealed class NativeBattleRinoa89BeamCallbacksTests
         staging = NativeBattleTemporaryMemory.Reset5082F0(staging);
         NativeBattleRinoa89Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, staging, NativeCrtRandomState.FromColdProcess());
         NativeBattleRinoa89BeamBirth born = narrow ? NativeBattleRinoa89Controller.SpawnBeam6FDB80(frame, pool, 0, 0, Programme()) : NativeBattleRinoa89Controller.SpawnBeam6FD4D0(frame, pool, 0, 0, Programme());
-        pool = born.Pool with { Slots = born.Pool.Slots.SetItem(0, born.Pool.Slots[0].WriteWord(44, age)) };
+        pool = NativeBattleTaskFixture.EditPool(born.Pool, data => data with { Slots = born.Pool.Slots.SetItem(0, born.Pool.Slots[0].WriteWord(44, age)) });
         return (born.Frame with { Effect = born.Frame.Effect with { Pools = [pool] } }, pool);
     }
 

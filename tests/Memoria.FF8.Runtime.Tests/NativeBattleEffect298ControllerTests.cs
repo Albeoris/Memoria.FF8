@@ -110,7 +110,7 @@ public sealed class NativeBattleEffect298ControllerTests
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena!.Read(MainOffset, 2)) & 1);
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(actual.Memory.Arena.Read(MainOffset + 12, 2)));
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(actual))));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)))))));
     }
 
     [Theory]
@@ -243,7 +243,7 @@ public sealed class NativeBattleEffect298ControllerTests
         var first = AdvanceScript670C60(frame, Pools[1].Bank, resources, harness.Inputs()).Frame;
         Assert.Equal(new byte[2], first.State.ReadStatic(resources, counter, 2));
         Assert.Equal(counter - 2, Read(first, Pools[1].Bank).ReadDword(16));
-        var cold = JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(first))!;
+        var cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         var second = AdvanceScript670C60(cold, Pools[1].Bank, resources, harness.Inputs()).Frame;
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(second.State.ReadStatic(resources, counter, 2)));
         Assert.Equal(counter + 8, Read(second, Pools[1].Bank).ReadDword(16));

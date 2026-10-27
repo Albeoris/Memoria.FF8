@@ -24,8 +24,8 @@ public sealed class NativeBattleSandStorm155ControllerTests
         NativeBattleSandStorm155Frame frame = Frame();
         frame = NativeBattleSandStorm155Controller.Initialize(frame, Resources(), Inputs());
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(1, children.Slots[1].MarkPayloadUnknown(30, 2) with { State = 0xCAFE, Next = 2, Callback = 0x12345678 }) };
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(1, NativeBattleTaskFixture.EditTask(children.Slots[1].MarkPayloadUnknown(30, 2), taskData => taskData with { State = 0xCAFE, Next = 2, Callback = 0x12345678 })) });
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })), Head = null, Tail = null });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         frame = NativeBattleSandStorm155Controller.Advance(frame, Resources(), Inputs());
         Assert.Empty(frame.Effect.Pools);
@@ -33,7 +33,7 @@ public sealed class NativeBattleSandStorm155ControllerTests
         Assert.Equal((ushort)0xCAFE, BinaryPrimitives.ReadUInt16LittleEndian(frame.State.ChildBankStorage!.Read(38, 2)));
         Assert.Equal(0x23F1B40u, BinaryPrimitives.ReadUInt32LittleEndian(frame.State.ChildBankStorage.Read(40, 4)));
         Assert.Throws<NotSupportedException>(() => frame.State.ChildBankStorage.Read(66, 2));
-        frame = JsonSerializer.Deserialize<NativeBattleSandStorm155Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleSandStorm155Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleSandStorm155Controller.Initialize(frame, Resources(), Inputs());
         Assert.Null(frame.State.ChildBankStorage);
         Assert.Equal((ushort)0, frame.Effect.Pools[1].Slots[1].State);
@@ -94,7 +94,7 @@ public sealed class NativeBattleSandStorm155ControllerTests
         Assert.Equal(1, calls);
         Assert.Equal(0, actual.Result);
         Assert.Equal(frame.Random, actual.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.State), JsonSerializer.Serialize(actual.Frame.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.State), NativeBattleTestSnapshots.Json(actual.Frame.State));
         Assert.Equal(frame.Effect, actual.Frame.Effect);
     }
 

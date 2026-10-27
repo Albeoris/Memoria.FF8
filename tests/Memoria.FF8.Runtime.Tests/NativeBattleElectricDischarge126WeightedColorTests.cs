@@ -21,11 +21,11 @@ public sealed class NativeBattleElectricDischarge126WeightedColorTests
         Assert.All(step.Memory.ScriptedColorRegisters.Ir, value => Assert.NotNull(value));
         Assert.NotNull(step.Memory.ScriptedColorRegisters.Flags);
         Assert.Same(memory.PrimitiveProcess, step.Memory.PrimitiveProcess);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(step.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(step.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(restored.ScriptedColorRegisters));
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Memory)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Memory.ScriptedColorRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.ScriptedColorRegisters)));
         NativeBattleWeightedColorStep next = NativeBattleWeightedColor56CC00.Blend(step.Memory, step.Color, 0xFFFFFF, 1024, 3072, step.Color, NativeBattleGteColorInterpolation.CodeConstants45F270);
         NativeBattleWeightedColorStep restoredNext = NativeBattleWeightedColor56CC00.Blend(restored, step.Color, 0xFFFFFF, 1024, 3072, step.Color, NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Equal(next.Color, restoredNext.Color);
-        Assert.Equal(JsonSerializer.Serialize(next.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(restoredNext.Memory.ScriptedColorRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next.Memory.ScriptedColorRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredNext.Memory.ScriptedColorRegisters)));
     }
 }

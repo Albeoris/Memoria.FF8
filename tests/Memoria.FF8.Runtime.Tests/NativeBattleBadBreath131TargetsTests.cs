@@ -30,7 +30,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
         if (age is 0 or 7 or 30 or 38)
         {
             Assert.NotNull(actual.Frame.Memory.ScriptedColorRegisters!.Ir0);
-            Assert.NotEqual(JsonSerializer.Serialize(fixture.Frame.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Frame.Memory.ScriptedColorRegisters));
+            Assert.NotEqual(NativeBattleTestSnapshots.Json(fixture.Frame.Memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Frame.Memory.ScriptedColorRegisters));
         }
     }
 
@@ -119,11 +119,11 @@ public sealed class NativeBattleBadBreath131TargetsTests
     public void JSON_target_continuation_preserves_shared_owners_and_unknown_context_W()
     {
         Fixture fixture = new(40);
-        NativeBattleBadBreath131Frame restored = JsonSerializer.Deserialize<NativeBattleBadBreath131Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleBadBreath131Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath131Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
         var expected = NativeBattleBadBreath131Controller.AdvanceTarget(fixture.Frame, fixture.TargetAddress, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleBadBreath131Controller.AdvanceTarget(restored, fixture.TargetAddress, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
     }
 
     private sealed class Fixture
@@ -148,6 +148,7 @@ public sealed class NativeBattleBadBreath131TargetsTests
             NativeBattleOriginalEffectState effect = new(131, 131, new(131, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Sxy = [1, 2, 3], Sz = [4, 5, 6, 7] }, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [8, 9, 10] }, ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
             NativeBattleBadBreath131Frame frame = new(memory, effect, new(1), NativeBattleBadBreath131State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             (frame, _) = NativeBattleBadBreath131Controller.Append(frame, 2, TargetCallback);
             NativeBattleModulePoolTask task = NativeBattleBadBreath131Controller.Read(frame, TargetAddress).WriteBytes(12, new byte[312]).WriteWord(12, (ushort)age).WriteByte(14, 2).WriteByte(15, 0).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300).MarkPayloadUnknown(22, 2).WriteDword(24, 0x77102030);

@@ -107,8 +107,8 @@ public sealed class NativeBattleEffect65MeshTests
         Assert.All(packets, packet => Assert.Equal(12, packet.Batch.AllocationBytes));
         Assert.All(packets, packet => Assert.Equal(142, packet.Batch.Attempts.Single().Primitive!.Bucket));
         Assert.Equal(frame.Random, result.Random);
-        NativeBattleEffect65Frame restored = JsonSerializer.Deserialize<NativeBattleEffect65Frame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleEffect65Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect65Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]

@@ -35,10 +35,10 @@ public sealed class NativeBattleShockwavePulsar260StateTests
         NativeBattleEffectArena matrix = NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(20, BitConverter.GetBytes(1234));
         NativeBattleShockwavePulsar260State state = NativeBattleShockwavePulsar260State.FromUnknown().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(PrimaryCursorGlobal, ArenaAddress + FirstPacketOffset).WriteView(CopiedViewAddress, matrix, 32);
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleShockwavePulsar260State restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260State>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleShockwavePulsar260State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(ArenaAddress + FirstPacketOffset, restored.ReadDword(PrimaryCursorGlobal));
         Assert.Equal(1234u, restored.ReadDword(CopiedViewAddress + 20));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CopiedViewAddress + 18));

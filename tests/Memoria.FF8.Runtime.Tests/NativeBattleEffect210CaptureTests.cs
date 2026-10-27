@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect210CaptureTests
         Assert.Equal(2042, plan.ScaleX);
         Assert.Equal(2036, plan.ScaleZ);
         Assert.Equal(new short[] { 2042, 0, 0, 0, 0, -2036, 0, 0, 0 }, matrix.Rotation.ToArray());
-        NativeBattleEffect210CapturePlan restored = JsonSerializer.Deserialize<NativeBattleEffect210CapturePlan>(JsonSerializer.Serialize(plan))!;
+        NativeBattleEffect210CapturePlan restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210CapturePlan>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(plan)))!);
         Assert.Equal(plan.Matrix.Bytes.ToArray(), restored.Matrix.Bytes.ToArray());
         Assert.Equal(plan.Matrix.Known.ToArray(), restored.Matrix.Known.ToArray());
     }

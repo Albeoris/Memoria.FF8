@@ -1,26 +1,28 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleEffectArenaBatchTests
 {
     [Fact]
-    public void Ordered_overlapping_stores_match_scalar_memory_without_mutating_the_input()
+    public void Ordered_overlapping_stores_match_scalar_memory_and_preserve_a_detached_input()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(10, [1, 2, 3, 4]).MarkUnknown(11, 1);
-        string original = JsonSerializer.Serialize(source);
+        NativeBattleEffectArena preserved = NativeBattleStorageSnapshots.Capture(source);
+        NativeBattleEffectArena scalar = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source));
         using NativeBattleEffectArenaBatch batch = new(source);
         byte[] bytes = [8, 9];
         batch.Write(11, bytes);
         bytes[0] = 0;
         byte[] alias = batch.Read(10, 4);
         batch.Write(12, alias);
-        NativeBattleEffectArena expected = source.Write(11, [8, 9]).Write(12, [1, 8, 9, 4]);
+        NativeBattleEffectArena expected = scalar.Write(11, [8, 9]).Write(12, [1, 8, 9, 4]);
         NativeBattleEffectArena published = batch.Publish();
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(published));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(published)));
         Assert.Null(published.Transaction);
-        Assert.Equal(original, JsonSerializer.Serialize(source));
-        Assert.Throws<NotSupportedException>(() => source.Read(11, 1));
+        Assert.Equal(original, JsonSerializer.Serialize(preserved));
+        Assert.Throws<NotSupportedException>(() => preserved.Read(11, 1));
     }
 
     [Fact]
@@ -33,19 +35,19 @@ public sealed class NativeBattleEffectArenaBatchTests
     }
 
     [Fact]
-    public void Each_publication_is_immutable_while_later_local_stores_remain_visible()
+    public void Detached_publications_are_immutable_while_later_local_stores_remain_visible()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear();
         using NativeBattleEffectArenaBatch batch = new(source);
         batch.Write(20, [1, 2]);
-        NativeBattleEffectArena first = batch.Publish();
+        NativeBattleEffectArena first = NativeBattleStorageSnapshots.Capture(batch.Publish());
         batch.Write(21, [9]);
         Assert.Equal(new byte[] { 1, 9 }, batch.Read(20, 2));
         Assert.Equal(new byte[] { 1, 2 }, first.Read(20, 2));
         NativeBattleEffectArena second = batch.Publish();
         batch.Dispose();
         Assert.Equal(new byte[] { 1, 9 }, second.Read(20, 2));
-        Assert.Equal(new byte[] { 0, 0 }, source.Read(20, 2));
+        Assert.Equal(new byte[] { 1, 9 }, source.Read(20, 2));
         Assert.Throws<ObjectDisposedException>(() => batch.Read(20, 2));
     }
 
@@ -53,7 +55,7 @@ public sealed class NativeBattleEffectArenaBatchTests
     public void External_replacement_discards_unpublished_stores_and_preserves_external_changes()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, [1]);
-        NativeBattleEffectArena replacement = source.Write(1, [2]);
+        NativeBattleEffectArena replacement = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)).Write(1, [2]);
         using NativeBattleEffectArenaBatch batch = new(source);
         batch.Write(0, [99]);
         batch.Replace(replacement);
@@ -68,6 +70,7 @@ public sealed class NativeBattleEffectArenaBatchTests
     public void Borrowed_transaction_views_remain_owned_by_the_outer_callback()
     {
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, [1]);
+        NativeBattleEffectArena preserved = NativeBattleStorageSnapshots.Capture(source);
         using NativeBattleEffectArenaTransaction outer = new(source);
         using (NativeBattleEffectArenaBatch batch = new(outer.View))
         {
@@ -78,7 +81,7 @@ public sealed class NativeBattleEffectArenaBatchTests
         }
         outer.View.Write(3, [4]);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, outer.Freeze().Read(0, 4));
-        Assert.Equal(new byte[] { 1, 0, 0, 0 }, source.Read(0, 4));
+        Assert.Equal(new byte[] { 1, 0, 0, 0 }, preserved.Read(0, 4));
     }
 
     [Fact]
@@ -96,6 +99,6 @@ public sealed class NativeBattleEffectArenaBatchTests
             throw new NotSupportedException("The next local callback has no supported operation.");
         }));
         Assert.Equal(new byte[] { 1, 2, 0 }, visible!.Read(0, 3));
-        Assert.Equal(new byte[] { 1, 0, 0 }, source.Read(0, 3));
+        Assert.Equal(new byte[] { 1, 2, 0 }, source.Read(0, 3));
     }
 }

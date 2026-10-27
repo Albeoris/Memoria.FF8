@@ -11,7 +11,10 @@ public sealed class NativeBattleEffect187ControllerTests
     {
         NativeBattleEffect187Frame frame = Frame();
         NativeBattleEffectTaskPool child = frame.Effect.Pools[1];
-        child = child with { Slots = child.Slots.Select(task => task.WriteWord(0x14, 0xABCD)).ToImmutableArray() };
+        foreach (NativeBattleModulePoolTask task in child.Slots)
+        {
+            task.WriteWord(0x14, 0xABCD);
+        }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, child) } };
         NativeCrtRandomState expected = frame.Random.Draw(out ushort phase);
         frame = InitializeScrollBurst6483B0(frame);

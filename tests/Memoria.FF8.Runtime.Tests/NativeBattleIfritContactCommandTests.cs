@@ -64,10 +64,10 @@ public sealed class NativeBattleIfritContactCommandTests
     public void Missing_match_applies_nothing_and_restored_action_owners_repeat_next_step()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 2, 1, 3);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleIfritContactCommand.Execute(frame, Services());
         Assert.Equal(0x1002u, Pc(result));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleIfritContactCommand.Execute(restored, Services())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleIfritContactCommand.Execute(restored, Services())));
     }
 
     [Fact]
@@ -173,14 +173,14 @@ public sealed class NativeBattleIfritContactCommandTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x1022, 2, 3, 4);
         frame = frame with { Core = frame.Core.Write(NativeBattleScriptedEffectMemory.Address + 0x174, [3, 4]).Write(NativeBattleScriptedEffectMemory.Address + 0x17A, [2]) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterContextServices services = Services() with
         {
             ApplyContact506690 = (current, _) => current.WriteTemporaryWord(0x100, unchecked((ushort)(current.ReadTemporaryWord(0x100) + 1)))
         };
-        NativeBattleWaterExecutionFrame expected = NativeBattleIfritContactCommand.ExecuteSavedActors(frame, services);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleIfritContactCommand.ExecuteSavedActors(restored, services)));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleWaterContextCommands.Execute(frame, new(0, 0, 0), services)));
+        NativeBattleWaterExecutionFrame expected = NativeBattleIfritContactCommand.ExecuteSavedActors(NativeBattleTestSnapshots.Independent(frame), services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleIfritContactCommand.ExecuteSavedActors(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleWaterContextCommands.Execute(frame, new(0, 0, 0), services)));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction, byte count, params byte[] actors)

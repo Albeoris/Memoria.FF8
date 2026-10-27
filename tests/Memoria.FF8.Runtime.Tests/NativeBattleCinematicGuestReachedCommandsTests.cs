@@ -33,9 +33,9 @@ public sealed class NativeBattleCinematicGuestReachedCommandsTests
                 return current with { Core = current.Core.Write(changedOwner + 0x3A, [0xFF]) };
             }
         };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicNextContact12E.Execute(frame, services);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicNextContact12E.Execute(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicNextContact12E.Execute(restored, services)));
         Assert.Equal(0u, Pc(result));
         Assert.Equal((byte)0, result.Core.Read(changedOwner + 0x3A, 1)[0]);
         Assert.Equal((byte)2, result.Core.Read(originalOwner + 0x3A, 1)[0]);

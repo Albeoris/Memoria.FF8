@@ -32,25 +32,25 @@ public sealed class NativeBattleEffect315StateTests
         NativeBattleEffect315State state = NativeBattleEffect315State.FromUnknown();
         uint row = ParticleAddress + 199 * ParticleStride;
         state = state.WriteDword(row, 0x20).WriteWord(row + 4, 7).WriteWord(row + 22, 0xAABB);
-        NativeBattleEffect315State restored = JsonSerializer.Deserialize<NativeBattleEffect315State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect315State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(0x20u, restored.ReadDword(row));
         Assert.Equal((ushort)7, restored.ReadWord(row + 4));
         Assert.Equal((ushort)0xAABB, restored.ReadWord(row + 22));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(row + 6));
-        NativeBattleEffect315State cleared = restored.WriteDword(row, 0);
+        NativeBattleEffect315State cleared = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(restored)).WriteDword(row, 0);
         Assert.Equal(0u, cleared.ReadDword(row));
         Assert.Equal((ushort)7, cleared.ReadWord(row + 4));
         Assert.Equal((ushort)0xAABB, cleared.ReadWord(row + 22));
         Assert.Throws<NotSupportedException>(() => cleared.ReadWord(row + 6));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]
     public void Active_pool_transfer_removes_inactive_bank_access_without_touching_particles_or_globals()
     {
         NativeBattleEffect315State state = NativeBattleEffect315State.FromColdProcess().WriteDword(TargetGlobal, 4).WriteDword(ParticleAddress, 1) with { RootBankStorage = null, ChildBankStorage = null };
-        NativeBattleEffect315State restored = JsonSerializer.Deserialize<NativeBattleEffect315State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect315State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Null(restored.ChildBankStorage);

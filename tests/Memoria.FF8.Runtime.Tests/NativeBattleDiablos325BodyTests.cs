@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -24,7 +24,8 @@ public sealed class NativeBattleDiablos325BodyTests
         resource[0x64] = 2;
         NativeBattleEffectMemory memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x2185C, resource) };
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6545F0, Enumerable.Repeat((byte)0xA5, 0x994 - 12).ToImmutableArray());
-        string original = JsonSerializer.Serialize(memory);
+        var preserved = NativeBattleStorageSnapshots.Capture(memory);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325BodyStep initialized = NativeBattleDiablos325Body.Initialize655190(memory, task, 0x20DFAB8);
         Assert.Equal(unchecked((uint)-8192), initialized.Task.ReadDword(0x164));
         Assert.Equal((ushort)2, initialized.Task.ReadWord(0x10C));
@@ -45,6 +46,6 @@ public sealed class NativeBattleDiablos325BodyTests
         Assert.Equal((byte)1, restarted.Task.ReadByte(0x17E));
         Assert.Equal((byte)4, restarted.Task.ReadByte(0x179));
         Assert.Equal(new NativeBattleVector(0, 0, 0), NativeBattleArenaPose.ReadCurrentPose(restarted.Memory.Arena!, 0x21874, 1).Translation);
-        Assert.Equal(original, JsonSerializer.Serialize(memory));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 }

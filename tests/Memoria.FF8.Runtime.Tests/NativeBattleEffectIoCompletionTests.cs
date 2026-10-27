@@ -19,7 +19,9 @@ public sealed class NativeBattleEffectIoCompletionTests
         source = NativeBattleEffectIo.Queue5341D0(source, 717, NativeBattleEffectNodeMemory.ArenaAddress + 512, type);
         NativeBattleEffectIoAdvance begun = NativeBattleEffectIo.Advance534210(source);
         Assert.Equal(new NativeBattleEffectFileRequest(717, NativeBattleEffectNodeMemory.ArenaAddress + 512, 0x534150), begun.Request);
+        NativeBattleEffectMemory pending = NativeBattleStorageSnapshots.Capture(begun.Memory);
         NativeBattleEffectIoCompletion result = NativeBattleEffectIo.Complete534150(begun.Memory);
+        NativeBattleEffectIoCompletion expected = NativeBattleStorageSnapshots.Capture(result);
         Assert.Null(result.Stream);
         Assert.Equal(new byte[] { 0, delay, 1, 1, 1 }, result.Memory.Arena!.Read(64, 5));
         Assert.Equal(1, result.Memory.Textures!.Count);
@@ -27,9 +29,9 @@ public sealed class NativeBattleEffectIoCompletionTests
         NativeBattleEffectArena current = result.Memory.Arena.Write(576, [0xCD, 0xAB]);
         NativeBattleEffectTextureDrain uploaded = result.Memory.Textures.Drain505D20(current);
         Assert.Equal((ushort)0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(uploaded.State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
-        Assert.Equal(new byte[] { 1, 0, 1, 1, 0 }, begun.Memory.Arena!.Read(64, 5));
-        NativeBattleEffectMemory independent = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(begun.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleEffectIo.Complete534150(independent)));
+        Assert.Equal(new byte[] { 1, 0, 1, 1, 0 }, pending.Arena!.Read(64, 5));
+        NativeBattleEffectMemory independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(pending))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectIo.Complete534150(independent))));
     }
 
     [Theory]
@@ -55,7 +57,7 @@ public sealed class NativeBattleEffectIoCompletionTests
         NativeBattleEffectMemory memory = NativeBattleEffectIo.Initialize534110(NativeBattleEffectMemory.FromColdProcess().BeginLoad(277), 64);
         memory = NativeBattleEffectIo.Queue5341D0(memory, 717, NativeBattleEffectNodeMemory.ArenaAddress + 512, 16);
         memory = NativeBattleEffectIo.Advance534210(memory).Memory;
-        NativeBattleEffectIoCompletion generic = NativeBattleEffectIo.Complete534150(memory with { Textures = null });
+        NativeBattleEffectIoCompletion generic = NativeBattleEffectIo.Complete534150(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(memory)) with { Textures = null });
         Assert.Null(generic.Memory.Textures);
         Assert.Equal(new byte[] { 0, 0, 1, 1, 1 }, generic.Memory.Arena!.Read(64, 5));
         foreach (int offset in new[] { 0x2C6A4, 0x348C4, 0x38AE4 })

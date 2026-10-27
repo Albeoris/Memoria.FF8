@@ -88,7 +88,7 @@ internal static class NativeBattleEffect308TestFrame
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, unchecked((ushort)phase)).WriteByte(15, children ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, unchecked((ushort)phase)).WriteByte(15, children ? (byte)1 : (byte)0));
         NativeBattleEffect308State state = NativeBattleEffect308State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Common).WriteDword(CasterGlobal, 0x1D97494) with
         {
             ScriptSourcesBound = true,
@@ -103,7 +103,7 @@ internal static class NativeBattleEffect308TestFrame
                 if (shape.Descriptor == MainDescriptor)
                 {
                     (pool, _) = pool.Append(MainCallback);
-                    pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12]).WriteWord(12, unchecked((ushort)phase))) };
+                    pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12]).WriteWord(12, unchecked((ushort)phase)));
                 }
                 pools = pools.Add(pool);
                 state = state.DetachCommonQueue(shape.Descriptor);

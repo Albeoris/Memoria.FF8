@@ -16,9 +16,9 @@ public sealed class NativeBattleWaterRendererInitializationTests
         Assert.Equal((short)0, initialized.Dqa);
         Assert.Equal(0, initialized.Dqb);
         Assert.Same(cold.Depths, initialized.Depths);
-        string oldJson = JsonSerializer.Serialize(cold with { Zsf3 = null, Zsf4 = null });
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleScriptedGraphicsMemory>(oldJson)!.Zsf3);
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleScriptedGraphicsMemory>(oldJson)!.Zsf4);
-        Assert.Equal(JsonSerializer.Serialize(initialized), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleScriptedGraphicsMemory>(JsonSerializer.Serialize(initialized))));
+        string oldJson = NativeBattleTestSnapshots.Json(cold with { Zsf3 = null, Zsf4 = null });
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedGraphicsMemory>(oldJson)!.Zsf3);
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedGraphicsMemory>(oldJson)!.Zsf4);
+        Assert.Equal(NativeBattleTestSnapshots.Json(initialized), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedGraphicsMemory>(NativeBattleTestSnapshots.Json(initialized))));
     }
 }

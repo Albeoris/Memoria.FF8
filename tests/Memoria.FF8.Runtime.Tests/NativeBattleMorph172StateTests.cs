@@ -44,13 +44,13 @@ public sealed class NativeBattleMorph172StateTests
         {
             state = state.WriteDword(ParticleBase + row * ParticleStride, 0);
         }
-        NativeBattleMorph172State restored = JsonSerializer.Deserialize<NativeBattleMorph172State>(JsonSerializer.Serialize(state))!;
+        NativeBattleMorph172State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMorph172State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)0xABCD, restored.ReadWord(ParticleBase + 22));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(ParticleBase + 4));
         Assert.Equal(0xAABBCCDDu, restored.ReadDword(PacketBase + PacketBankBytes));
         Assert.Equal(PacketBase + PacketBankBytes + 16, restored.ReadDword(CursorGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

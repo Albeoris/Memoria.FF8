@@ -24,7 +24,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         NativeBattleRenzokuken160Frame frame = Frame();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24C2388, 0x24C2398, 36, 100);
         (pool, int slot) = pool.Append(0x61DF70);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 51)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 51)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
         NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => throw new InvalidOperationException(), (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenVariantController.Advance61DF70(frame, pool, slot, inputs, resources);
@@ -63,7 +63,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         NativeBattleRenzokuken160Frame frame = Frame();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24C2388, 0x24C2398, 36, 100);
         (pool, int slot) = pool.Append(0x61DF70);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
         NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10, 5], _ => new(0, 0), (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenVariantController.Advance61DF70(frame, pool, slot, inputs, resources);
@@ -84,7 +84,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.ForEffect((ushort)effect);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, profile.ChildCapacity);
         (pool, int slot) = pool.Append(profile.ControllerCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)counter)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 11, 22, 33, 4096);
         NativeBattleRenzokuken160Inputs inputs = new(0, [], _ => new(0, 0) { GeometryWorldMatrix = matrix }, (current, _) => current);
@@ -116,7 +116,7 @@ public sealed class NativeBattleRenzokukenVariantTests
         NativeBattleRenzokukenVariantProfile profile = NativeBattleRenzokukenVariantProfile.ForEffect((ushort)effect);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, profile.ChildCapacity);
         (pool, int slot) = pool.Append(profile.ContactCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) });
         ImmutableArray<byte> segments = Enumerable.Repeat((byte)10, profile.Contacts + 1).ToImmutableArray();
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], Enumerable.Repeat(0, profile.Contacts).ToImmutableArray(), [], 0, 0);
         NativeBattleRenzokuken160Inputs inputs = new(0, segments, _ => throw new InvalidOperationException(), (current, _) => current);

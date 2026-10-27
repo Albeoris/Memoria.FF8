@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect344StateTests
         state = state.DetachBank(1);
         Assert.Throws<InvalidDataException>(() => state.ReadBank(1));
         Assert.Throws<InvalidDataException>(() => state.DetachBank(1));
-        Assert.Throws<InvalidDataException>(() => state.AttachBank(1, child.Write(3600, [1])));
+        Assert.Throws<InvalidDataException>(() => state.AttachBank(1, NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(child)).Write(3600, [1])));
         state = state.AttachBank(1, child);
         Assert.Equal((ushort)0xCAFE, BinaryPrimitives.ReadUInt16LittleEndian(state.ReadBank(1).Read(3598, 2)));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(1).Read(14, 2));
@@ -63,10 +63,10 @@ public sealed class NativeBattleEffect344StateTests
     public void Json_retains_completion_byte_current_scalar_and_exclusive_bank_owner()
     {
         NativeBattleEffect344State state = NativeBattleEffect344State.FromUnknown().Write(CompletionGlobal, [1]).WriteDword(CursorGlobal, 0x24E8BC8).DetachBank(0);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect344State restored = JsonSerializer.Deserialize<NativeBattleEffect344State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect344State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect344State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal((byte)1, restored.Read(CompletionGlobal, 1)[0]);
         Assert.Equal(0x24E8BC8u, restored.ReadDword(CursorGlobal));
         Assert.Null(restored.BankStorage[0]);

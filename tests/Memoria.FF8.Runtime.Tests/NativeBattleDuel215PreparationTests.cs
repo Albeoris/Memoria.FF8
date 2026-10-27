@@ -9,7 +9,7 @@ public sealed class NativeBattleDuel215PreparationTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel215Controller.Scene, NativeBattleDuel215Controller.Arena, 5120, 1);
         (pool, int slot) = pool.Append(0x69B070);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[5108])) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[5108])) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel215 = new(true, parameters, null) };
         NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), parameters, NativeBattleDuel215Controller.Root) { Pools = [pool] };

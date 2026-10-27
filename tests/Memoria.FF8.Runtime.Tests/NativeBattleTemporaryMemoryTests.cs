@@ -31,10 +31,10 @@ public sealed class NativeBattleTemporaryMemoryTests
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, view.Read(0, 6));
         Assert.Throws<NotSupportedException>(() => view.Read(6, 2));
         view = view.Write(6, new byte[] { 7, 8 }).MarkUnknown(1, 2);
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
         NativeBattleFileStaging published = NativeBattleTemporaryMemory.PublishView(restored, address, view, 10);
         Assert.Equal(new byte[] { 4, 5, 6, 7, 8, 9, 10 }, published.Read(address + 3, 7));
         Assert.Throws<NotSupportedException>(() => published.Read(address + 1, 2));
-        Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(NativeBattleTemporaryMemory.PublishView(staging, address, view, 10)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(published), NativeBattleTestSnapshots.Json(NativeBattleTemporaryMemory.PublishView(staging, address, view, 10)));
     }
 }

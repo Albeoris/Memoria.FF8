@@ -19,7 +19,7 @@ public sealed class NativeBattleBio22ControllerTests
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(wait.Frame.Effect.Pools).Read(root);
         Assert.Equal((byte)3, task.ReadByte(0x29));
         Assert.Equal((ushort)0, task.ReadWord(0x5E));
-        NativeBattleBio22Frame restored = JsonSerializer.Deserialize<NativeBattleBio22Frame>(JsonSerializer.Serialize(wait.Frame))!;
+        NativeBattleBio22Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22Frame>(NativeBattleTestSnapshots.Json(wait.Frame))!;
         NativeBattleBio22ChildStep done = NativeBattleBio22Controller.Advance89A7B0(restored, fixture.Resources, fixture.Inputs, wait.Random);
         Assert.Equal(0u, done.Frame.Effect.ReturnedDescriptor);
         Assert.Equal(0, done.Frame.State.DrawCursor);

@@ -47,14 +47,14 @@ public sealed class NativeBattleEffect233Shadow71Tests
             current = WaterSchedulerFixture.CoreDword(current, 0x2797450, 0x80001010);
             return new(current, 0x2F0);
         });
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicShadow71.Execute(frame, services);
         Assert.Equal(1, calls);
         Assert.Equal(0x2F0u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797690 + 0x7C));
         Assert.Equal(0x80001012u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         flags = 0xAB05;
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleWaterExecutionFrame restoredResult = NativeBattleCinematicShadow71.Execute(restored, services);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restoredResult));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredResult)));
         Assert.Equal(2, calls);
     }
 

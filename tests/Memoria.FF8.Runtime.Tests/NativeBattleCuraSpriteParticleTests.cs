@@ -69,10 +69,10 @@ public sealed class NativeBattleCuraSpriteParticleTests
         Assert.Equal(-512, normal.DepthOffset);
         Assert.Equal(0x303030u, ground.SpriteColor);
         Assert.Equal(NativeBattlePoseMatrices.RotationWords(new(1024, (short)((angle + 64) & 0xFFF), 0)).Select(word => unchecked((short)(word * 2))).ToArray(), ground.SpriteWorldRotation.ToArray());
-        NativeBattleCuraFrame restored = JsonSerializer.Deserialize<NativeBattleCuraFrame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleCuraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraFrame>(NativeBattleTestSnapshots.Json(step.Frame))!;
         var next = Advance(step.Frame, fixture.Address, fixture.Inputs with { CrtRandom = expected }, []);
         var independent = Advance(restored, fixture.Address, fixture.Inputs with { CrtRandom = expected }, []);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
         Assert.Equal(expected, next.CrtRandomAfter);
     }
 

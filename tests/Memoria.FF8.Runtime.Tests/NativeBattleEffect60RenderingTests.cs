@@ -21,10 +21,10 @@ public sealed class NativeBattleEffect60RenderingTests
         Assert.Equal(-260, BinaryPrimitives.ReadInt16LittleEndian(result.MorphScratch.Read(962, 2)));
         Assert.Equal(0, BinaryPrimitives.ReadInt16LittleEndian(result.MorphScratch.Read(964, 2)));
         Assert.All(result.MorphScratch.ReadSnapshot(966, 2).Known, Assert.False);
-        Assert.All(result.MorphScratch.Regions, region => Assert.True(region.Offset + region.Data.Length <= 968));
+        Assert.All(NativeBattleStorageSnapshots.Capture(result.MorphScratch).Regions, region => Assert.True(region.Offset + region.Data.Length <= 968));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
-        NativeBattleActMeshDraw restored = JsonSerializer.Deserialize<NativeBattleActMeshDraw>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result.MorphScratch)), JsonSerializer.Serialize(Draw(restored.MorphScratch)));
+        NativeBattleActMeshDraw restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleActMeshDraw>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(result.MorphScratch))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(restored.MorphScratch))));
 
         NativeBattleActMeshDraw Draw(NativeBattleEffectArena retained) => NativeBattleEffect60Rendering.DrawNode(source, node, new(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 }, -3), NativeBattleEffectArena.Clear().MarkUnknown(0, 104), retained, Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
     }
@@ -41,8 +41,8 @@ public sealed class NativeBattleEffect60RenderingTests
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
         NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 104);
         NativeBattleEffectArena scratch = NativeBattleEffectArena.Clear().MarkUnknown(0, 968);
-        NativeBattleActMeshDraw result = NativeBattleEffect60Rendering.DrawNode(Source(3), node, new(identity, 0), context, scratch, Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
-        NativeBattlePsychoBlast23NodeDraw other = NativeBattlePsychoBlast23Rendering.DrawNode(Source(3), node, new(identity, 0), context, NativeBattleEffectArena.Clear().MarkUnknown(0, 672), Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
+        NativeBattleActMeshDraw result = NativeBattleEffect60Rendering.DrawNode(Source(3), node, new(identity, 0), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(context)), scratch, Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
+        NativeBattlePsychoBlast23NodeDraw other = NativeBattlePsychoBlast23Rendering.DrawNode(Source(3), node, new(identity, 0), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(context)), NativeBattleEffectArena.Clear().MarkUnknown(0, 672), Registers(), new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
         Assert.Equal(0x20F0u, Dword(result.Temporary104, 0x14));
         Assert.Equal(0x20CCu, Dword(other.Temporary104, 0x14));
         Assert.Equal(1448, Rotation(result.Registers.Geometry, 0));
@@ -65,7 +65,7 @@ public sealed class NativeBattleEffect60RenderingTests
         task = task.WriteDword(0x178, 0x12345678).WriteDword(0x17C, 0x9ABCDEF0).WriteDword(0x180, 0x11223344).WriteDword(0x184, 0x55667788).MarkPayloadUnknown(0x18A, 2);
         NativeBattleGfAnimationWorkspace workspace = new NativeBattleGfAnimationWorkspace(task.ReadBytes(0x94, 228).ToImmutableArray()).Initialize7016B0(source, 228);
         NativeBattleGfAnimationAdvance advanced = workspace.Advance701970(source, 0, (current, _) => current);
-        task = task.WriteBytes(0x94, advanced.Workspace.Data.AsSpan());
+        task = task.WriteBytes(0x94, NativeBattleStorageSnapshots.Capture(advanced.Workspace).Data.AsSpan());
         Assert.Equal(1, advanced.Remaining);
         Assert.Equal(1u, task.ReadDword(0x98));
         Assert.Equal(0x12345678u, task.ReadDword(0x178));

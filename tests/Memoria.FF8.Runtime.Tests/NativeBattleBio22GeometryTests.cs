@@ -41,7 +41,7 @@ public sealed class NativeBattleBio22GeometryTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Bio22Geometry = new(retained.ToImmutableArray()) };
         NativeBattleEffectMemory nextLoad = memory.BeginLoad(22);
         Assert.Same(memory.Bio22Geometry, nextLoad.Bio22Geometry);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(nextLoad))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(nextLoad))!;
         NativeBattleBio22Geometry nextTask = nextLoad.Bio22Geometry!.Morph89B0D0(Source(200, 23), Source(-300, 41), 3072);
         NativeBattleBio22Geometry restoredTask = restored.Bio22Geometry!.Morph89B0D0(Source(200, 23), Source(-300, 41), 3072);
         Assert.Equal(nextTask.Bytes.ToArray(), restoredTask.Bytes.ToArray());
@@ -52,10 +52,10 @@ public sealed class NativeBattleBio22GeometryTests
     [Fact]
     public void Missing_import_does_not_seed_a_baseline_and_cold_ingress_checks_identity_and_extent()
     {
-        NativeBattleEffectMemory missing = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess()))!;
+        NativeBattleEffectMemory missing = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(NativeBattleEffectMemory.FromColdProcess()))!;
         Assert.Null(missing.Bio22Geometry);
         Assert.Null(missing.BeginLoad(22).Bio22Geometry);
-        Assert.DoesNotContain("Bio22Geometry", JsonSerializer.Serialize(missing));
+        Assert.DoesNotContain("Bio22Geometry", NativeBattleTestSnapshots.Json(missing));
         Assert.Throws<InvalidDataException>(() => NativeBattleBio22Geometry.FromColdProcess(new(0, 1, Cold().Bytes)));
         Assert.Throws<InvalidDataException>(() => new NativeBattleBio22Geometry(Source(0, 0)).Validate());
     }
@@ -94,7 +94,7 @@ public sealed class NativeBattleBio22GeometryTests
         NativeBattleEffectMemory warm = memory.BeginLoad(22);
         Assert.Same(primary, warm.Bio22Geometry);
         Assert.Same(changedSecondary, warm.Bio22SecondaryGeometry);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(warm))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(warm))!;
         NativeBattleBio22Geometry nextPrimary = warm.Bio22Geometry!.Morph89B0D0(Source(19, 21), Source(43, 45), 3072);
         Assert.Equal(nextPrimary.Bytes.ToArray(), restored.Bio22Geometry!.Morph89B0D0(Source(19, 21), Source(43, 45), 3072).Bytes.ToArray());
         Assert.Equal(changedSecondary.Bytes.ToArray(), restored.Bio22SecondaryGeometry!.Bytes.ToArray());
@@ -105,10 +105,10 @@ public sealed class NativeBattleBio22GeometryTests
     public void Primary_only_import_does_not_hydrate_secondary_and_cold_profiles_cannot_be_crossed()
     {
         NativeBattleEffectMemory primaryOnly = NativeBattleEffectMemory.FromColdProcess() with { Bio22Geometry = Cold() };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(primaryOnly))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(primaryOnly))!;
         Assert.Null(restored.Bio22SecondaryGeometry);
         Assert.Null(restored.BeginLoad(22).Bio22SecondaryGeometry);
-        Assert.DoesNotContain("Bio22SecondaryGeometry", JsonSerializer.Serialize(restored));
+        Assert.DoesNotContain("Bio22SecondaryGeometry", NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<InvalidDataException>(() => NativeBattleBio22Geometry.FromColdProcess(new(0, 0x1615CE4, Cold(true).Bytes)));
         Assert.Throws<InvalidDataException>(() => NativeBattleBio22Geometry.FromColdProcess(new(0, 0x1617E3C, Cold().Bytes)));
     }
@@ -126,7 +126,7 @@ public sealed class NativeBattleBio22GeometryTests
         Assert.Same(second, memory.Bio22SecondaryGeometry);
         Assert.Same(fourth, memory.Bio22FourthGeometry);
         memory = memory with { Bio22FourthGeometry = fourth.Morph89B0D0(Source(200, 11, 258), Source(-800, 13, 258), 3072) };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory.BeginLoad(22)))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory.BeginLoad(22)))!;
         Assert.Equal(memory.Bio22ThirdGeometry!.Bytes.ToArray(), restored.Bio22ThirdGeometry!.Bytes.ToArray());
         Assert.Equal(memory.Bio22FourthGeometry!.Morph89B0D0(Source(1, 2, 258), Source(3, 4, 258), 4096).Bytes.ToArray(), restored.Bio22FourthGeometry!.Morph89B0D0(Source(1, 2, 258), Source(3, 4, 258), 4096).Bytes.ToArray());
         foreach ((NativeBattleBio22Geometry original, NativeBattleBio22Geometry changed, int count) in new[] { (third, memory.Bio22ThirdGeometry!, 467), (fourth, memory.Bio22FourthGeometry!, 258) })

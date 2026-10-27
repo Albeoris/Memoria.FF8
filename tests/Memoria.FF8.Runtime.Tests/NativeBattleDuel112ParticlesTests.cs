@@ -20,14 +20,14 @@ public sealed class NativeBattleDuel112ParticlesTests
         Assert.Equal(1, drawn.DepthOffset);
         Assert.Equal(expectedResult, result.Result);
         Assert.Equal(unchecked((ushort)(age + 1)), result.Task.ReadWord(12));
-        Assert.Equal(task.Payload.AsSpan().Slice(2).ToArray(), result.Task.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(2).ToArray(), NativeBattleStorageSnapshots.Capture(result.Task).Payload.AsSpan().Slice(2).ToArray());
     }
 
     [Fact]
     public void MovingSpriteUsesSeparateSignedDepthWordAndAdvancesOnlyAfterDrawing()
     {
         NativeBattleModulePoolTask task = Task(36).WriteWord(12, 0).WriteWord(14, 1).WriteDword(16, 0x12C5794).WriteWord(20, 1).WriteWord(22, 0xFFFE).WriteWord(24, 3).WriteWord(26, 4096).WriteWord(28, 0xFFFF).WriteWord(30, 2).WriteWord(32, 0xFFFD).WriteWord(34, 0xFFF8);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
         NativeBattleDuel112ParticleStep Run(NativeBattleModulePoolTask current) => NativeBattleDuel112Particles.Advance6CD750(current, sprite =>
         {
             Assert.Equal(new NativeBattleVector(1, -2, 3), sprite.Position);
@@ -39,7 +39,7 @@ public sealed class NativeBattleDuel112ParticlesTests
         Assert.Equal(0, result.Task.ReadWord(22));
         Assert.Equal(0, result.Task.ReadWord(24));
         Assert.Equal(2, result.Result);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(restored)));
     }
 
     [Fact]
@@ -62,6 +62,6 @@ public sealed class NativeBattleDuel112ParticlesTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, stride, 1);
         (pool, int slot) = pool.Append(0x6CD5C0);
-        return pool.Slots[slot] with { Payload = Enumerable.Repeat((byte)0x91, stride - 12).ToImmutableArray() };
+        return NativeBattleTaskFixture.EditTask(pool.Slots[slot], taskData => taskData with { Payload = Enumerable.Repeat((byte)0x91, stride - 12).ToImmutableArray() });
     }
 }

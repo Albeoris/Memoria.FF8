@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -21,13 +21,13 @@ public sealed class NativeBattleSiren95TargetMeshTests
         uint director = emit.Memory.Siren95!.DirectorAddress1533010!.Value;
         emit = emit with { Memory = emit.Memory with { Siren95 = emit.Memory.Siren95!.Write(director + 0x40, BitConverter.GetBytes((short)7)) } };
         NativeCrtRandomState random = emit.Random.Draw(out _).Draw(out _).Draw(out _);
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(emit))!;
         step = NativeBattleSiren95TargetMeshes.Advance(emit, fixture.Address, services);
         Assert.Equal(random, step.Frame.Random);
         Assert.Single(step.Frame.Effect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745840);
         Assert.Equal((byte)3, Read(step.Frame, fixture.Address).ReadByte(0x29));
         Assert.False(step.Complete);
-        var restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(emit))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleSiren95TargetMeshes.Advance(restored, fixture.Address, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleSiren95TargetMeshes.Advance(restored, fixture.Address, services)));
     }
 
     [Fact]

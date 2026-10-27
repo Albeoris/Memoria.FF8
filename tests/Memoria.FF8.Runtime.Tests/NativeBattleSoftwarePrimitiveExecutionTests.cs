@@ -82,15 +82,15 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         first.ExecuteSoftware(Triangle());
         first.EndBatch();
         Saved source = new(first.State, first.Textures, first.Cache!);
-        Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(source))!;
+        Saved restored = JsonSerializer.Deserialize<Saved>(NativeBattleTestSnapshots.Json(source))!;
         NativeBattleSoftwarePrimitiveExecution next = new(restored.State, restored.Textures, Table(), true, restored.Cache);
         first.ExecuteSoftware(Triangle());
         next.ExecuteSoftware(Triangle());
         first.EndBatch();
         next.EndBatch();
-        Assert.Equal(JsonSerializer.Serialize(first.State), JsonSerializer.Serialize(next.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.State), NativeBattleTestSnapshots.Json(next.State));
         Assert.Equal(first.Textures.ReadVram(), next.Textures.ReadVram());
-        Assert.Equal(JsonSerializer.Serialize(first.Cache), JsonSerializer.Serialize(next.Cache));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Cache), NativeBattleTestSnapshots.Json(next.Cache));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
     {
         NativeBattleSoftwarePrimitiveExecution original = Capture();
         NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.SetOrigin45B5E0(original.State.Environment, 0, 0);
-        NativeBattleSoftwarePrimitiveState state = JsonSerializer.Deserialize<NativeBattleSoftwarePrimitiveState>(JsonSerializer.Serialize(original.State with { Environment = environment, ViewportInputs = new(640, 480, 0, 0) }))!;
+        NativeBattleSoftwarePrimitiveState state = NativeBattleTestSnapshots.RestoreJson<NativeBattleSoftwarePrimitiveState>(NativeBattleTestSnapshots.Json(original.State with { Environment = environment, ViewportInputs = new(640, 480, 0, 0) }))!;
         NativeBattleSoftwarePrimitiveExecution execution = new(state, original.Textures, Table(), true, original.Cache!);
         NativeBattleLogicalCommand command = new(new("test", 0, 0), 1, 0x24, [0x24000000, 0, 0xFFFF0000, 0, 0x011C0000, 0, 0], 1, [], null);
         execution.ExecuteNormal(command, new(0x11C), 1);
@@ -165,7 +165,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         Assert.Equal((ushort)31, execution.TextureSnapshots[1].ReadWord(707, 259));
         Assert.Equal(1, Resolve().DrawMode.TexturePixelSnapshot);
         Assert.Equal(2, execution.TextureSnapshots.Length);
-        string json = JsonSerializer.Serialize(execution.TextureSnapshots);
+        string json = NativeBattleTestSnapshots.Json(execution.TextureSnapshots);
         ImmutableArray<NativeBattlePcTextureWindowPixels> restored = JsonSerializer.Deserialize<ImmutableArray<NativeBattlePcTextureWindowPixels>>(json);
         Assert.Equal((ushort)0, restored[first.DrawMode.TexturePixelSnapshot!.Value].ReadWord(707, 259));
         Assert.Equal((ushort)31, restored[second.DrawMode.TexturePixelSnapshot!.Value].ReadWord(707, 259));
@@ -192,7 +192,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         NativeBattleSoftwarePrimitiveExecution original = Capture();
         NativeSoftwareDrawingEnvironmentState environment = NativeSoftwareDrawingEnvironment.Recalculate45B6F0(new(576, 256, 895, 487, 576, 256, 0, 0, 0, null));
         NativeBattleSoftwarePrimitiveState state = original.State with { Environment = environment, ViewportInputs = new(640, 480, 3, -7) };
-        state = JsonSerializer.Deserialize<NativeBattleSoftwarePrimitiveState>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleTestSnapshots.RestoreJson<NativeBattleSoftwarePrimitiveState>(NativeBattleTestSnapshots.Json(state))!;
         NativeBattleSoftwarePrimitiveExecution execution = new(state, original.Textures, Table(), true, original.Cache!);
         NativeBattleLogicalCommand triangle = Triangle();
         execution.ExecuteNormal(triangle, new(0), 1);
@@ -208,7 +208,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecutionTests
         Assert.Equal(2f, resolved.DrawMode.NormalViewport!.ScaleX);
         Assert.Equal(2.5f, resolved.DrawMode.NormalViewport.NormalOffsetX);
         Assert.Equal(-7.5f, resolved.DrawMode.NormalViewport.NormalOffsetY);
-        Assert.Equal(JsonSerializer.Serialize(resolved), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleLogicalResolvedCommand>(JsonSerializer.Serialize(resolved))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(resolved), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalResolvedCommand>(NativeBattleTestSnapshots.Json(resolved))));
     }
 
     [Fact]

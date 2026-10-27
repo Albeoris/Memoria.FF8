@@ -103,7 +103,7 @@ public sealed class NativeBattleScanAlternateTests
         Assert.Equal(saved.Target8.Bytes, first.Frame.Target.Bytes);
         Assert.Equal(saved.Target8.Known, first.Frame.Target.Known);
         Assert.Equal((ushort)777, first.Frame.Zoom);
-        NativeBattleScanCameraFrame restored = JsonSerializer.Deserialize<NativeBattleScanCameraFrame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleScanCameraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanCameraFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
         NativeBattleScanCameraStep next = NativeBattleScanAlternate.Advance850A30(restored, fixture.Address, saved);
         Assert.Equal(2, next.Result);
         Assert.Equal((ushort)0, Read(next.Frame.Scan, fixture.Address).ReadWord(0x66));

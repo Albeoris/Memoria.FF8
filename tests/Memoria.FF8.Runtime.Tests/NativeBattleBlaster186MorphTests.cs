@@ -12,8 +12,8 @@ public sealed class NativeBattleBlaster186MorphTests
     {
         NativeBattleBlaster186Resources resources = Sources(0, 4096, 8192, 12288);
         NativeBattleBlaster186State state = NativeBattleBlaster186State.FromUnknown().Write(MatrixAddress, Enumerable.Repeat((byte)0xA5, 32).ToArray()).WriteWord(MutableFrameAddresses[14] + 101 * 8 + 6, 0xCAFE);
-        string root = JsonSerializer.Serialize(state.RootBankStorage);
-        string child = JsonSerializer.Serialize(state.ChildBankStorage);
+        string root = NativeBattleTestSnapshots.Json(state.RootBankStorage);
+        string child = NativeBattleTestSnapshots.Json(state.ChildBankStorage);
         NativeBattleBlaster186State result = NativeBattleBlaster186Morph.Initialize(state, resources);
         result.Validate();
         Assert.Equal((ushort)819, result.ReadWord(MutableFrameAddresses[0]));
@@ -29,11 +29,11 @@ public sealed class NativeBattleBlaster186MorphTests
         }
         Assert.Equal((ushort)0xCAFE, result.ReadWord(MutableFrameAddresses[14] + 101 * 8 + 6));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 32).ToArray(), result.Read(MatrixAddress, 32));
-        Assert.Equal(root, JsonSerializer.Serialize(result.RootBankStorage));
-        Assert.Equal(child, JsonSerializer.Serialize(result.ChildBankStorage));
-        NativeBattleBlaster186State restored = JsonSerializer.Deserialize<NativeBattleBlaster186State>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleBlaster186Morph.Initialize(restored, resources)));
+        Assert.Equal(root, NativeBattleTestSnapshots.Json(result.RootBankStorage));
+        Assert.Equal(child, NativeBattleTestSnapshots.Json(result.ChildBankStorage));
+        NativeBattleBlaster186State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186State>(NativeBattleTestSnapshots.Json(result))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleBlaster186Morph.Initialize(restored, resources)));
     }
 
     [Fact]

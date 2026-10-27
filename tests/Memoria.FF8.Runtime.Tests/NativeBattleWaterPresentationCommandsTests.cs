@@ -175,12 +175,13 @@ public sealed class NativeBattleWaterPresentationCommandsTests
             Assert.Equal((byte)0x80, pan);
             return WaterSchedulerFixture.CoreDword(value, 0x2797450, 0xFFFFFFFE);
         } };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Execute(frame, services);
         Assert.Equal(1, calls);
         Assert.Equal(2u, Pc(result));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Execute(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(restored, services)));
         frame = ArenaDword(frame, 0x61FC, 0x100);
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, Address(0x1000));
         Execute(frame, services with { PlaySound501330 = (value, descriptor, _, _) =>
         {
             Assert.Equal(Address(0x6100), descriptor);

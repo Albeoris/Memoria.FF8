@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect314ControllerTests
     {
         NativeBattleEffect314Frame frame = Frame();
         NativeBattleEffectTaskPool particles = frame.Effect.Pools[2];
-        particles = particles with { Slots = particles.Slots.SetItem(1, particles.Slots[1] with { Flags = 0x20, State = 0xABCD, Callback = 0x12345678 }) };
+        particles = particles.WriteSlot(1, particles.Slots[1].UpdateHeader(0x20, 0xABCD, particles.Slots[1].Next, 0x12345678));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, particles) } };
         uint program = ProgramAddresses[0];
         NativeBattleEffect314Resources resources = new(null!, null!, null!, [], ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(program, [55, 0, 0xFF, 0x10]));

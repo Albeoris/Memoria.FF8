@@ -35,9 +35,9 @@ public sealed class NativeBattleEffect210EchoTests
         Assert.Equal((byte)0xA5, task.ReadByte(Header + 136 + 32));
         Assert.Equal((byte)0xA5, task.ReadByte(Header + 200 + 32));
         Assert.Equal(0x6F7310u, task.Callback);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        NativeBattleModulePoolTask restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(task)))!);
         NativeBattleModulePoolTask Next(NativeBattleModulePoolTask source) => NativeBattleDuelEcho.Capture8200(source, Header, 3, _ => MatrixBytes(Identity(7, 8, 409), false));
-        Assert.Equal(JsonSerializer.Serialize(Next(task)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(task))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
     }
 
     [Theory]
@@ -98,10 +98,10 @@ public sealed class NativeBattleEffect210EchoTests
         EchoFrame frame = Fixture();
         frame = frame with { Echo = NativeBattleDuelEcho.Capture8200(frame.Echo, Header, 3, _ => MatrixBytes(Identity(10, 0, 400), false)) };
         frame = frame with { Echo = NativeBattleDuelEcho.Capture8200(frame.Echo, Header, 3, _ => MatrixBytes(Identity(80, 0, 600), false)) };
-        EchoFrame restored = JsonSerializer.Deserialize<EchoFrame>(JsonSerializer.Serialize(frame))!;
+        EchoFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<EchoFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         EchoFrame direct = Draw(frame, true);
         EchoFrame cold = Draw(restored, true);
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(cold));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)));
         Assert.Equal(2, direct.Batches.Length);
         Assert.Equal(0x26484848u, direct.Batches[0].Attempts[0].Primitive!.Words[1]);
         Assert.Equal(0x26242424u, direct.Batches[1].Attempts[0].Primitive!.Words[1]);

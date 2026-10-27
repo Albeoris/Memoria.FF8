@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect207ControllerTests
     public void Root_does_not_inherit_graphics_pause_and_stops_before_increment_when_main_is_empty()
     {
         NativeBattleEffect207Frame frame = Frame(7);
-        NativeBattleEffectTaskPool main = frame.Effect.Pools[1] with { Head = null, Tail = null };
+        NativeBattleEffectTaskPool main = frame.Effect.Pools[1].UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, main) } };
         NativeBattleEffect207Step step = AdvanceRoot6A3B70(frame, RootBank, null!, new Harness { Flags = 0x201 }.Inputs());
         Assert.Equal(2, step.Result);
@@ -69,7 +69,7 @@ public sealed class NativeBattleEffect207ControllerTests
         NativeBattleEffect207Frame frame = WriteCompletionByte(Frame(81), Main + 17, 1);
         Assert.Equal(0, AdvanceMain6A3D90(frame, Main, null!, new Harness().Inputs()).Result);
         frame = WriteCompletionByte(frame, Main + 16, 0x80);
-        frame = JsonSerializer.Deserialize<NativeBattleEffect207Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect207Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleEffect207Step step = AdvanceMain6A3D90(frame, Main, null!, new Harness().Inputs());
         Assert.Equal(2, step.Result);
         Assert.Equal(81, Read(step.Frame, Main).ReadWord(12));
@@ -113,7 +113,7 @@ public sealed class NativeBattleEffect207ControllerTests
         frame = WriteCompletionByte(frame, Main + 16, 1);
         NativeBattleEffectTaskPool particles = frame.Effect.Pools[2];
         (particles, int slot) = particles.Append(0x6A5650);
-        particles = particles with { Slots = particles.Slots.SetItem(slot, particles.Slots[slot].WriteWord(30, 0xBEEF)), Head = null, Tail = null };
+        particles = particles.WriteSlot(slot, particles.Slots[slot].WriteWord(30, 0xBEEF)).UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, particles) } };
         NativeBattleEffect207Frame retired = Advance(frame, null!, new Harness().Inputs());
         Assert.Empty(retired.Effect.Pools);
@@ -141,14 +141,14 @@ public sealed class NativeBattleEffect207ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteByte(15, children ? (byte)1 : (byte)0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteByte(15, children ? (byte)1 : (byte)0).WriteDword(16, 0));
         NativeBattleEffect207State state = NativeBattleEffect207State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena);
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (children)
         {
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, Main, 0x4E8, 1);
             (main, _) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteBytes(12, new byte[0x4DC]).WriteWord(12, unchecked((ushort)age))) };
+            main = main.WriteSlot(0, main.Slots[0].WriteBytes(12, new byte[0x4DC]).WriteWord(12, unchecked((ushort)age)));
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, Arena, 32, 64);
             pools = [root, main, particles];
             state = state.DetachCommonQueue(MainDescriptor).DetachCommonQueue(ParticleDescriptor);

@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect209StateTests
     public void Grid_initialization_preserves_unknown_projected_coordinates_through_JSON()
     {
         NativeBattleEffect209State state = NativeBattleEffect209State.FromUnknown().WriteWord(GridAddress + 4, unchecked((ushort)-164)).WriteWord(GridAddress + 6, unchecked((ushort)-112)).WriteWord(GridAddress + 8, 0).WriteWord(GridAddress + 10, 3);
-        state = JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(unchecked((ushort)-164), state.ReadWord(GridAddress + 4));
         Assert.Equal((ushort)3, state.ReadWord(GridAddress + 10));
@@ -48,7 +48,7 @@ public sealed class NativeBattleEffect209StateTests
             state = state.AttachBank(index, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -61,11 +61,11 @@ public sealed class NativeBattleEffect209StateTests
     public void Retained_colors_grid_and_legacy_missing_owner_are_not_reinitialized()
     {
         NativeBattleEffect209State state = NativeBattleEffect209State.FromUnknown().WriteDword(SavedColor40Global, 0x12345678).WriteDword(StageAfterColor44Global, 0xAABBCCDD).WriteDword(GridAddress + GridLength - 4, 0xCAFEFACE);
-        state = JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect209State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(0x12345678u, state.ReadDword(SavedColor40Global));
         Assert.Equal(0xAABBCCDDu, state.ReadDword(StageAfterColor44Global));
         Assert.Equal(0xCAFEFACEu, state.ReadDword(GridAddress + GridLength - 4));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(StageAfterColor40Global));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect209 = null }))!.Effect209);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect209 = null })))!).Effect209);
     }
 }

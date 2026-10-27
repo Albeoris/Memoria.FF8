@@ -15,8 +15,8 @@ public sealed class NativeBattleGilgameshZantetsukenAnchorsTests
         Assert.Same(model.CurrentBodyBoneMatrices!.Matrices[1], producer.Matrix);
         Assert.Equal((short)1000, producer.Distance);
         Assert.Equal(40000, producer.Matrix!.X);
-        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(model))!;
-        Assert.Equal(JsonSerializer.Serialize(producer), JsonSerializer.Serialize(NativeBattleGilgameshZantetsukenAnchors.Resolve58E2E0(restored, source, 0xF0, 0)));
+        NativeBattleGraphicsModel restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGraphicsModel>(NativeBattleTestSnapshots.Json(model))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(producer), NativeBattleTestSnapshots.Json(NativeBattleGilgameshZantetsukenAnchors.Resolve58E2E0(restored, source, 0xF0, 0)));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class NativeBattleGilgameshZantetsukenAnchorsTests
         Assert.Equal(21, BinaryPrimitives.ReadInt32LittleEndian(step.Staging.Read(NativeBattleTemporaryMemory.Address + 40, 4)));
         Assert.Equal(step.Memory.ScriptedColorRegisters.Flags, BinaryPrimitives.ReadUInt32LittleEndian(step.Staging.Read(NativeBattleTemporaryMemory.Address + 48, 4)));
         Assert.Equal(staging.Read(NativeBattleTemporaryMemory.Cursor, 4), step.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4));
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleGilgameshZantetsukenAnchors.Project58E2E0(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!, JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!, producer, null)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleGilgameshZantetsukenAnchors.Project58E2E0(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!, producer, null)));
     }
 
     [Fact]

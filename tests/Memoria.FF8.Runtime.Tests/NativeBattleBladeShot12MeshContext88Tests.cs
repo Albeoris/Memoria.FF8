@@ -64,8 +64,8 @@ public sealed class NativeBattleBladeShot12MeshContext88Tests
     {
         var first = Draw(4);
         Assert.Equal(160u, first.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
-        var restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(5, memory: first.Memory)), JsonSerializer.Serialize(Draw(5, memory: restored)));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first.Memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(5, memory: first.Memory)), NativeBattleTestSnapshots.Json(Draw(5, memory: restored)));
         Assert.Throws<InvalidDataException>(() => NativeBattleBladeShot12MeshContext88.DrawLoaded(Memory(2000), Mesh(4) with { Address = 123 }, new(null, 1, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 

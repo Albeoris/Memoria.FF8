@@ -99,9 +99,9 @@ public sealed class NativeBattleRayBomb307BeamTests
     {
         Fixture first = new(2);
         NativeBattleRayBomb307TaskStep step = first.Advance(first.Frame);
-        NativeBattleRayBomb307Frame restored = JsonSerializer.Deserialize<NativeBattleRayBomb307Frame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleRayBomb307Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307Frame>(NativeBattleTestSnapshots.Json(step.Frame))!;
         Fixture second = new(2);
-        Assert.Equal(JsonSerializer.Serialize(first.Advance(step.Frame).Frame), JsonSerializer.Serialize(second.Advance(restored).Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Advance(step.Frame).Frame), NativeBattleTestSnapshots.Json(second.Advance(restored).Frame));
         Assert.Throws<NotSupportedException>(() => step.Frame.State.ReadView(0x2242580, 8).Read(6, 2));
         foreach (NativeBattleModulePoolTask child in step.Frame.Effect.Pools[1].Slots.Skip(1).Where(task => (task.Flags & 1) != 0))
         {
@@ -122,7 +122,7 @@ public sealed class NativeBattleRayBomb307BeamTests
         {
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, int slot) = children.Append(0x5A1EE0);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, age).WriteWord(16, 2000).WriteWord(18, unchecked((ushort)-500)).WriteWord(20, 4000).WriteWord(24, 70).WriteWord(26, 160).WriteWord(32, 2048)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, age).WriteWord(16, 2000).WriteWord(18, unchecked((ushort)-500)).WriteWord(20, 4000).WriteWord(24, 70).WriteWord(26, 160).WriteWord(32, 2048)) });
             NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2), children] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             NativeBattleEffectArena origin = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes((short)1000)).Write(2, BitConverter.GetBytes((short)-1000)).Write(4, BitConverter.GetBytes((short)1000));

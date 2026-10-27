@@ -35,12 +35,12 @@ public sealed class NativeBattleEffect283StateTests
         Assert.Throws<NotSupportedException>(() => unknown.ReadDword(CasterGlobal));
         Assert.Throws<NotSupportedException>(() => unknown.RootBankStorage!.Read(0, 20));
         NativeBattleEffect283State state = unknown.WriteWord(CasterGlobal, 3) with { RootBankStorage = null };
-        NativeBattleEffect283State restored = JsonSerializer.Deserialize<NativeBattleEffect283State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect283State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect283State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)3, restored.ReadWord(CasterGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CasterGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<InvalidDataException>(() => (state with { Globals = state.Globals.MarkUnknown(12, 1) }).Validate());
     }
 

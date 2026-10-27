@@ -28,7 +28,7 @@ public sealed class NativeBattleBreath129StateTests
     public void Current_vertex_payload_and_inactive_root_bank_roundtrip_without_reseeding_or_arena_mirrors()
     {
         NativeBattleBreath129State state = NativeBattleBreath129State.FromUnknown().WriteWord(MeshAddress + 14, 0xCAFE).WriteDword(WorkingGlobal, 0x20DFAB8);
-        NativeBattleBreath129State restored = JsonSerializer.Deserialize<NativeBattleBreath129State>(JsonSerializer.Serialize(state))!;
+        NativeBattleBreath129State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath129State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)0xCAFE, restored.ReadWord(MeshAddress + 14));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MeshAddress + 12));
@@ -56,7 +56,7 @@ public sealed class NativeBattleBreath129StateTests
         Assert.Equal(unchecked((ushort)((-200 << 12) / 232)), after.State.ReadWord(IndexedVerticesAddress + 14));
         Assert.Equal(unchecked((ushort)-100), after.State.ReadWord(MeshAddress + 12));
         Assert.Equal(camera, resources.Camera.Data.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory), JsonSerializer.Serialize(after.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory), NativeBattleTestSnapshots.Json(after.Memory));
     }
 
     [Theory]
@@ -85,7 +85,7 @@ public sealed class NativeBattleBreath129StateTests
         Assert.Equal(new int?[] { 100, 200, 300 }, after.Memory.ScriptedColorRegisters!.Mac);
         Assert.Equal(new int?[] { 100, 200, 300 }, after.Memory.ScriptedColorRegisters.Ir);
         Assert.Equal(BitConverter.GetBytes(w), after.Memory.ScriptedColorRegisters.NormalInput!.Value.AsSpan().Slice(6, 2).ToArray());
-        Assert.Equal(JsonSerializer.Serialize(frame.State), JsonSerializer.Serialize(after.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.State), NativeBattleTestSnapshots.Json(after.State));
     }
 
     private static NativeBattleBreath129Frame Frame(byte[] bytes)

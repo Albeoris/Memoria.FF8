@@ -24,9 +24,9 @@ public sealed class NativeBattleScriptedGraphicsProcessTests
     public void Missing_imported_graphics_remains_missing_without_hydration()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedGraphics = null };
-        string json = JsonSerializer.Serialize(memory);
+        string json = NativeBattleTestSnapshots.Json(memory);
         Assert.DoesNotContain("\"ScriptedGraphics\"", json);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
         restored.Validate();
         Assert.Null(restored.ScriptedGraphics);
         Assert.Null(restored.BeginLoad(222).ScriptedGraphics);
@@ -37,9 +37,9 @@ public sealed class NativeBattleScriptedGraphicsProcessTests
     {
         NativeBattleScriptedGraphicsMemory graphics = new(NativeBattleEffectArena.Clear().Write(0, [1, 2, 3, 4]).MarkUnknown(2, 1), Enumerable.Range(0, 32).Select(index => (byte)(index + 1)).ToImmutableArray(), -321, int.MinValue + 123);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedGraphics = graphics };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(graphics), JsonSerializer.Serialize(restored.ScriptedGraphics));
+        Assert.Equal(NativeBattleTestSnapshots.Json(graphics), NativeBattleTestSnapshots.Json(restored.ScriptedGraphics));
         NativeBattleEffectMemory loaded = restored.BeginLoad(222);
         Assert.Same(restored.ScriptedGraphics, loaded.ScriptedGraphics);
         NativeBattleScriptedGraphicsMemory retained = Assert.IsType<NativeBattleScriptedGraphicsMemory>(loaded.ScriptedGraphics);
@@ -47,7 +47,7 @@ public sealed class NativeBattleScriptedGraphicsProcessTests
         Assert.Equal(new byte[] { 1, 2 }, retained.Depths.Read(0, 2));
         NativeBattleScriptedGraphicsMemory expected = graphics with { Depths = graphics.Depths.Write(2, [9]), Dqb = 77 };
         NativeBattleScriptedGraphicsMemory actual = retained with { Depths = retained.Depths.Write(2, [9]), Dqb = 77 };
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]
@@ -59,9 +59,9 @@ public sealed class NativeBattleScriptedGraphicsProcessTests
         Assert.Throws<InvalidDataException>(() => (graphics with { ModuleViewBackup = [] }).Validate());
         foreach (string property in new[] { "Dqa", "Dqb", "Depths", "ModuleViewBackup" })
         {
-            JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(graphics))!.AsObject();
+            JsonObject json = JsonNode.Parse(NativeBattleTestSnapshots.Json(graphics))!.AsObject();
             json.Remove(property);
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleScriptedGraphicsMemory>(json.ToJsonString()));
+            Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedGraphicsMemory>(json.ToJsonString()));
         }
     }
 }

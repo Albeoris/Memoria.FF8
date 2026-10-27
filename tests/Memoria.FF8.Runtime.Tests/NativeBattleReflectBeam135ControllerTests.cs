@@ -25,7 +25,7 @@ public sealed class NativeBattleReflectBeam135ControllerTests
     public void Root_empty_children_still_compose_and_restore_caster_and_retire_without_increment()
     {
         Fixture f = new();
-        NativeBattleReflectBeam135Frame frame = f.Frame with { Effect = f.Frame.Effect with { Pools = f.Frame.Effect.Pools.Select((pool, index) => index == 0 ? pool : pool with { Head = null, Tail = null, Slots = pool.Slots.Select(task => task with { Flags = 0 }).ToImmutableArray() }).ToImmutableArray() } };
+        NativeBattleReflectBeam135Frame frame = f.Frame with { Effect = f.Frame.Effect with { Pools = f.Frame.Effect.Pools.Select((pool, index) => index == 0 ? pool : NativeBattleTaskFixture.EditPool(pool, data => data with { Head = null, Tail = null, Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Flags = 0 })).ToImmutableArray() })).ToImmutableArray() } };
         frame = NativeBattleReflectBeam135Controller.Write(frame, RootBank, NativeBattleReflectBeam135Controller.Read(frame, RootBank).WriteWord(12, 90).WriteByte(15, 1));
         var actual = NativeBattleReflectBeam135Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
         Assert.Equal(2, actual.Result);
@@ -145,8 +145,8 @@ public sealed class NativeBattleReflectBeam135ControllerTests
             ];
             (pools[0], _) = pools[0].Append(RootCallback);
             (pools[1], _) = pools[1].Append(MainCallback);
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
-            pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[724])) };
+            pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
+            pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[724])) });
             NativeBattleOriginalEffectState effect = new(135, 134, new(135, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };

@@ -28,7 +28,7 @@ public sealed class NativeBattleIfritContinuationTests
         Assert.Equal((ushort)0x800E, WaterSchedulerFixture.ReadSlotWord(result, 19, 0x14));
         Assert.Equal(input.Random, result.Random);
         Assert.Equal(input.ReadTemporaryByte(0x145), result.ReadTemporaryByte(0x145));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(input))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(input))!)));
     }
 
     [Theory]

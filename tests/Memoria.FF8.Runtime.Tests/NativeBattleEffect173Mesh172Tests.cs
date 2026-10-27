@@ -52,7 +52,7 @@ public sealed class NativeBattleEffect173Mesh172Tests
         NativeBattleEffectArena record = Records().Write(14, BitConverter.GetBytes(recordAge)).Write(6, BitConverter.GetBytes((short)0));
         NativeBattleEffect173Mesh172Step result = Draw(moving, phase, records: record);
         Assert.Empty(result.Batch.Attempts);
-        Assert.Equal(JsonSerializer.Serialize(Memory().GeometryRegisters), JsonSerializer.Serialize(result.Memory.GeometryRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Memory().GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Memory.GeometryRegisters)));
         Assert.Equal(record.ReadSnapshot(0, 32).Data, result.Records.ReadSnapshot(0, 32).Data);
     }
 
@@ -74,7 +74,7 @@ public sealed class NativeBattleEffect173Mesh172Tests
         NativeBattleEffect173Mesh172Step result = Draw(true, records: records);
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal((short)-1, S(result.Records, 14));
-        NativeBattleEffect173Mesh172Step restored = JsonSerializer.Deserialize<NativeBattleEffect173Mesh172Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect173Mesh172Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect173Mesh172Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.Records.ReadSnapshot(0, 32).Known, restored.Records.ReadSnapshot(0, 32).Known);
         Assert.DoesNotContain(true, restored.Context172.ReadSnapshot(0x8C + 18, 2).Known);
         Assert.Empty(Draw(true, records: restored.Records).Batch.Attempts);

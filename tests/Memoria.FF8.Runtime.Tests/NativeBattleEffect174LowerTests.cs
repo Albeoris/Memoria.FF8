@@ -162,7 +162,7 @@ public sealed class NativeBattleEffect174LowerTests
     {
         Fixture fixture = new(0x5D4ED0, 0);
         NativeBattleEffect174Step step = fixture.Advance();
-        NativeBattleEffect174Frame restored = JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleEffect174Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
         Assert.Equal(step.Frame.State.ReadView(0x2394BA0, 32).ReadSnapshot(0, 32).Known, restored.State.ReadView(0x2394BA0, 32).ReadSnapshot(0, 32).Known);
         Assert.DoesNotContain(true, restored.State.ReadView(0x2394BA0, 32).ReadSnapshot(18, 2).Known);
     }
@@ -186,7 +186,7 @@ public sealed class NativeBattleEffect174LowerTests
             (pool, _) = pool.Append(callback);
             NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(0x1C, 4096).WriteWord(0x14, 2000);
             task = CopyTask(task, 0x10, NativeBattleEffectArena.Clear().Write(0, new byte[6]).Write(4, BitConverter.GetBytes((short)2000)).Write(6, [0xA5]).MarkUnknown(7, 1), 8);
-            pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+            pool = pool.WriteSlot(0, task);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Zsf3 = 0x155, Zsf4 = 0x100 }, ModuleSpriteBillboard21DFED0 = Matrix(0) };
             Frame = new(memory, new(174, 174, new(174, 0x5D45A0, 0x5D4580), null, null) { Pools = [pool] }, new(1234), NativeBattleEffect174State.FromColdProcess().WriteDword(0x2395E50, 3)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             uint[] sources = [0xD5DF34, 0xD5E2CC, 0xD597DC, 0xD5ADCC, 0xD5D684];

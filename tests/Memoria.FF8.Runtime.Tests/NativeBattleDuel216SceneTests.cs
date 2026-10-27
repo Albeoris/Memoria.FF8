@@ -47,7 +47,7 @@ public sealed class NativeBattleDuel216SceneTests
         Fixture fixture = new(71);
         NativeBattleEffectTaskPool secondary = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel216Controller.Secondary, 0x20DFAB8 + 6128, 260, 8);
         (secondary, _) = secondary.Append(0x69A5D0);
-        secondary = secondary with { Slots = secondary.Slots.SetItem(0, secondary.Slots[0].WriteWord(12, 0xBEEF)) };
+        secondary = NativeBattleTaskFixture.EditPool(secondary, data => data with { Slots = secondary.Slots.SetItem(0, secondary.Slots[0].WriteWord(12, 0xBEEF)) });
         fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.Add(secondary) } };
         NativeBattleDuel216Step result = fixture.Run();
         NativeBattleEffectTaskPool retained = result.Frame.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel216Controller.Secondary);
@@ -70,7 +70,7 @@ public sealed class NativeBattleDuel216SceneTests
         {
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel216Controller.Main, 0x20DFAB8, 6128, 1);
             (main, _) = main.Append(0x6960E0);
-            main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, tick).WriteWord(6108, 100).WriteWord(6110, 200)) };
+            main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, tick).WriteWord(6108, 100).WriteWord(6110, 200)) });
             NativeBattleDuel216Resources resources = new([], [], new("unused", []), []);
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel216 = new(true, new(0, 0, 8, 0, 0, 0), resources) };
             NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(0, 0, 8, 0, 0, 0), NativeBattleDuel216Controller.Main) { Pools = [main] };

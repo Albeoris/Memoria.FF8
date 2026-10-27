@@ -51,8 +51,8 @@ public sealed class NativeBattleEffect140MeshTests
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[8]);
         });
         Assert.Equal(0xDEADBEEFu, U(result.Context152, 0x30));
-        NativeBattleEffect140MirroredStep restored = JsonSerializer.Deserialize<NativeBattleEffect140MirroredStep>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect140Meshes.DrawLoaded(result.Memory, mesh, new(null, 100, 160, 108), result.Context152, NativeBattleGteColorInterpolation.CodeConstants45F270)), JsonSerializer.Serialize(NativeBattleEffect140Meshes.DrawLoaded(restored.Memory, mesh, new(null, 100, 160, 108), restored.Context152, NativeBattleGteColorInterpolation.CodeConstants45F270)));
+        NativeBattleEffect140MirroredStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect140MirroredStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect140Meshes.DrawLoaded(result.Memory, mesh, new(null, 100, 160, 108), result.Context152, NativeBattleGteColorInterpolation.CodeConstants45F270))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect140Meshes.DrawLoaded(restored.Memory, mesh, new(null, 100, 160, 108), restored.Context152, NativeBattleGteColorInterpolation.CodeConstants45F270))));
     }
 
     [Fact]

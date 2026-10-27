@@ -29,7 +29,7 @@ public sealed class NativeBattleAdditional181ControllerTests
     {
         NativeBattleAdditional181Frame frame = Frame(4);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF).MarkPayloadUnknown(32, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF).MarkPayloadUnknown(32, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         NativeBattleAdditional181Frame first = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         Assert.Equal((ushort)4, Read(first, ChildBank).ReadWord(14));
@@ -109,7 +109,7 @@ public sealed class NativeBattleAdditional181ControllerTests
         NativeBattleActionPacketsState packets = Packets();
         Assert.Equal(3, packets.ReadHeaderContacts506BA0(1).Length);
         List<NativeBattleAdditional181Operation> operations = [];
-        AdvanceMain(frame, ChildBank, Resources(), Inputs(operations) with { Packets = packets });
+        AdvanceMain(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), ChildBank, Resources(), Inputs(operations) with { Packets = packets });
         NativeBattleAdditional181Contact506690 contact = Assert.IsType<NativeBattleAdditional181Contact506690>(Assert.Single(operations));
         Assert.Equal(2, contact.ContactIndex);
         Assert.Equal((byte)3, packets.ReadContact(contact.ContactIndex).Primary.ActorIndex);
@@ -123,7 +123,7 @@ public sealed class NativeBattleAdditional181ControllerTests
     {
         NativeBattleAdditional181Frame frame = Frame(15);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xBEEF).MarkPayloadUnknown(32, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xBEEF).MarkPayloadUnknown(32, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         NativeBattleAdditional181Frame first = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         Assert.Equal(AfterDraws(frame.Random, 1), first.Random);
@@ -153,12 +153,12 @@ public sealed class NativeBattleAdditional181ControllerTests
     {
         NativeBattleAdditional181Frame frame = Frame(4);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(22, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(22, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
-        NativeBattleAdditional181Frame restored = JsonSerializer.Deserialize<NativeBattleAdditional181Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAdditional181Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional181Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleAdditional181Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         NativeBattleAdditional181Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([])).Frame;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<NotSupportedException>(() => Read(actual, ChildBank + 36).ReadWord(22));
     }
 
@@ -188,7 +188,7 @@ public sealed class NativeBattleAdditional181ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteWord(14, 5).WriteWord(16, 10).WriteWord(18, 200).WriteWord(20, 30)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age).WriteWord(14, 5).WriteWord(16, 10).WriteWord(18, 200).WriteWord(20, 30)) });
         NativeBattleOriginalEffectState effect = new(181, 180, new(181, Entry, Initializer), new(0, 0, 8, 1, 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattleAdditional181State state = NativeBattleAdditional181State.FromColdProcess().WriteDword(CasterGlobal, 0).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);

@@ -108,12 +108,13 @@ public sealed class NativeBattleAcid317ModelDrawingTests
         NativeBattleEffectMemory memory = Memory(0);
         memory = memory with { Arena = memory.Arena!.Write(CacheOffset + 4, Enumerable.Repeat((byte)255, 4).ToArray()) };
         NativeBattleAcid317ModelStep first = Draw(Geometry(true), Context(1024), memory, 2000);
-        NativeBattleAcid317ModelStep restored = JsonSerializer.Deserialize<NativeBattleAcid317ModelStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleAcid317ModelStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317ModelStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleAcid317ModelStep Next(NativeBattleAcid317ModelStep current) => Draw(Geometry(true), current.Temporary132, current.Memory, 2000, 32, current.VertexScratch);
+        uint previousVertex = U32(first.VertexScratch, 0);
         NativeBattleAcid317ModelStep second = Next(first);
         Assert.Equal(CacheAddress + 8, U32(second.Temporary132, 0x2C));
-        Assert.NotEqual(U32(first.VertexScratch, 0), U32(second.VertexScratch, 0));
-        Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(Next(restored)));
+        Assert.NotEqual(previousVertex, U32(second.VertexScratch, 0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private const uint GeometryAddress = 0x1000000;

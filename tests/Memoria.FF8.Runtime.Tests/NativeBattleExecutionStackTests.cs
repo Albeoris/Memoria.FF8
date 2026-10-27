@@ -27,7 +27,7 @@ public sealed class NativeBattleExecutionStackTests
     public void Quezacotl_empty_preceding_pools_retain_the_current_normalizer_argument_after_restore()
     {
         NativeBattleExecutionStack profile = Profile();
-        NativeBattleExecutionStack independent = JsonSerializer.Deserialize<NativeBattleExecutionStack>(JsonSerializer.Serialize(profile))!;
+        NativeBattleExecutionStack independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleExecutionStack>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(profile)))!);
         Assert.Equal(0x1A5064u, NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent, 4));
         Assert.Equal(0x1B5064u, NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent with { FrameCallbackEsp = independent.FrameCallbackEsp + 0x10000 }, 4));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(independent, 1));
@@ -107,20 +107,20 @@ public sealed class NativeBattleExecutionStackTests
     public void Selected_profile_survives_json_but_cold_or_missing_old_memory_never_gains_one()
     {
         NativeBattleExecutionStack profile = Profile();
-        NativeBattleExecutionStack independent = JsonSerializer.Deserialize<NativeBattleExecutionStack>(JsonSerializer.Serialize(profile))!;
+        NativeBattleExecutionStack independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleExecutionStack>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(profile)))!);
         independent.Validate();
         Assert.Equal(profile, independent);
         Assert.Equal(NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(profile, 4), NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(independent, 4));
         NativeBattleEffectMemory cold = NativeBattleEffectMemory.FromColdProcess();
         Assert.Null(cold.ExecutionStack);
-        JsonObject oldMemory = JsonNode.Parse(JsonSerializer.Serialize(cold))!.AsObject();
+        JsonObject oldMemory = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)))!.AsObject();
         Assert.False(oldMemory.ContainsKey("ExecutionStack"));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldMemory.ToJsonString())!.ExecutionStack);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldMemory.ToJsonString())!).ExecutionStack);
         NativeBattleEffectMemory selected = cold with { ExecutionStack = profile };
-        Assert.Equal(profile, JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(selected))!.ExecutionStack);
-        JsonObject missingLineage = JsonNode.Parse(JsonSerializer.Serialize(profile))!.AsObject();
+        Assert.Equal(profile, NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(selected)))!).ExecutionStack);
+        JsonObject missingLineage = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(profile)))!.AsObject();
         missingLineage.Remove("CapturedThreadId");
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleExecutionStack>(missingLineage.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleExecutionStack>(missingLineage.ToJsonString())));
     }
 
     private static NativeBattleExecutionStack Profile()

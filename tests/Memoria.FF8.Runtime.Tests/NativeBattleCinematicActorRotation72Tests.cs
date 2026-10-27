@@ -54,10 +54,10 @@ public sealed class NativeBattleCinematicActorRotation72Tests
         frame = WaterSchedulerFixture.CoreWord(frame, 0x279780C, 0x0102);
         frame = WaterSchedulerFixture.CoreWord(frame, 0x279780E, 0x8000);
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797810, 0xFFFF);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame a = NativeBattleCinematicActorRotation72.Execute(frame, (_, _, _) => throw new InvalidOperationException());
         NativeBattleWaterExecutionFrame b = NativeBattleCinematicActorRotation72.Execute(restored, (_, _, _) => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Equal(0x01020000u, WaterSchedulerFixture.ReadSlotDword(a, 0, 0x50));
         Assert.Equal(0x80000000u, WaterSchedulerFixture.ReadSlotDword(a, 0, 0x54));
         Assert.Equal(0xFFFF0000u, WaterSchedulerFixture.ReadSlotDword(a, 0, 0x58));

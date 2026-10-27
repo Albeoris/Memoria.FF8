@@ -38,7 +38,7 @@ public sealed class NativeBattleEffect76StageReloadTests
             Rotation = 0x12345678,
             Task = new(new(0x512500, false), 7)
         };
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stage)))!);
         NativeBattleStageState result = restored.Reload512AC0(1, source with { Groups = [source.Groups[0], null, source.Groups[2], source.Groups[3]] });
         Assert.Equal(stage.Flags, result.Flags);
         Assert.Equal(stage.Rotation, result.Rotation);
@@ -51,14 +51,14 @@ public sealed class NativeBattleEffect76StageReloadTests
         Assert.Equal((ushort)2, result.FinalStage142!.SavedRotation);
         Assert.Equal((byte)7, (byte)(result.Groups[0].Flags & 7));
         Assert.Equal((byte)0, (byte)(result.Groups[1].Flags & 7));
-        Assert.Equal(stage.FinalStage142! with { SavedRotation = 2 }, result.FinalStage142);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stage.FinalStage142! with { SavedRotation = 2 })), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.FinalStage142)));
     }
 
     [Fact]
     public void Missing_imported_seed_stays_unknown_and_cannot_borrow_the_other_row()
     {
         NativeBattleStageState stage = NativeBattleStageState.FromColdProcess() with { SourceAddress1D9A820 = 0x500000, ReloadColorSeed1D9A828 = null };
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stage)))!);
         Assert.Null(restored.ReloadColorSeed1D9A828);
         Assert.Equal(0u, restored.ReloadColorSeed1D9A824);
         Assert.Throws<NotSupportedException>(() => restored.Reload512AC0(1, Source()));

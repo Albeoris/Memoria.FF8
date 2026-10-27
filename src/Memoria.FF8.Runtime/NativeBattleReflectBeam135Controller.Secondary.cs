@@ -88,7 +88,11 @@ public static partial class NativeBattleReflectBeam135Controller
         return (Write(frame, address, task.WriteWord(12, unchecked((ushort)(task.ReadWord(12) + 1)))), 0);
     }
 
-    private static NativeBattleEffectArena SecondaryContext(NativeBattleReflectBeam135Frame frame, NativeBattleEffectArena point, int depth) => point.Write(8, BitConverter.GetBytes(depth)).Write(12, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
+    private static NativeBattleEffectArena SecondaryContext(NativeBattleReflectBeam135Frame frame, NativeBattleEffectArena point, int depth)
+    {
+        NativeBattleEffectArena context = NativeBattleEffectNodeContextMemory.Copy(point, 0, NativeBattleEffectArena.Clear(), 0, 8);
+        return context.Write(8, BitConverter.GetBytes(depth)).Write(12, BitConverter.GetBytes(checked(Working(frame) + MorphOffset)));
+    }
 
     private static (NativeBattleReflectBeam135Frame Frame, NativeBattleVector Point) SecondaryTransform(NativeBattleReflectBeam135Frame frame, NativeBattleVector point)
     {

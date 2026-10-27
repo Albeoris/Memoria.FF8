@@ -49,13 +49,13 @@ public sealed class NativeBattleMeltEye158StateTests
     public void Independent_packet_halves_partial_knownness_and_next_write_survive_JSON()
     {
         NativeBattleMeltEye158State state = NativeBattleMeltEye158State.FromUnknown().WriteDword(NativeBattleMeltEye158Profile.CursorGlobal, NativeBattleMeltEye158Profile.PacketBase + 0x8000).WritePacket(NativeBattleMeltEye158Profile.PacketBase, [11]).WritePacket(NativeBattleMeltEye158Profile.PacketBase + 0x8000, [22]);
-        NativeBattleMeltEye158State restored = JsonSerializer.Deserialize<NativeBattleMeltEye158State>(JsonSerializer.Serialize(state))!;
+        NativeBattleMeltEye158State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltEye158State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 11 }, restored.ReadPacket(NativeBattleMeltEye158Profile.PacketBase, 1));
         Assert.Equal(new byte[] { 22 }, restored.ReadPacket(NativeBattleMeltEye158Profile.PacketBase + 0x8000, 1));
         Assert.Throws<NotSupportedException>(() => restored.ReadPacket(NativeBattleMeltEye158Profile.PacketBase + 1, 1));
         Assert.Equal(NativeBattleMeltEye158Profile.PacketBase + 0x8000, restored.ReadDword(NativeBattleMeltEye158Profile.CursorGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WritePacket(NativeBattleMeltEye158Profile.PacketBase + 1, [33])), JsonSerializer.Serialize(restored.WritePacket(NativeBattleMeltEye158Profile.PacketBase + 1, [33])));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WritePacket(NativeBattleMeltEye158Profile.PacketBase + 1, [33])), NativeBattleTestSnapshots.Json(restored.WritePacket(NativeBattleMeltEye158Profile.PacketBase + 1, [33])));
     }
 
     [Theory]

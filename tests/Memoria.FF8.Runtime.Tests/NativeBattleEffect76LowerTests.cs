@@ -14,7 +14,7 @@ public sealed class NativeBattleEffect76LowerTests
         NativeBattleEffect76Frame frame = Frame();
         frame = WriteBytes(frame, Point, Word(NativeBattleEffectArena.Clear(), 6, 0x6A5B), 8);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x16, 0x4A3B)) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(0x16, 0x4A3B));
         frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
         NativeCrtRandomState expectedRandom = frame.Random;
         if (allocatedBeforeQuery)

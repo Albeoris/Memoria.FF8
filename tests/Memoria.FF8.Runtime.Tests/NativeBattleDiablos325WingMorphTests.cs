@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -14,14 +14,15 @@ public sealed class NativeBattleDiablos325WingMorphTests
         byte[] first = Vertex(-30000, 1, 255);
         byte[] second = Vertex(30000, 1, 255);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x1000, first).Write(0x2000, second).Write(0x3000, Enumerable.Repeat((byte)0xCC, 8).ToArray()).MarkUnknown(0x100E, 2).MarkUnknown(0x200E, 2).MarkUnknown(0x3006, 2);
-        string original = JsonSerializer.Serialize(arena);
+        var preserved = NativeBattleStorageSnapshots.Capture(arena);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleEffectArena result = NativeBattleDiablos325WingMorph.Vertices6590E0(arena, Address + 0x1000, Address + 0x2000, 2048, Address + 0x3000);
         byte[] xyz = result.Read(0x3000, 6);
         Assert.Equal(short.MinValue, BinaryPrimitives.ReadInt16LittleEndian(xyz));
         Assert.Equal((short)1, BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(2)));
         Assert.Equal((short)255, BinaryPrimitives.ReadInt16LittleEndian(xyz.AsSpan(4)));
         Assert.Throws<NotSupportedException>(() => result.Read(0x3006, 1));
-        Assert.Equal(original, JsonSerializer.Serialize(arena));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -31,7 +32,8 @@ public sealed class NativeBattleDiablos325WingMorphTests
         byte[] second = Polygons(255, 8, 1, 0x7F);
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x1000, first).Write(0x2000, second).Write(0x3000, Enumerable.Repeat((byte)0xCC, 108).ToArray());
         arena = arena.MarkUnknown(0x1028, 8).MarkUnknown(0x2028, 8).MarkUnknown(0x3028, 8).MarkUnknown(0x3064, 8).MarkUnknown(0x3043, 1);
-        string original = JsonSerializer.Serialize(arena);
+        var preserved = NativeBattleStorageSnapshots.Capture(arena);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleEffectArena result = NativeBattleDiablos325WingMorph.Polygons659200(arena, Address + 0x1000, Address + 0x2000, 2048, Address + 0x3000);
         Assert.Equal(new byte[] { 8, 0, 0, 0, 3, 0, 0, 0 }, result.Read(0x3000, 8));
         Assert.Equal(new byte[] { 0, 6, 0, 0x20 }, result.Read(0x300C, 4));
@@ -41,7 +43,7 @@ public sealed class NativeBattleDiablos325WingMorphTests
         Assert.Equal((byte)0xCC, result.Read(0x3047, 1)[0]);
         Assert.Throws<NotSupportedException>(() => result.Read(0x3028, 1));
         Assert.Throws<NotSupportedException>(() => result.Read(0x3064, 1));
-        Assert.Equal(original, JsonSerializer.Serialize(arena));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     private static byte[] Vertex(short x, short y, short z)

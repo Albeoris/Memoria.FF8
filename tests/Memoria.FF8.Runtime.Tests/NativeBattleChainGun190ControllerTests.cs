@@ -145,10 +145,10 @@ public sealed class NativeBattleChainGun190ControllerTests
         Assert.Equal(0u, frame.State.ReadDword(RecordsAddress + 47 * 16));
         Assert.Equal(0xCAFEu, frame.State.ReadDword(RecordsAddress + 47 * 16 + 4));
         frame = Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(12, 3));
-        NativeBattleChainGun190Frame restored = JsonSerializer.Deserialize<NativeBattleChainGun190Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleChainGun190Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChainGun190Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleChainGun190Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
         NativeBattleChainGun190Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([], [])).Frame;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class NativeBattleChainGun190ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
         NativeBattleOriginalEffectState effect = new(190, 189, new(190, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattleChainGun190State state = NativeBattleChainGun190State.FromColdProcess().WriteDword(CasterGlobal, 3) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);

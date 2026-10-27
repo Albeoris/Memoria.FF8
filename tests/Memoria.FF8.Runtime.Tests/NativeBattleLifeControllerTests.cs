@@ -135,7 +135,7 @@ public sealed class NativeBattleLifeControllerTests
                     NativeBattleModulePoolTask second = right.Effect.Pools[pool].Slots[slot];
                     Assert.Equal(first.Flags, second.Flags);
                     Assert.Equal(first.Next, second.Next);
-                    Assert.Equal(first.Payload.AsSpan().Slice(0x1C - 12, 0x14).ToArray(), second.Payload.AsSpan().Slice(0x1C - 12, 0x14).ToArray());
+                    Assert.Equal(NativeBattleStorageSnapshots.Capture(first).Payload.AsSpan().Slice(0x1C - 12, 0x14).ToArray(), NativeBattleStorageSnapshots.Capture(second).Payload.AsSpan().Slice(0x1C - 12, 0x14).ToArray());
                 }
             }
         }
@@ -153,14 +153,14 @@ public sealed class NativeBattleLifeControllerTests
             frame = next.Frame;
             random = next.Random;
         }
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattleLifeFrame first = JsonSerializer.Deserialize<NativeBattleLifeFrame>(json)!;
-        NativeBattleLifeFrame second = JsonSerializer.Deserialize<NativeBattleLifeFrame>(json)!;
+        string json = NativeBattleTestSnapshots.Json(frame);
+        NativeBattleLifeFrame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleLifeFrame>(json)!;
+        NativeBattleLifeFrame second = NativeBattleTestSnapshots.RestoreJson<NativeBattleLifeFrame>(json)!;
         NativeBattleLifeStep a = NativeBattleLifeController.Advance864AB0(first, fixture.Resources, fixture.Inputs with { Random = random });
         NativeBattleLifeStep b = NativeBattleLifeController.Advance864AB0(second, fixture.Resources, fixture.Inputs with { Random = random });
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Empty(a.Sounds);
-        Assert.NotEqual(json, JsonSerializer.Serialize(a.Frame));
+        Assert.NotEqual(json, NativeBattleTestSnapshots.Json(a.Frame));
     }
 
     [Theory]

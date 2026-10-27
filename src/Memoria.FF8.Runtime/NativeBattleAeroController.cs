@@ -68,6 +68,7 @@ public static class NativeBattleAeroController
                 {
                     primary = NativeBattleEffectTaskPool.Initialize(PrimaryDescriptor, PrimaryBank, 0x68C, 3);
                     particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, ParticleBank, 0x3C, 64);
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, particles]) };
                     task = WriteByte(task, 15, 1);
                 }
                 int sequence = task.ReadByte(14);

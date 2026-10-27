@@ -7,7 +7,7 @@ public sealed class NativeBattleRetainedSourceSerializationTests
     {
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess();
         NativeBattleEffectMemory effects = retained.EffectMemory! with { Breath129 = NativeBattleBreath129State.FromUnknown(), Sonic139 = NativeBattleSonic139State.FromUnknown() };
-        GameSession session = new(new GameState { NativeBattleMemory = retained with { EffectMemory = effects } });
+        GameSession session = new(new GameState { NativeBattleMemory = NativeBattleStorageSnapshots.Capture(retained with { EffectMemory = effects }) });
         string path = Path.Combine(Path.GetTempPath(), $"retained-source-{Guid.NewGuid():N}.json");
         try
         {

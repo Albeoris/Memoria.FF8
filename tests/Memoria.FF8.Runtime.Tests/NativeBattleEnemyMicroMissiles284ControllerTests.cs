@@ -160,7 +160,7 @@ public sealed class NativeBattleEnemyMicroMissiles284ControllerTests
         Assert.Empty(actual.Effect.Pools);
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.NotNull(actual.State.RootBankStorage);
-        var cold = JsonSerializer.Deserialize<NativeBattleEnemyMicroMissiles284Frame>(JsonSerializer.Serialize(actual))!;
+        var cold = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEnemyMicroMissiles284Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)))!);
         Assert.Single(Initialize(cold, Resources(), Inputs([])).Effect.Pools);
     }
 

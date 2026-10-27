@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -21,7 +21,8 @@ public sealed class NativeBattleDiablos325ShapeTests
             arena = arena.Write((int)offset, shape);
         }
         frame = frame with { Memory = frame.Memory with { Arena = arena, PrimitiveProcess = frame.Memory.PrimitiveProcess! with { ModelRendererRegisters = new(1, 2, 3, 0x123, 0x456) } } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6545F0, new byte[0x994 - 12].ToImmutableArray());
         task = task.WriteWord(0xC, 103);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 288, 160, 108);
@@ -39,7 +40,7 @@ public sealed class NativeBattleDiablos325ShapeTests
         Assert.Null(registers.FarBlue);
         Assert.Equal<uint?>(0x123, registers.PacketCursor);
         Assert.Equal<uint?>(0x456, registers.SourceCursor);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]

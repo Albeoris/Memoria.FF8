@@ -111,7 +111,7 @@ public sealed class NativeBattleEffect66CloudTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (child, _) = child.Append(callback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, age).WriteWord(14, 1).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300)) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, age).WriteWord(14, 1).WriteWord(16, 100).WriteWord(18, 200).WriteWord(20, 300));
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), matrix, true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(matrix, 0) };
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]);

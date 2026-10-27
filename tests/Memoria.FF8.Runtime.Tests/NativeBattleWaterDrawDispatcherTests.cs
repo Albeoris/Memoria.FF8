@@ -29,6 +29,7 @@ public sealed class NativeBattleWaterDrawDispatcherTests
             }
         };
         NativeBattleWaterDrawInputs input = new(new(source.Files, source.Profile), 0x155, 0, 0, 0);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(initial))!;
         NativeBattleWaterExecutionFrame result = NativeBattleWaterDrawDispatcher.Draw(initial, 0x15, Bank, 0, input, services);
         Assert.Equal(new[] { 15, 0 }, indices);
         Assert.Equal((byte)1, result.Core.Read(0x27970AB, 1)[0]);
@@ -38,8 +39,7 @@ public sealed class NativeBattleWaterDrawDispatcherTests
         Assert.Equal((short)3, BinaryPrimitives.ReadInt16LittleEndian(result.Core.Read(0x279754C + 6, 2)));
         Assert.Equal((short)1, BinaryPrimitives.ReadInt16LittleEndian(result.Core.Read(0x27974D4 + 6, 2)));
         indices.Clear();
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(initial))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterDrawDispatcher.Draw(restored, 0x15, Bank, 0, input, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleWaterDrawDispatcher.Draw(restored, 0x15, Bank, 0, input, services)));
     }
 
     [Fact]

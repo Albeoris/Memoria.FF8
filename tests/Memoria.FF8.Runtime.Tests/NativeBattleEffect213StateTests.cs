@@ -33,7 +33,7 @@ public sealed class NativeBattleEffect213StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(RootBank, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Null(state.MutableStreamPending);
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -50,8 +50,8 @@ public sealed class NativeBattleEffect213StateTests
         Assert.False(bound.State.MutableStreamPending);
         Assert.Equal(resources.OriginalMutableVertices.ToArray(), bound.Staging.Read(MutableStreamAddress, MutableStreamLength));
         NativeBattleFileStaging warm = bound.Staging.Write(MutableStreamAddress + 6, BitConverter.GetBytes((ushort)0xBEEF));
-        NativeBattleEffect213State state = JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(bound.State))!;
-        warm = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(warm))!;
+        NativeBattleEffect213State state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(bound.State)))!);
+        warm = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(warm)))!);
         var rebound = state.BindSources(warm, resources);
         Assert.Equal(BitConverter.GetBytes((ushort)0xBEEF), rebound.Staging.Read(MutableStreamAddress + 6, 2));
         Assert.Throws<NotSupportedException>(() => state.BindSources(NativeBattleFileStaging.Unknown(), resources));
@@ -70,7 +70,7 @@ public sealed class NativeBattleEffect213StateTests
         Assert.Equal(current, bound.Staging.Read(MutableStreamAddress, MutableStreamLength));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect213State.FromColdProcess().BindSources(NativeBattleFileStaging.Unknown().Write(MutableStreamAddress, [1]), resources));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect213State.FromUnknown().BindSources(staging, resources));
-        NativeBattleEffect213State legacy = JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(bound.State).Replace("\"MutableStreamPending\":false", "\"MutableStreamPending\":null"))!;
+        NativeBattleEffect213State legacy = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect213State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(bound.State)).Replace("\"MutableStreamPending\":false", "\"MutableStreamPending\":null"))!);
         Assert.Throws<NotSupportedException>(() => legacy.BindSources(staging, resources));
     }
 

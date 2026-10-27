@@ -154,11 +154,11 @@ public sealed class NativeBattleEffect210ParticleTests
     {
         Fixture fixture = new(0x6F7230);
         fixture.Task(task => task.WriteWord(12, 15).WriteWord(0x16, unchecked((ushort)-33)).WriteWord(0x1C, 100));
-        NativeBattleEffect210Frame restored = JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleEffect210Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
         NativeBattleEffect210Step direct = fixture.Advance();
         fixture.Frame = restored;
         NativeBattleEffect210Step cold = fixture.Advance();
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(cold));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)));
         NativeBattleModulePoolTask task = Read(cold.Frame, fixture.Address);
         Assert.Equal(2, cold.Result);
         Assert.Equal((ushort)167, task.ReadWord(0x12));
@@ -226,7 +226,7 @@ public sealed class NativeBattleEffect210ParticleTests
         }
 
         public void Task(Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> change) => Frame = Write(Frame, Address, change(Read(Frame, Address)));
-        public NativeBattleEffect210Step Advance() => NativeBattleEffect210Lower.Advance(Frame, Address, Resources, Inputs());
+        public NativeBattleEffect210Step Advance() => NativeBattleEffect210Lower.Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(Frame)), Address, Resources, Inputs());
         public NativeBattleEffect210Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => 0, null!, null!, (_, _) => Model, null!, _ => NativeBattlePackedMatrix32.FromMatrix(Identity(0, 0, 4000), null), _ => new(null, 100, 160, 108), _ => 0, null!, (frame, _, _) =>
         {
             AnchorReads++;

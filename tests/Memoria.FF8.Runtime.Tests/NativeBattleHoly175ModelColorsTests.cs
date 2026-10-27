@@ -78,9 +78,9 @@ public sealed class NativeBattleHoly175ModelColorsTests
         int factor = callback == 0x5D27C0 ? quotient : 4096 - quotient;
         Assert.Equal(Colors.Interpolate(0x32000000, factor, Normal), paused.Models[4].Color44);
         Assert.Equal((Colors.Interpolate(0, factor, (Transition & 0xFEFEFEu) >> 1) & 0xFFFFFFu) | 0x02000000u, paused.Models[4].Color40);
-        NativeBattleHoly175ModelColorStep cold = JsonSerializer.Deserialize<NativeBattleHoly175ModelColorStep>(JsonSerializer.Serialize(paused))!;
+        NativeBattleHoly175ModelColorStep cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleHoly175ModelColorStep>(NativeBattleTestSnapshots.Json(paused))!;
         NativeBattleHoly175ModelColorStep next = Advance(paused.Task, paused.Models, 0);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(cold.Task, cold.Models, 0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(cold.Task, cold.Models, 0)));
         Assert.Equal(unchecked((ushort)(counter + 1)), next.Task.ReadWord(0xC));
         if (counter == 32767)
         {

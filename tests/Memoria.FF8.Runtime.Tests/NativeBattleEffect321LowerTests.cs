@@ -139,12 +139,13 @@ public sealed class NativeBattleEffect321LowerTests
         Fixture fixture = new(0x598230);
         fixture.Task(task => task.WriteWord(12, 20));
         fixture.Frame = fixture.Frame with { State = fixture.Frame.State.WriteView(NativeBattleEffect321Records.First, PutWord(PutWord(PutWord(Put(NativeBattleEffectArena.Clear(), 0, 2), 4, 16), 6, 1024), 12, 4000), 24) };
+        NativeBattleEffect321Frame pausedFrame = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         NativeBattleEffect321Step result = NativeBattleEffect321Lower.Advance(fixture.Frame, fixture.Address, fixture.Resources, fixture.Inputs());
         Assert.Single(fixture.Operations);
         Assert.Equal(0u, result.Frame.State.ReadDword(NativeBattleEffect321Records.First));
         Assert.Equal(2, result.Result);
         fixture.Flags = 0x201;
-        result = NativeBattleEffect321Lower.Advance(fixture.Frame, fixture.Address, fixture.Resources, fixture.Inputs());
+        result = NativeBattleEffect321Lower.Advance(pausedFrame, fixture.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(2u, result.Frame.State.ReadDword(NativeBattleEffect321Records.First));
         Assert.Equal(0, result.Result);
     }
@@ -204,7 +205,7 @@ public sealed class NativeBattleEffect321LowerTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x221C600, Address, 36, 100);
             (pool, int slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[24])) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[24]));
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
             Frame = new(memory, new(321, 320, new(321, 0x597A00, 0x5979E0), null, null) { Pools = [pool] }, new(42), NativeBattleEffect321State.FromColdProcess().DetachBank(1)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };
             byte[] mesh = new byte[40];

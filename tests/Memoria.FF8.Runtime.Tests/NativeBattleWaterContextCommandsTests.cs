@@ -45,14 +45,14 @@ public sealed class NativeBattleWaterContextCommandsTests
                 return Model(1);
             }
         };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Execute(frame, services);
         Assert.Equal((byte)1, result.Arena.Read(0x201B, 1)[0]);
         Assert.Equal((byte)1, result.Core.Read(Header + 0x48, 1)[0]);
         Assert.Equal((byte)1, result.Core.Read(Header + 0x41, 1)[0]);
         before[0x1B] = 1;
         Assert.Equal(before, result.Arena.Read(0x2000, 0x100));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Execute(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(restored, services)));
     }
 
     [Fact]
@@ -178,12 +178,12 @@ public sealed class NativeBattleWaterContextCommandsTests
             Assert.Equal(packed, value.ReadTemporaryDword(0xFC));
             return value;
         } };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Execute(frame, services);
         Assert.Equal(new[] { 0, 1, 2, 3 }, groups);
         Assert.Equal(0x1002u, Pc(result));
         Assert.Equal(frame.Arena.Read(0x2000, 0x100), result.Arena.Read(0x2000, 0x100));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Execute(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(restored, services)));
     }
 
     [Theory]
@@ -218,8 +218,8 @@ public sealed class NativeBattleWaterContextCommandsTests
         Assert.Equal((byte)1, result.Core.Read(Header + 0x48, 1)[0]);
         Assert.Equal((byte)1, result.Core.Read(Header + 0x41, 1)[0]);
         Assert.Equal(0x1002u, Pc(result));
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
+        string json = NativeBattleTestSnapshots.Json(result);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(json)!));
     }
 
     [Theory]

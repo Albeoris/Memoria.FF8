@@ -16,8 +16,8 @@ public sealed class NativeBattleEffect298StateTests
         Assert.Equal(new byte[8], state.Read(CursorGlobal, 8));
         Assert.Equal(new byte[4], state.Read(ArenaGlobal, 4));
         Assert.Equal(new byte[20], state.RootBankStorage!.Read(0, 20));
-        Assert.Empty(state.ScriptCounterWrites.Regions);
-        Assert.Empty(state.ScriptCounterWrites.UnknownRegions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(state.ScriptCounterWrites).Regions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(state.ScriptCounterWrites).UnknownRegions);
         Assert.Equal(new[] { 20, 36, 28, 328, 35316 }, Pools.Select(pool => (int)pool.Stride));
         Assert.Equal(new[] { 1, 45, 64, 8, 1 }, Pools.Select(pool => (int)pool.Capacity));
         Assert.Equal(IoOffset, MainOffset + MainLength);
@@ -34,13 +34,13 @@ public sealed class NativeBattleEffect298StateTests
         var state = NativeBattleEffect298State.FromColdProcess();
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(state.ReadStatic(resources, address, 2)));
         state = state.WriteWord(address, 0) with { RootBankStorage = null };
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect298State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(restored.ReadStatic(resources, address, 2)));
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(resources.ReadStatic(address, 2).AsSpan()));
-        Assert.Equal(2, restored.ScriptCounterWrites.Regions.Single().Data.Length);
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(2, NativeBattleStorageSnapshots.Capture(restored.ScriptCounterWrites).Regions.Single().Data.Length);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         restored = restored.WriteWord(address, 9);
         Assert.Equal((ushort)9, BinaryPrimitives.ReadUInt16LittleEndian(restored.ReadStatic(resources, address, 2)));
         Assert.Equal((ushort)17, BinaryPrimitives.ReadUInt16LittleEndian(restored.ReadStatic(resources, ScriptCounterAddresses[1], 2)));
@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect298StateTests
         var cold = NativeBattleEffect298State.FromColdProcess().WriteView(address, partial, 2);
         Assert.Equal(new byte[] { 7 }, cold.ReadStatic(resources, address, 1));
         Assert.Throws<NotSupportedException>(() => cold.ReadStatic(resources, address + 1, 1));
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect298State>(JsonSerializer.Serialize(cold))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect298State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)))!);
         restored.Validate();
         Assert.Throws<NotSupportedException>(() => restored.ReadStatic(resources, address, 2));
     }

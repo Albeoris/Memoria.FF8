@@ -29,7 +29,7 @@ public sealed class NativeBattleDuel112FinishTests
         {
             NativeBattleModulePoolTask texture = Assert.Single(step.Frame.Effect.Pools[4].Slots.Where(task => (task.Flags & 1) != 0));
             Assert.Equal(0x6CD870u, texture.Callback);
-            Assert.All(texture.Payload, value => Assert.Equal((byte)0, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(texture).Payload, value => Assert.Equal((byte)0, value));
         }
     }
 
@@ -42,8 +42,8 @@ public sealed class NativeBattleDuel112FinishTests
         Assert.Equal((short)13, fixture.Actor.Transform.Vertical34);
         Assert.Equal(0, fixture.Actor.Flags0 & 0xC);
         NativeBattleEffectTaskPool pool = step.Pool;
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 152)) };
-        NativeBattleDuel112Frame restored = JsonSerializer.Deserialize<NativeBattleDuel112Frame>(JsonSerializer.Serialize(step.Frame with { Effect = step.Frame.Effect with { Pools = step.Frame.Effect.Pools.SetItem(1, pool) } }))!;
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 152)) });
+        NativeBattleDuel112Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel112Frame>(NativeBattleTestSnapshots.Json(step.Frame with { Effect = step.Frame.Effect with { Pools = step.Frame.Effect.Pools.SetItem(1, pool) } }))!;
         step = NativeBattleDuel112Target.Finish6CBF90(restored, 0, fixture.Services);
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)152, step.Pool.Slots[0].ReadWord(12));
@@ -65,16 +65,16 @@ public sealed class NativeBattleDuel112FinishTests
             Assert.Equal(0x20E1940u, destination);
             Assert.Equal(0x20E0A0Eu, completion);
             NativeBattleEffectTaskPool bank = frame.Effect.Pools[4];
-            bank = bank with { Slots = bank.Slots.SetItem(0, bank.Slots[0].WriteByte(14, 0)) };
+            bank = NativeBattleTaskFixture.EditPool(bank, data => data with { Slots = bank.Slots.SetItem(0, bank.Slots[0].WriteByte(14, 0)) });
             return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(4, bank) } };
         });
         Assert.Equal(1, calls);
         Assert.Equal(0, step.Result);
-        NativeBattleDuel112Frame restored = JsonSerializer.Deserialize<NativeBattleDuel112Frame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleDuel112Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel112Frame>(NativeBattleTestSnapshots.Json(step.Frame))!;
         step = NativeBattleDuel112Target.Advance6CD870(restored, 0, (_, _, _) => throw new InvalidOperationException("A pending texture task cannot enqueue twice."));
         Assert.Equal(0, step.Result);
         NativeBattleEffectTaskPool pool = step.Pool;
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(14, 1)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(14, 1)) });
         step = NativeBattleDuel112Target.Advance6CD870(step.Frame with { Effect = step.Frame.Effect with { Pools = step.Frame.Effect.Pools.SetItem(4, pool) } }, 0, (_, _, _) => throw new InvalidOperationException());
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)3, step.Pool.Slots[0].ReadWord(12));
@@ -103,7 +103,7 @@ public sealed class NativeBattleDuel112FinishTests
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
             (target, _) = target.Append(0x6CBF90);
             NativeBattleModulePoolTask task = target.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteDword(48, 0xCC1E3C78).WriteDword(52, 0xAB142850).WriteDword(60, 0x000BFFF6).WriteDword(64, 0x000DFFF4);
-            target = target with { Slots = target.Slots.SetItem(0, task) };
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
             NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(0x2521940, 0x20E0F40, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, 0x20E0D00, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, 0x20E0A00, 48, 16)] };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, null) };

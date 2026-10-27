@@ -20,11 +20,11 @@ public sealed class NativeBattleGilgameshModelBanksTests
         Assert.Equal(2, result.Result);
         Assert.Equal(duration, result.UpdatedTask.ReadWord(12));
         Assert.Empty(result.Packets);
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(result.ModelMemory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory), NativeBattleTestSnapshots.Json(result.ModelMemory));
         NativeBattleGilgameshModelBankStep paused = Run(memory, task, 0x201);
         Assert.Same(task, paused.UpdatedTask);
         Assert.Equal(0, paused.Result);
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(paused.ModelMemory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory), NativeBattleTestSnapshots.Json(paused.ModelMemory));
     }
 
     [Theory]
@@ -39,8 +39,8 @@ public sealed class NativeBattleGilgameshModelBanksTests
         NativeBattleGilgameshModelBankStep first = Run(Gated(), Task(callback, 32767, 105));
         Assert.Equal((ushort)32768, first.UpdatedTask.ReadWord(12));
         Assert.Equal(0, first.Result);
-        NativeBattleGilgameshModelBankStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshModelBankStep>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(first.ModelMemory, first.UpdatedTask)), JsonSerializer.Serialize(Run(restored.ModelMemory, restored.UpdatedTask)));
+        NativeBattleGilgameshModelBankStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshModelBankStep>(NativeBattleTestSnapshots.Json(first))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(first.ModelMemory, first.UpdatedTask)), NativeBattleTestSnapshots.Json(Run(restored.ModelMemory, restored.UpdatedTask)));
     }
 
     [Fact]

@@ -34,7 +34,7 @@ public sealed class NativeBattleGilgameshFlareTests
         Assert.Equal(unchecked((ushort)(32767 + velocity)), step.UpdatedTask.ReadWord(0x1C));
         Assert.Equal(unchecked((ushort)next), step.UpdatedTask.ReadWord(0x1E));
         Assert.Equal(task.ReadWord(0x20), step.UpdatedTask.ReadWord(0x20));
-        Assert.Equal(task.Payload.AsSpan().Slice(2, 14).ToArray(), step.UpdatedTask.Payload.AsSpan().Slice(2, 14).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(2, 14).ToArray(), NativeBattleStorageSnapshots.Capture(step.UpdatedTask).Payload.AsSpan().Slice(2, 14).ToArray());
     }
 
     [Fact]
@@ -45,13 +45,13 @@ public sealed class NativeBattleGilgameshFlareTests
         Assert.Equal(expected.Rotation.ToArray(), NativeBattleGilgameshFlare.Matrix(task).Rotation.ToArray());
         Assert.Equal((-123, 456, 288), (NativeBattleGilgameshFlare.Matrix(task).X, NativeBattleGilgameshFlare.Matrix(task).Y, NativeBattleGilgameshFlare.Matrix(task).Z));
         NativeBattleCameraProjection projection = Projection();
-        string original = JsonSerializer.Serialize(projection);
+        string original = NativeBattleTestSnapshots.Json(projection);
         NativeBattleGilgameshFlareStep first = NativeBattleGilgameshFlare.Step591470(task, Resources(), projection, 0);
-        Assert.Equal(original, JsonSerializer.Serialize(projection));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(projection));
         Assert.Equal((ushort)0x8000, first.UpdatedTask.ReadWord(12));
         Assert.Equal(0, first.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshFlare.Step591470(first.UpdatedTask, Resources(), projection, 0)), JsonSerializer.Serialize(NativeBattleGilgameshFlare.Step591470(restored, Resources(), projection, 0)));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.UpdatedTask))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGilgameshFlare.Step591470(first.UpdatedTask, Resources(), projection, 0)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshFlare.Step591470(restored, Resources(), projection, 0)));
     }
 
     [Theory]
@@ -63,7 +63,7 @@ public sealed class NativeBattleGilgameshFlareTests
         NativeBattleGilgameshFlareResources resources = Resources();
         NativeBattleModulePoolTask task = Task(0).WriteWord(14, selector);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200((selector == 0 ? resources.SourceA : resources.SourceB).Bytes, 0, default, NativeBattleGilgameshFlare.Matrix(task), Projection() with { FocalLength = 288 }, new(0x33, null, null, null, null, null, 17, 2));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleGilgameshFlare.Step591470(task, resources, Projection(), 0).Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleGilgameshFlare.Step591470(task, resources, Projection(), 0).Batch));
     }
 
     private static NativeBattleModulePoolTask Task(short counter) => new NativeBattleModulePoolTask(5, 7, null, 0x591470, new byte[24].ToImmutableArray()).WriteWord(12, unchecked((ushort)counter)).WriteWord(0x1C, 4096).WriteWord(0x20, 4096);

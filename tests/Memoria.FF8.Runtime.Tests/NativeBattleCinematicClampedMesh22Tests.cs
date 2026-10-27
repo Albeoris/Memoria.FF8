@@ -19,6 +19,7 @@ public sealed class NativeBattleCinematicClampedMesh22Tests
     public void Parent_MAC_transform_and_optional_ceiling_preserve_native_work_and_depth_ownership(ushort flags, short expectedY)
     {
         NativeBattleWaterExecutionFrame original = Fixture(flags);
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(original))!;
         NativeBattleScriptedMeshProjected result = Project(original);
         Assert.Equal(17u, Dword(result.Frame, Work + 8));
         Assert.Equal(36u, Dword(result.Frame, Work + 12));
@@ -31,8 +32,8 @@ public sealed class NativeBattleCinematicClampedMesh22Tests
         Assert.Equal((uint)flags, WaterSchedulerFixture.ReadSlotDword(result.Frame, 0, 0xBC));
         Assert.Equal((ushort)expectedY, BinaryPrimitives.ReadUInt16LittleEndian(result.Registers.NormalInput!.Value.AsSpan().Slice(2)));
         Assert.Equal(result.Registers.Flags, result.Frame.ReadTemporaryDword(0xFC));
-        NativeBattleScriptedMeshProjected restored = Project(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(original))!);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleScriptedMeshProjected restored = Project(replayFrame);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         uint sequence = NativeBattleEffectNodeMemory.ArenaAddress + 0x5100;
         int record = 0x5100 + 8 * index;
         frame = frame with { Random = new(seed), Arena = frame.Arena.Write(Particle + 0xC, BitConverter.GetBytes(sequence)).Write(Particle + 0x4C, BitConverter.GetBytes(0xFFFFFF00u)).Write(record, BitConverter.GetBytes(0x300u)).Write(record + 4, BitConverter.GetBytes((ushort)0xF0A1)).MarkUnknown(record + 6, 2) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = One(frame);
         Assert.Equal(sequence + (uint)(8 * index), Dword(result, 8));
         Assert.Equal(0x200u, Dword(result, 0x30));
@@ -21,6 +22,6 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Equal(sequence, Dword(result, 0xC));
         Assert.Equal(expectedSeed, result.Random.Seed);
         Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(One(replayFrame)));
     }
 }

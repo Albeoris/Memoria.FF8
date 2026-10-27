@@ -54,11 +54,11 @@ public sealed class NativeBattleRinoa86IoTests
         Assert.Equal((short)1, queued.FileIo.ActiveCount);
         Assert.Equal(0x77F980u, queued.FileIo.Rows[0].CompletionCallback);
         Assert.Equal(0, queued.Memory.Textures!.Count);
-        NativeBattleRinoa86IoAdvance poll = NativeBattleRinoa86Io.Advance77F780(begun.Task, begun.State);
+        NativeBattleRinoa86IoAdvance poll = NativeBattleRinoa86Io.Advance77F780(NativeBattleTestSnapshots.Independent(begun.Task), NativeBattleTestSnapshots.Independent(begun.State));
         Assert.Equal((ushort)1, poll.State.Busy);
         Assert.Equal(begun.State.CursorAddress, poll.State.CursorAddress);
-        NativeBattleRinoa86IoState restored = JsonSerializer.Deserialize<NativeBattleRinoa86IoState>(JsonSerializer.Serialize(begun.State))!;
-        Assert.Equal(JsonSerializer.Serialize(poll), JsonSerializer.Serialize(NativeBattleRinoa86Io.Advance77F780(begun.Task, restored)));
+        NativeBattleRinoa86IoState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRinoa86IoState>(NativeBattleTestSnapshots.Json(begun.State))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(poll), NativeBattleTestSnapshots.Json(NativeBattleRinoa86Io.Advance77F780(NativeBattleTestSnapshots.Independent(begun.Task), restored)));
     }
 
     [Fact]

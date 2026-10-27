@@ -11,7 +11,7 @@ public sealed class NativeBattleOilShot136ActMeshTests
     [InlineData(5, 52, 4)]
     public void Native_custom_packets_keep_physical_and_logical_environment_order_after_restore(int group, int length, int attempts)
     {
-        NativeBattleEffectMemory memory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(Memory()))!;
+        NativeBattleEffectMemory memory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(Memory()))!;
         NativeBattleDefaultActMeshStep result = Draw(group, memory, Context());
         Assert.Equal(length, result.Batch.AllocationBytes);
         Assert.Equal(attempts, result.Batch.Attempts.Length);

@@ -23,7 +23,7 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Assert.Equal(new byte[6], result.Memory.Arena.Read(skeleton + 16 + 4, 6));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 6), result.Memory.Arena.Read(skeleton + 16 + 10, 6));
         Assert.Equal((short)256, BinaryPrimitives.ReadInt16LittleEndian(result.Memory.Arena.Read(skeleton + 32, 2)));
-        Assert.Equal(result.Memory.Arena.Read(12, 0x8D0 - 12), result.Effect.Pools[0].Slots[0].Payload.ToArray());
+        Assert.Equal(result.Memory.Arena.Read(12, 0x8D0 - 12), NativeBattleStorageSnapshots.Capture(result.Effect.Pools[0].Slots[0]).Payload.ToArray());
 
         uint U32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.Arena.Read(offset, 4));
     }
@@ -45,7 +45,7 @@ public sealed class NativeBattleQuezacotlRig86Tests
         Assert.Equal(new byte[4], result.Memory.Arena.Read(0x3F1FC, 4));
         Assert.Equal(new byte[4], result.Memory.Arena.Read(0x43A00, 4));
         Assert.Equal(new byte[] { 4, 0, 5, 0, 6, 0, 8, 0, 1, 0, 2, 0, 3, 0, 7, 0 }, result.Memory.Arena.Read(0x18, 16));
-        NativeBattleQuezacotlRigWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlRigWrite>(JsonSerializer.Serialize(result))!;
+        NativeBattleQuezacotlRigWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlRigWrite>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(result.Memory.Arena.Read(0x18, 16), restored.Memory.Arena!.Read(0x18, 16));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlRig86.InitializeAfterSecondWindow(memory, Effect(), camera with { EyePaddingF6 = null }));
     }

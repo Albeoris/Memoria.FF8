@@ -114,7 +114,7 @@ public sealed class NativeBattleEffect69FlatPrimitiveTests
         Assert.DoesNotContain(true, result.Context108.ReadSnapshot(0x20, 0x14).Known);
         Assert.DoesNotContain(true, result.Context108.ReadSnapshot(0x3C, 4).Known);
         Assert.False(result.Context108.ReadSnapshot(11, 1).Known[0]);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWindowedMeshContext108Step>(JsonSerializer.Serialize(result))));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWindowedMeshContext108Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))))));
     }
 
     [Theory]

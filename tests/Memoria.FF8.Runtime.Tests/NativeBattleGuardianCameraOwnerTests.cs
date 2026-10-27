@@ -12,7 +12,7 @@ public sealed class NativeBattleGuardianCameraOwnerTests
         NativeBattleGuardianCameraProcess process = memory.GuardianCameraProcess!;
         process = process with { Eye = process.Eye with { Current = new(123, -456, 789), Remaining = 17, Accumulator = 37 }, Target = process.Target with { Current = new(-700, 200, 40), Remaining = 9 }, Sign = -1 };
         memory = (memory with { GuardianCameraProcess = process }).BeginLoad(198);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(process, restored.GuardianCameraProcess);
         NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(restored.GuardianCameraProcess!, [0, 0x80], 0);
         Assert.Equal(process.Eye, task.Process.Eye);
@@ -31,10 +31,10 @@ public sealed class NativeBattleGuardianCameraOwnerTests
     public void MissingImportedCameraOwnerStaysMissingThroughJsonAndModuleLoading()
     {
         NativeBattleEffectMemory original = NativeBattleEffectMemory.FromColdProcess() with { GuardianCameraProcess = null, Cactuar199 = null };
-        string json = JsonSerializer.Serialize(original);
+        string json = NativeBattleTestSnapshots.Json(original);
         Assert.DoesNotContain("GuardianCameraProcess", json);
         Assert.DoesNotContain("Cactuar199", json);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
         Assert.Null(restored.GuardianCameraProcess);
         Assert.Null(restored.Cactuar199);
         Assert.Null(restored.BeginLoad(198).GuardianCameraProcess);

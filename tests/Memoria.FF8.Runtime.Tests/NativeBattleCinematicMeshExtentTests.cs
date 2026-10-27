@@ -60,7 +60,7 @@ public sealed class NativeBattleCinematicMeshExtentTests
     public void Independent_snapshot_and_current_primitive_size_are_the_only_extent_inputs()
     {
         NativeBattleWaterExecutionFrame frame = Fixture();
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal(Measure(frame), Measure(restored));
         frame = frame with { Arena = frame.Arena.Write(0x109C, [0, 0, 0xFF, 0xFF]) };
         Assert.Equal(0xA0, BattleSession.MeasureNativeCinematicMeshExtent(frame, Shape, type => type == 8 ? (byte)24 : throw new InvalidOperationException()));

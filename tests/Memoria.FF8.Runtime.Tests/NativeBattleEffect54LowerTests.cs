@@ -189,10 +189,10 @@ public sealed class NativeBattleEffect54LowerTests
         {
             NativeBattleEffectTaskPool models = NativeBattleEffectTaskPool.Initialize(ModelDescriptor, ModelBank, 676, 3);
             (models, int model) = models.Append(ModelCallback);
-            models = models with { Slots = models.Slots.SetItem(model, models.Slots[model].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 664).ToArray()).WriteDword(0x10, RootBank).WriteDword(0x30, SourceAddress).WriteWord(0x29A, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 0).WriteByte(0x2A, 0).WriteByte(0x2C, 3)) };
+            models = models.WriteSlot(model, models.Slots[model].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 664).ToArray()).WriteDword(0x10, RootBank).WriteDword(0x30, SourceAddress).WriteWord(0x29A, 0).WriteWord(0x29C, 0).WriteWord(0x29E, 0).WriteByte(0x2A, 0).WriteByte(0x2C, 3));
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 100, 2);
             (roots, int root) = roots.Append(RootCallback);
-            roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(0x5A, 1)) };
+            roots = roots.WriteSlot(root, roots.Slots[root].WriteWord(0x5A, 1));
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), SharedEffectView2793E58 = NativeBattlePackedMatrix32.FromMatrix(identity, 0x1234) };
             memory = NativeBattleEffectNodeContextMemory.Publish(memory, NativeBattleEffectArena.Clear().Write(0, Enumerable.Repeat((byte)0xA5, 180).ToArray()));

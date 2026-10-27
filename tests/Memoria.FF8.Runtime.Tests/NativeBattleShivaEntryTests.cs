@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -20,7 +20,7 @@ public sealed class NativeBattleShivaEntryTests
         Assert.Equal(388, result.State.World.Z);
         ImmutableArray<NativeBattleGraphicsModel> changed = fixture.Models.SetItem(0, fixture.Models[0] with { Rotation14 = 999, GeometryWorldMatrix = null }).SetItem(3, fixture.Models[3] with { Transform = null });
         NativeBattleShivaEntryStep independent = Initialize((fixture.Memory, fixture.Effect, fixture.Packets, changed));
-        Assert.Equal(JsonSerializer.Serialize(result.State), JsonSerializer.Serialize(independent.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.State), NativeBattleTestSnapshots.Json(independent.State));
     }
 
     [Fact]
@@ -62,8 +62,8 @@ public sealed class NativeBattleShivaEntryTests
         var fixture = Fixture();
         NativeBattleShivaEntryStep expected = Initialize(fixture);
         NativeBattleShivaEntryStep actual = Initialize((RoundTrip(fixture.Memory), RoundTrip(fixture.Effect), RoundTrip(fixture.Packets), RoundTrip(fixture.Models)));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(RoundTrip(expected)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(RoundTrip(expected)));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory with { Arena = null }, fixture.Effect, fixture.Packets, fixture.Models)));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory with { Textures = null }, fixture.Effect, fixture.Packets, fixture.Models)));
         Assert.Throws<NotSupportedException>(() => Initialize((fixture.Memory, fixture.Effect with { ResourcePointers = [] }, fixture.Packets, fixture.Models)));
@@ -76,7 +76,7 @@ public sealed class NativeBattleShivaEntryTests
 
     private static NativeBattleShivaEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleShivaEntry.Initialize5C0D50(fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models);
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {

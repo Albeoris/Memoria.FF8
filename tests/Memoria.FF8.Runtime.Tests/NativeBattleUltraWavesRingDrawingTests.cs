@@ -60,9 +60,9 @@ public sealed class NativeBattleUltraWavesRingDrawingTests
         Assert.Equal(2048u, drawn.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Equal(0x2E112233u, drawn.Memory.ScriptedColorRegisters.Material);
         Assert.Equal(0x2E081119u, drawn.Memory.ScriptedColorRegisters.Rgb[2]);
-        NativeBattleUltraWavesRingDraw restored = JsonSerializer.Deserialize<NativeBattleUltraWavesRingDraw>(JsonSerializer.Serialize(drawn))!;
+        NativeBattleUltraWavesRingDraw restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWavesRingDraw>(NativeBattleTestSnapshots.Json(drawn))!;
         NativeBattleUltraWavesRingDraw Next(NativeBattleUltraWavesRingDraw current) => Draw(Mesh(2000), current.Temporary108, current.Memory);
-        Assert.Equal(JsonSerializer.Serialize(Next(drawn)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(drawn)), NativeBattleTestSnapshots.Json(Next(restored)));
         Assert.Throws<NotSupportedException>(() => Draw(Mesh(2000), Context(false), Memory() with { GeometryRegisters = null }));
     }
 

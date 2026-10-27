@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -32,7 +32,7 @@ public sealed class NativeBattleModuleSpriteCallerScaleTests
     public void Default_180_and_D8_reject_bit2_and_clear_bit_does_not_read_scale_DWORDs()
     {
         var fixture = Fixture(2000, false);
-        var context = fixture.Temporary.Write(0x24, [2, 0]);
+        var context = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Temporary)).Write(0x24, [2, 0]);
         Assert.Throws<InvalidDataException>(() => NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, context, _ => fixture.Resource, Projection, 0));
         var d8 = NativeBattleEffectNodeContextMemory.Copy(context, 0, NativeBattleEffectArena.Clear().MarkUnknown(0, 216), 0, 180);
         Assert.Throws<InvalidDataException>(() => NativeBattleProjectedSpriteD8.Draw(new(fixture.Memory, d8), _ => fixture.Resource, Projection, 0, 17));
@@ -47,11 +47,11 @@ public sealed class NativeBattleModuleSpriteCallerScaleTests
     public void Unit_bit2_matches_canonical_loaded_matrix_packets_depths_and_rejected_prefixes(int depth)
     {
         var fixture = Fixture(depth, false);
-        var scaled = fixture.Temporary.Write(0x24, [2, 0]).Write(12, BitConverter.GetBytes(4096)).Write(16, BitConverter.GetBytes(4096));
+        var scaled = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Temporary)).Write(0x24, [2, 0]).Write(12, BitConverter.GetBytes(4096)).Write(16, BitConverter.GetBytes(4096));
         var actual = NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, scaled, _ => fixture.Resource, Projection, 0, allowCallerScale: true);
         var expected = NativeBattleModuleSpriteDrawing.Draw571C80(fixture.Memory, fixture.Temporary, _ => fixture.Resource, Projection, 0);
-        Assert.Equal(JsonSerializer.Serialize(expected.Batch), JsonSerializer.Serialize(actual.Batch));
-        Assert.Equal(JsonSerializer.Serialize(expected.Memory), JsonSerializer.Serialize(actual.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
     }
 
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);

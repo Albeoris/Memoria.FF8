@@ -126,7 +126,7 @@ public sealed class NativeBattleCinematicStageShatter49Tests
         Assert.Equal(0x20, (int)(BinaryPrimitives.ReadUInt16LittleEndian(attempt.Data.AsSpan().Slice(22)) & 0x20));
         Assert.Equal(0xA5A57530u, emission.Frame.ReadTemporaryDword(0xFC));
         Assert.Equal(0x2D4Cu, emission.OrderingAddress);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(emission.Frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(emission.Frame))!;
         NativeBattleCinematicStageShatter49Emission dead = NativeBattleCinematicStageShatter49.RenderFace(restored, Records, Face(true), Projected(true), Camera(), Projection(), Palette);
         Assert.Equal(0, dead.Packets.AllocationBytes);
         Assert.Equal((byte)255, Byte(dead.Frame, 7));

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -43,6 +43,7 @@ public sealed class NativeBattleShivaShardsTests
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture();
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.MarkUnknown(0x2E000, 170 * 32) } };
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleShivaEarlyTaskFrame result = NativeBattleShivaShards.Initialize5C1E80(frame, Mesh());
         NativeBattleModulePoolTask child = result.Pool.Slots[0];
         Assert.Equal(0x5C2260u, child.Callback);
@@ -63,9 +64,8 @@ public sealed class NativeBattleShivaShardsTests
             Assert.Throws<NotSupportedException>(() => result.Memory.Arena!.Read(0x2E000 + 169 * 32 + offset, 2));
         }
         Assert.Equal((ushort)3, Word(result.Memory.Arena!, 0x2E006));
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleShivaEarlyTaskFrame independent = NativeBattleShivaShards.Initialize5C1E80(restored, Mesh());
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(independent));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class NativeBattleShivaShardsTests
     private static NativeBattleShivaEarlyTaskFrame Fixture()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), new(new(0, 0, 0, 0), new(0, 0, 0, 0)));
     }
 

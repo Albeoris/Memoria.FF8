@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -15,7 +15,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
     {
         var (memory, effect, paths) = Fixture();
         NativeBattleEffectTaskPool pool = effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Flags = 0xA500 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Flags = 0xA500 })) });
         effect = effect with { Pools = [pool] };
         memory = memory with { Arena = memory.Arena!.MarkUnknown(Bank, 32).MarkUnknown(Row + 4, 16) };
         NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
@@ -34,7 +34,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         Assert.Equal((short)-(intensity >> 3), I16(spawned.Memory, Bank + 18));
         Assert.Equal(paths.Address + 84, U32(spawned.Memory, Bank + 20));
         Assert.Throws<NotSupportedException>(() => spawned.Memory.Arena.Read(Row + 4, 16));
-        Assert.Equal(raw.AsSpan(12).ToArray(), spawned.Effect.Pools[0].Slots[0].Payload.ToArray());
+        Assert.Equal(raw.AsSpan(12).ToArray(), NativeBattleStorageSnapshots.Capture(spawned.Effect.Pools[0].Slots[0]).Payload.ToArray());
     }
 
     [Fact]
@@ -101,16 +101,17 @@ public sealed class NativeBattleQuezacotlPathControllerTests
     {
         var (memory, effect, paths) = Fixture();
         NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        NativeBattleEffectMemory preserved = NativeBattleStorageSnapshots.Capture(spawned.Memory);
         NativeBattleQuezacotlPathStep step = Step(spawned.Memory, spawned.Effect);
         Assert.Equal(0, step.Returned);
         Assert.Equal((ushort)5, step.Pool.Slots[0].ReadWord(12));
         Assert.Equal(paths.Address + 92, U32(step.Memory, Bank + 20));
-        Assert.Equal((short)(I16(spawned.Memory, Row + 20) + I16(spawned.Memory, Row + 22)), I16(step.Memory, Row + 20));
+        Assert.Equal((short)(I16(preserved, Row + 20) + I16(preserved, Row + 22)), I16(step.Memory, Row + 20));
         Assert.Equal(4, step.Ordering.Packets.Length);
         Assert.All(step.DepthFifo4, depth => Assert.Equal((int?)5000, depth));
         Assert.All(step.Ordering.Packets, packet => Assert.Equal(0x3Eu, packet.Words[1] >> 24));
-        NativeBattleQuezacotlPathStep restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPathStep>(JsonSerializer.Serialize(step))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+        NativeBattleQuezacotlPathStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlPathStep>(NativeBattleTestSnapshots.Json(step))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         NativeBattleOriginalEffectState pausedEffect = first.Effect with { Binding = first.Effect.Binding with { NativeQuezacotlResources = first.Effect.Binding.NativeQuezacotlResources! with { Paths = null } } };
         NativeBattleQuezacotlPathStep paused = Step(first.Memory with { QuezacotlPause = 1 }, pausedEffect);
         Assert.Equal(first.Effect.Quezacotl!.Random17A0, paused.Effect.Quezacotl!.Random17A0);
-        Assert.Equal(first.Pool.Slots[0].Payload.ToArray(), paused.Pool.Slots[0].Payload.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(first.Pool.Slots[0]).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(paused.Pool.Slots[0]).Payload.ToArray());
         Assert.Equal(I16(first.Memory, Row + 20), I16(paused.Memory, Row + 20));
         Assert.NotEmpty(paused.Ordering.Packets);
     }
@@ -195,6 +196,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         NativeBattleQuezacotlResources resources = effect.Binding.NativeQuezacotlResources!;
         effect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = resources with { Paths = paths, Ribbon = resources.Ribbon! with { DistanceBytes16384 = new byte[16384].ToImmutableArray() } } } };
         NativeBattleQuezacotlPathSpawn spawned = NativeBattleQuezacotlPathProducer.Spawn6C76C0(memory, effect, paths, 0);
+        NativeBattleEffectMemory preserved = NativeBattleStorageSnapshots.Capture(spawned.Memory);
         NativeBattleQuezacotlPathStep step = Step(spawned.Memory, spawned.Effect);
         Assert.Equal(0x006C78B8u, step.FinalOutlineDirectionDword);
         Assert.Equal((ushort)5, step.Pool.Slots[0].ReadWord(12));
@@ -237,10 +239,10 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         NativeBattleExecutionStack stack = new(0x1A50DC, 0x569C3D, NativeFieldRuntimeProfile.FF8EnExecutableHash, new string('A', 64), 1, 1);
         uint direction = pass.PathOutlineDirectionDword ?? NativeBattleQuezacotlPathCallbacks.ResolveInitialOutlineDirection(stack, 4);
         NativeBattleQuezacotlPathStep actual = Continue(memory, effect);
-        NativeBattleQuezacotlPathStep restored = Continue(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!, JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(effect))!);
+        NativeBattleQuezacotlPathStep restored = Continue(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(NativeBattleTestSnapshots.Json(effect))!);
         Assert.Equal(expected, actual.FinalOutlineDirectionDword);
         Assert.NotEmpty(actual.Ordering.Packets);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
 
         NativeBattleQuezacotlPathStep Continue(NativeBattleEffectMemory currentMemory, NativeBattleOriginalEffectState currentEffect)
         {
@@ -296,9 +298,9 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         Assert.Equal(0, cold.QuezacotlTargetY1774);
         Assert.Equal(-4096, (cold with { QuezacotlTargetY1774 = -4096 }).BeginLoad(116).QuezacotlTargetY1774);
         NativeBattleEffectMemory unknown = cold with { QuezacotlTargetY1774 = null };
-        string json = JsonSerializer.Serialize(unknown);
+        string json = NativeBattleTestSnapshots.Json(unknown);
         Assert.DoesNotContain("QuezacotlTargetY1774", json);
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!.BeginLoad(116).QuezacotlTargetY1774);
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!.BeginLoad(116).QuezacotlTargetY1774);
     }
 
     [Fact]
@@ -312,7 +314,7 @@ public sealed class NativeBattleQuezacotlPathControllerTests
         {
             arena = Word(arena, Row + index * 28 + 20, 0);
         }
-        NativeBattleEffectTaskPool pool = first.Pool with { Slots = first.Pool.Slots.SetItem(0, first.Pool.Slots[0] with { Payload = arena.Read(Bank + 12, 20).ToImmutableArray() }) };
+        NativeBattleEffectTaskPool pool = NativeBattleTaskFixture.EditPool(first.Pool, data => data with { Slots = first.Pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(first.Pool.Slots[0], taskData => taskData with { Payload = arena.Read(Bank + 12, 20).ToImmutableArray() })) });
         NativeBattleQuezacotlPathStep trimmed = Step(first.Memory with { Arena = arena }, first.Effect with { Pools = [pool] });
         Assert.Equal(2, trimmed.Returned);
         Assert.Equal((ushort)1, trimmed.Pool.Slots[0].ReadWord(12));

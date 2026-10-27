@@ -61,7 +61,7 @@ public sealed class NativeBattleEffect319LowerTests
     {
         Fixture fixture = new(0x65F2B0);
         fixture.Task(task => task.WriteDword(12, 0x1234510).WriteWord(18, 32760).WriteWord(20, 512).WriteWord(22, 1).WriteWord(24, 1024));
-        fixture.Frame = JsonSerializer.Deserialize<NativeBattleEffect319Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        fixture.Frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect319Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
         NativeBattleEffect319Step step = NativeBattleEffect319Lower.Advance(fixture.Frame, fixture.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(new NativeBattleEffect319ScaleBone56BEF0(0x1234510, 1025, unchecked((short)(32760 + 512))), Assert.Single(fixture.Operations));
         Assert.Equal(0, step.Result);
@@ -104,7 +104,7 @@ public sealed class NativeBattleEffect319LowerTests
             if (append)
             {
                 (pool, int slot) = pool.Append(callback);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12])) };
+                pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12]));
             }
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };

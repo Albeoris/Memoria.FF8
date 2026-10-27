@@ -67,9 +67,9 @@ public sealed class NativeBattleBio22StageFadeTests
         NativeBattleModulePoolTask task = Task(0x38).WriteByte(0x29, 3).WriteWord(0x1E, 3);
         NativeBattleModulePoolTask parent = Task(0x8C);
         NativeBattleStageState stage = Stage();
-        NativeBattleBio22StageFadeStep expected = NativeBattleBio22StageFade.Advance89B8A0(task, parent, stage);
-        NativeBattleBio22StageFadeStep restored = NativeBattleBio22StageFade.Advance89B8A0(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!, JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(parent))!, JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored));
+        NativeBattleBio22StageFadeStep expected = NativeBattleBio22StageFade.Advance89B8A0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(parent)), NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(stage)));
+        NativeBattleBio22StageFadeStep restored = NativeBattleBio22StageFade.Advance89B8A0(NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(parent))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal((byte)4, expected.Task.ReadByte(0x29));
     }
 

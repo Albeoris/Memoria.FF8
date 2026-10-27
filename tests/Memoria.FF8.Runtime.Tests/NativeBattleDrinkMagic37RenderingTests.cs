@@ -15,6 +15,8 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
         NativeBattleModulePoolTask task = Task(callback).WriteDword(0x4C, resource).WriteWord(0x50, phase).WriteWord(0x54, 0).WriteWord(0x22, 0xABCD);
         NativeBattleActionMatrix camera = Camera();
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        Assert.NotEmpty(NativeBattleDrinkMagic37Rendering.SpritePreparation(task, camera));
+        Assert.Equal(callback, task.Callback);
         NativeBattleDrawStock15SpriteComposition composition = NativeBattleDrinkMagic37Rendering.ComposeSprite(task, fixture.Resources, camera, projection, 0);
         Assert.Equal(resource, composition.Draw.Resource!.Address);
         Assert.Equal(phase, composition.Draw.Phase);
@@ -39,7 +41,7 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
     {
         var fixture = NativeBattleDrinkMagic37ControllerTests.Fixture();
         NativeBattleDrawStock15ParticleResources resources = new(fixture.Resources.Trajectory, fixture.Resources.Sparkle);
-        NativeBattleModulePoolTask task = Task(sparkle ? 0x85F060u : 0x85E930u) with { Callback = sparkle ? 0x8B6440u : 0x8B5C70u };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(Task(sparkle ? 0x85F060u : 0x85E930u), taskData => taskData with { Callback = sparkle ? 0x8B6440u : 0x8B5C70u });
         task = task.WriteDword(0x4C, sparkle ? 0x162B730u : 0x162B520u).WriteWord(0x50, 2).WriteWord(0x40, 125).WriteWord(0x42, 413).WriteWord(0x44, 200);
         NativeBattleActionMatrix camera = Camera();
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
@@ -48,7 +50,7 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(temporary, Enumerable.Repeat((byte)0xA5, 180).ToArray());
         NativeBattleDrawStock15SpriteTemporaryResult wrapper = NativeBattleDrawStock15SpriteRendering.Emit180(staging, temporary, task, resources, camera, projection, 17);
         NativeBattleDrawStock15SpriteTemporaryResult prepared = NativeBattleDrawStock15SpriteRendering.EmitPrepared180(staging, temporary, task, composition, projection, 17);
-        Assert.Equal(JsonSerializer.Serialize(wrapper), JsonSerializer.Serialize(prepared));
+        Assert.Equal(NativeBattleTestSnapshots.Json(wrapper), NativeBattleTestSnapshots.Json(prepared));
     }
 
     [Fact]
@@ -62,12 +64,29 @@ public sealed class NativeBattleDrinkMagic37RenderingTests
         NativeBattleActionMatrix camera = Camera();
         NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
         NativeBattleDrawStock15RibbonStep actual = NativeBattleDrinkMagic37Rendering.Ribbon(task, camera, projection);
-        NativeBattleDrawStock15RibbonStep expected = NativeBattleDrawStock15Rendering.Ribbon8B5F30(task with { Callback = 0x8B5C70 }, camera, projection);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        NativeBattleDrawStock15RibbonStep expected = NativeBattleDrawStock15Rendering.Ribbon8B5F30(NativeBattleTaskFixture.EditTask(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), taskData => taskData with { Callback = 0x8B5C70 }), camera, projection);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(4, actual.Batch.Attempts.Length);
         Assert.Equal(0x85E930u, task.Callback);
         Assert.Equal((ushort)0xBEEF, task.ReadWord(0x12C));
         Assert.Equal((ushort)0x9876, task.ReadWord(0x12E));
+    }
+
+    [Fact]
+    public void Rendering_errors_preserve_callback_and_family_guards()
+    {
+        NativeBattleModulePoolTask task = Task(0x85E930).WriteWord(0x128, ushort.MaxValue).WriteWord(0x12A, 1);
+        NativeBattleActionMatrix camera = Camera();
+        NativeBattleCameraProjection projection = new(camera, 216, 160, 108);
+        Assert.Throws<NotSupportedException>(() => NativeBattleDrinkMagic37Rendering.Ribbon(task, camera, projection));
+        Assert.Equal(0x85E930u, task.Callback);
+        Assert.Throws<InvalidDataException>(() => NativeBattleDrawStock15Rendering.Ribbon8B5F30(task, camera, projection));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDrawStock15SpriteRendering.Preparation(task, camera));
+        Assert.Equal(0x85E930u, task.Callback);
+        NativeBattleModulePoolTask stock = Task(0x8B5C70);
+        Assert.Throws<InvalidDataException>(() => NativeBattleDrinkMagic37Rendering.Ribbon(stock, camera, projection));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDrinkMagic37Rendering.SpritePreparation(stock, camera));
+        Assert.Equal(0x8B5C70u, stock.Callback);
     }
 
     private static NativeBattleModulePoolTask Task(uint callback)

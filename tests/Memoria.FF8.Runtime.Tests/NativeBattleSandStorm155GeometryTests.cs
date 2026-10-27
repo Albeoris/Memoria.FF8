@@ -37,12 +37,12 @@ public sealed class NativeBattleSandStorm155GeometryTests
         Assert.Equal((short)30, Word(frame, 0x23F2A84));
         Assert.Throws<NotSupportedException>(() => frame.State.ReadView(0x23F2A86, 2).Read(0, 2));
         Assert.Equal(task, NativeBattleSandStorm155Controller.Read(frame, address));
-        NativeBattleSandStorm155Frame restored = JsonSerializer.Deserialize<NativeBattleSandStorm155Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleSandStorm155Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSandStorm155Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = NativeBattleSandStorm155Geometry.Displace607130(frame, address, Resources(), 0);
         var actual = NativeBattleSandStorm155Geometry.Displace607130(restored, address, Resources(), 0);
         Assert.Equal(2, actual.Result);
         Assert.Equal((ushort)17, NativeBattleSandStorm155Controller.Read(actual.Frame, address).ReadWord(0x18));
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
         uint lastRow = Dword(frame, 0x23F33F0 + 303 * 12 + 4);
         Assert.Equal((short)10, Word(frame, lastRow) - (unchecked(NativeBattleCameraMath.Cosine(18 * 300) * 370) >> 12));
     }
@@ -111,7 +111,7 @@ public sealed class NativeBattleSandStorm155GeometryTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23F1AE8, 0x23F1AF8, 36, 100);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[24])) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[24])) });
         NativeBattleOriginalEffectState effect = new(155, 154, new(155, 0x606CF0, 0x606CD0), null, 0x23F0818) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         return new(memory, effect, new(123), NativeBattleSandStorm155State.FromColdProcess() with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

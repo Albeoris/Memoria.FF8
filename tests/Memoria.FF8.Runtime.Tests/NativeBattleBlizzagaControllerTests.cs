@@ -30,6 +30,13 @@ public sealed class NativeBattleBlizzagaControllerTests
             }
             if (callback == 2)
             {
+                foreach (NativeBattleEffectTaskPool pool in frame.Effect.Pools.Skip(1))
+                {
+                    Assert.True(pool.IsBoundToStorage(frame.Memory.Arena!, NativeBattleEffectNodeMemory.ArenaAddress));
+                    int offset = checked((int)(pool.BankAddress - NativeBattleEffectNodeMemory.ArenaAddress));
+                    Assert.Equal(pool.Slots[0].Flags, frame.Memory.Arena!.ReadUInt16(offset));
+                    Assert.Equal(pool.Slots[0].Callback, frame.Memory.Arena.ReadUInt32(offset + 8));
+                }
                 Assert.Equal(new ushort[] { 20, 0x6428, 0x478, 0x464, 0x2C, 0x28, 0x2C }, frame.Effect.Pools.Select(pool => pool.Stride));
                 Assert.Equal(new[] { 1, 2, 6, 4, 96, 64, 96 }, frame.Effect.Pools.Select(pool => pool.Slots.Length));
                 Assert.Equal((ushort)1, frame.Effect.Pools[1].Slots[0].ReadWord(12));
@@ -69,15 +76,15 @@ public sealed class NativeBattleBlizzagaControllerTests
     {
         var fixture = Fixture();
         NativeBattleBlizzagaFrame normal = fixture.Frame;
-        NativeBattleBlizzagaFrame flagged = fixture.Frame;
+        NativeBattleBlizzagaFrame flagged = NativeBattleTestSnapshots.Independent(normal);
         for (int callback = 1; callback <= 100; callback++)
         {
             normal = NativeBattleBlizzagaController.Advance6D6400(normal, Inputs(fixture.Packets));
             flagged = NativeBattleBlizzagaController.Advance6D6400(flagged, Inputs(fixture.Packets) with { GraphicsFlags = 0x201 });
-            Assert.Equal(JsonSerializer.Serialize(normal), JsonSerializer.Serialize(flagged));
+            Assert.Equal(NativeBattleTestSnapshots.Json(normal), NativeBattleTestSnapshots.Json(flagged));
             if (callback is 34 or 55)
             {
-                flagged = JsonSerializer.Deserialize<NativeBattleBlizzagaFrame>(JsonSerializer.Serialize(normal))!;
+                flagged = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzagaFrame>(NativeBattleTestSnapshots.Json(normal))!;
                 Assert.NotSame(normal.Effect.Pools[1].Slots[0], flagged.Effect.Pools[1].Slots[0]);
             }
         }
@@ -118,7 +125,7 @@ public sealed class NativeBattleBlizzagaControllerTests
         Assert.Throws<NotSupportedException>(() => NativeBattleBlizzagaController.PrimarySlot(NativeBattleBlizzagaController.Arena + 2 * 0x6428));
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleBlizzagaController.SecondDescriptor, NativeBattleBlizzagaController.SecondBank, 0x478, 6);
         NativeBattleModulePoolTask retained = pool.Slots[5].WriteWord(32, 4096).WriteWord(40, 4096).WriteWord(48, 4096);
-        pool = pool with { Slots = pool.Slots.SetItem(5, retained) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(5, retained) });
         Assert.Equal((short)4096, NativeBattleBlizzagaController.ReadSecondMatrix(pool, NativeBattleBlizzagaController.SecondBank + 5 * 0x478 + 32).Rotation[0]);
         Assert.Throws<NotSupportedException>(() => NativeBattleBlizzagaController.ReadSecondMatrix(pool, NativeBattleBlizzagaController.SecondBank + 5 * 0x478 + 33));
     }
@@ -142,7 +149,7 @@ public sealed class NativeBattleBlizzagaControllerTests
     }
 
     private static NativeBattleActionMatrix View => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 4096, 4096);
-    private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(offset - 12, 4));
+    private static uint Dword(NativeBattleModulePoolTask task, int offset) => task.ReadDword(offset);
     private static NativeBattleBlizzagaInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleBlizzagaFrame, NativeBattleBlizzagaOperation, NativeBattleBlizzagaFrame>? execute = null, Action<NativeBattleBlizzagaModelBandRequest>? bands = null, Action<int>? ribbonPackets = null) => new(0, packets, 0, View, actor => new(unchecked((short)(100 + actor * 20)), -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), actor => new(10, 20, 30, (short)actor), (frame, request) =>
     {
         bands?.Invoke(request);
@@ -151,12 +158,11 @@ public sealed class NativeBattleBlizzagaControllerTests
     {
         int countOffset = second ? 24 : 32;
         int nodesOffset = second ? 64 : 44;
-        NativeBattleBlizzagaRibbonResult result = NativeBattleBlizzagaRibbon.Emit6D9A40((int)Dword(task, countOffset), task.Payload.AsSpan().Slice(nodesOffset - 12, 30 * 36).ToArray().ToImmutableArray(), delta, matrix, new(null, 216, 160, 108));
+        NativeBattleBlizzagaRibbonResult result = NativeBattleBlizzagaRibbon.Emit6D9A40((int)Dword(task, countOffset), task.ReadBytes(nodesOffset, 30 * 36).ToImmutableArray(), delta, matrix, new(null, 216, 160, 108));
         ribbonPackets?.Invoke(result.Packets.AllocationBytes);
-        byte[] payload = task.Payload.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(countOffset - 12), (uint)result.Count);
-        result.Nodes.AsSpan().CopyTo(payload.AsSpan(nodesOffset - 12));
-        return new(frame, task with { Payload = payload.ToImmutableArray() });
+        task.WriteDword(countOffset, (uint)result.Count);
+        task.WriteBytes(nodesOffset, result.Nodes.AsSpan());
+        return new(frame, task);
     }, execute ?? ((frame, _) => frame));
 
     private static (NativeBattleBlizzagaFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1)

@@ -61,13 +61,13 @@ public sealed class NativeBattleEffect64StateTests
         uint source = ScriptAddresses[0];
         NativeBattleEffect64State state = NativeBattleEffect64State.FromColdProcess().BindScriptSource(Sources(), source).WriteDword(CursorGlobal, 0x2100000).DetachBank(0);
         state = state.WriteView(source + 6, NativeBattleEffectArena.Clear().MarkUnknown(0, 2).Write(0, [0xA7]), 2);
-        NativeBattleEffect64State restored = JsonSerializer.Deserialize<NativeBattleEffect64State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect64State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect64State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal(new byte[] { 0xA7 }, restored.Read(source + 6, 1));
         Assert.Throws<NotSupportedException>(() => restored.Read(source + 7, 1));
         Assert.Equal(0x2100000u, restored.ReadDword(CursorGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     private static NativeBattleEffect64Resources Sources() => new(null!, null!, null!, 0, [], ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, [], ScriptLengths.ToImmutableDictionary(pair => pair.Key, pair => Enumerable.Repeat((byte)0x3C, pair.Value).ToImmutableArray()));

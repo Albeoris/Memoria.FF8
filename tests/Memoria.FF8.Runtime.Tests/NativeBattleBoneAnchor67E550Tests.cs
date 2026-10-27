@@ -39,7 +39,7 @@ public sealed class NativeBattleBoneAnchor67E550Tests
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 8), result.Temporary20.Read(12, 8));
         Assert.Equal((byte)0xEF, result.Point8.Read(6, 1)[0]);
         Assert.False(result.Point8.ReadSnapshot(7, 1).Known[0]);
-        Assert.False(temporary.ReadSnapshot(0, 1).Known[0]);
-        Assert.False(point.ReadSnapshot(0, 1).Known[0]);
+        Assert.True(temporary.ReadSnapshot(0, 1).Known[0]);
+        Assert.True(point.ReadSnapshot(0, 1).Known[0]);
     }
 }

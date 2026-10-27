@@ -161,8 +161,8 @@ public sealed class NativeBattleScanOpeningChildrenTests
         NativeBattleModuleResource resource = Sprite(0x15D07D4);
         NativeBattleModulePacketBatch expected = NativeBattleScanOpeningChildren.Sprite84E580(task, resource, first, 0, 1024);
         Assert.NotEmpty(expected.Primitives);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, differentView, 0, 1024)));
-        Assert.NotEqual(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, first, 1024, 1024)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, differentView, 0, 1024)));
+        Assert.NotEqual(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleScanOpeningChildren.Sprite84E580(task, resource, first, 1024, 1024)));
     }
 
     [Fact]
@@ -170,13 +170,13 @@ public sealed class NativeBattleScanOpeningChildrenTests
     {
         var fixture = Fixture(0x84E010);
         NativeBattleScanReticleFrame first = NativeBattleScanOpeningChildren.Advance84E010(fixture.Frame, fixture.Address, Inputs(fixture.Packets, [])).Frame;
-        NativeBattleScanReticleFrame clone = JsonSerializer.Deserialize<NativeBattleScanReticleFrame>(JsonSerializer.Serialize(first))!;
+        NativeBattleScanReticleFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanReticleFrame>(NativeBattleTestSnapshots.Json(first))!;
         List<NativeBattleModulePacketBatch> leftDraws = [];
         List<NativeBattleModulePacketBatch> rightDraws = [];
         NativeBattleScanReticleStep left = NativeBattleScanOpeningChildren.Advance84E010(first, fixture.Address, Inputs(fixture.Packets, leftDraws));
         NativeBattleScanReticleStep right = NativeBattleScanOpeningChildren.Advance84E010(clone, fixture.Address, Inputs(fixture.Packets, rightDraws));
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
-        Assert.Equal(JsonSerializer.Serialize(leftDraws), JsonSerializer.Serialize(rightDraws));
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
+        Assert.Equal(NativeBattleTestSnapshots.Json(leftDraws), NativeBattleTestSnapshots.Json(rightDraws));
     }
 
     private static NativeBattleScanOpeningInputs Inputs(NativeBattleActionPacketsState packets, List<NativeBattleModulePacketBatch> draws) => new(packets, _ => Records(), Sprite, new(NativeBattleCuragaMatrices.Identity8DD770(), 216, 160, 108), 0, (frame, batch) =>

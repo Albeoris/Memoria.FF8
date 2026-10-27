@@ -92,9 +92,9 @@ public sealed class NativeBattleMorph172ModelDrawingTests
     public void JSON_preserves_physical_W_and_registers_for_next_body_step()
     {
         var first = Draw(Geometry(true), Context(0), 2000);
-        var restored = JsonSerializer.Deserialize<NativeBattleMorph172ModelStep>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMorph172ModelStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleMorph172ModelStep Next(NativeBattleMorph172ModelStep current) => Draw(Geometry(true), current.Temporary220, 2000, memory: current.Memory, scratch: current.VertexScratch);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static uint Dword(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(view.Read(offset, 4));

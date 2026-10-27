@@ -26,8 +26,8 @@ public sealed class NativeBattleDuel216EchoTests
         Assert.Equal(122u, task.ReadDword(offset + 136 + 1152 + 17 * 32 + 20));
         Assert.Equal((byte)0, task.ReadByte(offset + 2));
         Assert.Throws<NotSupportedException>(() => task.ReadWord(offset + 136 + 1152 + 18));
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-        Assert.Equal(JsonSerializer.Serialize(task), JsonSerializer.Serialize(restored));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(task), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

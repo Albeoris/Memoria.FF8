@@ -22,8 +22,8 @@ public sealed class NativeBattleAcid317PointProjectionTests
         Assert.Equal((short)9, BinaryPrimitives.ReadInt16LittleEndian(result.Memory.Arena.Read(first + 6, 2)));
         Assert.Equal(2400u, result.Memory.GeometryRegisters!.Sz[3]);
         Assert.Equal(500u, result.Memory.GeometryRegisters.Sz[2] >> 2);
-        NativeBattleAcid317Frame restored = JsonSerializer.Deserialize<NativeBattleAcid317Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Project(restored, head, 2)));
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Project(restored, head, 2)));
     }
 
     [Fact]

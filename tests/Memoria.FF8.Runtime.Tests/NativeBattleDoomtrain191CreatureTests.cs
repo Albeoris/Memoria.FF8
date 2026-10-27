@@ -64,11 +64,11 @@ public sealed class NativeBattleDoomtrain191CreatureTests
     {
         NativeBattleDoomtrain191Frame frame = Task(69, true);
         var pool = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x1C, unchecked((ushort)-719))) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x1C, unchecked((ushort)-719))) })) } };
         frame = Step(frame, 1).Frame;
         Assert.Equal((short)-71, Scale(frame));
         pool = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 170)) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 170)) })) } };
         Assert.Equal((short)-179, Scale(Step(frame, 1).Frame));
     }
 
@@ -105,8 +105,8 @@ public sealed class NativeBattleDoomtrain191CreatureTests
             Assert.Equal(age == 278 ? 2 : 0, result.Result);
             if (age == 170)
             {
-                NativeBattleDoomtrain191Frame restored = JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+                NativeBattleDoomtrain191Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
             }
         }
         Assert.Equal(273, draws.Count);
@@ -141,8 +141,8 @@ public sealed class NativeBattleDoomtrain191CreatureTests
     {
         NativeBattleDoomtrain191Frame frame = ready ? NativeBattleDoomtrain191ModelTests.Ready() : NativeBattleDoomtrain191ModelTests.Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        var task = (pool.Slots[0] with { Callback = 0x641EA0 }).WriteWord(0xC, age).WriteWord(0x1C, 713);
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, task) }) } };
+        var task = (NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = 0x641EA0 })).WriteWord(0xC, age).WriteWord(0x1C, 713);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) })) } };
     }
     private static NativeBattleDoomtrain191LeafStep Step(NativeBattleDoomtrain191Frame frame, uint flags, Func<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191Frame>? draw = null)
     {

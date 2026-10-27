@@ -91,10 +91,10 @@ public sealed class NativeBattleWaterSavedMatrixCommandsTests
         frame = Angles(frame, new(128, 256, 384));
         NativeBattleFullMacVertex translated = NativeBattleGfMatrices.TransformMac460840(saved, new(10, 20, 30));
         NativeBattleActionMatrix rotation = NativeBattleGfMatrices.Multiply56C090(saved, NativeBattleGfMatrices.Euler56CD50(new(128, 256, 384)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Execute(frame);
         Assert.Equal(Bytes(rotation with { X = translated.X, Y = translated.Y, Z = translated.Z }), result.Core.Read(FirstRow, 32));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Execute(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(restored)));
     }
 
     [Theory]

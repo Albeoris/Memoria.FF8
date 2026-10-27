@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect287StateTests
     public void Unknown_scalar_bytes_and_warm_random_and_cursor_survive_JSON()
     {
         NativeBattleEffect287State state = NativeBattleEffect287State.FromUnknown().WriteWord(CasterGlobal, 4).WriteDword(CursorGlobal, 123).WriteDword(RandomGlobal, 456);
-        state = JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4, state.ReadWord(CasterGlobal));
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -46,7 +46,7 @@ public sealed class NativeBattleEffect287StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xABCD), state.ReadBank(0).Read(14, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(16, 4));
@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect287StateTests
         Assert.Null(state.MeshQueueStorage);
         Assert.Throws<InvalidDataException>(() => state.ReadMeshQueue());
         Assert.Throws<InvalidDataException>(() => state.Read(MeshQueueAddress, 4));
-        state = JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect287State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state = state.AttachMeshQueue(queue);
         Assert.Throws<InvalidDataException>(() => state.AttachMeshQueue(queue));
         Assert.Equal(0u, state.ReadDword(MeshQueueAddress));

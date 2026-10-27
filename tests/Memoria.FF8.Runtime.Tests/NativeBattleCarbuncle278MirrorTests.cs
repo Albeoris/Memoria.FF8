@@ -36,7 +36,7 @@ public sealed class NativeBattleCarbuncle278MirrorTests
     public void Head_insertion_executes_offset_area_black_and_restore_with_exact_private_allocation()
     {
         NativeBattleEffectMemory memory = Fixture();
-        NativeBattleCarbuncle278MirrorWrite result = NativeBattleCarbuncle278Mirror.Append6812E0(memory, NativeBattleLogicalOrdering.Clear(), 0x1000, 0x1C);
+        NativeBattleCarbuncle278MirrorWrite result = NativeBattleCarbuncle278Mirror.Append6812E0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(memory)), NativeBattleLogicalOrdering.Clear(), 0x1000, 0x1C);
         byte[] lengths = new byte[256];
         for (int opcode = 0xE1; opcode <= 0xE6; opcode++)
         {
@@ -54,21 +54,22 @@ public sealed class NativeBattleCarbuncle278MirrorTests
         Assert.Equal(new uint[] { 0x28000000, 0, 128, 256u << 16, (256u << 16) | 128 }, commands[3].Words);
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena!.Read(0x1018, 40));
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena!.Read(0x106C, 4));
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(Fixture()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory), NativeBattleTestSnapshots.Json(Fixture()));
     }
 
     [Fact]
     public void Independent_restore_preserves_ordered_packets_and_unsupported_model_branch_does_not_mutate_source()
     {
         NativeBattleEffectMemory source = Fixture();
-        string before = JsonSerializer.Serialize(source);
+        string original = NativeBattleTestSnapshots.Json(source);
         NativeBattleCarbuncle278MirrorWrite first = NativeBattleCarbuncle278Mirror.Append6812E0(source, NativeBattleLogicalOrdering.Clear(), 0x1000, 0);
-        NativeBattleEffectMemory independent = JsonSerializer.Deserialize<NativeBattleEffectMemory>(before)!;
+        NativeBattleEffectMemory independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(original)!;
         NativeBattleCarbuncle278MirrorWrite second = NativeBattleCarbuncle278Mirror.Append6812E0(independent, NativeBattleLogicalOrdering.Clear(), 0x1000, 0);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
+        string before = NativeBattleTestSnapshots.Json(source);
         NotSupportedException error = Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Mirror.Append6812E0(source, NativeBattleLogicalOrdering.Clear(), 0x1000, 0x100));
         Assert.Contains("1D989D0", error.Message);
-        Assert.Equal(before, JsonSerializer.Serialize(source));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(source));
     }
 
     private static NativeBattleEffectMemory Fixture()

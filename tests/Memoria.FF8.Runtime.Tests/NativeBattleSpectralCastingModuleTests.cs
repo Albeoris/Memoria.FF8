@@ -20,9 +20,9 @@ public sealed class NativeBattleSpectralCastingModuleTests
         Assert.Equal((short)0, Word(child, 0));
         Assert.Equal((short)0, Word(child, 2));
         Assert.Equal(material, unchecked((ushort)Word(child, 16)));
-        Assert.Equal(0x1D972C0u + 4 * 156u, BinaryPrimitives.ReadUInt32LittleEndian(child.Payload.AsSpan().Slice(20)));
-        Assert.Equal(Enumerable.Repeat((byte)0xA5, 12), child.Payload.Skip(4).Take(12));
-        Assert.Equal(new byte[] { 0xA5, 0xA5 }, child.Payload.AsSpan().Slice(18, 2).ToArray());
+        Assert.Equal(0x1D972C0u + 4 * 156u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(20)));
+        Assert.Equal(Enumerable.Repeat((byte)0xA5, 12), NativeBattleStorageSnapshots.Capture(child).Payload.Skip(4).Take(12));
+        Assert.Equal(new byte[] { 0xA5, 0xA5 }, NativeBattleStorageSnapshots.Capture(child).Payload.AsSpan().Slice(18, 2).ToArray());
         Assert.Empty(step.Draws);
         Assert.Null(step.CrtRandomAfter);
     }
@@ -209,7 +209,7 @@ public sealed class NativeBattleSpectralCastingModuleTests
         return state with { Slots = state.Slots.SetItem(slot, state.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
     }
 
-    private static short Word(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(offset));
+    private static short Word(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(offset));
     private static void Put(byte[] payload, int offset, int value) => BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(offset), unchecked((short)value));
 
     private static NativeBattleModuleResource Sprite()

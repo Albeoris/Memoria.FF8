@@ -97,8 +97,8 @@ public sealed class NativeBattleBreath129BodyTests
         Assert.Equal(new ushort[] { 0, 1, 2 }, Enumerable.Range(0, 3).Select(index => Word(ReadBytes(actual, Scratch + 0x8100, 12), 6 + index * 2)));
         actual = WriteBytes(actual, Scratch + 0x8000, NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)128)), 2);
         actual = PublishContext(actual, temporary, Context(actual, temporary, 52).Write(48, BitConverter.GetBytes(Base + 0x1000)), 52);
-        NativeBattleBreath129Frame restored = JsonSerializer.Deserialize<NativeBattleBreath129Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleBreath129Body.Copy6B7BA0(actual, temporary, 0)), JsonSerializer.Serialize(NativeBattleBreath129Body.Copy6B7BA0(restored, temporary, 0)));
+        NativeBattleBreath129Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath129Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleBreath129Body.Copy6B7BA0(actual, temporary, 0)), NativeBattleTestSnapshots.Json(NativeBattleBreath129Body.Copy6B7BA0(restored, temporary, 0)));
         NativeBattleBreath129Frame copied = NativeBattleBreath129Body.Copy6B7BA0(actual, temporary, 0);
         Assert.Equal(new ushort[] { 10, 11, 12 }, Enumerable.Range(0, 3).Select(index => Word(ReadBytes(copied, Base + 0x1000, 24), index * 8)));
     }

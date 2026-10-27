@@ -24,7 +24,7 @@ public sealed class NativeBattleSharedDrawingTemporaryTests
         NativeBattleEffectArena original = NativeBattleEffectArena.Clear().MarkUnknown(0, 88).Write(0x4C, [0x55, 0x66, 0x77, 0x88]);
         NativeBattleBodyBonePreparation actualActor = NativeBattleBodyBoneTemporary.Prepare508C90(actor, source, original);
         NativeBattleEffectArena actualStage = NativeBattleBodyBoneTemporary.Prepare508C90(source, pose, NativeBattlePoseMatrices.StageBoneMatrices(source, pose), original);
-        Assert.Equal(JsonSerializer.Serialize(actualActor.Temporary58), JsonSerializer.Serialize(actualStage));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actualActor.Temporary58), NativeBattleTestSnapshots.Json(actualStage));
         Assert.Equal(new byte[] { 0x55, 0x66, 0x77, 0x88 }, actualStage.Read(0x4C, 4));
         Assert.Equal(new byte[] { 0, 0 }, actualStage.Read(18, 2));
         Assert.Throws<NotSupportedException>(() => actualStage.Read(0x20, 4));

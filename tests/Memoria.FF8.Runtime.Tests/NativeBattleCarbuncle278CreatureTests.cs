@@ -11,7 +11,7 @@ public sealed class NativeBattleCarbuncle278CreatureTests
     {
         NativeBattleEffectOwnedModelResource resource = Resource();
         NativeBattleModulePoolTask source = new(1, 7, null, 0x681630, Enumerable.Repeat((byte)0xA5, 0x5E0 - 12).ToImmutableArray());
-        NativeBattleModulePoolTask task = NativeBattleCarbuncle278Creature.Initialize6EC060(source, 0x20E235C, resource);
+        NativeBattleModulePoolTask task = NativeBattleCarbuncle278Creature.Initialize6EC060(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)), 0x20E235C, resource);
         Assert.Equal((ushort)2, task.ReadWord(0x20));
         Assert.Equal(uint.MaxValue, task.ReadDword(0x9C));
         Assert.Equal(0u, task.ReadDword(0xAC));
@@ -31,14 +31,14 @@ public sealed class NativeBattleCarbuncle278CreatureTests
     {
         NativeBattleCarbuncleExecutableMemory source = NativeBattleCarbuncleExecutableMemory.FromOriginal(Resource());
         NativeBattleDecodedPose pose = new(new(10, -20, 30), [new(new(0, 0, 0), new(1024, 1024, 1024)), new(new(0, 0, 0), new(1024, 1024, 1024))], false);
-        NativeBattleCarbuncleExecutableMemory result = source.SelectFirstPose(new(pose, 1, 2));
+        NativeBattleCarbuncleExecutableMemory result = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)).SelectFirstPose(new(pose, 1, 2));
         Assert.Equal((short)-20, BinaryPrimitives.ReadInt16LittleEndian(result.Read(NativeBattleCarbuncleExecutableMemory.Address + 10, 2)));
         Assert.Equal(new byte[] { 0, 0 }, result.Read(NativeBattleCarbuncleExecutableMemory.Address + 50, 2));
         Assert.Equal(new byte[] { 0, 0 }, result.Read(NativeBattleCarbuncleExecutableMemory.Address + 98, 2));
-        string json = JsonSerializer.Serialize(result);
-        NativeBattleCarbuncleExecutableMemory restored = JsonSerializer.Deserialize<NativeBattleCarbuncleExecutableMemory>(json)!;
+        string json = NativeBattleTestSnapshots.Json(result);
+        NativeBattleCarbuncleExecutableMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncleExecutableMemory>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(new byte[] { 0, 0 }, source.Read(NativeBattleCarbuncleExecutableMemory.Address + 10, 2));
     }
 

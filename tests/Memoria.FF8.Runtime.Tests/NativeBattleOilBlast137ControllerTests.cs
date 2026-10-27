@@ -14,7 +14,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
     {
         Fixture f = new();
         NativeBattleOilBlast137Frame frame = f.SetRoot(f.Frame, 0, 0, old);
-        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
+        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(NativeBattleTestSnapshots.Independent(frame), RootBank, f.Resources, f.Inputs);
         Assert.Equal(0, result);
         Assert.Equal(Fixture.Working + (uint)offset, frame.State.ReadDword(CursorGlobal));
         Assert.Equal(next, NativeBattleOilBlast137Controller.Read(frame, RootBank).ReadDword(16));
@@ -27,7 +27,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
     {
         Fixture f = new();
         NativeBattleOilBlast137Frame frame = f.SetRoot(f.Frame, 1, 0, 0);
-        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
+        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(NativeBattleTestSnapshots.Independent(frame), RootBank, f.Resources, f.Inputs);
         Assert.Equal(0, result);
         Assert.Equal(new ushort[] { 20, 0x5A0, 44, 36 }, frame.Effect.Pools.Select(pool => pool.Stride).ToArray());
         Assert.Equal(new[] { 1, 1, 32, 60 }, frame.Effect.Pools.Select(pool => pool.Slots.Length).ToArray());
@@ -37,7 +37,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
         Assert.Equal(new NativeBattleVector(100, 700, -300), NativeBattleOilBlast137Controller.Vector(main, 0x1C));
         Assert.Equal((ushort)0, main.ReadWord(0x22));
         Assert.Equal((Fixture.TargetPointer, (byte)0xF1), Assert.Single(f.Bones));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(MainOffset + 12, 4));
+        Assert.Equal(main.ReadBytes(12, 4), frame.Memory.Arena!.Read(MainOffset + 12, 4));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
         frame = NativeBattleOilBlast137Controller.Write(frame, secondary, NativeBattleOilBlast137Controller.Read(frame, secondary).WriteWord(18, 0));
         (frame, uint particle) = NativeBattleOilBlast137Controller.Append(frame, 3, ParticleCallback);
         frame = NativeBattleOilBlast137Controller.Write(frame, particle, NativeBattleOilBlast137Controller.Read(frame, particle).WriteWord(18, 0).WriteWord(0x1A, 1000));
-        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(frame, RootBank, f.Resources, f.Inputs);
+        (frame, int result) = NativeBattleOilBlast137Controller.AdvanceRoot(NativeBattleTestSnapshots.Independent(frame), RootBank, f.Resources, f.Inputs);
         Assert.Equal(2, result);
         Assert.Equal((ushort)8, NativeBattleOilBlast137Controller.Read(frame, RootBank).ReadWord(12));
         Assert.Equal((ushort)60, f.Main(frame).ReadWord(12));
@@ -165,7 +165,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
         (NativeBattleOilBlast137Frame frame, uint child) = NativeBattleOilBlast137Controller.Append(f.Frame, 2, SecondaryCallback);
         NativeBattleModulePoolTask task = NativeBattleOilBlast137Controller.Read(frame, child).WriteWord(18, 29).WriteWord(14, unchecked((ushort)-1)).WriteWord(0x16, 0).MarkPayloadUnknown(0x22, 2);
         frame = NativeBattleOilBlast137Controller.Write(frame, child, task);
-        NativeBattleOilBlast137Frame restored = JsonSerializer.Deserialize<NativeBattleOilBlast137Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleOilBlast137Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilBlast137Frame>(NativeBattleTestSnapshots.Json(frame))!;
         (restored, int result) = NativeBattleOilBlast137Controller.AdvanceSecondary(restored, child, f.Resources, f.Inputs);
         task = NativeBattleOilBlast137Controller.Read(restored, child);
         Assert.Equal(2, result);
@@ -212,7 +212,7 @@ public sealed class NativeBattleOilBlast137ControllerTests
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             NativeBattleOilBlast137State state = NativeBattleOilBlast137State.FromColdProcess() with { ColdMatrixSourcePending = false, Matrix32 = NativeBattleEffectArena.Clear().Write(0, NativeBattlePackedMatrix32.FromMatrix(identity, 0).Bytes.AsSpan()) };
             state = state.WriteDword(WorkingGlobal, Working).WriteDword(CasterGlobal, 0x1D972C0);
-            Frame = new(memory, effect, new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools), effect, new(123), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Frame = NativeBattleOilBlast137Controller.Write(Frame, MainAddress, Main(Frame).WriteDword(16, TargetPointer));
             NativeBattleModulePoolTask task = Main(Frame);
             task = NativeBattleOilBlast137Controller.PutVector(task, 0x1C, new(1000, 900, 2000));

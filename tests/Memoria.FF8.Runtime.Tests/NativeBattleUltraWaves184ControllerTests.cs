@@ -83,8 +83,8 @@ public sealed class NativeBattleUltraWaves184ControllerTests
         Assert.Equal((ushort)1, wait.ReadWord(12));
         Assert.Equal((ushort)0, wait.ReadWord(14));
         Assert.Equal(RootDescriptor, waiting.Effect.ReturnedDescriptor);
-        string json = JsonSerializer.Serialize(waiting);
-        NativeBattleUltraWaves184Frame restored = JsonSerializer.Deserialize<NativeBattleUltraWaves184Frame>(json)!;
+        string json = NativeBattleTestSnapshots.Json(waiting);
+        NativeBattleUltraWaves184Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWaves184Frame>(json)!;
         fixture.CompleteTexture = true;
         NativeBattleUltraWaves184Frame complete = NativeBattleUltraWaves184Controller.Advance(restored, fixture.Resources, fixture.Inputs());
         NativeBattleUltraWaves184RestoreTexture operation = Assert.IsType<NativeBattleUltraWaves184RestoreTexture>(fixture.Operations[^1]);
@@ -108,10 +108,10 @@ public sealed class NativeBattleUltraWaves184ControllerTests
         {
             NativeBattleEffectTaskPool roots = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
             (roots, int root) = roots.Append(RootCallback);
-            roots = roots with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) };
+            roots = NativeBattleTaskFixture.EditPool(roots, data => data with { Slots = roots.Slots.SetItem(root, roots.Slots[root].WriteWord(12, 0)) });
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, int child) = children.Append(callback);
-            children = children with { Slots = children.Slots.SetItem(child, children.Slots[child].WriteWord(12, age).WriteWord(22, 0xBEEF)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(child, children.Slots[child].WriteWord(12, age).WriteWord(22, 0xBEEF)) });
             NativeBattleOriginalEffectState effect = new(184, 184, new(184, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [roots, children] };
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleUltraWaves184State.FromColdProcess());
         }

@@ -104,16 +104,16 @@ public sealed class NativeBattleEffect239MainMatrixRegistersTests
         Registers first = new();
         frame = first.Execute(frame);
         SavedOwners owners = new(frame, first.Current);
-        string json = JsonSerializer.Serialize(owners);
-        SavedOwners restored = JsonSerializer.Deserialize<SavedOwners>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(owners));
+        SavedOwners restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<SavedOwners>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         NativeBattleWaterExecutionFrame restoredFrame = WaterSchedulerFixture.CoreDword(restored.Frame, 0x2797450, 0x1000);
         Registers direct = new(first.Current);
         Registers cold = new(restored.Registers);
         NativeBattleWaterExecutionFrame expected = direct.Execute(frame);
         NativeBattleWaterExecutionFrame actual = cold.Execute(restoredFrame);
-        Assert.Equal(JsonSerializer.Serialize(new SavedOwners(expected, direct.Current)), JsonSerializer.Serialize(new SavedOwners(actual, cold.Current)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new SavedOwners(expected, direct.Current))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new SavedOwners(actual, cold.Current))));
     }
 
     [Theory]
@@ -122,9 +122,9 @@ public sealed class NativeBattleEffect239MainMatrixRegistersTests
     public void Matrix_commands_require_register_services_without_modifying_input(int opcode)
     {
         NativeBattleWaterExecutionFrame frame = Fixture((ushort)opcode, QuarterTurn(100, -200, 300));
-        string before = JsonSerializer.Serialize(frame);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterMatrixCommands.Execute(frame, Program(), Bank));
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
     }
 
     [Theory]
@@ -135,18 +135,18 @@ public sealed class NativeBattleEffect239MainMatrixRegistersTests
         NativeBattleWaterExecutionFrame frame = Fixture(0x67, QuarterTurn(100, -200, 300));
         frame = matrixUnknown ? frame with { Core = frame.Core.MarkUnknown(Saved, 1) } : frame with { Arena = frame.Arena.MarkUnknown(0x2094, 1) };
         Registers owner = new();
-        string frameBefore = JsonSerializer.Serialize(frame);
-        string registersBefore = JsonSerializer.Serialize(owner.Current);
+        string frameBefore = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        string registersBefore = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(owner.Current));
         Assert.Throws<NotSupportedException>(() => owner.Execute(frame));
         Assert.Equal(0, owner.Publications);
-        Assert.Equal(registersBefore, JsonSerializer.Serialize(owner.Current));
-        Assert.Equal(frameBefore, JsonSerializer.Serialize(frame));
+        Assert.Equal(registersBefore, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(owner.Current)));
+        Assert.Equal(frameBefore, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
     }
 
     private static void AssertRetained(NativeBattleGeometryRegisterStep before, NativeBattleGeometryRegisterStep after)
     {
-        Assert.Equal(JsonSerializer.Serialize(before.Geometry with { Rotation20 = after.Geometry.Rotation20, Translation = after.Geometry.Translation }), JsonSerializer.Serialize(after.Geometry));
-        Assert.Equal(JsonSerializer.Serialize(before.Colors with { Mac = after.Colors.Mac, Ir = after.Colors.Ir, Flags = after.Colors.Flags, NormalInput = after.Colors.NormalInput, NormalInputKnown = after.Colors.NormalInputKnown }), JsonSerializer.Serialize(after.Colors));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.Geometry with { Rotation20 = after.Geometry.Rotation20, Translation = after.Geometry.Translation })), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(after.Geometry)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.Colors with { Mac = after.Colors.Mac, Ir = after.Colors.Ir, Flags = after.Colors.Flags, NormalInput = after.Colors.NormalInput, NormalInputKnown = after.Colors.NormalInputKnown })), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(after.Colors)));
     }
 
     private static NativeBattleActionMatrix QuarterTurn(int x, int y, int z) => new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], x, y, z, 4096);

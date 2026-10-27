@@ -32,9 +32,9 @@ public sealed class NativeBattleEffectTaskArenaBindingTests
         pool.Revoke();
         Assert.Throws<ObjectDisposedException>(() => task.ReadDword(12));
         NativeBattleEffectArena snapshot = NativeBattleStorageSnapshots.Capture(arena);
-        string json = JsonSerializer.Serialize(snapshot);
-        NativeBattleEffectArena loaded = JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!;
-        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(loaded);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(snapshot));
+        NativeBattleEffectArena loaded = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!);
+        NativeBattleEffectArena restored = loaded;
         Assert.Equal(0x55667788u, restored.ReadUInt32(offset + 12));
         var hidden = restored.ReadSnapshot(offset + 20, 1);
         Assert.Equal((byte)0xAB, hidden.Data[0]);
@@ -150,8 +150,8 @@ public sealed class NativeBattleEffectTaskArenaBindingTests
         Assert.Equal(17u, right.Arena.ReadUInt32(0x100 + 12));
         Assert.Equal(0, right.Pool.Tail);
         Assert.NotSame(left.Pool.StorageIdentity, right.Pool.StorageIdentity);
-        NativeBattleEffectArena jsonArena = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(frozen.Arena))!);
-        NativeBattleEffectTaskPool jsonPool = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(frozen.Pool))!);
+        NativeBattleEffectArena jsonArena = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frozen.Arena)))!);
+        NativeBattleEffectTaskPool jsonPool = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frozen.Pool)))!);
         jsonPool.BindArena(jsonArena);
         jsonPool.Slots[0].WriteDword(12, 123);
         Assert.Equal(123u, jsonArena.ReadUInt32(0x100 + 12));

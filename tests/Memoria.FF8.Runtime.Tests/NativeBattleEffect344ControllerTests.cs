@@ -136,7 +136,7 @@ public sealed class NativeBattleEffect344ControllerTests
     {
         NativeBattleEffect344Frame frame = AtAge(31);
         frame = frame with { State = frame.State with { Storage = frame.State.Storage.MarkUnknown(checked((int)(CompletionGlobal - BaseAddress)), 1) } };
-        frame = JsonSerializer.Deserialize<NativeBattleEffect344Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect344Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         Assert.Throws<NotSupportedException>(() => AdvanceChild(frame, ChildBank, new Harness().Inputs()));
         Assert.Throws<NotSupportedException>(() => WriteCompletionByte(frame, CompletionGlobal + 1, 1));
     }

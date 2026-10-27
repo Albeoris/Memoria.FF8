@@ -10,7 +10,7 @@ public sealed class NativeBattleCarbuncle278SparkleTests
     public void Spawning_consumes_four_shared_draws_even_paused_and_writes_actual_bank_xyz_and_age()
     {
         var fixture = Fixture();
-        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Sparkles.Spawn681B3F(fixture.Frame, fixture.Creature);
+        NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Sparkles.Spawn681B3F(NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame)), fixture.Creature);
         NativeBattleEffectTaskPool pool = Assert.Single(result.Effect.Pools);
         Assert.Equal(4, pool.Slots.Count(task => (task.Flags & 1) != 0));
         NativeBattleSharedEffectRandomState random = new(0);
@@ -24,14 +24,14 @@ public sealed class NativeBattleCarbuncle278SparkleTests
             Assert.Equal((ushort)(200 + bone), task.ReadWord(0xE));
             Assert.Equal((ushort)(300 + bone), task.ReadWord(0x10));
             Assert.Equal((ushort)0, task.ReadWord(0x12));
-            Assert.Equal(task.Payload, result.Memory.Arena!.Read(0x23A4 + index * 20 + 12, 8));
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, result.Memory.Arena!.Read(0x23A4 + index * 20 + 12, 8));
         }
         Assert.Equal(random, result.Memory.SharedEffectRandom);
         Assert.Equal(7u, result.Memory.Carbuncle278!.Pause8114);
         Assert.Equal(0u, fixture.Frame.Memory.SharedEffectRandom!.State);
         Assert.All(fixture.Frame.Effect.Pools[0].Slots, task => Assert.Equal((ushort)0, task.Flags));
-        NativeBattleCarbuncle278Frame independent = JsonSerializer.Deserialize<NativeBattleCarbuncle278Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCarbuncle278Sparkles.Spawn681B3F(independent, fixture.Creature)));
+        NativeBattleCarbuncle278Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Sparkles.Spawn681B3F(independent, fixture.Creature)));
     }
 
     [Fact]
@@ -44,11 +44,11 @@ public sealed class NativeBattleCarbuncle278SparkleTests
             (pool, _) = pool.Append(0x683E80);
         }
         NativeBattleCarbuncle278Frame source = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool] } };
-        NativeBattleCarbuncle278Frame one = NativeBattleCarbuncle278Sparkles.Spawn681B3F(source, fixture.Creature);
+        NativeBattleCarbuncle278Frame one = NativeBattleCarbuncle278Sparkles.Spawn681B3F(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)), fixture.Creature);
         Assert.Equal(14u, one.Memory.SharedEffectRandom!.State);
         Assert.Equal(64, one.Effect.Pools[0].Slots.Count(task => (task.Flags & 1) != 0));
         NativeBattleCarbuncle278Frame full = NativeBattleCarbuncle278Sparkles.Spawn681B3F(one, fixture.Creature);
-        Assert.Equal(JsonSerializer.Serialize(one), JsonSerializer.Serialize(full));
+        Assert.Equal(NativeBattleTestSnapshots.Json(one), NativeBattleTestSnapshots.Json(full));
         NativeBattleCarbuncle278Frame unknownFull = one with { Memory = one.Memory with { CarbuncleExecutableMemory = null, SharedEffectRandom = null } };
         NativeBattleCarbuncle278Frame skipped = NativeBattleCarbuncle278Sparkles.Spawn681B3F(unknownFull, fixture.Creature);
         Assert.Null(skipped.Memory.CarbuncleExecutableMemory);
@@ -67,7 +67,7 @@ public sealed class NativeBattleCarbuncle278SparkleTests
         NativeBattleCarbuncle278SparkleStep finished = NativeBattleCarbuncle278Sparkles.Finish683E80(task, false);
         Assert.Equal((ushort)11, finished.Task.ReadWord(0x12));
         Assert.Equal(2, finished.Result);
-        Assert.Equal(task.Payload.Take(6), finished.Task.Payload.Take(6));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.Take(6), NativeBattleStorageSnapshots.Capture(finished.Task).Payload.Take(6));
         Assert.Equal(0, NativeBattleCarbuncle278Sparkles.Finish683E80(task.WriteWord(0x12, 9), false).Result);
     }
 
@@ -77,10 +77,10 @@ public sealed class NativeBattleCarbuncle278SparkleTests
         var fixture = Fixture();
         NativeBattleCarbuncleExecutableMemory executable = fixture.Frame.Memory.CarbuncleExecutableMemory!;
         executable = executable.Write(NativeBattleCarbuncleExecutableMemory.Address + 16 + 48, new byte[] { 0, 0, 100, 0 });
-        string before = JsonSerializer.Serialize(executable);
+        string before = NativeBattleTestSnapshots.Json(executable);
         NativeBattleVector result = NativeBattleCarbuncle278Anchors.ReadBone502170(fixture.Creature, executable, 1, 2048);
         Assert.Equal(new NativeBattleVector(101, 201, 351), result);
-        Assert.Equal(before, JsonSerializer.Serialize(executable));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(executable));
         Assert.Throws<InvalidDataException>(() => NativeBattleCarbuncle278Anchors.ReadBone502170(fixture.Creature, executable, 3, 0));
         Assert.Equal(new NativeBattleVector(-1, 2, -3), NativeBattleCarbuncle278Anchors.ReadBone502170(fixture.Creature.WriteWord(0x20, 0).WriteWord(0x3C, ushort.MaxValue).WriteWord(0x3E, 2).WriteWord(0x40, unchecked((ushort)-3)), executable, 999, 0));
     }
@@ -105,9 +105,9 @@ public sealed class NativeBattleCarbuncle278SparkleTests
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(42), 9);
         NativeBattleEffectOwnedModelResource resource = new(0x10B6F94, bytes.ToImmutableArray(), new([], []), []);
         NativeBattleCarbuncleExecutableMemory executable = fixture.Frame.Memory.CarbuncleExecutableMemory!;
-        string before = JsonSerializer.Serialize(executable);
+        string before = NativeBattleTestSnapshots.Json(executable);
         Assert.Equal(new NativeBattleVector(109, 194, 311), NativeBattleCarbuncle278Anchors.ReadVertex682270(fixture.Creature, executable, resource, 0, 0));
-        Assert.Equal(before, JsonSerializer.Serialize(executable));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(executable));
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Anchors.ReadVertex682270(fixture.Creature, executable, resource, 0, 1));
     }
 

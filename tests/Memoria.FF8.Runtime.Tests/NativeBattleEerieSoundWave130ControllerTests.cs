@@ -86,11 +86,12 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
         NativeBattleEerieSoundWave130Frame live = fixture.Step(frame);
         Assert.Equal(RootDescriptor, live.Effect.ReturnedDescriptor);
         fixture.Remaining = _ => 0;
-        NativeBattleEerieSoundWave130Frame restored = JsonSerializer.Deserialize<NativeBattleEerieSoundWave130Frame>(JsonSerializer.Serialize(live))!;
-        NativeBattleEerieSoundWave130Frame expected = fixture.Step(live);
+        NativeBattleEerieSoundWave130Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEerieSoundWave130Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(live)))!);
+        restored = restored with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(restored.Memory, restored.Effect.Pools) };
+        NativeBattleEerieSoundWave130Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(live));
         NativeBattleEerieSoundWave130Frame actual = fixture.Step(restored);
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
     }
 
     [Fact]
@@ -103,7 +104,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
         {
             (travel, int slot) = travel.Append(TravelCallback);
             NativeBattleModulePoolTask task = travel.Slots[slot].WriteBytes(12, new byte[0x68]).WriteWord(12, 30).WriteDword(0x10, Model(5));
-            travel = travel with { Slots = travel.Slots.SetItem(slot, task) };
+            travel = travel.WriteSlot(slot, task);
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, travel) } };
         fixture.Clear();
@@ -137,7 +138,7 @@ public sealed class NativeBattleEerieSoundWave130ControllerTests
             Packets = packets;
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) };
+            root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1));
             NativeBattleOriginalEffectState effect = new(130, 129, new(130, Entry, Initializer), new(0, 0, 8, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
             Frame = new(memory, effect, new(123), NativeBattleEerieSoundWave130State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, Model(0)));

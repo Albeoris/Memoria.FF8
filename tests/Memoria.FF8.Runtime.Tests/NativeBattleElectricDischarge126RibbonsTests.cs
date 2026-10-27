@@ -43,7 +43,7 @@ public sealed class NativeBattleElectricDischarge126RibbonsTests
         int bank = anchored ? BonePointsOffset : WorldPointsOffset;
         frame = Point(frame, bank, 0, 100, 200, 512, anchored ? (short)96 : (short)32, anchored, 2048, Address(frame, bank, 1));
         frame = Point(frame, bank, 1, 116, 200, 512, anchored ? (short)96 : (short)32, anchored, 1024, 0);
-        string controls = JsonSerializer.Serialize(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
+        string controls = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters }));
         var actual = anchored ? NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(frame, Address(frame, bank, 0), 2, Resources()) : NativeBattleElectricDischarge126Ribbons.DrawProjected(frame, Address(frame, bank, 0), 2, 0, Resources());
         NativeBattleGfGeometryAttempt packet = Assert.Single(actual.Batch.Attempts);
         Assert.Equal(bucket, packet.Primitive!.Bucket);
@@ -58,7 +58,7 @@ public sealed class NativeBattleElectricDischarge126RibbonsTests
         Assert.Equal(0x00404040u, Word(packet, 28));
         Assert.Equal(0x00404040u, Word(packet, 40));
         Assert.Throws<NotSupportedException>(() => actual.Frame.Memory.Arena!.Read(Offset(frame, bank, 1) + (anchored ? 6 : 2), 2));
-        Assert.Equal(controls, JsonSerializer.Serialize(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
+        Assert.Equal(controls, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters })));
         Assert.Equal(frame.Random, actual.Frame.Random);
         Assert.Equal(frame.State, actual.Frame.State);
         for (int index = 0; index < 52; index++)
@@ -101,11 +101,11 @@ public sealed class NativeBattleElectricDischarge126RibbonsTests
         NativeBattleElectricDischarge126Frame frame = Frame();
         frame = Point(frame, BonePointsOffset, 0, 100, 200, 512, 96, true, 2048, Address(frame, BonePointsOffset, 1));
         frame = Point(frame, BonePointsOffset, 1, 116, 200, 512, 96, true, 2048, 0);
-        NativeBattleElectricDischarge126Frame restored = JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleElectricDischarge126Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         var expected = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(frame, Address(frame, BonePointsOffset, 0), 2, Resources());
         var actual = NativeBattleElectricDischarge126Ribbons.DrawBoneProjected(restored, Address(restored, BonePointsOffset, 0), 2, Resources());
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
-        Assert.Equal(JsonSerializer.Serialize(expected.Batch), JsonSerializer.Serialize(actual.Batch));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Batch)));
     }
 
     private static uint Word(NativeBattleGfGeometryAttempt packet, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(packet.Data.AsSpan().Slice(offset));

@@ -12,7 +12,7 @@ public sealed class NativeBattleGuardianWorkBufferTests
         NativeBattleEffectMemory loaded = memory.BeginLoad(115).LoadIntoArena([9, 8, 7, 6]);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, loaded.GuardianWorkBuffer!.Read(0x3FFFC, 4));
         Assert.Equal(new byte[] { 9, 8, 7, 6 }, loaded.Arena!.Read(0, 4));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(loaded))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(loaded))!;
         restored.Validate();
         Assert.Equal(work.Read(0x3FFFC, 4), restored.GuardianWorkBuffer!.Read(0x3FFFC, 4));
         Assert.Throws<InvalidDataException>(() => work.Write(0x3FFFD, [1, 2, 3, 4]));

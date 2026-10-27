@@ -17,9 +17,9 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(0x11223344u, request.State.Task.Argument);
         Assert.Equal(request.State, request.State.Poll507070(-1, [source], request.Staging).State);
         Assert.Equal(request.State, request.State.Poll507070(int.MinValue, [source], request.Staging).State);
-        string json = JsonSerializer.Serialize(request.State);
-        NativeBattleModelLoader restored = JsonSerializer.Deserialize<NativeBattleModelLoader>(json)!;
-        NativeBattleFileStaging restoredStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(request.Staging))!;
+        string json = NativeBattleTestSnapshots.Json(request.State);
+        NativeBattleModelLoader restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoader>(json)!;
+        NativeBattleFileStaging restoredStaging = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(request.Staging))!;
         NativeBattleModelLoadStep texture = restored.Poll507070(source.Bytes.Length, [source], restoredStaging);
         Assert.NotNull(texture.TextureUpload);
         Assert.Null(texture.Bind);
@@ -68,7 +68,7 @@ public sealed class NativeBattleModelLoaderTests
         complete[^1] = 255;
         cpu = cpu with { Banks = cpu.Banks.SetItem(2, bank.Write(0, complete)) };
         cpu = cpu.Copy64K50B2A0(2, 0);
-        NativeBattleModelCpuBanks restored = JsonSerializer.Deserialize<NativeBattleModelCpuBanks>(JsonSerializer.Serialize(cpu))!;
+        NativeBattleModelCpuBanks restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuBanks>(NativeBattleTestSnapshots.Json(cpu))!;
         Assert.Equal(complete, restored.Banks[0].Read(0, complete.Length));
     }
 

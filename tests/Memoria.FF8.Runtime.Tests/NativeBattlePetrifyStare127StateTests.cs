@@ -35,11 +35,11 @@ public sealed class NativeBattlePetrifyStare127StateTests
     public void Partial_import_retains_warm_values_and_unknowns_through_JSON()
     {
         NativeBattlePetrifyStare127State state = NativeBattlePetrifyStare127State.FromUnknown().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + FirstPacketOffset);
-        NativeBattlePetrifyStare127State restored = JsonSerializer.Deserialize<NativeBattlePetrifyStare127State>(JsonSerializer.Serialize(state))!;
+        NativeBattlePetrifyStare127State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePetrifyStare127State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(ArenaAddress, restored.ReadDword(WorkingGlobal));
         Assert.Equal(ArenaAddress + FirstPacketOffset, restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CasterGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteDword(CursorGlobal, 0xABCDEF)), JsonSerializer.Serialize(restored.WriteDword(CursorGlobal, 0xABCDEF)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WriteDword(CursorGlobal, 0xABCDEF)), NativeBattleTestSnapshots.Json(restored.WriteDword(CursorGlobal, 0xABCDEF)));
     }
 }

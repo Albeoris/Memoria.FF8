@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect174StateTests
     public void Marker_writes_preserve_unknown_bone_history_payload_and_saved_actor_padding()
     {
         NativeBattleEffect174State state = NativeBattleEffect174State.FromUnknown().WriteDword(FirstRecordsAddress, 0).WriteDword(HistoryAddress, 0).WriteWord(SavedActorsAddress, 0x1020).WriteDword(SavedActorsAddress + 4, 0x12345678);
-        state = JsonSerializer.Deserialize<NativeBattleEffect174State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(0u, state.ReadDword(FirstRecordsAddress));
         Assert.Equal(0u, state.ReadDword(HistoryAddress));
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect174StateTests
             state = state.AttachBank(Pools[index].Bank, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect174State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -69,6 +69,6 @@ public sealed class NativeBattleEffect174StateTests
             Assert.Equal(836, state.Read(row, HistoryLength).Length);
             Assert.Throws<InvalidDataException>(() => state.Read(row + HistoryLength, HistoryStride - HistoryLength));
         }
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect174 = null }))!.Effect174);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect174 = null })))!).Effect174);
     }
 }

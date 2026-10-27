@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -35,8 +35,8 @@ public sealed class NativeBattleDrinkMagic37OrbControllerTests
             {
                 Assert.Equal((ushort)0, task.ReadWord(0x50));
                 Assert.Equal((ushort)20, task.ReadWord(0x5C));
-                NativeBattleEffectHierarchy restored = JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(JsonSerializer.Serialize(hierarchy))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleDrinkMagic37OrbController.Advance(hierarchy, fixture.Address, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleDrinkMagic37OrbController.Advance(restored, fixture.Address, fixture.Inputs)));
+                NativeBattleEffectHierarchy restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHierarchy>(NativeBattleTestSnapshots.Json(hierarchy))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37OrbController.Advance(NativeBattleTestSnapshots.Independent(hierarchy), fixture.Address, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37OrbController.Advance(restored, fixture.Address, fixture.Inputs)));
             }
             if (age == 51)
             {

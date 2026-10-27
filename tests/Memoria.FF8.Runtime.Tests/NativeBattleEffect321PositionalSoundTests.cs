@@ -46,10 +46,10 @@ public sealed class NativeBattleEffect321PositionalSoundTests
         NativeBattleEffect321SoundProjection first = NativeBattleEffect321PositionalSound.Project5011B0(Seed(), View(), Projection(), point);
         Assert.True(first.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
         Assert.False(first.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Memory)))!);
         NativeBattleEffect321SoundProjection expected = NativeBattleEffect321PositionalSound.Project5011B0(first.Memory, View(), Projection(), point);
         NativeBattleEffect321SoundProjection actual = NativeBattleEffect321PositionalSound.Project5011B0(restored, View(), Projection(), point);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
         Assert.Throws<NotSupportedException>(() => NativeBattleEffect321PositionalSound.Project5011B0(Seed(), View(), Projection(), point.MarkUnknown(4, 1)));
     }
 

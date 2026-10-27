@@ -157,7 +157,7 @@ public sealed class NativeBattleFinalStage142Tests
         NativeBattleFinalStage142State state = NativeBattleFinalStage142State.FromColdProcess().WriteOverlay(0x1D9A020, [1, 2, 3], [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Unknown]);
         Assert.Equal(new byte[] { 1, 0 }, state.ReadOverlay(0x1D9A020, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadOverlay(0x1D9A022, 1));
-        NativeBattleFinalStage142State restored = JsonSerializer.Deserialize<NativeBattleFinalStage142State>(JsonSerializer.Serialize(state))!;
+        NativeBattleFinalStage142State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFinalStage142State>(NativeBattleTestSnapshots.Json(state))!;
         Assert.Equal(new byte[] { 1, 0 }, restored.ReadOverlay(0x1D9A020, 2));
         Assert.Equal(new byte[] { 0, 0 }, restored.ReadOverlay(0x1D9A420, 2));
         Assert.Throws<InvalidDataException>(() => restored.ReadOverlay(0x1D9A41F, 2));

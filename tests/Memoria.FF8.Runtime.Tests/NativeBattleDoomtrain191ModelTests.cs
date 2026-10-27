@@ -39,7 +39,7 @@ public sealed class NativeBattleDoomtrain191ModelTests
         Assert.Equal(new NativeBattleVector(0, 0, 0), pose.Translation);
         Assert.Equal(2, pose.Bones.Length);
         Assert.Equal(new byte[] { 0, 0 }, frame.Memory.Arena!.Read(24 + 32 + 48 + 18, 2));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleDoomtrain191Model.Select642470(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!, 0, SourceLength)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleDoomtrain191Model.Select642470(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(NativeBattleTestSnapshots.Json(frame))!, 0, SourceLength)));
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class NativeBattleDoomtrain191ModelTests
         frame = NativeBattleDoomtrain191Model.PublishAnchor(NativeBattleDoomtrain191Model.Restore642830(composed.Frame));
         NativeBattleActionMatrix local = NativeBattleArenaPose.ReadMatrix(frame.Memory.Arena!, 24 + 0x50);
         NativeBattleActionMatrix expected = NativeBattleGfMatrices.Compose56C2F0(Identity with { X = 123, Z = 456 }, local);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleDoomtrain191Model.Require(frame).Anchor.ReadMatrix()));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleDoomtrain191Model.Require(frame).Anchor.ReadMatrix()));
         Assert.False(NativeBattleDoomtrain191Model.Require(frame).Anchor.Known[18]);
     }
 

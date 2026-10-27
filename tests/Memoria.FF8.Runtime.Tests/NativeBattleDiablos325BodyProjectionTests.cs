@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -23,7 +23,8 @@ public sealed class NativeBattleDiablos325BodyProjectionTests
     public void Nonpositive_depth_preserves_first_pass_world_XY_and_untouched_clip_shade_unknownness()
     {
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0x106, 2);
-        string original = JsonSerializer.Serialize(arena);
+        var preserved = NativeBattleStorageSnapshots.Capture(arena);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, -500, 4096), 288, 160, 108);
         NativeBattleEffectArena result = NativeBattleDiablos325BodyProjection.Project657B50(arena, 0x100, 1, _ => new(123, -456, 0), projection, -8192, 2, 128);
         Assert.Equal((short)123, BinaryPrimitives.ReadInt16LittleEndian(result.Read(0x100, 2)));
@@ -31,6 +32,6 @@ public sealed class NativeBattleDiablos325BodyProjectionTests
         Assert.Equal(new byte[] { 0, 0 }, result.Read(0x104, 2));
         Assert.Throws<NotSupportedException>(() => result.Read(0x106, 1));
         Assert.Throws<NotSupportedException>(() => result.Read(0x107, 1));
-        Assert.Equal(original, JsonSerializer.Serialize(arena));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 }

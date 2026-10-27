@@ -15,7 +15,7 @@ public sealed class NativeBattleEffect64ControllerTests
     {
         NativeBattleEffect64Frame frame = Frame();
         uint main = Common + MainOffset;
-        frame = Write(frame, main, Read(frame, main) with { State = 0xABCD });
+        frame = Write(frame, main, Read(frame, main).UpdateHeader(Read(frame, main).Flags, 0xABCD, Read(frame, main).Next, Read(frame, main).Callback));
         frame = AdvanceMain6E53F0(frame, main, Resources(), Inputs()).Frame;
         NativeBattleEffectTaskPool scripts = frame.Effect.Pools[2];
         Assert.Equal(0, scripts.Head);
@@ -36,7 +36,7 @@ public sealed class NativeBattleEffect64ControllerTests
         Assert.Equal(MainCallback, mainPool.Slots[0].Callback);
         Assert.Equal(1, mainPool.Slots[0].ReadWord(12));
         mainPool.Validate();
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(MainOffset, 1));
+        Assert.Equal((byte)0, frame.Memory.Arena!.Read(MainOffset, 1)[0]);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect64ControllerTests
     {
         NativeBattleEffect64Frame frame = Frame();
         uint main = Common + MainOffset;
-        frame = Write(frame, main, Read(frame, main).WriteWord(12, 12) with { Flags = 0 });
+        frame = Write(frame, main, Read(frame, main).WriteWord(12, 12).UpdateHeader(0, Read(frame, main).WriteWord(12, 12).State, Read(frame, main).WriteWord(12, 12).Next, Read(frame, main).WriteWord(12, 12).Callback));
         (NativeBattleEffect64Frame result, int survivors) = AdvancePool(frame, 1, Resources(), Inputs());
         Assert.Equal(1, survivors);
         Assert.Equal(13, Read(result, main).ReadWord(12));
@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect64ControllerTests
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Arena!.Read(childOffset, 2)));
         Assert.Equal(0x6E5DD0u, BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.Arena.Read(childOffset + 8, 4)));
         Assert.Equal(ScriptAddresses[0] + 4, BinaryPrimitives.ReadUInt32LittleEndian(result.Memory.Arena.Read(childOffset + 0x18, 4)));
-        NativeBattleEffect64Frame restored = JsonSerializer.Deserialize<NativeBattleEffect64Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect64Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect64Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.Memory.Arena.Read(childOffset, ScriptStride), restored.Memory.Arena!.Read(childOffset, ScriptStride));
     }
 
@@ -136,7 +136,7 @@ public sealed class NativeBattleEffect64ControllerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x100, 0x200, 48, 1);
         NativeBattleResourcePointer retained = new(new(0, 0x123), null, 20);
-        pool = pool with { Slots = [pool.Slots[0].WriteResourcePointer(16, retained).MarkPayloadUnknown(40, 2)] };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteResourcePointer(16, retained).MarkPayloadUnknown(40, 2));
         pool = NativeBattleEffectTaskMemory.WriteBankSpan(pool, 24, NativeBattleEffectArena.Clear().Write(0, [7, 8]), 2);
         Assert.Equal(retained, pool.Slots[0].ReadResourcePointer(16));
         Assert.Throws<NotSupportedException>(() => pool.Slots[0].ReadWord(40));

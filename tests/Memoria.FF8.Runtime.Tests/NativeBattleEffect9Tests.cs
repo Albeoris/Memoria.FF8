@@ -14,7 +14,7 @@ public sealed class NativeBattleEffect9Tests
         NativeBattleEffect9State state = NativeBattleEffect9State.FromColdProcess().WriteWord(control + 0x40, unchecked((ushort)actual)).WriteWord(control + 0x44, unchecked((ushort)requested));
         NativeBattleEffect9State? result = NativeBattleEffect9Controller.RequestControl(state, next);
         Assert.Equal(accepted, result is not null);
-        Assert.Equal(unchecked((ushort)requested), state.ReadWord(control + 0x44));
+        Assert.Equal(unchecked((ushort)(accepted ? next : requested)), state.ReadWord(control + 0x44));
         if (result is not null)
         {
             Assert.Equal(unchecked((ushort)next), result.ReadWord(control + 0x44));

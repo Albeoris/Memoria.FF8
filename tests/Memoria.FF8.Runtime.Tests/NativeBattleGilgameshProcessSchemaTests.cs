@@ -10,26 +10,26 @@ public sealed class NativeBattleGilgameshProcessSchemaTests
     {
         NativeBattleGilgameshProcess process = NativeBattleGilgameshProcess.FromColdProcess();
         process.Validate();
-        string json = JsonSerializer.Serialize(process);
+        string json = NativeBattleTestSnapshots.Json(process);
         JsonObject document = JsonNode.Parse(json)!.AsObject();
         Assert.True(document.ContainsKey(nameof(NativeBattleGilgameshProcess.SwordTrail)));
         Assert.NotNull(document[nameof(NativeBattleGilgameshProcess.SwordTrail)]![nameof(NativeBattleGilgameshSwordTrailState.Memory)]);
-        NativeBattleGilgameshProcess restored = JsonSerializer.Deserialize<NativeBattleGilgameshProcess>(json)!;
+        NativeBattleGilgameshProcess restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshProcess>(json)!;
         restored.Validate();
         foreach ((int offset, int length) in new[] { (NativeBattleGilgameshSwordTrailState.GatherA, 80), (NativeBattleGilgameshSwordTrailState.GatherB, 80), (NativeBattleGilgameshSwordTrailState.CurveA, 256), (NativeBattleGilgameshSwordTrailState.CurveB, 256), (NativeBattleGilgameshSwordTrailState.History, 200) })
         {
             Assert.Equal(new byte[length], restored.SwordTrail.Memory.Read(offset, length));
         }
         Assert.True(document.Remove(nameof(NativeBattleGilgameshProcess.SwordTrail)));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshProcess>(document.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshProcess>(document.ToJsonString()));
     }
 
     [Fact]
     public void Explicit_null_imported_trail_is_rejected_without_replacing_its_process_owner()
     {
-        JsonObject document = JsonNode.Parse(JsonSerializer.Serialize(NativeBattleGilgameshProcess.FromColdProcess()))!.AsObject();
+        JsonObject document = JsonNode.Parse(NativeBattleTestSnapshots.Json(NativeBattleGilgameshProcess.FromColdProcess()))!.AsObject();
         document[nameof(NativeBattleGilgameshProcess.SwordTrail)] = null;
-        NativeBattleGilgameshProcess imported = JsonSerializer.Deserialize<NativeBattleGilgameshProcess>(document.ToJsonString())!;
+        NativeBattleGilgameshProcess imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshProcess>(document.ToJsonString())!;
         Assert.Null(imported.SwordTrail);
         Assert.Throws<InvalidDataException>(() => imported.Validate());
     }

@@ -85,7 +85,7 @@ public sealed class NativeBattleEffect76ControllerTests
         NativeBattleEffect76Frame frame = Frame(0x61FC90, 49);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         NativeBattleModulePoolTask retained = pool.Slots[1].WriteBytes(12, Enumerable.Repeat((byte)0xA7, ChildStride - 12).ToArray());
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(1, retained) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool.WriteSlot(1, retained)) } };
         NativeBattleEffect76Step step = AdvanceDelay61FC90(frame, ChildBank, harness.Inputs());
         NativeBattleModulePoolTask next = Read(step.Frame, ChildBank + ChildStride);
         Assert.Equal(2, step.Result);
@@ -185,10 +185,10 @@ public sealed class NativeBattleEffect76ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(callback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(14, 95)) };
+        children = children.WriteSlot(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(14, 95));
         NativeBattleOriginalEffectState effect = new(76, 75, new(76, Entry, Initializer), new(3, 0, 8, 0, 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect76Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect76State.FromColdProcess().DetachBank(0).DetachBank(1));
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 3) };

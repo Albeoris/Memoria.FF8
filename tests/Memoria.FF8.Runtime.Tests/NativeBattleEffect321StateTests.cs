@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect321StateTests
     {
         NativeBattleEffect321State state = NativeBattleEffect321State.FromUnknown().WriteWord(0x221D420, 0x1020).WriteDword(0x2239528, 0x222B528);
         state = state.Write(0x221D528, new byte[] { 1, 2, 3 }).Write(0x222B528, new byte[] { 4, 5, 6 });
-        state = JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)0x1020, state.ReadWord(0x221D420));
         Assert.Equal(0x222B528u, state.ReadDword(0x2239528));
@@ -53,7 +53,7 @@ public sealed class NativeBattleEffect321StateTests
             state = state.AttachBank(index, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((byte)0xEF, state.ReadBank(0).Read(30, 1)[0]);
         Assert.Equal((byte)0xEF, state.ReadBank(1).Read(3598, 1)[0]);
@@ -71,7 +71,7 @@ public sealed class NativeBattleEffect321StateTests
             NativeBattleEffectArena fields = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes(actor + 100)).MarkUnknown(6, 2).Write(12, BitConverter.GetBytes(actor + 200));
             state = state.WriteWord(address, (ushort)actor).WriteView(address + 4, fields, 16);
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect321State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int actor = 0; actor < 7; actor++)
         {

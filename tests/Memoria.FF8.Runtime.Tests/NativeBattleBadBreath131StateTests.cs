@@ -41,9 +41,9 @@ public sealed class NativeBattleBadBreath131StateTests
         Assert.Equal((ushort)0x1234, state.ReadWord(0x2521060));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(0x2521060));
         Assert.Throws<NotSupportedException>(() => state.ReadDword(0x2521038));
-        NativeBattleBadBreath131State restored = JsonSerializer.Deserialize<NativeBattleBadBreath131State>(JsonSerializer.Serialize(state))!;
+        NativeBattleBadBreath131State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath131State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(0x2521060));
     }
 }

@@ -15,7 +15,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         Fixture fixture = new();
         NativeBattleMicroMissiles299Frame frame = fixture.Frame;
         NativeBattleEffectTaskPool root = frame.Effect.Pools[0];
-        frame = frame with { Effect = frame.Effect with { Pools = [root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(16, parity)) }] } };
+        frame = frame with { Effect = frame.Effect with { Pools = [NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(16, parity)) })] } };
         NativeBattleMicroMissiles299Frame result = fixture.Step(frame);
         Assert.Equal(ArenaAddress + (uint)offset, result.State.ReadDword(CursorGlobal));
         Assert.Equal(next, result.Effect.Pools[0].Slots[0].ReadDword(16));
@@ -68,14 +68,14 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[3];
         (pool, int slot) = pool.Append(ParticleCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, 32760).WriteWord(0xE, 1).WriteWord(0x10, 2).WriteWord(0x12, 11).WriteWord(0x14, 20).WriteWord(0x16, 0xFFFF).WriteWord(0x18, 3).WriteWord(0x1C, 0xFFFD).WriteWord(0x1E, 2).WriteWord(0x20, 0xFFFC);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(3, pool) } };
         NativeBattleModulePoolTask? before = null;
         fixture.Observe = (current, operation) =>
         {
             if (operation is NativeBattleMicroMissiles299DrawParticle particle)
             {
-                before = NativeBattleMicroMissiles299Controller.Read(current, particle.TaskAddress);
+                before = NativeBattleTaskFixture.ObserveTask(NativeBattleMicroMissiles299Controller.Read(current, particle.TaskAddress));
             }
         };
         NativeBattleMicroMissiles299Frame result = fixture.Step(frame);
@@ -89,7 +89,7 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         Assert.Equal((ushort)1, after.ReadWord(0x16));
         Assert.Equal((ushort)0xFFFF, after.ReadWord(0x18));
         Assert.Equal((ushort)12, after.ReadWord(0x12));
-        Assert.Equal(JsonSerializer.Serialize(frame.Random), JsonSerializer.Serialize(result.Random));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Random), NativeBattleTestSnapshots.Json(result.Random));
     }
 
     [Fact]
@@ -101,11 +101,11 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
         {
             current = first.Step(current);
         }
-        NativeBattleMicroMissiles299Frame restored = JsonSerializer.Deserialize<NativeBattleMicroMissiles299Frame>(JsonSerializer.Serialize(current))!;
+        NativeBattleMicroMissiles299Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMicroMissiles299Frame>(NativeBattleTestSnapshots.Json(current))!;
         Fixture second = new();
         first.Operations.Clear();
-        Assert.Equal(JsonSerializer.Serialize(first.Step(current)), JsonSerializer.Serialize(second.Step(restored)));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(second.Operations));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(current)), NativeBattleTestSnapshots.Json(second.Step(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations), NativeBattleTestSnapshots.Json(second.Operations));
     }
 
     private sealed class Fixture
@@ -136,16 +136,16 @@ public sealed class NativeBattleMicroMissiles299ControllerTests
             Model = Model with { GeometryWorldMatrix = identity, CurrentBodyBoneMatrices = Model.CurrentBodyBoneMatrices! with { Matrices = [identity, identity with { X = 100, Y = 200, Z = 1600 }] }, Rotation14 = 0, Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 100, 4096) };
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, 0)) });
             NativeBattleOriginalEffectState effect = new(299, 299, new(299, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root] };
-            Frame = new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(299), effect, new(1), NativeBattleMicroMissiles299State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
+            Frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess().BeginLoad(299), effect.Pools), effect, new(1), NativeBattleMicroMissiles299State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             Resources = new(Source(0x10490A8, 45), Source(0x104B63C, 12), Source(0x104C910, 16), new(0, 0x1048C94, 0, 0, []), new(1, 0x1048DD8, 0, 0, []), new(2, 0x1048F1C, 0, 0, []), new("fixture", []), new("fixture", []), 0x55787);
         }
         public NativeBattleMicroMissiles299Frame Children()
         {
             NativeBattleMicroMissiles299Frame current = Step(Step(Frame));
             NativeBattleEffectTaskPool root = current.Effect.Pools[0];
-            return current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(0, root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 11)) }) } };
+            return current with { Effect = current.Effect with { Pools = current.Effect.Pools.SetItem(0, NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 11)) })) } };
         }
         public NativeBattleMicroMissiles299Frame Step(NativeBattleMicroMissiles299Frame frame) => NativeBattleMicroMissiles299Controller.Advance(frame, Resources, new(Packets, _ => Model, _ => Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, actor) =>
         {

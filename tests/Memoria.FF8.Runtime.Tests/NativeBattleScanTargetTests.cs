@@ -122,10 +122,10 @@ public sealed class NativeBattleScanTargetTests
     {
         var fixture = Fixture(0);
         NativeBattleScanTargetFrame frame = NativeBattleScanTarget.Advance84D230(fixture.Frame, fixture.Address, fixture.Inputs).Frame;
-        NativeBattleScanTargetFrame clone = JsonSerializer.Deserialize<NativeBattleScanTargetFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleScanTargetFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanTargetFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScanTargetStep left = NativeBattleScanTarget.Advance84D230(frame, fixture.Address, fixture.Inputs);
         NativeBattleScanTargetStep right = NativeBattleScanTarget.Advance84D230(clone, fixture.Address, fixture.Inputs);
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
         Assert.Equal((ushort)2, Task(left.Frame, fixture.Address).ReadWord(0x24));
     }
 

@@ -61,11 +61,11 @@ public sealed class NativeBattleEffect167LocalBonePointTests
         }
         Assert.Equal(result.Memory.ScriptedColorRegisters!.Flags, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging.Read(address + 48, 4)));
         Assert.Equal(address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        NativeBattleEffectMemory coldMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleFileStaging coldStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
-        NativeBattleGraphicsModel coldModel = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(model))!;
+        NativeBattleEffectMemory coldMemory = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
+        NativeBattleFileStaging coldStaging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)))!);
+        NativeBattleGraphicsModel coldModel = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(model)))!);
         NativeBattleEffect167LocalBonePointStep cold = NativeBattleEffect167LocalBonePoint.Query(coldMemory, coldStaging, coldModel, source, 1, 2048, Output());
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(cold));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)));
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

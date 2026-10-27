@@ -12,7 +12,7 @@ public sealed class NativeBattleEffect66CameraCaptureTests
         short? eyePadding = eyePaddingValue is int eye ? checked((short)eye) : null;
         short? targetPadding = targetPaddingValue is int target ? checked((short)target) : null;
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CapturedPose = new(new(1, 2, 3), new(4, 5, 6), 128, -321), CurrentPose = new(new(9, 10, 11), new(12, 13, 14), 512, 789), FocalLength = 216, Roll = 567, PoseCaptureCount = 7, EyePaddingF6 = eyePadding, TargetPaddingFE = targetPadding, CapturedEyePadding806 = 1234, CapturedTargetPadding80E = -1234 };
-        NativeBattleCameraState imported = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(camera))!;
+        NativeBattleCameraState imported = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(camera)))!);
         NativeBattleCameraState result = NativeBattleEffect66CameraCapture.Capture(imported);
         Assert.Equal(imported.CurrentPose!.Eye, result.CapturedPose!.Eye);
         Assert.Equal(imported.CurrentPose.Target, result.CapturedPose.Target);

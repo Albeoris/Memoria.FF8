@@ -10,7 +10,7 @@ public sealed class NativeBattleCinematicSoundStop2CTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0xE42C);
         NativeGlobalSoundProcess process = NativeGlobalSoundProcess.UnknownBufferless();
-        string before = JsonSerializer.Serialize(process);
+        string before = NativeBattleTestSnapshots.Json(process);
         List<byte> stopped = [];
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicSoundStop2C.Execute(frame, process, stopped.Add);
         Assert.Equal(new byte[] { 2 }, stopped);
@@ -18,7 +18,7 @@ public sealed class NativeBattleCinematicSoundStop2CTests
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(before, JsonSerializer.Serialize(process));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(process));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class NativeBattleCinematicSoundStop2CTests
         process = process with { OriginalEffectIds = Enumerable.Repeat<uint?>(99, 32).ToImmutableArray().SetItem(29, 0).SetItem(30, null) };
         List<byte> stopped = [];
         NativeBattleWaterExecutionFrame frame = Fixture(0x2C);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicSoundStop2C.Execute(restored, process, stopped.Add);
         Assert.Equal(new byte[] { 29 }, stopped);
         Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
@@ -64,9 +64,9 @@ public sealed class NativeBattleCinematicSoundStop2CTests
         NativeGlobalSoundProcess process = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         NativeBattleWaterExecutionFrame frame = Fixture(0x42C);
         List<byte> stopped = [];
-        NativeBattleWaterExecutionFrame wrong = WaterSchedulerFixture.CoreDword(frame, 0x27973B8, frame.TemporaryFrame.Address + 0x104);
+        NativeBattleWaterExecutionFrame wrong = WaterSchedulerFixture.CoreDword(NativeBattleTestSnapshots.Independent(frame), 0x27973B8, frame.TemporaryFrame.Address + 0x104);
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicSoundStop2C.Execute(wrong, process, stopped.Add));
-        Assert.Throws<InvalidDataException>(() => NativeBattleCinematicSoundStop2C.Execute(frame.WriteTemporaryWord(0x14A, 0x42D), process, stopped.Add));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCinematicSoundStop2C.Execute(NativeBattleTestSnapshots.Independent(frame).WriteTemporaryWord(0x14A, 0x42D), process, stopped.Add));
         Assert.Empty(stopped);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, uint.MaxValue - 1);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicSoundStop2C.Execute(frame, process, stopped.Add);

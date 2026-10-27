@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -27,7 +27,7 @@ public sealed class NativeBattleShivaParticleBanksTests
             return current;
         });
         Assert.Equal(1, draws);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(paused.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(paused.Frame));
         NativeBattleShivaEarlyTaskStep moved = Advance(frame, growing, 0, (current, _) => current);
         NativeBattleEffectArena after = moved.Frame.Memory.Arena!;
         Assert.Equal((ushort)1, Uword(after, address + 4));
@@ -80,6 +80,7 @@ public sealed class NativeBattleShivaParticleBanksTests
         arena = arena.MarkUnknown(spawned + 14, 2).MarkUnknown(spawned + 18, 2).MarkUnknown(spawned + 22, 2);
         frame = frame with { Memory = frame.Memory with { Arena = arena } };
         NativeBattleActionMatrix world = new([0, 0, 4096, 0, 4096, 0, -4096, 0, 0], 100, 200, 300, 4096);
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleShivaEarlyTaskStep result = NativeBattleShivaParticleBanks.Advance5C42A0(frame, 0, 0, world, null!, (_, _) => throw new InvalidOperationException("Newly spawned records cannot draw in their allocation callback."));
         NativeBattleEffectArena after = result.Frame.Memory.Arena!;
         Assert.Equal(0x100u, Dword(after, spawned));
@@ -93,9 +94,8 @@ public sealed class NativeBattleShivaParticleBanksTests
         Assert.Equal(new NativeCrtRandomState(0x3D6C1037), result.Frame.Random);
         Assert.Throws<NotSupportedException>(() => after.Read(spawned + 18, 2));
         Assert.Equal(2, result.Result);
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleShivaEarlyTaskStep independent = NativeBattleShivaParticleBanks.Advance5C42A0(restored, 0, 0, world, null!, null!);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(independent));
     }
 
     [Theory]
@@ -121,7 +121,7 @@ public sealed class NativeBattleShivaParticleBanksTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         (pool, int slot) = pool.Append(growing ? 0x5C4550u : 0x5C42A0u);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) });
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), new(new(0, 0, 0, 0), new(0, 0, 0, 0)));
     }
 

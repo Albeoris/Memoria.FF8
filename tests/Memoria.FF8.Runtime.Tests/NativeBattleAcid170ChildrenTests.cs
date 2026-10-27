@@ -15,7 +15,7 @@ public sealed class NativeBattleAcid170ChildrenTests
     {
         var frame = Frame(0x5DCAF0, 0);
         var actual = AdvanceCurve(frame, ChildBank, Resources, Inputs() with { GraphicsFlags = 0x201 });
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(actual.Frame));
         Assert.Equal(0, actual.Result);
     }
 

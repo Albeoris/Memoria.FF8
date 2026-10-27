@@ -19,13 +19,15 @@ public sealed class NativeBattleEffect239ActorVertexColorTests
         frame = PutWord(frame, Distances, 0);
         frame = PutWord(frame, Distances + 2, 100);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2003, 1).MarkUnknown(0x2007, 1) };
+        NativeBattleEffectArena before = NativeBattleStorageSnapshots.Capture(frame.Arena);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorVertexColor20.UpdateColors(frame, State, Colors, 100, 128, 0, 0, new(0, 0, 0));
         Assert.Equal(new byte[] { 16, 32, 64 }, result.Arena.Read(0x2000, 3));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2003, 1));
         Assert.Equal(new byte[4], result.Arena.Read(0x2004, 4));
-        Assert.Throws<NotSupportedException>(() => frame.Arena.Read(0x2007, 1));
-        Assert.Equal(JsonSerializer.Serialize(frame.Core), JsonSerializer.Serialize(result.Core));
-        Assert.Equal(JsonSerializer.Serialize(frame.TemporaryFrame), JsonSerializer.Serialize(result.TemporaryFrame));
+        Assert.Throws<NotSupportedException>(() => before.Read(0x2007, 1));
+        Assert.Same(frame.Arena, result.Arena);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Core)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Core)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.TemporaryFrame)));
         Assert.Equal(frame.Random, result.Random);
     }
 
@@ -100,14 +102,17 @@ public sealed class NativeBattleEffect239ActorVertexColorTests
     }
 
     [Fact]
-    public void Unknown_selected_palette_rgb_cannot_publish_earlier_local_updates()
+    public void Unknown_selected_palette_rgb_rolls_back_earlier_updates_in_the_caller_transaction()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(2);
         frame = PutWord(frame, Distances, 100);
         frame = frame with { Arena = frame.Arena.Write(0x2000, new byte[] { 1, 2, 3, 4 }).MarkUnknown(0x1201, 1) };
-        string before = JsonSerializer.Serialize(frame);
-        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorVertexColor20.UpdateColors(frame, State, Colors, 100, 128, 0, 0, new(0, 0, 0)));
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        using (NativeBattleEffectArenaTransaction transaction = new(frame.Arena))
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorVertexColor20.UpdateColors(frame with { Arena = transaction.View }, State, Colors, 100, 128, 0, 0, new(0, 0, 0)));
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)));
     }
 
     [Fact]
@@ -118,12 +123,12 @@ public sealed class NativeBattleEffect239ActorVertexColorTests
         frame = PutWord(frame, Distances + 2, 100);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2003, 1) };
         frame = NativeBattleCinematicActorVertexColor20.UpdateColors(frame, State, Colors, 100, 128, 0, 0, new(0, 0, 0));
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame));
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         NativeBattleWaterExecutionFrame direct = NativeBattleCinematicActorVertexColor20.UpdateColors(frame, State, Colors, 101, 64, 0, 0, new(0, 0, 0));
         NativeBattleWaterExecutionFrame cold = NativeBattleCinematicActorVertexColor20.UpdateColors(restored, State, Colors, 101, 64, 0, 0, new(0, 0, 0));
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(cold));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)));
         Assert.False(NativeBattleCinematicActorVertexColor20.ReadObjectColors(cold, State, Colors, 0, 2).HighKnown[0]);
         Assert.True(NativeBattleCinematicActorVertexColor20.ReadObjectColors(cold, State, Colors, 0, 2).HighKnown[1]);
     }

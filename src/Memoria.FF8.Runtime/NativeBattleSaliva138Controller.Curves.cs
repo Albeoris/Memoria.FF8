@@ -75,7 +75,7 @@ public static partial class NativeBattleSaliva138Controller
             NativeBattleSaliva138PointStep mouth = inputs.ReadMouth(frame);
             frame = mouth.Frame;
             task = Vector(Read(frame, address), 12, mouth.Point);
-            NativeBattleEffectArena point = TaskView(task, 12, 8);
+            NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(TaskView(task, 12, 8), 0, NativeBattleEffectArena.Clear(), 0, 8);
             task = task.WriteWord(0x12, 1);
             task = CurveCopyTask(task, 0x1C, point);
             return (Write(frame, address, task), 0);

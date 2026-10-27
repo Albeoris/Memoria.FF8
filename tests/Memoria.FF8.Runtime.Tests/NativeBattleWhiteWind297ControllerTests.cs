@@ -27,9 +27,9 @@ public sealed class NativeBattleWhiteWind297ControllerTests
     public void Cold_restored_root_has_identical_next_parity_and_pool_bytes()
     {
         NativeBattleWhiteWind297Frame original = Frame(1);
-        NativeBattleWhiteWind297Frame restored = JsonSerializer.Deserialize<NativeBattleWhiteWind297Frame>(JsonSerializer.Serialize(original))!;
+        NativeBattleWhiteWind297Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWhiteWind297Frame>(NativeBattleTestSnapshots.Json(original))!;
         NativeBattleWhiteWind297Frame Next(NativeBattleWhiteWind297Frame frame) => NativeBattleWhiteWind297Controller.Advance(frame, Resources(), Inputs());
-        Assert.Equal(JsonSerializer.Serialize(Next(original)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(original)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class NativeBattleWhiteWind297ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, parity)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0).WriteDword(16, parity)) });
         NativeBattleOriginalEffectState effect = new(297, 297, new(297, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root] };
         return new(NativeBattleEffectMemory.FromColdProcess().BeginLoad(297), effect, new(1), NativeBattleWhiteWind297State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
     }

@@ -55,7 +55,7 @@ public sealed class NativeBattleResonance49ScreenTests
         Assert.All(pairs.Skip(70), pair => Assert.Equal((byte)0x2D, pair.Quad.Data[7]));
         Assert.Equal((ushort)0x119, BinaryPrimitives.ReadUInt16LittleEndian(pairs[55].Quad.Data.AsSpan().Slice(22)));
         Assert.Equal((ushort)0x11D, BinaryPrimitives.ReadUInt16LittleEndian(pairs[56].Quad.Data.AsSpan().Slice(22)));
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory), JsonSerializer.Serialize(actual.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory), NativeBattleTestSnapshots.Json(actual.Memory));
         var random = frame.Random;
         for (int draw = 0; draw < 6; draw++)
         {
@@ -125,7 +125,7 @@ public sealed class NativeBattleResonance49ScreenTests
     {
         var frame = InitializeScreen824300(Frame(4), 0x26467E8, Resources(), Inputs());
         frame = DrawScreen8244E0(frame, 0x26467E8, 5, Resources(), Inputs());
-        var restored = JsonSerializer.Deserialize<NativeBattleResonance49Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(DrawScreen8244E0(frame, 0x26467E8, 5, Resources(), Inputs())), JsonSerializer.Serialize(DrawScreen8244E0(restored, 0x26467E8, 5, Resources(), Inputs())));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(DrawScreen8244E0(frame, 0x26467E8, 5, Resources(), Inputs())), NativeBattleTestSnapshots.Json(DrawScreen8244E0(restored, 0x26467E8, 5, Resources(), Inputs())));
     }
 }

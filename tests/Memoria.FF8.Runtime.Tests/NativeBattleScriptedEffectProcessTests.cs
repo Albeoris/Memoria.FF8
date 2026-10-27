@@ -25,17 +25,17 @@ public sealed class NativeBattleScriptedEffectProcessTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = null };
         memory.Validate();
-        string json = JsonSerializer.Serialize(memory);
+        string json = NativeBattleTestSnapshots.Json(memory);
         Assert.DoesNotContain("\"ScriptedEffects\"", json);
-        NativeBattleEffectMemory imported = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        NativeBattleEffectMemory imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
         imported.Validate();
         Assert.Null(imported.ScriptedEffects);
         NativeBattleEffectMemory loaded = imported.BeginLoad(221);
         loaded.Validate();
         Assert.Null(loaded.ScriptedEffects);
-        string loadedJson = JsonSerializer.Serialize(loaded);
+        string loadedJson = NativeBattleTestSnapshots.Json(loaded);
         Assert.DoesNotContain("\"ScriptedEffects\"", loadedJson);
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(loadedJson)!.ScriptedEffects);
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(loadedJson)!.ScriptedEffects);
     }
 
     [Fact]
@@ -50,14 +50,14 @@ public sealed class NativeBattleScriptedEffectProcessTests
         Assert.Equal(new byte[] { 0x11, 0x22 }, loaded.ScriptedEffects!.Read(Base + 0x80, 2));
         Assert.Equal(new byte[] { 0xEE }, loaded.ScriptedEffects!.Read(Base + 0x1BAF, 1));
         Assert.Throws<NotSupportedException>(() => loaded.ScriptedEffects!.Read(Base + 0x82, 2));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(loaded))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(loaded))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(loaded.ScriptedEffects), JsonSerializer.Serialize(restored.ScriptedEffects));
+        Assert.Equal(NativeBattleTestSnapshots.Json(loaded.ScriptedEffects), NativeBattleTestSnapshots.Json(restored.ScriptedEffects));
         Assert.Equal(new byte[] { 0xAC, 0xBD }, restored.ScriptedEffects!.ReadHeader().Bytes.Skip(0x82).Take(2));
         Assert.False(restored.ScriptedEffects!.ReadHeader().Known[0x82]);
         NativeBattleEffectMemory nextLoad = restored.BeginLoad(99);
         Assert.Same(restored.ScriptedEffects, nextLoad.ScriptedEffects);
-        Assert.Equal(JsonSerializer.Serialize(restored.ScriptedEffects), JsonSerializer.Serialize(nextLoad.ScriptedEffects));
+        Assert.Equal(NativeBattleTestSnapshots.Json(restored.ScriptedEffects), NativeBattleTestSnapshots.Json(nextLoad.ScriptedEffects));
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class NativeBattleScriptedEffectProcessTests
         memory.Validate();
         NativeBattleEffectMemory loaded = memory.BeginLoad(221);
         Assert.Same(unknown, loaded.ScriptedEffects);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(loaded))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(loaded))!;
         NativeBattleScriptedEffectMemory actual = restored.ScriptedEffects!;
         Assert.Equal(new byte[] { 3 }, actual.Read(Base + 0x44, 1));
         Assert.Equal(new byte[] { 0x55, 0x66 }, actual.Read(Base + 0x120, 2));

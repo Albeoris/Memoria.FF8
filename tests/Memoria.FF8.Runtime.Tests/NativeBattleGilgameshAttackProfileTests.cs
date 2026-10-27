@@ -43,7 +43,7 @@ public sealed class NativeBattleGilgameshAttackProfileTests
             {
                 Assert.Equal((ushort)(index % 4 == 2 ? 0xA5A5 : 1), first.ReadWord(14));
             }
-            Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(first));
+            Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(first));
         }
         NativeBattleModulePoolTask main = excaliber.Children.Slots[0];
         Assert.Equal((ushort)500, main.ReadWord(16));
@@ -85,6 +85,6 @@ public sealed class NativeBattleGilgameshAttackProfileTests
     private static NativeBattleEffectTaskPool Pool()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        return pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        return NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
     }
 }

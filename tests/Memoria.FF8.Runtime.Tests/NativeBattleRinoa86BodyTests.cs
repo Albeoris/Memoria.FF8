@@ -22,7 +22,7 @@ public sealed class NativeBattleRinoa86BodyTests
     public void Arrival_copies_all_eight_original_endpoint_bytes_before_adding_vertical_offset_and_survives_restore()
     {
         NativeBattleModulePoolTask task = Endpoints(Task().WriteWord(340, 4000).WriteWord(342, 274).WriteWord(344, unchecked((ushort)-70)), 1, 2, 3, -321, 20, 987, 0xF123);
-        task = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        task = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
         NativeBattleModulePoolTask moved = NativeBattleRinoa86Body.Move784070(task);
         Assert.Equal((ushort)4096, moved.ReadWord(340));
         Assert.Equal((short)-321, unchecked((short)moved.ReadWord(76)));

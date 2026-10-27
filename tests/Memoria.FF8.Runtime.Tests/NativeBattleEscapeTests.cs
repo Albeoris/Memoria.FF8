@@ -59,7 +59,7 @@ public sealed class NativeBattleEscapeTests
         battle.PublishNativeEscapeButtons(3);
         Tick(battle, 30);
         Assert.Equal(30, battle.Escape.HeldFrames);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(battle.Capture())))!);
         Tick(battle, 29);
         Tick(restored, 29);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
@@ -69,7 +69,7 @@ public sealed class NativeBattleEscapeTests
         Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
         Assert.True(battle.Escape.Completed);
         Assert.Equal((byte?)2, battle.NativeResult);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(battle.Capture())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.Capture())));
     }
 
     [Theory]
@@ -136,7 +136,7 @@ public sealed class NativeBattleEscapeTests
         Assert.Equal(expected, battle.EscapeDisabled);
         Assert.Equal(expected, battle.Capture().NativeScriptState.EscapeDisabled);
         Assert.Equal(expected ? 1 : 0, battle.Capture().NativeScriptState.ResultFlags & 1);
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(battle.Capture())))!);
         Assert.Equal(expected, restored.EscapeDisabled);
     }
 

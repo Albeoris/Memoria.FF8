@@ -18,7 +18,7 @@ public sealed class NativeBattleBlastingZone164ControllerTests
     public void RingProducerPreservesAppendLinksAndConsumesFourRandomDraws()
     {
         (NativeBattleBlastingZone164Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5F16A0, 1);
-        pool = pool with { Slots = pool.Slots.SetItem(2, pool.Slots[2].WriteWord(34, 0xABCD)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(2, pool.Slots[2].WriteWord(34, 0xABCD)) });
         NativeCrtRandomState random = Draw(frame.Random, 4);
         NativeBattleBlastingZone164ChildStep step = NativeBattleBlastingZone164Controller.Advance5F16A0(frame, pool, 0, Inputs(0, []));
         Assert.Equal(random, step.Frame.Random);
@@ -35,7 +35,7 @@ public sealed class NativeBattleBlastingZone164ControllerTests
     public void PausedExpandingMeshStillDrawsWithoutChangingItsTask()
     {
         (NativeBattleBlastingZone164Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5F1800, 6);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 100).WriteWord(32, 200)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 100).WriteWord(32, 200)) });
         List<NativeBattleBlastingZone164Operation> operations = [];
         NativeBattleBlastingZone164ChildStep step = NativeBattleBlastingZone164Controller.AdvanceExpandingMesh(frame, pool, 0, Inputs(0x200, operations), Identity());
         NativeBattleBlastingZone164MeshDraw mesh = Assert.IsType<NativeBattleBlastingZone164MeshDraw>(Assert.Single(operations));
@@ -51,7 +51,7 @@ public sealed class NativeBattleBlastingZone164ControllerTests
     {
         (NativeBattleBlastingZone164Frame frame, NativeBattleEffectTaskPool pool) = Frame(0x5F4720, 0);
         frame = frame with { Staging = frame.Staging.Write(0x23C9DA8, new byte[0x28]).Write(0x23C9DC8, new byte[] { 0, 0, 0, 0, 0, 0, 0xCA, 0xFE }).Write(0xD8E410, Point(10, 20, 30)).Write(0xD8E760, Point(100, 200, 300)).Write(0xD8D91C, new byte[] { 1, 0, 0, 0 }) };
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 4096).WriteWord(32, 4096)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(28, 4096).WriteWord(32, 4096)) });
         List<NativeBattleBlastingZone164Operation> operations = [];
         NativeBattleBlastingZone164ChildStep step = NativeBattleBlastingZone164Controller.Advance5F4720(frame, pool, 0, Inputs(0, operations), Identity());
         Assert.Equal(10, Short(step.Frame.Staging, 0x23C9DC8));
@@ -129,7 +129,7 @@ public sealed class NativeBattleBlastingZone164ControllerTests
         (main, _) = main.Append(0x5F5B10);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23C8F40, 0x23C8F50, 36, 100);
         (children, _) = children.Append(callback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { BlastingZone164 = new(true, parameters, 3, null, null) };
         NativeBattleOriginalEffectState effect = new(164, 162, new(164, 0x5F0260, 0x5F0240), parameters, 0x23C6968) { Pools = [main, children] };

@@ -103,9 +103,9 @@ public sealed class NativeBattleStaticMeshContext88Gt3Tests
         NativeBattleStaticMeshContext88Step drawn = Draw(Mesh(6), Context(0xC3), memory);
         Assert.Equal(375u, drawn.Memory.GeometryRegisters!.Otz);
         Assert.Equal(110, Assert.Single(drawn.Batch.Attempts).Primitive!.Bucket);
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(drawn))!;
+        NativeBattleStaticMeshContext88Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(drawn))!;
         NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step current) => Draw(Mesh(6), current.Context, current.Memory);
-        Assert.Equal(JsonSerializer.Serialize(Next(drawn)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(drawn)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public sealed class NativeBattleStaticMeshContext88Gt3Tests
         Assert.Null(drawn.Memory.PrimitiveProcess.ModelRendererRegisters.FarGreen);
         Assert.Equal(0x560u, drawn.Memory.PrimitiveProcess.ModelRendererRegisters.FarBlue);
         Assert.Throws<NotSupportedException>(() => drawn.Context.Read(9, 1));
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(drawn))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(Mesh(6), drawn.Context, drawn.Memory)), JsonSerializer.Serialize(Draw(Mesh(6), restored.Context, restored.Memory)));
+        NativeBattleStaticMeshContext88Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(drawn))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(Mesh(6), drawn.Context, drawn.Memory)), NativeBattleTestSnapshots.Json(Draw(Mesh(6), restored.Context, restored.Memory)));
         Assert.Throws<NotSupportedException>(() => Draw(Mesh(6), Context(0xC3).MarkUnknown(9, 1)));
     }
 

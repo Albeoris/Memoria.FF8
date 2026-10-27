@@ -79,7 +79,7 @@ public sealed class NativeBattleEffect233OffscreenTests
         Assert.Equal((Start + 0xEC, 1024), Assert.Single(clears));
         Assert.Equal(Start + 0xEC + 0xFFC, Assert.Single(executes));
         Assert.Equal(new[] { (Start + 0xEC + 0x40, Start + 0xAC), (Start + 0xEC + 0xFC0, Start + 0x6C) }, inserts);
-        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(original))!);
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original)))!);
         NativeBattleWaterExecutionFrame restoredResult = NativeBattleCinematicOffscreen.Execute(restored, program, services);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredResult)));
     }

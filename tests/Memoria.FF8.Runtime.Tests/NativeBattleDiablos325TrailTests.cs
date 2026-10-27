@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -11,7 +11,8 @@ public sealed class NativeBattleDiablos325TrailTests
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
         NativeBattleEffectArena arena = frame.Memory.Arena!.Write(0x4C5C, Enumerable.Repeat((byte)0xA5, 0x3C01).ToArray()).MarkUnknown(0x4C5C, 6);
         frame = frame with { Memory = frame.Memory with { Arena = arena, Diablos325 = frame.Memory.Diablos325! with { Mode51F0 = 3, ParticleCursor51F4 = 0x20DFAB8u + 0x564C, Control51E4 = 123 } } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         Assert.Null(frame.Memory.Diablos325!.Trail);
         NativeBattleDiablos325Frame initialized = NativeBattleDiablos325Trail.Initialize657E70(frame, 5, 0, unchecked((ushort)-32));
         NativeBattleDiablos325Trail trail = Assert.IsType<NativeBattleDiablos325Trail>(initialized.Memory.Diablos325!.Trail);
@@ -31,8 +32,8 @@ public sealed class NativeBattleDiablos325TrailTests
         Assert.Throws<NotSupportedException>(() => initialized.Memory.Arena!.Read(0x4C5C, 6));
         Assert.Equal((byte)0xA5, initialized.Memory.Arena!.Read(0x885C, 1)[0]);
         Assert.Equal(frame.Random, initialized.Random);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
-        NativeBattleDiablos325State restored = JsonSerializer.Deserialize<NativeBattleDiablos325State>(JsonSerializer.Serialize(initialized.Memory.Diablos325))!;
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
+        NativeBattleDiablos325State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325State>(NativeBattleTestSnapshots.Json(initialized.Memory.Diablos325))!;
         Assert.Equal(trail, restored.Trail);
     }
 
@@ -40,9 +41,9 @@ public sealed class NativeBattleDiablos325TrailTests
     public void Absent_warm_trail_owner_stays_unknown_until_native_initialization()
     {
         NativeBattleDiablos325State state = NativeBattleDiablos325State.FromColdProcess();
-        string saved = JsonSerializer.Serialize(state);
+        string saved = NativeBattleTestSnapshots.Json(state);
         Assert.DoesNotContain("Trail", saved);
-        NativeBattleDiablos325State restored = JsonSerializer.Deserialize<NativeBattleDiablos325State>(saved)!;
+        NativeBattleDiablos325State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325State>(saved)!;
         restored.Validate();
         Assert.Null(restored.Trail);
     }

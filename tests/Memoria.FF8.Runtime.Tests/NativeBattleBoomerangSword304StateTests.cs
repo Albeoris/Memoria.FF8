@@ -24,13 +24,13 @@ public sealed class NativeBattleBoomerangSword304StateTests
     {
         var state = NativeBattleBoomerangSword304State.FromUnknown().WriteWord(BaseAddress, 4096) with { RootBankStorage = null };
         state.Validate();
-        var restored = JsonSerializer.Deserialize<NativeBattleBoomerangSword304State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBoomerangSword304State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)4096, restored.ReadWord(BaseAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(BaseAddress + 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ArenaGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class NativeBattleBoomerangSword304StateTests
         var initialized = retained.Initialize7016B0(resources.Programme, ProgrammeWorkspaceLength);
         Assert.Equal(0, initialized.Frame);
         Assert.Equal(ProgrammeAddress, initialized.ResourceAddress);
-        Assert.All(initialized.Data.Skip(ProgrammeWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(initialized).Data.Skip(ProgrammeWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal(ScratchOffset, 0xC58 + 64 * 36);
         Assert.Equal(FirstPacketOffset, ScratchOffset + ScratchLength);
     }

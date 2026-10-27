@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -35,13 +35,13 @@ public sealed class NativeBattleDrinkMagic37OrbWaveTests
     {
         var fixture = Fixture();
         NativeBattleDrinkMagic37OrbWaveStep unknown = NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, fixture.Mesh, 1, 0, fixture.Registers);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(unknown.Mesh))!;
-        NativeBattleDrinkMagic37OrbWaveStep step = NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, restored, 1, 0, unknown.Registers, unchecked((short)0xABCD));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(unknown.Mesh))!;
+        NativeBattleDrinkMagic37OrbWaveStep step = NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, NativeBattleTestSnapshots.Independent(restored), 1, 0, unknown.Registers, unchecked((short)0xABCD));
         for (int vertex = 0; vertex < 276; vertex++)
         {
             Assert.Equal((ushort)0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(step.Mesh.Read(14 + 8 * vertex, 2)));
         }
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, unknown.Mesh, 1, 0, unknown.Registers)), JsonSerializer.Serialize(NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, restored, 1, 0, unknown.Registers)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, unknown.Mesh, 1, 0, unknown.Registers)), NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37OrbWave.Transform(fixture.Shape, restored, 1, 0, unknown.Registers)));
     }
 
     private static (ImmutableArray<byte> Shape, NativeBattleEffectArena Mesh, NativeBattleGeometryRegisterStep Registers) Fixture()

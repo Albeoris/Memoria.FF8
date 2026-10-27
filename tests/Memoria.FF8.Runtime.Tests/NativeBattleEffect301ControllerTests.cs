@@ -130,7 +130,7 @@ public sealed class NativeBattleEffect301ControllerTests
         frame = frame with { State = frame.State.WriteDword(SavedPartyFlagsAddress, 0).WriteDword(SavedPartyFlagsAddress + 4, 4).WriteDword(SavedPartyFlagsAddress + 8, 0).WriteDword(SavedCasterFlagsGlobal, 0xFFFF) };
         NativeBattleEffectTaskPool mesh = frame.Effect.Pools[2];
         (mesh, int slot) = mesh.Append(0x66EC50);
-        mesh = mesh with { Head = null, Tail = null, Slots = mesh.Slots.SetItem(slot, mesh.Slots[slot].WriteWord(12, 9).MarkPayloadUnknown(15, 1)) };
+        mesh = mesh.WriteSlot(slot, mesh.Slots[slot].WriteWord(12, 9).MarkPayloadUnknown(15, 1)).UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, mesh) } };
         NativeBattleEffect301Frame result = Advance(frame, null!, harness.Inputs());
         Assert.Empty(result.Effect.Pools);
@@ -143,7 +143,7 @@ public sealed class NativeBattleEffect301ControllerTests
         Assert.Equal(9, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Arena!.Read(0xE14 + 12, 2)));
         Assert.False(result.Memory.Arena.ReadSnapshot(0xE14 + 15, 1).Known[0]);
         Assert.True(result.State.ScriptSourcePending);
-        NativeBattleEffect301Frame restored = JsonSerializer.Deserialize<NativeBattleEffect301Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect301Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect301Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.False(restored.Memory.Arena!.ReadSnapshot(0xE14 + 15, 1).Known[0]);
     }
 
@@ -166,7 +166,7 @@ public sealed class NativeBattleEffect301ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, initialized ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, initialized ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (initialized)
         {

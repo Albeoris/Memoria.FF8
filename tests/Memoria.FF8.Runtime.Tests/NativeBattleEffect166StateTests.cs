@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect166StateTests
     {
         NativeBattleEffect166State state = NativeBattleEffect166State.FromUnknown();
         state = state.WriteDword(FirstRecordsAddress, 0).WriteDword(SecondRecordsAddress, 0).WriteWord(MatrixAddress, 4096);
-        NativeBattleEffect166State restored = JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect166State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(0u, restored.ReadDword(FirstRecordsAddress));
         Assert.Equal(0u, restored.ReadDword(SecondRecordsAddress));
@@ -53,7 +53,7 @@ public sealed class NativeBattleEffect166StateTests
             state = state.AttachBank(Pools[index].Bank, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -66,7 +66,7 @@ public sealed class NativeBattleEffect166StateTests
     public void Saved_actor_fields_retain_word_padding_without_claiming_record_gaps()
     {
         NativeBattleEffect166State state = NativeBattleEffect166State.FromUnknown().WriteWord(SavedActorsAddress, 0x1234).WriteDword(SavedActorsAddress + 4, 0xABCDEF01);
-        state = JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect166State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal((ushort)0x1234, state.ReadWord(SavedActorsAddress));
         Assert.Equal(0xABCDEF01u, state.ReadDword(SavedActorsAddress + 4));
         Assert.Throws<NotSupportedException>(() => state.ReadWord(SavedActorsAddress + 2));

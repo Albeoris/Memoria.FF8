@@ -115,10 +115,10 @@ public sealed class NativeBattleEffect68ControllerTests
         frame = frame with { State = frame.State.WriteView(ResultCountAddress, NativeBattleEffectArena.Clear().MarkUnknown(0, 4), 4) };
         ScanResultTestSource source = new();
         frame = NativeBattleEffect68Results.BuildB67EF0(frame, 0, source.Services).Frame;
-        NativeBattleEffect68Frame restored = JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffect68Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect68Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         NativeBattleEffect68ResultStep direct = NativeBattleEffect68Results.BuildB67EF0(frame, 0, source.Services);
         NativeBattleEffect68ResultStep next = NativeBattleEffect68Results.BuildB67EF0(restored, 0, source.Services);
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(next));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)));
     }
 
     [Fact]

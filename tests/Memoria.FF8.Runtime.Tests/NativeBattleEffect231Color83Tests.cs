@@ -13,6 +13,7 @@ public sealed class NativeBattleEffect231Color83Tests
     public void Signed_cached_channels_are_clamped_and_preserve_the_command_byte(short red, short green, short blue, uint expected)
     {
         NativeBattleWaterExecutionFrame source = Fixture(red, green, blue);
+        NativeBattleWaterExecutionFrame restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.StoreCachedColor83(source);
         Assert.Equal(expected, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x20CC, 4)));
         Assert.Equal(0x80001002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
@@ -20,8 +21,7 @@ public sealed class NativeBattleEffect231Color83Tests
         Assert.Equal(source.Arena.Read(0x2050, 0x38), result.Arena.Read(0x2050, 0x38));
         Assert.Equal(source.TemporaryFrame, result.TemporaryFrame);
         Assert.Equal(source.Random, result.Random);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicControlCommands.StoreCachedColor83(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleCinematicControlCommands.StoreCachedColor83(restored))));
     }
 
     [Fact]
@@ -29,9 +29,11 @@ public sealed class NativeBattleEffect231Color83Tests
     {
         NativeBattleWaterExecutionFrame source = Fixture(1, 2, 3);
         source = source with { Arena = source.Arena.MarkUnknown(0x20CC, 3) };
+        NativeBattleWaterExecutionFrame before = NativeBattleStorageSnapshots.Capture(source);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicControlCommands.StoreCachedColor83(source);
         Assert.Equal(0xAB030201u, BinaryPrimitives.ReadUInt32LittleEndian(result.Arena.Read(0x20CC, 4)));
-        Assert.Throws<NotSupportedException>(() => source.Arena.Read(0x20CC, 3));
+        Assert.Throws<NotSupportedException>(() => before.Arena.Read(0x20CC, 3));
+        Assert.Same(source.Arena, result.Arena);
     }
 
     [Theory]
@@ -41,9 +43,9 @@ public sealed class NativeBattleEffect231Color83Tests
     {
         NativeBattleWaterExecutionFrame source = Fixture(1, 2, 3);
         source = source with { Arena = source.Arena.MarkUnknown(unknownOffset, 1) };
-        string before = JsonSerializer.Serialize(source);
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source));
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicControlCommands.StoreCachedColor83(source));
-        Assert.Equal(before, JsonSerializer.Serialize(source));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(source)));
         Assert.Equal(0x80001000u, WaterSchedulerFixture.ReadCoreDword(source, 0x2797450));
     }
 

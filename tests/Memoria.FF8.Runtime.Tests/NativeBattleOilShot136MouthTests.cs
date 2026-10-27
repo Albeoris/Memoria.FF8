@@ -12,16 +12,16 @@ public sealed class NativeBattleOilShot136MouthTests
         NativeBattlePoseSource source = Source();
         NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(Model(), source);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, NativeBattleCuragaMatrices.Identity8DD770() with { X = 9999 });
-        string before = JsonSerializer.Serialize(actor);
+        string before = NativeBattleTestSnapshots.Json(actor);
         ImmutableArray<byte> anchor = Anchor(1, 2, 3, 1);
         NativeBattleGraphicsModel refreshed = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
         NativeBattleActionMatrix expected = NativeBattleGfMatrices.Compose56C2F0(actor.GeometryWorldMatrix!, NativeBattleBodyBoneMatrices.Require(refreshed, source)[1]);
         var result = NativeBattleOilShot136Mouth.Prepare(Memory(), actor, source, anchor);
         var direct = NativeBattleComposedAnchorTransform.Transform(Memory(), expected, anchor);
         Assert.Equal(direct.Position, result.Position);
-        Assert.Equal(JsonSerializer.Serialize(direct.Memory), JsonSerializer.Serialize(result.Memory));
-        Assert.Equal(JsonSerializer.Serialize(refreshed), JsonSerializer.Serialize(result.Model));
-        Assert.Equal(before, JsonSerializer.Serialize(actor));
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct.Memory), NativeBattleTestSnapshots.Json(result.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(refreshed), NativeBattleTestSnapshots.Json(result.Model));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(actor));
         Assert.Null(result.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
     }

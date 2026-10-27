@@ -20,8 +20,8 @@ public sealed class NativeBattleEmbeddedTextureIdentityTests
         Assert.Equal(new[] { 0, 1 }, images.Select(origin => origin.Member));
         Assert.All(images, origin => Assert.Equal("mag184_e.dat", origin.Owner));
         Assert.Equal(new int?[] { 160, 64 }, images.Select(origin => origin.SourceOffset));
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(drain.State))!;
-        NativeBattleEffectArena arena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(memory.Arena))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drain.State)))!);
+        NativeBattleEffectArena arena = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory.Arena)))!);
         NativeBattleEffectTextureDrain next = restored.EnqueueArenaTim505E30(arena, 64).State.Drain505D20(arena);
         Assert.Equal(2, next.Uploads[1].Origin!.Member);
         NativeBattleEffectTextureDrain reopened = next.State.OpenTextureFile(identity).EnqueueArenaTim505E30(arena, 160).State.Drain505D20(arena);
@@ -82,15 +82,15 @@ public sealed class NativeBattleEmbeddedTextureIdentityTests
         NativeBattleEffectArena relocated = loaded.Arena!.Write(16, [0x78, 0x56, 0x34, 0x12]);
         NativeBattleEffectTextureState queued = loaded.Textures!.EnqueueArenaTim505E30(relocated, 64).State;
         Assert.Null(queued.Slots[0]!.TimIdentity);
-        queued = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued))!;
-        relocated = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(relocated))!;
+        queued = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(queued)))!);
+        relocated = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(relocated)))!);
         NativeBattleEffectTextureDrain drain = queued.Drain505D20(relocated);
         Assert.Equal("mag184_e.dat", drain.Uploads[1].Origin!.Owner);
         Assert.Equal(NativeBattleTextureDomain.Magic, drain.Uploads[1].Origin!.Domain);
         Assert.Equal(0, drain.Uploads[1].Origin!.Member);
         Assert.Null(drain.Uploads[1].Origin!.SourceOwner);
         Assert.Null(drain.Uploads[1].Origin!.SourceOffset);
-        NativeBattleEffectTextureDrain changed = queued.Drain505D20(relocated.Write(128, [7, 8]));
+        NativeBattleEffectTextureDrain changed = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(queued)).Drain505D20(relocated.Write(128, [7, 8]));
         Assert.Null(changed.Uploads[1].Origin);
         Assert.Equal(new byte[] { 7, 8 }, changed.Uploads[1].Bytes.Take(2));
         Assert.Equal(1, changed.State.TextureFileContext!.NextTimMember);
@@ -105,7 +105,7 @@ public sealed class NativeBattleEmbeddedTextureIdentityTests
         NativeBattleEffectTextureDrain drain = textures.Drain505D20();
         Assert.Null(drain.Uploads.Last().Origin);
         Assert.Null(drain.State.TextureFileContext!.NextTimMember);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(drain.State))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drain.State)))!);
         restored = restored.OpenTextureFile(new("mag184_e.dat", NativeBattleTextureDomain.Magic));
         Assert.Equal(0, restored.EnqueueTim505E30(loaded.Memory.Allocations[0]!, 160).State.Drain505D20().Uploads[1].Origin!.Member);
     }

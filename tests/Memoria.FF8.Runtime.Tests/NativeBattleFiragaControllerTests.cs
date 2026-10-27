@@ -19,7 +19,7 @@ public sealed class NativeBattleFiragaControllerTests
         {
             frame = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets, (current, operation) =>
             {
-                operations.Add((tick, operation));
+                operations.Add((tick, operation is NativeBattleFiragaDraw draw ? draw with { Task = NativeBattleTaskFixture.ObserveTask(draw.Task) } : operation));
                 return current;
             }));
             Assert.Equal((tick & 1) != 0 ? 0x10000 : 0, frame.Effect.DrawArenaOffset);
@@ -28,12 +28,12 @@ public sealed class NativeBattleFiragaControllerTests
             Assert.Null(frame.Effect.Firaga.Positions[2]);
             if (tick == 32)
             {
-                NativeBattleFiragaFrame restored = JsonSerializer.Deserialize<NativeBattleFiragaFrame>(JsonSerializer.Serialize(frame))!;
-                NativeBattleFiragaFrame expected = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets));
+                NativeBattleFiragaFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiragaFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleFiragaFrame expected = NativeBattleFiragaController.Advance61CDA0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
                 NativeBattleFiragaFrame actual = NativeBattleFiragaController.Advance61CDA0(restored, Inputs(fixture.Packets));
-                Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+                Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
                 Assert.Equal((short)0, actual.Effect.Firaga!.Read(0).W);
-                frame = restored;
+
             }
         }
         Assert.InRange(tick, 61, 70);
@@ -100,15 +100,15 @@ public sealed class NativeBattleFiragaControllerTests
     public void CacheUnknownAndAdjacentOwnerBoundsRemainExplicitAcrossSerialization()
     {
         NativeBattleFiragaState cache = NativeBattleFiragaState.FromUnknown().Write(1, new(20, -30, 40, 1));
-        string json = JsonSerializer.Serialize(cache);
-        NativeBattleFiragaState restored = JsonSerializer.Deserialize<NativeBattleFiragaState>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = NativeBattleTestSnapshots.Json(cache);
+        NativeBattleFiragaState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiragaState>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(new NativeBattleModuleAnchor(20, -30, 40, 1), restored.Read(1));
         Assert.Throws<NotSupportedException>(() => restored.Read(0));
         Assert.Throws<NotSupportedException>(() => restored.Read(3));
         Assert.Throws<NotSupportedException>(() => restored.Write(-1, new(0, 0, 0, 0)));
         Assert.Throws<InvalidDataException>(() => new NativeBattleFiragaState([]).Validate());
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleFiragaState>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleFiragaState>("{}"));
     }
 
     [Theory]
@@ -124,12 +124,13 @@ public sealed class NativeBattleFiragaControllerTests
         List<NativeBattleFiragaDraw> draws = [];
         NativeBattleFiragaFrame paused = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets, (current, operation) =>
         {
-            draws.Add(Assert.IsType<NativeBattleFiragaDraw>(operation));
+            NativeBattleFiragaDraw draw = Assert.IsType<NativeBattleFiragaDraw>(operation);
+            draws.Add(draw with { Task = NativeBattleTaskFixture.ObserveTask(draw.Task) });
             return current;
         }) with { GraphicsFlags = 0x201 });
         Assert.Single(draws);
-        Assert.Equal(JsonSerializer.Serialize(frame.Effect.Pools[1]), JsonSerializer.Serialize(paused.Effect.Pools[1]));
-        Assert.Equal(JsonSerializer.Serialize(frame.Effect.Firaga), JsonSerializer.Serialize(paused.Effect.Firaga));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Effect.Pools[1]), NativeBattleTestSnapshots.Json(paused.Effect.Pools[1]));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Effect.Firaga), NativeBattleTestSnapshots.Json(paused.Effect.Firaga));
         Assert.Equal(frame.Random, paused.Random);
     }
 
@@ -144,7 +145,7 @@ public sealed class NativeBattleFiragaControllerTests
         NativeBattleFiragaFrame unpaused = NativeBattleFiragaController.Advance61CDA0(paused, inputs);
         Assert.Equal((ushort)0, unpaused.Effect.Pools[1].Slots[0].ReadWord(14));
         NativeBattleEffectTaskPool children = fixture.Frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, 36)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, 36)) });
         NativeBattleFiragaFrame scatter = fixture.Frame with { Effect = fixture.Frame.Effect with { Firaga = NativeBattleFiragaState.FromUnknown().Write(0, new(10, -20, 30, 1)), Pools = [fixture.Frame.Effect.Pools[0], children] } };
         Assert.Throws<NotSupportedException>(() => NativeBattleFiragaController.Advance61CDA0(scatter, Inputs(fixture.Packets) with { ReadTransform = _ => new(new(0, 0, 0), new(0, 0, 0), 0, 100, 0) }));
     }
@@ -155,7 +156,7 @@ public sealed class NativeBattleFiragaControllerTests
         var fixture = Fixture();
         NativeBattleFiragaFrame frame = WithLeaf(fixture.Frame, 0x61CB10, task => task.WriteWord(12, 300).WriteWord(28, 100).WriteWord(30, 128));
         frame = frame with { Effect = frame.Effect with { Firaga = NativeBattleFiragaState.FromUnknown().Write(0, new(10, 20, 30, 1)) } };
-        frame = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets));
+        frame = NativeBattleFiragaController.Advance61CDA0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
         Assert.NotEqual(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)301, frame.Effect.Pools[1].Slots[0].ReadWord(12));
         frame = frame with { Effect = frame.Effect with { Firaga = frame.Effect.Firaga!.Write(0, new(10, 20, 30, 0)) } };
@@ -175,7 +176,7 @@ public sealed class NativeBattleFiragaControllerTests
     {
         var fixture = Fixture();
         NativeBattleEffectTaskPool children = fixture.Frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, 33)).SetItem(3, children.Slots[3].WriteWord(24, 0x4321)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, 33)).SetItem(3, children.Slots[3].WriteWord(24, 0x4321)) });
         NativeBattleFiragaFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Firaga = NativeBattleFiragaState.FromUnknown().Write(0, new(10, 20, 30, 1)), Pools = [fixture.Frame.Effect.Pools[0], children] } };
         NativeBattleFiragaDraw? ring = null;
         frame = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets, (current, operation) =>
@@ -198,7 +199,7 @@ public sealed class NativeBattleFiragaControllerTests
     {
         var fixture = Fixture();
         NativeBattleFiragaFrame frame = WithLeaf(fixture.Frame, callback, task => task.WriteWord(12, (ushort)phase).WriteWord(28, 100).WriteWord(30, unchecked((ushort)velocity)));
-        frame = NativeBattleFiragaController.Advance61CDA0(frame, Inputs(fixture.Packets));
+        frame = NativeBattleFiragaController.Advance61CDA0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
         Assert.Equal(unchecked((ushort)scale), frame.Effect.Pools[1].Slots[0].ReadWord(28));
         Assert.Equal(unchecked((ushort)nextVelocity), frame.Effect.Pools[1].Slots[0].ReadWord(30));
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
@@ -208,7 +209,7 @@ public sealed class NativeBattleFiragaControllerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleFiragaController.ChildDescriptor, NativeBattleFiragaController.ChildBank, 36, 100);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, initialize(pool.Slots[slot])) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, initialize(pool.Slots[slot])) });
         return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], pool] } };
     }
 

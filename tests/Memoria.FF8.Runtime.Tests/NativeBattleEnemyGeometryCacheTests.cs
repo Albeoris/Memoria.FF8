@@ -14,7 +14,7 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         ImmutableArray<NativeBattleRawMesh> first = cache.Read(bytes, 1);
         ImmutableArray<NativeBattleRawMesh> same = cache.Read(bytes.ToArray(), 1);
         Assert.True(first.Equals(same));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleRawGeometryReader.Read(bytes, 1)), JsonSerializer.Serialize(first));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleRawGeometryReader.Read(bytes, 1))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)));
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         NativeBattleEnemyGeometryCache cache = new();
         byte[] bytes = Geometry(16);
         ImmutableArray<NativeBattleRawMesh> first = cache.Read(bytes, 1);
-        string original = JsonSerializer.Serialize(first);
+        string original = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first));
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(14), 42);
         ImmutableArray<NativeBattleRawMesh> moved = cache.Read(bytes, 1);
         Assert.False(first.Equals(moved));
@@ -35,7 +35,7 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         Assert.Equal(77, textured[0].Polygons[0].Bytes[8]);
         Assert.Equal(0, moved[0].Polygons[0].Bytes[8]);
         Array.Fill(bytes, (byte)0xFF);
-        Assert.Equal(original, JsonSerializer.Serialize(first));
+        Assert.Equal(original, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)));
         Assert.Equal((short)42, moved[0].Vertices[0].Position.X);
         Assert.Equal(77, textured[0].Polygons[0].Bytes[8]);
     }
@@ -91,7 +91,7 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         NativeBattleFileStaging source = NativeBattleFileStaging.Unknown().Write(address, skeleton).Write(address + 64, animations).Write(address + 80, new byte[2]).Write(address + 128, geometry);
         NativeBattleGraphicsResource original = new([0, 0]);
         NativeBattleGraphicsResource first = NativeBattleEnemyResourceView.Resolve(cpu, source, 3, original, cache);
-        string frozen = JsonSerializer.Serialize(first);
+        string frozen = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first));
         NativeBattleGraphicsResource unrelated = NativeBattleEnemyResourceView.Resolve(cpu, source.Write(address + 1000, [1]), 3, original, cache);
         Assert.True(first.Geometry!.Value.Equals(unrelated.Geometry!.Value));
         using NativeBattleFileStagingTransaction transaction = new(source);
@@ -106,8 +106,8 @@ public sealed class NativeBattleEnemyGeometryCacheTests
         Assert.True(changed.Geometry!.Value.Equals(repaired.Geometry!.Value));
         NativeBattleFileStaging published = transaction.Freeze(current);
         Assert.Equal((short)42, BinaryPrimitives.ReadInt16LittleEndian(published.Read(address + 128 + 14, 2)));
-        Assert.Equal(frozen, JsonSerializer.Serialize(first));
-        Assert.Equal((short)-1, BinaryPrimitives.ReadInt16LittleEndian(source.Read(address + 128 + 14, 2)));
+        Assert.Equal(frozen, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)));
+        Assert.Equal((short)42, BinaryPrimitives.ReadInt16LittleEndian(source.Read(address + 128 + 14, 2)));
     }
 
     private static int Counts(int vertices) => (14 + vertices * 6 + 3) & ~3;

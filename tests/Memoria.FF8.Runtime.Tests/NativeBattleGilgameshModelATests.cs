@@ -37,8 +37,8 @@ public sealed class NativeBattleGilgameshModelATests
         Assert.Equal(result, first.Result);
         if (expected != 0)
         {
-            NativeBattleGilgameshModelAStep restored = JsonSerializer.Deserialize<NativeBattleGilgameshModelAStep>(JsonSerializer.Serialize(first))!;
-            Assert.Equal(JsonSerializer.Serialize(Run(first.ModelMemory, first.UpdatedTask)), JsonSerializer.Serialize(Run(restored.ModelMemory, restored.UpdatedTask)));
+            NativeBattleGilgameshModelAStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshModelAStep>(NativeBattleTestSnapshots.Json(first))!;
+            Assert.Equal(NativeBattleTestSnapshots.Json(Run(first.ModelMemory, first.UpdatedTask)), NativeBattleTestSnapshots.Json(Run(restored.ModelMemory, restored.UpdatedTask)));
         }
     }
 
@@ -48,7 +48,7 @@ public sealed class NativeBattleGilgameshModelATests
         NativeBattleRawMesh mesh = new([new(new(100, -100, 20), 0)], []);
         NativeBattleActionMatrix bone = Identity() with { X = 40000, Y = -40000, Z = 50 };
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x100, Enumerable.Repeat((byte)0xA5, 16).ToArray()).MarkUnknown(0x100, 8);
-        NativeBattleEffectArena written = NativeBattleGilgameshModelA.SkinWorld5960A0(mesh, [bone], arena, 0x100);
+        NativeBattleEffectArena written = NativeBattleGilgameshModelA.SkinWorld5960A0(mesh, [bone], NativeBattleTestSnapshots.Independent(arena), 0x100);
         Assert.Equal(short.MaxValue, BinaryPrimitives.ReadInt16LittleEndian(written.Read(0x100, 2)));
         Assert.Equal(short.MinValue, BinaryPrimitives.ReadInt16LittleEndian(written.Read(0x102, 2)));
         Assert.Equal((short)70, BinaryPrimitives.ReadInt16LittleEndian(written.Read(0x104, 2)));

@@ -23,7 +23,7 @@ public sealed class NativeBattleShivaModelParticlesTests
             return current;
         });
         Assert.Equal(1, draws);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(paused.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(paused.Frame));
         NativeBattleShivaEarlyTaskStep moved = NativeBattleShivaModelParticles.Advance5C5950(frame, 0, 0, null!, 0, Sprite(), null!, (current, _) => current);
         Assert.Equal((ushort)992, Word(moved.Frame.Memory.Arena!, 0x2C006));
         Assert.Equal((ushort)1, Word(moved.Frame.Memory.Arena!, 0x2C004));
@@ -92,7 +92,7 @@ public sealed class NativeBattleShivaModelParticlesTests
         Assert.Equal((ushort)0, result.Frame.Pool.Slots[0].ReadWord(0x0C));
         Assert.Equal((ushort)35, result.Frame.Pool.Slots[0].ReadWord(0x1C));
         NativeBattleModulePoolTask late = result.Frame.Pool.Slots[0].WriteWord(0x0C, 55).WriteWord(0x1C, 100).WriteWord(0x22, unchecked((ushort)-9));
-        NativeBattleShivaEarlyTaskFrame lateFrame = result.Frame with { Pool = result.Frame.Pool with { Slots = result.Frame.Pool.Slots.SetItem(0, late) } };
+        NativeBattleShivaEarlyTaskFrame lateFrame = result.Frame with { Pool = NativeBattleTaskFixture.EditPool(result.Frame.Pool, data => data with { Slots = result.Frame.Pool.Slots.SetItem(0, late) }) };
         NativeBattleShivaEarlyTaskStep completed = NativeBattleShivaModelParticles.Advance5C5BE0(lateFrame, 0, 0, null!, new(0, 0xD31A74, [0]), null!, (current, draw) =>
         {
             Assert.Equal(3410, draw.Context.Fade);
@@ -133,7 +133,7 @@ public sealed class NativeBattleShivaModelParticlesTests
             return current;
         });
         Assert.Equal(1, draws);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(result.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(result.Frame));
     }
 
     [Theory]
@@ -167,10 +167,10 @@ public sealed class NativeBattleShivaModelParticlesTests
         Assert.Equal(forward ? (ushort)6185 : (ushort)361, Word(result.Frame.Memory.Arena!, 0x2C006));
         Assert.Equal(forward ? (ushort)1237 : unchecked((ushort)-29), Word(result.Frame.Memory.Arena!, 0x2C016));
         Assert.Equal(2, result.Result);
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(result.Frame))!;
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(result.Frame))!;
         NativeBattleShivaEarlyTaskStep first = Ring(result.Frame, forward, 0, NativeBattleCuragaMatrices.Identity8DD770(), (current, _) => current);
         NativeBattleShivaEarlyTaskStep second = Ring(restored, forward, 0, NativeBattleCuragaMatrices.Identity8DD770(), (current, _) => current);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
     }
 
     private static NativeBattleShivaEarlyTaskStep Ring(NativeBattleShivaEarlyTaskFrame frame, bool forward, uint flags, NativeBattleActionMatrix view, Func<NativeBattleShivaEarlyTaskFrame, NativeBattleShivaModelMeshDraw, NativeBattleShivaEarlyTaskFrame> draw)
@@ -181,11 +181,11 @@ public sealed class NativeBattleShivaModelParticlesTests
     private static NativeBattleShivaEarlyTaskFrame Fixture(uint callback, ushort counter)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         if (callback != 0)
         {
             (pool, int slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) });
         }
         NativeBattleShivaProcess process = NativeBattleShivaProcess.FromColdProcess() with { LocalAnchor22BCFC8 = new(100, 200, 300, 111), WorldAnchor22BCFC0 = new(10, 20, 30, 222) };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Shiva = process }, pool, new(1), new(new(0, 0, 0, 0), new(0, 0, 0, 0)));

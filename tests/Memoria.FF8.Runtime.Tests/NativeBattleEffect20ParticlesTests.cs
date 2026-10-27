@@ -39,7 +39,7 @@ public sealed class NativeBattleEffect20ParticlesTests
         NativeBattleEffect20Inputs inputs = fixture.Inputs with { Execute = (frame, operation) =>
         {
             Assert.IsType<NativeBattleEffect20ParticleDraw>(operation);
-            draws.Add(new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address));
+            draws.Add(NativeBattleStorageSnapshots.Capture(new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(append.Address)));
             return frame;
         } };
         NativeBattleEffect20Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };

@@ -66,9 +66,9 @@ public sealed class NativeBattleHoly175WarpDrawingTests
         uint screen = NativeBattleModuleProjection.Project45FE10(expected, new(-168, -120, 0), Projection).Screen;
         Assert.Equal(screen, U(draw.Frame.State.PhysicalPackets.Read(8, 4)));
         Assert.Throws<NotSupportedException>(() => draw.Frame.State.PhysicalPackets.Read(24, 4));
-        string json = JsonSerializer.Serialize(draw.Frame);
-        NativeBattleHoly175WarpFrame restored = JsonSerializer.Deserialize<NativeBattleHoly175WarpFrame>(json)!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(draw.Frame, 2, 1)), JsonSerializer.Serialize(Advance(restored, 2, 1)));
+        string json = NativeBattleTestSnapshots.Json(draw.Frame);
+        NativeBattleHoly175WarpFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHoly175WarpFrame>(json)!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Advance(draw.Frame, 2, 1)), NativeBattleTestSnapshots.Json(Advance(restored, 2, 1)));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class NativeBattleHoly175WarpDrawingTests
 
     private static NativeBattleHoly175WarpFrame Fixture(short delay, short scale = 4096, short offsetX = 0, short offsetY = 0, short centerX = 0)
     {
-        NativeBattleHoly175WarpState state = Grid.Value.State;
+        NativeBattleHoly175WarpState state = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(Grid.Value.State));
         NativeBattleEffectArenaWriter faces = new(NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleHoly175WarpState.FacesLength));
         for (int face = 0; face < 1120; face++)
         {

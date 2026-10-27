@@ -198,10 +198,10 @@ public sealed class NativeBattleWaterScriptControlTests
         NativeBattleEffectArena arena = Create(5, 1);
         NativeBattleWaterScriptControlResult first = Run(arena, flags: 0x8000);
         first = first with { Arena = first.Arena.Write(Code, new byte[] { 5, 0x10, 0, 0x80 }) };
-        NativeBattleWaterScriptControlResult restored = JsonSerializer.Deserialize<NativeBattleWaterScriptControlResult>(JsonSerializer.Serialize(first))!;
+        NativeBattleWaterScriptControlResult restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterScriptControlResult>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleWaterScriptControlResult next = Run(restored.Arena, flags: restored.HeaderFlagsWord2);
         Assert.Equal((ushort)1, next.HeaderFlagsWord2);
-        Assert.Equal(JsonSerializer.Serialize(Run(first.Arena, flags: first.HeaderFlagsWord2)), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(first.Arena, flags: first.HeaderFlagsWord2)), NativeBattleTestSnapshots.Json(next));
         Assert.Throws<NotSupportedException>(() => Run(Create(0)));
         Assert.Throws<InvalidDataException>(() => Run(Create(2), stream: 3));
     }

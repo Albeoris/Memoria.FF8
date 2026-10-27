@@ -64,7 +64,7 @@ public sealed class NativeBattleEffect187ActorOverlayTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
         (children, int slot) = children.Append(0x648AF0);
-        children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteWord(12, checked((ushort)age)).WriteWord(14, 3).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, 0).WriteWord(0x18, 0).WriteWord(0x1C, 10).WriteWord(0x1E, 4)) };
+        children = children.WriteSlot(slot, children.Slots[slot].WriteWord(12, checked((ushort)age)).WriteWord(14, 3).WriteWord(0x10, 0).WriteWord(0x12, 0).WriteWord(0x14, 0).WriteWord(0x18, 0).WriteWord(0x1C, 10).WriteWord(0x1E, 4));
         NativeBattleOriginalEffectState effect = new(Effect, 186, new(Effect, Entry, Initializer), new(0, 0, 8, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, NativeCrtRandomState.FromColdProcess(), NativeBattleEffect187State.FromColdProcess().DetachBank(0).DetachBank(1)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }

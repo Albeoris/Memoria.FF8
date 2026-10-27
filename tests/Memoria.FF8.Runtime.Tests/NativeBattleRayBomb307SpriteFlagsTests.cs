@@ -22,7 +22,7 @@ public sealed class NativeBattleRayBomb307SpriteFlagsTests
         Assert.Equal((byte)22, (byte)(a.Words[7] >> 8));
         Assert.Equal(a.Words[3], b.Words[3]);
         Assert.Equal(a.Words[2], b.Words[2]);
-        Assert.Equal(JsonSerializer.Serialize(ordinary.Memory), JsonSerializer.Serialize(inset.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(ordinary.Memory), NativeBattleTestSnapshots.Json(inset.Memory));
         Assert.Equal(1u, U32(inset.Temporary180, 0xB0));
         Assert.Throws<NotSupportedException>(() => inset.Temporary180.Read(0x1F, 1));
         Assert.Null(inset.Memory.ScriptedColorRegisters!.Material);
@@ -91,9 +91,9 @@ public sealed class NativeBattleRayBomb307SpriteFlagsTests
         Assert.Equal(52, first.Batch.AllocationBytes);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(14), 1);
         NativeBattleModuleResource positive = fixture.Resource with { Bytes = bytes.ToImmutableArray() };
-        NativeBattleModuleSpriteDraw restored = JsonSerializer.Deserialize<NativeBattleModuleSpriteDraw>(JsonSerializer.Serialize(first))!;
+        NativeBattleModuleSpriteDraw restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleSpriteDraw>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleModuleSpriteDraw Next(NativeBattleModuleSpriteDraw current) => NativeBattleModuleSpriteDrawing.Draw571C80(current.Memory, current.Temporary180, _ => positive, Projection, 0);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
         byte[] empty = bytes.AsSpan(0, 18).ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(empty.AsSpan(14), 0);
         NativeBattleModuleResource resource = positive with { Bytes = empty.ToImmutableArray() };

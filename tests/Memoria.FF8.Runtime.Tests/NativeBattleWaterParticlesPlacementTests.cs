@@ -17,6 +17,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         frame = PutDword(frame, 0x1C, mode == 1 ? 300u << 8 : 0x1400u << 4);
         List<string> handlers = [];
         NativeBattleWaterParticleServices services = Services() with { RequireHandler = (table, index) => handlers.Add(table + ":" + index) };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = One(frame, services);
         Assert.Equal(expectedX, Word(result, 0x42));
         Assert.Equal(expectedY, Word(result, 0x44));
@@ -25,7 +26,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Equal(0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(new[] { "pop_table:9", "ptype_table:" + mode }, handlers);
         Assert.Equal(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(One(replayFrame)));
     }
 
     [Fact]

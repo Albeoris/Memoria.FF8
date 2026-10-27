@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect213PosedVertexTests
         Assert.Equal((byte)0x6B, result.Memory.ScriptedColorRegisters.NormalInput!.Value[6]);
         Assert.Equal((byte)0xB6, result.Memory.ScriptedColorRegisters.NormalInput!.Value[7]);
         Assert.Null(result.Memory.GeometryRegisters!.Rotation20[18]);
-        NativeBattleEffect213PosedVertexStep restored = JsonSerializer.Deserialize<NativeBattleEffect213PosedVertexStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect213PosedVertexStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect213PosedVertexStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.Temporary56.Read(0x24, 20), restored.Temporary56.Read(0x24, 20));
     }
 

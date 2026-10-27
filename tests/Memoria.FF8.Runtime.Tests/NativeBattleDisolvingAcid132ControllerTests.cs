@@ -249,9 +249,9 @@ public sealed class NativeBattleDisolvingAcid132ControllerTests
                 NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, WorkingAddress, SpriteStride, SpriteCount)
             ];
             (pools[0], _) = pools[0].Append(RootCallback);
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+            pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
             (pools[1], _) = pools[1].Append(MainCallback);
-            pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteDword(12, 0).WriteDword(16, 0x1D972C0)) };
+            pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteDword(12, 0).WriteDword(16, 0x1D972C0)) });
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
             NativeBattleOriginalEffectState effect = new(132, 131, new(132, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             Frame = new(memory, effect, new(55), NativeBattleDisolvingAcid132State.FromColdProcess().WriteDword(WorkingGlobal, WorkingAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

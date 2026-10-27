@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -12,7 +12,7 @@ public sealed class NativeBattleDoomtrain191EnvironmentTests
     {
         NativeBattleDoomtrain191Frame frame = Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, NativeBattleTaskFixture.EditTask(pool.Slots[1], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         var result = NativeBattleDoomtrain191Environment.Invoke(frame, helper, Services());
         NativeBattleModulePoolTask task = result.Effect.Pools[1].Slots[1];
@@ -43,13 +43,14 @@ public sealed class NativeBattleDoomtrain191EnvironmentTests
                 return current;
             }
         };
+        string replay = NativeBattleTestSnapshots.Json(frame);
         NativeBattleDoomtrain191LeafStep step = NativeBattleDoomtrain191Environment.AdvanceFlash(frame, 0, services);
         Assert.Equal(new[] { "depth:3840", "hidden:False" }, writes);
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)16, step.Frame.Effect.Pools[1].Slots[0].ReadWord(0xC));
         writes.Clear();
-        var restored = NativeBattleDoomtrain191Environment.AdvanceFlash(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!, 0, services);
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+        var restored = NativeBattleDoomtrain191Environment.AdvanceFlash(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(replay)!, 0, services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(new[] { "depth:3840", "hidden:False" }, writes);
     }
 
@@ -113,9 +114,9 @@ public sealed class NativeBattleDoomtrain191EnvironmentTests
     {
         NativeBattleDoomtrain191Frame frame = Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        NativeBattleModulePoolTask task = pool.Slots[0] with { Callback = callback };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = callback });
         task = task.WriteWord(0xC, age).WriteWord(0xE, 16).WriteWord(0x18, 4096).WriteWord(0x1A, 1);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }
 }

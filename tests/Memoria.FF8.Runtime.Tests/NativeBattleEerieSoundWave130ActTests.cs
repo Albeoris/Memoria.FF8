@@ -93,9 +93,9 @@ public sealed class NativeBattleEerieSoundWave130ActTests
     public void JSON_next_preserves_current_morph_GTE_and_temporary_knownness()
     {
         NativeBattleEerieSoundWave130ActStep first = Draw(Source(4, 2, 4), Node(ratio: 2048, second: 1, cue: 2048, color: 0xC08040));
-        NativeBattleEerieSoundWave130ActStep restored = JsonSerializer.Deserialize<NativeBattleEerieSoundWave130ActStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleEerieSoundWave130ActStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEerieSoundWave130ActStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEerieSoundWave130ActStep Next(NativeBattleEerieSoundWave130ActStep current) => NativeBattleEerieSoundWave130Act.Draw(current.Memory, Source(4, 2, 4), Node(ratio: 2048, second: 1, cue: 2048, color: 0xC08040), Context(), current.Temporary88, new(null, 100, 160, 108), Colors, MorphAddress);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(first))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
     }
 
     [Fact]

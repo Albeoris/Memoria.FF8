@@ -69,9 +69,9 @@ public sealed class NativeBattleDegenerator306ModelDrawingTests
     public void Physical_views_and_canonical_registers_survive_independent_JSON_next()
     {
         NativeBattleDegenerator306ModelStep result = Draw(Geometry(true), Context(-4096), 2000);
-        NativeBattleDegenerator306ModelStep restored = JsonSerializer.Deserialize<NativeBattleDegenerator306ModelStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleDegenerator306ModelStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306ModelStep>(NativeBattleTestSnapshots.Json(result))!;
         NativeBattleDegenerator306ModelStep Next(NativeBattleDegenerator306ModelStep current) => Draw(Geometry(true), current.Temporary136, 2000, 32, current.Memory, current.VertexScratch);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);

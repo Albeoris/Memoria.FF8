@@ -27,7 +27,7 @@ public sealed class NativeBattleDiablos325Tests
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress, state.ModelBuffer5208);
         Assert.Single(result.Memory.Textures!.Slots.Take(result.Memory.Textures.Count));
         Assert.Equal(0x100, result.Memory.Textures.Slots[0]!.ArenaOffset);
-        Assert.Equal(new byte[4], Assert.Single(result.Effect.Pools).Slots[0].Payload);
+        Assert.Equal(new byte[4], NativeBattleStorageSnapshots.Capture(Assert.Single(result.Effect.Pools).Slots[0]).Payload);
         Assert.Equal(0, source.Memory.Textures!.Count);
         Assert.Equal(9u, source.Memory.Diablos325!.Pause5180);
     }
@@ -37,18 +37,18 @@ public sealed class NativeBattleDiablos325Tests
     {
         var fixture = Fixture();
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
-        NativeBattleDiablos325Frame restored = JsonSerializer.Deserialize<NativeBattleDiablos325Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDiablos325Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325Frame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int index = 0; index < 2; index++)
         {
             frame = NativeBattleDiablos325Controller.Advance654350(frame);
             restored = NativeBattleDiablos325Controller.Advance654350(restored);
-            Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
             Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + (index == 0 ? 0xF85Cu : 0x885Cu), frame.Memory.Diablos325!.PacketCursor51D0);
             Assert.Equal((ushort)(index + 1), frame.Effect.Pools[0].Slots[0].ReadWord(0xC));
         }
-        string before = JsonSerializer.Serialize(frame);
+        string before = NativeBattleTestSnapshots.Json(frame);
         Assert.Contains("6543BA", Assert.Throws<NotSupportedException>(() => NativeBattleDiablos325Controller.Advance654350(frame)).Message);
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(frame));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class NativeBattleDiablos325Tests
         var fixture = Fixture();
         NativeBattleDiablos325Frame frame = NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, fixture.Packets, fixture.Models);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = [pool] }, Memory = frame.Memory with { Diablos325 = frame.Memory.Diablos325! with { Pause5180 = 1, Flash51E8 = 99, PreviousFlash51EC = 4096 } } };
         int calls = 0;
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Controller.Advance654350(frame, (current, flash) =>
@@ -84,7 +84,7 @@ public sealed class NativeBattleDiablos325Tests
         (empty, _) = empty.Prepare(new(0, 240, 0, 0, 3, 325, null));
         (empty, _) = empty.Publish(0);
         Assert.Throws<DivideByZeroException>(() => NativeBattleDiablos325Entry.Initialize6541E0(fixture.Frame, empty, fixture.Models));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleDiablos325State>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleDiablos325State>("{}"));
     }
 
     internal static (NativeBattleDiablos325Frame Frame, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()

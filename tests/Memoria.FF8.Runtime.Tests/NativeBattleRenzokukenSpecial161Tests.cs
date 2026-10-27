@@ -100,7 +100,7 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
         NativeBattleRenzokuken160Frame frame = new(memory, new(342, 341, new(342, 0x5776D0, 0x5776B0), null, null), NativeCrtRandomState.FromColdProcess());
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21E4CF8, 0x21E4D08, 36, 100);
         (pool, int slot) = pool.Append(0x578A00);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 10)) });
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleRenzokuken160Inputs inputs = new(0, [5, 5, 5, 5, 5, 5, 5, 5, 5], _ => new(0, 0) { GeometryWorldMatrix = matrix }, (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance578A00(frame, pool, slot, inputs, resources);
@@ -125,7 +125,7 @@ public sealed class NativeBattleRenzokukenSpecial161Tests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23D25D8, 0x23D25E8, 36, 100);
         (pool, int slot) = pool.Append(0x5FD230);
-        return (pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, counter)) }, slot);
+        return (NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, counter)) }), slot);
     }
 
     private static ImmutableArray<byte> Markers(int length)

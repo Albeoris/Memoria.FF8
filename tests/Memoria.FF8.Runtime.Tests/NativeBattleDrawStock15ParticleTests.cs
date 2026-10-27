@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Buffers.Binary;
 using System.Text.Json;
 
@@ -52,10 +52,10 @@ public sealed class NativeBattleDrawStock15ParticleTests
         Assert.True(head < ribbon);
         NativeCrtRandomState expected = NativeCrtRandomState.FromColdProcess().Draw(out _).Draw(out _);
         Assert.Equal(expected, step.Random);
-        NativeBattleEffectHierarchy restored = JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(JsonSerializer.Serialize(step.Hierarchy))!;
+        NativeBattleEffectHierarchy restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHierarchy>(NativeBattleTestSnapshots.Json(step.Hierarchy))!;
         NativeBattleDrawStock15ParticleStep actual = NativeBattleDrawStock15Particles.Advance(step.Hierarchy, fixture.Address, step.Random, Inputs());
         NativeBattleDrawStock15ParticleStep cold = NativeBattleDrawStock15Particles.Advance(restored, fixture.Address, step.Random, Inputs());
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(cold));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(cold));
     }
 
     [Fact]

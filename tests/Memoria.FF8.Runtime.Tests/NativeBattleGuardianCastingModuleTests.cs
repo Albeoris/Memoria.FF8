@@ -183,7 +183,7 @@ public sealed class NativeBattleGuardianCastingModuleTests
         return state with { Head = 0, Tail = 0, Slots = state.Slots.SetItem(0, new(1, 0, null, kind, payload.ToImmutableArray())) };
     }
 
-    private static short Read(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(offset));
+    private static short Read(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(offset));
 
     private static void Word(byte[] payload, int offset, int value)
     {

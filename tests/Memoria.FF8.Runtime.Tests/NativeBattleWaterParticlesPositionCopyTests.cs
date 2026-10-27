@@ -20,6 +20,7 @@ public sealed partial class NativeBattleWaterParticlesTests
             int offset = 0x2094 + lane * 2;
             frame = frame with { Arena = (instruction & (0x4000 >> lane)) != 0 ? frame.Arena.Write(offset, BitConverter.GetBytes(expected[lane])) : frame.Arena.MarkUnknown(offset, 2) };
         }
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = One(frame);
         for (int lane = 0; lane < 3; lane++)
         {
@@ -36,7 +37,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Equal(0x1004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(One(replayFrame)));
     }
 
     [Fact]
@@ -48,6 +49,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Same(frame.Random, result.Random);
         Assert.Equal(0x1004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(Particle + 0x22, 2));
+        frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         Assert.Throws<NotSupportedException>(() => One(frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2) }));
     }
 }

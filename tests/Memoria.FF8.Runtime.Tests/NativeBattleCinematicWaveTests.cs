@@ -13,6 +13,7 @@ public sealed class NativeBattleCinematicWaveTests
     public void Wave_preserves_native_row_aliases_half_row_depth_history_and_reserved_packet_gaps()
     {
         NativeBattleWaterExecutionFrame source = Fixture();
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(source))!;
         (NativeBattleWaterExecutionFrame frame, NativeBattleGfGeometryBatch packets, int projections) = Run(source);
         Assert.Equal(528, projections);
         Assert.Equal(496, packets.Attempts.Count(attempt => attempt.Primitive is not null));
@@ -42,10 +43,9 @@ public sealed class NativeBattleCinematicWaveTests
             Assert.Equal(0u, frame.ReadTemporaryDword(offset));
         }
         Assert.Same(source.Random, frame.Random);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(source))!;
         var independent = Run(restored);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(independent.Frame));
-        Assert.Equal(JsonSerializer.Serialize(packets), JsonSerializer.Serialize(independent.Packets));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(independent.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(packets), NativeBattleTestSnapshots.Json(independent.Packets));
     }
 
     [Fact]

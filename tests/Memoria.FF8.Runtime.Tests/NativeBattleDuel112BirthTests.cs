@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -17,7 +17,7 @@ public sealed class NativeBattleDuel112BirthTests
             Assert.Equal((ushort)17, task.ReadWord(22));
             Assert.Equal((ushort)0, task.ReadWord(30));
             Assert.Equal((ushort)4096, task.ReadWord(34));
-            Assert.Null(task.UnknownPayloadRanges);
+            Assert.Null(NativeBattleStorageSnapshots.Capture(task).UnknownPayloadRanges);
         });
         Assert.Equal(Draw(fixture.Frame.Random, 45), frame.Random);
     }
@@ -27,7 +27,7 @@ public sealed class NativeBattleDuel112BirthTests
     {
         NativeBattleDuel112Fixture fixture = new(12);
         NativeBattleDuel112Frame frame = NativeBattleDuel112Births.Early6CBF90(fixture.Frame, 0, new(11, 22, 33), fixture.Actor.Transform!);
-        frame = JsonSerializer.Deserialize<NativeBattleDuel112Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel112Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal(2, frame.Effect.Pools[4].Slots.Count(task => (task.Flags & 1) != 0));
         Assert.All(frame.Effect.Pools[4].Slots.Take(2), task =>
         {

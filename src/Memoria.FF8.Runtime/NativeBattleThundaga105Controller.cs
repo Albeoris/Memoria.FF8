@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -93,6 +93,7 @@ public static class NativeBattleThundaga105Controller
                     primary = NativeBattleEffectTaskPool.Initialize(PrimaryDescriptor, ArenaAddress, 0x884, 3);
                     secondary = NativeBattleEffectTaskPool.Initialize(SecondaryDescriptor, ArenaAddress + 0x198C, 0x3C, 14);
                     tertiary = NativeBattleEffectTaskPool.Initialize(TertiaryDescriptor, ArenaAddress + 0x1CD4, 0x2C, 32);
+                    frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, secondary, tertiary]) };
                     frame = frame with { Memory = NativeBattleThundaga105Debris.ClearAlive(frame.Memory) };
                     task = task.WriteByte(0x14, 1);
                 }

@@ -57,10 +57,10 @@ public sealed class NativeBattleEffect65StateTests
     public void Json_preserves_warm_literal_values_queue_transfer_and_private_seed()
     {
         NativeBattleEffect65State state = NativeBattleEffect65State.FromUnknown().WriteWord(LiteralBase + 4, 0xCAFE).WriteDword(RandomGlobal, 0x7FFF).WriteDword(SavedFlagsAddress + 24, 0x8123).DetachChildQueue();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect65State restored = JsonSerializer.Deserialize<NativeBattleEffect65State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect65State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect65State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Null(restored.ChildQueueStorage);
         Assert.Equal((ushort)0xCAFE, restored.ReadWord(LiteralBase + 4));
         Assert.Equal(0x7FFFu, restored.ReadDword(RandomGlobal));

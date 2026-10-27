@@ -211,8 +211,8 @@ public sealed class NativeBattleChainGun190ChildrenTests
             Assert.Equal((ushort)0, actual.Frame.State.ReadWord(bank + 18));
             Assert.Equal((ushort)200, actual.Frame.State.ReadWord(bank + 10));
         }
-        var restored = JsonSerializer.Deserialize<NativeBattleChainGun190Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleChainGun190Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
     [Theory]

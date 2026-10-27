@@ -184,7 +184,7 @@ public sealed class NativeBattleSnipeLaser302ControllerTests
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(frame.Random, actual.Random);
-        var cold = JsonSerializer.Deserialize<NativeBattleSnipeLaser302Frame>(JsonSerializer.Serialize(actual))!;
+        var cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleSnipeLaser302Frame>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Single(Initialize(cold, Resources(), Inputs([])).Effect.Pools);
     }
 

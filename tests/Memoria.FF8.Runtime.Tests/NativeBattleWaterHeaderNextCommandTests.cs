@@ -143,10 +143,10 @@ public sealed class NativeBattleWaterHeaderNextCommandTests
         var fixture = NativeBattleWaterInitializationTests.Fixture();
         NativeBattleWaterExecutionFrame frame = InitialFrame();
         frame = frame with { Core = frame.Core.Write(Manager + 0xD0, new byte[] { 0, 2 }).MarkUnknown(Manager + 0x98, 0x1C).MarkUnknown(0x2798BF8, 32) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterHeaderNextResult a = Execute(frame, fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => Capture(fixture.Inputs, 1, [6]));
         NativeBattleWaterHeaderNextResult b = Execute(restored, fixture.Inputs.Resource1, (_, _, _) => fixture.Inputs.HeaderBaseAddress, (_, _, _, _) => Capture(fixture.Inputs, 1, [6]));
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Throws<NotSupportedException>(() => a.Frame.Core.Read(Manager + 0x98, 1));
         Assert.Throws<NotSupportedException>(() => a.Frame.Core.Read(0x2798BF8, 1));
     }

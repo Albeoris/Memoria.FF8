@@ -25,7 +25,7 @@ public sealed class NativeBattleEffect316StateTests
     public void Unknown_import_preserves_partial_RGB_and_other_scalar_unknownness()
     {
         NativeBattleEffect316State state = NativeBattleEffect316State.FromUnknown().Write(ColorGlobal, [3, 5, 7]).WriteDword(CasterGlobal, 3);
-        state = JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(new byte[] { 3, 5, 7 }, state.Read(ColorGlobal, 3));
         Assert.Equal(3u, state.ReadDword(CasterGlobal));
@@ -38,7 +38,7 @@ public sealed class NativeBattleEffect316StateTests
     public void Warm_random_and_RGB_history_survives_JSON_without_cold_refill()
     {
         NativeBattleEffect316State state = NativeBattleEffect316State.FromColdProcess().WriteDword(RandomGlobal, 0x1234).WriteDword(ColorGlobal, 0xABCDEF12);
-        state = JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(0x1234u, state.ReadDword(RandomGlobal));
         Assert.Equal(0xABCDEF12u, state.ReadDword(ColorGlobal));
         Assert.Equal(0u, state.ReadDword(AmplitudeGlobal));
@@ -53,7 +53,7 @@ public sealed class NativeBattleEffect316StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, root);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, root));
-        state = JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect316State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes(0x12345678u), state.ReadBank(0).Read(16, 4));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(0, 4));

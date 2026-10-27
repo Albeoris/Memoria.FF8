@@ -32,11 +32,11 @@ public sealed class NativeBattleAngelWing84ShaderMeshTests
     public void Selected_object_mask_and_independent_restore_keep_next_work_and_packets()
     {
         NativeBattleEffectArena scratch = NativeBattleEffectArena.Clear().MarkUnknown(6, 2);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(scratch))!;
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(scratch))!;
         NativeBattleAngelWing84ShaderDraw first = Draw(scratch);
         NativeBattleAngelWing84ShaderDraw second = Draw(restored);
         Assert.Equal(40, first.Packets.AllocationBytes);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Equal((short)-25, BinaryPrimitives.ReadInt16LittleEndian(first.Vertices.Read(0, 2)));
 
         NativeBattleAngelWing84ShaderDraw Draw(NativeBattleEffectArena work) => NativeBattleAngelWing84ShaderMesh.Draw([Mesh(-50), Mesh(-25)], [Identity], Identity with { Z = 1024 }, Projection, 2, 64, 0, work);

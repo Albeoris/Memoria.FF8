@@ -24,13 +24,13 @@ public sealed class NativeBattleEnemyMicroMissiles284StateTests
     {
         var state = NativeBattleEnemyMicroMissiles284State.FromUnknown().WriteWord(BaseAddress, 4096) with { RootBankStorage = null };
         state.Validate();
-        var restored = JsonSerializer.Deserialize<NativeBattleEnemyMicroMissiles284State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEnemyMicroMissiles284State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)4096, restored.ReadWord(BaseAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(BaseAddress + 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ArenaGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]
@@ -58,10 +58,11 @@ public sealed class NativeBattleEnemyMicroMissiles284StateTests
         var resources = Resources();
         var retained = new NativeBattleGfAnimationWorkspace(Enumerable.Repeat((byte)0xA5, 276).ToImmutableArray());
         var narrow = retained.Initialize7016B0(resources.Impact, ImpactWorkspaceLength);
-        Assert.All(narrow.Data.Skip(ImpactWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
-        Assert.Equal(116, narrow.Data.Length - ImpactWorkspaceLength);
+        Assert.All(NativeBattleStorageSnapshots.Capture(narrow).Data.Skip(ImpactWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(116, NativeBattleStorageSnapshots.Capture(narrow).Data.Length - ImpactWorkspaceLength);
+        narrow = NativeBattleStorageSnapshots.Capture(narrow);
         var wide = retained.Initialize7016B0(resources.WideImpact, WideImpactWorkspaceLength);
-        Assert.NotEqual(narrow.Data.ToArray(), wide.Data.ToArray());
+        Assert.NotEqual(NativeBattleStorageSnapshots.Capture(narrow).Data.ToArray(), NativeBattleStorageSnapshots.Capture(wide).Data.ToArray());
     }
 
     internal static NativeBattleEnemyMicroMissiles284Resources Resources()

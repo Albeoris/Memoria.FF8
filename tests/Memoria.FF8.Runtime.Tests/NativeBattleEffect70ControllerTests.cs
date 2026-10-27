@@ -62,7 +62,7 @@ public sealed class NativeBattleEffect70ControllerTests
         uint main = Pools[1].Bank;
         Assert.Equal((byte)0xA5, Read(frame, main).ReadByte(12));
         Assert.Throws<NotSupportedException>(() => Read(frame, main).ReadByte(13));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(MainBankOffset + 12, 1));
+        Assert.Equal((byte)0xA5, frame.Memory.Arena!.Read(MainBankOffset + 12, 1)[0]);
         frame = InitializeCommonPool(frame, 2);
         (frame, uint child) = Append(frame, 2, 0x6E0100);
         frame = PutWord(frame, child + 16, 0x4567);
@@ -153,7 +153,7 @@ public sealed class NativeBattleEffect70ControllerTests
         NativeBattleOriginalEffectState effect = new(70, 69, new(70, Entry, Initializer), new(4, 0, 0x7F, 0, 0, 0), null);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, 0)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteDword(12, 0));
         NativeBattleEffect70State state = NativeBattleEffect70State.FromColdProcess().DetachRootBank().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(SideGlobal, 1).WriteWord(ViewAddress + 18, 0xA55A);
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect with { Pools = [root], ReturnedDescriptor = RootDescriptor }, NativeCrtRandomState.FromColdProcess(), state) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }

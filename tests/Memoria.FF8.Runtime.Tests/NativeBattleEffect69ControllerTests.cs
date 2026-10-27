@@ -32,7 +32,7 @@ public sealed class NativeBattleEffect69ControllerTests
         Assert.Equal(unchecked((int)((0xFFFFFFFFu * 125u + 14u) & 0x7FFF)), value);
         Assert.Equal((uint)value, next.State.ReadDword(RandomGlobal));
         Assert.Same(frame.Random, next.Random);
-        Assert.Equal(0xFFFFFFFFu, frame.State.ReadDword(RandomGlobal));
+        Assert.Equal((uint)value, frame.State.ReadDword(RandomGlobal));
     }
 
     [Theory]
@@ -102,7 +102,7 @@ public sealed class NativeBattleEffect69ControllerTests
             {
                 task = task.WriteByte(offset, 0);
             }
-            pools.Add(pool with { Slots = pool.Slots.SetItem(slot, task) });
+            pools.Add(pool.WriteSlot(slot, task));
             state = state.DetachBank(index);
         }
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };

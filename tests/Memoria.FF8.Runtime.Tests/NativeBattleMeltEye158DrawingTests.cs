@@ -106,10 +106,10 @@ public sealed class NativeBattleMeltEye158DrawingTests
         Fixture f = new();
         NativeBattleMeltEye158Frame frame = f.Set(f.Set(f.Frame, 0x18, ushort.MaxValue), 0x1A, 5);
         frame = frame with { State = frame.State.WriteDword(SlotBankB, 1).WriteWord(SlotBankB + 4, 4).WriteWord(SlotBankB + 6, 500) };
-        NativeBattleMeltEye158Frame restored = JsonSerializer.Deserialize<NativeBattleMeltEye158Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleMeltEye158Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltEye158Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var first = NativeBattleMeltEye158Controller.AdvanceStream(frame, ChildBank, f.Resources, f.Inputs);
         var second = NativeBattleMeltEye158Controller.AdvanceStream(restored, ChildBank, f.Resources, f.Inputs);
-        Assert.Equal(JsonSerializer.Serialize(first.Frame), JsonSerializer.Serialize(second.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Frame), NativeBattleTestSnapshots.Json(second.Frame));
         Assert.Equal((ushort)6, first.Frame.State.ReadWord(SlotBankB + 4));
         Assert.Equal((ushort)4, f.Task(first.Frame).ReadWord(0x18));
     }
@@ -129,7 +129,7 @@ public sealed class NativeBattleMeltEye158DrawingTests
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
             (children, int slot) = children.Append(ImpactSpriteCallback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteBytes(12, new byte[24])) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteBytes(12, new byte[24])) });
             NativeBattleOriginalEffectState effect = new(158, 157, new(158, Entry, Initializer), null, null) { Pools = [root, children] };
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), NativeBattleMeltEye158State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             ImmutableArray<NativeBattleModuleAnchor> vectors = Enumerable.Range(0, 11).Select(index => new NativeBattleModuleAnchor(0, 0, (short)(index * 100), 0)).ToImmutableArray();

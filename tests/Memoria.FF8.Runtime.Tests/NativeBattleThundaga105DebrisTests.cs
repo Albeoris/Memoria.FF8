@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -82,11 +82,11 @@ public sealed class NativeBattleThundaga105DebrisTests
         Assert.Equal((short)0, S(changed, 0x18));
         Assert.Equal((short)100, S(changed, 0x1A));
         Assert.Equal(S(row, 0x1E), S(changed, 0x1E));
-        string json = JsonSerializer.Serialize(first.Memory);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        string json = NativeBattleTestSnapshots.Json(first.Memory);
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
         NativeBattleThundaga105DebrisUpdate next = NativeBattleThundaga105Debris.Update6D40E0(restored);
         Assert.Equal((short)-100, S(next.Memory.Arena!.Read(0x2A24, 0x50), 0x18));
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleThundaga105Debris.Update6D40E0(first.Memory)), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleThundaga105Debris.Update6D40E0(first.Memory)), NativeBattleTestSnapshots.Json(next));
         W(changed, 6, 1100);
         NativeBattleThundaga105DebrisUpdate dead = NativeBattleThundaga105Debris.Update6D40E0(first.Memory with { Arena = first.Memory.Arena.Write(0x2A24, changed) });
         Assert.Equal(0, dead.Survivors);
@@ -129,28 +129,28 @@ public sealed class NativeBattleThundaga105DebrisTests
         Assert.Equal(1, update.Survivors);
         NativeBattleActionMatrix view = Identity with { Z = 4096 };
         Assert.Single(NativeBattleThundaga105Debris.Draw6D41E0(update.Memory, view, new(view, 216, 160, 108)).Attempts);
-        Assert.Equal(spawned.Memory.Arena.UnknownRegions.ToArray(), update.Memory.Arena!.UnknownRegions.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(spawned.Memory.Arena).UnknownRegions.ToArray(), NativeBattleStorageSnapshots.Capture(update.Memory.Arena!).UnknownRegions.ToArray());
     }
 
     [Fact]
     public void ActiveUpdatePreservesUnknownUvWhileDrawDoesNotReadVelocityOrRotation()
     {
         NativeBattleThundaga105DebrisSpawn spawned = NativeBattleThundaga105Debris.Spawn6D5CF0(Memory, new(11), Triangle(), new(0, 0, 0), new(0, 0, 0), new(0, 0, 0), Identity);
-        NativeBattleEffectMemory unknownUv = spawned.Memory with { Arena = spawned.Memory.Arena!.MarkUnknown(0x2A24 + 0x1E, 2) };
+        NativeBattleEffectMemory unknownUv = spawned.Memory with { Arena = NativeBattleTestSnapshots.Independent(spawned.Memory.Arena!).MarkUnknown(0x2A24 + 0x1E, 2) };
         NativeBattleThundaga105DebrisUpdate update = NativeBattleThundaga105Debris.Update6D40E0(unknownUv);
         Assert.Equal(1, update.Survivors);
         Assert.Throws<NotSupportedException>(() => update.Memory.Arena!.Read(0x2A24 + 0x1E, 2));
         NativeBattleActionMatrix view = Identity with { Z = 4096 };
-        NativeBattleEffectMemory unknownVelocity = spawned.Memory with { Arena = spawned.Memory.Arena.MarkUnknown(0x2A24 + 8, 6).MarkUnknown(0x2A24 + 0x3C, 20) };
-        string before = JsonSerializer.Serialize(unknownVelocity);
+        NativeBattleEffectMemory unknownVelocity = spawned.Memory with { Arena = NativeBattleTestSnapshots.Independent(spawned.Memory.Arena!).MarkUnknown(0x2A24 + 8, 6).MarkUnknown(0x2A24 + 0x3C, 20) };
+        string before = NativeBattleTestSnapshots.Json(unknownVelocity);
         Assert.Single(NativeBattleThundaga105Debris.Draw6D41E0(unknownVelocity, view, new(view, 216, 160, 108)).Attempts);
-        Assert.Equal(before, JsonSerializer.Serialize(unknownVelocity));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(unknownVelocity));
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaga105Debris.Draw6D41E0(update.Memory, view, new(view, 216, 160, 108)));
         byte[] scale = new byte[2];
         W(scale, 0, 1100);
         byte[] decay = new byte[2];
         W(decay, 0, -100);
-        NativeBattleEffectMemory dying = spawned.Memory with { Arena = spawned.Memory.Arena.Write(0x2A24 + 6, scale).Write(0x2A24 + 0x4E, decay).MarkUnknown(0x2A24, 6).MarkUnknown(0x2A24 + 8, 14) };
+        NativeBattleEffectMemory dying = spawned.Memory with { Arena = NativeBattleTestSnapshots.Independent(spawned.Memory.Arena!).Write(0x2A24 + 6, scale).Write(0x2A24 + 0x4E, decay).MarkUnknown(0x2A24, 6).MarkUnknown(0x2A24 + 8, 14) };
         Assert.Equal(0, NativeBattleThundaga105Debris.Update6D40E0(dying).Survivors);
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaga105Debris.Update6D40E0(unknownVelocity));
     }

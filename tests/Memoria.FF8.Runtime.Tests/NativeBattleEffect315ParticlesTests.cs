@@ -101,11 +101,11 @@ public sealed class NativeBattleEffect315ParticlesTests
         NativeBattleEffect315Frame frame = Frame(0, 0);
         frame = Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(0xE, 2));
         NativeBattleEffect315Frame paused = Step(frame, 0, Inputs((_, _) => throw new InvalidOperationException(), true)).Frame;
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(paused));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(paused)));
         NativeBattleEffect315Frame actual = Step(frame, 0, Inputs((_, _) => throw new InvalidOperationException())).Frame;
         Assert.Equal((ushort)1, Read(actual, ChildBank).ReadWord(0xE));
         Assert.Equal(frame.Random, actual.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.Staging), JsonSerializer.Serialize(actual.Staging));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Staging)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Staging)));
     }
 
     [Theory]
@@ -160,8 +160,8 @@ public sealed class NativeBattleEffect315ParticlesTests
             return PublishContext(current, draw.TemporaryAddress, Context(current, draw.TemporaryAddress, 180).Write(0x28, BitConverter.GetBytes((short)0)), 180);
         });
         frame = Step(frame, 3, inputs).Frame;
-        NativeBattleEffect315Frame restored = JsonSerializer.Deserialize<NativeBattleEffect315Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Step(frame, 3, inputs).Frame), JsonSerializer.Serialize(Step(restored, 3, inputs).Frame));
+        NativeBattleEffect315Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Step(frame, 3, inputs).Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Step(restored, 3, inputs).Frame)));
     }
 
     private static (NativeBattleEffect315Frame Frame, int Result) Step(NativeBattleEffect315Frame frame, int kind, NativeBattleEffect315Inputs inputs) => kind switch
@@ -177,7 +177,7 @@ public sealed class NativeBattleEffect315ParticlesTests
         uint callback = kind switch { 0 => 0x599470u, 1 => 0x599860u, 2 => 0x599A90u, _ => 0x59A7F0u };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteWord(0x1A, 1)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(0xC, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteWord(0x1A, 1));
         NativeBattleOriginalEffectState effect = new(315, 314, new(315, Entry, Initializer), null, RootDescriptor) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770(), true, true, null), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedLighting = NativeBattleScriptedLightingMemory.Unknown() };
         return new(memory, effect, new(12345), NativeBattleEffect315State.FromColdProcess().WriteDword(CasterGlobal, 3) with { ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

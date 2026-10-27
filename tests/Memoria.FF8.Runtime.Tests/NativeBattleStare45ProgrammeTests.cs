@@ -59,10 +59,10 @@ public sealed class NativeBattleStare45ProgrammeTests
         Assert.Equal((ushort)1000, Read(actual.Frame, 0x2654730).ReadWord(0x1C));
         Assert.Equal((ushort)2936, Read(actual.Frame, 0x2654730).ReadWord(0x20));
         Assert.Equal(Read(frame, 0x2654730).ReadByte(0x29), Read(actual.Frame, 0x2654730).ReadByte(0x29));
-        Assert.Equal(JsonSerializer.Serialize(expected.Geometry), JsonSerializer.Serialize(actual.Frame.Memory.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(expected.Colors), JsonSerializer.Serialize(actual.Frame.Memory.ScriptedColorRegisters));
-        var restored = JsonSerializer.Deserialize<NativeBattleStare45Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(actual.Frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Geometry), NativeBattleTestSnapshots.Json(actual.Frame.Memory.GeometryRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Colors), NativeBattleTestSnapshots.Json(actual.Frame.Memory.ScriptedColorRegisters));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStare45Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual.Frame), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

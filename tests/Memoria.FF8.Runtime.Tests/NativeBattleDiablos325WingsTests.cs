@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -17,7 +17,8 @@ public sealed class NativeBattleDiablos325WingsTests
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6545F0, new byte[0x994 - 12].ToImmutableArray());
         task = task.WriteWord(0xC, 91);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), 288, 160, 108);
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325WingsDraw initial = NativeBattleDiablos325Wings.Advance654811(frame, task, projection);
         Assert.Equal(new short[] { 10, 20, 30 }, Coordinates(initial.Memory));
         Assert.Equal(0, initial.Packets.AllocationBytes);
@@ -38,7 +39,7 @@ public sealed class NativeBattleDiablos325WingsTests
         Assert.Null(registers.FarBlue);
         Assert.Equal<uint?>(0x123, registers.PacketCursor);
         Assert.Equal<uint?>(0x456, registers.SourceCursor);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     private static short[] Coordinates(NativeBattleEffectMemory memory)

@@ -30,7 +30,7 @@ public sealed class NativeBattleQuezacotlCurrentSourceGeometryTests
         Assert.Equal(272, primitive.Bucket);
         Assert.Equal(20, actual.Batch.AllocationBytes);
         Assert.False(actual.CapturedPackets);
-        Assert.Equal(JsonSerializer.Serialize(memory), JsonSerializer.Serialize(actual.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory), NativeBattleTestSnapshots.Json(actual.Memory));
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public sealed class NativeBattleQuezacotlCurrentSourceGeometryTests
         byte[] color = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(color, 0x20332211);
         memory = memory with { Arena = memory.Arena!.Write(ResourceOffset + 96, color) };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleQuezacotlGeometryStep actual = NativeBattleQuezacotlGeometry.Emit6C6060(memory, Effect, node, Source(memory), Projection, Colors, default, depthBias: -1024);
         NativeBattleQuezacotlGeometryStep clone = NativeBattleQuezacotlGeometry.Emit6C6060(restored, Effect, node, Source(restored), Projection, Colors, default, depthBias: -1024);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(clone));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(clone));
         Assert.Equal(0x20332211u, actual.Batch.Attempts[0].Primitive!.Words[1]);
         Assert.Equal(before.Batch.Attempts[0].Primitive!.Words.Skip(2), actual.Batch.Attempts[0].Primitive!.Words.Skip(2));
         NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(actual.Memory, Effect, NativeBattleLogicalOrdering.Clear(), actual.Batch);
@@ -77,8 +77,8 @@ public sealed class NativeBattleQuezacotlCurrentSourceGeometryTests
             Assert.Throws<NotSupportedException>(() => actual.Memory.Arena.Read(0x8D6 + vertex * 8, 2));
         }
         Assert.Equal(Source(memory).Data.ToArray(), Source(actual.Memory).Data.ToArray());
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(NativeBattleQuezacotlGeometry.Emit6C6060(restored, Effect, Node(0, 1, 2048), Source(restored), Projection, Colors, default)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(NativeBattleQuezacotlGeometry.Emit6C6060(restored, Effect, Node(0, 1, 2048), Source(restored), Projection, Colors, default)));
     }
 
     [Fact]

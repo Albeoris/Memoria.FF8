@@ -98,16 +98,30 @@ public sealed class NativeBattleLogicalDynamicPassTests
         Assert.Equal(unselected.Final, inline.Final);
     }
 
-    [Theory]
-    [InlineData(16384)]
-    [InlineData(16385)]
-    public void Proxy_capacity_skip_performs_only_one_end_batch_cleanup(int capacity)
+    [Fact]
+    public void Proxy_capacity_skip_performs_only_one_end_batch_cleanup()
     {
         Context context = new() { LiveMode = 3 };
-        NativeBattleLogicalOrdering ordering = Ordering(0x20) with { ProxyCursor = capacity };
+        NativeBattleLogicalOrdering ordering = Ordering(0x20);
+        using (NativeBattleLogicalOrdering.Builder builder = new(ordering))
+        {
+            for (int index = 1; index < NativeBattlePrimitiveOrdering.ProxyCapacity; index++)
+            {
+                builder.Prepend(17, new("off_B6D070", 0, index * 64), [0x01000000, 0xE1000020], 0, []);
+            }
+            ordering = builder.ToImmutable();
+        }
         var result = NativeBattleLogicalPasses.Execute(ordering, Tables(), new(null), context);
         Assert.Empty(result.Commands);
         Assert.Equal(new[] { "END" }, context.Log.ToArray());
+    }
+
+    [Fact]
+    public void Proxy_metadata_rejects_a_cursor_beyond_its_actual_allocation()
+    {
+        NativeBattleLogicalOrdering ordering = Ordering(0x20);
+        Assert.Throws<InvalidDataException>(() => ordering.UpdateMetadata(16385, ordering.TableBuffer));
+        Assert.Equal(1, ordering.ProxyCursor);
     }
 
     [Fact]

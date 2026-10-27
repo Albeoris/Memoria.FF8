@@ -80,7 +80,7 @@ public sealed class NativeBattleMorph172ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         for (int index = 1; index <= 3; index++)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(14, 0xABCD).WriteWord(16, 0xCAFE).MarkPayloadUnknown(30, 2)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(index, pool.Slots[index].WriteWord(14, 0xABCD).WriteWord(16, 0xCAFE).MarkPayloadUnknown(30, 2)) });
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattleMorph172Operation> operations = [];
@@ -126,7 +126,7 @@ public sealed class NativeBattleMorph172ControllerTests
         NativeBattleMorph172Frame frame = Frame(8);
         frame = Write(frame, ChildBank, CopyTask(Read(frame, ChildBank), 16, PointView(new(7, 8, 9), 0x4321), 8));
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xCAFE).MarkPayloadUnknown(24, 12)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xCAFE).MarkPayloadUnknown(24, 12)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattleMorph172Operation> operations = [];
         NativeBattleMorph172Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs(operations) with { ReadAnchor571400 = (_, _) => throw new InvalidOperationException() }).Frame;
@@ -194,10 +194,10 @@ public sealed class NativeBattleMorph172ControllerTests
     {
         NativeBattleMorph172Frame frame = Frame(8);
         frame = Write(frame, ChildBank, Read(frame, ChildBank).MarkPayloadUnknown(22, 2));
-        NativeBattleMorph172Frame restored = JsonSerializer.Deserialize<NativeBattleMorph172Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleMorph172Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMorph172Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleMorph172Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([])).Frame;
         NativeBattleMorph172Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([])).Frame;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<NotSupportedException>(() => Read(actual, ChildBank + ChildStride).ReadWord(22));
     }
 
@@ -208,7 +208,7 @@ public sealed class NativeBattleMorph172ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
         return frame with { Effect = frame.Effect with { Pools = [roots, children], ReturnedDescriptor = RootDescriptor }, State = frame.State.WriteDword(CasterGlobal, 3) with { RootBankStorage = null, ChildBankStorage = null } };
     }
 

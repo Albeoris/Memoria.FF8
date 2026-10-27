@@ -74,10 +74,10 @@ public sealed class NativeBattleBio22TimedEmitterTests
     {
         var fixture = Fixture();
         NativeBattleBio22EmitterFrame frame = fixture.Frame with { Task = fixture.Frame.Task.WriteByte(0x29, 1).WriteWord(0x24, 20) };
-        NativeBattleBio22EmitterFrame restored = JsonSerializer.Deserialize<NativeBattleBio22EmitterFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleBio22EmitterFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22EmitterFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleBio22EmitterStep expected = NativeBattleBio22TimedEmitter.Advance89BA80(1, frame, fixture.Resources, null!);
         Assert.Equal(frame.Random, expected.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleBio22TimedEmitter.Advance89BA80(1, restored, fixture.Resources, null!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleBio22TimedEmitter.Advance89BA80(1, restored, fixture.Resources, null!)));
     }
 
     private static (NativeBattleBio22EmitterFrame Frame, NativeBattleBio22Resources Resources) Fixture()

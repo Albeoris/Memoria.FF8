@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -71,7 +71,7 @@ public sealed class NativeBattleThundaraControllerTests
     {
         var fixture = Fixture();
         NativeBattleThundaraFrame normal = fixture.Frame;
-        NativeBattleThundaraFrame flagged = fixture.Frame;
+        NativeBattleThundaraFrame flagged = NativeBattleTestSnapshots.Independent(fixture.Frame);
         for (int callback = 0; callback < 38; callback++)
         {
             List<NativeBattleThundaraOperation> expected = [];
@@ -86,8 +86,8 @@ public sealed class NativeBattleThundaraControllerTests
                 actual.Add(operation);
                 return frame;
             }) with { GraphicsFlags = 0x201 });
-            Assert.Equal(JsonSerializer.Serialize(normal), JsonSerializer.Serialize(flagged));
-            Assert.Equal(JsonSerializer.Serialize(expected.Select(operation => new { Kind = operation.GetType().Name, Json = JsonSerializer.Serialize(operation, operation.GetType()) })), JsonSerializer.Serialize(actual.Select(operation => new { Kind = operation.GetType().Name, Json = JsonSerializer.Serialize(operation, operation.GetType()) })));
+            Assert.Equal(NativeBattleTestSnapshots.Json(normal), NativeBattleTestSnapshots.Json(flagged));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected.Select(operation => new { Kind = operation.GetType().Name, Json = NativeBattleTestSnapshots.Json(operation, operation.GetType()) })), NativeBattleTestSnapshots.Json(actual.Select(operation => new { Kind = operation.GetType().Name, Json = NativeBattleTestSnapshots.Json(operation, operation.GetType()) })));
         }
     }
 
@@ -101,8 +101,8 @@ public sealed class NativeBattleThundaraControllerTests
             frame = NativeBattleThundaraController.Advance6DC390(frame, Inputs(fixture.Packets));
         }
         Assert.Equal((ushort)12, frame.Effect.Pools[1].Slots[0].ReadWord(12));
-        NativeBattleModulePoolTask before = frame.Effect.Pools[2].Slots[0];
-        NativeBattleThundaraFrame restored = JsonSerializer.Deserialize<NativeBattleThundaraFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleModulePoolTask before = NativeBattleStorageSnapshots.Capture(frame.Effect.Pools[2].Slots[0]);
+        NativeBattleThundaraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaraFrame>(NativeBattleTestSnapshots.Json(frame))!;
         List<NativeBattleThundaraOperation> operations = [];
         frame = NativeBattleThundaraController.Advance6DC390(frame, Inputs(fixture.Packets, (value, operation) =>
         {
@@ -110,7 +110,7 @@ public sealed class NativeBattleThundaraControllerTests
             return value;
         }));
         restored = NativeBattleThundaraController.Advance6DC390(restored, Inputs(fixture.Packets));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
         NativeBattleModulePoolTask after = frame.Effect.Pools[2].Slots[0];
         short velocity = unchecked((short)((Signed(before, 16) - 100) << 4));
         short updated = unchecked((short)(velocity - velocity / 10));
@@ -222,9 +222,9 @@ public sealed class NativeBattleThundaraControllerTests
         NativeBattleEffectTaskPool secondary = fixture.Frame.Effect.Pools[2];
         (secondary, int slot) = secondary.Append(0x6DCC00);
         NativeBattleModulePoolTask task = secondary.Slots[slot].WriteWord(14, 0xFF02).WriteWord(16, 32760).WriteWord(18, 32760).WriteWord(24, 32767).WriteWord(26, 0x8000).WriteWord(32, 1).WriteWord(34, 0xFFFF).WriteWord(40, 127).WriteWord(42, 3);
-        secondary = secondary with { Slots = secondary.Slots.SetItem(slot, task) };
+        secondary = NativeBattleTaskFixture.EditPool(secondary, data => data with { Slots = secondary.Slots.SetItem(slot, task) });
         NativeBattleEffectTaskPool main = fixture.Frame.Effect.Pools[0];
-        main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, 1).WriteWord(14, 0x0100)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, 1).WriteWord(14, 0x0100)) });
         NativeBattleThundaraFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [main, fixture.Frame.Effect.Pools[1], secondary, fixture.Frame.Effect.Pools[3]] } };
         List<NativeBattleThundaraOperation> operations = [];
         NativeBattleThundaraInputs inputs = Inputs(fixture.Packets, (value, operation) =>
@@ -257,7 +257,7 @@ public sealed class NativeBattleThundaraControllerTests
         Assert.Throws<NotSupportedException>(() => NativeBattleThundaraController.SecondarySlot(0));
         var fixture = Fixture();
         NativeBattleEffectTaskPool main = fixture.Frame.Effect.Pools[0];
-        main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, 7).WriteWord(14, 0x0100)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, 7).WriteWord(14, 0x0100)) });
         NativeBattleThundaraFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.SetItem(0, main) } };
         frame = NativeBattleThundaraController.Advance6DC390(frame, Inputs(fixture.Packets));
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
@@ -265,9 +265,9 @@ public sealed class NativeBattleThundaraControllerTests
         Assert.Equal((byte)0, Byte(frame.Effect.Pools[0].Slots[0], 14));
     }
 
-    private static byte Byte(NativeBattleModulePoolTask task, int offset) => task.Payload[offset - 12];
+    private static byte Byte(NativeBattleModulePoolTask task, int offset) => NativeBattleStorageSnapshots.Capture(task).Payload[offset - 12];
     private static short Signed(NativeBattleModulePoolTask task, int offset) => unchecked((short)task.ReadWord(offset));
-    private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()[(offset - 12)..]);
+    private static uint Dword(NativeBattleModulePoolTask task, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan()[(offset - 12)..]);
     private static NativeBattleThundaraInputs Inputs(NativeBattleActionPacketsState packets, Func<NativeBattleThundaraFrame, NativeBattleThundaraOperation, NativeBattleThundaraFrame>? execute = null) => new(0, packets, _ => new(100, -200, 300), _ => new(new(0, 0, 0), new(0, 0, 0), 0, 123, 4096), execute ?? ((frame, _) => frame));
 
     private static (NativeBattleThundaraFrame Frame, NativeBattleActionPacketsState Packets) Fixture(int headers = 1)

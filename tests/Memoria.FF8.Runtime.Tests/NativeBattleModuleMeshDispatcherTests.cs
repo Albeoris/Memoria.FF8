@@ -38,7 +38,7 @@ public sealed class NativeBattleModuleMeshDispatcherTests
         Assert.Equal(new[] { 0, 20, 44, 76, 116, 144, 180, 220 }, batch.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray());
         Assert.Equal(new uint[] { 0x20, 0x28, 0x24, 0x2C, 0x30, 0x38, 0x34, 0x3C }, batch.Attempts.Select(attempt => attempt.Primitive!.Words[1] >> 24).ToArray());
         NativeBattleGfGeometryBatch gf = NativeBattleGfGeometryPackets.EmitBatch7043B0(Mesh(), 0, default, Matrix, Projection, new(0, 0, 0, null, null, 0, 17, 2));
-        Assert.Equal(JsonSerializer.Serialize(gf), JsonSerializer.Serialize(batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(gf), NativeBattleTestSnapshots.Json(batch));
     }
 
     [Theory]
@@ -129,21 +129,21 @@ public sealed class NativeBattleModuleMeshDispatcherTests
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, common.Process.ReadCommonPacket(40, 2));
         Assert.Throws<NotSupportedException>(() => common.Process.ReadCommonPacket(42, 1));
         Assert.Equal(new byte[] { 7, 8, 0, 0 }, common.Process.ReadCommonPacket(48, 4));
-        NativeBattleCommonPacketWrite clone = JsonSerializer.Deserialize<NativeBattleCommonPacketWrite>(JsonSerializer.Serialize(common))!;
-        Assert.Equal(JsonSerializer.Serialize(common), JsonSerializer.Serialize(clone));
+        NativeBattleCommonPacketWrite clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleCommonPacketWrite>(NativeBattleTestSnapshots.Json(common))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(common), NativeBattleTestSnapshots.Json(clone));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0);
         memory = memory with { Arena = memory.Arena!.Write(128, Enumerable.Repeat((byte)0xA5, 64).ToArray()).MarkUnknown(170, 1) };
-        NativeBattleEffectPacketWrite effect = NativeBattleEffectPacketArena.Append(memory, 128, NativeBattleLogicalOrdering.Clear(), batch, moduleDraw: 7);
+        NativeBattleEffectPacketWrite effect = NativeBattleEffectPacketArena.Append(NativeBattleTestSnapshots.Independent(memory), 128, NativeBattleLogicalOrdering.Clear(), batch, moduleDraw: 7);
         Assert.Equal(148, effect.Cursor);
         Assert.Equal(7, Assert.Single(effect.Ordering.Proxies).ModuleDraw);
         Assert.Equal(common.Process.ReadCommonPacket(48, 4), effect.Memory.Arena!.Read(176, 4));
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, effect.Memory.Arena.Read(168, 2));
         Assert.Throws<NotSupportedException>(() => effect.Memory.Arena.Read(170, 1));
-        NativeBattleEffectPacketWrite restored = JsonSerializer.Deserialize<NativeBattleEffectPacketWrite>(JsonSerializer.Serialize(effect))!;
-        Assert.Equal(JsonSerializer.Serialize(effect), JsonSerializer.Serialize(restored));
+        NativeBattleEffectPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectPacketWrite>(NativeBattleTestSnapshots.Json(effect))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(effect), NativeBattleTestSnapshots.Json(restored));
         NativeBattleModulePacketBatch transport = new([], 20) { CapturedWrites = batch };
         NativeBattleEffectPacketWrite transported = NativeBattleEffectPacketArena.Append(memory, 128, NativeBattleLogicalOrdering.Clear(), transport, NativeBattleEffectGouraudWrites.FullDword, 7);
-        Assert.Equal(JsonSerializer.Serialize(effect), JsonSerializer.Serialize(transported));
+        Assert.Equal(NativeBattleTestSnapshots.Json(effect), NativeBattleTestSnapshots.Json(transported));
         Assert.Throws<InvalidDataException>(() => NativeBattleEffectPacketArena.Append(memory, 128, NativeBattleLogicalOrdering.Clear(), transport, NativeBattleEffectGouraudWrites.RgbBytes));
     }
 

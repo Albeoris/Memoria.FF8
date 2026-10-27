@@ -75,7 +75,7 @@ public sealed class NativeBattleDrawStock15SpriteRegistersTests
     private static (NativeBattleModulePoolTask Task, NativeBattleDrawStock15ParticleResources Resources, NativeBattleActionMatrix Camera) Fixture(uint callback)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2732CF8, 0x2732D08, 300, 100);
-        NativeBattleModulePoolTask task = pool.Slots[0] with { Callback = callback };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = callback });
         task = task.WriteDword(0x4C, callback == 0x8B5C70 ? 0x162B520u : 0x162B730u).WriteWord(0x1C, 10).WriteWord(0x1E, unchecked((ushort)-20)).WriteWord(0x20, 30).WriteWord(0x22, 0xBEEF);
         NativeBattleDrawStock15ParticleResources resources = new(Sprite(6, 4), Sprite(0, 2));
         return (task, resources, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 10000, 4096));

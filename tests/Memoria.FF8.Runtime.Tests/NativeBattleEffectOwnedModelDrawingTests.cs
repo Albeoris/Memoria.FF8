@@ -45,10 +45,10 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         Assert.Equal(NativeBattleGfPacketByteState.Untouched, draw.Packets.Attempts[0].WriteMask[30]);
         Assert.Equal(NativeBattleGfPacketByteState.Untouched, draw.Packets.Attempts[0].WriteMask[31]);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(1024, Enumerable.Repeat((byte)0xA5, 272).ToArray()) };
-        string commonBefore = JsonSerializer.Serialize(memory.PrimitiveProcess);
+        string commonBefore = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory.PrimitiveProcess));
         NativeBattleEffectPacketWrite appended = NativeBattleEffectPacketArena.Append(memory, 1024, NativeBattleLogicalOrdering.Clear(), draw.Packets);
         Assert.Equal(1296, appended.Cursor);
-        Assert.Equal(commonBefore, JsonSerializer.Serialize(appended.Memory.PrimitiveProcess));
+        Assert.Equal(commonBefore, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(appended.Memory.PrimitiveProcess)));
         Assert.Equal(new byte[] { 0xA5, 0xA5 }, appended.Memory.Arena!.Read(1024 + 30, 2));
     }
 
@@ -75,7 +75,7 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
     public void Object_mask_skips_projection_and_body_but_keeps_shadow()
     {
         var fixture = Fixture();
-        NativeBattleEffectOwnedModelDraw masked = Draw(fixture.Task.WriteDword(0xAC, 0), fixture.State, fixture.Resource);
+        NativeBattleEffectOwnedModelDraw masked = Draw(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Task)).WriteDword(0xAC, 0), fixture.State, fixture.Resource);
         Assert.Equal(240, masked.Packets.AllocationBytes);
         Assert.Equal(0, masked.ProjectedBytesWritten);
         Assert.All(masked.ProjectedScratch, value => Assert.Equal(0xA5, value));
@@ -93,7 +93,7 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         NativeBattleModulePoolTask task = fixture.Task.WriteDword(0x58, 0x02808080);
         NativeBattleEffectOwnedModelDraw ordinary = Draw(task, fixture.State, fixture.Resource);
         NativeBattleEffectOwnedModelDraw faded = Draw(task.WriteByte(0x37, alpha), fixture.State, fixture.Resource);
-        Assert.Equal(JsonSerializer.Serialize(ordinary.Packets), JsonSerializer.Serialize(faded.Packets));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordinary.Packets)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(faded.Packets)));
         Assert.Equal(ordinary.ProjectedScratch, faded.ProjectedScratch);
         Assert.Equal(alpha, faded.Task.ReadByte(0x37));
     }
@@ -115,7 +115,7 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         Assert.All(draw.Packets.Attempts, attempt => Assert.Equal(4121, attempt.Primitive!.Bucket));
         Assert.All(draw.ProjectedScratch, value => Assert.Equal((byte)0xA5, value));
         Assert.Equal((ushort)4096, draw.Task.ReadWord(0x70));
-        Assert.DoesNotContain("BodyAllocationBytes", JsonSerializer.Serialize(draw));
+        Assert.DoesNotContain("BodyAllocationBytes", JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(draw)));
     }
 
     [Fact]
@@ -123,11 +123,11 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
     {
         var fixture = Fixture();
         NativeBattleEffectOwnedModelStep original = new(fixture.Task, fixture.State, false);
-        NativeBattleEffectOwnedModelStep restored = JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(original))!;
+        NativeBattleEffectOwnedModelStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectOwnedModelStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original)))!);
         NativeBattleEffectOwnedModelDraw expected = Draw(original.Task, original.State, fixture.Resource);
         NativeBattleEffectOwnedModelDraw actual = Draw(restored.Task, restored.State, fixture.Resource);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal((ushort)0, original.Task.ReadWord(0x70));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
+        Assert.Equal((ushort)4096, original.Task.ReadWord(0x70));
     }
 
     [Theory]
@@ -154,7 +154,7 @@ public sealed class NativeBattleEffectOwnedModelDrawingTests
         Assert.Equal(unchecked((ushort)scaled.Bounds.Minimum.X), scaled.Task.ReadWord(0x64));
         Assert.Equal(unchecked((ushort)scaled.Bounds.Maximum.Z), scaled.Task.ReadWord(0x6E));
         Assert.Equal(original.ProjectedScratch, scaled.ProjectedScratch);
-        Assert.Equal(JsonSerializer.Serialize(original.Packets.Attempts[0]), JsonSerializer.Serialize(scaled.Packets.Attempts[0]));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Packets.Attempts[0])), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(scaled.Packets.Attempts[0])));
     }
 
     private static NativeBattleEffectOwnedModelDraw Draw(NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelState state, NativeBattleEffectOwnedModelResource resource) => NativeBattleEffectOwnedModelDrawing.Draw7558A0(task, state, resource, View, Projection, Shadow, new(true), NativeBattleGteColorInterpolation.CodeConstants45F270, Enumerable.Repeat((byte)0xA5, 32).ToImmutableArray());

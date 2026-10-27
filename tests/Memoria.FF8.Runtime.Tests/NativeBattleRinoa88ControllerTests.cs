@@ -21,9 +21,9 @@ public sealed class NativeBattleRinoa88ControllerTests
         Assert.Equal((byte)0xA5, frame.Memory.Arena!.Read(first, 1)[0]);
         hierarchy = new(frame.Effect.Pools);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Write(root, hierarchy.Read(root).WriteByte(40, 0)).Pools } };
-        NativeBattleRinoa88Frame clone = JsonSerializer.Deserialize<NativeBattleRinoa88Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleRinoa88Frame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRinoa88Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleRinoa88Controller.Advance(frame, fixture.Inputs);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleRinoa88Controller.Advance(clone, fixture.Inputs)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleRinoa88Controller.Advance(clone, fixture.Inputs)));
         Assert.Equal(first, frame.State.EmitterOffset);
         Assert.Equal(first + 2160, frame.State.GeometryOffset);
         Assert.Equal(first + 49200, frame.State.AuxiliaryCursor);

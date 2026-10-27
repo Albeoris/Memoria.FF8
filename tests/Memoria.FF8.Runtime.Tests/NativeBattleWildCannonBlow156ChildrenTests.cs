@@ -115,8 +115,8 @@ public sealed class NativeBattleWildCannonBlow156ChildrenTests
             Assert.Equal((ushort)101, actual.Frame.State.ReadWord(bank + 24 + 8));
             Assert.Equal((ushort)100, actual.Frame.State.ReadWord(bank + 48 + 8));
         }
-        NativeBattleWildCannonBlow156Frame restored = JsonSerializer.Deserialize<NativeBattleWildCannonBlow156Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(actual.Frame, callback, Inputs()).Frame), JsonSerializer.Serialize(Advance(restored, callback, Inputs()).Frame));
+        NativeBattleWildCannonBlow156Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWildCannonBlow156Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Advance(actual.Frame, callback, Inputs()).Frame), NativeBattleTestSnapshots.Json(Advance(restored, callback, Inputs()).Frame));
     }
 
     [Theory]
@@ -184,7 +184,7 @@ public sealed class NativeBattleWildCannonBlow156ChildrenTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23EF478, TaskAddress, 36, 100);
         (pool, _) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x10, 100).WriteWord(0x12, 0).WriteWord(0x14, 300)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x10, 100).WriteWord(0x12, 0).WriteWord(0x14, 300)) });
         NativeBattleOriginalEffectState effect = new(156, 155, new(156, 0x605530, 0x605510), null, 0x23ECE68) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         NativeBattleWildCannonBlow156Frame frame = new(memory, effect, new(123), NativeBattleWildCannonBlow156State.FromColdProcess() with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

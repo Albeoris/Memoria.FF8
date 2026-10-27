@@ -22,7 +22,7 @@ public sealed class NativeBattleEffectNodeContextMemoryTests
         NativeBattleEffectArena next = NativeBattleEffectNodeContextMemory.Capture(published);
         Assert.Equal(data, next.ReadSnapshot(148, 8).Data);
         Assert.Equal(known, next.ReadSnapshot(148, 8).Known);
-        Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(NativeBattleEffectNodeContextMemory.Publish(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!, view)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(published)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectNodeContextMemory.Publish(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!), view))));
     }
 
     [Fact]

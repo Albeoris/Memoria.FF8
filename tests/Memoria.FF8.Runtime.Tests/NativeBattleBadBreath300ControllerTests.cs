@@ -14,7 +14,7 @@ public sealed class NativeBattleBadBreath300ControllerTests
     {
         Fixture fixture = new();
         NativeBattleEffectTaskPool root = fixture.Frame.Effect.Pools[0];
-        NativeBattleBadBreath300Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(16, parity)) }] } };
+        NativeBattleBadBreath300Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(16, parity)) })] } };
         NativeBattleBadBreath300Frame result = fixture.Step(frame);
         Assert.Equal(ArenaAddress + (uint)offset, result.State.ReadDword(CursorGlobal));
         Assert.Equal(next, result.Effect.Pools[0].Slots[0].ReadDword(16));
@@ -58,11 +58,12 @@ public sealed class NativeBattleBadBreath300ControllerTests
         {
             frame = first.Step(frame);
         }
-        NativeBattleBadBreath300Frame restored = JsonSerializer.Deserialize<NativeBattleBadBreath300Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleBadBreath300Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath300Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Fixture second = new();
+        second.CopyCallbackFrom(first);
         first.Operations.Clear();
-        Assert.Equal(JsonSerializer.Serialize(first.Step(frame)), JsonSerializer.Serialize(second.Step(restored)));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(second.Operations));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(frame)), NativeBattleTestSnapshots.Json(second.Step(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations), NativeBattleTestSnapshots.Json(second.Operations));
     }
 
     [Fact]
@@ -149,6 +150,11 @@ public sealed class NativeBattleBadBreath300ControllerTests
             BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(36), 26);
             BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(40), 16);
             Resources = new(new(0x1042304, source.ToImmutableArray()), new(0, 0x103F824, 0, 0, []), new("fixture", []), new("fixture", []), mesh, mesh, new short[8192].ToImmutableArray(), [0, 0, 0, 0], new byte[8].ToImmutableArray(), 0x55781);
+        }
+
+        public void CopyCallbackFrom(Fixture source)
+        {
+            callback = source.callback;
         }
 
         public NativeBattleBadBreath300Frame Step(NativeBattleBadBreath300Frame frame) => NativeBattleBadBreath300Controller.Advance(frame, Resources, new(Packets, actor => actor < 3 ? Model with { Index = actor, Flags0 = 0 } : Model, _ => Pose, _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), 0x1234), (current, _) => new(current, new(0, 100, 100, 0)), current => new(current, new(17, 100, 0)), (current, _, _, _) => new(current, new(0, 100, 100)), (current, operation) =>

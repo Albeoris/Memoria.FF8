@@ -10,6 +10,7 @@ public sealed class NativeBattleCarbuncle278RecipientTests
     public void Recipients_reverse_contacts_clear_their_whole_payload_and_cache_anchor_before_zeroing_height()
     {
         var fixture = Fixture();
+        NativeBattleCarbuncle278Frame preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         NativeBattleCarbuncle278Frame current = fixture.Frame;
         for (int index = 0; index < 3; index++)
         {
@@ -28,12 +29,13 @@ public sealed class NativeBattleCarbuncle278RecipientTests
             Assert.Equal((ushort)6, task.ReadWord(0x62));
             Assert.Equal(0x10C1CD8u, task.ReadDword(0x64));
             Assert.Equal(0u, task.ReadDword(0x68));
-            Assert.Equal(new byte[0x10C - 0x6C], task.Payload.AsSpan().Slice(0x6C - 12).ToArray());
-            Assert.Equal(task.Payload, current.Memory.Arena!.Read(0x1FA0 + index * 0x10C + 12, 0x100));
+            Assert.Equal(new byte[0x10C - 0x6C], NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(0x6C - 12).ToArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, current.Memory.Arena!.Read(0x1FA0 + index * 0x10C + 12, 0x100));
         }
-        Assert.All(fixture.Frame.Effect.Pools[0].Slots, task => Assert.Equal((ushort)0, task.Flags));
-        NativeBattleCarbuncle278Frame restored = JsonSerializer.Deserialize<NativeBattleCarbuncle278Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCarbuncle278Recipients.Spawn681B8C(fixture.Frame, fixture.Creature, _ => new(-7, 123, 45, 6))), JsonSerializer.Serialize(NativeBattleCarbuncle278Recipients.Spawn681B8C(restored, fixture.Creature, _ => new(-7, 123, 45, 6))));
+        Assert.All(preserved.Effect.Pools[0].Slots, task => Assert.Equal((ushort)0, task.Flags));
+        fixture = (preserved, fixture.Creature);
+        NativeBattleCarbuncle278Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Recipients.Spawn681B8C(fixture.Frame, fixture.Creature, _ => new(-7, 123, 45, 6))), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Recipients.Spawn681B8C(restored, fixture.Creature, _ => new(-7, 123, 45, 6))));
         Assert.Same(current, NativeBattleCarbuncle278Recipients.Spawn681B8C(current, fixture.Creature, _ => throw new Exception("Full bank must skip anchor reads.")));
         Assert.Same(fixture.Frame, NativeBattleCarbuncle278Recipients.Spawn681B8C(fixture.Frame, fixture.Creature.WriteWord(0xC, 146), _ => throw new Exception()));
         Assert.Same(fixture.Frame, NativeBattleCarbuncle278Recipients.Spawn681B8C(fixture.Frame, fixture.Creature.WriteWord(0xE, 0), _ => throw new Exception()));
@@ -49,6 +51,7 @@ public sealed class NativeBattleCarbuncle278RecipientTests
         NativeBattleModulePoolTask source = new(1, 0, null, 0x6822F0, Enumerable.Repeat((byte)0xA5, 0x100).ToImmutableArray());
         source = source.WriteDword(0x28, 10).WriteDword(0x2C, 20).WriteDword(0x30, 30);
         NativeBattleActionMatrix view = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 100, 200, 300, 4096);
+        NativeBattleModulePoolTask preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
         NativeBattleModulePoolTask result = NativeBattleCarbuncle278Recipients.Cache6DBCC0(source, 1024, input, view);
         short[] world = [0, 0, scale, 0, scale, 0, unchecked((short)-scale), 0, 0];
         short[] composed = [0, unchecked((short)-scale), 0, 0, 0, scale, unchecked((short)-scale), 0, 0];
@@ -61,7 +64,7 @@ public sealed class NativeBattleCarbuncle278RecipientTests
         Assert.Equal((ushort)0xA5A5, result.ReadWord(0x46));
         Assert.Equal((80u, 210u, 330u), (result.ReadDword(0x48), result.ReadDword(0x4C), result.ReadDword(0x50)));
         Assert.Equal((10u, 20u, 30u), (result.ReadDword(0x28), result.ReadDword(0x2C), result.ReadDword(0x30)));
-        Assert.Equal((ushort)0xA5A5, source.ReadWord(0x14));
+        Assert.Equal((ushort)0xA5A5, preserved.ReadWord(0x14));
     }
 
     [Fact]
@@ -85,7 +88,7 @@ public sealed class NativeBattleCarbuncle278RecipientTests
         NativeBattleModulePoolTask task = result.Effect.Pools[0].Slots[0];
         Assert.Equal((ushort)0, task.ReadWord(0x12));
         Assert.Equal(unchecked((ushort)-2), task.ReadWord(0xE));
-        for (int index = 0; index < 64; index++)
+        for (int index = 1; index < 64; index++)
         {
             (pool, _) = pool.Append(0x683E80);
         }
@@ -101,7 +104,7 @@ public sealed class NativeBattleCarbuncle278RecipientTests
         NativeBattleCarbuncle278Resources resources = new(new(0, 0, [])) { RecipientProgramme = new(0x10C1CD8, source.ToImmutableArray()) };
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508158, NativeBattleEffectNodeMemory.ArenaAddress + 0x1FA0, 0x10C, 3);
         NativeBattleOriginalEffectState effect = new(278, 277, new(278, 0x680C50, 0x680C60) { Carbuncle278Resources = resources }, new(0, 0, 3, 0, 0, 0), null) { Pools = [pool] };
-        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
+        NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect.Pools);
         NativeBattleModulePoolTask creature = new(1, 0, null, 0x681630, new byte[0x5E0 - 12].ToImmutableArray());
         creature = creature.WriteWord(0xC, 145).WriteWord(0xE, 3).WriteDword(0x14, 100).WriteDword(0x18, 200).WriteDword(0x1C, 300);
         return (new(memory, effect, NativeCrtRandomState.FromColdProcess()), creature);

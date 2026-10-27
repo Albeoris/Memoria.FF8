@@ -21,14 +21,14 @@ public sealed class NativeBattleEffect101StateTests
     {
         NativeBattleEffectArena scale = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(0, BitConverter.GetBytes(-12345)).Write(4, BitConverter.GetBytes((short)4096));
         NativeBattleEffect101State state = NativeBattleEffect101State.FromUnknown().WriteView(NativeBattleEffect101Profile.ScaleAddress, scale, 12).WriteDword(NativeBattleEffect101Profile.TargetGlobal, 0x1D972C0);
-        NativeBattleEffect101State restored = JsonSerializer.Deserialize<NativeBattleEffect101State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect101State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect101State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(unchecked((uint)-12345), restored.ReadDword(NativeBattleEffect101Profile.ScaleAddress));
         Assert.Equal((ushort)4096, restored.ReadWord(NativeBattleEffect101Profile.ScaleAddress + 4));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(NativeBattleEffect101Profile.ScaleAddress + 4));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(NativeBattleEffect101Profile.ScaleAddress + 8));
         Assert.Equal(0x1D972C0u, restored.ReadDword(NativeBattleEffect101Profile.TargetGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteDword(NativeBattleEffect101Profile.ScaleAddress + 8, 123)), JsonSerializer.Serialize(restored.WriteDword(NativeBattleEffect101Profile.ScaleAddress + 8, 123)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state.WriteDword(NativeBattleEffect101Profile.ScaleAddress + 8, 123))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.WriteDword(NativeBattleEffect101Profile.ScaleAddress + 8, 123))));
     }
     [Theory]
     [InlineData(0x2544E38u)]

@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect227ControllerTests
         NativeBattleEffect227Frame frame = Frame(17, true, false);
         NativeBattleEffectTaskPool particles = frame.Effect.Pools[2];
         (particles, int slot) = particles.Append(ParticleCallback);
-        particles = particles with { Head = null, Tail = null, Slots = particles.Slots.SetItem(slot, particles.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(14, 0x4321)) };
+        particles = particles.WriteSlot(slot, particles.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(14, 0x4321)).UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, particles) } };
         NativeBattleEffect227Frame result = Advance(frame, Resources(), new Harness().Inputs());
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
@@ -147,7 +147,7 @@ public sealed class NativeBattleEffect227ControllerTests
         NativeBattleEffect227Frame frame = Frame(262);
         frame = Write(frame, Main, CopyTask(Read(frame, Main), 0x14, PointView(new(1000, 0, 0)), 8));
         frame = frame with { State = frame.State.WriteView(EndpointAddress, PointView(new(5000, 0, 0)), 8) };
-        frame = JsonSerializer.Deserialize<NativeBattleEffect227Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect227Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         (frame, NativeBattleEffectArena point) = BlendEndpoint(frame, Main, elapsed, NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Equal(expectedX, Vector(point).X);
         Assert.Equal(new[] { false, false }, point.ReadSnapshot(6, 2).Known);
@@ -182,7 +182,7 @@ public sealed class NativeBattleEffect227ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[4]).WriteWord(12, (ushort)age).WriteByte(15, children ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[4]).WriteWord(12, (ushort)age).WriteByte(15, children ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (children)
         {
@@ -192,7 +192,7 @@ public sealed class NativeBattleEffect227ControllerTests
                 if (shape.Descriptor == MainDescriptor && main)
                 {
                     (pool, _) = pool.Append(MainCallback);
-                    pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12]).WriteWord(12, (ushort)age)) };
+                    pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12]).WriteWord(12, (ushort)age));
                 }
                 pools = pools.Add(pool);
             }

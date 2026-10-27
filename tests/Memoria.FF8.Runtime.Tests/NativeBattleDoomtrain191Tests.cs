@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -10,6 +10,7 @@ public sealed class NativeBattleDoomtrain191Tests
     public void Entry_preserves_matrix_padding_and_sparse_particle_record_suffixes_using_first_contact_yaw_and_actual_target_matrix()
     {
         var fixture = Fixture();
+        NativeBattleDoomtrain191Frame preserved = NativeBattleStorageSnapshots.Capture(fixture.Frame);
         NativeBattleDoomtrain191Frame result = Initialize(fixture);
         NativeBattleDoomtrain191State state = result.Memory.Doomtrain191!;
         Assert.Equal(3, state.FirstTarget);
@@ -29,7 +30,7 @@ public sealed class NativeBattleDoomtrain191Tests
                 int offset = offsets[pool] + 24 * index;
                 Assert.Equal(new byte[4], result.Memory.Arena!.Read(offset, 4));
                 Assert.All(result.Memory.Arena.Read(offset + 4, 20), value => Assert.Equal((byte)0xA5, value));
-                Assert.All(fixture.Frame.Memory.Arena!.Read(offset, 24), value => Assert.Equal((byte)0xA5, value));
+                Assert.All(preserved.Memory.Arena!.Read(offset, 24), value => Assert.Equal((byte)0xA5, value));
             }
         }
         Assert.Equal(0x20DFAB8u, state.ArenaAddress);
@@ -40,7 +41,7 @@ public sealed class NativeBattleDoomtrain191Tests
         Assert.Equal(0x63F2D0u, result.Effect.Pools[1].Slots[0].Callback);
         Assert.Equal(0x24FBF80u, result.Effect.ReturnedDescriptor);
         var restored = fixture with { Frame = RoundTrip(fixture.Frame) };
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Initialize(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Initialize(restored)));
     }
 
     [Fact]
@@ -50,6 +51,7 @@ public sealed class NativeBattleDoomtrain191Tests
         NativeBattleDoomtrain191State owner = fixture.Frame.Memory.Doomtrain191!;
         owner = owner with { BaseMatrix = owner.BaseMatrix with { Known = Enumerable.Repeat(true, 32).ToImmutableArray() } };
         fixture = fixture with { Frame = fixture.Frame with { Memory = fixture.Frame.Memory with { Doomtrain191 = owner } } };
+        NativeBattleDoomtrain191Frame preserved = NativeBattleStorageSnapshots.Capture(fixture.Frame);
         NativeBattleDoomtrain191Frame result = Initialize(fixture);
         Assert.False(result.Memory.Doomtrain191!.BaseMatrix.Known[18]);
         Assert.False(result.Memory.Doomtrain191.BaseMatrix.Known[19]);
@@ -78,6 +80,7 @@ public sealed class NativeBattleDoomtrain191Tests
                 return current;
             }
         };
+        NativeBattleDoomtrain191Frame before = RoundTrip(initial);
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Controller.Advance6472C0(initial, inputs, fixture.Resources);
         Assert.Equal(new[] { typeof(NativeBattleDoomtrain191StreamStart), typeof(NativeBattleDoomtrain191StartVibration), typeof(NativeBattleDoomtrain191CameraPublish) }, operations);
         Assert.Equal(new[] { 3, 4 }, result.Memory.Doomtrain191!.Targets);
@@ -91,8 +94,8 @@ public sealed class NativeBattleDoomtrain191Tests
         Assert.Equal((ushort)1, children.Slots[0].ReadWord(0xC));
         Assert.Equal((ushort)1, result.Effect.Pools[0].Slots[0].ReadWord(0xC));
         operations.Clear();
-        NativeBattleDoomtrain191Frame restored = NativeBattleDoomtrain191Controller.Advance6472C0(RoundTrip(initial), inputs, fixture.Resources);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleDoomtrain191Frame restored = NativeBattleDoomtrain191Controller.Advance6472C0(before, inputs, fixture.Resources);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Theory]
@@ -113,6 +116,7 @@ public sealed class NativeBattleDoomtrain191Tests
             },
             Execute = (_, _) => throw new InvalidOperationException("Paused timeline must not execute its initialization.")
         };
+        NativeBattleDoomtrain191Frame before = RoundTrip(initial);
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Controller.Advance6472C0(initial, inputs, fixture.Resources);
         Assert.Equal(flags == 1 ? 0 : 1, polls);
         Assert.Equal((ushort)0, result.Effect.Pools[1].Slots[0].ReadWord(0xC));
@@ -126,7 +130,7 @@ public sealed class NativeBattleDoomtrain191Tests
         var fixture = Fixture();
         NativeBattleDoomtrain191Frame initial = Initialize(fixture);
         NativeBattleEffectTaskPool children = initial.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(0xC, 1)).SetItem(1, children.Slots[1] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).SetItem(2, children.Slots[2] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(0xC, 1)).SetItem(1, NativeBattleTaskFixture.EditTask(children.Slots[1], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).SetItem(2, NativeBattleTaskFixture.EditTask(children.Slots[2], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })) });
         initial = initial with { Effect = initial.Effect with { Pools = initial.Effect.Pools.SetItem(1, children) } };
         List<int> visits = [];
         NativeBattleDoomtrain191Inputs inputs = Inputs(fixture) with
@@ -137,6 +141,7 @@ public sealed class NativeBattleDoomtrain191Tests
                 return new(current, 0);
             }
         };
+        NativeBattleDoomtrain191Frame before = RoundTrip(initial);
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Controller.Advance6472C0(initial, inputs, fixture.Resources);
         Assert.Equal(new[] { 1, 2 }, visits);
         NativeBattleModulePoolTask first = result.Effect.Pools[1].Slots[1];
@@ -198,5 +203,5 @@ public sealed class NativeBattleDoomtrain191Tests
         return new(new(memory, effect, new(1)), models, packets, resources);
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 }

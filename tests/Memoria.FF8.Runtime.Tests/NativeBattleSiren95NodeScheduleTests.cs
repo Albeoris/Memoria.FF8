@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -50,6 +50,7 @@ public sealed class NativeBattleSiren95NodeScheduleTests
         BinaryPrimitives.WriteInt16LittleEndian(schedule.AsSpan(10), 32767);
         NativeBattleSiren95NodeScheduleServices services = new(fixture.Inputs.Packets, (_, pointer, length) => schedule.AsSpan(checked((int)(pointer - 0x15339D8)), length).ToArray());
         NativeCrtRandomState random = frame.Random.Draw(out ushort jitter).Draw(out ushort height);
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var step = NativeBattleSiren95ScheduledNodes.Advance744F90(frame, added.Address, services);
         NativeBattleModulePoolTask child = Assert.Single(step.Frame.Effect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745180);
         Assert.Equal(random, step.Frame.Random);
@@ -60,8 +61,7 @@ public sealed class NativeBattleSiren95NodeScheduleTests
         Assert.Equal(unchecked((ushort)(-(NativeBattleCameraMath.Sine(angle) * 1000 / 4096))), child.ReadWord(0x288));
         Assert.Equal(unchecked((ushort)(-434 - (height & 63))), child.ReadWord(0x28A));
         Assert.Equal((ushort)1, Read(step.Frame, added.Address).ReadWord(0xDC));
-        var restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleSiren95ScheduledNodes.Advance744F90(restored, added.Address, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleSiren95ScheduledNodes.Advance744F90(restored, added.Address, services)));
     }
 
     private static NativeBattleModulePoolTask Read(NativeBattleSiren95Frame frame, uint address) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);

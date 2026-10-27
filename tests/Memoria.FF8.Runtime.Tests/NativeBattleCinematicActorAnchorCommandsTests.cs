@@ -102,10 +102,10 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             ReadScale38 = _ => 4096
         };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 8, 0x1000), services);
         NativeBattleWaterExecutionFrame continued = NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 8, 0x1000), services);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(continued));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(continued));
         Assert.Equal(x << 16, Position(result, 0));
         Assert.Equal(-8 << 16, Position(result, 1));
         Assert.Equal(z << 16, Position(result, 2));
@@ -144,9 +144,9 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
         }, NativeBattleActorAnchorRegisterFixture.Services());
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 2, 0x1000), services);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 2, 0x1000), services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 2, 0x1000), services)));
         Assert.Equal(expected, result.Random);
         Assert.Equal((-7 + 20 * selected) << 16, Position(result, 0));
         Assert.Equal(8 << 16, Position(result, 1));

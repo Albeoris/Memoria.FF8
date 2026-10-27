@@ -42,7 +42,7 @@ public sealed class NativeBattleEffect320ControllerTests
         Assert.Equal(0, contacted.Result);
         Assert.Equal(new NativeBattleEffect320AllContacts506BA0(0, 1), Assert.Single(harness.Operations));
         Assert.Equal(84, Read(contacted.Frame, Main).ReadWord(12));
-        frame = JsonSerializer.Deserialize<NativeBattleEffect320Frame>(JsonSerializer.Serialize(contacted.Frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(contacted.Frame)))!);
         frame = Write(frame, Main, Read(frame, Main).WriteWord(12, 97));
         NativeBattleEffect320Step ended = AdvanceMain65BE90(frame, Main, EmptyResources(), harness.Inputs());
         Assert.Equal(2, ended.Result);
@@ -127,14 +127,14 @@ public sealed class NativeBattleEffect320ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteByte(14, children ? (byte)1 : (byte)0).WriteDword(16, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, unchecked((ushort)phase)).WriteByte(14, children ? (byte)1 : (byte)0).WriteDword(16, 0));
         NativeBattleEffect320State state = NativeBattleEffect320State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena) with { MutableAnchorSourceBound = true };
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (children)
         {
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, Main, MainStride, 1);
             (main, _) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteBytes(12, new byte[MainStride - 12]).WriteWord(12, unchecked((ushort)phase))) };
+            main = main.WriteSlot(0, main.Slots[0].WriteBytes(12, new byte[MainStride - 12]).WriteWord(12, unchecked((ushort)phase)));
             NativeBattleEffectTaskPool particles = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, Arena + ParticleBankOffset, ParticleStride, ParticleCapacity);
             pools = [root, main, particles];
             state = state.DetachCommonQueue(MainDescriptor).DetachCommonQueue(ParticleDescriptor);

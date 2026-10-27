@@ -54,9 +54,9 @@ public sealed class NativeBattleEffect322TrajectoryTests
             controls = WritePoint(controls, index * 8, new((short)(index * 100), 0, (short)(index * -100)));
         }
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(6, 2);
-        NativeBattleEffect322Frame restored = JsonSerializer.Deserialize<NativeBattleEffect322Frame>(JsonSerializer.Serialize(frame))!;
-        NativeBattleEffectArena restoredControls = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(controls))!;
-        Assert.Equal(JsonSerializer.Serialize(Sample(frame, controls, 3, 1024, retained)), JsonSerializer.Serialize(Sample(restored, restoredControls, 3, 1024, retained)));
+        NativeBattleEffect322Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect322Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        NativeBattleEffectArena restoredControls = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(controls)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Sample(frame, controls, 3, 1024, retained))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Sample(restored, restoredControls, 3, 1024, retained))));
         Assert.Throws<NotSupportedException>(() => Sample(frame, controls, 4, 0, retained));
         Assert.Throws<NotSupportedException>(() => Sample(frame, controls.MarkUnknown(4 * 8, 2), 3, 0, retained));
     }

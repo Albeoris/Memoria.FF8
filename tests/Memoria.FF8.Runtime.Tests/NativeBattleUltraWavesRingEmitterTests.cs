@@ -78,8 +78,8 @@ public sealed class NativeBattleUltraWavesRingEmitterTests
         Assert.Equal(2, step.Result);
         Assert.Equal((short)0, Word(step.Particles, 0));
         Assert.Equal((short)12, Word(step.Particles, 4));
-        NativeBattleUltraWavesEmitterStep restored = JsonSerializer.Deserialize<NativeBattleUltraWavesEmitterStep>(JsonSerializer.Serialize(step))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(step, 184)), JsonSerializer.Serialize(Advance(restored, 184)));
+        NativeBattleUltraWavesEmitterStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWavesEmitterStep>(NativeBattleTestSnapshots.Json(step))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Advance(step, 184)), NativeBattleTestSnapshots.Json(Advance(restored, 184)));
     }
 
     private static NativeBattleUltraWavesEmitterStep Advance(NativeBattleUltraWavesEmitterStep step, ushort effect, bool paused = false, Func<NativeBattleUltraWavesEmitterStep, NativeBattleGfGeometryBatch, NativeBattleUltraWavesEmitterStep>? deliver = null) => NativeBattleUltraWavesRingEmitter.Advance(step, effect, Mesh(), Enumerable.Repeat(0x123456u, 16).ToImmutableArray(), NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), new(null, 100, 160, 108), NativeBattleGteColorInterpolation.CodeConstants45F270, paused, deliver ?? ((current, _) => current));

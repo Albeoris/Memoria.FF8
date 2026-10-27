@@ -79,8 +79,8 @@ public sealed class NativeBattleBio22ActorPacketTests
         NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(mesh, [Identity with { X = 40000 }], Identity, Projection, 0, 1024, 4096, 256, 256, NativeBattleEffectArena.Clear(), 0x2000);
         Assert.Equal(unchecked((short)(short.MaxValue + 64)), BinaryPrimitives.ReadInt16LittleEndian(draw.Work.Read(0x2004, 2)));
         NativeBattleBio22ActorDraw full = Emit(Mesh(), draw.Work);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(full.Work))!;
-        Assert.Equal(JsonSerializer.Serialize(Emit(mesh, full.Work)), JsonSerializer.Serialize(Emit(mesh, restored)));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(full.Work))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Emit(mesh, full.Work)), NativeBattleTestSnapshots.Json(Emit(mesh, restored)));
         Assert.Equal(full.Work.Read(0x2014, 6), Emit(mesh, full.Work).Work.Read(0x2014, 6));
     }
 

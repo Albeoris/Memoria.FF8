@@ -119,7 +119,7 @@ public sealed class NativeBattleBoomerangSword304LowerTests
         var frame = Frame();
         (frame, uint address) = Append(frame, 0x2507590, 0x66A3F0);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[460].ToImmutableArray()).Initialize7016B0(resources.Programme, 460);
-        byte[] cache = workspace.Data.ToArray();
+        byte[] cache = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(cache.AsSpan(4), oldFrame);
         var task = Read(frame, address).WriteDword(12, 0x1D972C0);
         task = CopyTask(task, 16, PointView(new(100, 200, 300), 0x1234), 8);

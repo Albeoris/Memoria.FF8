@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect227LowerTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508718, 0x20DFAB8, 24, 16);
         (pool, int slot) = pool.Append(0x694360);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(12, (ushort)age).WriteWord(14, 20).WriteWord(16, 30).WriteWord(18, 7).WriteWord(20, unchecked((ushort)-3));
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = pool.WriteSlot(slot, task);
         frame = frame with { Effect = frame.Effect with { Pools = [pool] } };
         frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
         byte[] mesh = new byte[40];

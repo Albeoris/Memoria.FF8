@@ -15,8 +15,8 @@ public sealed class NativeBattleIfritFormEntryTests
         Assert.Equal(201, entry.Memory.Cinematic!.Effect);
         Assert.Equal(0xB25DF0u, Assert.Single(Assert.Single(entry.Effect.Pools).Slots).Callback);
         Assert.Throws<InvalidDataException>(() => NativeBattleCinematicEntry.Initialize(NativeBattleCinematicProfile.ForEffect(201), fixture.Memory, effect, fixture.Directories, inputs));
-        NativeBattleCinematicEntryStep restored = JsonSerializer.Deserialize<NativeBattleCinematicEntryStep>(JsonSerializer.Serialize(entry))!;
-        Assert.Equal(JsonSerializer.Serialize(entry), JsonSerializer.Serialize(restored));
+        NativeBattleCinematicEntryStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCinematicEntryStep>(NativeBattleTestSnapshots.Json(entry))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(entry), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

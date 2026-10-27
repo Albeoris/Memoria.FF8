@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect338ControllerTests
     public void Old72_draws_and_advances_before_stopping_retained_vibration_and_preserves_CRT_after_JSON()
     {
         Fixture fixture = new(72);
-        NativeBattleEffect338Frame restored = JsonSerializer.Deserialize<NativeBattleEffect338Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleEffect338Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect338Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Frame)))!);
         var result = AdvanceMain(restored, fixture.Main, fixture.Resources, fixture.Inputs);
         Assert.Equal(0, result.Result);
         Assert.Equal((ushort)73, Read(result.Frame, fixture.Main).ReadWord(12));
@@ -73,7 +73,7 @@ public sealed class NativeBattleEffect338ControllerTests
             (NativeBattleEffectTaskPool mainPool, int slot) = pools[1].Append(MainCallback);
             Main = mainPool.BankAddress + (uint)(slot * mainPool.Stride);
             NativeBattleModulePoolTask main = mainPool.Slots[slot].WriteWord(12, age).WriteDword(16, 17).WriteDword(0x78, 100).WriteDword(0x7C, 200).WriteDword(0x80, 300);
-            mainPool = mainPool with { Slots = mainPool.Slots.SetItem(slot, main) };
+            mainPool = mainPool.WriteSlot(slot, main);
             pools = pools.SetItem(1, mainPool);
             NativeBattleOriginalEffectState effect = new(338, 338, new(338, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools };
             NativeBattleEffect338State state = NativeBattleEffect338State.FromColdProcess().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(TargetGlobal, 0x1D972C0 + 3 * 156).WriteDword(0x25561D8, ArenaAddress) with { RootBankStorage = null };

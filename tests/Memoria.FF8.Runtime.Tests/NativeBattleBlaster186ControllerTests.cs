@@ -151,7 +151,7 @@ public sealed class NativeBattleBlaster186ControllerTests
     {
         NativeBattleBlaster186Frame frame = Frame(MainCallback);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })), Head = null, Tail = null });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         int requests = 0;
         NativeBattleBlaster186Inputs inputs = Inputs([]) with { Execute = (current, operation) =>
@@ -166,7 +166,7 @@ public sealed class NativeBattleBlaster186ControllerTests
         Assert.Equal(0, requests);
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
-        frame = JsonSerializer.Deserialize<NativeBattleBlaster186Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         frame = frame with { Effect = WriteCompletionByte(frame.Effect, RootBank + 30, 0xFF) };

@@ -86,7 +86,7 @@ public sealed class NativeBattleDegenerator306ActorsTests
         Assert.Equal(original.Transform!.Vertical34, BinaryPrimitives.ReadInt16LittleEndian(frame.State.Read(0x2244196, 2)));
         task = NativeBattleDegenerator306Controller.Read(frame, address).WriteWord(12, 29);
         frame = NativeBattleDegenerator306Controller.Write(frame, address, task);
-        frame = JsonSerializer.Deserialize<NativeBattleDegenerator306Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDegenerator306Frame>(NativeBattleTestSnapshots.Json(frame))!;
         fixture.Operations.Clear();
         (frame, result) = NativeBattleDegenerator306Actors.Advance(frame, address, fixture.Inputs());
         Assert.Equal(2, result);

@@ -36,9 +36,9 @@ public sealed class NativeBattleCurePacketArenaTests
         NativeBattleModulePacketBatch batch = new([new(mode, 40, 0), new(sprite, 0, 0)], 52);
         NativeBattleCureState state = new(0, 0, 65536, null);
         NativeBattleCurePacketWrite write = NativeBattleCurePacketArena.AppendPrimary(memory, state, NativeBattleLogicalOrdering.Clear(), batch);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleCurePacketWrite independent = NativeBattleCurePacketArena.AppendPrimary(restored, state, NativeBattleLogicalOrdering.Clear(), batch);
-        Assert.Equal(JsonSerializer.Serialize(write), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(write), NativeBattleTestSnapshots.Json(independent));
         Assert.Equal(new[] { 40, 0 }, write.Ordering.Proxies.Select(proxy => proxy.Packet.ByteOffset).ToArray());
         Assert.Equal(new byte[] { 0xDA, 0xDA }, write.Memory.Arena!.Read(30, 2));
         Assert.Equal(new byte[] { 0xDA, 0xDA }, write.Memory.Arena.Read(38, 2));

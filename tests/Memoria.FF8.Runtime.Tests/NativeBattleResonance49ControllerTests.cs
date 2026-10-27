@@ -137,7 +137,7 @@ public sealed class NativeBattleResonance49ControllerTests
         Assert.Empty(frame.Effect.Pools);
         Assert.All(frame.State.InactiveBanks, bank => Assert.NotNull(bank));
         Assert.Equal(new NativeCrtRandomState(123), frame.Random);
-        var restored = JsonSerializer.Deserialize<NativeBattleResonance49Frame>(JsonSerializer.Serialize(frame))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var warm = Initialize(restored, Resources(), inputs);
         Assert.Equal(0, Read(warm, RootBank).ReadByte(0x29));
         Assert.Equal(0, Read(warm, RootBank).ReadByte(0x62));

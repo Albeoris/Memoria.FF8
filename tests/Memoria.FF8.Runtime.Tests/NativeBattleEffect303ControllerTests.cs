@@ -135,7 +135,7 @@ public sealed class NativeBattleEffect303ControllerTests
         Assert.Equal((ushort)age, Read(actual.Frame, Pools[1].Bank).ReadWord(12));
         Assert.Equal(new NativeBattleEffect303QueueFile5341D0(360, ArenaAddress + FirstPacketOffset + 124, 1), Assert.Single(harness.Operations));
         Assert.Equal(frame.Random, actual.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.Staging), JsonSerializer.Serialize(actual.Frame.Staging));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Staging)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame.Staging)));
     }
 
     [Fact]
@@ -232,10 +232,10 @@ public sealed class NativeBattleEffect303ControllerTests
         Assert.Equal(0xABCDu, actual.State.ReadDword(SeedGlobal));
         Assert.Throws<NotSupportedException>(() => actual.Memory.Arena!.Read(0x400, 1));
         Assert.Equal(new byte[] { 1, 0 }, actual.Memory.Arena!.Read(0x35A0 + 18, 2));
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect303Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect303Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Throws<NotSupportedException>(() => restored.Memory.Arena!.Read(0x400, 1));
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(Advance(restored, Resources(), harness.Inputs())));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, Resources(), harness.Inputs()))));
     }
 
     private static NativeBattleEffect303Resources Resources()
@@ -275,7 +275,7 @@ public sealed class NativeBattleEffect303ControllerTests
         frame = ClearDwords701200(frame, Pools[1].Bank + 12, 0x9ED);
         frame = Write(frame, Pools[1].Bank, Read(frame, Pools[1].Bank).WriteWord(12, age).WriteDword(16, 0x12345678));
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[MainProgrammeWorkspaceLength].ToImmutableArray()).Initialize7016B0(Resources().MainProgramme, MainProgrammeWorkspaceLength);
-        return WriteBytes(frame, Pools[1].Bank + MainProgrammeWorkspaceOffset, NativeBattleEffectArena.Clear().Write(0, workspace.Data.AsSpan()), MainProgrammeWorkspaceLength);
+        return WriteBytes(frame, Pools[1].Bank + MainProgrammeWorkspaceOffset, NativeBattleEffectArena.Clear().Write(0, NativeBattleStorageSnapshots.Capture(workspace).Data.AsSpan()), MainProgrammeWorkspaceLength);
     }
 
     private static uint ModelAddress(int index) => 0x1D972C0u + (uint)(156 * index);

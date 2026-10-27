@@ -160,7 +160,7 @@ public sealed class NativeBattleEffect207LowerTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, 0x20DFAB8, 32, 64);
         (pool, _) = pool.Append(0x6A5650);
         NativeBattleModulePoolTask task = pool.Slots[0].WriteWord(12, 32767).WriteWord(0x12, 15).WriteWord(0x14, 1).WriteBytes(0x1A, [1, 0, 0]);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = pool.WriteSlot(0, task);
         fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool] } };
         NativeBattleEffect207Step result = NativeBattleEffect207Lower.Advance(fixture.Frame, pool.BankAddress, fixture.Resources, fixture.Inputs() with { ReadFlags = _ => 0x201 });
         Assert.Single(fixture.Deliveries);
@@ -187,9 +187,9 @@ public sealed class NativeBattleEffect207LowerTests
     {
         Fixture fixture = new();
         NativeBattleEffect207Frame first = NativeBattleEffect207Lower.Preprocess6070(fixture.Frame, MutableMeshAddress, fixture.Resources, fixture.Inputs());
-        NativeBattleEffect207Frame restored = JsonSerializer.Deserialize<NativeBattleEffect207Frame>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect207Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect207Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         Assert.Equal(first.State.Read(MutableMeshAddress, 116), restored.State.Read(MutableMeshAddress, 116));
-        Assert.Equal(JsonSerializer.Serialize(first.Memory.GeometryRegisters), JsonSerializer.Serialize(restored.Memory.GeometryRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Memory.GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.Memory.GeometryRegisters)));
         Assert.False(restored.Staging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + 0x57, 1).Known[0]);
     }
 

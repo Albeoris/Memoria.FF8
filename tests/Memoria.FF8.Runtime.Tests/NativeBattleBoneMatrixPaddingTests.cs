@@ -71,7 +71,7 @@ public sealed class NativeBattleBoneMatrixPaddingTests
         Assert.Equal((byte)0x78, actual.Read(146, 1)[0]);
         Assert.Throws<NotSupportedException>(() => actual.Read(147, 1));
         Assert.Equal(new byte[] { 0x78, 0x56 }, actual.ReadSnapshot(146, 2).Data);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(actual))!;
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Equal(actual.ReadSnapshot(146, 2).Known, restored.ReadSnapshot(146, 2).Known);
         Assert.Equal(actual.Read(98, 2), restored.Read(98, 2));
     }

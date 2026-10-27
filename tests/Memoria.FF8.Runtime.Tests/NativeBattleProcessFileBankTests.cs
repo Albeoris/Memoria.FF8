@@ -17,7 +17,7 @@ public sealed class NativeBattleProcessFileBankTests
         Assert.Equal(new byte[] { 3, 4 }, NativeBattleProcessFileBanks.Read(memory).Read(0x19F1018, 2));
         Assert.Null(memory.Siren95!.Io);
         Assert.Same(memory.Choco97!.PendingIoBanks, NativeBattleProcessFileBanks.Read(memory));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(new byte[] { 3, 4 }, NativeBattleProcessFileBanks.Read(restored).Read(0x19F1018, 2));
         NativeBattleChoco97State previous = memory.Choco97 with { PendingIoBanks = new(0x19DB018, 0x13A68, NativeBattleEffectArena.Clear().MarkUnknown(0, 0x13A68)) };
         previous.Validate();

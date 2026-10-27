@@ -70,7 +70,7 @@ public sealed class NativeBattleEffect218BirthTests
     {
         NativeBattleEffect218Frame frame = Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(14, 0xAA55)) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(14, 0xAA55));
         NativeBattleEffectArena basis = NativeBattleEffectArena.Clear().Write(0, new short[] { 4096, 0, 0, 0, 4096, 0, 0, 0, 4096 }.SelectMany(BitConverter.GetBytes).ToArray()).Write(20, BitConverter.GetBytes(32760)).Write(24, BitConverter.GetBytes(-32760)).Write(28, BitConverter.GetBytes(37));
         frame = frame with { Effect = frame.Effect with { Pools = ImmutableArray.Create(pool) }, State = frame.State.WriteView(CameraBasis, basis, 32) };
         NativeBattleEffect218Frame result = SpawnRay6331A0(frame);

@@ -51,9 +51,9 @@ public sealed class NativeBattleMoogle96TextureMotionTests
     {
         NativeBattleMoogle96TextureProgram program = Program((0, 1), (0xFE, 0));
         NativeBattleMoogle96TextureStep first = NativeBattleMoogle96TextureMotion.Advance739890(Task(), program, Table());
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.Task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.Task))!;
         NativeBattleMoogle96TextureStep loop = NativeBattleMoogle96TextureMotion.Advance739890(first.Task, program, Table());
-        Assert.Equal(JsonSerializer.Serialize(loop), JsonSerializer.Serialize(NativeBattleMoogle96TextureMotion.Advance739890(restored, program, Table())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(loop), NativeBattleTestSnapshots.Json(NativeBattleMoogle96TextureMotion.Advance739890(restored, program, Table())));
         Assert.Equal((ushort)0, loop.Task.ReadWord(0x12C));
         Assert.Single(loop.Copies);
         NativeBattleMoogle96TextureProgram nonRecursive = Program((0xFF, 0), (0xFE, 0));

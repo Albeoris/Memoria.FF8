@@ -48,7 +48,7 @@ public sealed class NativeBattleQuezacotlRig87Tests
         Assert.Equal((short)7, result.Camera.Roll);
         Assert.Equal(saved.AsSpan(6, 2).ToArray(), result.Rig.Memory.Arena!.Read(0x1E, 2));
         Assert.Equal(saved.AsSpan(14, 2).ToArray(), result.Rig.Memory.Arena.Read(0x26, 2));
-        Assert.Equal(result.Rig.Memory.Arena.Read(12, 0x8D0 - 12), result.Rig.Effect.Pools[0].Slots[0].Payload.ToArray());
+        Assert.Equal(result.Rig.Memory.Arena.Read(12, 0x8D0 - 12), NativeBattleStorageSnapshots.Capture(result.Rig.Effect.Pools[0].Slots[0]).Payload.ToArray());
     }
     [Theory]
     [InlineData(31, 1531, -2459, 3172, -5127, -1606, 5232)]

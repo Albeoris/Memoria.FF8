@@ -16,6 +16,7 @@ public sealed class NativeBattleCommonPacketWriterBoundsTests
         int start = process.ByteCursor!.Value;
         byte[] original = Enumerable.Repeat((byte)0xA7, allocatedBytes).ToArray();
         process = process.ApplyCommonWrites([new(start, original.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, allocatedBytes).ToImmutableArray())]);
+        NativeBattlePrimitiveProcess preserved = NativeBattleStorageSnapshots.Capture(process);
         byte[] data = new byte[allocatedBytes];
         data[3] = checked((byte)(commandBytes / 4 - 1));
         BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), commandBytes == 8 ? 0xE1000220u : 0x3C808080u);
@@ -40,9 +41,9 @@ public sealed class NativeBattleCommonPacketWriterBoundsTests
         {
             Assert.False(Assert.Single(effect.Ordering.Packets, packet => packet.Reference.ByteOffset == start + commandBytes).RequiresPhysicalRead);
         }
-        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(result.Process))!;
+        NativeBattlePrimitiveProcess restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(result.Process))!;
         Assert.Equal(result.Process.ReadCommonPacket(start, allocatedBytes), restored.ReadCommonPacket(start, allocatedBytes));
-        Assert.Equal(original, process.ReadCommonPacket(start, allocatedBytes));
+        Assert.Equal(original, preserved.ReadCommonPacket(start, allocatedBytes));
         NativeBattleGfGeometryBatch truncated = batch with { Attempts = [batch.Attempts[0] with { Primitive = new(17, words.RemoveAt(words.Length - 1), []) }] };
         Assert.Throws<InvalidDataException>(() => NativeBattleCommonPacketArena.Append(process, NativeBattleLogicalOrdering.Clear(), truncated));
 
@@ -69,7 +70,7 @@ public sealed class NativeBattleCommonPacketWriterBoundsTests
         byte[] actual = written.Process.ReadCommonPacket(stride - 4, 8);
         Assert.Equal(0xE1000220u, BinaryPrimitives.ReadUInt32LittleEndian(actual.AsSpan(4)));
         Assert.Equal(actual.AsSpan(4).ToArray(), (written.Process with { PacketBuffer = 1, ByteCursor = 0 }).ReadCommonPacket(0, 4));
-        NativeBattlePrimitiveProcess cold = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(written.Process))!;
+        NativeBattlePrimitiveProcess cold = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(written.Process))!;
         Assert.Equal(actual, cold.ReadCommonPacket(stride - 4, 8));
         Assert.Null(process.CommonPacketMemory);
     }

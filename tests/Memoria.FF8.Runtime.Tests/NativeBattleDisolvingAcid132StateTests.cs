@@ -22,13 +22,13 @@ public sealed class NativeBattleDisolvingAcid132StateTests
     public void Reached_scalar_write_materializes_only_its_actual_word_after_JSON()
     {
         NativeBattleDisolvingAcid132State state = NativeBattleDisolvingAcid132State.FromUnknown().WriteWord(TemporaryGlobal + 2, 1).WriteDword(WorkingGlobal, 0x20DFAB8);
-        NativeBattleDisolvingAcid132State restored = JsonSerializer.Deserialize<NativeBattleDisolvingAcid132State>(JsonSerializer.Serialize(state))!;
+        NativeBattleDisolvingAcid132State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDisolvingAcid132State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)1, restored.ReadWord(TemporaryGlobal + 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(TemporaryGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CursorGlobal));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(WorkingGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteWord(TemporaryGlobal + 2, 0)), JsonSerializer.Serialize(restored.WriteWord(TemporaryGlobal + 2, 0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WriteWord(TemporaryGlobal + 2, 0)), NativeBattleTestSnapshots.Json(restored.WriteWord(TemporaryGlobal + 2, 0)));
     }
 
     [Fact]

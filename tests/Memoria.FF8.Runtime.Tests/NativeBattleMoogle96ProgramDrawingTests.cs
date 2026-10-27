@@ -88,8 +88,8 @@ public sealed class NativeBattleMoogle96ProgramDrawingTests
         }
         NativeBattleGfAnimationSource next = NativeBattleMoogle96ProgramDrawing.MutateUv7340A0(source);
         Assert.Equal(source.Address, next.Address);
-        Assert.Equal(expected, next.Data.ToArray());
-        Assert.NotEqual(source.Data.ToArray(), next.Data.ToArray());
+        Assert.Equal(expected, NativeBattleStorageSnapshots.Capture(next).Data.ToArray());
+        Assert.NotEqual(source.Data.ToArray(), NativeBattleStorageSnapshots.Capture(next).Data.ToArray());
     }
 
     private static NativeBattleGfAnimationNode Node(uint header = 0, NativeBattleVector? position = null, NativeBattleVector? angles = null, NativeBattleVector? scale = null)

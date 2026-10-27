@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -15,12 +15,13 @@ public sealed class NativeBattleDiablos325MidCameraTests
         frame = frame with { Memory = frame.Memory with { Diablos325 = frame.Memory.Diablos325! with { FarZ51DC = 4000, CenterZ51D4 = -1234 } } };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 30, 4096), 123, 160, 108);
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { Projection = projection, FocalLength = 123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325TailStep step = NativeBattleDiablos325MidCamera.Advance656429(frame, camera, (ushort)counter);
         Assert.Same(frame, step.Frame);
         Assert.Equal(camera.WriteEffectGlobals(new(new(0, ey, ez), new(0, ty, tz), 123, 17)), step.Camera);
         Assert.Same(projection, step.Camera.Projection);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -31,12 +32,13 @@ public sealed class NativeBattleDiablos325MidCameraTests
         frame = frame with { Memory = frame.Memory with { Diablos325 = frame.Memory.Diablos325! with { FarZ51DC = 40000, CenterZ51D4 = -1234, Mode51F0 = 3 } } };
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 30, 4096), 123, 160, 108);
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { Projection = projection, FocalLength = 123, Roll = 17, EyePaddingF6 = 7, TargetPaddingFE = 9 };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325TailStep step = NativeBattleDiablos325MidCamera.Reset6564BC(frame, camera);
         Assert.Same(frame, step.Frame);
         Assert.Equal(camera.WriteEffectGlobals(new(new(0, -6811, -26730), new(0, -6862, -25319), 123, 17)), step.Camera);
         Assert.Same(projection, step.Camera.Projection);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
 

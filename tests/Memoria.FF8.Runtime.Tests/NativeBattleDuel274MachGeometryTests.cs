@@ -26,7 +26,7 @@ public sealed class NativeBattleDuel274MachGeometryTests
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(frame.Staging.Read(0x10E953E, 2)));
         frame = NativeBattleDuel274MachGeometry.Deform68BCD0(frame, resources, backup, 1280, 1024);
         Assert.Equal(new short[] { 190, -100, 5 }, Xyz(frame));
-        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleDuel274MachGeometry.Restore6D67B0(frame, backup);
         Assert.Equal(image.AsSpan(8).ToArray(), frame.Staging.Read(0x10E9538, 616));
     }

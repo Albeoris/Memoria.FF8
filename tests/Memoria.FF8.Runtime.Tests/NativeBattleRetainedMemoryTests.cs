@@ -115,7 +115,8 @@ public sealed class NativeBattleRetainedMemoryTests
         GameState source = PhysicalCheckpoint().State;
         NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
         NativeBattleEffectArena arena = memory.EffectMemory!.Arena!;
-        NativeBattleEffectArena changed = changeUnknownMask ? arena with { UnknownRegions = [new(17, 1)] } : arena.Write(17, [0xA5]);
+        NativeBattleEffectArena working = NativeBattleStorageSnapshots.Restore(arena);
+        NativeBattleEffectArena changed = NativeBattleStorageSnapshots.Capture(changeUnknownMask ? working.MarkUnknown(17, 1) : working.Write(17, [0xA5]));
         NativeBattleRetainedMemory contradictory = memory with { EffectMemory = memory.EffectMemory with { Arena = changed } };
         contradictory.Validate();
         Assert.NotEqual(memory, contradictory);

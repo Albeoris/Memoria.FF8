@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect76StateTests
     {
         NativeBattleEffect76State state = NativeBattleEffect76State.FromUnknown();
         state = state.WriteDword(FirstRecordsAddress, 0).WriteDword(SecondRecordsAddress, 0).WriteWord(ViewAddress, 4096);
-        NativeBattleEffect76State restored = JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect76State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(0u, restored.ReadDword(FirstRecordsAddress));
         Assert.Equal(0u, restored.ReadDword(SecondRecordsAddress));
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect76StateTests
             state = state.AttachBank(Pools[index].Bank, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -64,7 +64,7 @@ public sealed class NativeBattleEffect76StateTests
     {
         NativeBattleGuardianCameraTask camera = new(NativeBattleGuardianCameraProgram.FromColdProcess(), new byte[CameraLength].ToImmutableArray(), 2, 17, false);
         NativeBattleEffect76State state = NativeBattleEffect76State.FromColdProcess() with { CameraTasks = ImmutableDictionary<uint, NativeBattleGuardianCameraTask>.Empty.Add(ChildBank + ChildStride, camera) };
-        NativeBattleEffect76State restored = JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect76State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect76State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal((ushort)17, restored.CameraTasks[ChildBank + ChildStride].Frame);
         Assert.Equal(2, restored.CameraTasks[ChildBank + ChildStride].Offset);

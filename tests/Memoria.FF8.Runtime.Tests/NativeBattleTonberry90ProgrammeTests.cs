@@ -50,7 +50,7 @@ public sealed class NativeBattleTonberry90ProgrammeTests
         Assert.False(initialized.Complete);
         Assert.Equal(0x1004u, initialized.Frame.Memory.Tonberry90!.ReadDword(Camera));
         Assert.Equal(unchecked((ushort)-10), initialized.Frame.Memory.Tonberry90.ReadWord(Camera + 0x5E));
-        NativeBattleTonberry90Frame restored = JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(initialized.Frame))!;
+        NativeBattleTonberry90Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(NativeBattleTestSnapshots.Json(initialized.Frame))!;
         var sampled = NativeBattleTonberry90Programme.TickChannel763820(restored, Camera, Camera + 0x5E, services);
         Assert.Equal((ushort)99, sampled.Frame.Memory.Tonberry90!.ReadWord(Camera + 0x5E));
         var ended = NativeBattleTonberry90Programme.TickChannel763820(sampled.Frame, Camera, Camera + 0x5E, services);
@@ -176,7 +176,7 @@ public sealed class NativeBattleTonberry90ProgrammeTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x259F098, 0x259F0A8, 0x7C, 100);
         (pool, int slot) = pool.Append(0x762DA0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, phase)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, phase)) });
         return frame with { Effect = frame.Effect with { Pools = [pool] } };
     }
     private static NativeBattleTonberry90Frame Put(NativeBattleTonberry90Frame frame, uint address, byte[] data) => frame with { Memory = frame.Memory with { Tonberry90 = frame.Memory.Tonberry90!.Write(address, data) } };

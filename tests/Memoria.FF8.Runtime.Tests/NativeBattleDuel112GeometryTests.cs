@@ -17,7 +17,7 @@ public sealed class NativeBattleDuel112GeometryTests
             BinaryPrimitives.WriteInt16LittleEndian(mesh.AsSpan(12 + 8 * index), 50);
         }
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().Write(0x548, Enumerable.Repeat((byte)0xCC, 24).ToArray());
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
         NativeBattleEffectArena result = NativeBattleDuel112Geometry.Deform6CD7F0(mesh, arena, 0x548, matrix, 100, 100, 200);
         for (int index = 0; index < 3; index++)
@@ -28,7 +28,7 @@ public sealed class NativeBattleDuel112GeometryTests
             Assert.Equal(50 - 200 * index, BinaryPrimitives.ReadInt16LittleEndian(vertex.AsSpan(4)));
             Assert.Equal(new byte[] { 0xCC, 0xCC }, vertex.AsSpan(6).ToArray());
         }
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDuel112Geometry.Deform6CD7F0(mesh, restored, 0x548, matrix, 100, 100, 200)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleDuel112Geometry.Deform6CD7F0(mesh, restored, 0x548, matrix, 100, 100, 200)));
         Assert.Throws<DivideByZeroException>(() => NativeBattleDuel112Geometry.Deform6CD7F0(mesh, arena, 0x548, matrix, 100, 0, 200));
     }
 

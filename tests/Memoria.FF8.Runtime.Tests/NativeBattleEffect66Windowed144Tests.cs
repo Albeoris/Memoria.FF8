@@ -69,9 +69,9 @@ public sealed class NativeBattleEffect66Windowed144Tests
     public void Current_context_registers_and_unknown_suffix_bytes_resume_after_JSON()
     {
         NativeBattleEffect66Windowed144Step first = Draw(0xF3);
-        NativeBattleEffect66Windowed144Step restored = JsonSerializer.Deserialize<NativeBattleEffect66Windowed144Step>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect66Windowed144Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect66Windowed144Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEffect66Windowed144Step Next(NativeBattleEffect66Windowed144Step prior) => NativeBattleEffect66Windowed144.DrawLoaded(prior.Memory, Mesh(), Projection, prior.Context144, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 3);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(first))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
         Assert.Throws<NotSupportedException>(() => restored.Context144.Read(0x3E, 2));
     }
 

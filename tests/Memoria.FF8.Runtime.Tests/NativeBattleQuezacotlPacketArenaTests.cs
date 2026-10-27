@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -25,7 +25,7 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         Assert.Equal(accepted.Data.AsSpan().Slice(3).ToArray(), written.Memory.Arena!.Read(131, 29));
         Assert.Equal(rejected.Data.AsSpan().Slice(0, 8).ToArray(), written.Memory.Arena.Read(160, 8));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), written.Memory.Arena.Read(168, 32));
-        NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
+        NativeBattleQuezacotlPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlPacketWrite>(NativeBattleTestSnapshots.Json(written))!;
         Assert.Equal(3, restored.Memory.Arena!.Read(128, 3).Length);
         Assert.Equal(written.Memory.Arena.Read(131, 69), restored.Memory.Arena!.Read(131, 69));
     }
@@ -40,7 +40,7 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(memory, effect, full, new([Known(0, primitive)], 20));
         Assert.Equal(148, written.Effect.DrawArenaOffset);
         Assert.Equal(0x4000000u, BinaryPrimitives.ReadUInt32LittleEndian(written.Memory.Arena!.Read(128, 4)));
-        Assert.Empty(written.Memory.Arena.UnknownRegions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(written.Memory.Arena).UnknownRegions);
         Assert.Empty(written.Ordering.Packets);
     }
 
@@ -65,8 +65,8 @@ public sealed class NativeBattleQuezacotlPacketArenaTests
         }
         Assert.Equal(stored.Data.AsSpan().Slice(4).ToArray(), written.Memory.Arena!.Read(132, 36));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 32), written.Memory.Arena.Read(200, 32));
-        NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
-        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
+        NativeBattleQuezacotlPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleQuezacotlPacketWrite>(NativeBattleTestSnapshots.Json(written))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(written), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(3, restored.Memory.Arena!.Read(128, 3).Length);
     }
 

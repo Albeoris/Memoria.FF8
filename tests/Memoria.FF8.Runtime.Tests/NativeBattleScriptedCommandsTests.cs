@@ -17,7 +17,7 @@ public sealed class NativeBattleScriptedCommandsTests
         NativeBattleStageState initial = cold with { Groups = cold.Groups.Select((group, index) => group with { Flags = flags[index], ColorDepth = 123, ColorFlags = 0xAABBCCDD }).ToImmutableArray() };
         NativeBattleScriptedProcessFlagsStep set = NativeBattleScriptedProcessFlags.Execute(Fixture(0x6D), initial);
         Assert.Equal(new byte[] { 0x82, 3, 0xFF, 6 }, set.State.Groups.Select(group => group.Flags));
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(set.State))!;
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(set.State))!;
         NativeBattleScriptedProcessFlagsStep clear = NativeBattleScriptedProcessFlags.Execute(set.Frame.WriteTemporaryWord(0x14A, 0x806D), restored);
         Assert.Equal(new byte[] { 0x80, 1, 0xFD, 4 }, clear.State.Groups.Select(group => group.Flags));
         Assert.All(clear.State.Groups, group =>
@@ -120,10 +120,10 @@ public sealed class NativeBattleScriptedCommandsTests
         NativeBattleWaterExecutionFrame frame = StreamFixture(0x1E31);
         frame = frame with { Arena = frame.Arena.Write(0x400F, [0xFF]) };
         frame = WaterSchedulerFixture.CoreDword(frame, Manager + 0xB8, Address(0x5120));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScriptedStreamStep result = NativeBattleScriptedStreamCommands.Execute(frame, NativeBattleSummonStreamState.Unknown(), UnexpectedRead, UnexpectedClear);
         Assert.Equal(-1, result.Stream.Number);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleScriptedStreamCommands.Execute(restored, NativeBattleSummonStreamState.Unknown(), UnexpectedRead, UnexpectedClear)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleScriptedStreamCommands.Execute(restored, NativeBattleSummonStreamState.Unknown(), UnexpectedRead, UnexpectedClear)));
         frame = WaterSchedulerFixture.CoreDword(frame, Manager + 0xB0, 0x30000000);
         Assert.Throws<InvalidDataException>(() => NativeBattleScriptedStreamCommands.Execute(frame, NativeBattleSummonStreamState.Unknown(), (_, _, _) => [], UnexpectedClear));
     }

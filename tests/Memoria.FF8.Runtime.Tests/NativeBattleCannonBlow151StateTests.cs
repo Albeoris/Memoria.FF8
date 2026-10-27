@@ -50,14 +50,14 @@ public sealed class NativeBattleCannonBlow151StateTests
         NativeBattleEffectArena xyz = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 2, 3, 4, 5, 6 });
         uint last = SamplesAddress + (SampleCount - 1) * SampleStride;
         state = state.WriteView(last, xyz, 6).WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + PacketStep);
-        NativeBattleCannonBlow151State restored = JsonSerializer.Deserialize<NativeBattleCannonBlow151State>(JsonSerializer.Serialize(state))!;
+        NativeBattleCannonBlow151State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCannonBlow151State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, restored.ReadView(last, 8).Read(0, 6));
         Assert.Equal((ushort)0xA01F, restored.ReadWord(last + 6));
         Assert.Equal(ArenaAddress, restored.ReadDword(WorkingGlobal));
         Assert.Equal(ArenaAddress + PacketStep, restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(SamplesAddress));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

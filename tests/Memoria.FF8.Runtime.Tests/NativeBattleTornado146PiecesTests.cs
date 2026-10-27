@@ -38,8 +38,8 @@ public sealed class NativeBattleTornado146PiecesTests
         Assert.All(batch.Attempts[0].WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Known, value));
         batch = NativeBattleTornado146Pieces.Draw(Mesh(), task.WriteWord(18, 200), -500, 0, 0, view, projection);
         Assert.Equal(4122 + (1023 >> 6), Assert.Single(batch.Attempts).Primitive!.Bucket);
-        NativeBattleModulePoolTask independent = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleTornado146Pieces.Draw(Mesh(), task, -500, 0, 0, view, projection)), JsonSerializer.Serialize(NativeBattleTornado146Pieces.Draw(Mesh(), independent, -500, 0, 0, view, projection)));
+        NativeBattleModulePoolTask independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleTornado146Pieces.Draw(Mesh(), task, -500, 0, 0, view, projection)), NativeBattleTestSnapshots.Json(NativeBattleTornado146Pieces.Draw(Mesh(), independent, -500, 0, 0, view, projection)));
     }
 
     private static NativeBattleModulePoolTask Task() => new(1, 0, null, 0x6155B0, new byte[24].ToImmutableArray());

@@ -45,6 +45,7 @@ public sealed class NativeBattleCinematicIoCommandsTests
     public void Actual_Ifrit_8406_publishes_pointer_two_before_scheduling_its_own_completion()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x8406, 0);
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleCinematicIoStep result = NativeBattleCinematicIoCommands.Execute(frame, Program(), null!);
         Assert.Equal(Arena + 0x50000, Dword(result.Frame, 0x2798A68 + 2 * 4));
         Assert.Equal((short)0x235, result.Request!.FileId);
@@ -52,6 +53,7 @@ public sealed class NativeBattleCinematicIoCommandsTests
         Assert.Equal(Pc + 2, Dword(result.Frame, 0x2797450));
         Assert.Equal((byte)0xFF, result.Frame.Core.Read(0x2798219, 1)[0]);
         Assert.Equal(Arena + 0x50000, Dword(result.Frame, Manager + 0xB4));
+        string expected = NativeBattleTestSnapshots.Json(result);
         NativeBattleCinematicResources resources = Resources(0x1874894) with { Files = [new(0x235, "part", [4, 5, 6, 7])] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = result.Frame.Arena, ScriptedEffects = result.Frame.Core, Cursor = 0 };
         NativeBattleWaterIoQueued queued = NativeBattleCinematicIoCommands.CopyAndQueue(memory, NativeBattleFileIoState.FromColdProcess(), result.Request, resources);
@@ -59,8 +61,7 @@ public sealed class NativeBattleCinematicIoCommandsTests
         Assert.Equal(0, queued.Memory.Cursor);
         Assert.Equal((byte)0xFF, queued.Memory.ScriptedEffects!.Read(0x2798219, 1)[0]);
         Assert.Equal(0xB2BB40u, queued.FileIo.Rows[0].CompletionCallback);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicIoCommands.Execute(restored, Program(), null!)));
+        Assert.Equal(expected, NativeBattleTestSnapshots.Json(NativeBattleCinematicIoCommands.Execute(restored, Program(), null!)));
     }
 
     [Fact]

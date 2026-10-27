@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -45,6 +45,7 @@ public static class NativeBattleDispel109Controller
             {
                 root = root.WriteByte(15, 1);
                 frame = frame with { Effect = frame.Effect with { Pools = [roots, NativeBattleEffectTaskPool.Initialize(0x2521AA0, checked(0x20DFAB8u + (uint)buffer + 1792), 840, 3), NativeBattleEffectTaskPool.Initialize(0x2521A90, checked(0x20DFAB8u + (uint)buffer), 28, 64)] } };
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, frame.Effect.Pools) };
             }
             int headerIndex = frame.Effect.Parameters?.HeaderIndex7C ?? throw new InvalidDataException("Native Dispel requires its current action header.");
             byte group = root.ReadByte(14);

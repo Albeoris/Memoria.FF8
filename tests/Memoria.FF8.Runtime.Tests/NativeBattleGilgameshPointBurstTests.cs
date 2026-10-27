@@ -88,9 +88,9 @@ public sealed class NativeBattleGilgameshPointBurstTests
     {
         NativeBattleEffectArena arena = Record(Record(NativeBattleEffectArena.Clear(), 0, 2), 1, 5);
         NativeBattleModulePoolTask task = Task(41);
-        NativeBattleGilgameshPointStep expected = Step(task, arena, 0, _ => new(100, 1024, 0));
-        NativeBattleGilgameshPointStep restored = Step(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!, JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!, 0, _ => new(100, 1024, 0));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(restored));
+        NativeBattleGilgameshPointStep expected = Step(NativeBattleTestSnapshots.Independent(task), NativeBattleTestSnapshots.Independent(arena), 0, _ => new(100, 1024, 0));
+        NativeBattleGilgameshPointStep restored = Step(NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!, NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!, 0, _ => new(100, 1024, 0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(restored));
         arena = WriteWord(arena, 0x2F804, -1);
         Assert.Throws<InvalidDataException>(() => Step(task, arena, 0, _ => new(0, 1024, 0)));
     }

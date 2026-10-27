@@ -155,11 +155,12 @@ public sealed class NativeBattleEffect183ControllerTests
     public void Director_retirement_uses_postincrement_signed_age_and_roundtrips(short age, int expected)
     {
         NativeBattleEffect183Frame frame = Frame(age);
+        NativeBattleEffect183Frame before = NativeBattleStorageSnapshots.Capture(frame);
         var step = AdvanceDirector(frame, Director, Resources, Inputs());
         Assert.Equal(expected, step.Result);
         Assert.Equal((ushort)(age + 1), Read(step.Frame, Director).ReadWord(12));
-        NativeBattleEffect183Frame restored = JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step.Frame), JsonSerializer.Serialize(AdvanceDirector(restored, Director, Resources, Inputs()).Frame));
+        NativeBattleEffect183Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(before))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(AdvanceDirector(restored, Director, Resources, Inputs()).Frame)));
     }
 
     [Fact]
@@ -193,7 +194,7 @@ public sealed class NativeBattleEffect183ControllerTests
         Assert.Equal((ushort)1, Read(first, FirstChild).ReadWord(12));
         Assert.Equal((ushort)0x1E00, Read(first, FirstChild).ReadWord(28));
         Assert.Equal((ushort)1, Read(first, 0x22F33D0).ReadWord(12));
-        NativeBattleEffect183Frame restored = JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect183Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect183Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         var nextInputs = Inputs() with
         {
             Execute = (current, operation) =>
@@ -203,7 +204,7 @@ public sealed class NativeBattleEffect183ControllerTests
                 return current;
             }
         };
-        Assert.Equal(JsonSerializer.Serialize(Advance(first, Resources, nextInputs)), JsonSerializer.Serialize(Advance(restored, Resources, nextInputs)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(first, Resources, nextInputs))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Advance(restored, Resources, nextInputs))));
     }
 
     [Fact]
@@ -244,7 +245,7 @@ public sealed class NativeBattleEffect183ControllerTests
         (roots, _) = roots.Append(0x5C9F80);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22F33F0, Director, 36, 100);
         (children, _) = children.Append(0x5C9AE0);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(22, 0xCAFE)) };
+        children = children.WriteSlot(0, children.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(22, 0xCAFE));
         NativeBattleOriginalEffectState effect = new(183, 182, new(183, 0x5C9A50, 0x5C9A30), new(5, 0, 1, 7, 0, 0), 0x22F33E0) { Pools = [roots, children] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
         NativeBattleEffect183State state = NativeBattleEffect183State.FromColdProcess().WriteDword(0x22F4214, 5);

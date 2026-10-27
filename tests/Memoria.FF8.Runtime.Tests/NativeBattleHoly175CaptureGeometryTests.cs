@@ -44,9 +44,9 @@ public sealed class NativeBattleHoly175CaptureGeometryTests
         ImmutableArray<NativeBattleHoly175CaptureDirectoryEntry> changed = Directory.SetItem(0, new(25, 3));
         NativeBattleHoly175CaptureStage different = NativeBattleHoly175CaptureGeometry.Draw5D29E0(stage, [Mesh(0, false)], changed, View, new(null, 216, 1, 2), NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Equal(150, Assert.Single(different.Packets).Bucket);
-        string json = JsonSerializer.Serialize(capture.Stage);
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(json)!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(capture.Stage, [Mesh(0, false), Mesh(2, true)])), JsonSerializer.Serialize(Draw(restored, [Mesh(0, false), Mesh(2, true)])));
+        string json = NativeBattleTestSnapshots.Json(capture.Stage);
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(json)!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(capture.Stage, [Mesh(0, false), Mesh(2, true)])), NativeBattleTestSnapshots.Json(Draw(restored, [Mesh(0, false), Mesh(2, true)])));
     }
 
     [Fact]

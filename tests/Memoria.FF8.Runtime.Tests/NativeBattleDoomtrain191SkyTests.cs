@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -11,13 +11,14 @@ public sealed class NativeBattleDoomtrain191SkyTests
     {
         NativeBattleDoomtrain191Frame frame = Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         NativeCrtRandomState random = frame.Random;
         for (int index = 0; index < 16; index++)
         {
             random = random.Draw(out _);
         }
+        string replay = NativeBattleTestSnapshots.Json(frame);
         NativeBattleDoomtrain191Frame result = NativeBattleDoomtrain191Sky.Spawn640390(frame);
         NativeBattleModulePoolTask first = result.Effect.Pools[1].Slots[1];
         NativeBattleModulePoolTask second = result.Effect.Pools[1].Slots[2];
@@ -31,7 +32,7 @@ public sealed class NativeBattleDoomtrain191SkyTests
         Assert.Equal((ushort)3072, second.ReadWord(0x1C));
         Assert.Equal((ushort)1769, second.ReadWord(0x20));
         Assert.Equal((ushort)0xA5A5, first.ReadWord(0xE));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDoomtrain191Sky.Spawn640390(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleDoomtrain191Sky.Spawn640390(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(replay)!)));
     }
 
     [Fact]
@@ -99,9 +100,9 @@ public sealed class NativeBattleDoomtrain191SkyTests
     {
         NativeBattleDoomtrain191Frame frame = Fixture();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        NativeBattleModulePoolTask task = pool.Slots[0] with { Callback = 0x640580 };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = 0x640580 });
         task = task.WriteWord(0xC, age).WriteWord(0x10, 0).WriteWord(0x12, 3).WriteWord(0x14, 0).WriteWord(0x16, 5).WriteWord(0x18, 0).WriteWord(0x1A, 1).WriteWord(0x1C, 4096).WriteWord(0x1E, 0).WriteWord(0x20, 0).WriteWord(0x22, 36);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) });
         return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
     }
 

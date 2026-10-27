@@ -20,13 +20,13 @@ public sealed class NativeBattleRestorationFadeTests
         List<NativeBattleStageFadeWrite> writes = [];
         for (int callback = 0; callback < 5; callback++)
         {
-            NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleRestorationFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleRestorationLeafStep step = NativeBattleRestorationFade.Advance(frame, child.Address, (current, write) =>
             {
                 writes.Add(write);
                 return current;
             });
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleRestorationFade.Advance(clone, child.Address, (current, _) => current)));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleRestorationFade.Advance(clone, child.Address, (current, _) => current)));
             Assert.Equal(callback == 4 ? 2 : 0, step.Result);
             frame = step.Frame;
         }

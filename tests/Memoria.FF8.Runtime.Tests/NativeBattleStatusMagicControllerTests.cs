@@ -41,7 +41,7 @@ public sealed class NativeBattleStatusMagicControllerTests
             soundTicks.AddRange(step.Sounds.Select(_ => tick));
             if (tick == 25)
             {
-                frame = JsonSerializer.Deserialize<NativeBattleStatusMagicFrame>(JsonSerializer.Serialize(frame))!;
+                frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleStatusMagicFrame>(NativeBattleTestSnapshots.Json(frame))!;
             }
             if (tick < end)
             {

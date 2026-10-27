@@ -168,7 +168,7 @@ public sealed class NativeBattleGravija214ControllerTests
         Assert.Empty(actual.Effect.Pools);
         Assert.NotNull(actual.State.RootBankStorage);
         Assert.Equal(1, actual.Memory.Arena!.Read(0, 1)[0] & 1);
-        actual = JsonSerializer.Deserialize<NativeBattleGravija214Frame>(JsonSerializer.Serialize(actual))!;
+        actual = NativeBattleTestSnapshots.RestoreJson<NativeBattleGravija214Frame>(NativeBattleTestSnapshots.Json(actual))!;
         actual = Initialize(actual, Resources(), Inputs([]));
         Assert.Single(actual.Effect.Pools);
         Assert.Equal(Resources().EntryCopySeed.Data.ToArray(), actual.State.Read(CopiedMeshAddress, EntryCopyLength));

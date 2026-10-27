@@ -21,8 +21,8 @@ public sealed class NativeBattleMoogle96MemoryTests
         memory = memory with { Moogle96 = warm };
         foreach (int selectedIndex in new[] { 95, 141, 95 })
         {
-            memory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory.BeginLoad(selectedIndex)))!;
-            Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(memory.Moogle96));
+            memory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory.BeginLoad(selectedIndex)))!;
+            Assert.Equal(NativeBattleTestSnapshots.Json(warm), NativeBattleTestSnapshots.Json(memory.Moogle96));
         }
     }
 
@@ -30,7 +30,7 @@ public sealed class NativeBattleMoogle96MemoryTests
     public void MissingImportedOwnerStaysMissingAfterJsonAndModuleLoad()
     {
         NativeBattleEffectMemory imported = NativeBattleEffectMemory.FromColdProcess() with { Moogle96 = null };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(imported))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(imported))!;
         Assert.Null(restored.BeginLoad(95).Moogle96);
     }
 }

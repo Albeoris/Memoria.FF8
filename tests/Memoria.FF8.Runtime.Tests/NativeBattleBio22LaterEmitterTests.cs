@@ -70,9 +70,9 @@ public sealed class NativeBattleBio22LaterEmitterTests
         NativeBattleBio22EmitterStep initialized = Advance(second, frame, null!, new(RejectAppend, RejectPublish));
         Assert.Equal(frame.Primary.ReadDword(0x78), initialized.Frame.Task.ReadDword(0x1C));
         Assert.Equal(frame.Primary.ReadDword(0x7C), initialized.Frame.Task.ReadDword(0x20));
-        NativeBattleBio22EmitterFrame restored = JsonSerializer.Deserialize<NativeBattleBio22EmitterFrame>(JsonSerializer.Serialize(initialized.Frame))!;
+        NativeBattleBio22EmitterFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22EmitterFrame>(NativeBattleTestSnapshots.Json(initialized.Frame))!;
         NativeBattleBio22EmitterStep next = Advance(second, initialized.Frame, resources, new(RejectAppend, RejectPublish));
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Advance(second, restored, resources, new(RejectAppend, RejectPublish))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Advance(second, restored, resources, new(RejectAppend, RejectPublish))));
         Assert.Equal(frame.Random, next.Frame.Random);
     }
 

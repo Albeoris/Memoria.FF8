@@ -77,9 +77,11 @@ public static class NativeBattleThundaga105CapturePackets
         BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(16), 128u << 16);
         BinaryPrimitives.WriteUInt32LittleEndian(black.AsSpan(20), 128u << 16 | 128);
         NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native capture black packet requires its actual effect arena.");
-        using NativeBattleLogicalOrdering.Builder blackAlias = new(ordering);
-        blackAlias.InvalidatePacketRange(new("20DFAB8", 0, cursor), black.Length);
-        ordering = blackAlias.ToImmutable();
+        using (NativeBattleLogicalOrdering.Builder blackAlias = new(ordering))
+        {
+            blackAlias.InvalidatePacketRange(new("20DFAB8", 0, cursor), black.Length);
+            ordering = blackAlias.ToImmutable();
+        }
         memory = memory with { Arena = arena.Write(cursor, black) };
         cursor = checked(cursor + black.Length);
 

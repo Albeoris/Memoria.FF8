@@ -60,13 +60,13 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
         int captures = 0;
         NativeBattleCinematicActorAnimation2CServices services = Services(Skeleton(), () => captures++, (frame, _) => new(frame, 0x12345678));
         NativeBattleWaterExecutionFrame first = NativeBattleCinematicActorAnimation2C.Draw(Fixture(), services);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleWaterExecutionFrame second = NativeBattleCinematicActorAnimation2C.Draw(first, services);
         Assert.Equal(1, captures);
         Assert.Equal((ushort)2, Word(second, 0x4000));
         Assert.Equal((byte)2, second.Arena.Read(0x4026, 1)[0]);
         Assert.Equal(Base + 0x40F0, WaterSchedulerFixture.ReadCoreDword(second, 0x2797704));
-        Assert.Equal(JsonSerializer.Serialize(second), JsonSerializer.Serialize(NativeBattleCinematicActorAnimation2C.Draw(restored, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(second), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnimation2C.Draw(restored, services)));
         Assert.Equal(1, captures);
     }
 
@@ -111,9 +111,9 @@ public sealed class NativeBattleCinematicActorAnimation2CTests
         Assert.Equal(retained.Otz, actual.Otz);
         Assert.Same(memory.ScriptedColorRegisters, result.ScriptedColorRegisters);
         Assert.Same(memory.ScriptedGraphics, result.ScriptedGraphics);
-        NativeBattleEffectArena restoredArena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicActorAnimation2C.PublishProjectionRegisters(restoredMemory, restoredArena, Base + 0x8000, meshes, mask)));
+        NativeBattleEffectArena restoredArena = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
+        NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnimation2C.PublishProjectionRegisters(restoredMemory, restoredArena, Base + 0x8000, meshes, mask)));
     }
 
     [Fact]

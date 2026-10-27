@@ -87,8 +87,8 @@ public sealed class NativeBattleModelColorsTests
         Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, new([new(null, null), new(255, null)])));
         Assert.Throws<NotSupportedException>(() => NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, new([new(0, null), new(255, null)])));
         NativeBattleEffectMemory old = NativeBattleEffectMemory.FromColdProcess() with { ModelColorOverrides = null };
-        Assert.DoesNotContain("ModelColorOverrides", JsonSerializer.Serialize(old));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(old))!.ModelColorOverrides);
+        Assert.DoesNotContain("ModelColorOverrides", NativeBattleTestSnapshots.Json(old));
+        Assert.Null(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(old))!.ModelColorOverrides);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class NativeBattleModelColorsTests
         NativeBattleModelColorStep consumed = NativeBattleModelColors.Advance50A0A0(Model, 0, Colors, memory.ModelColorOverrides);
         Assert.Equal(0u, consumed.Model.Color40);
         memory = (memory with { ModelColorOverrides = consumed.Overrides }).BeginLoad(116);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(new byte?[] { 255, 255 }, restored.ModelColorOverrides!.Slots.Select(slot => slot.Actor).ToArray());
         Assert.Equal(Colors.Transition, NativeBattleModelColors.Advance50A0A0(consumed.Model, 0, Colors, restored.ModelColorOverrides).Model.Color40);
     }

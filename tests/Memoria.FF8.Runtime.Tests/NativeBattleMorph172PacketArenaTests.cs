@@ -44,13 +44,14 @@ public sealed class NativeBattleMorph172PacketArenaTests
     {
         NativeBattleMorph172State state = NativeBattleMorph172State.FromUnknown().WriteDword(Cursor, Base + 0x8000);
         NativeBattleMorph172PacketWrite first = NativeBattleMorph172PacketArena.Append(state, NativeBattleLogicalOrdering.Clear(), Accepted(0xE1000220));
-        NativeBattleMorph172PacketWrite restored = JsonSerializer.Deserialize<NativeBattleMorph172PacketWrite>(JsonSerializer.Serialize(first))!;
+        NativeBattleMorph172PacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMorph172PacketWrite>(NativeBattleTestSnapshots.Json(first))!;
         Assert.Throws<NotSupportedException>(() => restored.State.ReadPacket(Base, 4));
         NativeBattleMorph172PacketWrite Next(NativeBattleMorph172PacketWrite current) => NativeBattleMorph172PacketArena.Append(current.State, current.Ordering, Accepted(0xE1000221));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        var direct = Next(first);
+        var next = Next(restored);
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(next));
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
-        NativeBattleMorph172PacketWrite next = Next(restored);
         NativeBattleLogicalCommand[] commands = next.Ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => NativeBattleMorph172PacketArena.Read(next.State, reference, count)).ToArray();
         Assert.Equal(new uint[] { 0xE1000221, 0xE1000220 }, commands.Select(command => command.Words[0]));
     }

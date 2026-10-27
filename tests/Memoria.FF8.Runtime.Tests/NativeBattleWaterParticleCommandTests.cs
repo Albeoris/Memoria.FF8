@@ -140,8 +140,8 @@ public sealed class NativeBattleWaterParticleCommandTests
         NativeBattleWaterExecutionFrame allocated = Execute(Fixture(0x58, 16));
         NativeBattleWaterExecutionFrame spawn = SetInstruction(allocated, 0x59, -0x100);
         spawn = WaterSchedulerFixture.SlotWord(spawn, 0, 0x94, 14);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(spawn))!;
-        Assert.Equal(JsonSerializer.Serialize(Execute(spawn)), JsonSerializer.Serialize(Execute(restored)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(spawn))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Execute(spawn)), NativeBattleTestSnapshots.Json(Execute(restored)));
     }
 
     [Theory]
@@ -174,6 +174,7 @@ public sealed class NativeBattleWaterParticleCommandTests
             Assert.Equal(ArenaBase + Slot, WaterSchedulerFixture.ReadCoreDword(selected, 0x27973E8));
             return ArenaBase + (missing ? (uint)Slot : 0x2100u);
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(missing ? 0u : 2u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Equal(ArenaBase + Slot, WaterSchedulerFixture.ReadCoreDword(result, 0x27973E8));
@@ -191,7 +192,7 @@ public sealed class NativeBattleWaterParticleCommandTests
             Assert.Equal((ushort)0x3456, Word(result, Bank + 0x58));
             Assert.Equal(0x02ABCDEFu, Dword(result, Bank + 0x48));
         }
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public sealed class NativeBattleWaterParticleCommandTests
         return frame with { Arena = frame.Arena.Write(offset, bytes) };
     }
 
-    private static bool Known(NativeBattleEffectArena arena, int offset) => !arena.UnknownRegions.Any(region => region.Offset <= offset && offset < region.Offset + region.Length);
+    private static bool Known(NativeBattleEffectArena arena, int offset) => arena.ReadSnapshot(offset, 1).Known[0];
     private static ushort Word(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Arena.Read(offset, 2));
     private static uint Dword(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(offset, 4));
 }

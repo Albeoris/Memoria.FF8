@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -35,7 +35,7 @@ public sealed class NativeBattleThundaga105CapturePacketTests
     public void ColdJsonRetainsThePhysicalStaticLinksForTheNextAliasedTraversal()
     {
         NativeBattleThundaga105CaptureWrite capture = Capture();
-        NativeBattleThundaga105CaptureWrite restored = JsonSerializer.Deserialize<NativeBattleThundaga105CaptureWrite>(JsonSerializer.Serialize(capture))!;
+        NativeBattleThundaga105CaptureWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaga105CaptureWrite>(NativeBattleTestSnapshots.Json(capture))!;
         byte[] lengths = new byte[256];
         for (int opcode = 0xE1; opcode <= 0xE6; opcode++)
         {
@@ -43,7 +43,7 @@ public sealed class NativeBattleThundaga105CapturePacketTests
         }
         ImmutableArray<NativeBattleLogicalCommand> original = capture.Ordering.Traverse(lengths.ToImmutableArray());
         ImmutableArray<NativeBattleLogicalCommand> aliased = restored.Ordering.ResetAfterDraw45D080().Traverse(lengths.ToImmutableArray(), (reference, count) => restored.Memory.Thundaga105Capture!.Read(reference.ByteOffset, count));
-        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(aliased));
+        Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(aliased));
         Assert.Equal(new byte[4], capture.Memory.Textures!.ReadVram().AsSpan(2 * (256 * 1024 + 704), 4).ToArray());
     }
 

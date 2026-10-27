@@ -27,11 +27,11 @@ public sealed class NativeBattleRestorationNodeEngineTests
         Assert.Equal(1, callbacks);
         Assert.False(second.Complete);
         Assert.Equal((ushort)2, Read(second.Frame, fixture.Task).ReadWord(0x34 + 0x20));
-        NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(second.Frame))!;
+        NativeBattleRestorationFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(NativeBattleTestSnapshots.Json(second.Frame))!;
         NativeBattleRestorationContextStep third = NativeBattleRestorationNodeEngine.Advance(second.Frame, fixture.Task, Execute);
         Assert.True(third.Complete);
         Assert.Equal(1, callbacks);
-        Assert.Equal(JsonSerializer.Serialize(third), JsonSerializer.Serialize(NativeBattleRestorationNodeEngine.Advance(clone, fixture.Task, Execute)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(third), NativeBattleTestSnapshots.Json(NativeBattleRestorationNodeEngine.Advance(clone, fixture.Task, Execute)));
     }
 
     [Theory]
@@ -58,7 +58,7 @@ public sealed class NativeBattleRestorationNodeEngineTests
         Assert.Throws<NotSupportedException>(() => NativeBattleRestorationNodeEngine.Advance(unknown, fixture.Task, (frame, _) => frame));
         NativeBattleRestorationProfile other = NativeBattleRestorationProfile.ForEffect(effect == 24 ? (ushort)27 : (ushort)24);
         NativeBattleEffectTaskPool pool = fixture.Frame.Effect.Pools[2];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Callback = other.GenericCallback }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = other.GenericCallback })) });
         NativeBattleRestorationFrame mismatched = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.SetItem(2, pool) } };
         Assert.Throws<InvalidDataException>(() => NativeBattleRestorationNodeEngine.Advance(mismatched, fixture.Task, (frame, _) => frame));
     }

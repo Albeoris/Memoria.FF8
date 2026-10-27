@@ -61,11 +61,11 @@ public sealed class NativeBattleGatlingGun305StateTests
     public void Partial_fixed_bank_and_scalar_snapshot_restore_preserves_independent_next_writes()
     {
         NativeBattleGatlingGun305State state = NativeBattleGatlingGun305State.FromUnknown().WriteDword(CursorGlobal, PacketBase + 12).WritePacket(PacketBase + 8, [1, 2, 3, 4]);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleGatlingGun305State restored = JsonSerializer.Deserialize<NativeBattleGatlingGun305State>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleGatlingGun305State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGatlingGun305State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(state.WritePacket(PacketBase + 12, [5, 6, 7, 8]).WriteDword(CursorGlobal, PacketBase + 16)), JsonSerializer.Serialize(restored.WritePacket(PacketBase + 12, [5, 6, 7, 8]).WriteDword(CursorGlobal, PacketBase + 16)));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WritePacket(PacketBase + 12, [5, 6, 7, 8]).WriteDword(CursorGlobal, PacketBase + 16)), NativeBattleTestSnapshots.Json(restored.WritePacket(PacketBase + 12, [5, 6, 7, 8]).WriteDword(CursorGlobal, PacketBase + 16)));
         Assert.Throws<InvalidDataException>(() => restored.ReadPacket(PacketBase + PacketBytes, 1));
         Assert.Throws<InvalidDataException>(() => restored.WritePacket(PacketBase - 1, [0]));
     }

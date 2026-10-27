@@ -117,9 +117,9 @@ public sealed class NativeBattlePoisonGas171ModelDrawingTests
     public void Physical_context_scratch_and_canonical_registers_restore_identical_next_step()
     {
         var first = Draw(Geometry(true), Context(0).Write(0x84, BitConverter.GetBytes(80)), 2000);
-        var restored = JsonSerializer.Deserialize<NativeBattlePoisonGas171ModelStep>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePoisonGas171ModelStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattlePoisonGas171ModelStep Next(NativeBattlePoisonGas171ModelStep current) => Draw(Geometry(true), current.Temporary176, 2000, memory: current.Memory, scratch: current.VertexScratch);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static uint Dword(NativeBattleEffectArena view, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(view.Read(offset, 4));

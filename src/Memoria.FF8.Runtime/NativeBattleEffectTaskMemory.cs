@@ -55,11 +55,11 @@ public static partial class NativeBattleEffectTaskMemory
 
     public static NativeBattleEffectMemory BindArenaBankOwnership(NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools)
     {
-        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task bank requires its retained arena owner.");
         foreach (NativeBattleEffectTaskPool pool in pools)
         {
             if (ArenaOffset(pool) is not null)
             {
+                NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native task bank requires its retained arena owner.");
                 pool.BindArena(arena);
             }
         }
@@ -173,7 +173,7 @@ public static partial class NativeBattleEffectTaskMemory
         }
     }
 
-    private static int? ArenaOffset(NativeBattleEffectTaskPool pool)
+    internal static int? ArenaOffset(NativeBattleEffectTaskPool pool)
     {
         long offset = (long)pool.BankAddress - ArenaAddress;
         long length = (long)pool.Stride * pool.Slots.Length;

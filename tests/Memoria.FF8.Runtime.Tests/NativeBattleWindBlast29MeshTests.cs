@@ -17,7 +17,7 @@ public sealed class NativeBattleWindBlast29MeshTests
         ImmutableArray<byte> mesh = Mesh();
         NativeBattleCuraga88MeshStep result = Emit(mesh);
         NativeBattleGfGeometryBatch expected = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(mesh, Matrix, Projection, new(0xF0, 0xC08040, 2048, null, null, null, 17, 2), colors: Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal(40, result.Batch.AllocationBytes);
         Assert.Equal(Address + 8, Dword(result.Context88, 4));
@@ -95,7 +95,7 @@ public sealed class NativeBattleWindBlast29MeshTests
         Assert.Null(result.Registers.Colors.Material);
         Assert.Throws<NotSupportedException>(() => result.Context88.Read(0x2C, 4));
         NativeBattleGfGeometryBatch expected = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(Mesh(true), Matrix, Projection, new(0x40, 0xC08040, 2048, null, null, null, 17, 2), colors: Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Batch));
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class NativeBattleWindBlast29MeshTests
         NativeBattleEffectArena context = Write(Write(Write(Context(), 0x1C, 0xFF0), 0x10, 0x17), 0x14, 0x23);
         NativeBattleCuraga88MeshStep result = Emit(Mesh(), context);
         NativeBattleGfGeometryBatch expected = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(Mesh(), Matrix, Projection, new(0xFF0, 0xC08040, 2048, 0x17, 0x23, null, 17, 2), colors: Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.Equal(0x17u, Dword(result.Context88, 0x10));
         Assert.Equal(0x23u, Dword(result.Context88, 0x14));
     }
@@ -145,9 +145,9 @@ public sealed class NativeBattleWindBlast29MeshTests
     public void Full_context_and_canonical_register_owners_restore_for_the_next_draw_without_hydration()
     {
         NativeBattleCuraga88MeshStep first = Emit(Mesh());
-        NativeBattleCuraga88MeshStep restored = JsonSerializer.Deserialize<NativeBattleCuraga88MeshStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleCuraga88MeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraga88MeshStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleCuraga88MeshStep Next(NativeBattleCuraga88MeshStep prior) => NativeBattleCuraga88Mesh.EmitBatch(Mesh(), Address, Matrix, Projection, prior.Context88, prior.Registers, prior.FarControls, 0, 0, 0x100, Constants, 0x4321, 0x155);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleCuraga88MeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf4 = 0x100, Func<int, short?>? readVertexW = null, NativeBattleActionMatrix? matrix = null)

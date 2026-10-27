@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -55,15 +55,15 @@ public sealed class NativeBattleSiren95ActorTests
         Assert.Equal((ushort)0xBEEF, surface.ReadWord(0x22));
         Assert.Equal((ushort)4, surface.ReadWord(0x8C));
         Assert.Equal((ushort)122, surface.ReadWord(0x90));
-        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(surface.Payload.AsSpan().Slice(0x94 - 12 + 4)));
+        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(NativeBattleStorageSnapshots.Capture(surface).Payload.AsSpan().Slice(0x94 - 12 + 4)));
         Assert.Equal(source.Data.AsSpan().Slice(12 + 12 + 0x48, 8).ToArray(), result.Frame.Memory.Siren95!.Read(0x258E9A0, 8));
         NativeBattleSiren95Frame finished = WithStage(result.Frame, 2);
-        string saved = JsonSerializer.Serialize(finished);
+        string saved = NativeBattleTestSnapshots.Json(finished);
         result = NativeBattleSiren95Actors.Advance73C1A0(finished, address, source, (_, _) => throw new InvalidOperationException("Completed surface must not draw."));
         Assert.True(result.Complete);
         Assert.Equal((ushort)8, new NativeBattleEffectHierarchy(result.Frame.Effect.Pools).Read(address).ReadWord(0x8C));
-        var restored = NativeBattleSiren95Actors.Advance73C1A0(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, address, source, (_, _) => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(result.Frame), JsonSerializer.Serialize(restored.Frame));
+        var restored = NativeBattleSiren95Actors.Advance73C1A0(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, address, source, (_, _) => throw new InvalidOperationException());
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class NativeBattleSiren95ActorTests
         banks = banks.Write(sourceAddress, source.Data);
         frame = frame with { Memory = frame.Memory with { Choco97 = NativeBattleChoco97State.FromColdProcess() with { PendingIoBanks = banks } } };
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
-        NativeBattleModulePoolTask task = hierarchy.Read(address) with { Callback = 0x73EE50 };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(hierarchy.Read(address), taskData => taskData with { Callback = 0x73EE50 });
         task = task.WriteDword(0x74, sourceAddress).WriteDword(0x78, 0x48).WriteWord(0x80, 1).WriteWord(0x8C, 1).WriteWord(0x90, 0x1234);
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Write(address, task).Pools } };
         uint director = frame.Memory.Siren95!.DirectorAddress1533010!.Value;
@@ -126,15 +126,16 @@ public sealed class NativeBattleSiren95ActorTests
         Assert.Equal((ushort)0x1234, task.ReadWord(0x90));
         Assert.Equal((byte)1, task.ReadByte(0x29));
         NativeBattleSiren95Frame ending = WithStage(initialized.Frame, 3);
-        string saved = JsonSerializer.Serialize(ending);
+        string saved = NativeBattleTestSnapshots.Json(ending);
         var completed = NativeBattleSiren95Actors.Advance73EE50(ending, address, source, (_, _) => throw new InvalidOperationException());
         Assert.True(completed.Complete);
         Assert.Equal((ushort)121, new NativeBattleEffectHierarchy(completed.Frame.Effect.Pools).Read(address).ReadWord(0x8C));
-        var restored = NativeBattleSiren95Actors.Advance73EE50(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, address, source, (_, _) => throw new InvalidOperationException());
-        Assert.Equal(JsonSerializer.Serialize(completed.Frame), JsonSerializer.Serialize(restored.Frame));
+        var restored = NativeBattleSiren95Actors.Advance73EE50(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, address, source, (_, _) => throw new InvalidOperationException());
+        Assert.Equal(NativeBattleTestSnapshots.Json(completed.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
         banks = banks.Write(sourceAddress + 4, BitConverter.GetBytes(123).ToImmutableArray());
         frame = frame with { Memory = frame.Memory with { Choco97 = frame.Memory.Choco97! with { PendingIoBanks = banks } } };
-        Assert.Equal(123, BinaryPrimitives.ReadInt32LittleEndian(NativeBattleSiren95Io.ReadProgrammeSource(frame.Memory, sourceAddress).Data.AsSpan().Slice(4)));
+        using NativeBattleGfSourceReader current = NativeBattleSiren95Io.ReadProgrammeSource(frame.Memory, sourceAddress).OpenReader();
+        Assert.Equal(123, BinaryPrimitives.ReadInt32LittleEndian(current.Read(4, 4)));
     }
 
     private static NativeBattleSiren95Frame WithStage(NativeBattleSiren95Frame frame, short stage)

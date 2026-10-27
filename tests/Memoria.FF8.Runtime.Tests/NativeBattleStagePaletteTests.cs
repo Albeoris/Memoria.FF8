@@ -17,7 +17,7 @@ public sealed class NativeBattleStagePaletteTests
         Assert.Throws<NotSupportedException>(() => process.ReadCommonPacket(27, 1));
         NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueRectangle505DF0(new(0, 239, 256, 1), allocation.Source);
         Assert.Equal((byte)0, queued.Slots[0]!.Kind);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued))!;
+        NativeBattleEffectTextureState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(queued))!;
         NativeBattleEffectTextureDrain drain = restored.Drain505D20();
         NativeBattleEffectVramUpload upload = Assert.Single(drain.Uploads);
         Assert.Equal(allocation.Source.Data.ToArray(), upload.Bytes.ToArray());

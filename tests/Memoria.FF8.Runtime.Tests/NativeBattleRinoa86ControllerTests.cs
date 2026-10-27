@@ -19,9 +19,9 @@ public sealed class NativeBattleRinoa86ControllerTests
         hierarchy = new(frame.Effect.Pools);
         hierarchy = hierarchy.Write(root, hierarchy.Read(root).WriteByte(40, 0));
         frame = frame with { Effect = frame.Effect with { Pools = hierarchy.Pools } };
-        NativeBattleRinoa86Frame clone = JsonSerializer.Deserialize<NativeBattleRinoa86Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleRinoa86Frame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRinoa86Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleRinoa86Controller.Advance(frame, fixture.Inputs);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleRinoa86Controller.Advance(clone, fixture.Inputs)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleRinoa86Controller.Advance(clone, fixture.Inputs)));
         Assert.Equal(256 + 114688, frame.State.AuxiliaryCursor);
         Assert.All(frame.Memory.Arena!.Read(256, 114688), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal((byte)3, frame.Effect.Pools[0].Slots[0].ReadByte(41));

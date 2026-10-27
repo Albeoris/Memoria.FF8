@@ -22,8 +22,8 @@ public sealed class NativeBattleEffect312MainTests
         Assert.Equal(8, result.Frame.Effect.Pools[0].Slots[0].ReadWord(12));
         Assert.Equal(frame.Random, result.Frame.Random);
         Assert.Single(result.Frame.Effect.Pools[0].Slots.Where(task => task.Callback != 0));
-        Assert.Equal(JsonSerializer.Serialize(before.GeometryRegisters), JsonSerializer.Serialize(result.Frame.Memory.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(before.ScriptedColorRegisters), JsonSerializer.Serialize(result.Frame.Memory.ScriptedColorRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Frame.Memory.GeometryRegisters)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.ScriptedColorRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Frame.Memory.ScriptedColorRegisters)));
         Assert.Equal(before.PrimitiveProcess, result.Frame.Memory.PrimitiveProcess);
     }
 
@@ -55,7 +55,7 @@ public sealed class NativeBattleEffect312MainTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, capacity);
         (pool, int slot) = pool.Append(MainCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, age)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, age));
         NativeBattleEffect312State state = NativeBattleEffect312State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(ParametersGlobal, 0x1000);
         NativeBattleOriginalEffectState effect = new(312, 311, new(312, Entry, Initializer), null, null) { Pools = [pool] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), state);

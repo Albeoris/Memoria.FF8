@@ -36,7 +36,7 @@ public sealed class NativeBattleBeamLaser134ControllerTests
         Assert.Equal((ushort)0, main.ReadWord(26));
         Assert.Equal((byte)1, next.Effect.Pools[0].Slots[0].ReadByte(14));
         Assert.Equal(new[] { 0x1C, 0x74 }, fixture.Acts.Select(call => call.Offset));
-        Assert.Throws<NotSupportedException>(() => next.Memory.Arena!.Read(0x720 + 12, 4));
+        Assert.Equal(main.ReadDword(12), BitConverter.ToUInt32(next.Memory.Arena!.Read(0x720 + 12, 4)));
         Assert.Equal(ArenaAddress + FirstPacketOffset, fixture.Step(next).State.ReadDword(CursorGlobal));
     }
 
@@ -157,10 +157,10 @@ public sealed class NativeBattleBeamLaser134ControllerTests
     {
         Fixture fixture = new();
         NativeBattleBeamLaser134Frame frame = Age(fixture.Step(fixture.Frame), 22);
-        NativeBattleBeamLaser134Frame imported = JsonSerializer.Deserialize<NativeBattleBeamLaser134Frame>(JsonSerializer.Serialize(frame))!;
-        NativeBattleBeamLaser134Frame expected = fixture.Step(frame);
+        NativeBattleBeamLaser134Frame imported = NativeBattleTestSnapshots.RestoreJson<NativeBattleBeamLaser134Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleBeamLaser134Frame expected = NativeBattleStorageSnapshots.Capture(fixture.Step(frame));
         NativeBattleBeamLaser134Frame actual = fixture.Step(imported);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleBeamLaser134Frame Age(NativeBattleBeamLaser134Frame frame, int age) => NativeBattleBeamLaser134Controller.Write(frame, frame.Effect.Pools[1].BankAddress, frame.Effect.Pools[1].Slots[0].WriteWord(12, unchecked((ushort)age)));
@@ -190,7 +190,7 @@ public sealed class NativeBattleBeamLaser134ControllerTests
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int slot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8]).WriteWord(12, 1)) });
             NativeBattleOriginalEffectState effect = new(134, 133, new(134, Entry, Initializer), new(3, 0, 1, 0, 0, 0), null) { Pools = [root], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);
@@ -226,7 +226,8 @@ public sealed class NativeBattleBeamLaser134ControllerTests
                 }
                 if (operation is NativeBattleBeamLaser134DrawSprite180 draw)
                 {
-                    SpriteDraws.Add((draw.TaskAddress, NativeBattleBeamLaser134Controller.Read(current, draw.TaskAddress)));
+                    NativeBattleModulePoolTask task = NativeBattleBeamLaser134Controller.Read(current, draw.TaskAddress);
+                    SpriteDraws.Add((draw.TaskAddress, new(task.Flags, task.State, task.Next, task.Callback, task.ReadBytes(12, task.PayloadLength).ToImmutableArray())));
                 }
                 return current;
             });

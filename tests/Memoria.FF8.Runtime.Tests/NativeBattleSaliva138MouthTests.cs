@@ -13,14 +13,14 @@ public sealed class NativeBattleSaliva138MouthTests
         NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(Model(), source);
         actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, NativeBattleCuragaMatrices.Identity8DD770() with { X = 9999 });
         actor = actor with { SequenceState = null };
-        string before = JsonSerializer.Serialize(actor);
+        string before = NativeBattleTestSnapshots.Json(actor);
         ImmutableArray<byte> anchor = Anchor(1, 2, 3, 1);
         NativeBattleActionMatrix expected = NativeBattleGfMatrices.Compose56C2F0(actor.GeometryWorldMatrix!, NativeBattleBodyBoneMatrices.Require(actor, source)[1]);
         var result = NativeBattleSaliva138Mouth.Prepare(Memory(), actor, source, anchor);
         var direct = NativeBattleComposedAnchorTransform.Transform(Memory(), expected, anchor);
         Assert.Equal(direct.Position, result.Position);
-        Assert.Equal(JsonSerializer.Serialize(direct.Memory), JsonSerializer.Serialize(result.Memory));
-        Assert.Equal(before, JsonSerializer.Serialize(actor));
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct.Memory), NativeBattleTestSnapshots.Json(result.Memory));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(actor));
         Assert.Equal(new byte[] { 1, 0 }, result.Memory.ScriptedColorRegisters!.NormalInput!.Value.Skip(6));
         Assert.Null(result.Memory.GeometryRegisters!.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
@@ -42,14 +42,14 @@ public sealed class NativeBattleSaliva138MouthTests
     {
         NativeBattlePoseSource source = Source();
         NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(Model(), source) with { GeometryWorldMatrix = NativeBattleCuragaMatrices.Identity8DD770() with { X = 40000, Y = -40000 } };
-        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(actor))!;
+        NativeBattleGraphicsModel restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGraphicsModel>(NativeBattleTestSnapshots.Json(actor))!;
         var result = NativeBattleSaliva138Mouth.Prepare(Memory(), actor, source, Anchor(1, -1, 2, 0));
         var other = NativeBattleSaliva138Mouth.Prepare(Memory(), restored, source, Anchor(1, -1, 2, 0));
         Assert.Equal(short.MaxValue, result.Position.X);
         Assert.Equal(short.MinValue, result.Position.Y);
         Assert.True(result.Memory.ScriptedColorRegisters!.Mac[0] > short.MaxValue);
         Assert.Equal(result.Position, other.Position);
-        Assert.Equal(JsonSerializer.Serialize(result.Memory), JsonSerializer.Serialize(other.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Memory), NativeBattleTestSnapshots.Json(other.Memory));
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

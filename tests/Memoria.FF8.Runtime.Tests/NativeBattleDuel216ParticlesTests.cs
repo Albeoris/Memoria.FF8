@@ -40,7 +40,7 @@ public sealed class NativeBattleDuel216ParticlesTests
     public void MeshBirthKeepsWrapperChoiceAndConsumesNineDrawsWithUnwrittenPadding()
     {
         var fixture = Fixture(true);
-        NativeBattleEffectTaskPool pool = fixture.Pool with { Slots = fixture.Pool.Slots.SetItem(0, fixture.Pool.Slots[0].MarkPayloadUnknown(34, 2)) };
+        NativeBattleEffectTaskPool pool = NativeBattleTaskFixture.EditPool(fixture.Pool, data => data with { Slots = fixture.Pool.Slots.SetItem(0, fixture.Pool.Slots[0].MarkPayloadUnknown(34, 2)) });
         NativeBattleDuel216ParticleBirth born = NativeBattleDuel216Particles.Spawn69A2D0(fixture.Frame, pool, 0, new(1, 2, 3), 0, 20, 0, 64, 0, 4096);
         NativeBattleModulePoolTask task = born.Pool.Slots[0];
         Assert.Equal(0x69A3F0u, task.Callback);
@@ -72,7 +72,7 @@ public sealed class NativeBattleDuel216ParticlesTests
         var fixture = Fixture(false);
         (NativeBattleEffectTaskPool pool, int slot) = fixture.Pool.Append(0x69A060);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 10).WriteWord(14, 20).WriteWord(16, 30).WriteWord(18, 4096).WriteWord(20, 255).WriteByte(22, 128).WriteByte(23, 11);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         NativeBattleDuel216ParticleServices services = new((frame, draw) =>
         {
             Assert.Equal(0x113C1ACu, draw.Source);
@@ -97,7 +97,7 @@ public sealed class NativeBattleDuel216ParticlesTests
         var fixture = Fixture(true);
         (NativeBattleEffectTaskPool pool, int slot) = fixture.Pool.Append(callback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(12, 1).WriteWord(14, 2).WriteWord(16, 3).WriteByte(27, 1).WriteByte(28, 255).WriteByte(29, 128).WriteWord(32, 4096).MarkPayloadUnknown(18, 9);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         NativeBattleDuel216ParticleServices services = new((_, _) => throw new InvalidOperationException(), (frame, draw) =>
         {
             Assert.Equal(0x1140AA4u, draw.Source);

@@ -21,7 +21,7 @@ public sealed class NativeBattleFiraControllerTests
         {
             frame = NativeBattleFiraController.Advance61DD90(frame, Inputs(fixture.Packets, (current, operation) =>
             {
-                operations.Add((tick, operation));
+                operations.Add((tick, operation is NativeBattleFiraDraw draw ? draw with { Task = NativeBattleTaskFixture.ObserveTask(draw.Task) } : operation));
                 return current;
             }));
             Assert.Equal((tick & 1) != 0 ? 0x10000 : 0, frame.Effect.DrawArenaOffset);
@@ -36,11 +36,11 @@ public sealed class NativeBattleFiraControllerTests
             }
             if (tick == 15)
             {
-                NativeBattleFiraFrame restored = JsonSerializer.Deserialize<NativeBattleFiraFrame>(JsonSerializer.Serialize(frame))!;
-                NativeBattleFiraFrame expected = NativeBattleFiraController.Advance61DD90(frame, Inputs(fixture.Packets));
+                NativeBattleFiraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiraFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                NativeBattleFiraFrame expected = NativeBattleFiraController.Advance61DD90(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
                 NativeBattleFiraFrame actual = NativeBattleFiraController.Advance61DD90(restored, Inputs(fixture.Packets));
-                Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-                frame = restored;
+                Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+
             }
             if (tick == 11)
             {
@@ -110,10 +110,10 @@ public sealed class NativeBattleFiraControllerTests
     {
         var fixture = Fixture();
         NativeBattleFiraFrame frame = WithLeaf(fixture.Frame, callback, task => task.WriteWord(14, 1));
-        string original = JsonSerializer.Serialize(frame.Effect.Pools[1]);
+        string original = NativeBattleTestSnapshots.Json(frame.Effect.Pools[1]);
         NativeBattleFiraInputs inputs = Inputs(fixture.Packets, (_, _) => throw new InvalidOperationException("Delayed leaves must not draw."));
         NativeBattleFiraFrame frozen = NativeBattleFiraController.Advance61DD90(frame, inputs with { GraphicsFlags = 0x201 });
-        Assert.Equal(original, JsonSerializer.Serialize(frozen.Effect.Pools[1]));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(frozen.Effect.Pools[1]));
         Assert.Equal(frame.Random, frozen.Random);
         NativeBattleFiraFrame advanced = NativeBattleFiraController.Advance61DD90(frozen, inputs);
         Assert.Equal((ushort)0, advanced.Effect.Pools[1].Slots[0].ReadWord(14));
@@ -134,11 +134,12 @@ public sealed class NativeBattleFiraControllerTests
         List<NativeBattleFiraDraw> draws = [];
         NativeBattleFiraInputs inputs = Inputs(fixture.Packets, (current, operation) =>
         {
-            draws.Add(Assert.IsType<NativeBattleFiraDraw>(operation));
+            NativeBattleFiraDraw draw = Assert.IsType<NativeBattleFiraDraw>(operation);
+            draws.Add(draw with { Task = NativeBattleTaskFixture.ObserveTask(draw.Task) });
             return current;
         });
         NativeBattleFiraFrame frozen = NativeBattleFiraController.Advance61DD90(frame, inputs with { GraphicsFlags = 0x201 });
-        Assert.Equal(JsonSerializer.Serialize(frame.Effect.Pools[1]), JsonSerializer.Serialize(frozen.Effect.Pools[1]));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Effect.Pools[1]), NativeBattleTestSnapshots.Json(frozen.Effect.Pools[1]));
         Assert.Equal((ushort)counter, Assert.Single(draws).Task.ReadWord(12));
         draws.Clear();
         NativeBattleFiraFrame completed = NativeBattleFiraController.Advance61DD90(frozen, inputs);
@@ -152,7 +153,7 @@ public sealed class NativeBattleFiraControllerTests
     {
         var fixture = Fixture();
         NativeBattleFiraFrame frame = WithLeaf(fixture.Frame, 0x61D4C0, task => task.WriteWord(12, 3).WriteWord(16, 32760).WriteWord(24, 20).WriteWord(26, unchecked((ushort)-40)).WriteWord(28, unchecked((ushort)-17)).WriteWord(32, 10));
-        frame = NativeBattleFiraController.Advance61DD90(frame, Inputs(fixture.Packets));
+        frame = NativeBattleFiraController.Advance61DD90(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Inputs(fixture.Packets));
         NativeBattleModulePoolTask spark = frame.Effect.Pools[1].Slots[0];
         Assert.Equal(unchecked((ushort)-32756), spark.ReadWord(16));
         Assert.Equal((ushort)19, spark.ReadWord(24));
@@ -188,7 +189,7 @@ public sealed class NativeBattleFiraControllerTests
         Assert.Equal(1, loads);
         Assert.NotEqual(0u, frame.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[final].ReadWord(12));
-        frame = JsonSerializer.Deserialize<NativeBattleFiraFrame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleFiraFrame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = frame with { Effect = NativeBattleFiraController.WriteCompletionByte(frame.Effect, address, 1) };
         frame = NativeBattleFiraController.Advance61DD90(frame, inputs);
         Assert.Equal(1, loads);
@@ -200,7 +201,7 @@ public sealed class NativeBattleFiraControllerTests
     {
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(NativeBattleFiraController.ChildDescriptor, NativeBattleFiraController.ChildBank, 36, 150);
         (children, int slot) = children.Append(callback);
-        children = children with { Slots = children.Slots.SetItem(slot, initialize(children.Slots[slot])) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, initialize(children.Slots[slot])) });
         return frame with { Effect = frame.Effect with { Pools = [frame.Effect.Pools[0], children] } };
     }
 

@@ -30,7 +30,7 @@ public sealed class NativeBattleRinoa89CaptureTests
         Assert.Equal(0x1C48828u + 24, BinaryPrimitives.ReadUInt32LittleEndian(begun.Frame.Memory.Arena!.Read(NativeBattleRinoa89Capture.TableOffset + 4, 4)));
         Assert.Equal(uint.MaxValue, BinaryPrimitives.ReadUInt32LittleEndian(begun.Frame.Memory.Arena.Read(NativeBattleRinoa89Capture.TableOffset, 4)));
         Assert.Throws<NotSupportedException>(() => begun.Frame.Memory.PrimitiveProcess.ReadCommonPacket(12 + 24, 1));
-        NativeBattleRinoa89Frame restored = JsonSerializer.Deserialize<NativeBattleRinoa89Frame>(JsonSerializer.Serialize(begun.Frame))!;
+        NativeBattleRinoa89Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRinoa89Frame>(NativeBattleTestSnapshots.Json(begun.Frame))!;
         NativeBattleRinoa89CaptureStep ended = NativeBattleRinoa89Capture.End6FBEE0(restored, begun.Ordering);
         Assert.Equal(140, ended.Frame.Memory.PrimitiveProcess!.ByteCursor);
         Assert.Equal(0xE3000000u | 384u | (256u << 10), ended.Ordering.Packets[2].Words[1]);

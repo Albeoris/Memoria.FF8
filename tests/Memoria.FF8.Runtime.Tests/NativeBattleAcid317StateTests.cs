@@ -33,10 +33,10 @@ public sealed class NativeBattleAcid317StateTests
         NativeBattleEffectArena packed = NativeBattleEffectArena.Clear().Write(20, BitConverter.GetBytes(123456)).MarkUnknown(18, 2);
         NativeBattleAcid317State state = NativeBattleAcid317State.FromColdProcess().WriteView(0x25054B8, packed, 32).WriteDword(0x25054B4, 0x20F41C0).WriteDword(0x25054D8, 0xCAFEBABE);
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleAcid317State restored = JsonSerializer.Deserialize<NativeBattleAcid317State>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleAcid317State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(0x20F41C0u, restored.ReadDword(0x25054B4));
         Assert.Equal(0xCAFEBABEu, restored.ReadDword(0x25054D8));
         NativeBattleEffectArena view = restored.ReadView(0x25054B8, 32);

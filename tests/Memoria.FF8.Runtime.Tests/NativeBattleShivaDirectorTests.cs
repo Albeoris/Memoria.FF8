@@ -71,7 +71,7 @@ public sealed class NativeBattleShivaDirectorTests
         NativeBattleShivaDirectorStep loaded = Advance(Task(counter), calls, true);
         NativeBattleShivaDirectorOperation request = Assert.Single(calls);
         Assert.Equal(new(NativeBattleShivaDirectorService.File, file, UseWorkBuffer: true), request);
-        Assert.Equal(JsonSerializer.Serialize(skipped.Task), JsonSerializer.Serialize(loaded.Task));
+        Assert.Equal(NativeBattleTestSnapshots.Json(skipped.Task), NativeBattleTestSnapshots.Json(loaded.Task));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class NativeBattleShivaDirectorTests
                 memory = memory.DeliverBattleFile(model, operation.Second, operation.UseWorkBuffer);
             }
         }
-        memory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        memory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleEffectTextureDrain drain = memory.Textures!.Drain505D20(memory.Arena);
         Assert.Equal("mag184_e.dat", drain.Uploads[1].Origin!.Owner);
         Assert.Equal(NativeBattleTextureDomain.Battle, drain.Uploads[1].Origin!.Domain);
@@ -138,12 +138,12 @@ public sealed class NativeBattleShivaDirectorTests
     public void Contact_and_final_fade_survive_independent_JSON_and_do_not_repeat_next_callback()
     {
         NativeBattleModulePoolTask task = Task(265);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
         List<NativeBattleShivaDirectorOperation> first = [];
         List<NativeBattleShivaDirectorOperation> second = [];
         NativeBattleShivaDirectorStep a = Advance(task, first);
         NativeBattleShivaDirectorStep b = Advance(restored, second);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Equal(first, second);
         Assert.Equal(new(NativeBattleShivaDirectorService.Stage, 1280), first[0]);
         Assert.Equal(NativeBattleShivaDirectorService.Contacts, first[1].Service);

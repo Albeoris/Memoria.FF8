@@ -26,11 +26,11 @@ public sealed class NativeBattleEffect311ControllerTests
             Assert.InRange(task.ReadWord(18), (ushort)1500, (ushort)2523);
             Assert.InRange(task.ReadWord(16), (ushort)0, (ushort)32767);
         });
-        NativeBattleEffect311ParticleInitialization restored = JsonSerializer.Deserialize<NativeBattleEffect311ParticleInitialization>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored));
+        NativeBattleEffect311ParticleInitialization restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect311ParticleInitialization>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         NativeBattleEffect311ParticleInitialization exhausted = NativeBattleEffect311Particles.Initialize665848(restored.Pool, restored.Random);
         Assert.Equal(first.Random, exhausted.Random);
-        Assert.Equal(JsonSerializer.Serialize(first.Pool), JsonSerializer.Serialize(exhausted.Pool));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Pool)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(exhausted.Pool)));
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect311ControllerTests
         {
             (pool, _) = pool.Append(0x665C30);
         }
-        pool = pool with { Slots = pool.Slots.SetItem(63, pool.Slots[63].WriteWord(26, 0xABCD)) };
+        pool = pool.WriteSlot(63, pool.Slots[63].WriteWord(26, 0xABCD));
         NativeCrtRandomState before = new(123);
         NativeBattleEffect311ParticleInitialization initialized = NativeBattleEffect311Particles.Initialize665848(pool, before);
         NativeCrtRandomState expected = before;

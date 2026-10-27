@@ -24,12 +24,12 @@ public sealed class NativeBattleOilBlast137StateTests
     {
         NativeBattleOilBlast137State state = NativeBattleOilBlast137State.FromUnknown() with { ColdMatrixSourcePending = false, Matrix32 = NativeBattleEffectArena.Clear().MarkUnknown(0, 32).Write(0, BitConverter.GetBytes((short)1234)) };
         state = state.WriteDword(NativeBattleOilBlast137Profile.WorkingGlobal, 0x20DFAB8);
-        NativeBattleOilBlast137State restored = JsonSerializer.Deserialize<NativeBattleOilBlast137State>(JsonSerializer.Serialize(state))!;
+        NativeBattleOilBlast137State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilBlast137State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal((ushort)1234, restored.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(NativeBattleOilBlast137Profile.MatrixAddress + 18));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(NativeBattleOilBlast137Profile.WorkingGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteWord(NativeBattleOilBlast137Profile.MatrixAddress + 8, 4096)), JsonSerializer.Serialize(restored.WriteWord(NativeBattleOilBlast137Profile.MatrixAddress + 8, 4096)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state.WriteWord(NativeBattleOilBlast137Profile.MatrixAddress + 8, 4096)), NativeBattleTestSnapshots.Json(restored.WriteWord(NativeBattleOilBlast137Profile.MatrixAddress + 8, 4096)));
         Assert.Equal(NativeBattleOilBlast137Profile.FirstPacketOffset, NativeBattleOilBlast137Profile.MorphOffset + NativeBattleOilBlast137Profile.MorphBytes);
         Assert.Equal(NativeBattleOilBlast137Profile.PacketStep, NativeBattleOilBlast137Profile.SecondPacketOffset - NativeBattleOilBlast137Profile.FirstPacketOffset);
     }

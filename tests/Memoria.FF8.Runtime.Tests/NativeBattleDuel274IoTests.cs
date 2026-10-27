@@ -19,7 +19,7 @@ public sealed class NativeBattleDuel274IoTests
         Assert.Equal(new byte[] { 0, 0, 1, 1, 1 }, result.Memory.Arena!.Read(64, 5));
         Assert.Equal(2, result.Memory.Textures!.Count);
         Assert.Equal(new int?[] { first, second }, result.Memory.Textures.Slots.Take(2).Select(slot => slot!.ArenaOffset));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(result.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(result.Memory))!;
         NativeBattleEffectArena modified = restored.Arena!.Write(second + 64, [0xCD, 0xAB]);
         NativeBattleEffectTextureDrain drain = restored.Textures!.Drain505D20(modified);
         byte[] vram = drain.State.ReadVram();

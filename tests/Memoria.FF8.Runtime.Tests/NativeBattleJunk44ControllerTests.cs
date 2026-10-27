@@ -255,7 +255,7 @@ public sealed class NativeBattleJunk44ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Equal(BitConverter.GetBytes((ushort)0xA55A), actual.Memory.Arena!.Read(0x1280, 2));
         Assert.Equal(1, actual.Memory.Arena!.Read(0x1240, 1)[0] & 1);
-        actual = JsonSerializer.Deserialize<NativeBattleJunk44Frame>(JsonSerializer.Serialize(actual))!;
+        actual = NativeBattleTestSnapshots.RestoreJson<NativeBattleJunk44Frame>(NativeBattleTestSnapshots.Json(actual))!;
         actual = Initialize(actual, Resources(), Inputs([]));
         Assert.Single(actual.Effect.Pools);
         Assert.Equal(BitConverter.GetBytes((ushort)0xA55A), actual.Memory.Arena!.Read(0x1280, 2));

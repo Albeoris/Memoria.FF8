@@ -43,7 +43,7 @@ public sealed class NativeBattleHoly175DrawingTests
         NativeBattleHoly175State state = NativeBattleHoly175State.FromColdProcess() with { StaticMatrix = NativeBattleEffectArena.Clear().Write(0, raw) };
         NativeBattleActionMatrix view = View with { Z = 600 };
         NativeBattleCameraProjection projection = new(view, 512, 0, 0);
-        (NativeBattleHoly175State next, NativeBattleActionMatrix matrix) = NativeBattleHoly175Drawing.ScreenAnchor5D41F0(state, new(-1, -1, 0), 256, view, projection);
+        (NativeBattleHoly175State next, NativeBattleActionMatrix matrix) = NativeBattleHoly175Drawing.ScreenAnchor5D41F0(NativeBattleTestSnapshots.Independent(state), new(-1, -1, 0), 256, view, projection);
         Assert.Equal((-160, -108, 512), (matrix.X, matrix.Y, matrix.Z));
         byte[] changed = next.StaticMatrix.Read(0, 32);
         for (int index = 0; index < 20; index++)
@@ -88,7 +88,7 @@ public sealed class NativeBattleHoly175DrawingTests
         NativeBattleModuleResource resource = new(0, 0xD523E8, 0, 0, Sprite(0xD523E8).Bytes);
         NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Resource = resource, SpriteFrame = resource.ProjectedFrame571C80(0), Anchor = new(-1, 994, 0, 0), Scale = 512, DepthOffset = -32, SpriteFlags = 0 };
         NativeBattleModulePacketBatch expected = NativeBattleModulePackets.EmitSprite571DC0(draw, Projection, 123, 17, 2);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual.Sprites));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual.Sprites));
         Assert.False(actual.Common);
         Assert.Same(state, actual.State);
     }
@@ -109,8 +109,8 @@ public sealed class NativeBattleHoly175DrawingTests
         Assert.All(actual.Sprites.Primitives, primitive => Assert.Equal(command, primitive.Primitive.Words[1]));
         Assert.Equal(240, NativeBattleHoly175State.LoadMatrix(actual.State.StaticMatrix, 0).Rotation[0]);
         Assert.Equal(320, actual.Sprites.AllocationBytes);
-        NativeBattleHoly175State cold = JsonSerializer.Deserialize<NativeBattleHoly175State>(JsonSerializer.Serialize(state))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(NativeBattleHoly175Drawing.DrawTask(task, cold, Resources(), View, Projection, 0, new(100, -200, -1000), Colors)));
+        NativeBattleHoly175State cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleHoly175State>(NativeBattleTestSnapshots.Json(state))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(NativeBattleHoly175Drawing.DrawTask(task, cold, Resources(), View, Projection, 0, new(100, -200, -1000), Colors)));
     }
 
     [Fact]

@@ -10,7 +10,7 @@ public sealed class NativeBattleEffect140ParticleTests
     {
         NativeBattleEffect140Frame frame = WithPool(Frame());
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        frame = frame with { Effect = frame.Effect with { Pools = [pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(26, 0x55AA)) }] } };
+        frame = frame with { Effect = frame.Effect with { Pools = [pool.WriteSlot(0, pool.Slots[0].WriteWord(26, 0x55AA))] } };
         NativeCrtRandomState random = frame.Random.Draw(out ushort x).Draw(out ushort z).Draw(out ushort y).Draw(out ushort vx).Draw(out ushort vz);
         NativeBattleEffect140FactoryStep result = NativeBattleEffect140Particles.Spawn6A7CE0(frame, 1234, 512, 1024, -5, 256, null!, null!);
         NativeBattleModulePoolTask task = Read(result.Frame, result.Address);

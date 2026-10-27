@@ -25,7 +25,7 @@ public sealed class NativeBattleActDepthRoutingTests
         NativeBattleEffect227Frame frame = NativeBattleEffect227RecordsTests.Frame();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2508718, 0x20DFAB8, 24, 16);
         (pool, int slot) = pool.Append(0x694360);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(12, 4)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[12]).WriteWord(12, 4)) });
         frame = frame with { Effect = frame.Effect with { Pools = [pool] }, State = frame.State.WriteView(0x2508758, NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes((short)2000)), 8) };
         frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [pool]) };
         byte[] geometry = Geometry(false).ToArray();

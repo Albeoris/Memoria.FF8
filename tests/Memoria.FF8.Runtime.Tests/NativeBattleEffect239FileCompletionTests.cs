@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect239FileCompletionTests
         Assert.Equal((uint?)0, session.NativeFileIo.Rows[0].SchedulerCallback);
         Assert.Equal((uint?)callback, session.NativeFileIo.Rows[0].CompletionCallback);
         Assert.Equal((int?)32768, session.NativeFileIo.Rows[0].FileResult);
-        Assert.Equal(JsonSerializer.Serialize(before.Write(0x2798219, [0])), JsonSerializer.Serialize(session.NativeEffectMemory.ScriptedEffects));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.Write(0x2798219, [0]))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.NativeEffectMemory.ScriptedEffects)));
         Assert.Same(memory.Arena, session.NativeEffectMemory.Arena);
         Assert.Same(memory.PrimitiveProcess, session.NativeEffectMemory.PrimitiveProcess);
         Assert.Throws<NotSupportedException>(() => session.NativeEffectMemory.ScriptedEffects!.Read(0x279821A, 1));

@@ -21,7 +21,7 @@ public static class NativeBattleEffect60Act
                 int actor = task.ReadByte(0x2D);
                 NativeBattleEffectArena packed = RequirePacked8(inputs.ReadPackedPosition8(actor));
                 NativeBattleEffectArena rotation = RequirePacked8(inputs.ReadRotation8(actor));
-                frame = frame with { State = frame.State with { SavedRotation8 = rotation } };
+                NativeBattleEffectNodeContextMemory.Copy(rotation, 0, frame.State.SavedRotation8, 0, 8);
                 task = Copy(packed, 0, task, 0x180, 8);
                 short yaw = (short)((frame.State.Word(0x4A) - 0x800) & 0xFFF);
                 frame = inputs.Execute(Put(frame, address, task), new NativeBattleEffect60SetYaw(actor, yaw));
@@ -91,8 +91,8 @@ public static class NativeBattleEffect60Act
     {
         NativeBattleModulePoolTask task = Read(frame, address);
         int actor = task.ReadByte(0x2D);
-        NativeBattleEffectArena previous = RequirePacked8(inputs.ReadPackedPosition8(actor));
-        NativeBattleEffectArena next = previous;
+        NativeBattleEffectArena previous = NativeBattleEffectNodeContextMemory.Copy(RequirePacked8(inputs.ReadPackedPosition8(actor)), 0, NativeBattleEffectArena.Clear(), 0, 8);
+        NativeBattleEffectArena next = NativeBattleEffectNodeContextMemory.Copy(previous, 0, NativeBattleEffectArena.Clear(), 0, 8);
         int index = Word(task, 0x84);
         if ((uint)index >= (uint)resources.TargetMotionRatios.Length)
         {

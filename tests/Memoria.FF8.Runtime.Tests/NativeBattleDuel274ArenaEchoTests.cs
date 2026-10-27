@@ -19,7 +19,7 @@ public sealed class NativeBattleDuel274ArenaEchoTests
         Assert.Null(frame.Memory.Arena.ReadResourcePointer(0x4000 + 16)!.Cpu);
         Assert.Throws<NotSupportedException>(() => frame.Memory.Arena.Read(0x4000 + 133, 1));
         Assert.Throws<NotSupportedException>(() => frame.Memory.Arena.Read(0x4000 + 600, 1));
-        NativeBattleDuel274Frame restored = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDuel274Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
         Assert.Equal(frame.Memory.Arena.ReadResourcePointer(0x4000 + 200), restored.Memory.Arena!.ReadResourcePointer(0x4000 + 200));
     }
 

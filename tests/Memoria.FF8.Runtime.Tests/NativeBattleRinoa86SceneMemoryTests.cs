@@ -21,7 +21,7 @@ public sealed class NativeBattleRinoa86SceneMemoryTests
         Assert.Equal((short)0, scene.SignedWord(12));
         Assert.Equal((ushort)0, scene.Word(14));
         Assert.InRange(scene.Word(74), (ushort)0, (ushort)4095);
-        NativeBattleRinoa86SceneMemory restored = JsonSerializer.Deserialize<NativeBattleRinoa86SceneMemory>(JsonSerializer.Serialize(scene))!;
+        NativeBattleRinoa86SceneMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRinoa86SceneMemory>(NativeBattleTestSnapshots.Json(scene))!;
         Assert.Equal(scene.Settings.Read(0, 84), restored.Settings.Read(0, 84));
         Assert.Throws<InvalidDataException>(() => scene.Word(84));
     }

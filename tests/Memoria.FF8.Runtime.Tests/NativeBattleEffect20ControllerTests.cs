@@ -79,8 +79,8 @@ public sealed class NativeBattleEffect20ControllerTests
         {
             frame = fixture.Step(frame);
         }
-        NativeBattleEffect20Frame restored = JsonSerializer.Deserialize<NativeBattleEffect20Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleEffect20Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect20Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Step(frame))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Step(restored))));
     }
 
     internal sealed class Fixture

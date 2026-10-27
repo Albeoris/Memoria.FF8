@@ -40,10 +40,10 @@ public sealed class NativeBattleElectricDischarge126StateTests
     {
         NativeBattleElectricDischarge126State state = NativeBattleElectricDischarge126State.FromUnknown().WriteDword(0x25212EC, 0x12ABCDEF).WriteDword(0x25212F8, 0x20EBF2C) with { FlashThreshold = 0x7000 };
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleElectricDischarge126State restored = JsonSerializer.Deserialize<NativeBattleElectricDischarge126State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleElectricDischarge126State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(0x7000u, restored.ReadFlashThreshold());
         Assert.Equal(0x12ABCDEFu, restored.ReadDword(0x25212EC));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(0x2521360));

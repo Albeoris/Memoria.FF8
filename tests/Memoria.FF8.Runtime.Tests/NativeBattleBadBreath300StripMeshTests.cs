@@ -122,8 +122,8 @@ public sealed class NativeBattleBadBreath300StripMeshTests
     public void Serialized_context_and_GTE_continue_with_the_same_next_packets_without_source_hydration()
     {
         NativeBattleBadBreath300StripMeshStep first = Draw(Source(), Context(), unknownW: true);
-        NativeBattleBadBreath300StripMeshStep restored = JsonSerializer.Deserialize<NativeBattleBadBreath300StripMeshStep>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(Source(), first.Context92, first.Registers, unknownW: true)), JsonSerializer.Serialize(Draw(Source(), restored.Context92, restored.Registers, unknownW: true)));
+        NativeBattleBadBreath300StripMeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath300StripMeshStep>(NativeBattleTestSnapshots.Json(first))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(Source(), first.Context92, first.Registers, unknownW: true)), NativeBattleTestSnapshots.Json(Draw(Source(), restored.Context92, restored.Registers, unknownW: true)));
     }
 
     private static NativeBattleBadBreath300StripMeshStep Draw(ImmutableArray<byte> source, NativeBattleEffectArena context, NativeBattleGeometryRegisterStep? registers = null, NativeBattleCameraProjection? projection = null, short? zsf4 = 0x100, bool unknownW = false)

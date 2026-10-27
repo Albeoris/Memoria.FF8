@@ -30,8 +30,8 @@ public sealed class NativeBattleSonic139LowerTests
         Assert.Equal(new uint?[] { 0x33000000, 0xAB040008, 0xAB020004 }, actual.Memory.ScriptedColorRegisters.Rgb);
         Assert.Equal(2048u, actual.Memory.ScriptedColorRegisters.Ir0);
         Assert.Equal(0xAB000000u, actual.Memory.ScriptedColorRegisters.Material);
-        NativeBattleSonic139Frame restored = JsonSerializer.Deserialize<NativeBattleSonic139Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleSonic139Morph.Morph6A9BB0(actual, Base + 0x3000, Base + 0x3100, Base + 0x3200, 2048, Inputs(), Resources)), JsonSerializer.Serialize(NativeBattleSonic139Morph.Morph6A9BB0(restored, Base + 0x3000, Base + 0x3100, Base + 0x3200, 2048, Inputs(), Resources)));
+        NativeBattleSonic139Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSonic139Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleSonic139Morph.Morph6A9BB0(actual, Base + 0x3000, Base + 0x3100, Base + 0x3200, 2048, Inputs(), Resources)), NativeBattleTestSnapshots.Json(NativeBattleSonic139Morph.Morph6A9BB0(restored, Base + 0x3000, Base + 0x3100, Base + 0x3200, 2048, Inputs(), Resources)));
     }
 
     [Fact]

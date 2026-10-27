@@ -35,13 +35,14 @@ public sealed class NativeBattleCinematicAccelerationACTests
             Assert.Equal(-2, selector);
             return Address(0x3000);
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(unchecked((ushort)expected), WaterSchedulerFixture.ReadSlotWord(result, 0, 0x80));
         Assert.Equal((byte)1, result.Arena.Read(0x201A, 1)[0]);
         Assert.Equal(0x1006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 
     [Theory]

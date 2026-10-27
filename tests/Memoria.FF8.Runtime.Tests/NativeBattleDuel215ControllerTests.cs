@@ -36,8 +36,8 @@ public sealed class NativeBattleDuel215ControllerTests
             Assert.Equal(0x20DFAB8u, pool.BankAddress);
             Assert.Equal(5120, pool.Stride);
             Assert.Equal(0x69B070u, pool.Slots[slot].Callback);
-            Assert.Equal(5108, pool.Slots[slot].Payload.Length);
-            Assert.All(pool.Slots[slot].Payload, value => Assert.Equal((byte)0, value));
+            Assert.Equal(5108, pool.Slots[slot].PayloadLength);
+            Assert.All(pool.Slots[slot].ReadBytes(12, pool.Slots[slot].PayloadLength), value => Assert.Equal((byte)0, value));
             children++;
             return new(current, pool, 0);
         });
@@ -65,7 +65,7 @@ public sealed class NativeBattleDuel215ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2508968, 0x2508978, 16, 1);
         (root, int slot) = root.Append(0x69AC00);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, counter)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteDword(12, counter)) });
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = new([]) };
         NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(0, 0, 8, 0, 0, 0), 0x2508968) { Pools = [root] };
         return new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());

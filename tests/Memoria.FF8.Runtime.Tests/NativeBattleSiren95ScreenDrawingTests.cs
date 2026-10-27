@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -19,6 +19,7 @@ public sealed class NativeBattleSiren95ScreenDrawingTests
             emitted = batch;
             return current;
         });
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleSiren95Frame result = NativeBattleSiren95ScreenDrawing.Draw745F50(frame, fixture.Address, row, services);
         Assert.NotNull(emitted);
         Assert.Equal(228, emitted.AllocationBytes);
@@ -32,8 +33,7 @@ public sealed class NativeBattleSiren95ScreenDrawingTests
         Assert.Equal((ushort)1, result.Memory.Siren95.ReadWord(row + 0xCC));
         Assert.Equal(0x7000u, result.Memory.Siren95.ReadDword(row + 0xC0));
         Assert.Equal(frame.Random, result.Random);
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleSiren95ScreenDrawing.Draw745F50(restored, fixture.Address, row, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleSiren95ScreenDrawing.Draw745F50(restored, fixture.Address, row, services)));
     }
 
     [Fact]
@@ -69,9 +69,9 @@ public sealed class NativeBattleSiren95ScreenDrawingTests
         var fixture = Fixture();
         int selected = Enumerable.Range(0, fixture.Frame.Effect.Pools.Length).Single(index => fixture.Frame.Effect.Pools[index].BankAddress == 0x258EDD8);
         NativeBattleEffectTaskPool pool = fixture.Frame.Effect.Pools[selected];
-        NativeBattleModulePoolTask task = pool.Slots[0] with { Flags = 1, State = 0xBEEF, Next = 1, Callback = 0x12345678 };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Flags = 1, State = 0xBEEF, Next = 1, Callback = 0x12345678 });
         task = task.WriteWord(12, 0xABCD);
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) });
         NativeBattleSiren95Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.SetItem(selected, pool) } };
         byte[] actual = NativeBattleSiren95PhysicalMemory.Read(frame, 0x258EDD8, 14, (_, _) => throw new InvalidOperationException("Stale module aliases must not supply task bytes."));
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(actual));

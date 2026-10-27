@@ -19,7 +19,7 @@ public sealed class NativeBattleBlizzardControllerTests
     {
         var fixture = Fixture();
         NativeBattleEffectTaskPool main = fixture.Frame.Effect.Pools[0];
-        main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, ushort.MaxValue)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, ushort.MaxValue)) });
         NativeBattleBlizzardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [main, fixture.Frame.Effect.Pools[1]] } };
         frame = NativeBattleBlizzardController.Advance61BF70(frame, Inputs(fixture.Packets) with { GraphicsFlags = 0x201 });
         Assert.Equal(0xC000, frame.Effect.DrawArenaOffset);
@@ -66,7 +66,7 @@ public sealed class NativeBattleBlizzardControllerTests
             }));
             if (tick == 20)
             {
-                frame = JsonSerializer.Deserialize<NativeBattleBlizzardFrame>(JsonSerializer.Serialize(frame))!;
+                frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzardFrame>(NativeBattleTestSnapshots.Json(frame))!;
             }
         }
         Assert.Equal(55, tick);
@@ -117,7 +117,7 @@ public sealed class NativeBattleBlizzardControllerTests
         var fixture = Fixture();
         NativeBattleBlizzardFrame frame = NativeBattleBlizzardController.Advance61BF70(fixture.Frame, Inputs(fixture.Packets));
         frame = NativeBattleBlizzardController.Advance61BF70(frame, Inputs(fixture.Packets));
-        NativeBattleOriginalEffectState before = frame.Effect;
+        NativeBattleOriginalEffectState before = NativeBattleStorageSnapshots.Capture(frame.Effect);
         List<NativeBattleBlizzardOperation> operations = [];
         NativeBattleBlizzardFrame frozen = NativeBattleBlizzardController.Advance61BF70(frame, Inputs(fixture.Packets, (current, operation) =>
         {
@@ -126,7 +126,7 @@ public sealed class NativeBattleBlizzardControllerTests
         }) with { GraphicsFlags = flags });
         Assert.Single(operations.OfType<NativeBattleBlizzardDraw>());
         Assert.Equal(frame.Random, frozen.Random);
-        Assert.Equal(before.Pools[1].Slots.Select(slot => slot.Payload), frozen.Effect.Pools[1].Slots.Select(slot => slot.Payload));
+        Assert.Equal(before.Pools[1].Slots.Select(slot => NativeBattleStorageSnapshots.Capture(slot).Payload), frozen.Effect.Pools[1].Slots.Select(slot => NativeBattleStorageSnapshots.Capture(slot).Payload));
         Assert.Equal(unchecked((ushort)(before.Pools[0].Slots[0].ReadWord(12) + 1)), frozen.Effect.Pools[0].Slots[0].ReadWord(12));
     }
 
@@ -136,7 +136,7 @@ public sealed class NativeBattleBlizzardControllerTests
         var fixture = Fixture();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24BD788, 0x24BD798, 36, 150);
         (pool, int slot) = pool.Append(0x61B660);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 1)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 1)) });
         NativeBattleBlizzardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [fixture.Frame.Effect.Pools[0], pool] } };
         frame = NativeBattleBlizzardController.Advance61BF70(frame, Inputs(fixture.Packets, (_, _) => throw new InvalidOperationException("Positive delay must not draw.")));
         Assert.Equal((ushort)0, frame.Effect.Pools[1].Slots[slot].ReadWord(14));
@@ -178,7 +178,7 @@ public sealed class NativeBattleBlizzardControllerTests
         var fixture = Fixture();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x24BD788, 0x24BD798, 36, 150);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)(lifetime - 1))) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, (ushort)(lifetime - 1))) });
         NativeBattleBlizzardFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [fixture.Frame.Effect.Pools[0], pool] } };
         int draws = 0;
         frame = NativeBattleBlizzardController.Advance61BF70(frame, Inputs(fixture.Packets, (current, operation) =>

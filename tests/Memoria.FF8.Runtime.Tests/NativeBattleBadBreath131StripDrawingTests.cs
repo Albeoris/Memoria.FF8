@@ -70,11 +70,11 @@ public sealed class NativeBattleBadBreath131StripDrawingTests
         byte[] changed = frame.State.ReadMesh(MeshAAddress).ToArray();
         changed[0x540] = 64;
         frame = frame with { State = frame.State.WriteMesh(MeshAAddress, changed.ToImmutableArray()) };
-        NativeBattleBadBreath131Frame restored = JsonSerializer.Deserialize<NativeBattleBadBreath131Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleBadBreath131Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBadBreath131Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = Draw(frame);
         var actual = Draw(restored);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
-        Assert.Equal(JsonSerializer.Serialize(expected.Batch), JsonSerializer.Serialize(actual.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
         Assert.Equal(new byte[] { 16, 32, 48 }, actual.Batch.Attempts[0].Data.AsSpan().Slice(4, 3).ToArray());
         Assert.Equal((byte)64, actual.Frame.State.ReadMesh(MeshAAddress)[0x540]);
     }

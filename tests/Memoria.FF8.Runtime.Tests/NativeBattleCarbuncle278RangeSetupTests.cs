@@ -41,7 +41,7 @@ public sealed class NativeBattleCarbuncle278RangeSetupTests
             Assert.Equal(unchecked((ushort)-8), task.ReadWord(0x14));
             Assert.Equal((ushort)0, task.ReadWord(0x16));
             Assert.Equal(0x20E1A64u, task.ReadDword(0x18));
-            Assert.Equal(task.Payload, frame.Memory.Arena!.Read(0x1EA4 + index * 28 + 12, 16));
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload, frame.Memory.Arena!.Read(0x1EA4 + index * 28 + 12, 16));
         }
         Assert.Same(frame, NativeBattleCarbuncle278RangeSetup.Spawn6826B7(frame, 1, new(0, 0, 0, 0, 18), 0));
         NativeBattleCarbuncle278Frame paused = frame with { Memory = frame.Memory with { Carbuncle278 = frame.Memory.Carbuncle278! with { Pause8114 = 1 } } };

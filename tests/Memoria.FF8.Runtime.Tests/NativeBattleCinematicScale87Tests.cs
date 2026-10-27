@@ -14,6 +14,7 @@ public sealed class NativeBattleCinematicScale87Tests
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0x50, unchecked((uint)(-3 << 16)));
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0x64, 7u << 16);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2054, 16).MarkUnknown(0x206C, 16).MarkUnknown(0x14A, 2) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicScale87.Execute(frame, Program);
         Assert.Equal(unchecked((uint)-32768), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x68));
         Assert.Equal(76458u, WaterSchedulerFixture.ReadSlotDword(result, 0, 0x7C));
@@ -22,8 +23,7 @@ public sealed class NativeBattleCinematicScale87Tests
         Assert.Equal(0x1006u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Same(frame.Random, result.Random);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicScale87.Execute(restored, Program)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicScale87.Execute(restored, Program)));
     }
 
     [Theory]
@@ -86,7 +86,10 @@ public sealed class NativeBattleCinematicScale87Tests
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0x50, 4u << 16);
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0x68, 0xDEADBEEF);
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x2054, 4) };
-        Assert.Throws<NotSupportedException>(() => NativeBattleCinematicScale87.Execute(frame, Program));
+        using (NativeBattleEffectArenaTransaction transaction = new(frame.Arena))
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleCinematicScale87.Execute(frame with { Arena = transaction.View }, Program));
+        }
         Assert.Equal(0xDEADBEEFu, WaterSchedulerFixture.ReadSlotDword(frame, 0, 0x68));
         Assert.Equal(0x1000u, WaterSchedulerFixture.ReadCoreDword(frame, 0x2797450));
     }

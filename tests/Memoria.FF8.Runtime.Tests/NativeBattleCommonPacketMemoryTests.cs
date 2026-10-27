@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -20,7 +20,7 @@ public sealed class NativeBattleCommonPacketMemoryTests
         Assert.Equal(new byte[] { 0, 7 }, written.ReadCommonPacket(14, 2));
         Assert.Throws<NotSupportedException>(() => written.ReadCommonPacket(13, 2));
         Assert.Throws<NotSupportedException>(() => written.ReadCommonPacket(16, 1));
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(0, 14), new NativeBattleEffectUnknownRegion(16, 114672) }, memory.Bank070Buffer0!.UnknownRegions);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(0, 14), new NativeBattleEffectUnknownRegion(16, 114672) }, NativeBattleStorageSnapshots.Capture(memory.Bank070Buffer0!).UnknownRegions);
         written.Validate();
     }
 
@@ -28,8 +28,9 @@ public sealed class NativeBattleCommonPacketMemoryTests
     public void Byte_masks_preserve_untouched_values_and_make_only_explicit_known_runs_readable()
     {
         NativeBattlePrimitiveProcess process = Process.ApplyCommonWrite(10, [1, 2, 3, 4], Known(4));
+        NativeBattlePrimitiveProcess preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(process));
         NativeBattlePrimitiveProcess rewritten = process.ApplyCommonWrite(10, [11, 22, 33, 44], [NativeBattleGfPacketByteState.Untouched, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Untouched]);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, process.ReadCommonPacket(10, 4));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, preserved.ReadCommonPacket(10, 4));
         Assert.Equal(new byte[] { 1 }, rewritten.ReadCommonPacket(10, 1));
         Assert.Throws<NotSupportedException>(() => rewritten.ReadCommonPacket(11, 1));
         Assert.Equal(new byte[] { 33, 4 }, rewritten.ReadCommonPacket(12, 2));
@@ -93,13 +94,13 @@ public sealed class NativeBattleCommonPacketMemoryTests
     [Fact]
     public void Missing_old_owner_and_unobserved_banks_are_strict_while_unobserved_writes_remain_unknown()
     {
-        NativeBattlePrimitiveProcess process = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>("{\"TexturePage\":0,\"Buffer80\":0,\"PacketBank\":\"off_B6D070\",\"PacketBuffer\":0,\"ByteCursor\":0}")!;
+        NativeBattlePrimitiveProcess process = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>("{\"TexturePage\":0,\"Buffer80\":0,\"PacketBank\":\"off_B6D070\",\"PacketBuffer\":0,\"ByteCursor\":0}")!;
         Assert.Null(process.CommonPacketMemory);
         Assert.Throws<NotSupportedException>(() => process.ReadCommonPacket(0, 1));
         NativeBattlePrimitiveProcess unknown = process.MarkCommonUnknown(10, 8);
         NativeBattleEffectArena arena = unknown.CommonPacketMemory!.Bank070Buffer0!;
-        Assert.Empty(arena.Regions);
-        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(0, 114688) }, arena.UnknownRegions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(arena).Regions);
+        Assert.Equal(new[] { new NativeBattleEffectUnknownRegion(0, 114688) }, NativeBattleStorageSnapshots.Capture(arena).UnknownRegions);
         Assert.Throws<NotSupportedException>(() => unknown.ReadCommonPacket(10, 1));
         Assert.Throws<NotSupportedException>(() => (unknown with { PacketBuffer = 1 }).ReadCommonPacket(10, 1));
     }
@@ -159,7 +160,7 @@ public sealed class NativeBattleCommonPacketMemoryTests
     {
         NativeBattlePrimitiveProcess source = Process.ApplyCommonWrite(100, [7, 8], Known(2));
         NativeBattleCommonPacketMemory owner = source.CommonPacketMemory!;
-        NativeBattleEffectArena malformed = owner.Bank070Buffer0! with { UnknownRegions = [] };
+        NativeBattleEffectArena malformed = new(NativeBattleStorageSnapshots.Capture(owner.Bank070Buffer0!).Regions) { UnknownRegions = [] };
         malformed.Validate();
         NativeBattlePrimitiveProcess process = source with { CommonPacketMemory = owner with { Bank070Buffer0 = malformed } };
         Assert.Throws<InvalidDataException>(process.ValidateCommonPacketMemory);
@@ -187,14 +188,14 @@ public sealed class NativeBattleCommonPacketMemoryTests
         NativeBattlePrimitiveProcess source = Process.ApplyCommonWrite(0, [0, 1, 2, 9], Known(4)).MarkCommonUnknown(0, 3);
         source = source with { PacketBank = "off_B6D094", PacketBuffer = 1 };
         source = source.ApplyCommonWrite(100, [0, 6], Known(2));
-        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(source))!;
+        NativeBattlePrimitiveProcess restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(source))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(source), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(new byte[] { 0, 6 }, restored.ReadCommonPacket(100, 2));
         restored = restored with { PacketBank = "off_B6D070", PacketBuffer = 0 };
         Assert.Throws<NotSupportedException>(() => restored.ReadCommonPacket(0, 1));
         Assert.Equal(new byte[] { 9 }, restored.ReadCommonPacket(3, 1));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleCommonPacketMemory>("{\"Bank070Buffer0\":null}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleCommonPacketMemory>("{\"Bank070Buffer0\":null}"));
     }
 
     private static ImmutableArray<NativeBattleGfPacketByteState> Known(int length)

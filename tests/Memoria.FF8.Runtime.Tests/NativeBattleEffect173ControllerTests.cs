@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect173ControllerTests
         Assert.Equal(3, step.Frame.Effect.Pools.Length);
         Assert.Equal(new byte[] { 0xA5, 0x5A }, ReadBytes(step.Frame, 0x20DFAB8 + (uint)offset, 2).Read(0, 2));
         Assert.False(ReadBytes(step.Frame, 0x20DFAB8 + (uint)offset + 2, 1).ReadSnapshot(0, 1).Known[0]);
-        Assert.False(step.Frame.Memory.Arena!.ReadSnapshot(offset, 1).Known[0]);
+        Assert.Equal((byte)0xA5, step.Frame.Memory.Arena!.Read(offset, 1)[0]);
         Assert.Equal(new NativeBattleEffect173Sound501330(SoundAddress, 0, 128), harness.Operations[^1]);
     }
 
@@ -54,7 +54,7 @@ public sealed class NativeBattleEffect173ControllerTests
     {
         NativeBattleEffect173Frame frame = Frame(age);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xA55A).WriteWord(32, 0xBEEF)) };
+        pool = pool.WriteSlot(1, pool.Slots[1].WriteWord(14, 0xA55A).WriteWord(32, 0xBEEF));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         NativeBattleEffect173Step step = AdvanceMain5D7570(frame, ChildBank, null!, new Harness().Inputs());
         NativeBattleModulePoolTask child = step.Frame.Effect.Pools[1].Slots.Single(task => task.Callback == callback);
@@ -154,7 +154,7 @@ public sealed class NativeBattleEffect173ControllerTests
         Harness harness = new() { Flags = 0x200 };
         NativeBattleEffect173Step step = NativeBattleEffect173Programme.Advance90B0(frame, task, Resources(), harness.Inputs());
         Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(step.Frame, task + 32, 4).Read(0, 4)));
-        NativeBattleEffect173Frame restored = JsonSerializer.Deserialize<NativeBattleEffect173Frame>(JsonSerializer.Serialize(step.Frame))!;
+        NativeBattleEffect173Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect173Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
         NativeBattleEffect173Step frozen = NativeBattleEffect173Programme.Advance90B0(restored, task, Resources(), new Harness { Flags = 1 }.Inputs());
         Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(frozen.Frame, task + 32, 4).Read(0, 4)));
         Assert.Equal(0, frozen.Result);
@@ -165,7 +165,7 @@ public sealed class NativeBattleEffect173ControllerTests
     {
         NativeBattleEffect173Frame frame = InitializeCommonBank(Frame(0));
         NativeBattleEffectTaskPool child = frame.Effect.Pools[1];
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        child = child.WriteSlot(0, child.Slots[0].UpdateHeader(0, child.Slots[0].State, child.Slots[0].Next, child.Slots[0].Callback)).UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, child) } };
         (frame, uint task) = Append(frame, CommonDescriptor, 0x5D90B0);
         frame = Write(frame, task, Read(frame, task).WriteBytes(16, new byte[8]).WriteWord(24, 4096).WriteWord(26, 0).WriteWord(100, 0xBEEF));
@@ -208,10 +208,10 @@ public sealed class NativeBattleEffect173ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(173, 172, new(173, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(42), NativeBattleEffect173State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

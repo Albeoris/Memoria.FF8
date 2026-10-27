@@ -24,6 +24,7 @@ public sealed class NativeBattleRinoa86ParticlesTests
             return new(100, -200, 300);
         }
         NativeBattleEffectTaskActors Select(uint _, sbyte __, sbyte ___) => new(0, 3);
+        NativeBattleEffectHierarchy clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectHierarchy>(NativeBattleTestSnapshots.Json(root.Hierarchy))!;
         NativeBattleRinoa86ParticleEmission emitted = NativeBattleRinoa86Emitters.Emit(root.Hierarchy, root.Address, mode, new(1), ReadBone, Select);
         Assert.Equal(Enumerable.Repeat(bone, sprites + meshes), bones);
         Assert.Equal(sprites, emitted.Hierarchy.Pools[4].Slots.Count(task => task.Callback == 0x782930));
@@ -35,8 +36,7 @@ public sealed class NativeBattleRinoa86ParticlesTests
             expected = expected.Draw(out _);
         }
         Assert.Equal(expected, emitted.Random);
-        NativeBattleEffectHierarchy clone = JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(JsonSerializer.Serialize(root.Hierarchy))!;
-        Assert.Equal(JsonSerializer.Serialize(emitted), JsonSerializer.Serialize(NativeBattleRinoa86Emitters.Emit(clone, root.Address, mode, new(1), _ => new(100, -200, 300), Select)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(emitted), NativeBattleTestSnapshots.Json(NativeBattleRinoa86Emitters.Emit(clone, root.Address, mode, new(1), _ => new(100, -200, 300), Select)));
     }
 
     [Fact]

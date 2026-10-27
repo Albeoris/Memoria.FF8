@@ -24,7 +24,7 @@ public sealed class NativeBattleEffect213StreamTests
         Assert.Equal(500u, result.Memory.GeometryRegisters!.Mac0);
         Assert.Equal(500u, result.Memory.GeometryRegisters.Otz);
         Assert.False(result.Context92.ReadSnapshot(0x38, 1).Known[0]);
-        Assert.Equal(result.Batch.AllocationBytes, JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(result.Batch))!.AllocationBytes);
+        Assert.Equal(result.Batch.AllocationBytes, NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Batch)))!).AllocationBytes);
     }
 
     [Theory]

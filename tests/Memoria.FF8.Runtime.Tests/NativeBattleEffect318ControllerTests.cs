@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect318ControllerTests
         (byte[] bytes, bool[] known) = result.Memory.Arena!.ReadSnapshot(0xB04, 4);
         Assert.Equal(new[] { true, true, false, true }, known);
         Assert.Equal(new byte[] { 1, 2, 4 }, bytes.Where((_, index) => known[index]).ToArray());
-        NativeBattleEffect318Frame restored = JsonSerializer.Deserialize<NativeBattleEffect318Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect318Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect318Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(known, restored.Memory.Arena!.ReadSnapshot(0xB04, 4).Known);
     }
 
@@ -216,7 +216,7 @@ public sealed class NativeBattleEffect318ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(14, initialized ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(14, initialized ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (initialized)
         {

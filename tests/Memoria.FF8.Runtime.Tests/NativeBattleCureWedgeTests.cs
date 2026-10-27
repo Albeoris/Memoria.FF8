@@ -89,14 +89,14 @@ public sealed class NativeBattleCureWedgeTests
         NativeBattleCureParticleStep? last = null;
         for (int callback = 0; callback < 17; callback++)
         {
-            NativeBattleCureFrame restored = JsonSerializer.Deserialize<NativeBattleCureFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleCureFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(NativeBattleTestSnapshots.Json(frame))!;
             List<NativeBattleCureOperation> operations = [];
             NativeBattleCureParticleInputs inputs = fixture.Inputs with { CrtRandom = random };
             NativeBattleCureParticleStep step = Advance(frame, fixture.Address, inputs, operations);
             List<NativeBattleCureOperation> restoredOperations = [];
             NativeBattleCureParticleStep independent = Advance(restored, fixture.Address, inputs, restoredOperations);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(independent));
-            Assert.Equal(JsonSerializer.Serialize(operations.Cast<NativeBattleCurePacketOperation>()), JsonSerializer.Serialize(restoredOperations.Cast<NativeBattleCurePacketOperation>()));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(independent));
+            Assert.Equal(NativeBattleTestSnapshots.Json(operations.Cast<NativeBattleCurePacketOperation>()), NativeBattleTestSnapshots.Json(restoredOperations.Cast<NativeBattleCurePacketOperation>()));
             Assert.Equal(callback == 16 ? 2 : 0, step.Result);
             emitted += operations.Count;
             frame = step.Frame;

@@ -109,7 +109,7 @@ public sealed class NativeBattleEffect210LowerTests
         Assert.Equal(0x3A185820u, result.Batch.Attempts[0].Primitive!.Words[1]);
         Assert.Equal(60, result.Batch.Attempts.Length);
         Assert.DoesNotContain(true, result.Temporary64.ReadSnapshot(0, 8).Known);
-        NativeBattleRibbonPair72Step restored = JsonSerializer.Deserialize<NativeBattleRibbonPair72Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleRibbonPair72Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRibbonPair72Step>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.Batch.AllocationBytes, restored.Batch.AllocationBytes);
         Assert.True(restored.Batch.NativeUnlinkedAllocation);
         Assert.Equal(result.Batch.Attempts[0].Primitive!.Words, restored.Batch.Attempts[0].Primitive!.Words);

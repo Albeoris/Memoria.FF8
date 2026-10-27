@@ -167,7 +167,7 @@ public sealed class NativeBattleEffect324ControllerTests
     {
         NativeBattleEffect324Frame frame = Frame(20);
         NativeBattleEffectTaskPool child = frame.Effect.Pools[1];
-        child = child with { Head = null, Tail = null, Slots = child.Slots.SetItem(0, child.Slots[0].MarkPayloadUnknown(20, 1)) };
+        child = child.WriteSlot(0, child.Slots[0].MarkPayloadUnknown(20, 1)).UpdateLinks(null, null);
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, child) } };
         NativeBattleEffect324Frame result = Advance(frame, null!, new Harness().Inputs());
         Assert.Empty(result.Effect.Pools);
@@ -176,7 +176,7 @@ public sealed class NativeBattleEffect324ControllerTests
         NativeBattleEffectArena bank = result.State.ReadBank(ChildBank);
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(bank.Read(0, 2)));
         Assert.False(bank.ReadSnapshot(20, 1).Known[0]);
-        NativeBattleEffect324Frame restored = JsonSerializer.Deserialize<NativeBattleEffect324Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect324Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.False(restored.State.ReadBank(ChildBank).ReadSnapshot(20, 1).Known[0]);
     }
 
@@ -223,7 +223,7 @@ public sealed class NativeBattleEffect324ControllerTests
                 }
             }
             (pool, _) = pool.Append(shape.Descriptor == RootDescriptor ? RootCallback : MainCallback);
-            pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, unchecked((ushort)(shape.Descriptor == RootDescriptor ? 0 : age)))) };
+            pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, unchecked((ushort)(shape.Descriptor == RootDescriptor ? 0 : age))));
             pools = pools.Add(pool);
         }
         NativeBattleEffect324State state = NativeBattleEffect324State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteWord(PointAddress + 6, 0xCAFE);

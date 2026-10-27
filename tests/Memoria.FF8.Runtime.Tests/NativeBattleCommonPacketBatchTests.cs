@@ -26,6 +26,7 @@ public sealed class NativeBattleCommonPacketBatchTests
     public void Ordered_batch_preserves_overlapping_stores_untouched_bytes_and_prior_unknown_knowledge()
     {
         NativeBattlePrimitiveProcess original = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(8, [1, 2, 3, 4], Known(4));
+        NativeBattlePrimitiveProcess preserved = NativeBattleStorageSnapshots.Capture(original);
         ImmutableArray<NativeBattleCommonPacketStore> stores =
         [
             new(9, [11, 22, 33], [NativeBattleGfPacketByteState.Known, NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Untouched]),
@@ -33,7 +34,7 @@ public sealed class NativeBattleCommonPacketBatchTests
             new(100, [0, 7], Known(2)),
             new(101, [0], [NativeBattleGfPacketByteState.Unknown])
         ];
-        NativeBattlePrimitiveProcess sequential = original;
+        NativeBattlePrimitiveProcess sequential = NativeBattleStorageSnapshots.Restore(preserved);
         foreach (NativeBattleCommonPacketStore store in stores)
         {
             sequential = sequential.ApplyCommonWrite(store.Offset, store.Data, store.Mask);
@@ -45,8 +46,8 @@ public sealed class NativeBattleCommonPacketBatchTests
         Assert.Throws<NotSupportedException>(() => batch.ReadCommonPacket(12, 1));
         Assert.Throws<NotSupportedException>(() => batch.ReadCommonPacket(99, 1));
         Assert.Throws<NotSupportedException>(() => batch.ReadCommonPacket(101, 1));
-        Assert.Equal(sequential.CommonPacketMemory!.Bank070Buffer0!.UnknownRegions, batch.CommonPacketMemory!.Bank070Buffer0!.UnknownRegions);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, original.ReadCommonPacket(8, 4));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(sequential.CommonPacketMemory!.Bank070Buffer0!).UnknownRegions, NativeBattleStorageSnapshots.Capture(batch.CommonPacketMemory!.Bank070Buffer0!).UnknownRegions);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, preserved.ReadCommonPacket(8, 4));
     }
 
     [Fact]
@@ -79,8 +80,8 @@ public sealed class NativeBattleCommonPacketBatchTests
         }
         NativeBattlePrimitiveProcess result = source.ApplyCommonWrites(stores);
         result.Validate();
-        Assert.Equal(scalar.CommonPacketMemory!.Bank070Buffer0!.UnknownRegions, result.CommonPacketMemory!.Bank070Buffer0!.UnknownRegions);
-        Assert.Equal(new byte[] { 7, 8, 18, 10 }, result.CommonPacketMemory.Bank070Buffer0.Regions.Single().Data.AsSpan().Slice(400, 4).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(scalar.CommonPacketMemory!.Bank070Buffer0!).UnknownRegions, NativeBattleStorageSnapshots.Capture(result.CommonPacketMemory!.Bank070Buffer0!).UnknownRegions);
+        Assert.Equal(new byte[] { 7, 8, 18, 10 }, result.CommonPacketMemory!.Bank070Buffer0!.ReadSnapshot(400, 4).Data);
         Assert.Equal(new byte[] { 17 }, result.ReadCommonPacket(0, 1));
         Assert.Equal(new byte[] { 23 }, result.ReadCommonPacket(114687, 1));
         Assert.Throws<NotSupportedException>(() => result.ReadCommonPacket(401, 1));
@@ -93,8 +94,8 @@ public sealed class NativeBattleCommonPacketBatchTests
         NativeBattlePrimitiveProcess result = source.ApplyCommonWrites([new(70000, [99, 98], [NativeBattleGfPacketByteState.Unknown, NativeBattleGfPacketByteState.Unknown])]);
         result.Validate();
         NativeBattleEffectArena arena = result.CommonPacketMemory!.Bank070Buffer0!;
-        Assert.Empty(arena.Regions);
-        Assert.Equal(new NativeBattleEffectUnknownRegion(0, 114688), Assert.Single(arena.UnknownRegions));
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(arena).Regions);
+        Assert.Equal(new NativeBattleEffectUnknownRegion(0, 114688), Assert.Single(NativeBattleStorageSnapshots.Capture(arena).UnknownRegions));
         Assert.Throws<NotSupportedException>(() => result.ReadCommonPacket(70000, 1));
         Assert.Null(source.CommonPacketMemory);
     }
@@ -114,7 +115,7 @@ public sealed class NativeBattleCommonPacketBatchTests
                 ImmutableArray<NativeBattleGfPacketByteState> mask = Enumerable.Range(0, data.Length).Select(_ => (NativeBattleGfPacketByteState)random.Next(3)).ToImmutableArray();
                 stores.Add(new(random.Next(0, 512 - data.Length), data.ToImmutableArray(), mask));
             }
-            NativeBattlePrimitiveProcess scalar = source;
+            NativeBattlePrimitiveProcess scalar = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
             foreach (NativeBattleCommonPacketStore store in stores)
             {
                 scalar = scalar.ApplyCommonWrite(store.Offset, store.Data, store.Mask);
@@ -123,14 +124,14 @@ public sealed class NativeBattleCommonPacketBatchTests
             result.Validate();
             NativeBattleEffectArena expected = scalar.CommonPacketMemory!.Bank070Buffer0!;
             NativeBattleEffectArena actual = result.CommonPacketMemory!.Bank070Buffer0!;
-            Assert.Equal(expected.UnknownRegions, actual.UnknownRegions);
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(expected).UnknownRegions, NativeBattleStorageSnapshots.Capture(actual).UnknownRegions);
             byte[] expectedBytes = new byte[512];
             byte[] actualBytes = new byte[512];
-            foreach (NativeBattleEffectMemoryRegion region in expected.Regions)
+            foreach (NativeBattleEffectMemoryRegion region in NativeBattleStorageSnapshots.Capture(expected).Regions)
             {
                 region.Data.AsSpan().CopyTo(expectedBytes.AsSpan(region.Offset));
             }
-            foreach (NativeBattleEffectMemoryRegion region in actual.Regions)
+            foreach (NativeBattleEffectMemoryRegion region in NativeBattleStorageSnapshots.Capture(actual).Regions)
             {
                 region.Data.AsSpan().CopyTo(actualBytes.AsSpan(region.Offset));
             }
@@ -144,7 +145,7 @@ public sealed class NativeBattleCommonPacketBatchTests
     {
         NativeBattlePrimitiveProcess source = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         ImmutableArray<NativeBattleCommonPacketStore> stores = [new(100000, [1, 2, 3, 4], Known(4))];
-        source.ApplyCommonWrites(stores);
+        source = source.ApplyCommonWrites(stores);
         long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattlePrimitiveProcess result = source.ApplyCommonWrites(stores);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;

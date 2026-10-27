@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect323StateTests
     public void Partial_current_scalar_knownness_and_warm_cursor_survive_JSON()
     {
         NativeBattleEffect323State state = NativeBattleEffect323State.FromUnknown().WriteWord(CasterGlobal, 4).WriteDword(CursorGlobal, 123);
-        state = JsonSerializer.Deserialize<NativeBattleEffect323State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect323State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4, state.ReadWord(CasterGlobal));
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -47,7 +47,7 @@ public sealed class NativeBattleEffect323StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
         state = state.AttachBank(0, bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect323State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect323State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xABCD), state.ReadBank(0).Read(14, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(16, 4));

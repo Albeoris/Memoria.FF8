@@ -29,6 +29,7 @@ public sealed class NativeBattleBreath129RibbonsTests
         byte[] distances = Enumerable.Repeat((byte)4, 16384).ToArray();
         distances[0] = 0;
         NativeBattleBreath129Resources resources = new(new("unused", []), new(0, []), new(0, []), new(0, []), new(0, []), new(0, 0, 0, 0, []), new("unused", []), [], [], [], [], distances.ToImmutableArray(), [], [], 0);
+        uint initialCursor = state.ReadDword(0x252117C);
         NativeBattleBreath129Frame actual = NativeBattleBreath129Geometry.DrawFibre6B6CC0(frame, address, resources, inputs, new(address));
         Assert.Equal(packetCount, packets.Count);
         Assert.All(packets, packet =>
@@ -49,7 +50,7 @@ public sealed class NativeBattleBreath129RibbonsTests
             Assert.Equal((short)736, BitConverter.ToInt16(result.Read(18, 2)));
             Assert.Equal((short)992, BitConverter.ToInt16(result.Read(26, 2)));
         }
-        Assert.Equal(state.ReadDword(0x252117C) + (uint)packetCount * 52, actual.State.ReadDword(0x252117C));
+        Assert.Equal(initialCursor + (uint)packetCount * 52, actual.State.ReadDword(0x252117C));
         Assert.Equal(frame.Random, actual.Random);
     }
 }

@@ -106,7 +106,7 @@ public sealed class NativeBattleEffect166ControllerTests
     {
         Harness harness = new();
         NativeBattleEffect166Frame frame = Frame(0);
-        frame = Write(frame, RootBank, Read(frame, RootBank) with { Callback = CleanupCallback });
+        frame = Write(frame, RootBank, Read(frame, RootBank).UpdateHeader(Read(frame, RootBank).Flags, Read(frame, RootBank).State, Read(frame, RootBank).Next, CleanupCallback));
         frame = Write(frame, RootBank, Read(frame, RootBank).WriteWord(12, (ushort)age).WriteWord(14, completion));
         NativeBattleEffect166Step step = AdvanceCleanup5E9410(frame, RootBank, harness.Inputs());
         Assert.Equal(expected, step.Result);
@@ -122,10 +122,10 @@ public sealed class NativeBattleEffect166ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(166, 165, new(166, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect166State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8));
     }

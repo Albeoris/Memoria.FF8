@@ -13,17 +13,17 @@ public sealed class NativeBattleFullscreenOverlayTests
         var fixture = Fixture([0x00123456, 0xFF000000]);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(1, new("prior", 0, 0), [0], 0, [17, 23, 31, 47]).ResetAfterDraw45D080();
         NativeBattleFullscreenOverlayFrame original = fixture.Frame with { Ordering = ordering };
-        string arena = JsonSerializer.Serialize(original.Memory.Arena);
-        string common = JsonSerializer.Serialize(original.Memory.PrimitiveProcess);
+        string arena = NativeBattleTestSnapshots.Json(original.Memory.Arena);
+        string common = NativeBattleTestSnapshots.Json(original.Memory.PrimitiveProcess);
         NativeBattleFullscreenOverlayStep step = NativeBattleFullscreenOverlay.Advance8DDEC0(original, fixture.Address, 0, fixture.Program);
-        Assert.Equal(arena, JsonSerializer.Serialize(step.Frame.Memory.Arena));
-        Assert.Equal(common, JsonSerializer.Serialize(step.Frame.Memory.PrimitiveProcess));
+        Assert.Equal(arena, NativeBattleTestSnapshots.Json(step.Frame.Memory.Arena));
+        Assert.Equal(common, NativeBattleTestSnapshots.Json(step.Frame.Memory.PrimitiveProcess));
         Assert.Equal(5, step.Frame.Ordering.ProxyCursor);
         Assert.Equal(new[] { 17, 23, 31, 47 }, step.Frame.Ordering.Proxies[0].VertexPayload4);
         Assert.All(step.Frame.Ordering.Proxies.Skip(1), proxy => Assert.Empty(proxy.VertexPayload4));
         Assert.Equal(new[] { 96, 72, 48, 24, 0 }, Chain(step.Frame.Ordering));
         NativeBattleFullscreenOverlayState state = step.Frame.Memory.FullscreenOverlay!;
-        Assert.Empty(state.Packets.UnknownRegions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(state.Packets).UnknownRegions);
         Assert.Equal(0x02000000u, U32(state.Read(96, 12), 0) & 0xFF000000);
         Assert.Equal(0xE100002Au, U32(state.Read(96, 12), 4));
         Assert.Equal(0u, U32(state.Read(96, 12), 8));
@@ -36,14 +36,14 @@ public sealed class NativeBattleFullscreenOverlayTests
             int y = (quadrant >> 1) * 120;
             Assert.Equal(new[] { (x, y), (x + 160, y), (x, y + 120), (x + 160, y + 120) }, Enumerable.Range(0, 4).Select(index => ((int)BinaryPrimitives.ReadInt16LittleEndian(packet.AsSpan(8 + index * 4)), (int)BinaryPrimitives.ReadInt16LittleEndian(packet.AsSpan(10 + index * 4)))));
         }
-        string beforeTerminal = JsonSerializer.Serialize(state);
+        string beforeTerminal = NativeBattleTestSnapshots.Json(state);
         NativeBattleFullscreenOverlayStep terminal = NativeBattleFullscreenOverlay.Advance8DDEC0(step.Frame, fixture.Address, 0, fixture.Program);
         Assert.Equal(2, terminal.Result);
         Assert.Equal(0, terminal.Frame.Pools[0].Head);
         NativeBattleEffectHierarchyStep released = new NativeBattleEffectHierarchy(terminal.Frame.Pools).Advance(0, (current, _) => new(current, terminal.Result));
         Assert.Equal(0, released.Survivors);
         Assert.Null(released.Hierarchy.Pools[0].Head);
-        Assert.Equal(beforeTerminal, JsonSerializer.Serialize(terminal.Frame.Memory.FullscreenOverlay));
+        Assert.Equal(beforeTerminal, NativeBattleTestSnapshots.Json(terminal.Frame.Memory.FullscreenOverlay));
     }
 
     [Fact]
@@ -62,10 +62,10 @@ public sealed class NativeBattleFullscreenOverlayTests
             Assert.Equal((ushort)0, task.ReadWord(0x3C));
             Assert.Equal(0x00234567u, task.ReadDword(0x30));
         }
-        NativeBattleFullscreenOverlayFrame restored = JsonSerializer.Deserialize<NativeBattleFullscreenOverlayFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleFullscreenOverlayFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFullscreenOverlayFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleFullscreenOverlayStep next = NativeBattleFullscreenOverlay.Advance8DDEC0(frame, fixture.Address, 0, fixture.Program);
         NativeBattleFullscreenOverlayStep coldNext = NativeBattleFullscreenOverlay.Advance8DDEC0(restored, fixture.Address, 0, fixture.Program);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(coldNext));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(coldNext));
         Assert.Equal((ushort)1, next.Frame.Pools[0].Slots[0].ReadWord(0x3A));
         Assert.Equal((ushort)1, next.Frame.Pools[0].Slots[0].ReadWord(0x3C));
     }
@@ -103,6 +103,7 @@ public sealed class NativeBattleFullscreenOverlayTests
         Assert.Equal((ushort)0x7FFF, delayed.Frame.Pools[0].Slots[0].ReadWord(0x38));
         Assert.Equal((byte)0, delayed.Frame.Pools[0].Slots[0].ReadByte(0x29));
         Assert.Empty(delayed.Frame.Ordering.Packets);
+        fixture = Fixture([0x00112233]);
         NativeBattleFullscreenOverlayStep first = NativeBattleFullscreenOverlay.Advance8DDEC0(fixture.Frame, fixture.Address, 0, fixture.Program);
         Assert.Throws<InvalidDataException>(() => NativeBattleFullscreenOverlay.Advance8DDEC0(first.Frame, fixture.Address, 0, fixture.Program));
         hierarchy = new(fixture.Frame.Pools);

@@ -227,10 +227,10 @@ public sealed class NativeBattleScanViewerTests
     {
         var fixture = Fixture();
         NativeBattleScanViewerFrame frame = NativeBattleScanViewer.Initialize84FCD0(fixture.Frame, fixture.Address, fixture.Inputs);
-        NativeBattleScanViewerFrame restored = JsonSerializer.Deserialize<NativeBattleScanViewerFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleScanViewerFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanViewerFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScanViewerFrame left = NativeBattleScanViewer.Advance84FD90(frame, fixture.Address, fixture.Inputs with { Input = Input(0x8001) });
         NativeBattleScanViewerFrame right = NativeBattleScanViewer.Advance84FD90(restored, fixture.Address, fixture.Inputs with { Input = Input(0x8001) });
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
         Assert.False(left.Models[4].Known[0x12]);
         Assert.False(left.Models[4].Known[0x52]);
     }

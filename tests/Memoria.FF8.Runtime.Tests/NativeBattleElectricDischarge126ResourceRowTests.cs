@@ -16,12 +16,12 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         NativeBattleModulePoolTask task = Pool().Slots[0].WriteDword(36, 0xDEADBEEF).WriteResourceRowReference(36, new(row, null));
         Assert.Equal(new NativeBattleResourceRowReference(row, null), task.ReadResourceRowReference(36));
         Assert.Throws<NotSupportedException>(() => task.ReadDword(36));
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
+        NativeBattleModulePoolTask restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(task)))!);
         Assert.Equal(task.ReadResourceRowReference(36), restored.ReadResourceRowReference(36));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(36));
-        Assert.NotNull(restored.WriteByte(40, 1).ResourcePointers);
-        Assert.Null(restored.WriteByte(39, 1).ResourcePointers);
-        Assert.Null(restored.MarkPayloadUnknown(36, 4).ResourcePointers);
+        Assert.NotNull(NativeBattleStorageSnapshots.Capture(restored.WriteByte(40, 1)).ResourcePointers);
+        Assert.Null(NativeBattleStorageSnapshots.Capture(restored.WriteByte(39, 1)).ResourcePointers);
+        Assert.Null(NativeBattleStorageSnapshots.Capture(restored.MarkPayloadUnknown(36, 4)).ResourcePointers);
         Assert.Equal(new NativeBattleResourceRowReference(null, 0x12340000u), restored.WriteDword(36, 0x12340000).ReadResourceRowReference(36));
     }
 
@@ -34,7 +34,7 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         task = task.WriteResourcePointer(36, new(new(0, 100), null));
         Assert.Equal(0x196B07Cu, task.ReadDword(36));
         Assert.Throws<NotSupportedException>(() => task.ReadResourceRowReference(36));
-        Assert.DoesNotContain("CpuRow", JsonSerializer.Serialize(task));
+        Assert.DoesNotContain("CpuRow", JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(task)));
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(11, null)));
         Assert.Throws<NotSupportedException>(() => task.WriteResourceRowReference(36, new(null, null)));
         task = task.WriteResourceRowReference(36, new(3, null));
-        Assert.Throws<InvalidDataException>(() => (task with { UnknownPayloadRanges = null }).ReadResourceRowReference(36));
+        Assert.Throws<InvalidDataException>(() => NativeBattleTaskFixture.EditTask(task, data => data with { Unknown = null }).ReadResourceRowReference(36));
         Assert.Throws<InvalidDataException>(() => task.WriteResourceRowReference(62, new(0, null)));
     }
 
@@ -54,14 +54,14 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
     public void Closed_task_bank_transfers_symbolic_row_to_the_single_arena_owner()
     {
         NativeBattleEffectTaskPool pool = Pool();
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteResourceRowReference(36, new(3, null))) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteResourceRowReference(36, new(3, null)));
         NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [pool]);
         NativeBattleOriginalEffectState effect = new(126, 125, new(126, NativeBattleElectricDischarge126Profile.Entry, NativeBattleElectricDischarge126Profile.Initializer), new(0, 0, 8, 0, 0, 0), 0) { Pools = [pool] };
         NativeBattleEffectTaskTransfer transfer = NativeBattleEffectTaskMemory.TransferInactiveArenaBanks(memory, effect);
         Assert.Empty(transfer.Effect.Pools);
         Assert.Equal(3, transfer.Memory.Arena!.ReadResourcePointer(0x4024)!.CpuRow);
         Assert.Throws<NotSupportedException>(() => transfer.Memory.Arena.Read(0x4024, 4));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(transfer.Memory.Arena))!;
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(transfer.Memory.Arena)))!);
         restored.Validate();
         Assert.Equal(3, restored.ReadResourcePointer(0x4024)!.CpuRow);
         Assert.Throws<NotSupportedException>(() => restored.Read(0x4024, 4));
@@ -95,7 +95,7 @@ public sealed class NativeBattleElectricDischarge126ResourceRowTests
         staging.Validate();
         Assert.Equal(row, staging.ReadResourcePointer(address));
         Assert.Throws<NotSupportedException>(() => staging.Read(address, 4));
-        NativeBattleFileStaging restored = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        NativeBattleFileStaging restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)))!);
         restored.Validate();
         Assert.Equal(row, restored.ReadResourcePointer(address));
         Assert.Equal(0u, restored.Write(address, new byte[4]).ReadResourcePointer(address)!.StagingAddress);

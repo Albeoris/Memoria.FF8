@@ -20,14 +20,14 @@ public sealed class NativeBattleGuardianFinalePhaseTests
     public void Native_scene_counter_survives_task_release(int effectId, uint descriptor, uint callback, int counter, bool expected)
     {
         NativeBattleEffectTaskPool pool = TaskPool(descriptor, callback);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, checked((ushort)counter))) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, checked((ushort)counter))) });
         NativeBattleOriginalEffectState effect = Effect(effectId) with { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         Assert.Equal(expected, NativeBattleGuardianAnimationFinale.HasReachedFinale(effect, memory));
 
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Flags = 0 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Flags = 0 })) });
         Assert.Equal(expected, NativeBattleGuardianAnimationFinale.HasReachedFinale(effect with { Pools = [pool] }, memory));
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Callback = callback + 4 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = callback + 4 })) });
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(effect with { Pools = [pool] }, memory));
     }
 
@@ -38,7 +38,7 @@ public sealed class NativeBattleGuardianFinalePhaseTests
     public void Tonberry_preserves_the_knife_animation_and_its_return(int phase, bool expected)
     {
         NativeBattleEffectTaskPool pool = TaskPool(0x25A3F90, 0x7674E0);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(0x29, checked((byte)phase))) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteByte(0x29, checked((byte)phase))) });
         Assert.Equal(expected, NativeBattleGuardianAnimationFinale.HasReachedFinale(Effect(90) with { Pools = [pool] }, NativeBattleEffectMemory.FromColdProcess()));
     }
 

@@ -19,7 +19,7 @@ public sealed class NativeBattleEffectArenaRectangleTests
         NativeBattleEffectTextureDrain continuous = queued.Drain505D20(arena);
         NativeBattleEffectTextureDrain resumed = restored.Drain505D20(restoredArena);
         Assert.Equal(new byte[] { 5, 6, 7, 8 }, resumed.Uploads.Single().Bytes);
-        Assert.Equal(JsonSerializer.Serialize(continuous), JsonSerializer.Serialize(resumed));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(continuous)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(resumed)));
         Assert.Equal(new byte[] { 5, 6 }, resumed.State.ReadVram().AsSpan(2 * (7 * 1024 + 4), 2).ToArray());
         Assert.Equal(new byte[] { 7, 8 }, resumed.State.ReadVram().AsSpan(2 * (8 * 1024 + 4), 2).ToArray());
     }
@@ -74,5 +74,5 @@ public sealed class NativeBattleEffectArenaRectangleTests
         Assert.Equal(new byte[] { 3, 4 }, state.Drain505D20().Uploads.Single().Bytes);
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value)))!);
 }

@@ -188,12 +188,12 @@ public sealed class NativeBattleBio22ActorTests
         NativeBattleBio22ActorFrame frame = Frame();
         frame = frame with { Memory = frame.Memory with { Bio22ActorMemory = frame.Memory.Bio22ActorMemory! with { Projected = frame.Memory.Bio22ActorMemory!.Projected.MarkUnknown(10, 6) } } };
         NativeBattleBio22ActorStep first = NativeBattleBio22Actor.Advance89D3D0(frame, KeepFrame);
-        NativeBattleBio22ActorFrame restored = JsonSerializer.Deserialize<NativeBattleBio22ActorFrame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleBio22ActorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22ActorFrame>(NativeBattleTestSnapshots.Json(first.Frame))!;
         NativeBattleBio22ActorStep next = NativeBattleBio22Actor.Advance89D3D0(first.Frame, KeepFrame);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleBio22Actor.Advance89D3D0(restored, KeepFrame)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(NativeBattleBio22Actor.Advance89D3D0(restored, KeepFrame)));
         Assert.Throws<NotSupportedException>(() => restored.Memory.Bio22ActorMemory!.ReadProjected(10, 1));
         Assert.Same(first.Frame.Memory.Bio22ActorMemory, first.Frame.Memory.BeginLoad(22).Bio22ActorMemory);
-        NativeBattleEffectMemory missing = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Frame.Memory with { Bio22ActorMemory = null }))!;
+        NativeBattleEffectMemory missing = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first.Frame.Memory with { Bio22ActorMemory = null }))!;
         Assert.Null(missing.Bio22ActorMemory);
         Assert.Null(missing.BeginLoad(22).Bio22ActorMemory);
         Assert.Throws<NotSupportedException>(() => NativeBattleBio22Actor.Advance89D3D0(frame with { Memory = frame.Memory with { Bio22ActorMemory = null } }, KeepFrame));
@@ -220,7 +220,7 @@ public sealed class NativeBattleBio22ActorTests
         int draws = 0;
         for (int tick = 0; tick < 100; tick++)
         {
-            NativeBattleBio22ActorFrame restored = JsonSerializer.Deserialize<NativeBattleBio22ActorFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleBio22ActorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22ActorFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleBio22ActorStep expected = NativeBattleBio22Actor.Advance89D3D0(restored, KeepFrame);
             NativeBattleBio22ActorStep step = NativeBattleBio22Actor.Advance89D3D0(frame, current =>
             {
@@ -229,7 +229,7 @@ public sealed class NativeBattleBio22ActorTests
                 Assert.True((current.Models[0].Flags0 & 4) != 0);
                 return current;
             });
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(step));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step));
             frame = step.Frame;
             if (step.Result == 2)
             {

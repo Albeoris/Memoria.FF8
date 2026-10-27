@@ -30,10 +30,10 @@ public sealed class NativeBattleRestorationVariantTests
         NativeBattleEffectMemory generic = NativeBattleEffectMemory.FromColdProcess();
         Assert.Null(generic.Effect57Executable);
         Assert.Null(generic.RemedyExecutable);
-        string oldJson = JsonSerializer.Serialize(generic);
+        string oldJson = NativeBattleTestSnapshots.Json(generic);
         Assert.DoesNotContain("Effect57Executable", oldJson);
         Assert.DoesNotContain("RemedyExecutable", oldJson);
-        NativeBattleEffectMemory old = JsonSerializer.Deserialize<NativeBattleEffectMemory>(oldJson)!;
+        NativeBattleEffectMemory old = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(oldJson)!;
         Assert.Null(old.BeginLoad(56).GetRestorationExecutable(57));
         Assert.Null(old.BeginLoad(66).GetRestorationExecutable(67));
         Assert.Equal(generic.EsunaExecutable, old.EsunaExecutable);
@@ -46,7 +46,7 @@ public sealed class NativeBattleRestorationVariantTests
         Assert.Same(second, declared.GetRestorationExecutable(67));
         Assert.Same(generic.EsunaExecutable, declared.EsunaExecutable);
         Assert.Same(generic.FullLifeExecutable, declared.FullLifeExecutable);
-        NativeBattleEffectMemory clone = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(declared))!;
+        NativeBattleEffectMemory clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(declared))!;
         Assert.Equal(first, clone.Effect57Executable);
         Assert.Equal(second, clone.RemedyExecutable);
         Assert.Throws<InvalidDataException>(() => (declared with { RemedyExecutable = first }).Validate());
@@ -61,12 +61,12 @@ public sealed class NativeBattleRestorationVariantTests
     {
         var fixture = NativeBattleRestorationControllerTests.Fixture(effect);
         NativeBattleRestorationProfile profile = NativeBattleRestorationProfile.ForEffect(effect);
-        NativeBattleModulePoolTask task = fixture.Frame.Effect.Pools[2].Slots[0] with { Callback = profile.GenericCallback };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(fixture.Frame.Effect.Pools[2].Slots[0], taskData => taskData with { Callback = profile.GenericCallback });
         task = task.WriteWord(0x34 + 0x2A, 255);
         NativeBattleEsunaMeshPreparation prepared = NativeBattleRestorationMeshPackets.Prepare88E090(task, 1, 0, 0, null);
         Assert.Equal((ushort)1, prepared.Task.ReadWord(0x34 + 0x2A));
         Assert.Equal((ushort)1, prepared.Context.VOffset);
         Assert.Equal(new NativeBattleTextureWindow(0, 0, 128, 128), prepared.Context.WindowAfter);
-        Assert.Throws<InvalidDataException>(() => NativeBattleRestorationMeshPackets.Prepare88E090(task with { Callback = NativeBattleRestorationProfile.FullLife.GenericCallback }, 1, 0, 0, null));
+        Assert.Throws<InvalidDataException>(() => NativeBattleRestorationMeshPackets.Prepare88E090(NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Callback = NativeBattleRestorationProfile.FullLife.GenericCallback }), 1, 0, 0, null));
     }
 }

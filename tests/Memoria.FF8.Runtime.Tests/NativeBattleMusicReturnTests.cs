@@ -102,7 +102,7 @@ public sealed class NativeBattleMusicReturnTests
     {
         NativeBattleMusicProcessState state = State();
         NativeGlobalSoundProcess sound = Sound();
-        string before = JsonSerializer.Serialize(state);
+        string before = NativeBattleTestSnapshots.Json(state);
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state, sound, 0, null, null));
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state with { ReturnChannel = null }, sound, 0, 255, null));
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state with { ReturnBank = null }, sound, 0, 7, 127, NativeBattleMusicEntryTests.Resources()));
@@ -110,16 +110,16 @@ public sealed class NativeBattleMusicReturnTests
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state, sound, 0, 7, 127));
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state with { EffectCache = null }, sound, 0x10, null, null));
         Assert.Throws<NotSupportedException>(() => NativeBattleMusicReturn.Prepare52B4F0(state with { EffectCache = new(2, null) }, sound, 0x10, null, null));
-        Assert.Equal(before, JsonSerializer.Serialize(state));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(state));
     }
 
     [Fact]
     public void Return_JSON_keeps_the_same_buffers_and_does_not_infer_a_missing_old_receipt()
     {
         NativeBattleMusicReturnPreparation returned = NativeBattleMusicReturn.Prepare52B4F0(State(), Sound(), 0, 7, 127, NativeBattleMusicEntryTests.Resources());
-        NativeBattleMusicReturnPreparation restored = JsonSerializer.Deserialize<NativeBattleMusicReturnPreparation>(JsonSerializer.Serialize(returned))!;
+        NativeBattleMusicReturnPreparation restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMusicReturnPreparation>(NativeBattleTestSnapshots.Json(returned))!;
         restored.MusicProcess.Validate();
-        Assert.Equal(JsonSerializer.Serialize(returned), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(returned), NativeBattleTestSnapshots.Json(restored));
         Assert.Null(State().Return);
         Assert.Throws<InvalidDataException>(() => (returned.Receipt with { FadeChannel = 0 }).Validate());
     }
@@ -142,11 +142,11 @@ public sealed class NativeBattleMusicReturnTests
         owners = owners with { ReloadedMemory = reloaded };
         host.SetNativeBattleFieldReturn(owners);
         Assert.Null(host.State.Battle);
-        Assert.Same(reloaded.FileStaging, host.State.NativeBattleMemory!.FileStaging);
+        Assert.Equal(NativeBattleTestSnapshots.Json(reloaded.FileStaging), NativeBattleTestSnapshots.Json(host.State.NativeBattleMemory!.FileStaging));
         Assert.Same(returned.MusicProcess, host.State.NativeBattleMemory!.MusicProcess);
         Assert.Same(returned.SoundProcess, host.GlobalSoundProcess);
         Assert.Same(owners.Vibration, host.State.NativeBattleMemory.VibrationProcess);
-        Assert.Equal(JsonSerializer.Serialize(host.State), JsonSerializer.Serialize(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(host.State))!).State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(host.State), NativeBattleTestSnapshots.Json(new GameSession(JsonSerializer.Deserialize<GameState>(NativeBattleTestSnapshots.Json(host.State))!).State));
     }
 
     private static NativeBattleMusicProcessState State()

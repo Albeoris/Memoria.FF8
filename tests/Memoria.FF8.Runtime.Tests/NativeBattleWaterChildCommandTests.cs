@@ -139,12 +139,12 @@ public sealed class NativeBattleWaterChildCommandTests
         frame = WaterSchedulerFixture.SlotDword(frame, 0, 0, 0x1000);
         frame = WaterSchedulerFixture.SlotWord(frame, 0, 0xC8, 3);
         frame = WaterSchedulerFixture.CoreWord(frame, 0x2797634, 3);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         List<uint> fetched = [];
         NativeBattleWaterExecutionFrame a = Pass(frame, fetched);
         NativeBattleWaterExecutionFrame b = Pass(restored, []);
         Assert.Equal(new uint[] { 0x1000, 0x1004, 0x1010 }, fetched);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
 
         static NativeBattleWaterExecutionFrame Pass(NativeBattleWaterExecutionFrame current, List<uint> fetched)
         {
@@ -221,12 +221,13 @@ public sealed class NativeBattleWaterChildCommandTests
     public void ExtractedSpawnRetainsOrdinary32AndSnapshot9CSemantics()
     {
         NativeBattleWaterExecutionFrame ordinary = Parent(Fixture(0x32, 8));
-        Assert.Equal(JsonSerializer.Serialize(Run(ordinary)), JsonSerializer.Serialize(NativeBattleWaterChildCommands.Spawn(ordinary, new(0x1000, 6, Pc), Bank, ordinary.TemporaryFrame.Address + 0x100, UpdateSelected)));
+        NativeBattleWaterExecutionFrame ordinaryReplay = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(ordinary));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(ordinary)), NativeBattleTestSnapshots.Json(NativeBattleWaterChildCommands.Spawn(ordinaryReplay, new(0x1000, 6, Pc), Bank, ordinaryReplay.TemporaryFrame.Address + 0x100, UpdateSelected)));
         NativeBattleWaterExecutionFrame frame = Parent(Fixture(0x9C, 8));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame a = NativeBattleWaterChildCommands.Execute9C(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
         NativeBattleWaterExecutionFrame b = NativeBattleWaterChildCommands.Execute9C(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
     }
 
     [Fact]
@@ -287,10 +288,10 @@ public sealed class NativeBattleWaterChildCommandTests
         uint header = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797624, frame.TemporaryFrame.Address);
         frame = frame with { Core = frame.Core.Write(header + 0x41, new byte[] { 2 }).Write(header + 0x48, new byte[] { 4, 6 }) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame first = NativeBattleWaterChildCommands.Execute5D(frame, new(0x1000, 4, Pc), Bank, frame.TemporaryFrame.Address + 0x100, UpdateSelected);
         NativeBattleWaterExecutionFrame second = NativeBattleWaterChildCommands.Execute5D(restored, new(0x1000, 4, Pc), Bank, restored.TemporaryFrame.Address + 0x100, UpdateSelected);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
     }
 
     [Theory]
@@ -318,7 +319,7 @@ public sealed class NativeBattleWaterChildCommandTests
         Assert.Equal(new bool[] { true, true, false, false, true, false, true, true }, child.Known);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x21B0, 4));
         Assert.Equal(Pc + 4, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(child.Data, restored.Arena.ReadSnapshot(0x21B0, 8).Data);
         Assert.Equal(child.Known, restored.Arena.ReadSnapshot(0x21B0, 8).Known);
     }

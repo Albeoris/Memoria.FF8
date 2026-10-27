@@ -24,13 +24,13 @@ public sealed class NativeBattleSnipeLaser302StateTests
     {
         var state = NativeBattleSnipeLaser302State.FromUnknown().WriteWord(BaseAddress, 4096) with { RootBankStorage = null };
         state.Validate();
-        var restored = JsonSerializer.Deserialize<NativeBattleSnipeLaser302State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSnipeLaser302State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)4096, restored.ReadWord(BaseAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(BaseAddress + 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ArenaGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class NativeBattleSnipeLaser302StateTests
         Assert.Equal(ProgrammeAAddress, initializedA.ResourceAddress);
         var retained = new NativeBattleGfAnimationWorkspace(Enumerable.Repeat((byte)0xA5, ProgrammeAWorkspaceLength).ToImmutableArray());
         var initializedB = retained.Initialize7016B0(resources.ProgrammeB, ProgrammeBWorkspaceLength);
-        Assert.All(initializedB.Data.Skip(ProgrammeBWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(initializedB).Data.Skip(ProgrammeBWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
         Assert.Equal(ScratchOffset, 0x8C0 + 2 * 1636);
         Assert.Equal(FirstPacketOffset, ScratchOffset + ScratchLength);
     }

@@ -60,13 +60,13 @@ public sealed class NativeBattleNoMercy200ControllerTests
     public void Independent_restore_preserves_exact_next_sequence_spawn_and_stage_order()
     {
         var fixture = Fixture(21);
-        NativeBattleNoMercy200Frame restored = JsonSerializer.Deserialize<NativeBattleNoMercy200Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleNoMercy200Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNoMercy200Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
         List<NativeBattleNoMercy200Operation> first = [];
         List<NativeBattleNoMercy200Operation> second = [];
         NativeBattleNoMercy200ChildStep original = NativeBattleNoMercy200Controller.Advance639380(fixture.Frame, fixture.Pool, 0, Inputs(first));
         NativeBattleNoMercy200ChildStep clone = NativeBattleNoMercy200Controller.Advance639380(restored, restored.Effect.Pools[1], 0, Inputs(second));
-        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(clone));
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(original), NativeBattleTestSnapshots.Json(clone));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Collection(first, operation => Assert.Equal(new NativeBattleNoMercy200Sequence(2, 1), operation), operation => Assert.Equal(new NativeBattleNoMercy200Spawn(0x63A220), operation));
     }
 
@@ -85,7 +85,7 @@ public sealed class NativeBattleNoMercy200ControllerTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Root, 0x24F8D60, 16, 2);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Children, 0x24F99A0, 36, 250);
         (pool, _) = pool.Append(0x639380);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, tick)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, tick)) });
         byte[] matrix = new byte[32];
         foreach (int offset in new[] { 0, 8, 16 })
         {

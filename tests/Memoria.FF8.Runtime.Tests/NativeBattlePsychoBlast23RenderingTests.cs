@@ -38,8 +38,8 @@ public sealed class NativeBattlePsychoBlast23RenderingTests
         {
             Assert.Equal(scratch.Read(0, 6), result.MorphScratch.Read(0, 6));
         }
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(result.MorphScratch))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result.MorphScratch)), JsonSerializer.Serialize(Draw(restored)));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(result.MorphScratch))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(result.MorphScratch)), NativeBattleTestSnapshots.Json(Draw(restored)));
 
         NativeBattlePsychoBlast23NodeDraw Draw(NativeBattleEffectArena retained) => NativeBattlePsychoBlast23Rendering.DrawNode(source, node, root, temporary, retained, registers, new(1, 2, 3, 4, 5), Projection, 0, 0, 0x155, 0x100, Constants);
     }

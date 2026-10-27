@@ -22,13 +22,20 @@ public static partial class NativeBattleDrawStock15SpriteRendering
 {
     public static ImmutableArray<NativeBattleDrawStock15ParticleOperation> Preparation(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, ushort? cameraPadding = null)
     {
-        if (task.Callback == 0x8B5C70)
+        bool head = task.Callback switch
+        {
+            0x8B5C70 => true,
+            0x8B6440 => false,
+            _ => throw new InvalidDataException("Draw Stock sprite preparation requires its actual callback.")
+        };
+        return PreparationCore(task, head, camera, cameraPadding);
+    }
+
+    internal static ImmutableArray<NativeBattleDrawStock15ParticleOperation> PreparationCore(NativeBattleModulePoolTask task, bool head, NativeBattleActionMatrix camera, ushort? cameraPadding)
+    {
+        if (head)
         {
             return [new NativeBattleDrawStock15Billboard(new(Word(task, 0x1C), Word(task, 0x1E), Word(task, 0x20), Word(task, 0x22)), 4096, Word(task, 0x54))];
-        }
-        if (task.Callback != 0x8B6440)
-        {
-            throw new InvalidDataException("Draw Stock sprite preparation requires its actual callback.");
         }
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770();
         ImmutableArray<NativeBattleDrawStock15ParticleOperation>.Builder operations = ImmutableArray.CreateBuilder<NativeBattleDrawStock15ParticleOperation>();

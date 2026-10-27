@@ -58,7 +58,7 @@ public sealed class NativeBattleDisolvingAcid132TemplateSpriteTests
     public void Retained_template_keeps_unknown_corner_W_and_matrix_padding_and_does_not_average_depth()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Otz = 123 } };
-        NativeBattleEffectArena temporary = System.Text.Json.JsonSerializer.Deserialize<NativeBattleEffectArena>(System.Text.Json.JsonSerializer.Serialize(Temporary(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 4096 }, Resource())))!;
+        NativeBattleEffectArena temporary = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(Temporary(NativeBattleCuragaMatrices.Identity8DD770() with { Z = 4096 }, Resource())))!;
         NativeBattleModuleSpriteDraw result = NativeBattleTemplateSprite683490.Draw(memory, temporary, new(0, 0x1000000, 0, 0, Resource()), new(null, 288, 160, 108));
         Assert.Equal(80, result.Batch.AllocationBytes);
         Assert.Equal(123u, result.Memory.GeometryRegisters!.Otz);

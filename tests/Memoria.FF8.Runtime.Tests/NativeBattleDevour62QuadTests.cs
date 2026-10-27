@@ -100,8 +100,8 @@ public sealed class NativeBattleDevour62QuadTests
             }
         }
         memory = memory with { Arena = arena };
-        string geometry = JsonSerializer.Serialize(memory.GeometryRegisters);
-        string colors = JsonSerializer.Serialize(memory.ScriptedColorRegisters);
+        string geometry = NativeBattleTestSnapshots.Json(memory.GeometryRegisters);
+        string colors = NativeBattleTestSnapshots.Json(memory.ScriptedColorRegisters);
         NativeBattleGfGeometryBatch batch = NativeBattleDevour62Quads.Emit(Task());
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(memory, cursor, NativeBattleLogicalOrdering.Clear(), batch, flags20: 1);
         Assert.Equal(cursor + 160, written.Cursor);
@@ -128,18 +128,18 @@ public sealed class NativeBattleDevour62QuadTests
                 }
             }
         }
-        Assert.Equal(geometry, JsonSerializer.Serialize(written.Memory.GeometryRegisters));
-        Assert.Equal(colors, JsonSerializer.Serialize(written.Memory.ScriptedColorRegisters));
-        NativeBattleEffectPacketWrite restored = JsonSerializer.Deserialize<NativeBattleEffectPacketWrite>(JsonSerializer.Serialize(written))!;
+        Assert.Equal(geometry, NativeBattleTestSnapshots.Json(written.Memory.GeometryRegisters));
+        Assert.Equal(colors, NativeBattleTestSnapshots.Json(written.Memory.ScriptedColorRegisters));
+        NativeBattleEffectPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectPacketWrite>(NativeBattleTestSnapshots.Json(written))!;
         NativeBattleEffectPacketWrite Next(NativeBattleEffectPacketWrite prior) => NativeBattleEffectPacketArena.Append(prior.Memory, prior.Cursor, prior.Ordering, batch, flags20: 1);
-        Assert.Equal(JsonSerializer.Serialize(Next(written)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(written)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]
     public void Wrong_callback_or_stride_does_not_invent_a_screen_task()
     {
-        Assert.Throws<InvalidDataException>(() => NativeBattleDevour62Quads.Emit(Task() with { Callback = 0x7E5290 }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleDevour62Quads.Emit(Task() with { Payload = new byte[68].ToImmutableArray() }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDevour62Quads.Emit(NativeBattleTaskFixture.EditTask(Task(), data => data with { Callback = 0x7E5290 })));
+        Assert.Throws<InvalidDataException>(() => NativeBattleDevour62Quads.Emit(new NativeBattleModulePoolTask(1, 0, null, 0x7E4F60, new byte[68].ToImmutableArray())));
         Assert.Throws<NotSupportedException>(() => NativeBattleDevour62Quads.Emit(Task().MarkPayloadUnknown(0x50, 2)));
     }
 

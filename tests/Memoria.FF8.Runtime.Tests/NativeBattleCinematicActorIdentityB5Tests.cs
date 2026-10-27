@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -29,7 +29,8 @@ public sealed class NativeBattleCinematicActorIdentityB5Tests
         frame = frame with { Arena = frame.Arena.MarkUnknown(0x1004, 2) };
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorIdentityB5.Execute(frame, Program);
         Assert.Equal(Program.Address + 6, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        NativeBattleWaterExecutionFrame equal = frame with { Arena = frame.Arena.Write(0x201B, [4]) };
+        NativeBattleWaterExecutionFrame equal = Create(4, 4, -8);
+        equal = equal with { Arena = equal.Arena.MarkUnknown(0x1004, 2) };
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorIdentityB5.Execute(equal, Program));
     }
 
@@ -37,10 +38,10 @@ public sealed class NativeBattleCinematicActorIdentityB5Tests
     public void Restored_current_slot_branches_identically()
     {
         NativeBattleWaterExecutionFrame frame = Create(7, 7, -10);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame expected = NativeBattleCinematicActorIdentityB5.Execute(frame, Program);
         NativeBattleWaterExecutionFrame actual = NativeBattleCinematicActorIdentityB5.Execute(restored, Program);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     private static NativeBattleWaterExecutionFrame Create(byte actor, ushort expected, short displacement)

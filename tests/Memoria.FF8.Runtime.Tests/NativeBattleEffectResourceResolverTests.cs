@@ -84,16 +84,16 @@ public sealed class NativeBattleEffectResourceResolverTests
             calls++;
             throw new NotSupportedException("controlled original resource unavailable");
         });
-        string before = JsonSerializer.Serialize(session.Capture());
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture()));
         NativeBattleOriginalEffectState previous = NativeBattleOriginalEffects.Select(2, Catalog());
         NativeBattleGraphicsState graphics = new([], [], 0, 0) { OriginalEffect = previous };
-        string requestBefore = JsonSerializer.Serialize(graphics);
+        string requestBefore = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(graphics));
         MethodInfo begin = typeof(BattleSession).GetMethod("BeginNativeOriginalEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
         TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => begin.Invoke(session, [graphics, (ushort)144, false]));
         Assert.IsType<NotSupportedException>(error.InnerException);
         Assert.Equal(1, calls);
-        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
-        Assert.Equal(requestBefore, JsonSerializer.Serialize(graphics));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture())));
+        Assert.Equal(requestBefore, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(graphics)));
         Assert.Same(previous, graphics.OriginalEffect);
         session.AttachNativeEffectResourceResolver(effect => Catalog()[effect - 1] with { InitializerAsset = new("fixture.tim", [0xA7]) });
         NativeBattleGraphicsState admitted = (NativeBattleGraphicsState)begin.Invoke(session, [graphics, (ushort)144, false])!;
@@ -106,12 +106,12 @@ public sealed class NativeBattleEffectResourceResolverTests
     public void ResolverAttachmentAndSnapshotRestorePerformNoMaterializationOrDefinitionCacheWrite()
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
-        string before = JsonSerializer.Serialize(session.Capture());
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture()));
         session.AttachNativeEffectResourceResolver(_ => throw new InvalidOperationException("No native request has executed."));
-        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture())));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!);
         restored.AttachNativeEffectResourceResolver(_ => throw new InvalidOperationException("Restore must not hydrate."));
-        Assert.Equal(before, JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.Capture())));
         Assert.Throws<ArgumentNullException>(() => restored.AttachNativeEffectResourceResolver(null!));
     }
 
@@ -127,7 +127,7 @@ public sealed class NativeBattleEffectResourceResolverTests
         (packets, _) = packets.Publish(1);
         NativeBattleOriginalEffectState active = NativeBattleFireEffect.InitializePools(initialized.Effect with { Parameters = new(0, 0, 8, 0, 0, 0) }, packets);
         SavedEffect saved = new(initialized.Memory, active);
-        SavedEffect restored = JsonSerializer.Deserialize<SavedEffect>(JsonSerializer.Serialize(saved))!;
+        SavedEffect restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<SavedEffect>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(saved)))!);
         Assert.Equal(new byte[] { 4, 5 }, restored.Effect.Binding.InitializerAsset!.Data);
         Assert.Equal(new byte[] { 4, 5 }, restored.Memory.Arena!.Read(0, 2));
         Assert.Same(restored.Effect, NativeBattleEffectResourceResolver.MaterializeSelected(restored.Effect, null));
@@ -170,7 +170,7 @@ public sealed class NativeBattleEffectResourceResolverTests
                 Assert.Equal(current.Parameter80, parameters.Parameter80);
                 Assert.Equal(current.Parameter82, parameters.Parameter82);
             }
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
+            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Capture())))!);
             NativeBattleEffectParameters afterRestore = (NativeBattleEffectParameters)prepare.Invoke(restored, [context, (byte)1])!;
             Assert.Equal(current.Parameter80, afterRestore.Parameter80);
             Assert.Equal(current.Parameter82, afterRestore.Parameter82);

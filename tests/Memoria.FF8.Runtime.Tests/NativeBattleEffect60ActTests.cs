@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -89,6 +89,15 @@ public sealed class NativeBattleEffect60ActTests
         frame = NativeBattleEffect60Act.MoveTarget(frame, address, fixture.Resources, inputs);
         task = new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address);
         Assert.Equal(unchecked((ushort)ratio), task.ReadWord(0x188));
+        short[] previous = [100, -10, 1400];
+        short[] originalPosition = [300, 10, 900];
+        short[] initialTask = [50, 60, 70];
+        for (int axis = 0; axis < 3; axis++)
+        {
+            int next = previous[axis] + (originalPosition[axis] - previous[axis]) * ratio / 4096;
+            int expected = initialTask[axis] + (next - previous[axis]) * 3 / 2;
+            Assert.Equal(unchecked((ushort)expected), task.ReadWord(0x1C + axis * 2));
+        }
         Assert.Equal(index == 7 ? index : (ushort)(index + 1), task.ReadWord(0x84));
         Assert.Equal((byte)3, task.ReadByte(0x29));
         Assert.Equal(1, task.ReadByte(0x26) & 1);

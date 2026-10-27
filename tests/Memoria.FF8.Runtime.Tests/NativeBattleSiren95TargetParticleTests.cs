@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -38,6 +38,7 @@ public sealed class NativeBattleSiren95TargetParticleTests
             Assert.Equal((byte)3, actor);
             return target;
         }
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var step = NativeBattleSiren95TargetParticles.Advance743250(frame, fixture.Address, fixture.Packets, ReadTarget);
         Assert.Equal(random, step.Frame.Random);
         NativeBattleModulePoolTask child = Assert.Single(step.Frame.Effect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x7433C0 && (task.Flags & 1) != 0);
@@ -54,8 +55,7 @@ public sealed class NativeBattleSiren95TargetParticleTests
         Assert.Equal((byte)2, Read(step.Frame, fixture.Address).ReadByte(0x29));
         Assert.Equal((byte)1, (byte)(Read(step.Frame, fixture.Address).ReadByte(0x26) & 1));
         Assert.False(step.Complete);
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleSiren95TargetParticles.Advance743250(restored, fixture.Address, fixture.Packets, ReadTarget)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleSiren95TargetParticles.Advance743250(restored, fixture.Address, fixture.Packets, ReadTarget)));
     }
 
     [Fact]

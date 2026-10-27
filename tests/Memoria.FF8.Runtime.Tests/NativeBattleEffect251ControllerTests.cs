@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect251ControllerTests
         NativeBattleEffect251State state = NativeBattleEffect251State.FromColdProcess().WriteDword(ArenaGlobal, CommonAddress).WriteDword(CasterGlobal, ModelAddress(3)).WriteDword(TargetGlobal, ModelAddress(4));
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, 0x5EC, 1);
         (main, _) = main.Append(MainCallback);
-        main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)phase))) };
+        main = main.WriteSlot(0, main.Slots[0].WriteWord(12, unchecked((ushort)phase)));
         state = state.DetachCommonQueue(MainDescriptor);
         NativeBattleOriginalEffectState effect = new(251, 250, new(251, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [main] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };

@@ -6,13 +6,15 @@ public sealed class NativeBattlePrimitiveDrawModeReuseTests
     public void Draw_reset_only_copies_packets_whose_physical_read_owner_changes()
     {
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(1, new("packet", 0, 0), [0], 0, []);
+        NativeBattleLogicalOrdering before = NativeBattleStorageSnapshots.Capture(ordering);
         NativeBattleLogicalOrdering reset = ordering.ResetAfterDraw45D080();
-        Assert.False(ordering.Packets[0].RequiresPhysicalRead);
+        Assert.False(before.Packets[0].RequiresPhysicalRead);
+        Assert.Same(ordering, reset);
         Assert.True(reset.Packets[0].RequiresPhysicalRead);
         Assert.Same(reset, reset.ResetAfterDraw45D080());
-        NativeBattleLogicalOrdering changedCursor = reset with { ProxyCursor = 1 };
+        NativeBattleLogicalOrdering changedCursor = reset.UpdateMetadata(1, reset.TableBuffer);
         Assert.Same(reset.Packets[0], changedCursor.ResetAfterDraw45D080().Packets[0]);
-        Assert.Equal(1, changedCursor.ProxyCursor);
+        Assert.Equal(0, changedCursor.ProxyCursor);
     }
 
     [Fact]

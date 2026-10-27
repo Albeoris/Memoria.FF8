@@ -42,8 +42,8 @@ public sealed class NativeBattleEffect140OwnedModelTests
         frame = frame with { Staging = frame.Staging!.Write(Source + 24 + 8, new byte[] { 123, 0, 56, 254, 21, 3 }) };
         frame = frame with
         {
-            Staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(frame.Staging))!,
-            Effect = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(frame.Effect))!
+            Staging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Staging)))!),
+            Effect = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Effect)))!)
         };
         NativeBattleEffect140Frame advanced = NativeBattleEffect140OwnedModel.Advance6FBDB0(frame, Model, resources);
         NativeBattleEffect140OwnedModelSnapshot snapshot = NativeBattleEffect140OwnedModel.ReadCurrent(advanced, Model, resources);

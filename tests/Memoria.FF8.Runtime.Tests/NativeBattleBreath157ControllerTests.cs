@@ -149,7 +149,7 @@ public sealed class NativeBattleBreath157ControllerTests
     {
         NativeBattleBreath157Frame frame = Active(0x603F50);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children with { Head = null, Tail = null, Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(children, data => data with { Head = null, Tail = null, Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })) })) } };
         int requests = 0;
         NativeBattleBreath157Inputs inputs = Inputs((current, operation) =>
         {
@@ -163,7 +163,7 @@ public sealed class NativeBattleBreath157ControllerTests
         Assert.Equal((ushort)1, frame.Effect.Pools[0].Slots[1].ReadWord(12));
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
-        frame = JsonSerializer.Deserialize<NativeBattleBreath157Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath157Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         frame = frame with { Effect = WriteCompletionByte(frame.Effect, 0x23EB616, 255) };

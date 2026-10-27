@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -90,7 +90,7 @@ public sealed class NativeBattleDoomtrain191CreatureParticleTests
         NativeBattleDoomtrain191Frame frame = NativeBattleDoomtrain191Flare.Spawn6437F0(NativeBattleDoomtrain191ModelTests.Ready());
         var pool = frame.Effect.Pools[1];
         int slot = Enumerable.Range(0, pool.Slots.Length).Single(index => (pool.Slots[index].Flags & 1) != 0 && pool.Slots[index].Callback == 0x643880);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, age)) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0xC, age)) })) } };
         int calls = 0;
         NativeBattleDoomtrain191MeshServices services = new(() => paused ? 1u : 0u, (current, draw) =>
         {
@@ -104,19 +104,20 @@ public sealed class NativeBattleDoomtrain191CreatureParticleTests
             Assert.Equal((byte)2, draw.DepthShift);
             return current;
         });
+        string replay = NativeBattleTestSnapshots.Json(frame);
         var result = NativeBattleDoomtrain191Flare.Advance643880(frame, slot, services);
         Assert.Equal(1, calls);
         Assert.Equal(!paused && age == 21 ? 2 : 0, result.Result);
         Assert.Equal(paused ? age : unchecked((ushort)(age + 1)), result.Frame.Effect.Pools[1].Slots[slot].ReadWord(0xC));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleDoomtrain191Flare.Advance643880(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!, slot, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleDoomtrain191Flare.Advance643880(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(replay)!, slot, services)));
     }
 
     private static NativeBattleDoomtrain191Frame Chimney(ushort age)
     {
         NativeBattleDoomtrain191Frame frame = NativeBattleDoomtrain191ModelTests.Ready();
         var pool = frame.Effect.Pools[1];
-        var task = (pool.Slots[0] with { Callback = 0x643D10 }).WriteWord(0xC, age);
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, task) }) } };
+        var task = (NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = 0x643D10 })).WriteWord(0xC, age);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) })) } };
     }
     private static NativeBattleDoomtrain191LeafStep ChimneyStep(NativeBattleDoomtrain191Frame frame, uint flags, Action<NativeBattleDoomtrain191Frame, NativeBattleDoomtrain191SteamDraw>? observe = null)
     {

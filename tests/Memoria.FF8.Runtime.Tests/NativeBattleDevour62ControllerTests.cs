@@ -46,8 +46,8 @@ public sealed class NativeBattleDevour62ControllerTests
         Assert.Equal(256 + secondary, frame.State.SecondaryDrawCursor);
         Assert.Equal((ushort)(parity + 1), new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(address).ReadWord(0x5C));
         Assert.Empty(fixture.Operations);
-        NativeBattleDevour62Frame restored = JsonSerializer.Deserialize<NativeBattleDevour62Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDevour62Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
     [Theory]
@@ -206,8 +206,8 @@ public sealed class NativeBattleDevour62ControllerTests
         Fixture fixture = new();
         NativeBattleDevour62Frame frame = fixture.Child(NativeBattleDevour62Profile.AuxiliaryCallback, 0, 0, out _);
         frame = fixture.Step(frame);
-        NativeBattleDevour62Frame restored = JsonSerializer.Deserialize<NativeBattleDevour62Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleDevour62Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDevour62Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
         Assert.Null(NativeBattleDevour62State.FromColdProcess(0, 0).PrimaryDrawCursor);
     }
 

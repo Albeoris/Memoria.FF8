@@ -66,9 +66,9 @@ public sealed class NativeBattleSiren95IoTests
         BinaryPrimitives.WriteUInt32LittleEndian(script.AsSpan(12), Base + 0x20100);
         shared = shared with { Io = shared.Io with { Script = script.ToImmutableArray() } };
         frame = frame with { Memory = frame.Memory with { Siren95 = shared, Arena = frame.Memory.Arena!.Write(0x20100, BitConverter.GetBytes(9)) } };
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleSiren95Io.Complete(frame, 0x73A5B0);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleSiren95Io.Complete(restored, 0x73A5B0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleSiren95Io.Complete(restored, 0x73A5B0)));
         Assert.Equal(690009, frame.Memory.SummonStream!.Number);
         Assert.Equal(Base + 0x20100, frame.Memory.SummonStream.SourceAddress);
         Assert.Equal((ushort)0, frame.Memory.Siren95!.ReadWord(Control + 0x164));

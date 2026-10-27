@@ -37,7 +37,7 @@ public sealed class NativeBattleElectrocute275BoneStackTests
     {
         NativeBattleRibbonPacketStep first = NativeBattleRibbonPackets.DrawWithDirection(Chain(100, 116, 132, 512), Address, 3, Bank, Distances, Policy, 27);
         Assert.Equal(0x10000000u, first.DirectionWord);
-        NativeBattleRibbonPacketStep restored = JsonSerializer.Deserialize<NativeBattleRibbonPacketStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleRibbonPacketStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRibbonPacketStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEffectArena clipped = Chain(100, 116, 132, -1);
         NativeBattleRibbonPacketStep next = NativeBattleRibbonPackets.DrawWithDirection(clipped, Address, 3, Bank, Distances, Policy, restored.DirectionWord);
         Assert.Equal(first.DirectionWord, next.DirectionWord);
@@ -51,8 +51,8 @@ public sealed class NativeBattleElectrocute275BoneStackTests
         NativeBattleEffectArena arena = Chain(100, 116, 132, 512);
         var original = NativeBattleRibbonPackets.Draw(arena, Address, 3, Bank, Distances, Policy, 27);
         NativeBattleRibbonPacketStep observed = NativeBattleRibbonPackets.DrawWithDirection(arena, Address, 3, Bank, Distances, Policy, 27);
-        Assert.Equal(JsonSerializer.Serialize(original.Arena), JsonSerializer.Serialize(observed.Arena));
-        Assert.Equal(JsonSerializer.Serialize(original.Batch), JsonSerializer.Serialize(observed.Batch));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Arena)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(observed.Arena)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.Batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(observed.Batch)));
     }
 
     private const uint Address = NativeBattleEffectNodeMemory.ArenaAddress;

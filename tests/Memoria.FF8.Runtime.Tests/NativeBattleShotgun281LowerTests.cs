@@ -44,7 +44,7 @@ public sealed class NativeBattleShotgun281LowerTests
         var point = NativeBattleEffectArena.Clear().MarkUnknown(0, 6).Write(6, BitConverter.GetBytes((ushort)0xBEEF));
         var actual = ReadAnchor67E550(frame, 0x1D972C0, 0, point, Inputs() with { ReadBoneParent = (_, _, _) => -1, ReadCurrentBoneMatrix = (_, _, _) => throw new InvalidOperationException(), ReadModelWorld = (_, _) => throw new InvalidOperationException() });
         Assert.Equal(1, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(point), JsonSerializer.Serialize(actual.Point8));
+        Assert.Equal(NativeBattleTestSnapshots.Json(point), NativeBattleTestSnapshots.Json(actual.Point8));
         Assert.Equal(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4), actual.Frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4));
         Assert.Equal(Context(frame, NativeBattleTemporaryMemory.Address, 20).Read(0, 20), Context(actual.Frame, NativeBattleTemporaryMemory.Address, 20).Read(0, 20));
     }
@@ -90,8 +90,8 @@ public sealed class NativeBattleShotgun281LowerTests
         var temporary = Context(actual.Frame, NativeBattleTemporaryMemory.Address, 20);
         Assert.Equal(new int[] { 11, -12, 13 }, Enumerable.Range(0, 3).Select(axis => BinaryPrimitives.ReadInt32LittleEndian(temporary.Read(axis * 4, 4))));
         Assert.Equal(Enumerable.Repeat((byte)0xAA, 8), temporary.Read(12, 8));
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory.GeometryRegisters), JsonSerializer.Serialize(actual.Frame.Memory.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Frame.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory.GeometryRegisters), NativeBattleTestSnapshots.Json(actual.Frame.Memory.GeometryRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Frame.Memory.ScriptedColorRegisters));
     }
 
     [Theory]
@@ -124,7 +124,7 @@ public sealed class NativeBattleShotgun281LowerTests
         Assert.Equal(frame.Random, actual.Random);
         if (direct)
         {
-            Assert.Equal(JsonSerializer.Serialize(frame.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(actual.Memory.ScriptedColorRegisters));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(actual.Memory.ScriptedColorRegisters));
         }
         else
         {

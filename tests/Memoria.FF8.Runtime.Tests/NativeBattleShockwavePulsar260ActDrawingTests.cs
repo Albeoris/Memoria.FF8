@@ -18,7 +18,7 @@ public sealed class NativeBattleShockwavePulsar260ActDrawingTests
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
         NativeBattleShockwavePulsar260ActDrawingStep without200 = Draw(Node(0x1000, new(10, 20, 30)), Context(new(100, 200, 300)), camera, Packed(retained));
-        Assert.Equal(JsonSerializer.Serialize(without200), JsonSerializer.Serialize(result));
+        Assert.Equal(NativeBattleTestSnapshots.Json(without200), NativeBattleTestSnapshots.Json(result));
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public sealed class NativeBattleShockwavePulsar260ActDrawingTests
         NativeBattleShockwavePulsar260Frame result = Next(frame);
         Assert.Equal(1, deliveries);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        NativeBattleShockwavePulsar260Frame restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260Frame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        NativeBattleShockwavePulsar260Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260Frame>(NativeBattleTestSnapshots.Json(result))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private const uint SourceAddress = 0x112015C;

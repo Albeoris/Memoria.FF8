@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattlePetrifyStare127Profile;
 
@@ -117,12 +117,12 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
     public void Snapshot_next_keeps_current_pools_state_and_native_operation_order()
     {
         Fixture first = new(42);
-        string json = JsonSerializer.Serialize(first.Frame);
+        string json = NativeBattleTestSnapshots.Json(first.Frame);
         NativeBattlePetrifyStare127Frame expected = first.Step(first.Frame);
         Fixture next = new(42);
-        NativeBattlePetrifyStare127Frame actual = next.Step(JsonSerializer.Deserialize<NativeBattlePetrifyStare127Frame>(json)!);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(next.Operations));
+        NativeBattlePetrifyStare127Frame actual = next.Step(NativeBattleTestSnapshots.RestoreJson<NativeBattlePetrifyStare127Frame>(json)!);
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations.ToImmutableArray()), NativeBattleTestSnapshots.Json(next.Operations.ToImmutableArray()));
     }
 
     private static uint Working(NativeBattlePetrifyStare127Frame frame) => frame.State.ReadDword(WorkingGlobal);
@@ -145,12 +145,13 @@ public sealed class NativeBattlePetrifyStare127ControllerTests
             Packets = packets;
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int rootSlot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteBytes(12, new byte[8]).WriteWord(12, cycle).WriteByte(15, 1)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteBytes(12, new byte[8]).WriteWord(12, cycle).WriteByte(15, 1)) });
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, ArenaAddress, TargetStride, 1);
             (targets, int targetSlot) = targets.Append(TargetCallback);
-            targets = targets with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(12, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteDword(0x20, 0x1D972C0 + 3 * 156)) };
+            targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(targetSlot, targets.Slots[targetSlot].WriteBytes(12, new byte[TargetStride - 12]).WriteWord(12, age).WriteWord(0x10, 100).WriteWord(0x12, 200).WriteWord(0x14, 300).WriteDword(0x20, 0x1D972C0 + 3 * 156)) });
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() };
             NativeBattleOriginalEffectState effect = new(127, 126, new(127, Entry, Initializer), new(0, 0, 8, 0, 0, 0), null) { Pools = [root, targets], ReturnedDescriptor = RootDescriptor };
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
             Frame = new(memory, effect, new(123), NativeBattlePetrifyStare127State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0).WriteDword(StageDepthGlobal, 1234));
         }
         public NativeBattleModulePoolTask Root(NativeBattlePetrifyStare127Frame frame) => frame.Effect.Pools[0].Slots[0];

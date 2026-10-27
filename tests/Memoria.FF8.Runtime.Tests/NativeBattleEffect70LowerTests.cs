@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect70LowerTests
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[18]);
         Assert.Null(result.Memory.GeometryRegisters.Rotation20[19]);
         NativeBattleEffect70ProgrammeDrawingStep without200 = Draw(Node(0x1000, new(10, 20, 30)), Context(new(100, 200, 300)), camera, Packed(retained));
-        Assert.Equal(JsonSerializer.Serialize(without200), JsonSerializer.Serialize(result));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(without200)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)));
     }
 
     [Fact]

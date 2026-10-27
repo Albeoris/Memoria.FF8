@@ -60,8 +60,8 @@ public sealed class NativeBattleCinematicFlagControl10CTests
     public void Negative_mask_tests_high_WORD_bits_and_snapshot_repeats_the_wait()
     {
         NativeBattleWaterExecutionFrame frame = Fixture(4, 0x8000, short.MinValue, 0);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCinematicFlagControl10C.Execute(frame, Program())), JsonSerializer.Serialize(NativeBattleCinematicFlagControl10C.Execute(restored, Program())));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCinematicFlagControl10C.Execute(frame, Program())), NativeBattleTestSnapshots.Json(NativeBattleCinematicFlagControl10C.Execute(restored, Program())));
         Assert.Equal(Address(0x3000), WaterSchedulerFixture.ReadCoreDword(NativeBattleCinematicFlagControl10C.Execute(restored, Program()), 0x2797450));
     }
 

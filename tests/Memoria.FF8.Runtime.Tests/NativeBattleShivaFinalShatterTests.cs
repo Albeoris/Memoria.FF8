@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -86,6 +86,7 @@ public sealed class NativeBattleShivaFinalShatterTests
             submitted.Add(batch);
             return current;
         } };
+        NativeBattleShivaFinalFrame independent = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleShivaFinalStep step = NativeBattleShivaFinalShatter.Advance5C77C0(frame, 0, 0, inputs);
         NativeBattleGfGeometryAttempt attempt = Assert.Single(submitted[0].Attempts);
         Assert.Null(attempt.Primitive);
@@ -93,7 +94,7 @@ public sealed class NativeBattleShivaFinalShatterTests
         Assert.Equal((ushort)96, Word(step.Frame, 0x20008));
         Assert.Empty(submitted[1].Attempts);
         Assert.Equal(0, step.Result);
-        NativeBattleShivaFinalStep paused = NativeBattleShivaFinalShatter.Advance5C77C0(frame, 0, 1, inputs);
+        NativeBattleShivaFinalStep paused = NativeBattleShivaFinalShatter.Advance5C77C0(independent, 0, 1, inputs);
         Assert.Equal((ushort)48, Word(paused.Frame, 0x20008));
         Assert.Equal((ushort)15, paused.Frame.Pool.Slots[0].ReadWord(0x0C));
     }
@@ -108,7 +109,7 @@ public sealed class NativeBattleShivaFinalShatterTests
         Assert.Equal((ushort)63, paused.Frame.Pool.Slots[0].ReadWord(0x0C));
         Assert.Equal(0, paused.Result);
         Assert.Empty(paused.CommonPackets.Attempts);
-        NativeBattleShivaFinalFrame clone = JsonSerializer.Deserialize<NativeBattleShivaFinalFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShivaFinalFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaFinalFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleShivaFinalStep step = NativeBattleShivaFinalShatter.Advance5C77C0(clone, 0, 0, inputs);
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)64, step.Frame.Pool.Slots[0].ReadWord(0x0C));
@@ -155,7 +156,7 @@ public sealed class NativeBattleShivaFinalShatterTests
         if (append)
         {
             (pool, int slot) = pool.Append(0x5C77C0);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, counter)) });
         }
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), 1, 0x10000);
     }

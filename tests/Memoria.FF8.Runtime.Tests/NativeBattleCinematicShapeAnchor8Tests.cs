@@ -19,6 +19,7 @@ public sealed class NativeBattleCinematicShapeAnchor8Tests
     {
         NativeBattleVector[] vertices = [new(10, 0, -100), new(20, 3, 80), new(30, 6, 120), new(40, 9, 200)];
         NativeBattleWaterExecutionFrame source = Fixture(factor, vertices);
+        NativeBattleWaterExecutionFrame before = NativeBattleStorageSnapshots.Capture(source);
         int resolutions = 0;
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicShapeAnchor8.Update(source, (current, selector) =>
         {
@@ -30,7 +31,8 @@ public sealed class NativeBattleCinematicShapeAnchor8Tests
         Assert.Equal(1, resolutions);
         Assert.Equal(vertices[expected], Position(result));
         Assert.Equal(source.Random, result.Random);
-        Assert.Equal((ushort)0, WaterSchedulerFixture.ReadSlotWord(source, 0, 0x94));
+        Assert.Equal((ushort)0, WaterSchedulerFixture.ReadSlotWord(before, 0, 0x94));
+        Assert.Same(source.Arena, result.Arena);
         Assert.Equal(200u, Work(result, 0x44));
         Assert.Equal(4u, Work(result, 0x48));
         Assert.Equal(3u, Work(result, 0x50));

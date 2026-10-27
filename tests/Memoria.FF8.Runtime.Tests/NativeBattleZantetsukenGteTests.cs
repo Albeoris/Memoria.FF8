@@ -49,8 +49,8 @@ public sealed class NativeBattleZantetsukenGteTests
         Assert.Same(memory.ScriptedLighting, result.ScriptedLighting);
         Assert.Null(result.ScriptedLighting!.BackColor!.ReadLane(1));
         Assert.Null(result.ScriptedLighting.BackColor.ReadLane(2));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleZantetsukenGte.EvaluatePlane(restored, slot)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleZantetsukenGte.EvaluatePlane(restored, slot)));
     }
 
     [Fact]

@@ -42,9 +42,9 @@ public sealed class NativeBattleStare45StateTests
         Assert.Equal((ushort)0x1234, state.ReadWord(ScratchAddress + 6));
         Assert.Throws<NotSupportedException>(() => state.ReadWord(ScratchAddress + 14));
         Assert.Throws<NotSupportedException>(() => state.ReadWord(BasisAddress + 18));
-        var restored = JsonSerializer.Deserialize<NativeBattleStare45State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStare45State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(BasisAddress + 18));
         Assert.Equal((ushort)0x1234, restored.ReadWord(ScratchAddress + 6));
     }
@@ -73,9 +73,9 @@ public sealed class NativeBattleStare45StateTests
         byte[] second = Enumerable.Repeat((byte)0x5A, 720 - 0x94).ToArray();
         var a = new NativeBattleGfAnimationWorkspace(first.ToImmutableArray()).Initialize7016B0(resources.ProgrammeA, ProgrammeAWorkspaceLength);
         var b = new NativeBattleGfAnimationWorkspace(second.ToImmutableArray()).Initialize7016B0(resources.ProgrammeA, ProgrammeAWorkspaceLength);
-        Assert.Equal(120, a.Data.Length - ProgrammeAWorkspaceLength);
-        Assert.All(a.Data.Skip(ProgrammeAWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
-        Assert.All(b.Data.Skip(ProgrammeAWorkspaceLength), value => Assert.Equal((byte)0x5A, value));
+        Assert.Equal(120, NativeBattleStorageSnapshots.Capture(a).Data.Length - ProgrammeAWorkspaceLength);
+        Assert.All(NativeBattleStorageSnapshots.Capture(a).Data.Skip(ProgrammeAWorkspaceLength), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(b).Data.Skip(ProgrammeAWorkspaceLength), value => Assert.Equal((byte)0x5A, value));
         Assert.Equal(resources.ProgrammeA.Address, a.ResourceAddress);
         Assert.Equal(resources.ProgrammeA.Address, b.ResourceAddress);
         Assert.Equal(0, a.Frame);

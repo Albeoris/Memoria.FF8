@@ -61,7 +61,7 @@ public sealed class NativeBattleEnergyBomber217TrailTests
         NativeBattleStaticMeshContext88Step existing = NativeBattleStaticMeshContext88.Draw(memory, Mesh(3), matrix, Projection, context, Constants, 0x1234);
         NativeBattleEffectMemory loaded = memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(memory.GeometryRegisters!, matrix, true, true, 0x1234) };
         NativeBattleStaticMeshContext88Step current = NativeBattleStaticMeshContext88.DrawLoaded(loaded, Mesh(3), Projection, context, Constants);
-        Assert.Equal(JsonSerializer.Serialize(existing), JsonSerializer.Serialize(current));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(existing)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(current)));
     }
 
     private static NativeBattleTemporaryAllocation Allocate() => NativeBattleTemporaryMemory.Allocate5082B0(NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()), 120);

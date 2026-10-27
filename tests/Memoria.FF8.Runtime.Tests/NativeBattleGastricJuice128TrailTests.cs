@@ -13,7 +13,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
         NativeBattleGastricJuice128Frame frame = Frame();
         frame = Point(frame, 0, 100, 200, 512, 32, 2048, Address(1));
         frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
-        string registers = JsonSerializer.Serialize(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
+        string registers = NativeBattleTestSnapshots.Json(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
         var actual = NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(frame, Address(0), 2, Resources());
         Assert.Equal(52, actual.Batch.AllocationBytes);
         NativeBattleGfGeometryAttempt packet = Assert.Single(actual.Batch.Attempts);
@@ -36,7 +36,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
         {
             Assert.Equal(index is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known, packet.WriteMask[index]);
         }
-        Assert.Equal(registers, JsonSerializer.Serialize(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
+        Assert.Equal(registers, NativeBattleTestSnapshots.Json(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
         Assert.Equal(frame.Random, actual.Frame.Random);
         Assert.Equal(frame.State, actual.Frame.State);
     }
@@ -47,11 +47,11 @@ public sealed class NativeBattleGastricJuice128TrailTests
         NativeBattleGastricJuice128Frame frame = Frame();
         frame = Point(frame, 0, 100, 200, 512, 32, 2048, Address(1));
         frame = Point(frame, 1, 116, 200, 512, 32, 1024, 0);
-        NativeBattleGastricJuice128Frame restored = JsonSerializer.Deserialize<NativeBattleGastricJuice128Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleGastricJuice128Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGastricJuice128Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(frame, Address(0), 2, Resources());
         var actual = NativeBattleGastricJuice128Trail.DrawRibbon6B90B0(restored, Address(0), 2, Resources());
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
-        Assert.Equal(JsonSerializer.Serialize(expected.Batch), JsonSerializer.Serialize(actual.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));
     }
 
     [Fact]
@@ -86,11 +86,11 @@ public sealed class NativeBattleGastricJuice128TrailTests
         Assert.Equal(0x6B9030u, splash.Callback);
         Assert.Equal((ushort)1024, splash.ReadWord(0x16));
         Assert.Single(operations.OfType<NativeBattleGastricJuice128DeliverRibbonBatch>());
-        NativeBattleGastricJuice128Frame restored = JsonSerializer.Deserialize<NativeBattleGastricJuice128Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleGastricJuice128Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGastricJuice128Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = NativeBattleGastricJuice128Trail.Advance6B8DC0(frame, curve, Resources(), Inputs((current, _) => current));
         var actual = NativeBattleGastricJuice128Trail.Advance6B8DC0(restored, curve, Resources(), Inputs((current, _) => current));
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public sealed class NativeBattleGastricJuice128TrailTests
         ImmutableArray<NativeBattleEffectTaskPool> pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, 1), NativeBattleEffectTaskPool.Initialize(MainDescriptor, ArenaAddress + MainOffset, MainStride, MainCount), NativeBattleEffectTaskPool.Initialize(CurveDescriptor, ArenaAddress + CurveOffset, CurveStride, CurveCount), NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, SpriteStride, SpriteCount)];
         NativeBattleOriginalEffectState effect = new(128, 127, new(128, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        NativeBattleGastricJuice128Frame frame = new(memory, effect, new(1), NativeBattleGastricJuice128State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
+        NativeBattleGastricJuice128Frame frame = new(NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, pools), effect, new(1), NativeBattleGastricJuice128State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress));
         (frame, uint head) = NativeBattleGastricJuice128Controller.AllocatePoint(frame, NativeBattleGastricJuice128Controller.PointView(new(0, 0, 0)), 7);
         frame = NativeBattleGastricJuice128Controller.WriteArena(frame, head + 8, new byte[] { 1, 0, 2, 0, 3, 0 });
         (frame, uint address) = NativeBattleGastricJuice128Controller.Append(frame, 2, CurveCallback);

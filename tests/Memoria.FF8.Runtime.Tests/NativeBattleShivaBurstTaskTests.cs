@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -10,7 +10,7 @@ public sealed class NativeBattleShivaBurstTaskTests
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(1);
         NativeBattleShivaEarlyTaskStep paused = NativeBattleShivaBurstTask.Advance5C4900(frame, 0, 0x200, null!, null!, null!);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(paused.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(paused.Frame));
         Assert.Equal(0, paused.Result);
         NativeBattleShivaEarlyTaskStep delayed = NativeBattleShivaBurstTask.Advance5C4900(frame, 0, 0, null!, null!, null!);
         Assert.Equal((ushort)0, delayed.Frame.Pool.Slots[0].ReadWord(0x0E));
@@ -23,13 +23,13 @@ public sealed class NativeBattleShivaBurstTaskTests
     public void Active_draw_precedes_pause_and_publishes_signed_scaled_translated_world_view_and_fade()
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(-1);
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x0C, 9).WriteWord(0x18, 0).WriteWord(0x1C, 2048).WriteWord(0x20, 4096)) } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x0C, 9).WriteWord(0x18, 0).WriteWord(0x1C, 2048).WriteWord(0x20, 4096)) }) };
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770() with { X = 100, Y = -200, Z = 4096 };
         int draws = 0;
         NativeBattleShivaEarlyTaskStep step = NativeBattleShivaBurstTask.Advance5C4900(frame, 0, 1, view, Mesh, (current, draw) =>
         {
             draws++;
-            Assert.Equal(frame.Pool.Slots[0].Payload.ToArray(), current.Pool.Slots[0].Payload.ToArray());
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(frame.Pool.Slots[0]).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(current.Pool.Slots[0]).Payload.ToArray());
             Assert.Equal(new short[] { 2048, 0, 0, 0, 4096, 0, 0, 0, 2048 }, draw.Matrix.Rotation.ToArray());
             Assert.Equal(107, draw.Matrix.X);
             Assert.Equal(-209, draw.Matrix.Y);
@@ -46,7 +46,7 @@ public sealed class NativeBattleShivaBurstTaskTests
         });
         Assert.Equal(1, draws);
         Assert.Equal(0, step.Result);
-        Assert.Equal(frame.Pool.Slots[0].Payload.ToArray(), step.Frame.Pool.Slots[0].Payload.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(frame.Pool.Slots[0]).Payload.ToArray(), NativeBattleStorageSnapshots.Capture(step.Frame.Pool.Slots[0]).Payload.ToArray());
         Assert.Equal(new byte[] { 42 }, step.Frame.Memory.Arena!.Read(99, 1));
     }
 
@@ -57,7 +57,8 @@ public sealed class NativeBattleShivaBurstTaskTests
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(0);
         NativeBattleModulePoolTask task = frame.Pool.Slots[0].WriteWord(0x0C, unchecked((ushort)counter)).WriteWord(0x18, 3).WriteWord(0x1A, unchecked((ushort)speed)).WriteWord(0x1C, 100).WriteWord(0x1E, unchecked((ushort)velocity)).WriteWord(0x22, unchecked((ushort)divisor));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, task) } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, task) }) };
+        NativeBattleShivaEarlyTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaEarlyTaskFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleShivaEarlyTaskStep step = NativeBattleShivaBurstTask.Advance5C4900(frame, 0, 0, NativeBattleCuragaMatrices.Identity8DD770(), Mesh, (current, draw) =>
         {
             Assert.Equal(counter < 8 ? 0x33u : 0xF3u, draw.Context.Flags);
@@ -71,16 +72,15 @@ public sealed class NativeBattleShivaBurstTaskTests
         Assert.Equal(unchecked((ushort)expectedCounter), changed.ReadWord(0x0C));
         Assert.Equal(expectedCounter >= 14 ? 2 : 0, step.Result);
         Assert.Equal((ushort)0xA5A5, changed.ReadWord(0x16));
-        NativeBattleShivaEarlyTaskFrame restored = JsonSerializer.Deserialize<NativeBattleShivaEarlyTaskFrame>(JsonSerializer.Serialize(frame))!;
         NativeBattleShivaEarlyTaskStep independent = NativeBattleShivaBurstTask.Advance5C4900(restored, 0, 0, NativeBattleCuragaMatrices.Identity8DD770(), Mesh, (current, _) => current);
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(independent));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(independent));
     }
 
     [Fact]
     public void Zero_decay_divisor_is_consumed_only_after_an_unpaused_actual_draw()
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture(0);
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x22, 0)) } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0].WriteWord(0x22, 0)) }) };
         int draws = 0;
         Assert.Throws<NotSupportedException>(() => NativeBattleShivaBurstTask.Advance5C4900(frame, 0, 0, NativeBattleCuragaMatrices.Identity8DD770(), Mesh, (current, _) =>
         {
@@ -99,9 +99,9 @@ public sealed class NativeBattleShivaBurstTaskTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         (pool, int slot) = pool.Append(0x5C4900);
-        NativeBattleModulePoolTask task = pool.Slots[slot] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(pool.Slots[slot], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() });
         task = task.WriteWord(0x0C, 0).WriteWord(0x0E, unchecked((ushort)delay)).WriteWord(0x10, 7).WriteWord(0x12, unchecked((ushort)-9)).WriteWord(0x14, 11).WriteWord(0x18, 0).WriteWord(0x1A, ushort.MaxValue).WriteWord(0x1C, 4096).WriteWord(0x1E, ushort.MaxValue).WriteWord(0x20, 4096).WriteWord(0x22, 3);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, pool, new(1), new(new(0, 0, 0, 0), new(0, 0, 0, 0)));
     }
 }

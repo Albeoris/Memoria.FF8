@@ -147,7 +147,7 @@ public sealed class NativeBattleSonic139ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, 0x4DC, 1);
         (main, _) = main.Append(MainCallback);
-        main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)age))) });
         NativeBattleEffectTaskPool lower = NativeBattleEffectTaskPool.Initialize(LowerDescriptor, NativeBattleEffectNodeMemory.ArenaAddress, 0x298, 4);
         NativeBattleOriginalEffectState effect = new(139, 138, new(139, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [roots, main, lower] };
         NativeBattleGeometryRegisters geometry = NativeBattleGeometryRegisters.Unknown() with { Translation = [777, 888, 999] };

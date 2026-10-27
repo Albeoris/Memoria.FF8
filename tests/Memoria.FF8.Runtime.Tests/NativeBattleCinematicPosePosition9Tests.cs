@@ -42,7 +42,7 @@ public sealed class NativeBattleCinematicPosePosition9Tests
             }
             expected = expected.Write(0x2094 + 2 * lane, BitConverter.GetBytes(unchecked((ushort)value)));
         }
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Arena));
         Assert.Equal(frame.Core, result.Core);
         Assert.Equal(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Equal(frame.Random, result.Random);

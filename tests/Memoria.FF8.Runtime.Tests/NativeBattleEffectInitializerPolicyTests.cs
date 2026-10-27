@@ -14,11 +14,11 @@ public sealed class NativeBattleEffectInitializerPolicyTests
         var loaded = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         Assert.Equal(5, loaded.Memory.Cursor);
         Assert.Equal(new byte[] { 11, 12, 13, 21, 22 }, loaded.Memory.Arena!.Read(0, 5));
-        Assert.Equal(new[] { new NativeBattleEffectResourcePointer(0x1000, 0), new NativeBattleEffectResourcePointer(0x2000, 3) }, loaded.Effect.ResourcePointers);
-        string json = JsonSerializer.Serialize(new Saved(loaded.Memory, loaded.Effect));
-        Saved restored = JsonSerializer.Deserialize<Saved>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(new byte[] { 21, 22 }, restored.Memory.Arena!.Read(restored.Effect.ResourcePointers[1].ArenaOffset, 2));
+        Assert.Equal(new[] { new NativeBattleEffectResourcePointer(0x1000, 0), new NativeBattleEffectResourcePointer(0x2000, 3) }, NativeBattleStorageSnapshots.Capture(loaded.Effect).ResourcePointers);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new Saved(loaded.Memory, loaded.Effect)));
+        Saved restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<Saved>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
+        Assert.Equal(new byte[] { 21, 22 }, restored.Memory.Arena!.Read(NativeBattleStorageSnapshots.Capture(restored.Effect).ResourcePointers[1].ArenaOffset, 2));
         Assert.Equal(loaded.Memory.Cursor, restored.Memory.Cursor);
         Assert.Equal(loaded.Memory.Active, restored.Memory.Active);
     }
@@ -27,13 +27,13 @@ public sealed class NativeBattleEffectInitializerPolicyTests
     public void OldSingularBindingsKeepTheirExactSerializedShape()
     {
         NativeBattleEffectBinding binding = new(1, 0x1234, 0x5678) { InitializerResource = new("single.bin", 0x1000), InitializerAsset = new("single.bin", [31]) };
-        string json = JsonSerializer.Serialize(binding);
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(binding));
         Assert.DoesNotContain("InitializerResources", json);
         Assert.DoesNotContain("InitializerAssets", json);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectBinding>(json)))));
         var loaded = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), Select(binding));
         Assert.Equal(1, loaded.Memory.Cursor);
-        Assert.Single(loaded.Effect.ResourcePointers);
+        Assert.Single(NativeBattleStorageSnapshots.Capture(loaded.Effect).ResourcePointers);
     }
 
     [Fact]

@@ -28,7 +28,7 @@ public sealed class NativeBattleBodyProjectionScratchTests
         Assert.Equal(1064, BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(10)));
         Assert.Equal(1024u, BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12)));
         Assert.Throws<NotSupportedException>(() => staging.Read(address + 16, 8));
-        NativeBattleFileStaging restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleFileStaging>(System.Text.Json.JsonSerializer.Serialize(staging))!;
+        NativeBattleFileStaging restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
         Assert.Equal(bytes, restored.Read(address, 16));
         Assert.Throws<NotSupportedException>(() => restored.Read(address + 16, 8));
     }
@@ -39,6 +39,6 @@ public sealed class NativeBattleBodyProjectionScratchTests
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         Assert.Same(staging, NativeBattleBodyProjectionScratch.Publish(staging, 1, []));
         Assert.Throws<InvalidDataException>(() => NativeBattleBodyProjectionScratch.Publish(staging, 1, new NativeBattleProjectedVertex[2]));
-        Assert.Empty(staging.KnownRanges);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(staging).KnownRanges);
     }
 }

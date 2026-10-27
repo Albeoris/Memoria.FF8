@@ -15,7 +15,7 @@ public sealed class NativeBattleDuel215TargetsTests
             int offset = 64 + index * 32;
             task = task.WriteDword(offset, checked(0x1D972C0u + (uint)(index + 3) * 156)).WriteWord(offset + 6, 20).WriteWord(offset + 28, 100).WriteWord(offset + 30, unchecked((ushort)-100));
         }
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleOriginalEffectState effect = new(215, 214, new(215, 0x69AB60, 0x69AB70), new(0, 0, 24, 0, 0, 0), NativeBattleDuel215Controller.Root) { Pools = [pool] };
         NativeBattleDuel215Frame frame = new(memory, effect, NativeBattleFileStaging.Unknown(), NativeCrtRandomState.FromColdProcess());

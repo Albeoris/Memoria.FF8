@@ -109,15 +109,15 @@ public sealed class NativeBattleCureControllerTests
         {
             frame = NativeBattleCureController.Advance8D6B30(frame, fixture.Inputs, Resources(), KeepLeaf).Frame;
         }
-        string json = JsonSerializer.Serialize(frame);
-        NativeBattleCureFrame first = JsonSerializer.Deserialize<NativeBattleCureFrame>(json)!;
-        NativeBattleCureFrame second = JsonSerializer.Deserialize<NativeBattleCureFrame>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(first));
+        string json = NativeBattleTestSnapshots.Json(frame);
+        NativeBattleCureFrame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(json)!;
+        NativeBattleCureFrame second = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(json)!;
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(first));
         for (int callback = 0; callback < 17; callback++)
         {
             NativeBattleCureControllerStep left = NativeBattleCureController.Advance8D6B30(first, fixture.Inputs, Resources(), KeepLeaf);
             NativeBattleCureControllerStep right = NativeBattleCureController.Advance8D6B30(second, fixture.Inputs, Resources(), KeepLeaf);
-            Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+            Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
             first = left.Frame;
             second = right.Frame;
         }

@@ -43,7 +43,7 @@ public sealed class NativeBattleEffect319ControllerTests
         NativeBattleEffect319Frame frame = Frame(65);
         NativeBattleEffectTaskPool bones = frame.Effect.Pools[2];
         (bones, int slot) = bones.Append(0x65F2B0);
-        bones = bones with { Slots = bones.Slots.SetItem(slot, bones.Slots[slot].WriteBytes(12, new byte[16]).WriteDword(12, 0x12345678).WriteWord(16, 8).WriteWord(20, 1024).WriteWord(24, 512)) };
+        bones = bones.WriteSlot(slot, bones.Slots[slot].WriteBytes(12, new byte[16]).WriteDword(12, 0x12345678).WriteWord(16, 8).WriteWord(20, 1024).WriteWord(24, 512));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, bones) } };
         Harness harness = new() { Complete = true };
         NativeBattleEffect319Step result = AdvanceRoot65DBE0(frame, RootBank, null!, harness.Inputs());
@@ -67,7 +67,7 @@ public sealed class NativeBattleEffect319ControllerTests
         (byte[] data, bool[] known) = result.Memory.Arena!.ReadSnapshot(16, 4);
         Assert.Equal(new[] { true, true, false, true }, known);
         Assert.Equal(new byte[] { 1, 2, 4 }, data.Where((_, index) => known[index]).ToArray());
-        NativeBattleEffect319Frame restored = JsonSerializer.Deserialize<NativeBattleEffect319Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect319Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect319Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(known, restored.Memory.Arena!.ReadSnapshot(16, 4).Known);
     }
 
@@ -173,7 +173,7 @@ public sealed class NativeBattleEffect319ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootBankLength, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(14, initialized ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(14, initialized ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (initialized)
         {
@@ -192,11 +192,11 @@ public sealed class NativeBattleEffect319ControllerTests
         {
             NativeBattleEffectTaskPool main = frame.Effect.Pools[1];
             (main, _) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteBytes(12, new byte[main.Stride - 12]).WriteWord(12, (ushort)age)) };
+            main = main.WriteSlot(0, main.Slots[0].WriteBytes(12, new byte[main.Stride - 12]).WriteWord(12, (ushort)age));
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, main) } };
             if (age == 17 || age == 65)
             {
-                frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, main with { Head = null, Tail = null }) } };
+                frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, main.UpdateLinks(null, null)) } };
             }
         }
         return frame;

@@ -29,10 +29,10 @@ public sealed class NativeBattleSiren95ProgrammeTests
         Assert.Single(publications);
         Assert.Equal(Words(11, 22, 33, unchecked((short)0xBEEF)), initialized.Frame.Memory.Siren95!.Read(Camera + 0xA4, 8));
         Assert.Throws<NotSupportedException>(() => initialized.Frame.Memory.Siren95.Read(Camera + 0x5A, 2));
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(initialized.Frame))!;
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(initialized.Frame))!;
         var first = NativeBattleSiren95Programme.Advance73A9E0(initialized.Frame, 0x257FAA0, services);
         var second = NativeBattleSiren95Programme.Advance73A9E0(restored, 0x257FAA0, services);
-        Assert.Equal(JsonSerializer.Serialize(first.Frame), JsonSerializer.Serialize(second.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Frame), NativeBattleTestSnapshots.Json(second.Frame));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class NativeBattleSiren95ProgrammeTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x257FA90, 0x257FAA0, 0xE0, 110);
         (pool, int slot) = pool.Append(0x73A9E0);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, phase)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteByte(0x29, phase)) });
         return frame with { Effect = frame.Effect with { Pools = [pool] } };
     }
     private static NativeBattleSiren95Frame Put(NativeBattleSiren95Frame frame, uint address, byte[] data) => frame with { Memory = frame.Memory with { Siren95 = frame.Memory.Siren95!.Write(address, data) } };

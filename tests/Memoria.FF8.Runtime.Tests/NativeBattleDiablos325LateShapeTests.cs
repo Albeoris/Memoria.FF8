@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -18,7 +18,8 @@ public sealed class NativeBattleDiablos325LateShapeTests
             arena = arena.Write(0x3505C + index * 0x1FF0, geometry);
         }
         frame = frame with { Memory = frame.Memory with { Arena = arena, Diablos325 = frame.Memory.Diablos325! with { FarZ51DC = 4000 } } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6545F0, new byte[0x994 - 12].ToImmutableArray());
         NativeBattleCameraProjection projection = Projection();
         NativeBattleDiablos325ShapeDraw first = NativeBattleDiablos325Shapes.Advance654AAC(frame, task.WriteWord(0xC, 238), projection);
@@ -26,7 +27,7 @@ public sealed class NativeBattleDiablos325LateShapeTests
         NativeBattleEffectMemory memory = first.Memory with { Arena = first.Memory.Arena!.MarkUnknown(0x3505C, 4) };
         NativeBattleDiablos325Shapes.Advance654AAC(frame with { Memory = memory }, first.Task.WriteWord(0xC, 239), projection);
         Assert.Throws<NotSupportedException>(() => NativeBattleDiablos325Shapes.Advance654AAC(frame with { Memory = memory }, first.Task.WriteWord(0xC, 251), projection));
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]

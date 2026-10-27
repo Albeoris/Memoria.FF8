@@ -43,7 +43,7 @@ public sealed class NativeBattleResonance49StateTests
     {
         NativeBattleEffectArena xyz = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 2, 3, 4, 5, 6 });
         NativeBattleResonance49State state = NativeBattleResonance49State.FromUnknown().WriteWord(ScratchAddress + 6, 0xBEEF).WriteView(ScratchAddress, xyz, 6).WriteWord(GridAddress + 4, 0x8877).WriteDword(0x26472D8, 0x12345678).WriteDword(0x2647820 + 124, 0xCAFEBABE).WriteDword(PrimaryCursorGlobal, 0x2777000);
-        NativeBattleResonance49State restored = JsonSerializer.Deserialize<NativeBattleResonance49State>(JsonSerializer.Serialize(state))!;
+        NativeBattleResonance49State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, restored.Read(ScratchAddress, 6));
         Assert.Equal((ushort)0xBEEF, restored.ReadWord(ScratchAddress + 6));
@@ -53,7 +53,7 @@ public sealed class NativeBattleResonance49StateTests
         Assert.Equal(0x2777000u, restored.ReadDword(PrimaryCursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(GridAddress));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(ScratchAddress + 8));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

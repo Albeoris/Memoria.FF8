@@ -66,7 +66,7 @@ public sealed class NativeBattleModuleImpactTests
         Assert.Equal((short)1598, W(child, 20));
         foreach (int offset in new[] { 2, 3, 18, 19, 22, 23 })
         {
-            Assert.Equal((byte)0xA5, child.Payload[offset]);
+            Assert.Equal((byte)0xA5, NativeBattleStorageSnapshots.Capture(child).Payload[offset]);
         }
         var draw = Assert.Single(actual.Draws);
         Assert.Equal(NativeBattleModuleDrawKind.Impact570860, draw.Kind);
@@ -239,7 +239,7 @@ public sealed class NativeBattleModuleImpactTests
         }
     }
 
-    private static short W(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan().Slice(offset));
+    private static short W(NativeBattleModuleTask task, int offset) => BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(offset));
     private static uint ModelAddress(int actor) => 0x1D972C0u + (uint)(actor * 156);
     private static NativeBattleModuleResource Resource() => new(31, 0xC70000, 0x570CC0, 0x5707A0, new byte[] { 0, 0, 0, 1 }.ToImmutableArray());
 }

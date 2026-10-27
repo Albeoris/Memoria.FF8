@@ -195,10 +195,10 @@ public sealed class NativeBattleBio22SecondGeometryTaskTests
         };
         for (int tick = 0; tick < 100; tick++)
         {
-            NativeBattleBio22SecondGeometryFrame restored = JsonSerializer.Deserialize<NativeBattleBio22SecondGeometryFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleBio22SecondGeometryFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22SecondGeometryFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleBio22SecondGeometryStep expected = NativeBattleBio22SecondGeometryTask.Advance89C270(123, restored, fixture.Resources, Inputs());
             NativeBattleBio22SecondGeometryStep step = NativeBattleBio22SecondGeometryTask.Advance89C270(123, frame, fixture.Resources, inputs);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(step));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step));
             frame = step.Frame;
             if (step.CompleteRequested)
             {
@@ -233,7 +233,7 @@ public sealed class NativeBattleBio22SecondGeometryTaskTests
     {
         var first = NativeBattleBio22GeometryTaskTests.Fixture();
         NativeBattleEffectMemory memory = first.Memory with { Bio22ThirdGeometry = NativeBattleBio22Geometry.FromColdProcess(first.Resources.ThirdMeshBaseline), Bio22FourthGeometry = NativeBattleBio22Geometry.FromColdProcess(first.Resources.FourthMeshBaseline) };
-        NativeBattleModulePoolTask task = first.Task with { Callback = 0x89C270 };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(first.Task, taskData => taskData with { Callback = 0x89C270 });
         return (new(task, first.Parent, memory, NativeCrtRandomState.FromColdProcess()), first.Resources);
     }
 }

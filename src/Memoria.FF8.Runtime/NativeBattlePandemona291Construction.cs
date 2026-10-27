@@ -29,7 +29,6 @@ public static class NativeBattlePandemona291Construction
         (creature, int slot) = creature.Append(0x6ED900);
         int child = checked((int)(creature.BankAddress - buffer) + slot * creature.Stride);
         NativeBattleModulePoolTask task = creature.Slots[slot].ClearPayload(0x1024);
-        arena = arena.Write(child + 12, task.ReadRawPayloadSpan());
         frame = frame with { Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Pools = pools.SetItem(creatureIndex, creature.WriteSlot(slot, task)) } };
         NativeBattlePandemona291Vibration vibration = inputs.StartVibration(frame);
         frame = vibration.Frame;
@@ -118,15 +117,14 @@ public static class NativeBattlePandemona291Construction
             animations = animations.SetItem(selected, rewritten);
         }
         state = state with { Animations = animations, AnimationsKnownCold = false };
-        task = task.WriteRetainedBytes(12, arena.ReadSnapshot(child + 12, 0x1024).Data);
         creature = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8);
         frame = frame with { Memory = frame.Memory with { Arena = arena, Pandemona291 = state }, Effect = frame.Effect with { Pools = frame.Effect.Pools.Select(pool => pool.DescriptorAddress == creature.DescriptorAddress ? creature.WriteSlot(slot, task) : pool).ToImmutableArray() } };
         return frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 0x231D4) };
 
         void AddPool(uint descriptor, int offset, ushort stride, ushort capacity)
         {
-            pools = pools.Where(pool => pool.DescriptorAddress != descriptor).Append(NativeBattleEffectTaskPool.Initialize(descriptor, unchecked(buffer + (uint)offset), stride, capacity)).ToImmutableArray();
-            arena = arena.Write(offset, new byte[stride * capacity]);
+            NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, unchecked(buffer + (uint)offset), stride, capacity).BindArena(arena);
+            pools = pools.Where(existing => existing.DescriptorAddress != descriptor).Append(pool).ToImmutableArray();
         }
 
         void WriteWord(int offset, ushort value) => arena = arena.Write(offset, BitConverter.GetBytes(value));

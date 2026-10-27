@@ -35,10 +35,10 @@ public sealed class NativeBattleClash26ControllerTests
         Assert.Equal(0xE000, first.Frame.State.DrawCursor);
         Assert.Equal((byte)3, first.Frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
         Assert.Equal((ushort)0, first.Frame.Effect.Pools[0].Slots[0].ReadWord(0x5E));
-        string json = JsonSerializer.Serialize(first.Frame);
-        NativeBattleClash26Step left = NativeBattleClash26Controller.Advance8886C0(JsonSerializer.Deserialize<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
-        NativeBattleClash26Step right = NativeBattleClash26Controller.Advance8886C0(JsonSerializer.Deserialize<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+        string json = NativeBattleTestSnapshots.Json(first.Frame);
+        NativeBattleClash26Step left = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.RestoreJson<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
+        NativeBattleClash26Step right = NativeBattleClash26Controller.Advance8886C0(NativeBattleTestSnapshots.RestoreJson<NativeBattleClash26Frame>(json)!, Resources(), fixture.Inputs, first.Random);
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
         Assert.Equal(0u, left.Frame.Effect.ReturnedDescriptor);
         Assert.Equal(0x2000, left.Frame.State.DrawCursor);
         Assert.Equal((ushort)0, left.Frame.Effect.Pools[0].Slots[0].Flags);

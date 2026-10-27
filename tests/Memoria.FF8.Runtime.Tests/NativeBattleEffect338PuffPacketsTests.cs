@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect338PuffPacketsTests
         BinaryPrimitives.WriteInt16LittleEndian(context.AsSpan(148), 2048);
         BinaryPrimitives.WriteInt32LittleEndian(context.AsSpan(160), 4096);
         NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(temporary, context);
-        staging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
+        staging = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(staging)))!);
         byte[] quad = new byte[20];
         quad[0] = 4;
         quad[1] = 128;

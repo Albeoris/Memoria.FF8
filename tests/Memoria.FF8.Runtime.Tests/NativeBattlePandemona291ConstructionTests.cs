@@ -45,14 +45,15 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(new byte[] { 0, 1, 1, 0 }, arena.Read(record + 0x1C, 4));
         Assert.Throws<NotSupportedException>(() => arena.Read(record + 0x18, 4));
         Assert.Equal(new bool[] { true, true, false, false }, arena.ReadSnapshot(record + 0x18, 4).Known);
+        Assert.Equal(arena.ReadSnapshot(record, 32).Known, creature.Slots[0].ReadSnapshot(0x14, 32).Known);
         Assert.Equal(77u, result.Memory.Pandemona291!.Scratch25562EC);
         Assert.Equal(0xF01, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Pandemona291.Animations!.Value[0].Bytes.AsSpan().Slice(14, 2)));
         Assert.Equal(0x1234, BinaryPrimitives.ReadUInt16LittleEndian(result.Memory.Pandemona291.Animations.Value[3].Bytes.AsSpan().Slice(14, 2)));
         Assert.Equal(0x231D4, result.Memory.EffectIo!.BaseOffset);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, result.Memory.Arena!.Read(0x231D4, 5));
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(arena.ReadSnapshot(record, 32).Known, restored.Memory.Arena!.ReadSnapshot(record, 32).Known);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
 
         static NativeBattleGraphicsModel Model(int actor) => new(actor, 2)
         {

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -53,8 +53,8 @@ public sealed class NativeBattleDrinkMagic37ControllerTests
             {
                 Assert.Equal((byte)0, frame.Effect.Pools[0].Slots[0].ReadByte(0x63));
                 Assert.DoesNotContain(operations, item => item.Operation is NativeBattleDrinkMagic37Contact);
-                NativeBattleDrinkMagic37Frame restored = JsonSerializer.Deserialize<NativeBattleDrinkMagic37Frame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleDrinkMagic37Controller.Advance(frame, fixture.Resources, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleDrinkMagic37Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
+                NativeBattleDrinkMagic37Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDrinkMagic37Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37Controller.Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleDrinkMagic37Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
             }
         }
         var contact = Assert.Single(operations, item => item.Operation is NativeBattleDrinkMagic37Contact);

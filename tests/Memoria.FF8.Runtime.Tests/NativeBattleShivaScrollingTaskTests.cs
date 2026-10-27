@@ -8,7 +8,7 @@ public sealed class NativeBattleShivaScrollingTaskTests
     public void Spawn_preserves_unwritten_payload_and_paused_backdrop_draws_without_growth()
     {
         NativeBattleShivaEarlyTaskFrame frame = Fixture();
-        NativeBattleEffectTaskPool warm = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, frame.Pool.Slots[0] with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }) };
+        NativeBattleEffectTaskPool warm = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(frame.Pool.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })) });
         frame = NativeBattleShivaScrollingTask.Initialize5C6FA0(frame with { Pool = warm });
         NativeBattleModulePoolTask task = frame.Pool.Slots[0];
         Assert.Equal((ushort)0xA5A5, task.ReadWord(0x0E));
@@ -32,13 +32,13 @@ public sealed class NativeBattleShivaScrollingTaskTests
     {
         NativeBattleShivaEarlyTaskFrame frame = NativeBattleShivaScrollingTask.Initialize5C6FA0(Fixture());
         NativeBattleModulePoolTask task = frame.Pool.Slots[0].WriteWord(0x1E, unchecked((ushort)-5)).WriteWord(0x22, unchecked((ushort)-5));
-        frame = frame with { Pool = frame.Pool with { Slots = frame.Pool.Slots.SetItem(0, task) } };
+        frame = frame with { Pool = NativeBattleTaskFixture.EditPool(frame.Pool, data => data with { Slots = frame.Pool.Slots.SetItem(0, task) }) };
         NativeBattleShivaEarlyTaskStep growing = NativeBattleShivaScrollingTask.Advance5C6FF0(frame, 0, 0, Identity(), new(0, 0xD2A50C, []), (current, _) => current);
         Assert.Equal(unchecked((ushort)-4), growing.Frame.Pool.Slots[0].ReadWord(0x1E));
         Assert.Equal(unchecked((ushort)-4), growing.Frame.Pool.Slots[0].ReadWord(0x22));
         Assert.Equal((ushort)2725, growing.Frame.Pool.Slots[0].ReadWord(0x1C));
         task = growing.Frame.Pool.Slots[0].WriteWord(0x0C, 29);
-        frame = growing.Frame with { Pool = growing.Frame.Pool with { Slots = growing.Frame.Pool.Slots.SetItem(0, task) } };
+        frame = growing.Frame with { Pool = NativeBattleTaskFixture.EditPool(growing.Frame.Pool, data => data with { Slots = growing.Frame.Pool.Slots.SetItem(0, task) }) };
         int draws = 0;
         NativeBattleShivaEarlyTaskStep completed = NativeBattleShivaScrollingTask.Advance5C6FF0(frame, 0, 0, Identity(), new(0, 0xD2A50C, []), (current, draw) =>
         {

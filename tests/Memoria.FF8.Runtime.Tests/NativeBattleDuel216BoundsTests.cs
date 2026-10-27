@@ -31,9 +31,9 @@ public sealed class NativeBattleDuel216BoundsTests
         Assert.Throws<NotSupportedException>(() => step.Staging.Read(address + 18, 2));
         Assert.Equal(address, BitConverter.ToUInt32(step.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
         Assert.Equal(model.GeometryWorldMatrix! with { X = 10, Y = 20, Z = 30 }, step.Model.GeometryWorldMatrix);
-        Assert.Equal(JsonSerializer.Serialize(model.CurrentBodyBoneMatrices), JsonSerializer.Serialize(step.Model.CurrentBodyBoneMatrices));
-        NativeBattleDuel216BoundsStep restored = JsonSerializer.Deserialize<NativeBattleDuel216BoundsStep>(JsonSerializer.Serialize(step))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(model.CurrentBodyBoneMatrices), NativeBattleTestSnapshots.Json(step.Model.CurrentBodyBoneMatrices));
+        NativeBattleDuel216BoundsStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel216BoundsStep>(NativeBattleTestSnapshots.Json(step))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

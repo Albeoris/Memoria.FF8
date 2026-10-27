@@ -16,7 +16,7 @@ public sealed class NativeBattleMicroMissiles299BoneTests
         Assert.Equal(new[] { 100000, -30000, 12345 }, Enumerable.Range(0, 3).Select(axis => BinaryPrimitives.ReadInt32LittleEndian(result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Address + (uint)(axis * 4), 4))));
         Assert.Equal(Enumerable.Repeat((byte)0x7C, 8), result.Frame.Staging!.Read(NativeBattleTemporaryMemory.Address + 12, 8));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Frame.Staging.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        Assert.Equal(JsonSerializer.Serialize(fixture.Frame.Memory), JsonSerializer.Serialize(result.Frame.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Frame.Memory), NativeBattleTestSnapshots.Json(result.Frame.Memory));
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public sealed class NativeBattleMicroMissiles299BoneTests
     public void Cold_restored_owners_make_the_same_next_query()
     {
         Fixture fixture = new();
-        NativeBattleMicroMissiles299Frame restored = JsonSerializer.Deserialize<NativeBattleMicroMissiles299Frame>(JsonSerializer.Serialize(fixture.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleMicroMissiles299Bone.Query67E550(fixture.Frame, fixture.Model, fixture.Source, 1)), JsonSerializer.Serialize(NativeBattleMicroMissiles299Bone.Query67E550(restored, fixture.Model, fixture.Source, 1)));
+        NativeBattleMicroMissiles299Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMicroMissiles299Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleMicroMissiles299Bone.Query67E550(fixture.Frame, fixture.Model, fixture.Source, 1)), NativeBattleTestSnapshots.Json(NativeBattleMicroMissiles299Bone.Query67E550(restored, fixture.Model, fixture.Source, 1)));
     }
 
     private sealed class Fixture

@@ -10,18 +10,18 @@ public static class NativeBattleDrinkMagic37Rendering
         {
             throw new InvalidDataException("Drink Magic ribbon requires its original trajectory task.");
         }
-        return NativeBattleDrawStock15Rendering.Ribbon8B5F30(task.UpdateHeader(task.Flags, task.State, task.Next, 0x8B5C70), camera, projection, cameraPadding18);
+        return NativeBattleDrawStock15Rendering.RibbonTrajectory(task, camera, projection, cameraPadding18);
     }
 
     public static ImmutableArray<NativeBattleDrawStock15ParticleOperation> SpritePreparation(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, ushort? cameraPadding18 = null)
     {
-        uint callback = task.Callback switch
+        bool head = task.Callback switch
         {
-            0x85BD50 or 0x85E930 => 0x8B5C70,
-            0x85F060 => 0x8B6440,
+            0x85BD50 or 0x85E930 => true,
+            0x85F060 => false,
             _ => throw new InvalidDataException("Drink Magic sprite preparation requires its original particle callback.")
         };
-        return NativeBattleDrawStock15SpriteRendering.Preparation(task.UpdateHeader(task.Flags, task.State, task.Next, callback), camera, cameraPadding18);
+        return NativeBattleDrawStock15SpriteRendering.PreparationCore(task, head, camera, cameraPadding18);
     }
 
     public static NativeBattleDrawStock15SpriteComposition ComposeSprite(NativeBattleModulePoolTask task, NativeBattleDrinkMagic37Resources resources, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, short cameraRoll)

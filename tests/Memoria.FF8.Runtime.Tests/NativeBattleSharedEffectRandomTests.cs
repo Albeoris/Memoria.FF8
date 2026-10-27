@@ -39,14 +39,14 @@ public sealed class NativeBattleSharedEffectRandomTests
     public void Unknown_owner_roundtrips_absent_and_fails_only_when_draw_is_reached()
     {
         NativeBattleEffectMemory before = NativeBattleEffectMemory.FromColdProcess() with { SharedEffectRandom = null };
-        string json = JsonSerializer.Serialize(before);
+        string json = NativeBattleTestSnapshots.Json(before);
         Assert.DoesNotContain("SharedEffectRandom", json);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(json)!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(json)!;
         Assert.Null(restored.SharedEffectRandom);
         NativeBattleEffectMemory loaded = restored.BeginLoad(115);
         Assert.Null(loaded.SharedEffectRandom);
         Assert.Contains("DWORD2557098", Assert.Throws<NotSupportedException>(() => loaded.DrawSharedEffectRandom7059E0(out _)).Message);
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class NativeBattleSharedEffectRandomTests
     public void Independent_JSON_restore_has_identical_next_draws_without_seed_reconstruction()
     {
         NativeBattleEffectMemory first = NativeBattleEffectMemory.FromColdProcess().SeedSharedEffectRandom7059D0(uint.MaxValue);
-        NativeBattleEffectMemory second = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffectMemory second = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first))!;
         for (int index = 0; index < 11; index++)
         {
             first = first.DrawSharedEffectRandom7059E0(out ushort actual);
@@ -88,13 +88,13 @@ public sealed class NativeBattleSharedEffectRandomTests
             Assert.Equal(actual, restored);
             Assert.Equal(first.SharedEffectRandom, second.SharedEffectRandom);
         }
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
     }
 
     [Fact]
     public void Old_missing_seed_is_not_interpreted_as_known_zero()
     {
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleSharedEffectRandomState>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleSharedEffectRandomState>("{}"));
         NativeBattleSharedEffectRandomState cold = NativeBattleSharedEffectRandomState.FromColdProcess();
         Assert.Equal(0u, cold.State);
         Assert.Equal(0u, NativeBattleEffectMemory.FromColdProcess().SharedEffectRandom!.State);

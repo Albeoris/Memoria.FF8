@@ -180,6 +180,7 @@ public sealed class NativeBattleEffect290LowerTests
             Assert.Equal(1, fixture.ProcessDraws);
             return;
         }
+        uint seed = fixture.Frame.State.ReadDword(InternalRandomGlobal);
         NativeBattleEffect290Frame result = NativeBattleEffect290Fragments.Initialize6760A0(fixture.Frame, contextAddress, fixture.Resources, inputs);
         Assert.Equal(2, fixture.ProcessDraws);
         Assert.Equal(32u, result.Memory.GeometryRegisters!.Lzcr);
@@ -190,7 +191,6 @@ public sealed class NativeBattleEffect290LowerTests
         Assert.Equal(0, Word290(record, 12));
         NativeBattleEffectArena smoke = ReadBytes(result, Fixture.Main + 0x5ED8, 12);
         Assert.Equal(new byte[] { 0, 0, 0 }, smoke.Read(8, 3));
-        uint seed = fixture.Frame.State.ReadDword(InternalRandomGlobal);
         for (int index = 0; index < 4; index++)
         {
             seed = (seed * 125 + 14) & 0x7FFF;
@@ -234,7 +234,7 @@ public sealed class NativeBattleEffect290LowerTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, Main, 0x68E4, 1);
             (pool, int slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12]).WriteDword(0x64D8, Main + 0x1D8).WriteDword(0x64DC, Main + 0x5ED8)) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[pool.Stride - 12]).WriteDword(0x64D8, Main + 0x1D8).WriteDword(0x64DC, Main + 0x5ED8));
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown() with { Sz = [11, 22, 33, 77] }, ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, [pool]);

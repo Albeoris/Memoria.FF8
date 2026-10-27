@@ -56,9 +56,9 @@ public sealed class NativeBattleMeltingBubble43ContextTests
         Assert.Equal((ushort)3, result.Frame.State.PassCount26D82DA);
         Assert.Equal(phase == 1 ? 0x1235u : 0x1234u, result.Frame.Memory.GeometryRegisters!.Otz);
         AssertAnchor(result.Frame, fixture.Task, unknownW);
-        NativeBattleCuragaFrame restored = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(result.Frame))!;
+        NativeBattleCuragaFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaFrame>(NativeBattleTestSnapshots.Json(result.Frame))!;
         AssertAnchor(restored, fixture.Task, unknownW);
-        Assert.Equal(JsonSerializer.Serialize(result.Frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Frame), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Theory]

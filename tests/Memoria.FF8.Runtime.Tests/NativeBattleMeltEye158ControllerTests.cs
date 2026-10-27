@@ -34,7 +34,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
         Fixture f = new();
         NativeBattleMeltEye158Frame frame = f.Set(f.Frame, 12, 42);
         NativeBattleEffectTaskPool root = frame.Effect.Pools[0];
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, unchecked((ushort)age))) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, root) } };
         NativeBattleMeltEye158Frame result = NativeBattleMeltEye158Controller.Advance(frame, f.Resources, f.Inputs);
         Assert.Equal(PacketBase + (uint)packetOffset, result.State.ReadDword(CursorGlobal));
@@ -154,12 +154,12 @@ public sealed class NativeBattleMeltEye158ControllerTests
     {
         Fixture f = new();
         NativeBattleMeltEye158Frame frame = f.Path(29);
-        NativeBattleMeltEye158Frame restored = JsonSerializer.Deserialize<NativeBattleMeltEye158Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleMeltEye158Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltEye158Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var first = NativeBattleMeltEye158Controller.AdvancePath(frame, ChildBank, f.Resources, f.Inputs);
         var second = NativeBattleMeltEye158Controller.AdvancePath(restored, ChildBank, f.Resources, f.Inputs);
         Assert.Equal(2, first.Result);
         Assert.Equal((ushort)30, f.Task(first.Frame).ReadWord(12));
-        Assert.Equal(JsonSerializer.Serialize(first.Frame), JsonSerializer.Serialize(second.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Frame), NativeBattleTestSnapshots.Json(second.Frame));
     }
 
     private sealed class Fixture
@@ -176,10 +176,10 @@ public sealed class NativeBattleMeltEye158ControllerTests
             Resources = new(new("FF8_EN:DAFBF8", camera.ToImmutableArray()), Sprite(SpriteAAddress, 0x224, 16), Sprite(SpriteBAddress, 0x1AC, 16), Sprite(SpriteCAddress, 0xDC, 8), new(0, MeshAAddress, new byte[0x3F0].ToImmutableArray()), new(0, MeshBAddress, new byte[0x270].ToImmutableArray()), Enumerable.Range(0, 11).Select(index => new NativeBattleModuleAnchor((short)(index * 100), 0, 0, 0x1234)).ToImmutableArray(), 0x61AC0);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, RootStride, RootCount);
             (root, int rootSlot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteWord(12, 0)) });
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
             (children, int slot) = children.Append(SpawnerCallback);
-            children = children with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteBytes(12, new byte[24])) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, children.Slots[slot].WriteBytes(12, new byte[24])) });
             NativeBattleOriginalEffectState effect = new(158, 157, new(158, Entry, Initializer), new(4, 0, 1, 1, 0, 0), null) { Pools = [root, children], ReturnedDescriptor = RootDescriptor, ResourcePointers = [new(InitializerGlobal, 0x30000)] };
             byte[] tim = new byte[546];
             BitConverter.GetBytes(0x10).CopyTo(tim, 0);
@@ -217,7 +217,7 @@ public sealed class NativeBattleMeltEye158ControllerTests
         public NativeBattleMeltEye158Frame Set(NativeBattleMeltEye158Frame frame, int offset, ushort value) => NativeBattleMeltEye158Controller.Write(frame, ChildBank, Task(frame).WriteWord(offset, value));
         public NativeBattleMeltEye158Frame Path(int age)
         {
-            NativeBattleMeltEye158Frame frame = NativeBattleMeltEye158Controller.Write(Frame, ChildBank, Task(Frame) with { Callback = PathCallback });
+            NativeBattleMeltEye158Frame frame = NativeBattleMeltEye158Controller.Write(Frame, ChildBank, NativeBattleTaskFixture.EditTask(Task(Frame), data => data with { Callback = PathCallback }));
             return Set(Set(Set(frame, 12, unchecked((ushort)age)), 14, 0), 24, 1);
         }
         private static NativeBattleModuleResource Sprite(uint address, int length, ushort frames)

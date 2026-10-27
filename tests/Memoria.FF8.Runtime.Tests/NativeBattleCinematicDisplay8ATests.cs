@@ -41,12 +41,13 @@ public sealed class NativeBattleCinematicDisplay8ATests
             calls.Add(2);
             Assert.Equal((short)-1, duration);
         }, () => calls.Add(3)));
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(new[] { mode is 0 or 15 ? 0 : mode }, calls);
         Assert.Equal(unchecked(0xFFFFFFFCu + advance), WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
         Assert.Same(frame.Arena, result.Arena);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 }

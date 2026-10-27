@@ -14,7 +14,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         NativeBattlePoisonGas171Frame frame = Frame(1);
         frame = Write(frame, ChildBank, Read(frame, ChildBank).WriteWord(22, 0xABCD));
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xBEEF).MarkPayloadUnknown(28, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(14, 0xBEEF).MarkPayloadUnknown(28, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<NativeBattlePoisonGas171Operation> operations = [];
         List<(int Actor, int Selector, int Distance)> bones = [];
@@ -47,7 +47,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
         for (int slot = 1; slot <= 2; slot++)
         {
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0xABCD).WriteWord(18, 0xBEEF).WriteWord(20, 0xCAFE).MarkPayloadUnknown(30, 2)) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0xABCD).WriteWord(18, 0xBEEF).WriteWord(20, 0xCAFE).MarkPayloadUnknown(30, 2)) });
         }
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         NativeBattlePoisonGas171Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
@@ -74,11 +74,11 @@ public sealed class NativeBattlePoisonGas171ControllerTests
     {
         NativeBattlePoisonGas171Frame frame = Frame(27);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)).SetItem(2, pool.Slots[2].MarkPayloadUnknown(22, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)).SetItem(2, pool.Slots[2].MarkPayloadUnknown(22, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
         List<(int Actor, int Selector, int Distance)> bones = [];
         NativeBattleActionPacketsState packets = Packets(35).ActivateHeader(0);
-        NativeBattlePoisonGas171Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs([], bones) with { Packets = packets }).Frame;
+        NativeBattlePoisonGas171Frame result = AdvanceMain(NativeBattleTestSnapshots.Independent(frame), ChildBank, Resources(), Inputs([], bones) with { Packets = packets }).Frame;
         Assert.Equal(35, bones.Count);
         Assert.Equal(Enumerable.Range(0, 35).Select(ordinal => ((ordinal * 3 + 2) % 7, 0xF1, 0)), bones);
         Assert.Equal(36, result.Effect.Pools[1].Slots.Count(task => (task.Flags & 1) != 0));
@@ -110,7 +110,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         NativeBattleActionPacketsState packets = Packets(0);
         packets = packets with { Headers = packets.Headers.SetItem(1, packets.Headers[1] with { FirstContactIndex = null }) };
         List<(int Actor, int Selector, int Distance)> bones = [];
-        NativeBattlePoisonGas171Frame result = AdvanceMain(frame, ChildBank, Resources(), Inputs([], bones) with { Packets = packets }).Frame;
+        NativeBattlePoisonGas171Frame result = AdvanceMain(NativeBattleTestSnapshots.Independent(frame), ChildBank, Resources(), Inputs([], bones) with { Packets = packets }).Frame;
         Assert.Empty(bones);
         Assert.Single(result.Effect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0));
         NativeBattleActionPacketsState missing = Packets(1);
@@ -154,12 +154,12 @@ public sealed class NativeBattlePoisonGas171ControllerTests
     {
         NativeBattlePoisonGas171Frame frame = Frame(8);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(18, 4)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].MarkPayloadUnknown(18, 4)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool) } };
-        NativeBattlePoisonGas171Frame restored = JsonSerializer.Deserialize<NativeBattlePoisonGas171Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattlePoisonGas171Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePoisonGas171Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattlePoisonGas171Frame expected = AdvanceMain(frame, ChildBank, Resources(), Inputs([], [])).Frame;
         NativeBattlePoisonGas171Frame actual = AdvanceMain(restored, ChildBank, Resources(), Inputs([], [])).Frame;
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<NotSupportedException>(() => Read(actual, ChildBank + 36).ReadWord(18));
     }
 
@@ -193,7 +193,7 @@ public sealed class NativeBattlePoisonGas171ControllerTests
         (roots, _) = roots.Append(RootCallback);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (children, _) = children.Append(MainCallback);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
         NativeBattleOriginalEffectState effect = new(171, 170, new(171, Entry, Initializer), new(3, 0, 0x7F, 1, 0, 0), RootDescriptor) { Pools = [roots, children] };
         NativeBattlePoisonGas171State state = NativeBattlePoisonGas171State.FromColdProcess().WriteDword(CasterGlobal, 3).WriteDword(WorkingGlobal, ArenaAddress) with { RootBankStorage = null, ChildBankStorage = null };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(55), state);

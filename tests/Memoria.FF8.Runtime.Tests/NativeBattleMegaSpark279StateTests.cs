@@ -30,7 +30,7 @@ public sealed class NativeBattleMegaSpark279StateTests
         var state = NativeBattleMegaSpark279State.FromUnknown().WriteDword(SeedGlobal, 1234) with { RootBankStorage = null };
         var view = NativeBattleEffectArena.Clear().MarkUnknown(0, 12).Write(4, new byte[] { 1, 2, 3, 4 });
         state = state.WriteView(BaseAddress, view, 12);
-        var restored = JsonSerializer.Deserialize<NativeBattleMegaSpark279State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMegaSpark279State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal(1234u, restored.ReadDword(SeedGlobal));
@@ -39,7 +39,7 @@ public sealed class NativeBattleMegaSpark279StateTests
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CasterGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(ArenaGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class NativeBattleMegaSpark279StateTests
         {
             var workspace = new NativeBattleGfAnimationWorkspace(Enumerable.Repeat((byte)0xA5, 272).ToImmutableArray()).Initialize7016B0(source, length);
             Assert.Equal(source.Address, workspace.ResourceAddress);
-            Assert.All(workspace.Data.Skip(length), value => Assert.Equal((byte)0xA5, value));
+            Assert.All(NativeBattleStorageSnapshots.Capture(workspace).Data.Skip(length), value => Assert.Equal((byte)0xA5, value));
         }
         Assert.Equal(24, resources.ReadAttachmentRow(2, 7).Length);
         Assert.Throws<NotSupportedException>(() => resources.ReadAttachmentRow(3, 0));

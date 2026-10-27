@@ -63,10 +63,10 @@ public sealed class NativeBattleEffect69StateTests
     public void Json_retains_current_seed_copied_view_knownness_and_transferred_bank_owner()
     {
         NativeBattleEffect69State state = NativeBattleEffect69State.FromUnknown().WriteDword(RandomGlobal, 12345).WriteWord(ViewAddress + 30, 0xA55A).DetachBank(0);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect69State restored = JsonSerializer.Deserialize<NativeBattleEffect69State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect69State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect69State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal(12345u, restored.ReadDword(RandomGlobal));
         Assert.Equal((ushort)0xA55A, restored.ReadWord(ViewAddress + 30));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(ViewAddress + 28));

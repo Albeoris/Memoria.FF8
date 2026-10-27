@@ -142,9 +142,9 @@ public sealed class NativeBattleShockwavePulsar260ParticlesDrawingTests
     public void Puff_unknown_W_and_padding_have_identical_JSON_next_without_rehydration()
     {
         NativeBattleShockwavePulsar260PuffStep first = NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(Memory(), Temporary(1), Sprite(), Projection);
-        NativeBattleShockwavePulsar260PuffStep restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260PuffStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleShockwavePulsar260PuffStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260PuffStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleShockwavePulsar260PuffStep Next(NativeBattleShockwavePulsar260PuffStep value) => NativeBattleShockwavePulsar260ParticlesDrawing.DrawPuffQuads(value.Memory, value.Temporary180, Sprite(), Projection);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private const uint SpriteAddress = 0x111CF4C;

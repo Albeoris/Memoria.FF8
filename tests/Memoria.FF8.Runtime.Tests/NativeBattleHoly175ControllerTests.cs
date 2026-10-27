@@ -82,11 +82,11 @@ public sealed class NativeBattleHoly175ControllerTests
         NativeBattleModulePoolTask warp = frame.Effect.Pools[1].Slots.Single(task => (task.Flags & 1) != 0 && task.Callback == 0x5D2910);
         ushort age = warp.ReadWord(0xC);
         int captures = harness.Operations.Count(item => item.Operation is NativeBattleHoly175Capture);
-        string rows = JsonSerializer.Serialize(frame.Memory.Holy175!.Sprite31Rows);
+        string rows = NativeBattleTestSnapshots.Json(frame.Memory.Holy175!.Sprite31Rows);
         NativeCrtRandomState random = frame.Random;
         frame = NativeBattleHoly175Controller.Advance5D44C0(frame, harness.Inputs(0x200), harness.Resources);
         Assert.Equal(random, frame.Random);
-        Assert.Equal(rows, JsonSerializer.Serialize(frame.Memory.Holy175!.Sprite31Rows));
+        Assert.Equal(rows, NativeBattleTestSnapshots.Json(frame.Memory.Holy175!.Sprite31Rows));
         Assert.Equal(age, frame.Effect.Pools[1].Slots.Single(task => (task.Flags & 1) != 0 && task.Callback == 0x5D2910).ReadWord(0xC));
         Assert.Equal(captures + 1, harness.Operations.Count(item => item.Operation is NativeBattleHoly175Capture));
         Assert.NotEmpty(harness.Sprite31Frames);
@@ -103,11 +103,11 @@ public sealed class NativeBattleHoly175ControllerTests
             if (callback is 7 or 48 or 105 or 113)
             {
                 Saved saved = new(frame, harness.Models);
-                Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(saved))!;
+                Saved restored = NativeBattleTestSnapshots.RestoreJson<Saved>(NativeBattleTestSnapshots.Json(saved))!;
                 Harness independent = new(headers: 2, flags: 2) { Models = restored.Models };
                 NativeBattleHoly175Frame first = NativeBattleHoly175Controller.Advance5D44C0(frame, harness.Inputs(), harness.Resources);
                 NativeBattleHoly175Frame second = NativeBattleHoly175Controller.Advance5D44C0(restored.Frame, independent.Inputs(), independent.Resources);
-                Assert.Equal(JsonSerializer.Serialize(new Saved(first, harness.Models)), JsonSerializer.Serialize(new Saved(second, independent.Models)));
+                Assert.Equal(NativeBattleTestSnapshots.Json(new Saved(first, harness.Models)), NativeBattleTestSnapshots.Json(new Saved(second, independent.Models)));
                 frame = first;
             }
             else

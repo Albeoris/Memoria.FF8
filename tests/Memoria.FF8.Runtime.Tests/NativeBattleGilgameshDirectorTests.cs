@@ -17,7 +17,7 @@ public sealed class NativeBattleGilgameshDirectorTests
         Assert.Equal(expected, operations);
         Assert.Equal("view", calls[0]);
         Assert.Equal(unchecked((ushort)(counter + 1)), step.Task.ReadWord(12));
-        Assert.Equal(task.Payload.AsSpan().Slice(2).ToArray(), step.Task.Payload.AsSpan().Slice(2).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(2).ToArray(), NativeBattleStorageSnapshots.Capture(step.Task).Payload.AsSpan().Slice(2).ToArray());
         Assert.Equal(0, step.Result);
     }
 
@@ -94,7 +94,7 @@ public sealed class NativeBattleGilgameshDirectorTests
         Assert.Equal(unchecked((ushort)expectedCounter), step.Task.ReadWord(12));
         Assert.Equal(expectedResult, step.Result);
         Assert.Equal(expectedResult == 2 ? new[] { Op(NativeBattleGilgameshDirectorService.Stage) } : [], operations);
-        Assert.All(step.Task.Payload.Skip(2), value => Assert.Equal((byte)0xA5, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(step.Task).Payload.Skip(2), value => Assert.Equal((byte)0xA5, value));
     }
 
     [Fact]
@@ -102,12 +102,12 @@ public sealed class NativeBattleGilgameshDirectorTests
     {
         NativeBattleModulePoolTask task = Task(136);
         NativeBattleGilgameshDirectorStep blocked = NativeBattleGilgameshDirector.Advance592300(task, new(0, () => { }, () => -1, _ => throw new InvalidOperationException()));
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(blocked.Task))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(blocked.Task))!;
         List<NativeBattleGilgameshDirectorOperation> first = [];
         List<NativeBattleGilgameshDirectorOperation> second = [];
         NativeBattleGilgameshDirectorStep expected = NativeBattleGilgameshDirector.Advance592300(task, new(0, () => { }, () => 0, first.Add));
         NativeBattleGilgameshDirectorStep actual = NativeBattleGilgameshDirector.Advance592300(restored, new(0, () => { }, () => 0, second.Add));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal(first, second);
         Assert.Equal(new[] { Op(NativeBattleGilgameshDirectorService.Upload, 0x8000), Op(NativeBattleGilgameshDirectorService.File, 749, 0x22000) }, first);
     }

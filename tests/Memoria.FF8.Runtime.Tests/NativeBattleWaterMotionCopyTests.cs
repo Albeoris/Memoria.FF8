@@ -37,6 +37,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
                 return WaterSchedulerFixture.CoreDword(current, 0x2797450, 0x20000);
             }
         };
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame, services);
         Assert.Equal(new[] { "resolve", "cache", "update" }, calls);
         Assert.Equal(0x89ABCDEFu, WaterSchedulerFixture.ReadSlotDword(result, 0, offset + 8));
@@ -46,7 +47,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
         Assert.Equal((ushort)0x1234, result.ReadTemporaryWord(0x13E));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(Slot + (offset == 0x50 ? 0x68 : 0x50), 24));
         calls.Clear();
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!, services)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame, services)));
     }
 
     [Fact]

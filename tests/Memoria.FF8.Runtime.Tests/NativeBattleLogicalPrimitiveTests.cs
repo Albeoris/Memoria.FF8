@@ -9,21 +9,25 @@ public sealed class NativeBattleLogicalPrimitiveTests
     public void Producer_batch_matches_scalar_links_and_keeps_prior_snapshots_independent()
     {
         NativeBattleLogicalOrdering initial = NativeBattleLogicalOrdering.Clear().Prepend(17, new("off_B6D070", 0, 0), Tile(1), 1, []);
-        string original = JsonSerializer.Serialize(initial);
-        NativeBattleLogicalOrdering scalar = initial;
-        NativeBattleLogicalOrdering.Builder batch = new(initial);
+        string original = NativeBattleTestSnapshots.Json(initial);
+        NativeBattleLogicalOrdering preserved = NativeBattleStorageSnapshots.Capture(initial);
+        NativeBattleLogicalOrdering scalar = NativeBattleStorageSnapshots.Restore(preserved);
+        using NativeBattleLogicalOrdering.Builder batch = new(initial);
         for (int index = 1; index < 200; index++)
         {
             NativeBattlePrimitiveReference reference = new("off_B6D070", 0, index * 16);
             scalar = scalar.Prepend(index % 29, reference, Tile((byte)index), 1, [], index % 3);
             batch.Prepend(index % 29, reference, Tile((byte)index), 1, [], index % 3);
         }
-        NativeBattleLogicalOrdering published = batch.ToImmutable();
-        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(published));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Traverse(Tables().WordLengths)), JsonSerializer.Serialize(published.Traverse(Tables().WordLengths)));
-        batch.Prepend(17, new("off_B6D070", 0, 4000), Tile(1), 1, []);
+        batch.ToImmutable();
+        batch.Dispose();
+        NativeBattleLogicalOrdering published = NativeBattleStorageSnapshots.Capture(initial);
+        Assert.Equal(NativeBattleTestSnapshots.Json(scalar), NativeBattleTestSnapshots.Json(published));
+        Assert.Equal(NativeBattleTestSnapshots.Json(scalar.Traverse(Tables().WordLengths)), NativeBattleTestSnapshots.Json(published.Traverse(Tables().WordLengths)));
+        initial.Prepend(17, new("off_B6D070", 0, 4000), Tile(1), 1, []);
         Assert.Equal(200, published.Proxies.Length);
-        Assert.Equal(original, JsonSerializer.Serialize(initial));
+        Assert.Equal(201, initial.Proxies.Length);
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -31,8 +35,9 @@ public sealed class NativeBattleLogicalPrimitiveTests
     {
         NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear().Prepend(17, reference, Tile(10), 1, []).ResetAfterDraw45D080();
-        string original = JsonSerializer.Serialize(source);
-        NativeBattleLogicalOrdering.Builder builder = new(source);
+        string original = NativeBattleTestSnapshots.Json(source);
+        NativeBattleLogicalOrdering preserved = NativeBattleStorageSnapshots.Capture(source);
+        using NativeBattleLogicalOrdering.Builder builder = new(source);
         builder.InvalidatePacketRange(reference, 16);
         Assert.Same(source.Packets[0], builder.ToImmutable().Packets[0]);
         builder.Prepend(18, reference, Tile(20), 1, []);
@@ -44,7 +49,7 @@ public sealed class NativeBattleLogicalPrimitiveTests
         builder.InvalidatePacketRange(reference, 16);
         Assert.Same(invalidated, builder.ToImmutable().Packets[0]);
         Assert.False(replacement.RequiresPhysicalRead);
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -62,10 +67,12 @@ public sealed class NativeBattleLogicalPrimitiveTests
         {
             full.Prepend(17, new("off_B6D070", 0, index * 16), Tile(10), 1, []);
         }
-        NativeBattleLogicalOrdering before = full.ToImmutable();
-        full.Prepend(18, new("off_B6D070", 0, 0), Tile(20), 1, []);
-        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(full.ToImmutable()));
-        Assert.Throws<InvalidDataException>(() => full.Prepend(-1, reference, Tile(20), 1, []));
+        NativeBattleLogicalOrdering filled = full.ToImmutable();
+        full.Dispose();
+        NativeBattleLogicalOrdering before = NativeBattleStorageSnapshots.Capture(filled);
+        NativeBattleLogicalOrdering after = filled.Prepend(18, new("off_B6D070", 0, 0), Tile(20), 1, []);
+        Assert.Equal(NativeBattleTestSnapshots.Json(before), NativeBattleTestSnapshots.Json(after));
+        Assert.Throws<InvalidDataException>(() => filled.Prepend(-1, reference, Tile(20), 1, []));
     }
 
     [Fact]
@@ -78,8 +85,8 @@ public sealed class NativeBattleLogicalPrimitiveTests
         ImmutableArray<NativeBattleLogicalCommand> commands = ordering.Traverse(Tables().WordLengths);
         Assert.Equal(new int[] { 16, 32, 0 }, commands.Select(command => command.Packet.ByteOffset));
         Assert.Equal(new int?[] { 18, 17, 17 }, commands.Select(command => command.OrderingBucket));
-        NativeBattleLogicalOrdering restored = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(ordering))!;
-        Assert.Equal(JsonSerializer.Serialize(commands), JsonSerializer.Serialize(restored.Traverse(Tables().WordLengths)));
+        NativeBattleLogicalOrdering restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(ordering))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(commands), NativeBattleTestSnapshots.Json(restored.Traverse(Tables().WordLengths)));
     }
 
     [Fact]

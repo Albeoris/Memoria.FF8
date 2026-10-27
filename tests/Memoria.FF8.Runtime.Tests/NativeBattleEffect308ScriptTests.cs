@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect308ScriptTests
     {
         NativeBattleEffect308Frame frame = Script([1, 0x1001, 1, 0, 0, 0x10FF, 0x10F0, 1, 3, unchecked((ushort)-5), 0x1100], out uint task, out uint row);
         frame = AdvanceScript667990(frame, task, null!, null!).Frame;
-        frame = JsonSerializer.Deserialize<NativeBattleEffect308Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect308Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         frame = AdvanceScript667990(frame, task, null!, null!).Frame;
         Assert.Equal((short)2, Word308(ReadBytes(frame, row, 2), 0));
         Assert.Equal((ushort)0, frame.State.ReadWord(ScriptRanges[0].Address + 14));

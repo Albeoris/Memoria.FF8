@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -31,7 +31,7 @@ public sealed class NativeBattleQuezacotlParticleStackTests
     [Fact]
     public void Same_pass_child_is_visited_after_JSON_restore_and_its_save_replaces_the_removed_parent_save()
     {
-        NativeBattleEffectTaskPool pool = JsonSerializer.Deserialize<NativeBattleEffectTaskPool>(JsonSerializer.Serialize(Pool(2)))!;
+        NativeBattleEffectTaskPool pool = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTaskPool>(NativeBattleTestSnapshots.Json(Pool(2)))!;
         List<int> visited = [];
         var pass = NativeBattleQuezacotlParticleCallbacks.AdvancePool(pool, (current, index) =>
         {

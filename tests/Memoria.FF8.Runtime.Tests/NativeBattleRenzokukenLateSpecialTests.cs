@@ -124,7 +124,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         NativeBattleRenzokuken160Frame frame = Frame(342);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleRenzokukenSpecialProfiles.Renzokuken342.ChildDescriptor, NativeBattleRenzokukenSpecialProfiles.Renzokuken342.ChildBank, 36, 100);
         (pool, int slot) = pool.Append(0x578A00);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, checked((ushort)(10 * (contact + 1))))) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, checked((ushort)(10 * (contact + 1))))) });
         NativeBattleRenzokuken160Inputs inputs = Inputs(Enumerable.Repeat((byte)10, 9).ToImmutableArray(), []);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokukenSpecialController.Advance578A00(frame, pool, slot, inputs, NativeBattleRenzokukenSpecialController.ReadState(frame).Resources);
         Assert.Equal(additional ? 1 : 0, step.Pool.Slots.Count(task => task.Callback == 0x5790D0));
@@ -158,7 +158,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleRenzokukenSpecialProfiles.Renzokuken342.ChildDescriptor, NativeBattleRenzokukenSpecialProfiles.Renzokuken342.ChildBank, 36, 100);
             (pool, int slot) = pool.Append(0x578A00);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, checked((ushort)(10 * (contact + 1))))) };
+            pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, checked((ushort)(10 * (contact + 1))))) });
             return NativeBattleRenzokukenSpecialController.Advance578A00(original, pool, slot, Inputs(Enumerable.Repeat((byte)10, 9).ToImmutableArray(), []), NativeBattleRenzokukenSpecialController.ReadState(original).Resources);
         }
     }
@@ -175,7 +175,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         {
             (modules, _) = modules.AppendCallback(index == 0 ? 0x575BA0u : 0x123456u);
         }
-        byte[] payload = modules.Slots[0].Payload.ToArray();
+        byte[] payload = NativeBattleStorageSnapshots.Capture(modules.Slots[0]).Payload.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(payload, 4);
         modules = modules with { Slots = modules.Slots.SetItem(0, modules.Slots[0] with { Payload = payload.ToImmutableArray() }) };
         NativeCrtRandomState random = NativeCrtRandomState.FromColdProcess();
@@ -200,7 +200,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         Assert.Equal(expected, result.CrtRandomAfter);
         Assert.Equal(admitted, bones);
         Assert.Equal(admitted, result.State.Slots.Count(task => task.Callback == 0x575E30));
-        Assert.Equal((short)5, BinaryPrimitives.ReadInt16LittleEndian(result.State.Slots[0].Payload.AsSpan()));
+        Assert.Equal((short)5, BinaryPrimitives.ReadInt16LittleEndian(NativeBattleStorageSnapshots.Capture(result.State.Slots[0]).Payload.AsSpan()));
         if (admitted == 0)
         {
             Assert.Throws<InvalidOperationException>(() => NativeBattleRenzokuken160Controller.AdvanceShared5FF4E0(modules, 0, inputs));
@@ -227,7 +227,7 @@ public sealed class NativeBattleRenzokukenLateSpecialTests
         NativeBattleRenzokukenSpecialProfile profile = NativeBattleRenzokukenSpecialProfiles.ForEffect(frame.Effect.Binding.Effect);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.ChildDescriptor, profile.ChildBank, 36, 100);
         (pool, int slot) = pool.Append(profile.ControllerCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, counter)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, counter)) });
         return NativeBattleRenzokukenSpecialController.AdvanceLateSpecialChild(frame, pool, slot, Inputs([10, 20, 30], operations), NativeBattleRenzokukenSpecialController.ReadState(frame).Resources, _ => new(0, 0, 0, 0), Identity, null!, null, null!, 0);
     }
 

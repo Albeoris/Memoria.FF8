@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -36,8 +36,8 @@ public sealed class NativeBattleTonberry90CreatureTests
         NativeBattleEffectTextureDrain drain = written.Memory.Textures!.Drain505D20(written.Memory.Arena);
         Assert.Equal(0, drain.State.Count);
         Assert.Equal(new byte[] { 0xCD, 0xAB }, drain.Uploads[^1].Bytes);
-        NativeBattleTonberry90Frame restored = NativeBattleTonberry90Creature.PublishProjected767610(JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(frame))!, projected, 16);
-        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
+        NativeBattleTonberry90Frame restored = NativeBattleTonberry90Creature.PublishProjected767610(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(NativeBattleTestSnapshots.Json(frame))!, projected, 16);
+        Assert.Equal(NativeBattleTestSnapshots.Json(written), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -132,6 +132,7 @@ public sealed class NativeBattleTonberry90CreatureTests
         NativeBattleModulePoolTask task = Read(fixture.Frame, fixture.Address).WriteDword(0x1C, 0x00C80064).WriteDword(0x20, 0xA55A012C).WriteWord(0x78, 64);
         NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, task);
         NativeBattleTonberry90ParticleServices services = new(NativeBattleTonberry90ControllerTests.Fixture().Inputs.Packets, (_, _) => 2, (_, _) => throw new InvalidOperationException());
+        NativeBattleTonberry90Frame independent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
         var spawned = NativeBattleTonberry90Creature.Spawn7671D0(frame, fixture.Address, 0x154EC70, 0, 32, services);
         NativeBattleModulePoolTask[] children = spawned.Frame.Effect.Pools.SelectMany(pool => pool.Slots).Where(slot => slot.Callback == 0x767290).ToArray();
         Assert.Equal(2, children.Length);
@@ -152,8 +153,9 @@ public sealed class NativeBattleTonberry90CreatureTests
             expected = expected.Draw(out _);
         }
         Assert.Equal(expected, spawned.Frame.Random);
-        var restored = NativeBattleTonberry90Creature.Spawn7671D0(JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(frame))!, fixture.Address, 0x154EC70, 0, 32, services);
-        Assert.Equal(JsonSerializer.Serialize(spawned), JsonSerializer.Serialize(restored));
+        var restored = NativeBattleTonberry90Creature.Spawn7671D0(independent, fixture.Address, 0x154EC70, 0, 32, services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(spawned.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
+        Assert.Equal(spawned.Active, restored.Active);
     }
 
     [Fact]
@@ -225,15 +227,15 @@ public sealed class NativeBattleTonberry90CreatureTests
     {
         NativeBattleModulePoolTask task = new(1, 0, null, 0, new byte[0x148 - 12].ToImmutableArray());
         task = task.WriteByte(0x37, 0xA5).WriteDword(0x58, 0x7F123456);
-        NativeBattleModulePoolTask half = NativeBattleTonberry90Creature.Recolor7678D0(task, 2048, 1, 0x009783FF);
+        NativeBattleModulePoolTask half = NativeBattleTonberry90Creature.Recolor7678D0(NativeBattleTestSnapshots.Independent(task), 2048, 1, 0x009783FF);
         Assert.Equal(0x02262140u, half.ReadDword(0x58));
         Assert.Equal((byte)0xA5, half.ReadByte(0x37));
-        NativeBattleModulePoolTask unchanged = NativeBattleTonberry90Creature.Recolor7678D0(task, -1, 0, 0x009783FF);
+        NativeBattleModulePoolTask unchanged = NativeBattleTonberry90Creature.Recolor7678D0(NativeBattleTestSnapshots.Independent(task), -1, 0, 0x009783FF);
         Assert.Equal(0x7F9783FFu, unchanged.ReadDword(0x58));
-        NativeBattleModulePoolTask alpha = NativeBattleTonberry90Creature.Recolor7678D0(task, 4096, 3, 0x009783FF);
+        NativeBattleModulePoolTask alpha = NativeBattleTonberry90Creature.Recolor7678D0(NativeBattleTestSnapshots.Independent(task), 4096, 3, 0x009783FF);
         Assert.Equal(0x02000000u, alpha.ReadDword(0x58));
         Assert.Equal((byte)0, alpha.ReadByte(0x37));
-        NativeBattleModulePoolTask reset = NativeBattleTonberry90Creature.Recolor7678D0(task, 0, 3, 0xAB9783FF);
+        NativeBattleModulePoolTask reset = NativeBattleTonberry90Creature.Recolor7678D0(NativeBattleTestSnapshots.Independent(task), 0, 3, 0xAB9783FF);
         Assert.Equal(0x009783FFu, reset.ReadDword(0x58));
         Assert.Equal((byte)0, reset.ReadByte(0x37));
     }
@@ -246,9 +248,10 @@ public sealed class NativeBattleTonberry90CreatureTests
         NativeBattleModulePoolTask task = Read(frame, fixture.Address).WriteByte(0x29, 13).WriteByte(0x26, 5).WriteWord(0x24, 0xFFFF).WriteWord(0x4E, 0xFFFF).WriteWord(0x124, unchecked((ushort)-31)).WriteWord(0x126, 31).WriteWord(0x128, unchecked((ushort)-15));
         frame = Write(frame, fixture.Address, task);
         NativeBattleTonberry90CreatureServices services = new(_ => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException());
+        string before = NativeBattleTestSnapshots.Json(frame);
         NativeBattleTonberry90TaskStep first = NativeBattleTonberry90Creature.Advance7674E0(frame, fixture.Address, Resource(), services);
-        NativeBattleTonberry90TaskStep second = NativeBattleTonberry90Creature.Advance7674E0(JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(frame))!, fixture.Address, Resource(), services);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        NativeBattleTonberry90TaskStep second = NativeBattleTonberry90Creature.Advance7674E0(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(before)!, fixture.Address, Resource(), services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.True(first.Complete);
         task = Read(first.Frame, fixture.Address);
         Assert.Equal((ushort)0xFFFF, task.ReadWord(0x4C));

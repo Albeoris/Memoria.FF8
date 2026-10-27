@@ -151,7 +151,7 @@ public sealed class NativeBattleMiniPulseCannon286ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Empty(actual.Effect.Pools);
         Assert.NotNull(actual.State.RootBankStorage);
-        var restored = JsonSerializer.Deserialize<NativeBattleMiniPulseCannon286Frame>(JsonSerializer.Serialize(actual))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMiniPulseCannon286Frame>(NativeBattleTestSnapshots.Json(actual))!;
         Assert.Single(Initialize(restored, Resources(), Inputs([])).Effect.Pools);
     }
 

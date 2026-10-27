@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -40,8 +40,8 @@ public sealed class NativeBattleDuelEchoTests
         Assert.Equal((byte)2, task.ReadByte(337));
         Assert.Equal(984, NativeBattleDuelEcho.ReadHistoryOffset(task, 336, 0));
         Assert.Equal(472, NativeBattleDuelEcho.ReadHistoryOffset(task, 336, 1));
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleDuelEcho.CompleteDraw6A2760(task, 336)), JsonSerializer.Serialize(NativeBattleDuelEcho.CompleteDraw6A2760(restored, 336)));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDuelEcho.CompleteDraw6A2760(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), 336)), NativeBattleTestSnapshots.Json(NativeBattleDuelEcho.CompleteDraw6A2760(restored, 336)));
         task = NativeBattleDuelEcho.CompleteDraw6A2760(task, 336);
         Assert.Equal((byte)2, task.ReadByte(337));
         task = NativeBattleDuelEcho.CompleteDraw6A2760(task, 336);

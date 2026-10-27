@@ -15,7 +15,7 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         NativeBattleGuardianFormPresentation presentation = Presentation(GuardianFormInvocationMode.EntryOnly, 2);
         if (roundTrip)
         {
-            presentation = JsonSerializer.Deserialize<NativeBattleGuardianFormPresentation>(JsonSerializer.Serialize(presentation))!;
+            presentation = NativeBattleTestSnapshots.RestoreJson<NativeBattleGuardianFormPresentation>(NativeBattleTestSnapshots.Json(presentation))!;
         }
         ImmutableArray<NativeBattleGraphicsModel> current = HiddenModels();
         ImmutableArray<NativeBattleGraphicsModel> restored = (ImmutableArray<NativeBattleGraphicsModel>)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [current, presentation])!;

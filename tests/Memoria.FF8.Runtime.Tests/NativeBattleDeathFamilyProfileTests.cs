@@ -47,8 +47,8 @@ public sealed class NativeBattleDeathFamilyProfileTests
         Assert.Same(changed, profile.RequireState(memory));
         Assert.Same(level, profile.RequireState(memory with { LevelDeath74 = level }));
         Assert.Throws<NotSupportedException>(() => profile.RequireState(memory with { LevelDeath74 = null }));
-        string json = JsonSerializer.Serialize(changed);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleDeathState>(json)));
+        string json = NativeBattleTestSnapshots.Json(changed);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleDeathState>(json)));
     }
 
     [Theory]

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSaliva138Profile;
@@ -72,8 +72,8 @@ public sealed class NativeBattleSaliva138CurveTests
         Assert.Equal(40100, actual.Memory.ScriptedColorRegisters.Mac[0]!.Value);
         Assert.Equal(frame.State.ReadMesh(), actual.State.ReadMesh());
         Assert.Equal(frame.Random, actual.Random);
-        NativeBattleSaliva138Frame restored = JsonSerializer.Deserialize<NativeBattleSaliva138Frame>(JsonSerializer.Serialize(actual))!;
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
+        NativeBattleSaliva138Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSaliva138Frame>(NativeBattleTestSnapshots.Json(actual))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class NativeBattleSaliva138CurveTests
         frame = Point(frame, 0, 100, 200, 512, 200, 128, PointAddress(1));
         frame = Point(frame, 1, 116, 200, 512, 200, 64, PointAddress(2));
         frame = Point(frame, 2, 132, 200, 512, 200, 32, 0);
-        string registers = JsonSerializer.Serialize(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
+        string registers = NativeBattleTestSnapshots.Json(new { frame.Memory.GeometryRegisters, frame.Memory.ScriptedColorRegisters });
         var actual = NativeBattleSaliva138Controller.DrawCurveRibbon(frame, PointAddress(0), 3, Resources(Mesh()));
         Assert.Equal(104, actual.Batch.AllocationBytes);
         Assert.Equal(new[] { 0, 52 }, actual.Batch.Attempts.Select(attempt => attempt.ByteOffsetRelative));
@@ -110,7 +110,7 @@ public sealed class NativeBattleSaliva138CurveTests
         {
             Assert.Equal(index is 38 or 39 or 50 or 51 ? NativeBattleGfPacketByteState.Untouched : NativeBattleGfPacketByteState.Known, packet.WriteMask[index]);
         }
-        Assert.Equal(registers, JsonSerializer.Serialize(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
+        Assert.Equal(registers, NativeBattleTestSnapshots.Json(new { actual.Frame.Memory.GeometryRegisters, actual.Frame.Memory.ScriptedColorRegisters }));
         Assert.Equal(frame.Random, actual.Frame.Random);
         Assert.Equal(PointAddress(1), BinaryPrimitives.ReadUInt32LittleEndian(actual.Frame.Memory.Arena!.Read(PointOffset(0) + 0x1C, 4)));
     }
@@ -238,7 +238,7 @@ public sealed class NativeBattleSaliva138CurveTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(CurveDescriptor, WorkingAddress + CurveOffset, CurveStride, CurveCount);
         (pool, int slot) = pool.Append(CurveCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0x12, age);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, task) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, task) });
         return frame with { Effect = frame.Effect with { Pools = [pool] } };
     }
     private static NativeBattleSaliva138Inputs Inputs(NativeBattleSaliva138Frame frame, Func<NativeBattleSaliva138Frame, NativeBattleSaliva138Operation, NativeBattleSaliva138Frame> execute) => new(NativeBattleActionPacketsState.Fresh(), NativeBattleGteColorInterpolation.CodeConstants45F270, (_, _, _, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => throw new InvalidOperationException(), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => throw new InvalidOperationException(), (_, _, _, _, _, _) => throw new InvalidOperationException(), execute);

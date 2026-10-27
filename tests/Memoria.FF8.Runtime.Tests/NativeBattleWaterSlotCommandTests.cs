@@ -30,7 +30,7 @@ public sealed class NativeBattleWaterSlotCommandTests
         Assert.Equal(words, Enumerable.Range(0, 3).Select(lane => ReadWord(result, 0, 0x94 + lane * 2)));
         Assert.Throws<NotSupportedException>(() => result.Read(Address(0, 0x5C), 12));
         Assert.Throws<NotSupportedException>(() => result.Read(Address(0, 0x9A), 2));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!, Bank, 0, Order((byte)selected))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleWaterSlots.UpdateSelected(NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!, Bank, 0, Order((byte)selected))));
         NativeBattleEffectArena missingBlock = Dword(arena, 0, 0xA0, 0);
         Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.UpdateSelected(missingBlock, Bank, 0, Order((byte)selected)));
     }
@@ -50,10 +50,10 @@ public sealed class NativeBattleWaterSlotCommandTests
         }
         NativeBattleEffectArena result = NativeBattleWaterSlots.UpdateSelected(arena, Bank, 0, Order(1));
         Assert.Equal(new ushort[] { 65535, 65535, 32768 }, Enumerable.Range(0, 3).Select(lane => ReadWord(result, 0, 0x94 + lane * 2)));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(restored, Bank, 0, Order(1))));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleWaterSlots.UpdateSelected(restored, Bank, 0, Order(1))));
         NativeBattleEffectArena empty = Dword(Create().Write(Address(0, 0x18), [7]), 0, 0xA0, 0);
-        Assert.Equal(JsonSerializer.Serialize(empty), JsonSerializer.Serialize(NativeBattleWaterSlots.UpdateSelected(empty, Bank, 0, [])));
+        Assert.Equal(NativeBattleTestSnapshots.Json(empty), NativeBattleTestSnapshots.Json(NativeBattleWaterSlots.UpdateSelected(empty, Bank, 0, [])));
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class NativeBattleWaterSlotCommandTests
         NotSupportedException post = Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.ApplyVectorPostAction(arena, Bank, 0, Order(), NativeBattleWaterVectorPostAction.RefreshPosition));
         Assert.Contains("selected type", post.Message);
         NotSupportedException physics = Assert.Throws<NotSupportedException>(() => NativeBattleWaterSlots.AdvancePhysicsA9BB90(arena, Bank, 0, Order()));
-        Assert.Contains("unresolved physical bytes", physics.Message);
+        Assert.Contains("unknown physical bytes", physics.Message);
         Assert.Same(arena, NativeBattleWaterSlots.ApplyVectorPostAction(arena, Bank, 0, Order(), NativeBattleWaterVectorPostAction.None));
     }
 
@@ -200,17 +200,17 @@ public sealed class NativeBattleWaterSlotCommandTests
     public void BankRemainsAnArenaAliasAcrossJsonAndRetainsCachedBaseDespiteChangedFileHeader()
     {
         NativeBattleEffectArena arena = Dword(Create(), 0, 0x50, -65536);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena))!;
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena))!;
         NativeBattleEffectArena first = NativeBattleWaterSlots.CachePositionAA17D0(arena, Bank, 0);
         NativeBattleEffectArena second = NativeBattleWaterSlots.CachePositionAA17D0(restored, Bank, 0);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
         second = Dword(second, 1, 0x50, 0x12340000);
         second = second.Write(FileOffset + 0x1C, new byte[] { 0x58, 1, 0, 0 });
         second = NativeBattleWaterSlots.CachePositionAA17D0(second, Bank, 0);
         Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
         second = second.MarkUnknown(FileOffset + 0x1C, 4);
-        NativeBattleWaterSlotBank retained = JsonSerializer.Deserialize<NativeBattleWaterSlotBank>(JsonSerializer.Serialize(Bank))!;
+        NativeBattleWaterSlotBank retained = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterSlotBank>(NativeBattleTestSnapshots.Json(Bank))!;
         second = NativeBattleWaterSlots.CachePositionAA17D0(second, retained, 0);
         Assert.Equal((ushort)0xFFFF, ReadWord(second, 0, 0x8C));
         NativeBattleWaterSlotBank shifted = retained with { Capacity = 7, SlotBaseOffset = SlotsOffset + 0x100 };

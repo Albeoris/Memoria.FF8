@@ -48,14 +48,14 @@ public sealed class NativeBattleBladeShot12StateTests
     {
         NativeBattleBladeShot12State warm = NativeBattleBladeShot12State.FromColdProcess().EnsureVertexSources(Seeds(7)).WriteWord(MutableVerticesA, 0xABCD).WriteWord(MutableVerticesA + 6, 0x9876).WriteView(MutableVerticesB + 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 8).WriteDword(PacketBase + 4, 0x12345678);
         Assert.Same(warm, warm.EnsureVertexSources(Seeds(0xFFFF)));
-        NativeBattleBladeShot12State restored = JsonSerializer.Deserialize<NativeBattleBladeShot12State>(JsonSerializer.Serialize(warm))!;
+        NativeBattleBladeShot12State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBladeShot12State>(NativeBattleTestSnapshots.Json(warm))!;
         restored.Validate();
         Assert.Same(restored, restored.EnsureVertexSources(Seeds(0)));
         Assert.Equal((ushort)0xABCD, restored.ReadWord(MutableVerticesA));
         Assert.Equal((ushort)0x9876, restored.ReadWord(MutableVerticesA + 6));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MutableVerticesB + 14));
         Assert.Equal(0x12345678u, restored.ReadDword(PacketBase + 4));
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(warm), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public sealed class NativeBattleBladeShot12StateTests
         Assert.Throws<NotSupportedException>(() => unknown.EnsureVertexSources(Seeds(0)));
         Assert.Throws<NotSupportedException>(() => unknown.ReadDword(CasterGlobal));
         Assert.Throws<NotSupportedException>(() => unknown.ReadPacket(PacketBase, 4));
-        JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(unknown))!.AsObject();
+        JsonObject json = JsonNode.Parse(NativeBattleTestSnapshots.Json(unknown))!.AsObject();
         Assert.True(json.Remove(nameof(NativeBattleBladeShot12State.VertexSourcesLoaded)));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleBladeShot12State>(json.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleBladeShot12State>(json.ToJsonString()));
     }
 
     [Fact]

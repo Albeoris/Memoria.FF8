@@ -11,7 +11,7 @@ public sealed class NativeBattleRinoa89BeamBirthTests
     public void BeamBirthKeepsItsExactTranslationDistanceWorkspaceAndUntouchedSuffix(bool narrow, int expectedZ)
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleRinoa89Controller.Beams, 0x20DFAB8, 392, 8);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 380).ToArray())) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 380).ToArray())) });
         NativeBattleRinoa89Frame frame = Frame(pool);
         NativeBattleGfAnimationSource source = new(0x14A3EB0, new byte[8].ToImmutableArray());
         NativeBattleRinoa89BeamBirth born = narrow ? NativeBattleRinoa89Controller.SpawnBeam6FDB80(frame, pool, 0, 0, source) : NativeBattleRinoa89Controller.SpawnBeam6FD4D0(frame, pool, 0, 0, source);

@@ -44,13 +44,14 @@ public sealed class NativeBattleMeltEye158PacketArenaTests
     {
         NativeBattleMeltEye158State state = NativeBattleMeltEye158State.FromUnknown().WriteDword(Cursor, Base + 0x8000);
         NativeBattleMeltEye158PacketWrite first = NativeBattleMeltEye158PacketArena.Append(state, NativeBattleLogicalOrdering.Clear(), Accepted(0xE1000220));
-        NativeBattleMeltEye158PacketWrite restored = JsonSerializer.Deserialize<NativeBattleMeltEye158PacketWrite>(JsonSerializer.Serialize(first))!;
+        NativeBattleMeltEye158PacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltEye158PacketWrite>(NativeBattleTestSnapshots.Json(first))!;
         Assert.Throws<NotSupportedException>(() => restored.State.ReadPacket(Base, 4));
         NativeBattleMeltEye158PacketWrite Next(NativeBattleMeltEye158PacketWrite current) => NativeBattleMeltEye158PacketArena.Append(current.State, current.Ordering, Accepted(0xE1000221));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        var direct = Next(first);
+        var next = Next(restored);
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(next));
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
-        NativeBattleMeltEye158PacketWrite next = Next(restored);
         NativeBattleLogicalCommand[] commands = next.Ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => NativeBattleMeltEye158PacketArena.Read(next.State, reference, count)).ToArray();
         Assert.Equal(new uint[] { 0xE1000221, 0xE1000220 }, commands.Select(command => command.Words[0]));
     }

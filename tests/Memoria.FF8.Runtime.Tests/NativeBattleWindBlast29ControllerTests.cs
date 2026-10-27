@@ -137,8 +137,8 @@ public sealed class NativeBattleWindBlast29ControllerTests
         frame = frame.WithGeneric(generic with { State = generic.State with { PrimaryDrawCursor = 12345 } });
         Assert.Null(frame.State.Nodes!.CopiedCamera);
         Assert.Equal(12345, frame.State.PrimaryDrawCursor);
-        NativeBattleWindBlast29Frame restored = JsonSerializer.Deserialize<NativeBattleWindBlast29Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Step(frame)), JsonSerializer.Serialize(fixture.Step(restored)));
+        NativeBattleWindBlast29Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWindBlast29Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Step(frame)), NativeBattleTestSnapshots.Json(fixture.Step(restored)));
     }
 
     internal sealed class Fixture

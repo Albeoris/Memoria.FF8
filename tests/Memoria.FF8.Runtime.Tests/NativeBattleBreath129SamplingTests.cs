@@ -15,7 +15,7 @@ public sealed class NativeBattleBreath129SamplingTests
     {
         NativeBattleBreath129Frame frame = Fixture();
         NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().Write(6, new byte[] { 0xAB, 0xCD });
-        NativeBattleBreath129SampleStep result = NativeBattleBreath129Geometry.SampleTriangle6B7170(frame, Body(300, 600, 900), Triangles, retained, retained.MarkUnknown(7, 1), Resources);
+        NativeBattleBreath129SampleStep result = NativeBattleBreath129Geometry.SampleTriangle6B7170(frame, Body(300, 600, 900), Triangles, retained, NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(retained)).MarkUnknown(7, 1), Resources);
         Assert.Equal(new short[] { 321, 621, 1923 }, Lanes(result.Point8));
         Assert.Equal(new short[] { 0, 0, -4096 }, Lanes(result.Normal8));
         Assert.Equal(new byte[] { 0xAB, 0xCD }, result.Point8.Read(6, 2));
@@ -80,11 +80,11 @@ public sealed class NativeBattleBreath129SamplingTests
     public void Serialized_frame_continues_sampling_identically_and_degenerate_triangle_fails_at_division()
     {
         NativeBattleBreath129SampleStep first = NativeBattleBreath129Geometry.Sample6B6FE0(Fixture(), Body(), Triangles, 2, 1024, Resources, NativeBattleBreath129LowerTests.Inputs());
-        NativeBattleBreath129Frame restored = JsonSerializer.Deserialize<NativeBattleBreath129Frame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleBreath129Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath129Frame>(NativeBattleTestSnapshots.Json(first.Frame))!;
         NativeBattleBreath129SampleStep next = NativeBattleBreath129Geometry.Sample6B6FE0(first.Frame, Body(), Triangles, 2, 3072, Resources, NativeBattleBreath129LowerTests.Inputs());
         NativeBattleBreath129SampleStep resumed = NativeBattleBreath129Geometry.Sample6B6FE0(restored, Body(), Triangles, 2, 3072, Resources, NativeBattleBreath129LowerTests.Inputs());
-        Assert.Equal(JsonSerializer.Serialize(next.Frame.Memory.GeometryRegisters), JsonSerializer.Serialize(resumed.Frame.Memory.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(next.Frame.Memory.ScriptedColorRegisters), JsonSerializer.Serialize(resumed.Frame.Memory.ScriptedColorRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next.Frame.Memory.GeometryRegisters), NativeBattleTestSnapshots.Json(resumed.Frame.Memory.GeometryRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next.Frame.Memory.ScriptedColorRegisters), NativeBattleTestSnapshots.Json(resumed.Frame.Memory.ScriptedColorRegisters));
         Assert.Equal(next.Point8.Read(0, 6), resumed.Point8.Read(0, 6));
         NativeBattleBreath129Frame degenerate = WriteBytes(Fixture(), Triangles, Triangle((0, 0, 1), (0, 0, 1), (0, 0, 1)), 24);
         Assert.Throws<DivideByZeroException>(() => NativeBattleBreath129Geometry.SampleTriangle6B7170(degenerate, Body(), Triangles, Resources));

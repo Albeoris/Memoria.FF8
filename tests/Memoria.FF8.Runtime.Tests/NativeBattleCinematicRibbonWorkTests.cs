@@ -10,7 +10,10 @@ public sealed class NativeBattleCinematicRibbonWorkTests
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         int output = 0x4000;
-        frame = frame with { Arena = frame.Arena with { UnknownRegions = Enumerable.Range(0, 9).Select(index => new NativeBattleEffectUnknownRegion(output + index * 8 + 6, 2)).ToImmutableArray() } };
+        for (int index = 0; index < 9; index++)
+        {
+            frame.Arena.MarkUnknown(output + index * 8 + 6, 2);
+        }
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 32760, 7, 90, 4096);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicRibbonWork.BuildCrossSection(frame, matrix, 11, 15, NativeBattleEffectNodeMemory.ArenaAddress + (uint)output, true);
         Assert.Equal(new short[] { 32760, 7, 75 }, Vector(0));

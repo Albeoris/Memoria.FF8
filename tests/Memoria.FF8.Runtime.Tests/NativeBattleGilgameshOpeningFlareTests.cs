@@ -11,7 +11,7 @@ public sealed class NativeBattleGilgameshOpeningFlareTests
     public void Mandatory_initializer_rotates_then_adds_low_translation_WORDs_and_preserves_task_suffix()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        pool = pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         NativeBattleActionMatrix world = new([4096, 0, 0, 0, 0, -4096, 0, 4096, 0], 65541, -65540, 32760, 4096);
         NativeBattleEffectTaskPool result = NativeBattleGilgameshOpeningFlare.Initialize5931E0(pool, world);
         NativeBattleModulePoolTask child = result.Slots[0];
@@ -86,8 +86,8 @@ public sealed class NativeBattleGilgameshOpeningFlareTests
         Assert.Equal(new uint[] { 0, 1, 2, 5, 4, 3, 1, 2 }, paused.Packets.Select(batch => Assert.Single(batch.Primitives).Primitive.Words[3] & 255));
         Assert.Equal((short)352, BinaryPrimitives.ReadInt16LittleEndian(paused.State.ScreenMatrix.AsSpan()));
         NativeBattleGilgameshOpeningFlareStep active = Step(task, state, 0);
-        Assert.Equal(JsonSerializer.Serialize(paused.Packets), JsonSerializer.Serialize(active.Packets));
-        Assert.Equal(JsonSerializer.Serialize(paused.State), JsonSerializer.Serialize(active.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(paused.Packets), NativeBattleTestSnapshots.Json(active.Packets));
+        Assert.Equal(NativeBattleTestSnapshots.Json(paused.State), NativeBattleTestSnapshots.Json(active.State));
         int brightness = counter < 2 ? counter << 6 : counter < 10 ? 128 : 228 - 10 * counter;
         if ((counter & 1) != 0)
         {
@@ -112,10 +112,11 @@ public sealed class NativeBattleGilgameshOpeningFlareTests
         Assert.Equal(0, first.Result);
         NativeBattleGilgameshOpeningFlareState restored = RoundTrip(first.State);
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(Step(first.UpdatedTask, first.State, 0)), JsonSerializer.Serialize(Step(RoundTrip(first.UpdatedTask), restored, 0)));
-        JsonObject missing = JsonNode.Parse(JsonSerializer.Serialize(first.State))!.AsObject();
+        NativeBattleModulePoolTask independentTask = RoundTrip(first.UpdatedTask);
+        Assert.Equal(NativeBattleTestSnapshots.Json(Step(first.UpdatedTask, first.State, 0)), NativeBattleTestSnapshots.Json(Step(independentTask, restored, 0)));
+        JsonObject missing = JsonNode.Parse(NativeBattleTestSnapshots.Json(first.State))!.AsObject();
         missing.Remove(nameof(NativeBattleGilgameshOpeningFlareState.ScreenMatrix));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleGilgameshOpeningFlareState>(missing.ToJsonString()));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshOpeningFlareState>(missing.ToJsonString()));
         Assert.Throws<InvalidDataException>(() => new NativeBattleGilgameshOpeningFlareState(default).Validate());
         Assert.Throws<InvalidDataException>(() => new NativeBattleGilgameshOpeningFlareState(new byte[18].ToImmutableArray()).Validate());
     }
@@ -123,7 +124,7 @@ public sealed class NativeBattleGilgameshOpeningFlareTests
     private static NativeBattleGilgameshOpeningFlareStep Step(NativeBattleModulePoolTask task, NativeBattleGilgameshOpeningFlareState state, uint flags) => NativeBattleGilgameshOpeningFlare.Step593250(task, state, Resources(), new(1000, 2000, -3000), View(), new(null, 288, 160, 108), -256, 0x1000000, flags);
     private static NativeBattleModulePoolTask Task(int counter) => new NativeBattleModulePoolTask(1, 0, null, 0x593250, new byte[24].ToImmutableArray()).WriteWord(12, unchecked((ushort)counter)).WriteWord(32, 800).WriteWord(34, 800);
     private static NativeBattleActionMatrix View() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 3000, 4096);
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
     private static NativeBattleGilgameshOpeningFlareResources Resources()
     {
         byte[] bytes = new byte[0xA8];

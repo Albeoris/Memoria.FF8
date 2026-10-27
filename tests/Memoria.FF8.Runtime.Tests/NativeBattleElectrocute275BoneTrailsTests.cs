@@ -82,6 +82,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
         var full = NativeBattleElectrocute275Controller.AllocateBonePoint(frame, 1, 2, 3, true, 1024, -128);
         Assert.Equal(0u, full.Address);
         Assert.Equal(frame.Memory.SharedEffectRandom, full.Frame.Memory.SharedEffectRandom);
+        fixture = new();
         frame = fixture.Frame;
         for (int index = 0; index < 64; index++)
         {
@@ -188,11 +189,11 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
     {
         Fixture fixture = new();
         var created = NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 0x1234, BonePathsAddress, 0, 1, 4096, fixture.Resources);
-        NativeBattleElectrocute275Frame restored = JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(created.Frame))!;
+        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(created.Frame)))!);
         var expected = NativeBattleElectrocute275Controller.AdvanceBoneTrail(created.Frame, created.Address, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleElectrocute275Controller.AdvanceBoneTrail(restored, created.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected.Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.Frame)));
         NativeBattleElectrocute275Resources missing = fixture.Resources with { BonePaths = [] };
         Assert.Throws<InvalidDataException>(() => NativeBattleElectrocute275Controller.CreateBoneTrail(fixture.Frame, 1, BonePathsAddress, 0, 1, 4096, missing));
     }
@@ -246,7 +247,7 @@ public sealed class NativeBattleElectrocute275BoneTrailsTests
             return current with { BoneDirectionWord = 0x10000000 };
         };
         var firstFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(frame, first.Address, fixture.Resources, fixture.Inputs());
-        NativeBattleElectrocute275Frame restored = JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(firstFade.Frame))!;
+        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(firstFade.Frame)))!);
         var secondFade = NativeBattleElectrocute275Controller.AdvanceBoneTrail(restored, second.Address, fixture.Resources, fixture.Inputs());
         Assert.Equal(2, calls);
         Assert.Equal(random, secondFade.Frame.Memory.SharedEffectRandom);

@@ -35,7 +35,7 @@ public sealed class NativeBattleEffect312BankTests
         const uint common = 0x20DFAB8;
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteWord(12, parity)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, parity));
         NativeBattleOriginalEffectState effect = new(Effect, Effect - 1, new(Effect, Entry, Initializer), null, null) { Pools = [root] };
         return new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect312State.FromColdProcess().WriteDword(ArenaGlobal, common).WriteDword(CursorGlobal, common + offset));
     }

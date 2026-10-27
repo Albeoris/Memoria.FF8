@@ -9,7 +9,7 @@ public sealed class NativeBattleEffectHierarchyTests
     public void Root_clears_only_the_requested_DWORD_prefix_and_retains_the_original_slot_suffix()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2000, 0x1000, 100, 2);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Payload = Enumerable.Repeat((byte)0xA5, 88).ToImmutableArray() }) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, Enumerable.Repeat((byte)0xA5, 88).ToImmutableArray().AsSpan()));
         NativeBattleEffectHierarchyAppend appended = new NativeBattleEffectHierarchy([pool]).Append8DC540(0, 0x8D6B30, 45);
         Assert.Equal(0x1000u, appended.Address);
         NativeBattleModulePoolTask task = appended.Hierarchy.Read(appended.Address);
@@ -84,10 +84,10 @@ public sealed class NativeBattleEffectHierarchyTests
         Assert.Equal((byte)1, step.Hierarchy.Read(root.Address).ReadByte(0x28));
         Assert.Null(step.Hierarchy.Read(root.Address).Next);
         Assert.Equal(0x8D6D80u, step.Hierarchy.Pools[1].Slots[0].Callback);
-        string json = JsonSerializer.Serialize(step.Hierarchy);
-        NativeBattleEffectHierarchy restored = JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Hierarchy));
+        NativeBattleEffectHierarchy restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectHierarchy>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         NativeBattleEffectHierarchyStep childPass = restored.Advance(1, (state, address) => new(state.Complete8DC530(address), 2));
         Assert.Equal((byte)0, childPass.Hierarchy.Read(root.Address).ReadByte(0x28));
         Assert.Equal(0, childPass.Survivors);

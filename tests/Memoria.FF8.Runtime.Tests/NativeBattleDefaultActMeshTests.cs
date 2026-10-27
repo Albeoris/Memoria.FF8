@@ -98,11 +98,11 @@ public sealed class NativeBattleDefaultActMeshTests
     {
         NativeBattleDefaultActMeshStep unknown = Draw(7);
         NativeBattleDefaultActMeshStep known = Draw(7, readW: _ => 1234);
-        Assert.Equal(JsonSerializer.Serialize(known.Batch), JsonSerializer.Serialize(unknown.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(known.Batch), NativeBattleTestSnapshots.Json(unknown.Batch));
         Assert.False(unknown.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
         Assert.Null(unknown.Memory.GeometryRegisters!.Rotation20[18]);
-        NativeBattleDefaultActMeshStep restored = JsonSerializer.Deserialize<NativeBattleDefaultActMeshStep>(JsonSerializer.Serialize(unknown))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(7, unknown.Context88, unknown.Memory)), JsonSerializer.Serialize(Draw(7, restored.Context88, restored.Memory)));
+        NativeBattleDefaultActMeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDefaultActMeshStep>(NativeBattleTestSnapshots.Json(unknown))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(7, unknown.Context88, unknown.Memory)), NativeBattleTestSnapshots.Json(Draw(7, restored.Context88, restored.Memory)));
     }
 
     [Fact]

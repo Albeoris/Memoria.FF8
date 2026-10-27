@@ -28,6 +28,7 @@ public sealed class NativeBattleCinematicCenterShape9DTests
             Assert.Equal(-11, Read(active, 0x3020));
             return shorten ? Dword(active, 0x3018, 1) : active;
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(1, updates);
         Assert.Equal(new short[] { -8, -5, -32767 }, new[] { Read(result, 0x3020), Read(result, 0x3022), Read(result, 0x3024) });
@@ -35,7 +36,7 @@ public sealed class NativeBattleCinematicCenterShape9DTests
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x3026, 2));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x302E, 2));
         Assert.Equal(0x100Au, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
     }
 
     [Theory]

@@ -101,7 +101,7 @@ public sealed class NativeBattleMasamuneRenderingTests
         NativeBattleEffectArena context = Dword(Dword(Dword(Dword(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, mesh.Address), 8, 0), 0x1C, 0xF3), 12, 2048);
         NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.Draw(memory, mesh, matrix, projection, context, Constants, 0x4321);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0xF3, 0, 2048, null, null, 0, 17, 2), Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal(mesh.Address + (uint)mesh.Bytes.Length, ReadDword(result.Context, 0x20));
         Assert.Equal(mesh.Address + 8, ReadDword(result.Context, 4));
@@ -111,9 +111,9 @@ public sealed class NativeBattleMasamuneRenderingTests
         Assert.NotNull(result.Memory.ScriptedColorRegisters!.Material);
         Assert.Equal(0u, result.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Throws<NotSupportedException>(() => result.Context.Read(0x34, 36));
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleStaticMeshContext88Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(result))!;
         NativeBattleStaticMeshContext88Step Next(NativeBattleStaticMeshContext88Step prior) => NativeBattleStaticMeshContext88.Draw(prior.Memory, mesh, matrix, projection, prior.Context, Constants, 0x4321);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Theory]
@@ -125,15 +125,15 @@ public sealed class NativeBattleMasamuneRenderingTests
         NativeBattleActionMatrix matrix = NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 };
         NativeBattleCameraProjection projection = new(null, 100, 160, 108);
         NativeBattleEffectMemory memory = Memory() with { GeometryRegisters = null, ScriptedColorRegisters = null };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Null(restored.GeometryRegisters);
         Assert.Null(restored.ScriptedColorRegisters);
         NativeBattleEffectArena context = Dword(Dword(Dword(NativeBattleEffectArena.Clear().MarkUnknown(0, 88), 0, mesh.Address), 8, 0), 0x1C, 0x33);
         NativeBattleStaticMeshContext88Step Draw(NativeBattleEffectMemory current, NativeBattleEffectArena currentContext) => NativeBattleStaticMeshContext88.Draw(current, mesh, matrix, projection, currentContext, Constants);
         NativeBattleStaticMeshContext88Step result = Draw(memory, context);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored, context)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Draw(restored, context)));
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(mesh.Bytes, 0, default, matrix, projection, new(0x33, 0, null, null, null, 0, 17, 2), Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.All(result.Memory.GeometryRegisters!.AnchorScratch8, value => Assert.Null(value));
         Assert.All(result.Memory.GeometryRegisters.Rotation20.Skip(18), value => Assert.Null(value));
@@ -148,8 +148,8 @@ public sealed class NativeBattleMasamuneRenderingTests
             Assert.Null(result.Memory.GeometryRegisters.Sz[0]);
         }
         Assert.All(result.Memory.GeometryRegisters.Sz.Skip(1), value => Assert.NotNull(value));
-        NativeBattleStaticMeshContext88Step cold = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result.Memory, result.Context)), JsonSerializer.Serialize(Draw(cold.Memory, cold.Context)));
+        NativeBattleStaticMeshContext88Step cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(result))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(result.Memory, result.Context)), NativeBattleTestSnapshots.Json(Draw(cold.Memory, cold.Context)));
     }
 
     [Fact]

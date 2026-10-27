@@ -121,8 +121,8 @@ public sealed class NativeBattlePoisonGas171ChildrenTests
         {
             Assert.Throws<NotSupportedException>(() => actual.Frame.State.ReadWord(bank + 14));
         }
-        var restored = JsonSerializer.Deserialize<NativeBattlePoisonGas171Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePoisonGas171Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
     [Theory]

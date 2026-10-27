@@ -57,7 +57,7 @@ public sealed class NativeBattleRaldo19BallRenderingTests
             Assert.Equal((uint)projected[index].Depth, Dword(result.VertexScratch, index * 20 + 12));
         }
         NativeBattleGfGeometryBatch expectedPackets = NativeBattleWendigoBallGeometry.Packets(mesh.Polygons, projected.ToImmutableArray(), 0x00808080);
-        Assert.Equal(JsonSerializer.Serialize(expectedPackets), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expectedPackets), NativeBattleTestSnapshots.Json(result.Batch));
         Assert.Equal(new byte[] { 5, 6, 7, 8 }, result.VertexScratch.Read(16, 4));
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, result.TemporaryA8.Read(0x6C, 4));
         Assert.Equal(102400u, Dword(result.TemporaryA8, 0x7C));
@@ -83,12 +83,12 @@ public sealed class NativeBattleRaldo19BallRenderingTests
         Assert.Throws<NotSupportedException>(() => first.VertexScratch.Read(6, 2));
         Assert.False(first.Registers.Colors.NormalInputKnown!.Value[6]);
         Assert.False(first.Registers.Colors.NormalInputKnown.Value[7]);
-        NativeBattleRaldo19BallDraw restored = JsonSerializer.Deserialize<NativeBattleRaldo19BallDraw>(JsonSerializer.Serialize(first))!;
+        NativeBattleRaldo19BallDraw restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRaldo19BallDraw>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleRaldo19BallDraw Next(NativeBattleRaldo19BallDraw previous)
         {
             return NativeBattleRaldo19BallRendering.DrawMeshes(prepared.BallC4, previous.TemporaryA8, previous.VertexScratch, [Mesh()], [Identity, Identity with { X = 100, Y = 200, Z = 300 }], _ => 0x4455, 1, 0x00808080, Projection, 0, 0, previous.Registers, previous.Lighting, Constants);
         }
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class NativeBattleRaldo19BallRenderingTests
         Assert.Equal(0xABCD0800u, second.Colors.Ir0);
         Assert.Equal(0xAA123456u, second.Colors.Material);
         Assert.Null(second.Colors.NormalInput);
-        Assert.Equal(JsonSerializer.Serialize(first.Geometry), JsonSerializer.Serialize(second.Geometry));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Geometry), NativeBattleTestSnapshots.Json(second.Geometry));
     }
 
     [Fact]
@@ -123,9 +123,9 @@ public sealed class NativeBattleRaldo19BallRenderingTests
         Assert.Equal(known.Colors.Flags, unknown.Colors.Flags);
         Assert.Equal(0x00080000u, unknown.Colors.Flags);
         Assert.Null(unknown.Colors.Material);
-        NativeBattleGeometryRegisterStep restored = JsonSerializer.Deserialize<NativeBattleGeometryRegisterStep>(JsonSerializer.Serialize(unknown))!;
+        NativeBattleGeometryRegisterStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGeometryRegisterStep>(NativeBattleTestSnapshots.Json(unknown))!;
         NativeBattleGeometryRegisterStep next = NativeBattleRaldo19BallRendering.Weighted(unknown, true, Constants);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleRaldo19BallRendering.Weighted(restored, true, Constants)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(NativeBattleRaldo19BallRendering.Weighted(restored, true, Constants)));
         Assert.Equal(new int?[] { 128, 256, 512 }, next.Colors.Mac);
         Assert.Equal(new uint?[] { 0x33, null, null }, next.Colors.Rgb);
         Assert.Equal(0x00180000u, next.Colors.Flags);

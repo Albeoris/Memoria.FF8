@@ -30,6 +30,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         {
             frame = frame with { Arena = (mask & (0x8000 >> lane)) != 0 ? WriteWord(frame.Arena, source + lane * 2, values[lane]) : frame.Arena.MarkUnknown(source + lane * 2, 2) };
         }
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = One(frame);
         for (int lane = 0; lane < 4; lane++)
         {
@@ -46,7 +47,7 @@ public sealed partial class NativeBattleWaterParticlesTests
         Assert.Same(frame.Random, result.Random);
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Equal(0x1004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(One(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
-        Assert.Throws<NotSupportedException>(() => One(frame with { Arena = frame.Arena.MarkUnknown(0x1002, 2) }));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(One(replayFrame)));
+        Assert.Throws<NotSupportedException>(() => One(frame with { Core = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000).Core, Arena = frame.Arena.MarkUnknown(0x1002, 2) }));
     }
 }

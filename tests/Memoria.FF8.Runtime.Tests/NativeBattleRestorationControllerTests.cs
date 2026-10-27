@@ -62,8 +62,8 @@ public sealed class NativeBattleRestorationControllerTests
         Assert.Equal((ushort)0, generic.ReadWord(0x298));
         Assert.Equal((ushort)0, generic.ReadWord(0x29C));
         Assert.Equal((ushort)45, generic.ReadWord(0x29E));
-        NativeBattleRestorationFrame clone = JsonSerializer.Deserialize<NativeBattleRestorationFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleRestorationController.Advance(frame, fixture.Inputs, Resources(effect), Leaf)), JsonSerializer.Serialize(NativeBattleRestorationController.Advance(clone, fixture.Inputs, Resources(effect), Leaf)));
+        NativeBattleRestorationFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRestorationFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleRestorationController.Advance(frame, fixture.Inputs, Resources(effect), Leaf)), NativeBattleTestSnapshots.Json(NativeBattleRestorationController.Advance(clone, fixture.Inputs, Resources(effect), Leaf)));
     }
 
     [Theory]
@@ -163,7 +163,7 @@ public sealed class NativeBattleRestorationControllerTests
             calls.Add("advance");
             return new(current, true);
         });
-        NativeBattleRestorationLeafStep first = NativeBattleRestorationGeneric.Advance(frame, address, inputs);
+        NativeBattleRestorationLeafStep first = NativeBattleRestorationGeneric.Advance(NativeBattleTestSnapshots.Independent(frame), address, inputs);
         Assert.Equal(new[] { "initialize", "advance" }, calls);
         Assert.Equal(0, first.Result);
         Assert.Equal((ushort)0, new NativeBattleEffectHierarchy(first.Frame.Effect.Pools).Read(address).ReadWord(0x24));

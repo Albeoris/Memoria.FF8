@@ -18,7 +18,7 @@ public sealed class NativeBattleGilgameshOpeningTests
             expectedRandom = expectedRandom.Draw(out ushort value);
             angles[index] = (ushort)(value % 4096);
         }
-        NativeBattleGilgameshOpeningInitialization result = NativeBattleGilgameshOpening.Initialize592D00(pool, random);
+        NativeBattleGilgameshOpeningInitialization result = NativeBattleGilgameshOpening.Initialize592D00(NativeBattleTestSnapshots.Independent(pool), random);
         Assert.Equal(expectedRandom, result.Random);
         Assert.Equal(0, result.Pool.Head);
         Assert.Equal(4, result.Pool.Tail);
@@ -37,7 +37,7 @@ public sealed class NativeBattleGilgameshOpeningTests
             Assert.Equal(expected[index], Enumerable.Range(0, 12).Select(word => task.ReadWord(12 + word * 2)).ToArray());
             Assert.Equal(index == 4 ? (int?)null : index + 1, task.Next);
         }
-        Assert.Equal(JsonSerializer.Serialize(pool.Slots[5]), JsonSerializer.Serialize(result.Pool.Slots[5]));
+        Assert.Equal(NativeBattleTestSnapshots.Json(pool.Slots[5]), NativeBattleTestSnapshots.Json(result.Pool.Slots[5]));
         Assert.Equal((ushort)0xA5A5, pool.Slots[0].ReadWord(12));
     }
 
@@ -66,7 +66,7 @@ public sealed class NativeBattleGilgameshOpeningTests
         Assert.Equal(0, paused.Result);
         Assert.Equal(faces, paused.Batch.Attempts.Length);
         NativeBattleGilgameshOpeningStep step = NativeBattleGilgameshOpening.Step(task, Resources(), View(), Projection(), 0);
-        Assert.Equal(JsonSerializer.Serialize(paused.Batch), JsonSerializer.Serialize(step.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(paused.Batch), NativeBattleTestSnapshots.Json(step.Batch));
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)68, step.UpdatedTask.ReadWord(12));
         Assert.Equal(callback == 0x592E90 ? (ushort)65535 : (ushort)3, step.UpdatedTask.ReadWord(0x18));
@@ -81,10 +81,10 @@ public sealed class NativeBattleGilgameshOpeningTests
         NativeBattleModulePoolTask task = Task(callback).WriteWord(0x10, unchecked((ushort)-100)).WriteWord(0x12, 200).WriteWord(0x14, unchecked((ushort)-300)).WriteWord(0x18, 1024).WriteWord(0x1C, unchecked((ushort)-4096)).WriteWord(0x20, 2048);
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(new(0, callback == 0x592E90 ? (short)0 : (short)1024, 0));
         local = NativeBattlePoseMatrices.Scale56BEF0(local, -4096, callback == 0x5930C0 ? -4096 : 2048, -4096) with { X = -100, Y = 200, Z = -300 };
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGfMatrices.Compose56C2F0(View(), local)), JsonSerializer.Serialize(NativeBattleGilgameshOpening.Matrix(task, View())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGfMatrices.Compose56C2F0(View(), local)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Matrix(task, View())));
         if (callback == 0x5930C0)
         {
-            Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshOpening.Matrix(task, View())), JsonSerializer.Serialize(NativeBattleGilgameshOpening.Matrix(task.WriteWord(0x20, 12345), View())));
+            Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Matrix(task, View())), NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Matrix(task.WriteWord(0x20, 12345), View())));
         }
     }
 
@@ -99,8 +99,8 @@ public sealed class NativeBattleGilgameshOpeningTests
         Assert.Equal((ushort)32768, first.UpdatedTask.ReadWord(12));
         Assert.Equal(callback == 0x592E90 ? (ushort)2 : (ushort)65534, first.UpdatedTask.ReadWord(0x18));
         Assert.Equal(0, first.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGilgameshOpening.Step(first.UpdatedTask, Resources(), View(), Projection(), 0)), JsonSerializer.Serialize(NativeBattleGilgameshOpening.Step(restored, Resources(), View(), Projection(), 0)));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.UpdatedTask))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Step(first.UpdatedTask, Resources(), View(), Projection(), 0)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Step(restored, Resources(), View(), Projection(), 0)));
     }
 
     [Theory]
@@ -117,12 +117,12 @@ public sealed class NativeBattleGilgameshOpeningTests
         bool baseTask = callback == 0x592E90;
         NativeBattleModuleMeshContext context = new(baseTask ? 0u : 0xC3u, 0, baseTask ? null : -1, null, null, null, 17, baseTask ? (byte)1 : (byte)2);
         NativeBattleGfGeometryBatch expected = NativeBattleModulePackets.EmitBatch572200(selected.Bytes, 0, default, NativeBattleGilgameshOpening.Matrix(task, View()), Projection(), context, NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(NativeBattleGilgameshOpening.Step(task, resources, View(), Projection(), 0).Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(NativeBattleGilgameshOpening.Step(task, resources, View(), Projection(), 0).Batch));
     }
     private static NativeBattleEffectTaskPool Pool()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        return pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        return NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
     }
 
     private static NativeBattleModulePoolTask Task(uint callback) => new NativeBattleModulePoolTask(1, 0, null, callback, new byte[24].ToImmutableArray()).WriteWord(0x1C, 4096).WriteWord(0x20, 4096);

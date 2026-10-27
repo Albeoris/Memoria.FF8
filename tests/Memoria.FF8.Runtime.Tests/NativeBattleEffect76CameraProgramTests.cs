@@ -77,10 +77,10 @@ public sealed class NativeBattleEffect76CameraProgramTests
     {
         NativeBattleGuardianCameraTask task = NativeBattleGuardianCameraProgram.Begin63E960(NativeBattleGuardianCameraProgram.FromColdProcess(), Words(0x8A, 0x4A, 0x80, 2, 0x40, 2, 0x8000), 0);
         NativeBattleGuardianCameraStep first = NativeBattleGuardianCameraProgram.Advance63E9C0(task, Identity(), Pose(), false, temporary432: Temporary(0x1111, 0x2222), currentEyePadding: -123, currentTargetPadding: 456);
-        NativeBattleGuardianCameraTask restored = JsonSerializer.Deserialize<NativeBattleGuardianCameraTask>(JsonSerializer.Serialize(first.Task))!;
+        NativeBattleGuardianCameraTask restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGuardianCameraTask>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Task)))!);
         NativeBattleGuardianCameraStep direct = NativeBattleGuardianCameraProgram.Advance63E9C0(first.Task, Identity(), first.Pose, false, temporary432: first.Temporary432);
         NativeBattleGuardianCameraStep next = NativeBattleGuardianCameraProgram.Advance63E9C0(restored, Identity(), first.Pose, false, temporary432: first.Temporary432);
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(next));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)));
         Assert.Equal((short)-123, next.Task.Process.Eye.CurrentPadding);
         Assert.Equal((short)456, next.Task.Process.Target.CurrentPadding);
     }

@@ -69,7 +69,7 @@ public sealed class NativeBattleCinematicBone5BTests
         Assert.Equal(26, Int(result, 0x2098));
         Assert.Equal(87, Int(result, 0x209C));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2092, 2));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(result))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(87u, restored.ReadTemporaryDword(0xF8));
         Assert.Throws<NotSupportedException>(() => restored.Arena.Read(0x2092, 2));
     }

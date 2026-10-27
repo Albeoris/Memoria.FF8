@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -33,7 +33,8 @@ public sealed class NativeBattleDiablos325RawBodyDrawingTests
         process = process with { Software = process.Software! with { Environment = process.Software!.Environment with { Debug = 0 } } };
         NativeBattleEffectArena arena = draw ? body.Memory.Arena! : body.Memory.Arena!.MarkUnknown(0x218B4, 8);
         NativeBattleEffectMemory memory = body.Memory with { Arena = arena, PrimitiveProcess = process };
-        string original = JsonSerializer.Serialize(memory);
+        var preserved = NativeBattleStorageSnapshots.Capture(memory);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         byte[] beforePose = arena.Read(0x21874, 64);
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 10, 20, 30, 4096), 288, 160, 108);
         NativeBattleDiablos325BodyDraw result = NativeBattleDiablos325RawBodyDrawing.Draw6A79B0(memory, task, projection, draw);
@@ -43,6 +44,6 @@ public sealed class NativeBattleDiablos325RawBodyDrawingTests
         NativeBattlePrimitiveProcess actual = Assert.IsType<NativeBattlePrimitiveProcess>(result.Memory.PrimitiveProcess);
         Assert.Equal<uint?>(1u, actual.RendererGateB8B9F8);
         Assert.Equal((draw ? process.PublishModelColor(0x123456) : process).ModelRendererRegisters, actual.ModelRendererRegisters);
-        Assert.Equal(original, JsonSerializer.Serialize(memory));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 }

@@ -106,7 +106,7 @@ public sealed class NativeBattleEffect324LowerTests
     {
         Fixture fixture = new(0x597520);
         NativeBattleEffect324Frame saved = NativeBattleEffect324History.Capture597750(fixture.Frame, Fixture.Model, 0x22010A8, fixture.Inputs());
-        saved = JsonSerializer.Deserialize<NativeBattleEffect324Frame>(JsonSerializer.Serialize(saved))!;
+        saved = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(saved)))!);
         Assert.DoesNotContain(true, saved.State.ReadView(0x22010A8 + 18, 2).ReadSnapshot(0, 2).Known);
         fixture.Bones = fixture.Bones.Select(matrix => NativeBattlePackedMatrix32.FromMatrix(matrix.ReadMatrix() with { X = 999 }, null)).ToImmutableArray();
         NativeBattleEffect324History.Restore597790(saved, Fixture.Model, 0x22010A8, fixture.Inputs());
@@ -207,7 +207,7 @@ public sealed class NativeBattleEffect324LowerTests
         {
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2202E28, Address, 36, 100);
             (pool, int slot) = pool.Append(callback);
-            pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteBytes(12, new byte[24])) };
+            pool = pool.WriteSlot(slot, pool.Slots[slot].WriteBytes(12, new byte[24]));
             NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(identity, null) };
             Frame = new(memory, new(324, 323, new(324, 0x596BC0, 0x596BA0), null, null) { Pools = [pool] }, new(42), NativeBattleEffect324State.FromColdProcess().DetachBank(1).WriteDword(0x2203C4C, 3)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[532]) };

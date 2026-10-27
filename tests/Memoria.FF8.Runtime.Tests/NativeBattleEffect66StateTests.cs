@@ -52,7 +52,7 @@ public sealed class NativeBattleEffect66StateTests
     public void Json_continuation_keeps_warm_matrix_padding_pointer_and_record_knownness()
     {
         NativeBattleEffect66State state = NativeBattleEffect66State.FromUnknown().WriteWord(PartialMatrixAddress + 18, 0xCAFE).WriteDword(InitializedBase + 4, 0x20DFAB8).WriteDword(FirstPointAddress, 1);
-        NativeBattleEffect66State restored = JsonSerializer.Deserialize<NativeBattleEffect66State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect66State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect66State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal((ushort)0xCAFE, restored.ReadWord(PartialMatrixAddress + 18));
         Assert.Equal(0x20DFAB8u, restored.ReadDword(InitializedBase + 4));

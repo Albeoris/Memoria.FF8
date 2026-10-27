@@ -104,10 +104,10 @@ public sealed class NativeBattleEffect315Scrolling124Tests
         }
         Assert.Equal(uint.MaxValue, U(result.Context124, 0x6C));
         Assert.Equal(uint.MaxValue, U(result.Context124, 0x70));
-        string json = JsonSerializer.Serialize(result);
-        NativeBattleEffect315Scrolling124Step restored = JsonSerializer.Deserialize<NativeBattleEffect315Scrolling124Step>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(Draw(Mesh(group), result.Context124, memory: result.Memory)), JsonSerializer.Serialize(Draw(Mesh(group), restored.Context124, memory: restored.Memory)));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        NativeBattleEffect315Scrolling124Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315Scrolling124Step>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(Mesh(group), result.Context124, memory: result.Memory))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(Mesh(group), restored.Context124, memory: restored.Memory))));
     }
 
     [Theory]
@@ -151,8 +151,8 @@ public sealed class NativeBattleEffect315Scrolling124Tests
         Assert.Equal((byte)0, attempt.Data[17]);
         Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[4]);
         Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[^1]);
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleEffect315Scrolling124Step>(json)!));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect315Scrolling124Step>(json)!))));
     }
 
     [Theory]

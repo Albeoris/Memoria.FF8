@@ -17,7 +17,7 @@ public sealed class NativeBattleActContext40PolicyTests
         NativeBattleActionMatrix expected = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler701310(new(300, 500, 700)), 2048, 1024, 4096);
         AssertRotation(expected, result);
         NativeBattleDefaultActContext40Step unflagged = Draw(NativeBattleActContext40Policy.Hypnotize133, Source(4, 1), RotatedScaled(0x200));
-        Assert.Equal(JsonSerializer.Serialize(unflagged), JsonSerializer.Serialize(result));
+        Assert.Equal(NativeBattleTestSnapshots.Json(unflagged), NativeBattleTestSnapshots.Json(result));
     }
 
     [Theory]
@@ -74,7 +74,7 @@ public sealed class NativeBattleActContext40PolicyTests
         Assert.Throws<InvalidDataException>(() => Draw(NativeBattleActContext40Policy.BeamLaser134, Source(50, 2), Node(ratio: 2048, second: 1)));
         NativeBattleDefaultActContext40Step direct = Draw(NativeBattleActContext40Policy.BeamLaser134, Source(64, 1), Node(), Context().MarkUnknown(36, 4), Memory() with { Arena = null });
         Assert.Null(direct.Memory.Arena);
-        NativeBattleDefaultActContext40Step restored = JsonSerializer.Deserialize<NativeBattleDefaultActContext40Step>(JsonSerializer.Serialize(result))!;
+        NativeBattleDefaultActContext40Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDefaultActContext40Step>(NativeBattleTestSnapshots.Json(result))!;
         Assert.Equal(result.Memory.Arena.ReadSnapshot(MorphOffset, 392).Known, restored.Memory.Arena!.ReadSnapshot(MorphOffset, 392).Known);
     }
 

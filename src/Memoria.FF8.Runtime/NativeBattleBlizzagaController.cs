@@ -80,6 +80,7 @@ public static class NativeBattleBlizzagaController
                 fourth = NativeBattleEffectTaskPool.Initialize(FourthDescriptor, Arena + 0xF4B0, 0x2C, 96);
                 fifth = NativeBattleEffectTaskPool.Initialize(FifthDescriptor, Arena + 0x10530, 0x28, 64);
                 sixth = NativeBattleEffectTaskPool.Initialize(SixthDescriptor, Arena + 0x10F30, 0x2C, 96);
+                frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, [primary, second, third, fourth, fifth, sixth]) };
                 task = WriteByte(task, 15, 1);
             }
             bool completionAllowed = true;

@@ -127,11 +127,11 @@ internal static class ZantetsukenFixture
     internal static NativeBattleGilgameshFrame Create(uint callback, ushort age)
     {
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x21FFD58, Address, 36, 100);
-        children = children with { Slots = children.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
         int slot;
         (children, slot) = children.Append(callback);
         NativeBattleModulePoolTask task = children.Slots[slot].WriteWord(12, age).WriteWord(14, 3).WriteWord(0x10, 500).WriteWord(0x12, unchecked((ushort)-200)).WriteWord(0x14, unchecked((ushort)-300)).WriteWord(0x16, 0).WriteWord(0x18, 128).WriteWord(0x1A, 2).WriteWord(0x20, unchecked((ushort)-300)).WriteWord(0x22, unchecked((ushort)-300));
-        children = children with { Slots = children.Slots.SetItem(slot, task) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(slot, task) });
         NativeBattleOriginalEffectState effect = new(327, 326, new(327, 0x58D760, 0x58D6E0), null, null)
         {
             Pools = [NativeBattleEffectTaskPool.Initialize(0x2201000, 0x2201010, 100, 2), children, NativeBattleEffectTaskPool.Initialize(0x2202000, 0x2202010, 24, 2)]
@@ -156,6 +156,6 @@ internal static class ZantetsukenFixture
     internal static NativeBattleGilgameshFrame Write(NativeBattleGilgameshFrame frame, uint address, NativeBattleModulePoolTask task)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(checked((int)((address - Address) / 36)), task) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(checked((int)((address - Address) / 36)), task) })) } };
     }
 }

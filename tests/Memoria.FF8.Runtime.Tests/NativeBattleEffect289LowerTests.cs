@@ -61,8 +61,8 @@ public sealed class NativeBattleEffect289LowerTests
         Assert.Equal(0xE2000010u, result.Batch.Attempts[3].Primitive!.Words[1]);
         Assert.All(result.Batch.Attempts[2].WriteMask, value => Assert.Equal(NativeBattleGfPacketByteState.Untouched, value));
         Assert.Equal(new[] { 0, 0, 0, 0 }, result.Batch.Attempts[1].Primitive!.VertexPayload4);
-        string json = JsonSerializer.Serialize(result);
-        NativeBattleEffect289CustomMesh108Step restored = JsonSerializer.Deserialize<NativeBattleEffect289CustomMesh108Step>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        NativeBattleEffect289CustomMesh108Step restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect289CustomMesh108Step>(json)!);
         Assert.Equal(result.Batch.AllocationBytes, restored.Batch.AllocationBytes);
         Assert.Equal(result.Context108.Read(0x34, 4), restored.Context108.Read(0x34, 4));
     }

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using static Memoria.FF8.Runtime.NativeBattleSaliva138Profile;
 
@@ -107,9 +107,10 @@ public sealed class NativeBattleSaliva138ControllerTests
         Assert.Contains(new NativeBattleSaliva138Sound(0x641B5, 0, 128), f.Operations);
         f.Operations.Clear();
         f.Acts.Clear();
+        uint previousCursor = f.Frame.State.ReadDword(CursorGlobal);
         var actual = NativeBattleSaliva138Controller.AdvanceMain(f.Main(40), MainAddress, f.Resources, f.Inputs);
         Assert.Equal(new NativeBattleSaliva138Contact(0), Assert.Single(f.Operations));
-        Assert.Equal(1u, actual.Frame.State.ReadDword(CursorGlobal) - (uint)f.Acts.Count);
+        Assert.Equal(1u, actual.Frame.State.ReadDword(CursorGlobal) - previousCursor - (uint)f.Acts.Count);
     }
 
     [Theory]
@@ -175,7 +176,7 @@ public sealed class NativeBattleSaliva138ControllerTests
     public void Root_completion_ignores_surviving_moving_pool_after_drawing_it()
     {
         Fixture f = new();
-        NativeBattleSaliva138Frame frame = f.Frame with { Effect = f.Frame.Effect with { Pools = f.Frame.Effect.Pools.SetItem(1, f.Frame.Effect.Pools[1] with { Head = null, Tail = null, Slots = f.Frame.Effect.Pools[1].Slots.Select(task => task with { Flags = 0 }).ToImmutableArray() }) } };
+        NativeBattleSaliva138Frame frame = f.Frame with { Effect = f.Frame.Effect with { Pools = f.Frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(f.Frame.Effect.Pools[1], data => data with { Head = null, Tail = null, Slots = f.Frame.Effect.Pools[1].Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Flags = 0 })).ToImmutableArray() })) } };
         frame = NativeBattleSaliva138Controller.Write(frame, RootBank, NativeBattleSaliva138Controller.Read(frame, RootBank).WriteWord(12, 10).WriteWord(14, 1));
         (frame, uint address) = NativeBattleSaliva138Controller.Append(frame, 3, MovingSpriteCallback);
         frame = NativeBattleSaliva138Controller.Write(frame, address, NativeBattleSaliva138Controller.Read(frame, address).WriteBytes(12, new byte[20]).WriteWord(20, 2000).WriteWord(22, 1024));
@@ -210,9 +211,9 @@ public sealed class NativeBattleSaliva138ControllerTests
                 NativeBattleEffectTaskPool.Initialize(SimpleSpriteDescriptor, WorkingAddress, SimpleSpriteStride, SimpleSpriteCount)
             ];
             (pools[0], _) = pools[0].Append(RootCallback);
-            pools[0] = pools[0] with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) };
+            pools[0] = NativeBattleTaskFixture.EditPool(pools[0], data => data with { Slots = pools[0].Slots.SetItem(0, pools[0].Slots[0].WriteDword(12, 0).WriteDword(16, 0)) });
             (pools[1], _) = pools[1].Append(MainCallback);
-            pools[1] = pools[1] with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[884]).WriteWord(28, 500).WriteWord(30, 600).WriteWord(32, 2000)) };
+            pools[1] = NativeBattleTaskFixture.EditPool(pools[1], data => data with { Slots = pools[1].Slots.SetItem(0, pools[1].Slots[0].WriteBytes(12, new byte[884]).WriteWord(28, 500).WriteWord(30, 600).WriteWord(32, 2000)) });
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
             NativeBattleOriginalEffectState effect = new(138, 137, new(138, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = pools.ToImmutableArray() };
             Frame = new(memory, effect, new(55), NativeBattleSaliva138State.FromColdProcess().WriteDword(WorkingGlobal, WorkingAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

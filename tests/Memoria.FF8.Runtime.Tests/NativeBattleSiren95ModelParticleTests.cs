@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -31,10 +31,10 @@ public sealed class NativeBattleSiren95ModelParticleTests
             seen.Add(child.ReadDword(0x4C));
             return current;
         }
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var step = NativeBattleSiren95Contacts.AdvanceParticle(frame, added.Address, Draw);
         Assert.Equal(callback == 0x746FD0 ? new uint[] { 0x15336C4, 0x15334A0, 0x15334A0, 0x15334A0 } : new uint[] { 0x15334A0, 0x15334A0, 0x15334A0, 0x15334A0 }, seen);
         Assert.False(step.Complete);
-        var restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleSiren95Contacts.AdvanceParticle(restored, added.Address, (current, _, _) => current)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleSiren95Contacts.AdvanceParticle(restored, added.Address, (current, _, _) => current)));
     }
 }

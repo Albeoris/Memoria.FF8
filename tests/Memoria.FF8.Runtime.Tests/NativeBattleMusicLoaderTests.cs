@@ -61,14 +61,14 @@ public sealed class NativeBattleMusicLoaderTests
         NativeGlobalSoundProcess sound = NativeGlobalSoundProcess.FromBufferlessColdProcess();
         NativeBattleMusicLoadStep first = process.AdvanceLoad501A70(sound, staging, 0, 0x1234);
         NativeBattleMusicCommandStep drained = first.State.DrainCommands501B60(first.Sound);
-        process = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(drained.State))!;
-        sound = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(drained.Sound))!;
-        string before = JsonSerializer.Serialize(process);
+        process = NativeBattleTestSnapshots.RestoreJson<NativeBattleMusicProcessState>(NativeBattleTestSnapshots.Json(drained.State))!;
+        sound = JsonSerializer.Deserialize<NativeGlobalSoundProcess>(NativeBattleTestSnapshots.Json(drained.Sound))!;
+        string before = NativeBattleTestSnapshots.Json(process);
         NativeBattleMusicLoadStep next = process.AdvanceLoad501A70(sound, staging, 1, 0x1234);
-        NativeBattleFileStaging copiedStaging = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(staging))!;
-        NativeBattleMusicLoadStep independent = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(before)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(JsonSerializer.Serialize(sound))!, copiedStaging, 1, 0x1234);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(independent));
-        Assert.Equal(before, JsonSerializer.Serialize(process));
+        NativeBattleFileStaging copiedStaging = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(staging))!;
+        NativeBattleMusicLoadStep independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleMusicProcessState>(before)!.AdvanceLoad501A70(JsonSerializer.Deserialize<NativeGlobalSoundProcess>(NativeBattleTestSnapshots.Json(sound))!, copiedStaging, 1, 0x1234);
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(independent));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(process));
         Assert.Equal((byte)2, next.State.Commands!.Command);
         Assert.Equal((byte)2, next.Phase);
     }

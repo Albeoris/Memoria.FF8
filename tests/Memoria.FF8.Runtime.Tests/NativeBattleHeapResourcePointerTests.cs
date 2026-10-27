@@ -10,7 +10,7 @@ public sealed class NativeBattleHeapResourcePointerTests
     {
         NativeBattleEffectHeapLoad loaded = NativeBattleEffectMemory.FromColdProcess().BeginLoad(198).LoadIntoArena([0xEE]).LoadHeap5718E0(new("file.tim", [1, 2, 3]));
         NativeBattleOriginalEffectState effect = Effect() with { HeapResourcePointers = [new(0x225A82C, loaded.AllocationIndex)] };
-        Saved restored = JsonSerializer.Deserialize<Saved>(JsonSerializer.Serialize(new Saved(loaded.Memory, effect)))!;
+        Saved restored = JsonSerializer.Deserialize<Saved>(NativeBattleTestSnapshots.Json(new Saved(loaded.Memory, effect)))!;
         Assert.Equal("file.tim", restored.Effect.ReadHeapResource(restored.Memory, 0x225A82C).Identity);
         Assert.Equal(new byte[] { 1, 2, 3 }, restored.Effect.ReadHeapResource(restored.Memory, 0x225A82C).Data.ToArray());
         Assert.Empty(restored.Effect.ResourcePointers);
@@ -28,10 +28,10 @@ public sealed class NativeBattleHeapResourcePointerTests
     public void OldJsonOmitsNewHeapAndCactuarFieldsAndHeapInitializerRejectsArenaMetadataOrMissingResource()
     {
         NativeBattleOriginalEffectState effect = Effect();
-        string json = JsonSerializer.Serialize(effect);
+        string json = NativeBattleTestSnapshots.Json(effect);
         Assert.DoesNotContain("HeapResourcePointers", json);
         Assert.DoesNotContain("Cactuar199Resources", json);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(json)));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(json)));
         NativeBattleOriginalEffectState cactuar = effect with { RequestedEffect = 199, SelectedIndex = 198, Binding = new(199, 0x5A8750, 0x5A8730) };
         Assert.Throws<NotSupportedException>(() => NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), cactuar));
         Assert.Throws<InvalidDataException>(() => NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), cactuar with { Binding = cactuar.Binding with { Entry = 0x5A8751 } }));

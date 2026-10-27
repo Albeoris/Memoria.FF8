@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -19,14 +19,15 @@ public sealed class NativeBattleDiablos325PointTests
         }
         NativeBattleEffectArena arena = NativeBattleArenaPose.WriteMatrix(NativeBattleEffectArena.Clear(), 0x1000 + 32 + selector * 48, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 100, 200, 300, 4096), true);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = arena };
-        string original = JsonSerializer.Serialize(memory);
+        var preserved = NativeBattleStorageSnapshots.Capture(memory);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         byte[] row = new byte[8];
         BinaryPrimitives.WriteInt16LittleEndian(row, 1);
         BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(2), 2);
         BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(4), 3);
         BinaryPrimitives.WriteInt16LittleEndian(row.AsSpan(6), selector);
         Assert.Equal(new NativeBattleVector(-192, 121, 333), NativeBattleDiablos325Point.Sample6F0CC0(memory, task, row));
-        Assert.Equal(original, JsonSerializer.Serialize(memory));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Theory]
@@ -46,12 +47,13 @@ public sealed class NativeBattleDiablos325PointTests
         NativeBattleDiablos325Resources resources = new(new(0xFD8584, source.ToImmutableArray()), new(new string('0', 64), [0], [0, 0, 0, 0]));
         NativeBattleEffectArena arena = NativeBattleArenaPose.WriteMatrix(frame.Memory.Arena!, 0x1020, new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), false);
         frame = frame with { Random = new(seed), Memory = frame.Memory with { Arena = arena }, Effect = frame.Effect with { Binding = frame.Effect.Binding with { Diablos325Resources = resources } } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325PointChoice chosen = NativeBattleDiablos325Point.Choose6557E5(frame, Task());
         Assert.Equal(new NativeBattleVector(x, 0, 0), chosen.Position);
         Assert.Equal(0x20DFAB8u + programme, chosen.Programme);
         Assert.Equal(nextSeed, chosen.Random.Seed);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     private static NativeBattleModulePoolTask Task()

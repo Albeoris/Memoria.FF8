@@ -94,7 +94,7 @@ public sealed class NativeBattleRecoveryControllerTests
         Assert.Same(state, state.Initialize(source));
         Assert.Throws<NotSupportedException>(() => state.Read(profile.ChannelAddress, 2));
         Assert.Equal((byte)0xA7, state.Read(profile.ExecutableAddress, 1)[0]);
-        NativeBattleRecoveryExecutableState clone = JsonSerializer.Deserialize<NativeBattleRecoveryExecutableState>(JsonSerializer.Serialize(state))!;
+        NativeBattleRecoveryExecutableState clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleRecoveryExecutableState>(NativeBattleTestSnapshots.Json(state))!;
         Assert.Null(clone.Channels);
         Assert.Throws<NotSupportedException>(() => clone.Read(profile.ChannelAddress, 1));
         Assert.Throws<InvalidDataException>(() => state.Initialize(source with { Effect = effect == 53 ? (ushort)58 : (ushort)53 }));

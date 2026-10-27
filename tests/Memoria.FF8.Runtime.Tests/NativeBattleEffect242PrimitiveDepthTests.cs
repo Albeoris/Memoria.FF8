@@ -51,12 +51,12 @@ public sealed class NativeBattleEffect242PrimitiveDepthTests
             Assert.Equal((byte)(packetLength / 4 - 1), attempt.Data[3]);
             Assert.Equal(type == 9 ? (byte)0x34 : type == 17 ? (byte)0x38 : type == 7 ? (byte)0x30 : (byte)0x20, attempt.Data[type == 9 ? 7 : 15]);
         }
-        string json = JsonSerializer.Serialize(result);
-        NativeBattleScriptedMeshSubmission restored = JsonSerializer.Deserialize<NativeBattleScriptedMeshSubmission>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result));
+        NativeBattleScriptedMeshSubmission restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleScriptedMeshSubmission>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         NativeBattleScriptedMeshSubmission next = Run(result.Frame, result.Registers, result.Geometry!);
         NativeBattleScriptedMeshSubmission restoredNext = Run(restored.Frame, restored.Registers, restored.Geometry!);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restoredNext));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(next)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredNext)));
     }
 
     [Theory]

@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect324StateTests
     {
         NativeBattleEffect324State state = NativeBattleEffect324State.FromUnknown().WriteWord(0x2203C4C, 3).WriteDword(0x221BC60, 0x220BC60);
         state = state.Write(0x220BC60, new byte[] { 1, 2, 3 }).Write(0x2213C60, new byte[] { 4, 5, 6 });
-        state = JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)3, state.ReadWord(0x2203C4C));
         Assert.Equal(0x220BC60u, state.ReadDword(0x221BC60));
@@ -55,7 +55,7 @@ public sealed class NativeBattleEffect324StateTests
             state = state.AttachBank(index, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xBEEF), state.ReadBank(0).Read(14, 2));
         Assert.Equal(BitConverter.GetBytes((ushort)0xBEEF), state.ReadBank(1).Read(14, 2));
@@ -69,7 +69,7 @@ public sealed class NativeBattleEffect324StateTests
         NativeBattleEffect324State state = NativeBattleEffect324State.FromColdProcess();
         NativeBattleEffectArena matrix = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)4096)).MarkUnknown(18, 2).Write(20, BitConverter.GetBytes(1234));
         state = state.WriteView(0x2201080, matrix, 32).WriteView(0x22010A8 + 27 * 32, matrix, 32).WriteView(0x2202428 + 27 * 32, matrix, 32);
-        state = JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect324State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         foreach (uint address in new uint[] { 0x2201080, 0x22010A8 + 27 * 32, 0x2202428 + 27 * 32 })
         {

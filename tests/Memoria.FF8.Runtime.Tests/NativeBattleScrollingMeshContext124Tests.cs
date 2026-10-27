@@ -98,11 +98,11 @@ public sealed class NativeBattleScrollingMeshContext124Tests
     {
         NativeBattleScrollingMeshContext124Step first = Draw(Mesh(2), Context(0x33, 0));
         Assert.Throws<NotSupportedException>(() => first.Context124.Read(0x5C, 16));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first.Memory))!;
         NativeBattleEffectArena context = first.Context124.Write(0x14, BitConverter.GetBytes(28));
         NativeBattleScrollingMeshContext124Step expected = Draw(Mesh(2), context, first.Memory);
         NativeBattleScrollingMeshContext124Step resumed = Draw(Mesh(2), context, restored);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(resumed));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(resumed));
         Assert.Throws<NotSupportedException>(() => Draw(Mesh(2), context.Write(8, [1, 0, 0])));
     }
 

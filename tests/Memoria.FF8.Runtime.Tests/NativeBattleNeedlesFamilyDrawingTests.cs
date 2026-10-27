@@ -129,7 +129,7 @@ public sealed class NativeBattleNeedlesFamilyDrawingTests
         uint screen = result.Memory.GeometryRegisters.Sxy[2]!.Value;
         Assert.Equal(unchecked((short)screen) / 8 - 160, BinaryPrimitives.ReadInt32LittleEndian(result.Matrix.Bytes.AsSpan(20, 4)));
         Assert.Null(result.Memory.ScriptedColorRegisters!.Material);
-        NativeBattleNeedlesSparkStep restored = JsonSerializer.Deserialize<NativeBattleNeedlesSparkStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleNeedlesSparkStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNeedlesSparkStep>(NativeBattleTestSnapshots.Json(result))!;
         Assert.False(restored.Matrix.Known[2]);
         Assert.Equal(result.Memory.GeometryRegisters.Translation, restored.Memory.GeometryRegisters!.Translation);
     }
@@ -143,7 +143,7 @@ public sealed class NativeBattleNeedlesFamilyDrawingTests
         Assert.False(result.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
         Assert.False(result.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
         Assert.All(result.Memory.ScriptedColorRegisters.NormalInputKnown.Value.Take(6), value => Assert.True(value));
-        NativeBattleNeedlesSparkStep restored = JsonSerializer.Deserialize<NativeBattleNeedlesSparkStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleNeedlesSparkStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNeedlesSparkStep>(NativeBattleTestSnapshots.Json(result))!;
         Assert.False(restored.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
         Assert.False(restored.Memory.ScriptedColorRegisters.NormalInputKnown.Value[7]);
     }

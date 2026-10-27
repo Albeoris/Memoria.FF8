@@ -29,7 +29,7 @@ public sealed class NativeBattleGravija214StateTests
         var state = NativeBattleGravija214State.FromUnknown().CopyEntrySnapshot(resources);
         Assert.Equal(resources.EntryCopySeed.Data.ToArray(), state.Read(CopiedMeshAddress, EntryCopyLength));
         state = state.WriteWord(CopiedMeshAddress + 8, 0x1234);
-        var restored = JsonSerializer.Deserialize<NativeBattleGravija214State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGravija214State>(NativeBattleTestSnapshots.Json(state))!;
         Assert.Equal((ushort)0x1234, restored.ReadWord(CopiedMeshAddress + 8));
         Assert.Equal((ushort)0, restored.CopyEntrySnapshot(resources).ReadWord(CopiedMeshAddress + 8));
         Assert.Equal((byte)0, resources.EntryCopySeed.Data[8]);
@@ -58,9 +58,9 @@ public sealed class NativeBattleGravija214StateTests
         Assert.Throws<NotSupportedException>(() => state.ReadWord(MatrixAddress + 16));
         Assert.Throws<NotSupportedException>(() => state.ReadWord(MatrixAddress + 18));
         Assert.Throws<NotSupportedException>(() => state.ReadWord(CopiedMeshAddress + 14));
-        var restored = JsonSerializer.Deserialize<NativeBattleGravija214State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGravija214State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
         Assert.Null(restored.RootBankStorage);
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(CopiedMeshAddress + 14));
     }

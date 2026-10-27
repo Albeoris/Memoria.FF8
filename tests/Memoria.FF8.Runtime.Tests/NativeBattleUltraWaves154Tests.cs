@@ -23,8 +23,8 @@ public sealed class NativeBattleUltraWaves154Tests
         Assert.Same(warm, repeated);
         Assert.Equal(new byte[] { 0xAB, 0xCD }, repeated.CapturePackets.Read(8, 2));
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, repeated.CaptureOffsets!.Read(0, 4));
-        NativeBattleUltraWaves154State restored = JsonSerializer.Deserialize<NativeBattleUltraWaves154State>(JsonSerializer.Serialize(warm))!;
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(restored.SeedColdCapture(resources)));
+        NativeBattleUltraWaves154State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWaves154State>(NativeBattleTestSnapshots.Json(warm))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(warm), NativeBattleTestSnapshots.Json(restored.SeedColdCapture(resources)));
         Assert.Throws<NotSupportedException>(() => (cold with { ColdCaptureSourcesPending = null }).SeedColdCapture(resources));
         Assert.Throws<InvalidDataException>(() => cold.SeedColdCapture(resources with { CapturePackets = original.RemoveAt(0) }));
     }

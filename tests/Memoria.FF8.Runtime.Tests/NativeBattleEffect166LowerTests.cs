@@ -99,7 +99,7 @@ public sealed class NativeBattleEffect166LowerTests
         NativeBattleEffect166Frame frame = Frame(0x5E5D50);
         NativeBattleEffect166Step step = NativeBattleEffect166Lower.Advance(frame, 0x23C0550, Resources(), Inputs(0x201));
         Assert.Equal(frame.Random, step.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.State), JsonSerializer.Serialize(step.Frame.State));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.State)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame.State)));
         Assert.Equal(frame.Staging, step.Frame.Staging);
         Assert.Equal(0, Read(step.Frame, 0x23C0550).ReadWord(12));
     }
@@ -170,7 +170,7 @@ public sealed class NativeBattleEffect166LowerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23C0540, 0x23C0550, 36, 100);
         (pool, _) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 0).WriteWord(14, 0)) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 0).WriteWord(14, 0));
         return new(Memory(), new(166, 165, new(166, 0x5E4E90, 0x5E4E70), null, null) { Pools = [pool] }, new(123), NativeBattleEffect166State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
     }
     private static NativeBattleEffect166Inputs Inputs(uint flags) => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, null!, null!, null!, null!, null!, _ => NativeBattlePackedMatrix32.FromMatrix(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 2000, 4096), null), _ => new(null, 100, 160, 108), (frame, _) => frame) { ReadCameraRoll = _ => 0 };

@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect251OwnershipTests
         frame = RetireCommonPool(frame, BurstDescriptor);
         Assert.Empty(frame.Effect.Pools);
         Assert.Equal((ushort)0xBEEF, WordUnsigned(ReadBytes(frame, old + 0x20, 2)));
-        frame = JsonSerializer.Deserialize<NativeBattleEffect251Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect251Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         frame = InitializeCommonPool(frame, ActDescriptor);
         Assert.Single(frame.Effect.Pools);
         Assert.Equal(ActDescriptor, frame.Effect.Pools[0].DescriptorAddress);

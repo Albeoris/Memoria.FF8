@@ -58,8 +58,8 @@ public sealed class NativeBattlePotion52Tests
             if (callback == 34)
             {
                 Assert.Equal((byte)0, frame.Effect.Pools[0].Slots[0].ReadByte(0x63));
-                NativeBattleCuragaFrame restored = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(frame, fixture.Inputs, Resources(), Leaf)), JsonSerializer.Serialize(NativeBattleCuragaController.Advance87DC50(restored, fixture.Inputs, Resources(), Leaf)));
+                NativeBattleCuragaFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuragaFrame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCuragaController.Advance87DC50(NativeBattleTestSnapshots.Independent(frame), fixture.Inputs, Resources(), Leaf)), NativeBattleTestSnapshots.Json(NativeBattleCuragaController.Advance87DC50(restored, fixture.Inputs, Resources(), Leaf)));
             }
         }
         Assert.Equal(300143u, Assert.Single(sounds).Sound);
@@ -113,7 +113,7 @@ public sealed class NativeBattlePotion52Tests
         Assert.Equal(0u, memory.CuragaExecutable!.InitializationFlag);
         Assert.Same(retained, profile.RequireExecutable(memory));
         Assert.Throws<NotSupportedException>(() => profile.RequireExecutable(memory with { Potion52Executable = null }));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal(retained.Read(0x17AB0E8, NativeBattleCuragaExecutableState.Length), profile.RequireExecutable(restored).Initialize87EA20(source).Read(0x17AB0E8, NativeBattleCuragaExecutableState.Length));
     }
 

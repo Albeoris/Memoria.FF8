@@ -89,7 +89,7 @@ public sealed class NativeBattleRenzokukenEffectTests
         NativeBattleRenzokuken160Frame frame = Frame();
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23D4778, 0x23D4788, 36, 100);
         (pool, int slot) = pool.Append(0x5FF180);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, 2)) });
         NativeBattleRenzokuken160Resources resources = new(new("animation", []), null!, [], [], [], [], 0, 0);
         NativeBattleRenzokuken160Inputs inputs = new(0, [10, 20, 30, 40, 10], _ => new(0, 0), (current, _) => current);
         NativeBattleRenzokuken160ChildStep step = NativeBattleRenzokuken160Controller.Advance5FF180(frame, pool, slot, inputs, resources);
@@ -138,7 +138,7 @@ public sealed class NativeBattleRenzokukenEffectTests
     {
         NativeBattleModuleState modules = NativeBattleModuleState.Clear();
         (modules, int slot) = modules.AppendCallback(0x5FF4E0);
-        byte[] payload = modules.Slots[slot].Payload.ToArray();
+        byte[] payload = NativeBattleStorageSnapshots.Capture(modules.Slots[slot]).Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload, 4);
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(14), 0);
         modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
@@ -153,6 +153,6 @@ public sealed class NativeBattleRenzokukenEffectTests
         Assert.Equal(1, step.State.Slots[slot].Next);
         Assert.Equal(6, step.State.Tail);
         Assert.All(step.State.Slots.Skip(1).Take(6), child => Assert.Equal(0x5FF770u, child.Callback));
-        Assert.Equal(5, BinaryPrimitives.ReadUInt16LittleEndian(step.State.Slots[slot].Payload.AsSpan()));
+        Assert.Equal(5, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleStorageSnapshots.Capture(step.State.Slots[slot]).Payload.AsSpan()));
     }
 }

@@ -24,7 +24,7 @@ public sealed class NativeBattleCarbuncle278MorphTests
         }
         NativeBattleEffectMemory source = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0x2E84, 16) };
         NativeBattleStaticMeshResource mesh = new(0, 0x10C0D08, first.ToImmutableArray());
-        NativeBattleEffectMemory result = NativeBattleCarbuncle278Morph.Morph683CA0(source, mesh, second.ToImmutableArray(), 2048);
+        NativeBattleEffectMemory result = NativeBattleCarbuncle278Morph.Morph683CA0(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source)), mesh, second.ToImmutableArray(), 2048);
         byte[] current = result.Arena!.Read(0x2E84, 6);
         Assert.Equal((short)-1, BinaryPrimitives.ReadInt16LittleEndian(current));
         Assert.Equal((short)-2, BinaryPrimitives.ReadInt16LittleEndian(current.AsSpan(2)));
@@ -32,7 +32,7 @@ public sealed class NativeBattleCarbuncle278MorphTests
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2E8A, 2));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2E92, 2));
         Assert.Throws<NotSupportedException>(() => source.Arena!.Read(0x2E84, 6));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCarbuncle278Morph.Morph683CA0(restored, mesh, second.ToImmutableArray(), 2048)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(source))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCarbuncle278Morph.Morph683CA0(restored, mesh, second.ToImmutableArray(), 2048)));
     }
 }

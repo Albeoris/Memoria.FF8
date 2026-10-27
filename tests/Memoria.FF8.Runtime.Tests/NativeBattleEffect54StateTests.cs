@@ -41,8 +41,8 @@ public sealed class NativeBattleEffect54StateTests
         }
         Assert.All(bound.ReadSnapshot(SourceAddress + 12, 4).Known, known => Assert.False(known));
         bound = bound.Write(SourceAddress, BitConverter.GetBytes(1u));
-        state = JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(state))!;
-        bound = JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(bound))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
+        bound = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileStaging>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(bound)))!);
         (state, bound) = state.BindSources(bound, resources);
         Assert.Equal(1u, BitConverter.ToUInt32(resources.ReadResource(bound, SourceAddress, 4)));
         Assert.Equal(new byte[] { 9, 8, 7 }, bound.Read(0x2000000, 3));
@@ -69,7 +69,7 @@ public sealed class NativeBattleEffect54StateTests
         NativeBattleEffectArena root = state.ReadBank(0).Write(14, [1]);
         state = state.DetachBank(0);
         Assert.Throws<InvalidDataException>(() => state.ReadBank(0));
-        state = JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(state))!.AttachBank(0, root);
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect54State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!).AttachBank(0, root);
         Assert.Equal(new byte[] { 1 }, state.ReadBank(0).Read(14, 1));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(0).Read(15, 1));
         Assert.Throws<InvalidDataException>(() => state.AttachBank(0, root));

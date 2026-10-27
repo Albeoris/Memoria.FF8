@@ -44,14 +44,14 @@ public sealed class NativeBattleBlaster186StateTests
     {
         NativeBattleEffectArena partial = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 2, 3, 4, 5, 6 });
         NativeBattleBlaster186State state = NativeBattleBlaster186State.FromUnknown().WriteView(MutableFrameAddresses[13] + VertexFrameBytes - 8, partial, 8).WriteDword(MatrixAddress, 0x1234).WriteWord(MutableFrameAddresses[14], 0x5678);
-        NativeBattleBlaster186State restored = JsonSerializer.Deserialize<NativeBattleBlaster186State>(JsonSerializer.Serialize(state))!;
+        NativeBattleBlaster186State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlaster186State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6 }, restored.Read(MutableFrameAddresses[13] + VertexFrameBytes - 8, 6));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress - 2));
         Assert.Equal(0x1234u, restored.ReadDword(MatrixAddress));
         Assert.Equal((ushort)0x5678, restored.ReadWord(MatrixAddress + 32));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(MatrixAddress + 4));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

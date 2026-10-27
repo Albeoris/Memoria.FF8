@@ -101,7 +101,7 @@ public sealed class NativeBattleEffect210ControllerTests
         Assert.Equal(2, harness.Selected);
         if (!complete)
         {
-            NativeBattleEffect210Frame restored = JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(step.Frame))!;
+            NativeBattleEffect210Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect210Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(step.Frame)))!);
             NativeBattleEffect210Step next = AdvanceMain6F7310(restored, Main, null!, harness.Inputs());
             Assert.Equal(307, Read(next.Frame, Main).ReadWord(12));
             Assert.Single(harness.Operations.OfType<NativeBattleEffect210AllContacts506BA0>());
@@ -160,7 +160,7 @@ public sealed class NativeBattleEffect210ControllerTests
         frame = Write(frame, orphan, Read(frame, orphan).WriteWord(20, 0xBEEF).MarkPayloadUnknown(22, 1));
         NativeBattleEffectTaskPool mesh = frame.Effect.Pools.Single(pool => pool.DescriptorAddress == MeshDescriptor);
         int index = frame.Effect.Pools.IndexOf(mesh);
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, mesh with { Head = null, Tail = null }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(index, mesh.UpdateLinks(null, null)) } };
         NativeBattleEffect210Frame next = Advance(frame, null!, new Harness().Inputs());
         Assert.Empty(next.Effect.Pools);
         Assert.Equal(0u, next.Effect.ReturnedDescriptor);
@@ -184,14 +184,14 @@ public sealed class NativeBattleEffect210ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 0).WriteWord(12, unchecked((ushort)age))) };
+        root = root.WriteSlot(0, root.Slots[0].WriteDword(12, 0).WriteWord(12, unchecked((ushort)age)));
         NativeBattleEffect210State state = NativeBattleEffect210State.FromColdProcess().DetachBank(0).WriteDword(ArenaGlobal, Arena).WriteDword(CasterGlobal, 0x1D97494);
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (main)
         {
             NativeBattleEffectTaskPool taskPool = NativeBattleEffectTaskPool.Initialize(MainDescriptor, Main, 0x3C0, 1);
             (taskPool, _) = taskPool.Append(MainCallback);
-            taskPool = taskPool with { Slots = taskPool.Slots.SetItem(0, taskPool.Slots[0].WriteBytes(12, new byte[948]).WriteWord(12, unchecked((ushort)age))) };
+            taskPool = taskPool.WriteSlot(0, taskPool.Slots[0].WriteBytes(12, new byte[948]).WriteWord(12, unchecked((ushort)age)));
             pools = pools.Add(taskPool);
             state = state.DetachCommonQueue(MainDescriptor);
         }

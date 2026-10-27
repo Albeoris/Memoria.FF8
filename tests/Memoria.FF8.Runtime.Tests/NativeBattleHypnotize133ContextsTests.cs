@@ -78,9 +78,9 @@ public sealed class NativeBattleHypnotize133ContextsTests
         NativeBattleHypnotize133ContextMemoryStep first = NativeBattleHypnotize133Contexts.Fading(Memory(), Camera(NativeBattleCuragaMatrices.Identity8DD770()), new(1, 2, 3), 2048, Morph, NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.All(first.Memory.ScriptedColorRegisters!.Rgb, value => Assert.Null(value));
         Assert.Equal(1, I32(first.Context40, 20));
-        NativeBattleHypnotize133ContextMemoryStep restored = JsonSerializer.Deserialize<NativeBattleHypnotize133ContextMemoryStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleHypnotize133ContextMemoryStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHypnotize133ContextMemoryStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleHypnotize133ContextMemoryStep Next(NativeBattleHypnotize133ContextMemoryStep value) => NativeBattleHypnotize133Contexts.Fading(value.Memory, Camera(NativeBattleCuragaMatrices.Identity8DD770()), new(1, 2, 3), 2048, Morph, NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]

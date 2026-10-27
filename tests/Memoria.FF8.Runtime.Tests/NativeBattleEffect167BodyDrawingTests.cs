@@ -103,7 +103,7 @@ public sealed class NativeBattleEffect167BodyDrawingTests
         Assert.Equal((ushort)0x0F1E, W(result, 0x76));
         Assert.Equal(0x12345678u, U(result, 0x78));
         Assert.Equal(-100, unchecked((int)U(result, 0x7C)));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffectArena restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.ReadSnapshot(0x70, 16).Data, restored.ReadSnapshot(0x70, 16).Data);
         Assert.Equal(result.ReadSnapshot(0x70, 16).Known, restored.ReadSnapshot(0x70, 16).Known);
     }

@@ -201,7 +201,7 @@ public sealed class NativeBattleEffect315ControllerTests
         Harness harness = new();
         NativeBattleEffect315Frame frame = Active();
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        frame = WithPool(frame, 1, children with { Head = null, Tail = null, Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }) });
+        frame = WithPool(frame, 1, children.WriteSlot(0, children.Slots[0].UpdateHeader(0, children.Slots[0].State, children.Slots[0].Next, children.Slots[0].Callback)).UpdateLinks(null, null));
         NativeCrtRandomState random = frame.Random;
         frame = Advance(frame, Resources(), harness.Inputs());
         Assert.Equal(RootDescriptor, frame.Effect.ReturnedDescriptor);
@@ -224,7 +224,7 @@ public sealed class NativeBattleEffect315ControllerTests
     {
         NativeBattleEffect315Frame frame = Active();
         uint address = root ? RootBank : ChildBank;
-        return Write(frame, address, (Read(frame, address) with { Callback = callback }).WriteWord(0xC, age));
+        return Write(frame, address, (Read(frame, address).UpdateHeader(Read(frame, address).Flags, Read(frame, address).State, Read(frame, address).Next, callback)).WriteWord(0xC, age));
     }
 
     private static NativeBattleEffect315Frame Active()

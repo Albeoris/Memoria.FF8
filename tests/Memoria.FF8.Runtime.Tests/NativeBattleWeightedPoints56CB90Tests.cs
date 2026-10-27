@@ -17,7 +17,7 @@ public sealed class NativeBattleWeightedPoints56CB90Tests
         Assert.Null(step.Memory.GeometryRegisters);
         Assert.Equal(unchecked((uint)(int)secondFactor), step.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Null(step.Memory.ScriptedColorRegisters.Material);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(step.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(step.Memory))!;
         Assert.Null(restored.GeometryRegisters);
         Assert.Equal(step.Memory.ScriptedColorRegisters.Mac.ToArray(), restored.ScriptedColorRegisters!.Mac.ToArray());
     }

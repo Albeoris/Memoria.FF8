@@ -56,14 +56,14 @@ public sealed class NativeBattleAdditional182StateTests
             state = state.WriteDword(HistoryAddress + row * HistoryStride, 0);
         }
         state = state.WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + PacketStep);
-        NativeBattleAdditional182State restored = JsonSerializer.Deserialize<NativeBattleAdditional182State>(JsonSerializer.Serialize(state))!;
+        NativeBattleAdditional182State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional182State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(matrix, restored.ReadView(last + 4, 32).Read(0, 32));
         Assert.Equal(0u, restored.ReadDword(last));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(HistoryAddress + 4));
         Assert.Equal(ArenaAddress, restored.ReadDword(WorkingGlobal));
         Assert.Equal(ArenaAddress + PacketStep, restored.ReadDword(CursorGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

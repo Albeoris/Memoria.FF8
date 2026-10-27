@@ -43,10 +43,10 @@ public sealed class NativeBattleUltraWaves184StateTests
         state.Validate();
         Assert.Equal(0x10u, state.ReadCursor());
         Assert.Equal(bytes, state.Packets.Read(0, bytes.Length));
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleUltraWaves184State restored = JsonSerializer.Deserialize<NativeBattleUltraWaves184State>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleUltraWaves184State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleUltraWaves184State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<InvalidDataException>(() => state.CopyCommonTexture(bytes.AsSpan(0, PacketDrawingLength)));
     }
 }

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -23,6 +23,7 @@ public sealed class NativeBattleDoomtrain191RainTests
             }
         }
         int draws = 0;
+        string replay = NativeBattleTestSnapshots.Json(frame);
         NativeBattleDoomtrain191LeafStep result = Advance(frame, 0, (current, batch) =>
         {
             draws++;
@@ -46,7 +47,7 @@ public sealed class NativeBattleDoomtrain191RainTests
         Assert.All(result.Frame.Memory.Arena.ReadSnapshot(Start + 14, 2).Known, Assert.False);
         Assert.Equal(new byte[] { 0x12, 0x34 }, result.Frame.Memory.Arena.Read(Start + 22, 2));
         Assert.Equal((ushort)1, result.Frame.Effect.Pools[1].Slots[0].ReadWord(0xC));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Advance(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!, 0)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Advance(NativeBattleTestSnapshots.RestoreJson<NativeBattleDoomtrain191Frame>(replay)!, 0)));
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public sealed class NativeBattleDoomtrain191RainTests
             return _;
         });
         Assert.Equal(frame.Random, result.Frame.Random);
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory.Arena), JsonSerializer.Serialize(result.Frame.Memory.Arena));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory.Arena), NativeBattleTestSnapshots.Json(result.Frame.Memory.Arena));
         Assert.Equal((short)5, Word(result.Frame, 4));
         Assert.Equal((ushort)307, result.Frame.Effect.Pools[1].Slots[0].ReadWord(0xC));
         Assert.Equal(new NativeBattleScriptedBackColor(17, 23, 29), result.Frame.Memory.ScriptedLighting!.BackColor);
@@ -160,8 +161,8 @@ public sealed class NativeBattleDoomtrain191RainTests
     {
         NativeBattleDoomtrain191Frame frame = NativeBattleDoomtrain191Tests.Initialize(NativeBattleDoomtrain191Tests.Fixture());
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        NativeBattleModulePoolTask task = (pool.Slots[0] with { Callback = 0x641AF0 }).WriteWord(0xC, age);
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, task) }) } };
+        NativeBattleModulePoolTask task = (NativeBattleTaskFixture.EditTask(pool.Slots[0], taskData => taskData with { Callback = 0x641AF0 })).WriteWord(0xC, age);
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, task) })) } };
     }
 
     private static NativeBattleDoomtrain191Frame Particle(NativeBattleDoomtrain191Frame frame, short age, short x, short y, short z, short velocity)

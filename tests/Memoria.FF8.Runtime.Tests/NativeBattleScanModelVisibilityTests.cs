@@ -35,7 +35,7 @@ public sealed class NativeBattleScanModelVisibilityTests
         frame = finished.Frame;
         Assert.Equal(0x00808080u, frame.Models[1].Color40);
         Assert.Equal((byte)4, frame.Stage.Groups[0].Flags);
-        frame = JsonSerializer.Deserialize<NativeBattleScanVisibilityFrame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanVisibilityFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleEffectHierarchyAppend restore = new NativeBattleEffectHierarchy(frame.Scan.Effect.Pools).Append8DC540(2, 0x8507F0, 0x78, 0x269AAE0, (_, _, _) => new(2, 4));
         uint restoreAddress = restore.Address;
         Assert.NotEqual(fixture.Address, restoreAddress);

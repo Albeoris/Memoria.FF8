@@ -12,7 +12,7 @@ public sealed class NativeBattleProcessTimQueueTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Bio22Palette = new(Tim(0x1234).Data) };
         memory = NativeBattleProcessTim.Enqueue505E30(memory, 0x16146E8);
         memory = memory with { Bio22Palette = new(Tim(0xBEEF).Data) };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleEffectTextureDrain drain = restored.Textures!.Drain505D20(resolveProcessTim: address => NativeBattleProcessTim.Resolve(restored, address));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(drain.Uploads[0].Bytes.AsSpan()));
         Assert.Null(restored.Textures.Slots[0]!.Source);
@@ -26,7 +26,7 @@ public sealed class NativeBattleProcessTimQueueTests
         Assert.Equal(0x1614908u, queued.NextAddress);
         Assert.Null(queued.State.Slots[0]!.Source);
         Assert.Equal(0x16146E8u, queued.State.Slots[0]!.ProcessAddress);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(queued.State))!;
+        NativeBattleEffectTextureState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(queued.State))!;
         Assert.Throws<NotSupportedException>(() => restored.Drain505D20());
         int reads = 0;
         NativeBattleEffectTextureDrain drain = restored.Drain505D20(resolveProcessTim: address =>

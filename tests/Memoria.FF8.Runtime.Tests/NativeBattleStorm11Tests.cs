@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -59,6 +59,7 @@ public sealed class NativeBattleStorm11Tests
     public void Debris_bounce_preserves_overshoot_and_reverses_spin_before_angle_update()
     {
         NativeBattleModulePoolTask task = Task(0x6EB790, 0x30).WriteWord(12, 29).WriteWord(0x12, unchecked((ushort)-1)).WriteWord(0x1A, 1).WriteWord(0x20, 100).WriteWord(0x28, 10);
+        NativeBattleModulePoolTask preserved = NativeBattleStorageSnapshots.Capture(task);
         NativeBattleModulePoolTask advanced = NativeBattleStorm11Motion.MoveDebris6EB790(task, out bool ended);
         Assert.True(ended);
         Assert.Equal(20, NativeBattleStorm11Motion.Word(advanced, 0x12));
@@ -72,10 +73,11 @@ public sealed class NativeBattleStorm11Tests
     public void Last_sprite_update_wraps_native_words_and_ends_only_after_its_last_draw_frame()
     {
         NativeBattleModulePoolTask task = Task(0x6EBA80, 0x20).WriteWord(12, 12).WriteWord(16, 32767).WriteWord(0x18, 1);
+        NativeBattleModulePoolTask preserved = NativeBattleStorageSnapshots.Capture(task);
         NativeBattleModulePoolTask advanced = NativeBattleStorm11Motion.MoveSprite(task, 13, out bool ended);
         Assert.True(ended);
         Assert.Equal(short.MinValue, NativeBattleStorm11Motion.Word(advanced, 16));
-        Assert.Equal(12, NativeBattleStorm11Motion.Word(task, 12));
+        Assert.Equal(12, NativeBattleStorm11Motion.Word(preserved, 12));
         Assert.Equal(13, NativeBattleStorm11Motion.Word(advanced, 12));
     }
 

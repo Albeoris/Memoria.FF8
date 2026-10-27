@@ -36,10 +36,10 @@ public sealed class NativeBattleRayBomb307StateTests
         NativeBattleEffectArena row = NativeBattleEffectArena.Clear().MarkUnknown(0, 20).Write(0, BitConverter.GetBytes((ushort)0x1020)).Write(12, BitConverter.GetBytes(0x12345678u));
         NativeBattleRayBomb307State state = NativeBattleRayBomb307State.FromUnknown().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CursorGlobal, ArenaAddress + PacketBankLength).WriteView(SavedActorsAddress + 60, row, 20);
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleRayBomb307State restored = JsonSerializer.Deserialize<NativeBattleRayBomb307State>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleRayBomb307State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307State>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(ArenaAddress + PacketBankLength, restored.ReadDword(CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadView(SavedActorsAddress + 60, 20).Read(4, 8));
         Assert.Equal((ushort)0x1020, restored.ReadWord(SavedActorsAddress + 60));

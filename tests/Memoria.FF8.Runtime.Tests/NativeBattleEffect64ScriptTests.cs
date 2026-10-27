@@ -24,7 +24,7 @@ public sealed class NativeBattleEffect64ScriptTests
         NativeBattleEffect64Frame frame = Frame(0x10F0, 1, 3, 4, 0x10FF);
         NativeBattleEffect64Step first = NativeBattleEffect64Script.Advance6E5DD0(frame, TaskAddress, Resources(), Inputs());
         Assert.Equal(0, first.Frame.State.ReadWord(Script + 2));
-        NativeBattleEffect64Frame restored = JsonSerializer.Deserialize<NativeBattleEffect64Frame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleEffect64Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect64Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Frame)))!);
         restored = Write(restored, TaskAddress, Read(restored, TaskAddress).WriteDword(0x18, Script));
         NativeBattleEffect64Step second = NativeBattleEffect64Script.Advance6E5DD0(restored, TaskAddress, Resources(), Inputs());
         Assert.Equal(3, second.Frame.State.ReadWord(Script + 2));

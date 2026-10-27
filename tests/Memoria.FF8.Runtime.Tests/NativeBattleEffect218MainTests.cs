@@ -112,7 +112,7 @@ public sealed class NativeBattleEffect218MainTests
         NativeBattleCureFamilyPool profile = Pools[1];
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(MainCallback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, unchecked((ushort)age))) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(218, 218, new(218, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [pool] };
         NativeBattleEffect218State state = NativeBattleEffect218State.FromColdProcess().WriteDword(TargetGlobal, 3).WriteDword(ArenaGlobal, ArenaAddress).WriteView(CameraBasis, PackedArena(NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)), 32).WriteWord(CurrentView + 18, 0x1234);
         return (new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), state), checked(pool.BankAddress + (uint)(slot * pool.Stride)));

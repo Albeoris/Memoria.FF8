@@ -89,7 +89,7 @@ public sealed class NativeBattleZantetsukenRenderingTests
         Assert.Equal(0, result.Batch.AllocationBytes);
         Assert.Same(fixture.Memory.GeometryRegisters, result.Memory.GeometryRegisters);
         Assert.Same(fixture.Memory.ScriptedColorRegisters, result.Memory.ScriptedColorRegisters);
-        Assert.Equal(JsonSerializer.Serialize(fixture.Scratch), JsonSerializer.Serialize(result.VertexScratch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Scratch), NativeBattleTestSnapshots.Json(result.VertexScratch));
         Assert.NotNull(result.Memory.ScriptedLighting!.LightMatrix);
         Assert.Throws<NotSupportedException>(() => result.Temporary1D8.Read(0, 4));
     }
@@ -120,9 +120,9 @@ public sealed class NativeBattleZantetsukenRenderingTests
         Assert.Equal(0x14000020u, Dword(first.Temporary1D8, 0));
         Assert.Equal(0x15000000u, Dword(first.Temporary1D8, 4));
         Assert.Equal(NativeBattleTemporaryMemory.Address + 0x48, Dword(first.Temporary1D8, 0xB8));
-        NativeBattleZantetsukenRenderStep restored = JsonSerializer.Deserialize<NativeBattleZantetsukenRenderStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleZantetsukenRenderStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleZantetsukenRenderStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleZantetsukenRenderStep Next(NativeBattleZantetsukenRenderStep current) => NativeBattleZantetsukenRendering.DrawBody(current.Memory, current.Temporary1D8, current.VertexScratch, fixture.Objects, fixture.Inputs, 1, 0x808080);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]

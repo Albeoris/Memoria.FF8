@@ -14,17 +14,17 @@ public sealed class NativeBattleShot193Tests
         NativeBattleShot193Frame frame = NativeBattleShot193.Enter(Fixture(), packets);
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(NativeBattleShot193.Root, 0x2276788, 16, 4);
         (root, int slot) = root.Append(0x5B9690);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteWord(12, 0).WriteWord(14, 0)) });
         frame = frame with { Effect = frame.Effect with { Pools = [root, NativeBattleEffectTaskPool.Initialize(0x22775E8, 0x22767C8, 36, 100), NativeBattleEffectTaskPool.Initialize(0x22792C0, 0x22792D0, 36, 100)] } };
         frame = NativeBattleShot193.Advance(frame, Inputs(packets, operations), Resources());
         Assert.Empty(operations.OfType<NativeBattleShot193ReloadCommon>());
         frame = NativeBattleShot193.Advance(frame, Inputs(packets, operations), Resources());
         NativeBattleShot193ReloadCommon reload = Assert.Single(operations.OfType<NativeBattleShot193ReloadCommon>());
         Assert.Equal(0x2276796u, reload.CompletionAddress);
-        NativeBattleShot193Frame restored = JsonSerializer.Deserialize<NativeBattleShot193Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShot193Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShot193Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = NativeBattleShot193.Advance(frame, Inputs(packets, operations), Resources());
         restored = NativeBattleShot193.Advance(restored, Inputs(packets, []), Resources());
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
         Assert.NotEqual(0u, frame.Effect.ReturnedDescriptor);
         Assert.Single(operations.OfType<NativeBattleShot193ReloadCommon>());
         Assert.Throws<NotSupportedException>(() => NativeBattleShot193.WriteCompletionByte(frame.Effect, reload.CompletionAddress + 1, 1));
@@ -100,15 +100,15 @@ public sealed class NativeBattleShot193Tests
         frame = NativeBattleShot193.Enter(frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Parameter80 = 2, Parameter81 = 0 } } }, packets);
         frame = NativeBattleShot193.Advance(frame, Inputs(packets, initial), resources);
         frame = NativeBattleShot193.Advance(frame, Inputs(packets, initial), resources);
-        NativeBattleShot193Frame restored = JsonSerializer.Deserialize<NativeBattleShot193Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShot193Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShot193Frame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int callback = 0; callback < 20; callback++)
         {
             List<NativeBattleShot193Operation> first = [];
             List<NativeBattleShot193Operation> second = [];
             frame = NativeBattleShot193.Advance(frame, Inputs(packets, first), resources);
             restored = NativeBattleShot193.Advance(restored, Inputs(packets, second), resources);
-            Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
-            Assert.Equal(first.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())), second.Select(operation => JsonSerializer.Serialize(operation, operation.GetType())));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
+            Assert.Equal(first.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType())), second.Select(operation => NativeBattleTestSnapshots.Json(operation, operation.GetType())));
         }
     }
 

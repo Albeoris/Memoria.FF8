@@ -87,7 +87,7 @@ public sealed class NativeBattleRayBomb307TargetTests
         Assert.Equal(0, step.Result);
         Assert.Equal(frame.Random, step.Frame.Random);
         Assert.Equal((ushort)28, NativeBattleRayBomb307Controller.Read(step.Frame, ChildBank).ReadWord(12));
-        Assert.Equal(fixture.OriginalRotation, fixture.Rotation);
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.OriginalRotation), NativeBattleTestSnapshots.Json(fixture.Rotation));
         Assert.Equal((short)1000, Word(fixture.Position, 0));
         Assert.Equal((short)3000, Word(fixture.Position, 4));
         Assert.Equal(unchecked((short)(unchecked(NativeBattleCameraMath.Sine(1024) * 80) >> 12)), Word(fixture.Position, 2));
@@ -100,7 +100,7 @@ public sealed class NativeBattleRayBomb307TargetTests
         Fixture first = new(31);
         NativeBattleRayBomb307Frame frame = first.Seeded(first.Frame);
         first.Flags = 0xA062;
-        string json = JsonSerializer.Serialize(frame);
+        string json = NativeBattleTestSnapshots.Json(frame);
         NativeBattleRayBomb307TaskStep step = first.Advance(frame);
         Assert.Equal(2, step.Result);
         Assert.Equal((ushort)0xB042, first.Flags);
@@ -111,9 +111,9 @@ public sealed class NativeBattleRayBomb307TargetTests
         Assert.Equal(new NativeBattleRayBomb307Contact(2), first.Operations[^1]);
         Assert.Single(first.Operations.OfType<NativeBattleRayBomb307Contact>());
         Fixture second = new(31) { Flags = 0xA062 };
-        NativeBattleRayBomb307TaskStep restored = second.Advance(JsonSerializer.Deserialize<NativeBattleRayBomb307Frame>(json)!);
-        Assert.Equal(JsonSerializer.Serialize(step.Frame), JsonSerializer.Serialize(restored.Frame));
-        Assert.Equal(JsonSerializer.Serialize(first.Position), JsonSerializer.Serialize(second.Position));
+        NativeBattleRayBomb307TaskStep restored = second.Advance(NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307Frame>(json)!);
+        Assert.Equal(NativeBattleTestSnapshots.Json(step.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Position), NativeBattleTestSnapshots.Json(second.Position));
     }
 
     [Fact]
@@ -141,11 +141,11 @@ public sealed class NativeBattleRayBomb307TargetTests
         public List<NativeBattleRayBomb307Operation> Operations { get; } = [];
         public Fixture(ushort age)
         {
-            Rotation = OriginalRotation;
-            Position = OriginalPosition;
+            Rotation = NativeBattleTestSnapshots.Independent(OriginalRotation);
+            Position = NativeBattleTestSnapshots.Independent(OriginalPosition);
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, int index) = children.Append(0x5A25E0);
-            children = children with { Slots = children.Slots.SetItem(index, children.Slots[index].WriteWord(12, age).WriteWord(14, 3).WriteWord(16, 900).WriteWord(18, 1500).WriteWord(20, 2800).WriteWord(24, 1200).WriteWord(26, 2).WriteWord(32, 640)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(index, children.Slots[index].WriteWord(12, age).WriteWord(14, 3).WriteWord(16, 900).WriteWord(18, 1500).WriteWord(20, 2800).WriteWord(24, 1200).WriteWord(26, 2).WriteWord(32, 640)) });
             NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2), children] };
             NativeBattleEffectArena particles = NativeBattleEffectArena.Clear().MarkUnknown(0, ParticlesLength);
             for (int row = 0; row < 100; row++)
@@ -155,7 +155,7 @@ public sealed class NativeBattleRayBomb307TargetTests
             Frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(123), NativeBattleRayBomb307State.FromColdProcess() with { Particles = particles });
         }
         public NativeBattleRayBomb307Frame Seeded(NativeBattleRayBomb307Frame frame) => frame with { State = frame.State.WriteWord(Saved, 0x1000).WriteView(Saved + 4, OriginalRotation, 8).WriteView(Saved + 12, OriginalPosition, 8) };
-        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint graphicsFlags = 0) => NativeBattleRayBomb307Controller.AdvanceTarget(frame, ChildBank, null!, new(NativeBattleActionPacketsState.Fresh(), graphicsFlags, actor => new(actor, Flags), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, _) => new(current with { State = current.State.WriteDword(CursorGlobal, 0xABCDEF) }, new(900, 1500, 2800, 321)), _ => Rotation, _ => Position, Execute));
+        public NativeBattleRayBomb307TaskStep Advance(NativeBattleRayBomb307Frame frame, uint graphicsFlags = 0) => NativeBattleRayBomb307Controller.AdvanceTarget(NativeBattleTestSnapshots.Independent(frame), ChildBank, null!, new(NativeBattleActionPacketsState.Fresh(), graphicsFlags, actor => new(actor, Flags), (_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (current, _) => new(current with { State = current.State.WriteDword(CursorGlobal, 0xABCDEF) }, new(900, 1500, 2800, 321)), _ => Rotation, _ => Position, Execute));
         private NativeBattleRayBomb307Frame Execute(NativeBattleRayBomb307Frame frame, NativeBattleRayBomb307Operation operation)
         {
             Operations.Add(operation);

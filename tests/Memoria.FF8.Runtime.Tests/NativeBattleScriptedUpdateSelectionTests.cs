@@ -23,7 +23,7 @@ public sealed class NativeBattleScriptedUpdateSelectionTests
         });
         Assert.Equal(1, calls);
         Assert.Equal(0x80002004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
-        string json = JsonSerializer.Serialize(result);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(json)!));
+        string json = NativeBattleTestSnapshots.Json(result);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(json)!));
     }
 }

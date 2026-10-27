@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -11,10 +11,11 @@ public sealed class NativeBattleCuraSceneWorkspaceTests
     {
         NativeBattleGfAnimationSource source = Source(0x40);
         NativeBattleGfAnimationWorkspace old = new(Enumerable.Repeat((byte)0xA5, 40).ToImmutableArray());
+        NativeBattleGfAnimationWorkspace equivalent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(old));
         NativeBattleGfAnimationWorkspace cura = old.Initialize88A7D0(source, 23);
-        Assert.Equal(old.Initialize7016B0(source, 23).Data.ToArray(), cura.Data.ToArray());
-        Assert.Equal(0x10000000, Read(cura.Data, 8));
-        Assert.All(cura.Data.Skip(20), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(equivalent.Initialize7016B0(source, 23)).Data.ToArray(), NativeBattleStorageSnapshots.Capture(cura).Data.ToArray());
+        Assert.Equal(0x10000000, Read(NativeBattleStorageSnapshots.Capture(cura).Data, 8));
+        Assert.All(NativeBattleStorageSnapshots.Capture(cura).Data.Skip(20), value => Assert.Equal((byte)0xA5, value));
     }
 
     [Fact]
@@ -40,9 +41,9 @@ public sealed class NativeBattleCuraSceneWorkspaceTests
         Assert.Equal((short)-1, first!.Word40);
         Assert.Equal((short)3, first.Word42);
         Assert.Equal((short)7, first.Scalar38);
-        Assert.Equal(2 << 16, Read(step.Workspace.Data, 16));
-        Assert.Equal(-1, Read(step.Workspace.Data, 20));
-        NativeBattleGfAnimationWorkspace restored = JsonSerializer.Deserialize<NativeBattleGfAnimationWorkspace>(JsonSerializer.Serialize(step.Workspace))!;
+        Assert.Equal(2 << 16, Read(NativeBattleStorageSnapshots.Capture(step.Workspace).Data, 16));
+        Assert.Equal(-1, Read(NativeBattleStorageSnapshots.Capture(step.Workspace).Data, 20));
+        NativeBattleGfAnimationWorkspace restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGfAnimationWorkspace>(NativeBattleTestSnapshots.Json(step.Workspace))!;
         NativeBattleGfAnimationAdvance next = restored.Advance88A980(source, (current, node) =>
         {
             Assert.Equal((short)8, node.Scalar38);
@@ -61,19 +62,20 @@ public sealed class NativeBattleCuraSceneWorkspaceTests
         workspace = workspace.Initialize88A7D0(source, 20);
         NativeBattleGfAnimationNode? cura = null;
         NativeBattleGfAnimationNode? gf = null;
+        NativeBattleGfAnimationWorkspace independent = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(workspace));
         var first = workspace.Advance88A980(source, (current, node) =>
         {
-            cura = node;
+            cura = NativeBattleStorageSnapshots.Capture(node);
             return current;
         });
-        var equivalent = workspace.Advance701970(source, 0, (current, node) =>
+        var equivalent = independent.Advance701970(source, 0, (current, node) =>
         {
-            gf = node;
+            gf = NativeBattleStorageSnapshots.Capture(node);
             return current;
         });
-        Assert.Equal(cura!.Data.ToArray(), gf!.Data.ToArray());
-        Assert.Equal(new NativeBattleVector(4096, 4096, 4096), cura.Vector24);
-        Assert.Equal(first.Workspace.Data.ToArray(), equivalent.Workspace.Data.ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(cura!).Data.ToArray(), NativeBattleStorageSnapshots.Capture(gf!).Data.ToArray());
+        Assert.Equal(new NativeBattleVector(4096, 4096, 4096), cura!.Vector24);
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(first.Workspace).Data.ToArray(), NativeBattleStorageSnapshots.Capture(equivalent.Workspace).Data.ToArray());
     }
 
     private static NativeBattleGfAnimationSource Source(uint flags)

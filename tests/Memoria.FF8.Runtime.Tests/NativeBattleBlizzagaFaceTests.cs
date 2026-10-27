@@ -22,7 +22,7 @@ public sealed class NativeBattleBlizzagaFaceTests
         NativeBattleBlizzagaFaceStep copied = NativeBattleBlizzagaFaces.Step(initial.Memory, task, 0, 31, 0, 0, new(1), resources);
         Assert.Equal(resources.ReferenceVertices.Bytes.AsSpan().Slice(8).ToArray(), NativeBattleBlizzagaFaces.ExpandedVertices(copied.Task, 31).ToArray());
         NativeBattleBlizzagaFaceStep retained = NativeBattleBlizzagaFaces.Step(copied.Memory, copied.Task, 0, 32, 0, 0, copied.Random, resources);
-        Assert.Equal(JsonSerializer.Serialize(copied), JsonSerializer.Serialize(retained));
+        Assert.Equal(NativeBattleTestSnapshots.Json(copied), NativeBattleTestSnapshots.Json(retained));
         NativeBattleBlizzagaFaceStep expanded = NativeBattleBlizzagaFaces.Step(retained.Memory, retained.Task, 0, 33, 0, 0, retained.Random, resources);
         ImmutableArray<byte> mesh = NativeBattleBlizzagaFaces.ReadPrimaryMesh(expanded.Memory, 0);
         ImmutableArray<byte> companion = NativeBattleBlizzagaFaces.Companion(expanded.Memory);
@@ -61,12 +61,12 @@ public sealed class NativeBattleBlizzagaFaceTests
         Assert.Equal(128, mesh[0x24 + 0x17]);
         Assert.Equal(0, mesh[0x24 + 0x1B]);
         Assert.Equal(0x1234, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleBlizzagaFaces.ExpandedVertices(step.Task, 51).AsSpan().Slice(6)));
-        NativeBattleBlizzagaFaceStep restored = JsonSerializer.Deserialize<NativeBattleBlizzagaFaceStep>(JsonSerializer.Serialize(step))!;
+        NativeBattleBlizzagaFaceStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBlizzagaFaceStep>(NativeBattleTestSnapshots.Json(step))!;
         for (int phase = 52; phase <= 97; phase++)
         {
             step = NativeBattleBlizzagaFaces.Step(step.Memory, step.Task, 0, phase, -1000, 0, step.Random, resources);
             restored = NativeBattleBlizzagaFaces.Step(restored.Memory, restored.Task, 0, phase, -1000, 0, restored.Random, resources);
-            Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(restored));
         }
         Assert.Equal(expected, step.Random);
         for (int face = 0; face < 320; face++)

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleShockwavePulsar260Profile;
@@ -79,7 +79,7 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
         Assert.Equal((ushort)1, Word(frame, SecondaryParticlesOffset + 4));
         Assert.Equal((ushort)65535, Word(frame, SecondaryParticlesOffset + 6));
         Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(PuffsOffset + 10, 2));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleShockwavePulsar260Frame>(JsonSerializer.Serialize(frame))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260Frame>(NativeBattleTestSnapshots.Json(frame))));
     }
 
     [Fact]
@@ -138,12 +138,13 @@ public sealed class NativeBattleShockwavePulsar260ControllerTests
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, MainStride, 1);
             (main, int mainIndex) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(mainIndex, main.Slots[mainIndex].WriteWord(0xC, (ushort)age).WriteWord(0xE, targets)) };
+            main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(mainIndex, main.Slots[mainIndex].WriteWord(0xC, (ushort)age).WriteWord(0xE, targets)) });
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ArenaAddress + ChildrenOffset, ChildStride, ChildCount);
             (children, _) = children.Append(ChildActCallback);
             NativeBattleOriginalEffectState effect = new(260, 259, new(260, Entry, Initializer), null, RootDescriptor) { Pools = [root, main, children] };
             NativeBattleShockwavePulsar260State state = NativeBattleShockwavePulsar260State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(SavedFlagsAddress + 12, 6).WriteDword(0x2508614, ArenaAddress + PuffsOffset).WriteDword(0x2508618, ArenaAddress + SecondaryParticlesOffset);
             NativeBattleShockwavePulsar260Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), EffectIo = new(0x534150, 0, 0) }, effect, new(123), state);
+            frame = frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, effect.Pools) };
             NativeBattleEffectArena record = NativeBattleEffectArena.Clear().MarkUnknown(0, 36).Write(0, BitConverter.GetBytes(0x1D972C0u + 3 * 156u)).Write(4, new byte[] { 11, 0, 22, 0, 33, 0 }).Write(0x14, BitConverter.GetBytes(0u));
             for (int index = 0; index < Math.Max(1, (int)targets); index++)
             {

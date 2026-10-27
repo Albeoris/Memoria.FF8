@@ -97,8 +97,8 @@ public sealed class NativeBattleCureParticleTests
         NativeBattleModuleDraw draw = Assert.IsType<NativeBattleCureSpriteOperation>(Assert.Single(operations)).Draw;
         Assert.Equal(resource, draw.Resource!.Address);
         Assert.Equal((ushort)0, draw.Phase);
-        string json = JsonSerializer.Serialize(step.Frame);
-        NativeBattleCureFrame independent = JsonSerializer.Deserialize<NativeBattleCureFrame>(json)!;
+        string json = NativeBattleTestSnapshots.Json(step.Frame);
+        NativeBattleCureFrame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleCureFrame>(json)!;
         frame = step.Frame;
         int count = 1;
         while (step.Result == 0 && count < 30)
@@ -107,7 +107,7 @@ public sealed class NativeBattleCureParticleTests
             NativeBattleCureParticleInputs inputs = fixture.Inputs with { CrtRandom = expected };
             step = Advance(frame, fixture.Address, inputs, operations);
             NativeBattleCureParticleStep restored = Advance(independent, fixture.Address, inputs, []);
-            Assert.Equal(JsonSerializer.Serialize(step.Frame), JsonSerializer.Serialize(restored.Frame));
+            Assert.Equal(NativeBattleTestSnapshots.Json(step.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
             Assert.Equal(expected, step.CrtRandomAfter);
             frame = step.Frame;
             independent = restored.Frame;

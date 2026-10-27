@@ -22,10 +22,10 @@ public sealed class NativeBattleZantetsukenActorFadeTests
         Assert.Equal((uint?)512, step.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
         Assert.Equal((uint?)1024, step.Memory.PrimitiveProcess.ModelRendererRegisters.FarGreen);
         Assert.Equal((uint?)2048, step.Memory.PrimitiveProcess.ModelRendererRegisters.FarBlue);
-        NativeBattleZantetsukenActorFadeStep restored = JsonSerializer.Deserialize<NativeBattleZantetsukenActorFadeStep>(JsonSerializer.Serialize(step))!;
+        NativeBattleZantetsukenActorFadeStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleZantetsukenActorFadeStep>(NativeBattleTestSnapshots.Json(step))!;
         NativeBattleZantetsukenActorFadeStep next = NativeBattleZantetsukenActorFade.Apply(step.Model, step.Memory, 2048, Constants());
         Assert.Equal(step.Model.Color40, next.Model.Color40);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(NativeBattleZantetsukenActorFade.Apply(restored.Model, restored.Memory, 2048, Constants())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(NativeBattleZantetsukenActorFade.Apply(restored.Model, restored.Memory, 2048, Constants())));
     }
 
     [Fact]

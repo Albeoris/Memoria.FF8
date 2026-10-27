@@ -14,7 +14,7 @@ public sealed class NativeBattleStageResourceIdentityTests
         NativeBattleStageState prior = NativeBattleStageState.FromColdProcess() with { ResourceStageId = 142 };
         NativeBattleStageState stage = prior.Initialize500EA0(Source(resourceStageId));
         Assert.Equal(resourceStageId, stage.ResourceStageId);
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(stage))!;
         Assert.Equal(resourceStageId, restored.ResourceStageId);
     }
 
@@ -52,7 +52,7 @@ public sealed class NativeBattleStageResourceIdentityTests
         Assert.Null(rebuilt.Initialize500EA0(Source(null)).TextureAnimationStartCallback);
         Assert.Throws<InvalidDataException>(() => initial.Initialize500EA0(Source(142), -1));
         Assert.Throws<InvalidDataException>(() => initial.Reload512AC0(0, Source(37), -1));
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(rebuilt))!;
+        NativeBattleStageState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStageState>(NativeBattleTestSnapshots.Json(rebuilt))!;
         Assert.Equal(137, restored.ResourceStageId);
         Assert.Equal(240L, restored.TextureAnimationStartCallback);
     }

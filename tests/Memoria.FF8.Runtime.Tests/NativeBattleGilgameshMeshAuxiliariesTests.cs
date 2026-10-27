@@ -84,8 +84,8 @@ public sealed class NativeBattleGilgameshMeshAuxiliariesTests
         NativeBattleGilgameshMeshAuxiliaryStep current = Run(task);
         Assert.Same(task, paused.UpdatedTask);
         Assert.Equal(0, paused.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(paused.Batch));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(current.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(paused.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(current.Batch));
         Assert.Equal(delayed ? 96 : 10, current.Batch.Attempts.Length);
         Assert.Equal(counter + 1 >= (delayed ? 14 : 30) ? 2 : 0, current.Result);
     }
@@ -136,12 +136,12 @@ public sealed class NativeBattleGilgameshMeshAuxiliariesTests
     {
         NativeBattleModulePoolTask task = Task(callback).WriteWord(12, 32767).WriteWord(16, unchecked((ushort)-100)).WriteWord(18, 200).WriteWord(20, unchecked((ushort)-300)).WriteWord(24, 1024).WriteWord(28, unchecked((ushort)-4096)).WriteWord(32, 2048);
         NativeBattleActionMatrix local = NativeBattlePoseMatrices.Scale56BEF0(NativeBattleGfMatrices.Euler56CE30(new(0, 1024, 0)), -4096, callback == 0x594210 ? 2048 : -4096, -4096) with { X = -100, Y = 200, Z = -300 };
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleGfMatrices.Compose56C2F0(View(), local)), JsonSerializer.Serialize(NativeBattleGilgameshMeshAuxiliaries.Matrix(task, View())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleGfMatrices.Compose56C2F0(View(), local)), NativeBattleTestSnapshots.Json(NativeBattleGilgameshMeshAuxiliaries.Matrix(task, View())));
         NativeBattleGilgameshMeshAuxiliaryStep first = Run(task);
         Assert.Equal((ushort)32768, first.UpdatedTask.ReadWord(12));
         Assert.Equal(0, first.Result);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(first.UpdatedTask))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(first.UpdatedTask)), JsonSerializer.Serialize(Run(restored)));
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(first.UpdatedTask))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(first.UpdatedTask)), NativeBattleTestSnapshots.Json(Run(restored)));
     }
 
     private static NativeBattleGilgameshMeshAuxiliaryStep Run(NativeBattleModulePoolTask task, uint flags = 0) => NativeBattleGilgameshMeshAuxiliaries.Step(task, Resources(), View(), Projection(), flags);
@@ -153,7 +153,7 @@ public sealed class NativeBattleGilgameshMeshAuxiliariesTests
     private static NativeBattleEffectTaskPool Pool()
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x21FFD58, 0x21FFD68, 36, 100);
-        return pool with { Slots = pool.Slots.Select(task => task with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() }).ToImmutableArray() };
+        return NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.Select(task => NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = Enumerable.Repeat((byte)0xA5, 24).ToImmutableArray() })).ToImmutableArray() });
     }
 
     private static NativeBattleGilgameshMeshAuxiliaryResources Resources() => new(Mesh(18, 10), Mesh(120, 96), [new(14, -550, 4608, 3072), new(28, -1000, 3072, 2560), new(36, -1300, 3584, 2944)]);

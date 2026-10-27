@@ -119,8 +119,8 @@ public sealed class NativeBattleAdditional181ChildrenTests
             random = random.Draw(out _);
         }
         Assert.Equal(random, actual.Frame.Random);
-        var restored = JsonSerializer.Deserialize<NativeBattleAdditional181Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), JsonSerializer.Serialize(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional181Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(AdvanceSlots(actual.Frame, ChildBank, Resources, Inputs()).Frame), NativeBattleTestSnapshots.Json(AdvanceSlots(restored, ChildBank, Resources, Inputs()).Frame));
     }
 
     [Theory]

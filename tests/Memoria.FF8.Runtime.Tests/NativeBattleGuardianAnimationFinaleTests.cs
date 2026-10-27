@@ -15,11 +15,11 @@ public sealed class NativeBattleGuardianAnimationFinaleTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, 0x1000, 0x24, 1);
         (pool, int slot) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, checked((ushort)counter))) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(0x0C, checked((ushort)counter))) });
         NativeBattleOriginalEffectState effect = Effect(effectId) with { Pools = [pool] };
         Assert.Equal(expected, NativeBattleGuardianAnimationFinale.HasReachedFinale(effect, NativeBattleEffectMemory.FromColdProcess()));
 
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot] with { Flags = 0 }) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, NativeBattleTaskFixture.EditTask(pool.Slots[slot], taskData => taskData with { Flags = 0 })) });
         Assert.False(NativeBattleGuardianAnimationFinale.HasReachedFinale(effect with { Pools = [pool] }, NativeBattleEffectMemory.FromColdProcess()));
     }
 

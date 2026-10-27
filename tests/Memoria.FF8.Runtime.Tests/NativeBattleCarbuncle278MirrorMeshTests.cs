@@ -28,8 +28,8 @@ public sealed class NativeBattleCarbuncle278MirrorMeshTests
         Assert.Equal(0x5566u, commands[1].Words[8]);
         Assert.All(commands, command => Assert.Equal(47, command.OrderingBucket));
         Assert.Throws<NotSupportedException>(() => source.ReadCommonPacket(0x1000, 4));
-        NativeBattlePrimitiveProcess independent = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(independent, Mesh(1000, false))));
+        NativeBattlePrimitiveProcess independent = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(source))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Draw(independent, Mesh(1000, false))));
     }
 
     [Fact]

@@ -23,14 +23,14 @@ public sealed class NativeBattleEffectTaskPoolTests
         Assert.Equal(0x592300u, gilgamesh.Children.Slots[0].Callback);
         Assert.Equal(4, gilgamesh.Particles!.Slots.Length);
         Assert.Null(gilgamesh.Particles.Head);
-        Assert.All(odin.Children.Slots, slot => Assert.All(slot.Payload, value => Assert.Equal((byte)0, value)));
+        Assert.All(odin.Children.Slots, slot => Assert.All(NativeBattleStorageSnapshots.Capture(slot).Payload, value => Assert.Equal((byte)0, value)));
     }
 
     [Fact]
     public void CallbackReturnBit2ReleasesOnlyFlagsWordAndReusesRetainedSuffix()
     {
         NativeBattleEffectTaskPool pool = NativeBattleGuardianEffectPools.Odin().Children;
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 93) with { State = 7 }) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 93).UpdateHeader(pool.Slots[0].WriteWord(12, 93).Flags, 7, pool.Slots[0].WriteWord(12, 93).Next, pool.Slots[0].WriteWord(12, 93).Callback));
         NativeBattleEffectTaskStep step = pool.Advance((state, _) => new(state, 6));
         Assert.Equal(0, step.Survivors);
         Assert.Null(step.Pool.Head);
@@ -95,24 +95,24 @@ public sealed class NativeBattleEffectTaskPoolTests
     public void IndependentPoolsAndRetainedCallbacksRoundTripWithoutAParallelTimer()
     {
         NativeBattleGuardianEffectPools pools = NativeBattleGuardianEffectPools.Gilgamesh();
-        pools = pools with { Children = pools.Children with { Slots = pools.Children.Slots.SetItem(0, pools.Children.Slots[0].WriteWord(12, 42)) } };
-        string json = JsonSerializer.Serialize(pools);
-        NativeBattleGuardianEffectPools restored = JsonSerializer.Deserialize<NativeBattleGuardianEffectPools>(json)!;
+        pools = pools with { Children = pools.Children.WriteSlot(0, pools.Children.Slots[0].WriteWord(12, 42)) };
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(pools));
+        NativeBattleGuardianEffectPools restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGuardianEffectPools>(json)!);
         restored.Main.Validate();
         restored.Children.Validate();
         restored.Particles!.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Equal((ushort)42, restored.Children.Slots[0].ReadWord(12));
         Assert.Equal((ushort)0, restored.Main.Slots[0].ReadWord(12));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffectTaskPool>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTaskPool>("{}")));
     }
 
     [Fact]
     public void InvalidPhysicalLinksAndDescriptorReplacementAreRejected()
     {
         NativeBattleEffectTaskPool pool = NativeBattleGuardianEffectPools.Odin().Main;
-        Assert.Throws<InvalidDataException>(() => (pool with { Tail = 1 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Next = 0 }) }).Validate());
-        Assert.Throws<InvalidDataException>(() => pool.Advance((state, _) => new(state with { BankAddress = 4 }, 0)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(pool)).UpdateLinks(pool.Head, 1).Validate());
+        Assert.Throws<InvalidDataException>(() => (pool.WriteSlot(0, pool.Slots[0].UpdateHeader(pool.Slots[0].Flags, pool.Slots[0].State, 0, pool.Slots[0].Callback))).Validate());
+        Assert.Throws<InvalidOperationException>(() => _ = pool with { BankAddress = 4 });
     }
 }

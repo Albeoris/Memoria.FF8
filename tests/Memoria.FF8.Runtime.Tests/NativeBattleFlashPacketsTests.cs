@@ -39,19 +39,19 @@ public sealed class NativeBattleFlashPacketsTests
         original = original with { Arena = original.Arena!.MarkUnknown(offset, 24) };
         NativeBattleModuleDraw draw = Polygon(offset);
         NativeBattleModulePacketBatch batch = NativeBattleFlashPackets.Emit(draw);
-        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(original, offset, NativeBattleLogicalOrdering.Clear(), batch, NativeBattleEffectGouraudWrites.FullDword, 7);
+        NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(NativeBattleTestSnapshots.Independent(original), offset, NativeBattleLogicalOrdering.Clear(), batch, NativeBattleEffectGouraudWrites.FullDword, 7);
         Assert.Equal(offset + 24, written.Cursor);
-        Assert.Equal(JsonSerializer.Serialize(original.PrimitiveProcess), JsonSerializer.Serialize(written.Memory.PrimitiveProcess));
+        Assert.Equal(NativeBattleTestSnapshots.Json(original.PrimitiveProcess), NativeBattleTestSnapshots.Json(written.Memory.PrimitiveProcess));
         Assert.Throws<NotSupportedException>(() => original.Arena!.Read(offset, 24));
         Assert.Equal(3, written.Memory.Arena!.Read(offset, 3).Length);
         Assert.Equal(5, written.Memory.Arena!.Read(offset + 3, 1)[0]);
         byte[] body = written.Memory.Arena!.Read(offset + 4, 20);
         Assert.Equal(0x2A808080u, BinaryPrimitives.ReadUInt32LittleEndian(body));
         Assert.Equal(320u | 216u << 16, BinaryPrimitives.ReadUInt32LittleEndian(body.AsSpan(16)));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(written.Memory))!;
         restored.Validate();
         Assert.Equal(body, restored.Arena!.Read(offset + 4, 20));
-        Assert.Equal(JsonSerializer.Serialize(draw), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleModuleDraw>(JsonSerializer.Serialize(draw))!));
+        Assert.Equal(NativeBattleTestSnapshots.Json(draw), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleModuleDraw>(NativeBattleTestSnapshots.Json(draw))!));
         Assert.Equal(7, Assert.Single(written.Ordering.Proxies).ModuleDraw);
     }
 

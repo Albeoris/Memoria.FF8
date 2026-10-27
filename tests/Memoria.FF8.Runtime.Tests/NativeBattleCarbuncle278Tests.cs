@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -27,7 +27,7 @@ public sealed class NativeBattleCarbuncle278Tests
         Assert.Equal(NativeBattleCarbuncle278Entry.MainBank, pool.BankAddress);
         NativeBattleModulePoolTask task = Assert.Single(pool.Slots);
         Assert.Equal(NativeBattleCarbuncle278Entry.MainCallback, task.Callback);
-        Assert.Equal(new byte[8], task.Payload);
+        Assert.Equal(new byte[8], NativeBattleStorageSnapshots.Capture(task).Payload);
         Assert.Equal(0, fixture.Frame.Memory.Textures!.Count);
     }
 
@@ -56,16 +56,16 @@ public sealed class NativeBattleCarbuncle278Tests
         {
             live = NativeBattleCarbuncle278Controller.Advance680DF0(live, (color, flags) => stages.Add((color, flags)));
             restored = NativeBattleCarbuncle278Controller.Advance680DF0(restored, (_, _) => { });
-            Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(live), NativeBattleTestSnapshots.Json(restored));
             uint offset = index == 0 ? 0x13ECCu : 0x3ECCu;
             Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + offset, live.Memory.Carbuncle278!.PacketCursor81BC);
             Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + offset + 0x10000, live.Memory.Carbuncle278.AlternateCursor81C0);
         }
         Assert.Equal(new[] { (0u, 0), (0u, 0) }, stages);
-        string before = JsonSerializer.Serialize(live);
+        string before = NativeBattleTestSnapshots.Json(live);
         NotSupportedException boundary = Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Controller.Advance680DF0(live, (_, _) => throw new InvalidOperationException()));
         Assert.Contains("6D6070", boundary.Message);
-        Assert.Equal(before, JsonSerializer.Serialize(live));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(live));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class NativeBattleCarbuncle278Tests
         var fixture = Fixture();
         NativeBattleCarbuncle278Frame frame = NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, fixture.Packets, fixture.Models, 42);
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[0];
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 2)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0xC, 2)) });
         frame = frame with { Effect = frame.Effect with { Pools = [pool] }, Memory = frame.Memory with { Carbuncle278 = frame.Memory.Carbuncle278! with { Pause8114 = 1, Flash81D4 = 123 } } };
         int calls = 0;
         NativeBattleCarbuncle278Frame result = NativeBattleCarbuncle278Controller.Advance680DF0(frame, (color, flags) =>
@@ -115,11 +115,11 @@ public sealed class NativeBattleCarbuncle278Tests
         var fixture = Fixture();
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Memory = fixture.Frame.Memory with { Carbuncle278 = null } }, fixture.Packets, fixture.Models, 42));
         Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Effect = fixture.Frame.Effect with { ResourcePointers = [] } }, fixture.Packets, fixture.Models, 42));
-        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Memory = fixture.Frame.Memory with { Arena = fixture.Frame.Memory.Arena!.MarkUnknown(0x100, 8) } }, fixture.Packets, fixture.Models, 42));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame with { Memory = fixture.Frame.Memory with { Arena = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame.Memory.Arena!)).MarkUnknown(0x100, 8) } }, fixture.Packets, fixture.Models, 42));
         NativeBattleActionHeaderSlot header = fixture.Packets.Headers[0];
         NativeBattleActionPacketsState empty = fixture.Packets with { Headers = fixture.Packets.Headers.SetItem(0, header with { Payload = header.Payload.SetItem(0x10, 0) }) };
         Assert.Throws<DivideByZeroException>(() => NativeBattleCarbuncle278Entry.Initialize680C50(fixture.Frame, empty, fixture.Models, 42));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleCarbuncle278State>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleCarbuncle278State>("{}"));
     }
 
     private static (NativeBattleCarbuncle278Frame Frame, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
@@ -151,5 +151,5 @@ public sealed class NativeBattleCarbuncle278Tests
         return (new(memory, effect, NativeCrtRandomState.FromColdProcess()), packets, models);
     }
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 }

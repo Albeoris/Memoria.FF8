@@ -37,7 +37,7 @@ public sealed class NativeBattleEffect320StateTests
     public void Sparse_WORD_and_DWORD_writes_preserve_unknown_neighbors_and_bound_source_through_JSON()
     {
         NativeBattleEffect320State state = NativeBattleEffect320State.FromUnknown().WriteWord(MutableAnchorAddress, unchecked((ushort)-100)).WriteDword(CursorGlobal, 0x12345678).WriteDword(ArenaGlobal, 0x87654321) with { MutableAnchorSourceBound = true };
-        state = JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.True(state.MutableAnchorSourceBound);
         Assert.Equal(unchecked((ushort)-100), state.ReadWord(MutableAnchorAddress));
@@ -65,7 +65,7 @@ public sealed class NativeBattleEffect320StateTests
             state = state.AttachCommonQueue(shape.Descriptor, queue);
             Assert.Throws<InvalidDataException>(() => state.AttachCommonQueue(shape.Descriptor, queue));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(BitConverter.GetBytes((ushort)0xBEEF), state.ReadBank(RootBank).Read(14, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank(RootBank).Read(16, 4));
@@ -90,11 +90,11 @@ public sealed class NativeBattleEffect320StateTests
     [Fact]
     public void JSON_requires_explicit_mutable_source_binding_history()
     {
-        string json = JsonSerializer.Serialize(NativeBattleEffect320State.FromColdProcess());
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect320State.FromColdProcess()));
         using JsonDocument parsed = JsonDocument.Parse(json);
         Dictionary<string, JsonElement> fields = parsed.RootElement.EnumerateObject().Where(property => property.Name != nameof(NativeBattleEffect320State.MutableAnchorSourceBound)).ToDictionary(property => property.Name, property => property.Value.Clone());
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(fields)));
-        NativeBattleEffect320State unknown = JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(NativeBattleEffect320State.FromUnknown()))!;
+        Assert.Throws<JsonException>(() => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fields)))));
+        NativeBattleEffect320State unknown = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect320State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect320State.FromUnknown())))!);
         Assert.Null(unknown.MutableAnchorSourceBound);
     }
 }

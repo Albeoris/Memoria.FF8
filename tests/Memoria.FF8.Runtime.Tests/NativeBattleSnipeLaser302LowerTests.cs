@@ -85,7 +85,7 @@ public sealed class NativeBattleSnipeLaser302LowerTests
         (frame, uint address) = Append(frame, 0x2507688, 0x66D670);
         var task = Rotation(Read(frame, address), 12, NativeBattleCuragaMatrices.Identity8DD770()).WriteWord(30, 0xBEEF).WriteDword(32, 100).WriteDword(36, 200).WriteDword(40, 300);
         var workspace = new NativeBattleGfAnimationWorkspace(new byte[124].ToImmutableArray()).Initialize7016B0(resources.ProgrammeD, 124);
-        byte[] cache = workspace.Data.ToArray();
+        byte[] cache = NativeBattleStorageSnapshots.Capture(workspace).Data.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(cache.AsSpan(4), oldFrame);
         task = CopyTask(task, 44, NativeBattleEffectArena.Clear().Write(0, cache), 124);
         frame = Write(frame, address, task);

@@ -19,7 +19,7 @@ public sealed class NativeBattleRush91MemoryTests
         foreach (int selectedIndex in new[] { 90, 93, 90 })
         {
             warm = warm.BeginLoad(selectedIndex);
-            warm = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(warm))!;
+            warm = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(warm))!;
             Assert.Equal(morph, warm.Rush91MorphScratch!.Value);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, warm.FullscreenOverlay!.Read(0, 4));
             Assert.Equal(0xFEDCBA98u, warm.FullscreenOverlayPause2795914);
@@ -30,7 +30,7 @@ public sealed class NativeBattleRush91MemoryTests
     public void Missing_imported_static_owners_are_not_reconstructed_by_restore_or_module_load()
     {
         NativeBattleEffectMemory source = NativeBattleEffectMemory.FromColdProcess() with { Rush91MorphScratch = null, FullscreenOverlay = null, FullscreenOverlayPause2795914 = null };
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(source))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(source))!;
         restored = restored.BeginLoad(93);
         Assert.Null(restored.Rush91MorphScratch);
         Assert.Null(restored.FullscreenOverlay);

@@ -137,10 +137,10 @@ public sealed class NativeBattleEffect167ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(callback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(167, 166, new(167, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
         return new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect167State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(ArenaGlobal, 0x20DFAB8));
     }
@@ -159,7 +159,7 @@ public sealed class NativeBattleEffect167ControllerTests
             return new(frame, retained.Write(0, BitConverter.GetBytes((short)10)).Write(2, BitConverter.GetBytes((short)20)).Write(4, BitConverter.GetBytes((short)30)));
         }, (frame, operation) =>
         {
-            Operations.Add(operation);
+            Operations.Add(NativeBattleStorageSnapshots.Capture(operation));
             if (operation is NativeBattleEffect167WriteModelBytes write && write.Offset == 0)
             {
                 ushort flags = Models[write.Actor].Flags0;

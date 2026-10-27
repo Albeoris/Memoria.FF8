@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect315GteTests
         Assert.Equal((byte?)0, actual.GeometryRegisters.Rotation20[18]);
         Assert.Equal((byte?)0, actual.GeometryRegisters.Rotation20[19]);
         Assert.Equal(before.GeometryRegisters!.Translation.ToArray(), actual.GeometryRegisters.Translation.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(before.ScriptedLighting), JsonSerializer.Serialize(actual.ScriptedLighting));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(before.ScriptedLighting)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual.ScriptedLighting)));
     }
 
     [Fact]
@@ -76,9 +76,9 @@ public sealed class NativeBattleEffect315GteTests
         Assert.Equal(new short[] { unchecked((short)40000), unchecked((short)-40000), 0x5678, 0 }, Enumerable.Range(0, 4).Select(index => BinaryPrimitives.ReadInt16LittleEndian(point.Read(index * 2, 2))).ToArray());
         NativeBattlePackedMatrix32 alternate = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770() with { X = 123, Y = -456, Z = 789 }, 0xBEEF);
         memory = NativeBattleEffect315Gte.LoadAlternateTranslation64DDA0(NativeBattleEffect315Gte.LoadRotation45DE50(memory, alternate), alternate);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
         NativeBattleEffectMemory Next(NativeBattleEffectMemory current) => NativeBattleEffect315Gte.TransformAlternate4607E0(NativeBattleEffect315Gte.LoadVertex64DEE0(current, point));
-        Assert.Equal(JsonSerializer.Serialize(Next(memory)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(memory))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
     }
 
     private static NativeBattleEffectArena Point(short x, short y, short z) => NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(x)).Write(2, BitConverter.GetBytes(y)).Write(4, BitConverter.GetBytes(z));

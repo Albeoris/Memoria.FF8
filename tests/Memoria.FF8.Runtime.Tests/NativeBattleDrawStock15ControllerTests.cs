@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -85,8 +85,8 @@ public sealed class NativeBattleDrawStock15ControllerTests
             {
                 Assert.Equal((byte)0, frame.Effect.Pools[0].Slots[0].ReadByte(0x63));
                 Assert.DoesNotContain(operations, item => item.Operation is NativeBattleDrawStock15Contact);
-                NativeBattleDrawStock15Frame restored = JsonSerializer.Deserialize<NativeBattleDrawStock15Frame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleDrawStock15Controller.Advance(frame, fixture.Resources, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleDrawStock15Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
+                NativeBattleDrawStock15Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDrawStock15Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDrawStock15Controller.Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleDrawStock15Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
             }
         }
         var contact = Assert.Single(operations, item => item.Operation is NativeBattleDrawStock15Contact);
@@ -129,7 +129,7 @@ public sealed class NativeBattleDrawStock15ControllerTests
         Assert.Same(packed, frame.Memory.SharedEffectView2793E58);
         Assert.False(frame.Memory.SharedEffectView2793E58!.Known[18]);
         Assert.Equal((byte)0xCD, frame.Memory.SharedEffectView2793E58.Bytes[18]);
-        Assert.Equal(JsonSerializer.Serialize(packed.ReadMatrix()), JsonSerializer.Serialize(frame.State.Nodes.CopiedCamera));
+        Assert.Equal(NativeBattleTestSnapshots.Json(packed.ReadMatrix()), NativeBattleTestSnapshots.Json(frame.State.Nodes.CopiedCamera));
     }
 
     [Fact]

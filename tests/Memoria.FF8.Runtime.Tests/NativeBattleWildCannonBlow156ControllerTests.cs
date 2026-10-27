@@ -22,7 +22,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         Assert.Throws<NotSupportedException>(() => frame.State.ReadWord(0x23EDC90));
         Assert.Equal(6u, frame.State.ReadDword(0x23ECE40));
         Assert.Equal(0x20DFAB8u, frame.State.ReadDword(0x23F07E8));
-        Assert.All(frame.Effect.Pools[1].Slots.Skip(1), task => Assert.All(task.Payload, value => Assert.Equal((byte)0, value)));
+        Assert.All(frame.Effect.Pools[1].Slots.Skip(1), task => Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload, value => Assert.Equal((byte)0, value)));
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
     {
         NativeBattleWildCannonBlow156Frame frame = Active(0x605620);
         NativeBattleEffectTaskPool children = frame.Effect.Pools[1];
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0] with { Flags = 0 }), Head = null, Tail = null };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(children.Slots[0], taskData => taskData with { Flags = 0 })), Head = null, Tail = null });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, children) } };
         int requests = 0;
         NativeBattleWildCannonBlow156Inputs inputs = Inputs((current, operation) =>
@@ -48,7 +48,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         Assert.Equal(0x23ECE68u, frame.Effect.ReturnedDescriptor);
-        frame = JsonSerializer.Deserialize<NativeBattleWildCannonBlow156Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWildCannonBlow156Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = Advance(frame, Resources(), inputs);
         Assert.Equal(1, requests);
         frame = frame with { Effect = WriteCompletionByte(frame.Effect, 0x23ECE66, 1) };
@@ -154,7 +154,7 @@ public sealed class NativeBattleWildCannonBlow156ControllerTests
         NativeBattleWildCannonBlow156Frame frame = Active(0x6056E0);
         frame = Write(frame, 0x23EF488, Read(frame, 0x23EF488).WriteWord(12, 15).WriteWord(14, 2));
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xBEEF)) })) } };
         NativeBattleWildCannonBlow156Inputs inputs = Inputs() with { ReadBone502170 = (current, actor, selector, scale) =>
         {
             Assert.Equal(6, actor);

@@ -38,14 +38,14 @@ public sealed class NativeBattleEffect183StateTests
     public void Partial_packet_writes_preserve_unknown_suffix_and_independent_other_bank_after_JSON_restore()
     {
         NativeBattleEffect183State state = NativeBattleEffect183State.FromUnknown().WriteDword(CursorGlobal, PacketBase + 4).WritePacket(PacketBase, BitConverter.GetBytes(0x0C000000u)).WritePacket(PacketBase + PacketBankBytes, new byte[] { 9 });
-        NativeBattleEffect183State restored = JsonSerializer.Deserialize<NativeBattleEffect183State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect183State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect183State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(PacketBase + 4, restored.ReadDword(CursorGlobal));
         Assert.Equal(BitConverter.GetBytes(0x0C000000u), restored.ReadPacket(PacketBase, 4));
         Assert.Equal(new byte[] { 9 }, restored.ReadPacket(PacketBase + PacketBankBytes, 1));
         Assert.Throws<NotSupportedException>(() => restored.ReadPacket(PacketBase + 4, 1));
         Assert.Throws<NotSupportedException>(() => restored.ReadPacket(PacketBase + PacketBankBytes + 1, 1));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]

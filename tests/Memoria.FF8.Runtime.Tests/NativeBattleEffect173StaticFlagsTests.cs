@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -21,14 +21,14 @@ public sealed class NativeBattleEffect173StaticFlagsTests
         List<int> selected = [];
         NativeBattleStaticMeshContext88Step result = NativeBattleStaticMeshContext88.DrawLoaded(NativeBattleEffect173Mesh172Tests.Memory(), mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, mesh.Address + 12, ReadSelected);
         uint low = flags & 0xFF;
-        NativeBattleEffectArena ordinaryContext = context.Write(0x1C, BitConverter.GetBytes(low));
+        NativeBattleEffectArena ordinaryContext = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(context)).Write(0x1C, BitConverter.GetBytes(low));
         NativeBattleStaticMeshContext88Step ordinary = NativeBattleStaticMeshContext88.DrawLoaded(NativeBattleEffect173Mesh172Tests.Memory(), mesh, new(null, 100, 160, 108), ordinaryContext, NativeBattleGteColorInterpolation.CodeConstants45F270, 17, 2, readInlineVertex: Vertex);
         Assert.NotEmpty(selected);
         Assert.Equal(flags, BinaryPrimitives.ReadUInt32LittleEndian(result.Context.Read(0x1C, 4)));
         Assert.Equal(mesh.Address + 12, BinaryPrimitives.ReadUInt32LittleEndian(result.Context.Read(4, 4)));
         Assert.Equal(ordinary.Batch.AllocationBytes, result.Batch.AllocationBytes);
         Assert.Equal(Assert.Single(ordinary.Batch.Attempts).Primitive!.Words, Assert.Single(result.Batch.Attempts).Primitive!.Words);
-        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(ordinary.Memory.ScriptedColorRegisters), System.Text.Json.JsonSerializer.Serialize(result.Memory.ScriptedColorRegisters));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordinary.Memory.ScriptedColorRegisters)), System.Text.Json.JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Memory.ScriptedColorRegisters)));
         if (low == 0x30)
         {
             Assert.DoesNotContain(true, result.Context.ReadSnapshot(8, 3).Known);

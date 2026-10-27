@@ -12,7 +12,7 @@ public sealed class NativeBattleWaterHeaderTests
         NativeBattleWaterHeader header = Warm();
         NativeBattleEffectArena arena = Arena();
         ImmutableArray<NativeBattleGraphicsModel> models = Models();
-        string before = JsonSerializer.Serialize(models);
+        string before = NativeBattleTestSnapshots.Json(models);
         var result = NativeBattleWaterHeaderCapture.CaptureAA4E90(header, arena, Bank, 1, 5, 7, 2, Contacts(3, 1, 3, 6), 4, models);
         Assert.Equal(7, result.CurrentHeaderIndex);
         Assert.Equal((byte)5, result.Header.Read(0x44, 1)[0]);
@@ -25,7 +25,7 @@ public sealed class NativeBattleWaterHeaderTests
         Assert.Equal(header.Bytes[0xCC + 2], result.Header.Read(0xCC + 2, 1)[0]);
         Assert.Equal((byte)3, result.Arena.Read(Slot(1) + 0x1B, 1)[0]);
         Assert.Equal(arena.Read(Slot(0), 0x100), result.Arena.Read(Slot(0), 0x100));
-        Assert.Equal(before, JsonSerializer.Serialize(models));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(models));
         for (int index = 0; index < 7; index++)
         {
             Assert.Equal(models[index].Flags0, U16(result.Header, 0x4E + index * 2));
@@ -83,7 +83,7 @@ public sealed class NativeBattleWaterHeaderTests
     public void Cache_copies_all_physical_rows_with_position_vertical_direct_Euler_and_both_scales()
     {
         ImmutableArray<NativeBattleGraphicsModel> models = Models();
-        string before = JsonSerializer.Serialize(models);
+        string before = NativeBattleTestSnapshots.Json(models);
         NativeBattleWaterHeader header = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(Warm(), models);
         for (int index = 0; index < 7; index++)
         {
@@ -96,7 +96,7 @@ public sealed class NativeBattleWaterHeaderTests
             Assert.Throws<NotSupportedException>(() => header.Read(0xD8 + index * 8 + 6, 2));
             Assert.Equal(new short[] { transform.Scale148.X, transform.Scale148.Y, transform.Scale148.Z, transform.Scale154 }, Words(header, 0x120 + index * 8, 4));
         }
-        Assert.Equal(before, JsonSerializer.Serialize(models));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(models));
     }
 
     [Fact]
@@ -128,12 +128,12 @@ public sealed class NativeBattleWaterHeaderTests
         unknown.Validate();
         Assert.Throws<NotSupportedException>(() => unknown.Read(0, 1));
         NativeBattleWaterHeader source = NativeBattleWaterHeaderCapture.CacheRowsAA4B60(unknown, Models());
-        NativeBattleWaterHeader restored = JsonSerializer.Deserialize<NativeBattleWaterHeader>(JsonSerializer.Serialize(source))!;
+        NativeBattleWaterHeader restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterHeader>(NativeBattleTestSnapshots.Json(source))!;
         restored.Validate();
         Assert.Equal(source.Known.ToArray(), restored.Known.ToArray());
         var expected = NativeBattleWaterHeaderCapture.CaptureAA4E90(source, Arena(), Bank, 0, 2, 5, 3, Contacts(6, 6, 0), 3, Models());
         var actual = NativeBattleWaterHeaderCapture.CaptureAA4E90(restored, Arena(), Bank, 0, 2, 5, 3, Contacts(6, 6, 0), 3, Models());
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<InvalidDataException>(() => (cold with { Bytes = [] }).Validate());
         Assert.Throws<InvalidDataException>(() => (cold with { Known = [] }).Validate());
     }

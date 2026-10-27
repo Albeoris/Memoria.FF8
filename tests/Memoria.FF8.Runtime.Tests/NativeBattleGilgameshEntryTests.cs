@@ -19,7 +19,7 @@ public sealed class NativeBattleGilgameshEntryTests
         Assert.Equal(388, result.State.World.Z);
         ImmutableArray<NativeBattleGraphicsModel> changed = fixture.Models.SetItem(0, fixture.Models[0] with { Rotation14 = 900, GeometryWorldMatrix = null }).SetItem(3, fixture.Models[3] with { Transform = fixture.Models[3].Transform! with { Angle36 = 1234, Position28 = new(20000, 123, -20000) } });
         NativeBattleGilgameshEntryStep independent = Initialize((fixture.Memory, fixture.Effect, fixture.Packets, changed));
-        Assert.Equal(JsonSerializer.Serialize(result.State), JsonSerializer.Serialize(independent.State));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.State), NativeBattleTestSnapshots.Json(independent.State));
     }
 
     [Fact]
@@ -62,8 +62,8 @@ public sealed class NativeBattleGilgameshEntryTests
         ImmutableArray<NativeBattleGraphicsModel> models = RoundTrip(fixture.Models);
         NativeBattleGilgameshEntryStep expected = Initialize(fixture);
         NativeBattleGilgameshEntryStep actual = Initialize((memory, effect, packets, models));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(RoundTrip(expected)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(RoundTrip(expected)));
     }
 
     [Fact]
@@ -102,12 +102,12 @@ public sealed class NativeBattleGilgameshEntryTests
         Assert.Same(retained.OpeningFlare, current.OpeningFlare);
         Assert.Equal(frame.Random, entered.Random);
         NativeBattleGilgameshEntryStep expected = Initialize(fixture);
-        Assert.Equal(JsonSerializer.Serialize(expected.State), JsonSerializer.Serialize(current.Entry));
-        Assert.Equal(JsonSerializer.Serialize(expected.Effect), JsonSerializer.Serialize(entered.Effect));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.State), NativeBattleTestSnapshots.Json(current.Entry));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Effect), NativeBattleTestSnapshots.Json(entered.Effect));
     }
-    private static NativeBattleGilgameshEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleGilgameshEntry.Initialize58DCF0(fixture.Memory, fixture.Effect, fixture.Packets, fixture.Models);
+    private static NativeBattleGilgameshEntryStep Initialize((NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) fixture) => NativeBattleGilgameshEntry.Initialize58DCF0(NativeBattleTestSnapshots.Independent(fixture.Memory), NativeBattleTestSnapshots.Independent(fixture.Effect), fixture.Packets, fixture.Models);
 
-    private static T RoundTrip<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static T RoundTrip<T>(T value) => NativeBattleTestSnapshots.RestoreJson<T>(NativeBattleTestSnapshots.Json(value))!;
 
     private static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleActionPacketsState Packets, ImmutableArray<NativeBattleGraphicsModel> Models) Fixture()
     {

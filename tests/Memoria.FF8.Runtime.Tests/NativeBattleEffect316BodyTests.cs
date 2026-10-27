@@ -133,7 +133,7 @@ public sealed class NativeBattleEffect316BodyTests
         uint hint = main + 0x18 + 5 * 16;
         fixture.Store(main + 0x818, PutDword(NativeBattleEffectArena.Clear(), 0, hint), 4);
         fixture.Store(hint, NativeBattleEffectArena.Clear().MarkUnknown(10, 2).MarkUnknown(15, 1), 16);
-        NativeBattleEffect316Frame expected = fixture.Frame;
+        NativeBattleEffect316Frame expected = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         expected = NextRandom662570(expected, out int size);
         expected = NextRandom662570(expected, out int vx);
         expected = NextRandom662570(expected, out int vy);

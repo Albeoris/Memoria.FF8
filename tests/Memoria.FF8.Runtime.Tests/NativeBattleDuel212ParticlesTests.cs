@@ -9,10 +9,10 @@ public sealed class NativeBattleDuel212ParticlesTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel212Controller.Sprites, 0x20DFAB8 + 5584, 24, 64);
         NativeBattleDuel212Frame frame = Frame(pool);
-        NativeBattleDuel212Frame restored = JsonSerializer.Deserialize<NativeBattleDuel212Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleDuel212Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel212Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleDuel212Step first = Spawn(frame, pool);
         NativeBattleDuel212Step second = Spawn(restored, restored.Effect.Pools[0]);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         first.Pool.Validate();
         Assert.Equal(2, first.Pool.Slots.Count(task => (task.Flags & 1) != 0));
         Assert.Equal(1, first.Pool.Slots[0].Next);

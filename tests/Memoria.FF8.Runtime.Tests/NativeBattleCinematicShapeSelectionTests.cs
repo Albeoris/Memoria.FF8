@@ -88,12 +88,12 @@ public sealed class NativeBattleCinematicShapeSelectionTests
     {
         var fixture = Fixture();
         NativeBattleWaterExecutionFrame frame = fixture.Frame with { Core = fixture.Frame.Core.Write(0x2797554, [0x80, 0xFF]) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        NativeBattleCinematicResources restoredResources = JsonSerializer.Deserialize<NativeBattleCinematicResources>(JsonSerializer.Serialize(fixture.Resources))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleCinematicResources restoredResources = NativeBattleTestSnapshots.RestoreJson<NativeBattleCinematicResources>(NativeBattleTestSnapshots.Json(fixture.Resources))!;
         NativeBattleWaterExecutionFrame first = Execute(frame, fixture.Resources);
         NativeBattleWaterExecutionFrame next = Execute(restored, restoredResources);
         Assert.Equal(new byte[] { 0x80, 0xFF }, first.Core.Read(0x2797554, 2));
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(next));
     }
 
     private static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleCinematicResources resources) => NativeBattleWaterRectangleCommands.Execute(frame, Program, Bank, 0, (current, index) => NativeBattleWaterShapeSelection.ResolveCinematic(current, resources, index).Selected, (_, _) => throw new InvalidOperationException());

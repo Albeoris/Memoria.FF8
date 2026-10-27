@@ -48,7 +48,7 @@ public sealed class NativeBattleEffect239PackedProjectionTests
         Assert.Equal(new byte[] { 20, 0, 246, 255, 200, 0, 0x34, 0x12 }, result.Registers.Colors.NormalInput!.Value);
         Assert.Null(result.Registers.Colors.NormalInputKnown);
         Retained(before, result.Registers);
-        Assert.Equal(JsonSerializer.Serialize(frame.TemporaryFrame), JsonSerializer.Serialize(result.Frame.TemporaryFrame));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.TemporaryFrame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Frame.TemporaryFrame)));
         Assert.Equal(frame.Random, result.Frame.Random);
     }
 
@@ -77,26 +77,29 @@ public sealed class NativeBattleEffect239PackedProjectionTests
     }
 
     [Fact]
-    public void Later_unknown_XYZ_cannot_modify_input_frame_or_registers()
+    public void Later_unknown_XYZ_rolls_back_scratch_in_the_caller_transaction_and_preserves_registers()
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
         NativeBattleGeometryRegisterStep registers = Registers();
-        string before = JsonSerializer.Serialize(new Saved(frame, registers));
-        Assert.Throws<NotSupportedException>(() => Run(frame, registers, Bytes(2, 10, 20, 100, 20, -10, 200, 0), unknownAbsoluteOffset: 9));
-        Assert.Equal(before, JsonSerializer.Serialize(new Saved(frame, registers)));
+        string before = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new Saved(frame, registers)));
+        using (NativeBattleEffectArenaTransaction transaction = new(frame.Arena))
+        {
+            Assert.Throws<NotSupportedException>(() => Run(frame with { Arena = transaction.View }, registers, Bytes(2, 10, 20, 100, 20, -10, 200, 0), unknownAbsoluteOffset: 9));
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new Saved(frame, registers))));
     }
 
     [Fact]
     public void JSON_next_preserves_partial_V0_and_full_feedback_before_the_next_group()
     {
         NativeBattleCinematicPackedProjectionStep first = Run(WaterSchedulerFixture.Create(), Registers(), Bytes(1, 10, 20, 100, 0x1234), unknownAbsoluteOffset: 9);
-        string json = JsonSerializer.Serialize(new Saved(first.Frame, first.Registers));
-        Saved restored = JsonSerializer.Deserialize<Saved>(json)!;
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new Saved(first.Frame, first.Registers)));
+        Saved restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<Saved>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         byte[] next = Bytes(1, 20, -10, 200, 0x2345);
         NativeBattleCinematicPackedProjectionStep direct = Run(first.Frame, first.Registers, next);
         NativeBattleCinematicPackedProjectionStep cold = Run(restored.Frame, restored.Registers, next);
-        Assert.Equal(JsonSerializer.Serialize(direct), JsonSerializer.Serialize(cold));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(direct)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(cold)));
         Assert.Equal(new uint?[] { 3, 0x00A00050, 0xFFD80050 }, cold.Registers.Geometry.Sxy);
     }
 

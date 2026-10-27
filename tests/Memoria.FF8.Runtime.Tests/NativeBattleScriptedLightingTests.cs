@@ -144,12 +144,12 @@ public sealed class NativeBattleScriptedLightingTests
         NativeBattleWaterExecutionFrame frame = Fixture(0x81);
         NativeBattleScriptedLightingStep first = NativeBattleScriptedLighting.Prepare(frame, NativeBattleScriptedLightingMemory.Unknown(), (_, _) => Parent);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedLighting = first.Lighting };
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleWaterExecutionFrame restoredFrame = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        NativeBattleWaterExecutionFrame restoredFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScriptedLightingStep restored = NativeBattleScriptedLighting.Prepare(restoredFrame, restoredMemory.ScriptedLighting!, (_, _) => Parent);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(restored));
-        Assert.Equal(JsonSerializer.Serialize(first.Lighting), JsonSerializer.Serialize(restoredMemory.ScriptedLighting));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleScriptedLightingMemory>("{}"));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Lighting), NativeBattleTestSnapshots.Json(restoredMemory.ScriptedLighting));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleScriptedLightingMemory>("{}"));
     }
 
     private static NativeBattleWaterExecutionFrame Fixture(byte selector)

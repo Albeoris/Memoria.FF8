@@ -143,7 +143,7 @@ public sealed class NativeBattleEffect174ControllerTests
         Harness harness = new();
         NativeBattleEffect174Frame frame = Frame(129);
         NativeBattleEffectTaskPool root = frame.Effect.Pools[0];
-        root = root with { Slots = root.Slots.SetItem(1, root.Slots[1].WriteWord(14, 0xBEEF)) };
+        root = root.WriteSlot(1, root.Slots[1].WriteWord(14, 0xBEEF));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, root) } };
         NativeBattleEffect174Step born = AdvanceMain5D4660(frame, ChildBank, null!, harness.Inputs());
         uint cleanup = RootBank + 16;
@@ -222,12 +222,12 @@ public sealed class NativeBattleEffect174ControllerTests
         Assert.Equal(123, first.Frame.State.ReadWord(SavedActorsAddress + 4));
         Assert.False(ReadBytes(first.Frame, SavedActorsAddress + 10, 2).ReadSnapshot(0, 2).Known[0]);
         Assert.Equal(0xBEEF, Word(harness.Models[0], 34));
-        NativeBattleEffect174Frame restored = JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(first.Frame))!;
+        NativeBattleEffect174Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect174Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Frame)))!);
         NativeBattleEffect174Step second = NativeBattleEffect174Lower.AdvanceActorMotion7220(restored, ChildBank, harness.Inputs());
         Assert.Equal(0, second.Frame.State.ReadWord(SavedActorsAddress + 4));
         Assert.Equal(0, second.Frame.State.ReadWord(SavedActorsAddress + 6));
         Assert.Equal(0, Read(second.Frame, ChildBank).ReadWord(12));
-        Assert.Equal(JsonSerializer.Serialize(frame.Memory.GeometryRegisters), JsonSerializer.Serialize(second.Frame.Memory.GeometryRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.Memory.GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Frame.Memory.GeometryRegisters)));
         Assert.Throws<InvalidDataException>(() => second.Frame.State.Read(SavedActorsAddress + 2, 1));
     }
 
@@ -255,10 +255,10 @@ public sealed class NativeBattleEffect174ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteWord(12, 0));
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(callback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteBytes(16, new byte[8])) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)).WriteBytes(16, new byte[8]));
         NativeBattleOriginalEffectState effect = new(174, 173, new(174, Entry, Initializer), new(3, 0, 1, 0, 0, 0), RootDescriptor) { Pools = [root, child] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
         return new(memory, effect, new(42), NativeBattleEffect174State.FromColdProcess().DetachBank(0).DetachBank(1).WriteDword(CasterGlobal, 3).WriteDword(TargetGlobal, 0).WriteDword(ArenaGlobal, 0x20DFAB8)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

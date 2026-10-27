@@ -42,7 +42,7 @@ public sealed class NativeBattleMeltingBubble43StateTests
         uint address = NativeBattleMeltingBubble43Profile.ChannelRegions[0].Address;
         int offset = checked((int)(address - NativeBattleMeltingBubble43Profile.ChannelBase));
         state = state with { Channels = state.Channels.Write(offset, new byte[] { 0xCD, 0xAB }).MarkUnknown(offset + 2, 2) };
-        NativeBattleMeltingBubble43State restored = JsonSerializer.Deserialize<NativeBattleMeltingBubble43State>(JsonSerializer.Serialize(state))!;
+        NativeBattleMeltingBubble43State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleMeltingBubble43State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 0xCD, 0xAB }, restored.ReadChannel(address, 2));
         Assert.Throws<NotSupportedException>(() => restored.ReadChannel(address + 2, 2));

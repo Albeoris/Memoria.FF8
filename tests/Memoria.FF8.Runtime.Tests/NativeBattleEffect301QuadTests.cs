@@ -54,9 +54,9 @@ public sealed class NativeBattleEffect301QuadTests
     public void Unknown_padding_survives_JSON_before_the_next_draw()
     {
         NativeBattleEffect301QuadStep first = NativeBattleEffect301CustomQuads.DrawLoaded(Memory(), Temporary(2000), Source(), new(null, 100, 160, 108));
-        NativeBattleEffect301QuadStep copy = JsonSerializer.Deserialize<NativeBattleEffect301QuadStep>(JsonSerializer.Serialize(first))!;
+        NativeBattleEffect301QuadStep copy = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect301QuadStep>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first)))!);
         NativeBattleEffect301QuadStep Next(NativeBattleEffect301QuadStep value) => NativeBattleEffect301CustomQuads.DrawLoaded(value.Memory, value.Temporary180, Source(), new(null, 100, 160, 108));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(copy)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(first))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(copy))));
     }
 
     internal static NativeBattleModuleResource Source()

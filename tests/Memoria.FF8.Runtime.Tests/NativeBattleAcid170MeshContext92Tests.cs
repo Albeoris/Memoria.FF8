@@ -85,9 +85,9 @@ public sealed class NativeBattleAcid170MeshContext92Tests
     {
         Assert.Throws<NotSupportedException>(() => Draw(6));
         var first = Draw(7);
-        var restored = JsonSerializer.Deserialize<NativeBattleAcid170MeshContext92Step>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid170MeshContext92Step>(NativeBattleTestSnapshots.Json(first))!;
         var next = Draw(7, memory: first.Memory, context: first.Context92);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(Draw(7, memory: restored.Memory, context: restored.Context92)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(Draw(7, memory: restored.Memory, context: restored.Context92)));
         Assert.Throws<NotSupportedException>(() => NativeBattleAcid170MeshContext92.DrawLoaded(Memory(2000), Mesh(3), new(null, 100, 160, 108), Context(), NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 

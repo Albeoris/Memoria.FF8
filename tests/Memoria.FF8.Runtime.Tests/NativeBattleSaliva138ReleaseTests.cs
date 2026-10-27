@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 using static Memoria.FF8.Runtime.NativeBattleSaliva138Profile;
@@ -11,10 +11,10 @@ public sealed class NativeBattleSaliva138ReleaseTests
     public void Native_completed_root_transfers_undrained_children_without_clearing_raw_flags_links_or_unknown_payload()
     {
         NativeBattleSaliva138Frame frame = Frame();
-        NativeBattleSaliva138Frame restored = JsonSerializer.Deserialize<NativeBattleSaliva138Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleSaliva138Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSaliva138Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleSaliva138Frame released = NativeBattleSaliva138Controller.ReleaseReturnedBanks(frame);
         NativeBattleSaliva138Frame other = NativeBattleSaliva138Controller.ReleaseReturnedBanks(restored);
-        Assert.Equal(JsonSerializer.Serialize(released), JsonSerializer.Serialize(other));
+        Assert.Equal(NativeBattleTestSnapshots.Json(released), NativeBattleTestSnapshots.Json(other));
         Assert.Equal(RootDescriptor, Assert.Single(released.Effect.Pools).DescriptorAddress);
         Assert.Equal(0u, released.Effect.ReturnedDescriptor);
         Assert.Same(frame.State, released.State);
@@ -28,7 +28,7 @@ public sealed class NativeBattleSaliva138ReleaseTests
         Assert.Throws<NotSupportedException>(() => arena.Read(curve + 14, 2));
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(MovingSpriteOffset, 2)));
         Assert.Equal(MovingSpriteCallback, BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(MovingSpriteOffset + 8, 4)));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(curve, 2));
+        Assert.Equal(arena.Read(curve, 2), frame.Memory.Arena!.Read(curve, 2));
     }
 
     [Theory]
@@ -50,9 +50,9 @@ public sealed class NativeBattleSaliva138ReleaseTests
             pools = pools.SetItem(4, pool);
         }
         frame = frame with { Effect = frame.Effect with { Pools = pools, ReturnedDescriptor = rootReturned ? RootDescriptor : 0u } };
-        string before = JsonSerializer.Serialize(frame);
+        string before = NativeBattleTestSnapshots.Json(frame);
         Assert.Throws<InvalidDataException>(() => NativeBattleSaliva138Controller.ReleaseReturnedBanks(frame));
-        Assert.Equal(before, JsonSerializer.Serialize(frame));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(frame));
     }
 
     private static NativeBattleSaliva138Frame Frame()
@@ -68,10 +68,11 @@ public sealed class NativeBattleSaliva138ReleaseTests
         ];
         (pools[2], int curve) = pools[2].Append(CurveCallback);
         (pools[2], _) = pools[2].Append(CurveCallback);
-        pools[2] = pools[2] with { Slots = pools[2].Slots.SetItem(curve, pools[2].Slots[curve].WriteWord(12, 0x1234).MarkPayloadUnknown(14, 2)) };
+        pools[2] = NativeBattleTaskFixture.EditPool(pools[2], data => data with { Slots = pools[2].Slots.SetItem(curve, pools[2].Slots[curve].WriteWord(12, 0x1234).MarkPayloadUnknown(14, 2)) });
         (pools[3], _) = pools[3].Append(MovingSpriteCallback);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().MarkUnknown(0, PointsOffset) };
         NativeBattleOriginalEffectState effect = new(138, 137, new(138, Entry, Initializer), new(0, 0, 0, 0, 0, 0), 0) { Pools = pools.ToImmutableArray() };
+        memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
         return new(memory, effect, new(55), NativeBattleSaliva138State.FromColdProcess().WriteDword(WorkingGlobal, working));
     }
 }

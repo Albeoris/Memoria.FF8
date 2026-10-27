@@ -98,12 +98,12 @@ public sealed class NativeBattleShockwavePulsar260MeshTests
     {
         NativeBattleShockwavePulsar260MeshStep unknown = Draw(2, readW: _ => null);
         NativeBattleShockwavePulsar260MeshStep known = Draw(2, readW: _ => 1234);
-        Assert.Equal(JsonSerializer.Serialize(known.Batch), JsonSerializer.Serialize(unknown.Batch));
+        Assert.Equal(NativeBattleTestSnapshots.Json(known.Batch), NativeBattleTestSnapshots.Json(unknown.Batch));
         Assert.Null(unknown.Memory.GeometryRegisters!.V1[6]);
         Assert.Null(unknown.Memory.GeometryRegisters.V1[7]);
-        NativeBattleShockwavePulsar260MeshStep restored = JsonSerializer.Deserialize<NativeBattleShockwavePulsar260MeshStep>(JsonSerializer.Serialize(unknown))!;
+        NativeBattleShockwavePulsar260MeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShockwavePulsar260MeshStep>(NativeBattleTestSnapshots.Json(unknown))!;
         NativeBattleShockwavePulsar260MeshStep Next(NativeBattleShockwavePulsar260MeshStep value) => Draw(2, value.Context88, value.Memory, readW: _ => null);
-        Assert.Equal(JsonSerializer.Serialize(Next(unknown)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(unknown)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     [Fact]

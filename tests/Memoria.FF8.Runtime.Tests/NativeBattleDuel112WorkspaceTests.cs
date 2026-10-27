@@ -25,10 +25,10 @@ public sealed class NativeBattleDuel112WorkspaceTests
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
         NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
         (target, _) = target.Append(0x6CBF90);
-        NativeBattleModulePoolTask task = target.Slots[0] with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() };
+        NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(target.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() });
         task = task.WriteResourcePointer(16, new(new(0, 0x123), null));
         task = task.MarkPayloadUnknown(offset, size);
-        target = target with { Slots = target.Slots.SetItem(0, task) };
+        target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
         NativeBattleDuel112Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Duel112 = new(true, parameters, resources) }, effect, NativeBattleFileStaging.Unknown(), new(1));
@@ -36,19 +36,19 @@ public sealed class NativeBattleDuel112WorkspaceTests
         task = frame.Effect.Pools[1].Slots[0];
         Assert.Equal(source, task.ReadDword(offset));
         Assert.Equal(0u, task.ReadDword(offset + 4));
-        Assert.All(task.Payload.AsSpan().Slice(offset - 12 + 8, size - 8).ToArray(), value => Assert.Equal((byte)0, value));
+        Assert.All(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(offset - 12 + 8, size - 8).ToArray(), value => Assert.Equal((byte)0, value));
         Assert.Equal((byte)0xCC, task.ReadByte(offset - 1));
-        if (offset + size < task.Payload.Length + 12)
+        if (offset + size < NativeBattleStorageSnapshots.Capture(task).Payload.Length + 12)
         {
             Assert.Equal((byte)0xCC, task.ReadByte(offset + size));
         }
         else
         {
-            Assert.Equal(task.Payload.Length + 12, offset + size);
+            Assert.Equal(NativeBattleStorageSnapshots.Capture(task).Payload.Length + 12, offset + size);
         }
-        Assert.Null(task.UnknownPayloadRanges);
+        Assert.Null(NativeBattleStorageSnapshots.Capture(task).UnknownPayloadRanges);
         Assert.Equal(new NativeBattleModelCpuReference(0, 0x123), task.ReadResourcePointer(16).Cpu);
-        frame = JsonSerializer.Deserialize<NativeBattleDuel112Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel112Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleDuel112WorkspaceStep step = NativeBattleDuel112Workspaces.Advance701970(frame, 0, offset, new(0, 0, null, null, null), null!, null!, null!, NativeBattleLogicalOrdering.Clear());
         Assert.Equal(1u, step.Frame.Effect.Pools[1].Slots[0].ReadDword(offset + 4));
         Assert.Empty(step.Ordering.Packets);

@@ -25,7 +25,7 @@ public sealed class NativeBattleEffect140StateTests
     public void Partial_matrix_write_retains_unknown_padding_through_JSON()
     {
         NativeBattleEffect140State state = NativeBattleEffect140State.FromUnknown().WriteWord(ViewAddress, 4096).WriteDword(CursorGlobal, 123);
-        state = JsonSerializer.Deserialize<NativeBattleEffect140State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect140State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal((ushort)4096, state.ReadWord(ViewAddress));
         Assert.Equal(123u, state.ReadDword(CursorGlobal));
@@ -42,7 +42,7 @@ public sealed class NativeBattleEffect140StateTests
         Assert.Throws<InvalidDataException>(() => state.ReadBank());
         state = state.AttachBank(bank);
         Assert.Throws<InvalidDataException>(() => state.AttachBank(bank));
-        state = JsonSerializer.Deserialize<NativeBattleEffect140State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect140State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(BitConverter.GetBytes((ushort)0xCAFE), state.ReadBank().Read(12, 2));
         Assert.Throws<NotSupportedException>(() => state.ReadBank().Read(14, 2));
     }

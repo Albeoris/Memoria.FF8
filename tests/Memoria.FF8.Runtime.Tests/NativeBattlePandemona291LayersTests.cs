@@ -79,6 +79,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
     {
         NativeBattlePandemona291Frame frame = ParticleFixture(0);
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.MarkUnknown(0x1AA4 + 0x1A, 2) } };
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattlePandemona291Frame result = NativeBattlePandemona291LayerParticles.Spawn6EDBCF(frame, 28);
         NativeBattleEffectTaskPool pool = Assert.Single(result.Effect.Pools);
         Assert.Equal(0, pool.Head);
@@ -93,8 +94,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena!.Read(0x1AA4 + 0x1A, 2));
         NativeBattlePandemona291Frame full = NativeBattlePandemona291LayerParticles.Spawn6EDBCF(result, 28);
         Assert.Equal(result.Random, full.Random);
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattlePandemona291LayerParticles.Spawn6EDBCF(restored, 28)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattlePandemona291LayerParticles.Spawn6EDBCF(restored, 28)));
     }
 
     [Theory]
@@ -149,6 +149,6 @@ public sealed partial class NativeBattlePandemona291EntryTests
     {
         NativeBattlePandemona291Frame frame = Fixture().Frame;
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x2556298, 0x20DFAB8u + 0x1AA4, 0x1C, 2);
-        return frame with { Memory = frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { Pause2556258 = pause, Center25562E8 = 4000 } }, Effect = frame.Effect with { Pools = [pool] } };
+        return frame with { Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory with { Pandemona291 = frame.Memory.Pandemona291! with { Pause2556258 = pause, Center25562E8 = 4000 } }, [pool]), Effect = frame.Effect with { Pools = [pool] } };
     }
 }

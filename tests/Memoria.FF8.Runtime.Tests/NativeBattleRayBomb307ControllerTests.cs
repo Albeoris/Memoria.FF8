@@ -12,7 +12,7 @@ public sealed class NativeBattleRayBomb307ControllerTests
     {
         Fixture fixture = new();
         NativeBattleRayBomb307Frame before = fixture.Task(MainCallback, 0);
-        string registers = JsonSerializer.Serialize(before.Memory.GeometryRegisters);
+        string registers = NativeBattleTestSnapshots.Json(before.Memory.GeometryRegisters);
         NativeBattleRayBomb307TaskStep step = NativeBattleRayBomb307Controller.AdvanceMain(before, ChildBank, fixture.Resources, fixture.Inputs(0x201));
         Assert.Equal(0, step.Result);
         Assert.Equal((ushort)0, NativeBattleRayBomb307Controller.Read(step.Frame, ChildBank).ReadWord(12));
@@ -21,7 +21,7 @@ public sealed class NativeBattleRayBomb307ControllerTests
         Assert.Equal(unchecked((ushort)-970), step.Frame.State.ReadWord(0x2242584));
         Assert.Throws<NotSupportedException>(() => step.Frame.State.ReadWord(0x2242586));
         Assert.Equal(before.Random, step.Frame.Random);
-        Assert.Equal(registers, JsonSerializer.Serialize(step.Frame.Memory.GeometryRegisters));
+        Assert.Equal(registers, NativeBattleTestSnapshots.Json(step.Frame.Memory.GeometryRegisters));
         Assert.Empty(fixture.Operations);
     }
 
@@ -62,11 +62,11 @@ public sealed class NativeBattleRayBomb307ControllerTests
         Assert.DoesNotContain(step.Frame.Effect.Pools[1].Slots, task => (task.Flags & 1) != 0 && task.Callback == TextureCallback);
         Assert.Equal(children, step.Frame.Effect.Pools[1].Slots.Count(task => (task.Flags & 1) != 0 && task.Callback == 0x5A1D90));
         Assert.Equal(expected, step.Frame.Random);
-        string json = JsonSerializer.Serialize(step.Frame);
+        string json = NativeBattleTestSnapshots.Json(step.Frame);
         Fixture restoredFixture = new();
         NativeBattleRayBomb307TaskStep next = NativeBattleRayBomb307Controller.AdvanceMain(step.Frame, ChildBank, fixture.Resources, fixture.Inputs());
-        NativeBattleRayBomb307TaskStep restored = NativeBattleRayBomb307Controller.AdvanceMain(JsonSerializer.Deserialize<NativeBattleRayBomb307Frame>(json)!, ChildBank, restoredFixture.Resources, restoredFixture.Inputs());
-        Assert.Equal(JsonSerializer.Serialize(next.Frame), JsonSerializer.Serialize(restored.Frame));
+        NativeBattleRayBomb307TaskStep restored = NativeBattleRayBomb307Controller.AdvanceMain(NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307Frame>(json)!, ChildBank, restoredFixture.Resources, restoredFixture.Inputs());
+        Assert.Equal(NativeBattleTestSnapshots.Json(next.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
     }
 
     [Fact]
@@ -163,12 +163,12 @@ public sealed class NativeBattleRayBomb307ControllerTests
         Assert.Equal((short)0, Word(frame.State.Particles, 20));
         Assert.Throws<NotSupportedException>(() => frame.State.Particles.Read(14, 2));
         Assert.Throws<NotSupportedException>(() => frame.State.Particles.Read(22, 2));
-        string json = JsonSerializer.Serialize(frame);
+        string json = NativeBattleTestSnapshots.Json(frame);
         (NativeBattleRayBomb307Frame next, int nextAlive) = NativeBattleRayBomb307Controller.AdvanceSlots(frame, fixture.Inputs());
         Fixture restoredFixture = new();
-        (NativeBattleRayBomb307Frame restored, int restoredAlive) = NativeBattleRayBomb307Controller.AdvanceSlots(JsonSerializer.Deserialize<NativeBattleRayBomb307Frame>(json)!, restoredFixture.Inputs());
+        (NativeBattleRayBomb307Frame restored, int restoredAlive) = NativeBattleRayBomb307Controller.AdvanceSlots(NativeBattleTestSnapshots.RestoreJson<NativeBattleRayBomb307Frame>(json)!, restoredFixture.Inputs());
         Assert.Equal(nextAlive, restoredAlive);
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -178,13 +178,13 @@ public sealed class NativeBattleRayBomb307ControllerTests
         NativeBattleRayBomb307Frame frame = fixture.Task(MainCallback, 1);
         NativeBattleEffectArena row = NativeBattleEffectArena.Clear().MarkUnknown(0, 24).Write(0, BitConverter.GetBytes(1u)).Write(4, BitConverter.GetBytes((short)7)).Write(6, BitConverter.GetBytes((short)1024)).Write(8, BitConverter.GetBytes((short)100)).Write(10, BitConverter.GetBytes((short)200)).Write(12, BitConverter.GetBytes((short)1000));
         frame = frame with { State = frame.State with { Particles = NativeBattleEffectNodeContextMemory.Copy(row, 0, frame.State.Particles, 0, 24) } };
-        string before = JsonSerializer.Serialize(frame.State.Particles);
+        string before = NativeBattleTestSnapshots.Json(frame.State.Particles);
         (frame, int alive) = NativeBattleRayBomb307Controller.AdvanceSlots(frame, fixture.Inputs(0x201));
         Draw draw = Assert.Single(fixture.Draws);
         Assert.Equal(0xCE1760u, draw.Source);
         Assert.Equal((ushort)7, draw.Phase);
         Assert.Equal(0, alive);
-        Assert.Equal(before, JsonSerializer.Serialize(frame.State.Particles));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(frame.State.Particles));
         Assert.False(frame.Memory.ScriptedColorRegisters!.NormalInputKnown!.Value[6]);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
     }
@@ -201,10 +201,10 @@ public sealed class NativeBattleRayBomb307ControllerTests
         {
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 16, 2);
             (root, _) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 0)) });
             NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, 36, 100);
             (children, _) = children.Append(callback);
-            children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) };
+            children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, age)) });
             NativeBattleOriginalEffectState effect = new(307, 307, new(307, Entry, Initializer), new(0, 0, 0, 0, 0, 0), RootDescriptor) { Pools = [root, children] };
             NativeBattleEffectArena particles = NativeBattleEffectArena.Clear().MarkUnknown(0, ParticlesLength);
             for (int row = 0; row < 100; row++)

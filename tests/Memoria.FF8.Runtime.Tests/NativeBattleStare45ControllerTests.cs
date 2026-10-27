@@ -296,7 +296,7 @@ public sealed class NativeBattleStare45ControllerTests
         Assert.Equal(0u, actual.Effect.ReturnedDescriptor);
         Assert.Empty(actual.Effect.Pools);
         Assert.All(actual.State.InactiveBanks, bank => Assert.NotNull(bank));
-        actual = JsonSerializer.Deserialize<NativeBattleStare45Frame>(JsonSerializer.Serialize(actual))!;
+        actual = NativeBattleTestSnapshots.RestoreJson<NativeBattleStare45Frame>(NativeBattleTestSnapshots.Json(actual))!;
         var warm = Initialize(actual, Resources(), Inputs([]));
         Assert.Equal(RootDescriptor, warm.Effect.ReturnedDescriptor);
         Assert.Equal((ushort)0, Read(warm, RootBank).ReadWord(0x26));

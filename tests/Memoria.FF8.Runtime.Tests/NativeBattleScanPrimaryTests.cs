@@ -52,8 +52,8 @@ public sealed class NativeBattleScanPrimaryTests
             Assert.Equal(0x269AAE0u, task.ReadDword(0x10));
             Assert.Equal((byte)4, task.ReadByte(0x2D));
         });
-        NativeBattleScanPrimaryFrame restored = JsonSerializer.Deserialize<NativeBattleScanPrimaryFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Tick(frame, fixture)), JsonSerializer.Serialize(Tick(restored, fixture)));
+        NativeBattleScanPrimaryFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanPrimaryFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Tick(frame, fixture)), NativeBattleTestSnapshots.Json(Tick(restored, fixture)));
         Assert.Equal((byte)6, Read(Tick(frame, fixture), fixture.Address).ReadByte(0x29));
     }
 

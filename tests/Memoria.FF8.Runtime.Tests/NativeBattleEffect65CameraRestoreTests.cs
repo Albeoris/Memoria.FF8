@@ -25,7 +25,7 @@ public sealed class NativeBattleEffect65CameraRestoreTests
     public void Restore_does_not_replace_unknown_padding_or_read_the_captured_focal()
     {
         NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess() with { CapturedPose = new(new(1, 2, 3), new(4, 5, 6), null, 17), CurrentPose = new(new(9, 10, 11), new(12, 13, 14), 320, 0), FocalLength = 320, EyePaddingF6 = 100, TargetPaddingFE = 200, CapturedEyePadding806 = null, CapturedTargetPadding80E = null };
-        NativeBattleCameraState imported = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(camera))!;
+        NativeBattleCameraState imported = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(camera)))!);
         NativeBattleCameraState restored = NativeBattleEffect65CameraRestore.Restore(imported);
         Assert.Equal((short)320, restored.FocalLength);
         Assert.Equal((short)320, restored.CurrentPose!.FocalLength);

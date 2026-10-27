@@ -63,6 +63,11 @@ public static class NativeBattleDrawStock15Rendering
         {
             throw new InvalidDataException("Draw Stock ribbon requires its original trajectory task.");
         }
+        return RibbonTrajectory(task, camera, projection, cameraPadding);
+    }
+
+    internal static NativeBattleDrawStock15RibbonStep RibbonTrajectory(NativeBattleModulePoolTask task, NativeBattleActionMatrix camera, NativeBattleCameraProjection projection, ushort? cameraPadding)
+    {
         int first = Word(task, 0x128);
         int last = Word(task, 0x12A);
         if (last == 0 || first >= 10)

@@ -26,7 +26,7 @@ public sealed class NativeBattleEffect167StateTests
     public void Marker_only_writes_preserve_unknown_history_payload_and_endpoint_W()
     {
         NativeBattleEffect167State state = NativeBattleEffect167State.FromUnknown().WriteDword(FirstRecordsAddress, 0).WriteDword(SecondHistoryAddress, 0).WriteWord(EndpointsAddress, 123);
-        state = JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(0u, state.ReadDword(FirstRecordsAddress));
         Assert.Equal(0u, state.ReadDword(SecondHistoryAddress));
@@ -48,7 +48,7 @@ public sealed class NativeBattleEffect167StateTests
             state = state.AttachBank(Pools[index].Bank, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -61,10 +61,10 @@ public sealed class NativeBattleEffect167StateTests
     public void Spline_arrays_share_their_actual_endpoints_without_claiming_descriptor_gaps()
     {
         NativeBattleEffect167State state = NativeBattleEffect167State.FromColdProcess().WriteDword(FirstSamplesAddress + 252, 0x12345678).WriteDword(SecondSamplesAddress, 0x87654321);
-        state = JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect167State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         Assert.Equal(BitConverter.GetBytes(0x12345678u).Concat(BitConverter.GetBytes(0x87654321u)), state.Read(FirstSamplesAddress + 252, 8));
         Assert.Equal(0x23BE118u, SecondSamplesAddress + 256);
         Assert.Throws<InvalidDataException>(() => state.Read(EndpointsAddress + 16, 1));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect167 = null }))!.Effect167);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect167 = null })))!).Effect167);
     }
 }

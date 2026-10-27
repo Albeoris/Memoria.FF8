@@ -19,7 +19,7 @@ public sealed class NativeBattleScanResultTaskTests
         Assert.Equal(0, next.Result);
         if (expectedPhase == 3)
         {
-            NativeBattleScanResultTaskFrame restored = JsonSerializer.Deserialize<NativeBattleScanResultTaskFrame>(JsonSerializer.Serialize(next.Frame))!;
+            NativeBattleScanResultTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanResultTaskFrame>(NativeBattleTestSnapshots.Json(next.Frame))!;
             NativeBattleScanResultTaskStep closed = NativeBattleScanResultTask.Advance850FD0(restored, fixture.Address, 0x20, fixture.Services);
             Assert.Equal(2, closed.Result);
             Assert.Equal((ushort)1, closed.Frame.Complete269D93A);
@@ -130,10 +130,10 @@ public sealed class NativeBattleScanResultTaskTests
         var fixture = Fixture();
         NativeBattleScanResultTaskFrame frame = NativeBattleScanResultTask.Advance84FAF0(fixture.Frame, fixture.Address, 0, fixture.Services).Frame;
         frame = NativeBattleScanResultTask.Advance84FAF0(frame, fixture.Address, 0, fixture.Services).Frame;
-        NativeBattleScanResultTaskFrame restored = JsonSerializer.Deserialize<NativeBattleScanResultTaskFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleScanResultTaskFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanResultTaskFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleScanResultTaskStep left = NativeBattleScanResultTask.Advance84FAF0(frame, fixture.Address, 0x20, fixture.Services);
         NativeBattleScanResultTaskStep right = NativeBattleScanResultTask.Advance84FAF0(restored, fixture.Address, 0x20, fixture.Services);
-        Assert.Equal(JsonSerializer.Serialize(left), JsonSerializer.Serialize(right));
+        Assert.Equal(NativeBattleTestSnapshots.Json(left), NativeBattleTestSnapshots.Json(right));
     }
 
     private static NativeBattleModulePoolTask Task(NativeBattleScanResultTaskFrame frame, uint address) => new NativeBattleEffectHierarchy(frame.Scan.Effect.Pools).Read(address);

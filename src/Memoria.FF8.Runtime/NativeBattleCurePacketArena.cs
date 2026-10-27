@@ -28,8 +28,6 @@ public static partial class NativeBattleEffectPacketArena
 {
     public static NativeBattleEffectPacketWrite Append(NativeBattleEffectMemory memory, int cursor, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch, NativeBattleEffectGouraudWrites gouraudWrites, int? moduleDraw = null)
     {
-        using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena."));
-        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (gouraudWrites is not (NativeBattleEffectGouraudWrites.FullDword or NativeBattleEffectGouraudWrites.RgbBytes))
         {
             throw new ArgumentOutOfRangeException(nameof(gouraudWrites));
@@ -42,6 +40,8 @@ public static partial class NativeBattleEffectPacketArena
             }
             return Append(memory, cursor, ordering, captured, moduleDraw: moduleDraw);
         }
+        using NativeBattleEffectArenaWriter arena = new(memory.Arena ?? throw new NotSupportedException("Native effect packet writes require the571870 effect arena."));
+        using NativeBattleLogicalOrdering.Builder links = new(ordering);
         if (batch.Primitives.IsDefault || batch.AllocationBytes < 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native Cure packets leave their original aligned effect arena.");

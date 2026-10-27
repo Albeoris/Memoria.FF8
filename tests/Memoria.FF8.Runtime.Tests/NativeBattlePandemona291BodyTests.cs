@@ -24,7 +24,7 @@ public sealed partial class NativeBattlePandemona291EntryTests
         resource[0x64] = 2;
         uint address = 0x20DFAB8u + 0x21A4;
         NativeBattleModulePoolTask task = new(1, 0, null, 0x6ED900, Enumerable.Repeat((byte)0xA5, 0x1024).ToImmutableArray());
-        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x31220, resource).Write(0x21A4 + 12, task.Payload.AsSpan()) } };
+        frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x31220, resource).Write(0x21A4 + 12, NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan()) } };
         int cleared = 0;
         NativeBattlePandemona291ChildStep result = NativeBattlePandemona291Body.Initialize99(frame, address, task, () => cleared++);
         Assert.Equal(1, cleared);
@@ -44,8 +44,8 @@ public sealed partial class NativeBattlePandemona291EntryTests
         Assert.Equal(frame.Random, result.Frame.Random);
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(result.Frame.Memory.Arena!, 0x31238, 1);
         Assert.Equal(new NativeBattleVector(0, 0, 0), pose.Translation);
-        NativeBattlePandemona291Frame restored = JsonSerializer.Deserialize<NativeBattlePandemona291Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattlePandemona291Body.Initialize99(restored, address, task, () => { })));
+        NativeBattlePandemona291Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePandemona291Frame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattlePandemona291Body.Initialize99(restored, address, task, () => { })));
     }
 
     [Theory]

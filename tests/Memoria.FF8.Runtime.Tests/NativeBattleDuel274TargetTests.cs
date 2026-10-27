@@ -45,7 +45,7 @@ public sealed class NativeBattleDuel274TargetTests
         Assert.Equal(48, waiting.Pool.Slots[0].ReadWord(12));
         Assert.Equal(1, waiting.Pool.Slots[0].ReadByte(16));
         Assert.Equal(0, waiting.Frame.Effect.Parameters!.Parameter81);
-        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(waiting.Frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(waiting.Frame))!;
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(2356, [0, 0, 1, 2, 2]) } };
         NativeBattleDuel274TaskStep ready = fixture.Advance(frame);
 
@@ -66,7 +66,7 @@ public sealed class NativeBattleDuel274TargetTests
         frame = frame with { Effect = frame.Effect with { Parameters = frame.Effect.Parameters! with { Parameter82 = 1 } }, Staging = frame.Staging.Write(0x25084D9, [8]) };
         fixture.Models[0] = fixture.Models[0] with { Rotation12 = 90, Rotation14 = 91, Rotation16 = 92, RotationPadding18 = 0xABCD, Transform = fixture.Models[0].Transform! with { Position28 = new(1000, 1001, 1002), Vertical34 = 1003 } };
         fixture.Calls.Clear();
-        NativeBattleDuel274TaskStep step = fixture.Advance(JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!);
+        NativeBattleDuel274TaskStep step = fixture.Advance(NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!);
 
         Assert.Equal(2, step.Result);
         Assert.Equal(1, step.Frame.Effect.Parameters!.Parameter81);
@@ -94,7 +94,7 @@ public sealed class NativeBattleDuel274TargetTests
         Assert.Equal(0, queued.Result);
         Assert.Equal(1, queued.Pool.Slots[0].ReadWord(12));
         Assert.Equal(0, queued.Pool.Slots[0].ReadByte(96));
-        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(queued.Frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(queued.Frame))!;
         frame = Task(frame, task => task.WriteByte(96, 1).WriteWord(12, 5));
         Assert.Equal(0, fixture.Advance(frame).Result);
         frame = Task(frame, task => task.WriteByte(96, 1).WriteWord(12, 6));
@@ -107,7 +107,7 @@ public sealed class NativeBattleDuel274TargetTests
     private static NativeBattleDuel274Frame Task(NativeBattleDuel274Frame frame, Func<NativeBattleModulePoolTask, NativeBattleModulePoolTask> update)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, update(pool.Slots[0])) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, update(pool.Slots[0])) })) } };
     }
 
     private sealed class Fixture
@@ -122,7 +122,7 @@ public sealed class NativeBattleDuel274TargetTests
         {
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (target, _) = target.Append(0x689AC0);
-            target = target with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteByte(15, 6).WriteByte(16, 1).WriteDword(20, NativeBattleDuel274Controller.Address(3))) };
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteByte(15, 6).WriteByte(16, 1).WriteDword(20, NativeBattleDuel274Controller.Address(3))) });
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0) { Parameter80 = 6, Parameter82 = 0 }, 0x25084B8) { Pools = [NativeBattleEffectTaskPool.Initialize(0x25084B8, 0x25084C8, 24, 1), target] };
             NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0x25084D8, [1, 6]);
             for (int index = 0; index < 7; index++)

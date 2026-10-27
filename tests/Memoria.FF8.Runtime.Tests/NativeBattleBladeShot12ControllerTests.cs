@@ -95,7 +95,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
             for (int index = 0; index < ChildBCount; index++)
             {
                 (pool, int slot) = pool.Append(0x6E9B50);
-                pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteDword(16, SpriteCAddress).WriteWord(0x1A, 0)) };
+                pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteDword(16, SpriteCAddress).WriteWord(0x1A, 0)) });
             }
             frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, pool) } };
         }
@@ -165,7 +165,7 @@ public sealed class NativeBattleBladeShot12ControllerTests
         Assert.NotNull(frame.State.RootBankStorage);
         Assert.NotNull(frame.State.ChildABankStorage);
         Assert.NotNull(frame.State.ChildBBankStorage);
-        var restored = JsonSerializer.Deserialize<NativeBattleBladeShot12Frame>(JsonSerializer.Serialize(frame))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBladeShot12Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var warm = Initialize(restored, Resources(), inputs);
         Assert.Equal((ushort)0, Read(warm, RootBank).ReadWord(12));
         Assert.Equal(frame.Random, warm.Random);

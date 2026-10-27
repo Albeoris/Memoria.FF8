@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -101,12 +101,12 @@ public sealed class NativeBattleShivaControllerTests
     public void Independent_snapshot_restores_keep_next_pass_parity_links_and_caller_owned_state()
     {
         NativeBattleShivaControllerFrame frame = NativeBattleShivaController.Advance5C7F50(Fixture(), (current, _) => new(current, 0));
-        NativeBattleShivaControllerFrame restored = JsonSerializer.Deserialize<NativeBattleShivaControllerFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleShivaControllerFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleShivaControllerFrame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int pass = 0; pass < 3; pass++)
         {
             frame = NativeBattleShivaController.Advance5C7F50(frame, (current, _) => new(current, 0));
             restored = NativeBattleShivaController.Advance5C7F50(restored, (current, _) => new(current, 0));
-            Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
             Assert.Equal(pass % 2 == 0 ? 0x10000 : 0x18000, frame.CurrentDrawOffset);
         }
     }
@@ -117,9 +117,9 @@ public sealed class NativeBattleShivaControllerTests
         NativeBattleShivaControllerFrame frame = Fixture();
         NativeBattleEffectTaskPool main = frame.Entry.Effect.Pools[0];
         NativeBattleEffectTaskPool children = frame.Entry.Effect.Pools[1];
-        NativeBattleShivaControllerFrame replaced = frame with { Entry = frame.Entry with { Effect = frame.Entry.Effect with { Pools = [main, children with { BankAddress = 0x22BC1AC }] } } };
+        NativeBattleShivaControllerFrame replaced = frame with { Entry = frame.Entry with { Effect = frame.Entry.Effect with { Pools = [main, NativeBattleEffectTaskPool.Initialize(children.DescriptorAddress, 0x22BC1AC, children.Stride, checked((ushort)children.Slots.Length))] } } };
         Assert.Throws<InvalidDataException>(() => NativeBattleShivaController.Advance5C7F50(replaced, NoChild));
-        replaced = frame with { Entry = frame.Entry with { Effect = frame.Entry.Effect with { Pools = [main with { Slots = main.Slots.SetItem(0, main.Slots[0] with { Callback = 0x5C0F30 }) }, children] } } };
+        replaced = frame with { Entry = frame.Entry with { Effect = frame.Entry.Effect with { Pools = [NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(0, NativeBattleTaskFixture.EditTask(main.Slots[0], taskData => taskData with { Callback = 0x5C0F30 })) }), children] } } };
         Assert.Throws<NotSupportedException>(() => NativeBattleShivaController.Advance5C7F50(replaced, NoChild));
         Assert.Throws<InvalidDataException>(() => NativeBattleShivaController.Advance5C7F50(frame with { CurrentDrawOffset = 123 }, NoChild));
         Assert.Throws<ArgumentNullException>(() => NativeBattleShivaController.Advance5C7F50(frame, null!));
@@ -139,7 +139,7 @@ public sealed class NativeBattleShivaControllerTests
     {
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x22BC180, 0x22BC160, 0x10, 2);
         (main, int root) = main.Append(0x5C7F50);
-        main = main with { Slots = main.Slots.SetItem(root, main.Slots[root].WriteWord(0x0C, counter).WriteWord(0x0E, 0xABCD)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(root, main.Slots[root].WriteWord(0x0C, counter).WriteWord(0x0E, 0xABCD)) });
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x22BC198, 0x22BC1A8, 0x24, 100);
         if (withChild)
         {

@@ -17,10 +17,11 @@ public sealed class NativeBattleNeedlesFamilyPacketTests
         NativeBattleNeedlesFamilyPacketWrite first = NativeBattleNeedlesFamilyPacketArena.Append(state, NativeBattleLogicalOrdering.Clear(), Accepted(0xE1000220));
         Assert.Equal(profile.PacketBase + NativeBattleNeedlesFamilyProfile.PacketStep + 8, first.State.ReadDword(profile.CursorGlobal));
         Assert.Throws<NotSupportedException>(() => first.State.ReadPacket(profile.PacketBase, 4));
-        NativeBattleNeedlesFamilyPacketWrite restored = JsonSerializer.Deserialize<NativeBattleNeedlesFamilyPacketWrite>(JsonSerializer.Serialize(first))!;
+        NativeBattleNeedlesFamilyPacketWrite restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNeedlesFamilyPacketWrite>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleNeedlesFamilyPacketWrite Next(NativeBattleNeedlesFamilyPacketWrite current) => NativeBattleNeedlesFamilyPacketArena.Append(current.State, current.Ordering, Accepted(0xE1000221));
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
-        NativeBattleNeedlesFamilyPacketWrite next = Next(restored);
+        var direct = Next(first);
+        var next = Next(restored);
+        Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(next));
         byte[] lengths = new byte[256];
         lengths[0xE1] = 1;
         Assert.Equal(new uint[] { 0xE1000221, 0xE1000220 }, next.Ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => NativeBattleNeedlesFamilyPacketArena.Read(next.State, reference, count)).Select(command => command.Words[0]));

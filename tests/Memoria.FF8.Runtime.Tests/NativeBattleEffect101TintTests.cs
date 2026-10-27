@@ -48,9 +48,9 @@ public sealed class NativeBattleEffect101TintTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ScriptedColorRegisters = null };
         memory = NativeBattleEffect101Tint.Execute(memory, 0x32FE5B11, 2048, NativeBattleGteColorInterpolation.CodeConstants45F270).Memory;
-        NativeBattleEffectMemory imported = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory imported = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
         NativeBattleEffect101TintStep expected = NativeBattleEffect101Tint.Execute(memory, 0x32010203, 3072, NativeBattleGteColorInterpolation.CodeConstants45F270);
         NativeBattleEffect101TintStep actual = NativeBattleEffect101Tint.Execute(imported, 0x32010203, 3072, NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)));
     }
 }

@@ -64,7 +64,7 @@ public sealed class NativeBattleSiren95DecorationTests
             child = child.WriteWord(0x72 + corner * 8, (ushort)(0x9000 + corner));
         }
         frame = Put(frame, address, child);
-        string saved = JsonSerializer.Serialize(frame);
+        string saved = NativeBattleTestSnapshots.Json(frame);
         List<(short X, short Y, short Z, ushort Padding)> points = [];
         NativeBattleSiren95Frame Draw(NativeBattleSiren95Frame current, uint taskAddress)
         {
@@ -84,8 +84,8 @@ public sealed class NativeBattleSiren95DecorationTests
             Assert.Equal(((short)(1 - x), (short)(2 + y), (short)(13 - 8192 - z), (ushort)(0x9000 + corner)), points[corner]);
         }
         points.Clear();
-        var restored = NativeBattleSiren95Decorations.AdvanceChild(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, address, Draw);
-        Assert.Equal(JsonSerializer.Serialize(result.Frame), JsonSerializer.Serialize(restored.Frame));
+        var restored = NativeBattleSiren95Decorations.AdvanceChild(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, address, Draw);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
         Assert.Equal(4, points.Count);
         frame = Put(result.Frame, address, Task(result.Frame, address).WriteByte(0x29, 1).WriteWord(0x50, 15));
         int hiddenCalls = 0;
@@ -106,7 +106,7 @@ public sealed class NativeBattleSiren95DecorationTests
         var fixture = NativeBattleSiren95ControllerTests.Fixture();
         NativeBattleSiren95Frame frame = StageOne(fixture.Frame, fixture.Inputs.Packets);
         uint emitter = Address(frame, 0x744060);
-        frame = Put(frame, emitter, (Task(frame, emitter) with { Callback = 0x744450 }).WriteByte(0x29, 2));
+        frame = Put(frame, emitter, (NativeBattleTaskFixture.EditTask(Task(frame, emitter), taskData => taskData with { Callback = 0x744450 })).WriteByte(0x29, 2));
         NativeCrtRandomState expected = frame.Random;
         expected = expected.Draw(out ushort segment);
         expected = expected.Draw(out ushort fraction);

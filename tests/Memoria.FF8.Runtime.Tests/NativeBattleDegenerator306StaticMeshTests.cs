@@ -33,8 +33,8 @@ public sealed class NativeBattleDegenerator306StaticMeshTests
         {
             Assert.NotNull(current.Memory.ScriptedColorRegisters.Material);
         }
-        NativeBattleStaticMeshContext88Step restored = JsonSerializer.Deserialize<NativeBattleStaticMeshContext88Step>(JsonSerializer.Serialize(current))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, Projection, current.Context, Colors, null, 4122, 14)), JsonSerializer.Serialize(NativeBattleStaticMeshContext88.Draw(restored.Memory, mesh, matrix, Projection, restored.Context, Colors, null, 4122, 14)));
+        NativeBattleStaticMeshContext88Step restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleStaticMeshContext88Step>(NativeBattleTestSnapshots.Json(current))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleStaticMeshContext88.Draw(current.Memory, mesh, matrix, Projection, current.Context, Colors, null, 4122, 14)), NativeBattleTestSnapshots.Json(NativeBattleStaticMeshContext88.Draw(restored.Memory, mesh, matrix, Projection, restored.Context, Colors, null, 4122, 14)));
     }
 
     [Fact]

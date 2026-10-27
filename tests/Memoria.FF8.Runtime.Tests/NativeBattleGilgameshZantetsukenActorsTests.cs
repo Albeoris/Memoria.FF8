@@ -17,9 +17,9 @@ public sealed class NativeBattleGilgameshZantetsukenActorsTests
         Assert.Equal(unchecked((short)0xA5A5), actors.ReadWord(3, 58));
         Assert.False(actors.ReadMatrix(3).Known[18]);
         Assert.False(actors.ReadMatrix(3).Known[19]);
-        Assert.Equal(JsonSerializer.Serialize(matrix.ReadMatrix()), JsonSerializer.Serialize(actors.ReadMatrix(3).ReadMatrix()));
-        NativeBattleGilgameshZantetsukenActors restored = JsonSerializer.Deserialize<NativeBattleGilgameshZantetsukenActors>(JsonSerializer.Serialize(actors))!;
-        Assert.Equal(JsonSerializer.Serialize(actors), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(matrix.ReadMatrix()), NativeBattleTestSnapshots.Json(actors.ReadMatrix(3).ReadMatrix()));
+        NativeBattleGilgameshZantetsukenActors restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGilgameshZantetsukenActors>(NativeBattleTestSnapshots.Json(actors))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(actors), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]

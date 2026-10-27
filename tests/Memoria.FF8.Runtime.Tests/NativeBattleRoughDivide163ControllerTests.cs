@@ -34,7 +34,7 @@ public sealed class NativeBattleRoughDivide163ControllerTests
     public void BoneInitializerWritesOnlyXyzAndRetainsNativeTaskPadding()
     {
         (NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool) = Frame(4);
-        pool = pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xCAFE)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteWord(22, 0xCAFE)) });
         NativeBattleRoughDivide163ChildStep step = NativeBattleRoughDivide163Controller.Advance5F5C80(frame, pool, 0, Inputs(0, []));
         NativeBattleModulePoolTask child = step.Pool.Slots[1];
         Assert.Equal(0x5F65E0u, child.Callback);
@@ -81,7 +81,7 @@ public sealed class NativeBattleRoughDivide163ControllerTests
         });
         Assert.Equal(0x23CA1C6u, completion);
         NativeBattleEffectTaskPool main = frame.Effect.Pools[0];
-        main = main with { Slots = main.Slots.SetItem(1, main.Slots[1].WriteWord(14, 0xAB00)) };
+        main = NativeBattleTaskFixture.EditPool(main, data => data with { Slots = main.Slots.SetItem(1, main.Slots[1].WriteWord(14, 0xAB00)) });
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(0, main) } };
         frame = frame with { Effect = NativeBattleRoughDivide163Controller.WriteCompletionByte(frame.Effect, completion, 1) };
         Assert.Equal(0xAB01, frame.Effect.Pools[0].Slots[1].ReadWord(14));
@@ -93,7 +93,7 @@ public sealed class NativeBattleRoughDivide163ControllerTests
     public void FinalControllerRestoresAllEightCapturedActorPositionBytes()
     {
         (NativeBattleRoughDivide163Frame frame, NativeBattleEffectTaskPool pool) = Frame(85);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(22, 0xCAFE)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(16, 10).WriteWord(18, 20).WriteWord(20, 30).WriteWord(22, 0xCAFE)) });
         List<NativeBattleRoughDivide163Operation> operations = [];
         NativeBattleRoughDivide163ChildStep step = NativeBattleRoughDivide163Controller.Advance5F5C80(frame, pool, 0, Inputs(0, operations));
         Assert.Equal(2, step.Result);
@@ -127,7 +127,7 @@ public sealed class NativeBattleRoughDivide163ControllerTests
         (main, _) = main.Append(0x5F9020);
         NativeBattleEffectTaskPool children = NativeBattleEffectTaskPool.Initialize(0x23CD348, 0x23CD358, 36, 100);
         (children, _) = children.Append(0x5F5C80);
-        children = children with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) };
+        children = NativeBattleTaskFixture.EditPool(children, data => data with { Slots = children.Slots.SetItem(0, children.Slots[0].WriteWord(12, counter)) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { RoughDivide163 = new(true, parameters, 3, null) };
         NativeBattleOriginalEffectState effect = new(163, 162, new(163, 0x5F5B80, 0x5F5B60), parameters, 0x23CA1C8) { Pools = [main, children] };

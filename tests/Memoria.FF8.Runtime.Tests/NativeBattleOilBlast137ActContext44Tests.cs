@@ -69,8 +69,8 @@ public sealed class NativeBattleOilBlast137ActContext44Tests
         Assert.Equal((short)321, step.ReadW(0));
         Assert.Null(step.ReadW(8));
         Assert.Equal(new byte[] { 11, 22 }, step.Memory.Arena!.Read(MorphOffset + 712, 2));
-        string json = System.Text.Json.JsonSerializer.Serialize(step.Memory.Arena);
-        NativeBattleEffectArena restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleEffectArena>(json)!;
+        string json = NativeBattleTestSnapshots.Json(step.Memory.Arena);
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(json)!;
         Assert.Equal(step.Memory.Arena.Read(MorphOffset, 6), restored.Read(MorphOffset, 6));
         Assert.Throws<NotSupportedException>(() => restored.Read(MorphOffset + 14, 2));
         Assert.Throws<InvalidDataException>(() => Prepare(Node(0, interpolate: true), Context(0).Write(40, BitConverter.GetBytes(MorphAddress + 8)), memory));

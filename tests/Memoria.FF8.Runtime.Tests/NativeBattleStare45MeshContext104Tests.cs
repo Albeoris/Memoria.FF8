@@ -68,8 +68,8 @@ public sealed class NativeBattleStare45MeshContext104Tests
         var actual = Draw(7, context: Context(0x20F0));
         Assert.Equal(2048u, actual.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Equal(160u, actual.Memory.PrimitiveProcess!.ModelRendererRegisters!.FarRed);
-        var restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(actual.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(7, memory: actual.Memory)), JsonSerializer.Serialize(Draw(7, memory: restored)));
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(actual.Memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(7, memory: actual.Memory)), NativeBattleTestSnapshots.Json(Draw(7, memory: restored)));
     }
 
     [Fact]

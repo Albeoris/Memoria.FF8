@@ -97,7 +97,7 @@ public sealed class NativeBattleEffect320LowerTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0, 0x20D0000, 32, 1);
         (pool, int slot) = pool.Append(ParticleCallback);
         NativeBattleModulePoolTask task = pool.Slots[slot].WriteWord(0xC, (ushort)phase).WriteWord(0x10, 10).WriteWord(0x12, 20).WriteWord(0x14, 2000).WriteWord(0x16, 4096).WriteWord(0x18, 2).WriteWord(0x1A, 0).WriteWord(0x1C, 0);
-        fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool with { Slots = pool.Slots.SetItem(slot, task) }] } };
+        fixture.Frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [pool.WriteSlot(slot, task)] } };
         NativeBattleEffect320Step result = NativeBattleEffect320Lower.Advance(fixture.Frame, pool.BankAddress, fixture.Resources, fixture.Inputs());
         NativeBattleModulePoolTask after = Read(result.Frame, pool.BankAddress);
         Assert.Equal(resultCode, result.Result);

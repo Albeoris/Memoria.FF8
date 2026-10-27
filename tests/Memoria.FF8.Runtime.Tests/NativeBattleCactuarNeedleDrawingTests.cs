@@ -34,9 +34,9 @@ public sealed class NativeBattleCactuarNeedleDrawingTests
         NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(process, NativeBattleLogicalOrdering.Clear(), draw.Packets);
         Assert.Equal(80, written.Process.ByteCursor);
         Assert.Equal(2, written.Ordering.Proxies.Length);
-        NativeBattlePrimitiveProcess coldProcess = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(written.Process))!;
-        NativeBattleLogicalOrdering coldOrdering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleCommonPacketArena.Append(written.Process, written.Ordering, draw.Packets)), JsonSerializer.Serialize(NativeBattleCommonPacketArena.Append(coldProcess, coldOrdering, draw.Packets)));
+        NativeBattlePrimitiveProcess coldProcess = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(written.Process))!;
+        NativeBattleLogicalOrdering coldOrdering = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(written.Ordering))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleCommonPacketArena.Append(written.Process, written.Ordering, draw.Packets)), NativeBattleTestSnapshots.Json(NativeBattleCommonPacketArena.Append(coldProcess, coldOrdering, draw.Packets)));
     }
 
     [Fact]

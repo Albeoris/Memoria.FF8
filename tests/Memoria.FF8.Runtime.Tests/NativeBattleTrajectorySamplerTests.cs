@@ -24,10 +24,10 @@ public sealed class NativeBattleTrajectorySamplerTests
         Assert.Equal(-expected, BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(4, 2)));
         Assert.Throws<NotSupportedException>(() => result.Output8.Read(6, 2));
         Assert.Equal(new byte[] { 0x81, 0x82 }, result.Output8.Read(8, 2));
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
-        NativeBattleEffectArena restoredControls = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(controls))!;
+        NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
+        NativeBattleEffectArena restoredControls = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(controls))!;
         NativeBattleTrajectoryStep restored = NativeBattleTrajectorySampler.Sample(restoredMemory, restoredControls, pointCount, segment, 2048, retained, NativeBattleGteColorInterpolation.CodeConstants45F270);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => NativeBattleTrajectorySampler.Sample(memory, controls, pointCount, segment + 1, 2048, retained, NativeBattleGteColorInterpolation.CodeConstants45F270));
     }
 }

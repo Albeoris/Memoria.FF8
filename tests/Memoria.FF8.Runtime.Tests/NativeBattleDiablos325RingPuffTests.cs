@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -9,7 +9,8 @@ public sealed class NativeBattleDiablos325RingPuffTests
     public void Thirty_two_births_alternate_sprite_countdown_and_consume_exact_three_CRT_draws_before_same_callback_drift()
     {
         NativeBattleDiablos325Frame source = Fixture();
-        string original = JsonSerializer.Serialize(source);
+        var preserved = NativeBattleStorageSnapshots.Capture(source);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325Frame born = NativeBattleDiablos325Puffs.SpawnRing6558A4(source);
         Assert.Equal(new NativeCrtRandomState(0x542236E1), born.Random);
         Assert.Equal((byte)3, born.Memory.Diablos325!.Mode51F0);
@@ -24,7 +25,7 @@ public sealed class NativeBattleDiablos325RingPuffTests
         NativeBattleDiablos325Frame moved = NativeBattleDiablos325Puffs.Drift658CE0(born);
         Assert.Equal(new byte[] { 0xC0, 0x69, 0xFD, 0, 0x41, 2, 0x22, 0xE0, 0xC4, 6, 2, 78, 8, 0, 0xF8, 15 }, moved.Memory.Arena!.Read(0x4C5C, 16));
         Assert.Equal(born.Random, moved.Random);
-        Assert.Equal(original, JsonSerializer.Serialize(source));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     [Fact]
@@ -37,8 +38,8 @@ public sealed class NativeBattleDiablos325RingPuffTests
             writer.Write(0x4C5C + index * 16 + 15, [1]);
         }
         frame = frame with { Memory = frame.Memory with { Arena = writer.Freeze() }, Random = null };
-        string full = JsonSerializer.Serialize(frame);
-        Assert.Equal(full, JsonSerializer.Serialize(NativeBattleDiablos325Puffs.SpawnRing6558A4(frame)));
+        string full = NativeBattleTestSnapshots.Json(frame);
+        Assert.Equal(full, NativeBattleTestSnapshots.Json(NativeBattleDiablos325Puffs.SpawnRing6558A4(frame)));
         frame = frame with { Memory = frame.Memory with { Arena = frame.Memory.Arena!.Write(0x564C + 15, [0]) }, Random = new(1) };
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Puffs.SpawnRing6558A4(frame);
         Assert.Equal(new NativeCrtRandomState(0x18BE873A), result.Random);
@@ -60,7 +61,8 @@ public sealed class NativeBattleDiablos325RingPuffTests
         record[15] = 1;
         NativeBattleEffectArena arena = frame.Memory.Arena!.Write(0x4C5C, record).MarkUnknown(0x4C5C + 10, 2).MarkUnknown(0x4C5C + 16, 15);
         frame = frame with { Memory = frame.Memory with { Arena = arena } };
-        string original = JsonSerializer.Serialize(frame);
+        var preserved = NativeBattleStorageSnapshots.Capture(frame);
+        string original = NativeBattleTestSnapshots.Json(preserved);
         NativeBattleDiablos325Frame result = NativeBattleDiablos325Puffs.Drift658CE0(frame);
         byte[] position = result.Memory.Arena!.Read(0x4C5C + 4, 6);
         Assert.Equal((short)32264, BinaryPrimitives.ReadInt16LittleEndian(position));
@@ -71,7 +73,7 @@ public sealed class NativeBattleDiablos325RingPuffTests
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena.Read(0x4C5C + 10, 2));
         Assert.Throws<NotSupportedException>(() => result.Memory.Arena.Read(0x4C5C + 16, 15));
         Assert.Equal(frame.Random, result.Random);
-        Assert.Equal(original, JsonSerializer.Serialize(frame));
+        Assert.Equal(original, NativeBattleTestSnapshots.Json(preserved));
     }
 
     private static NativeBattleDiablos325Frame Fixture()

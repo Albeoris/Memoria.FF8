@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect344MusicSourceTests
         Assert.Equal(new[] { (source + 4, 12) }, reads);
         NativeBattleMusicLoadStep stopped = staged.AdvanceLoad501A70(NativeGlobalSoundProcess.FromBufferlessColdProcess(), null, 0, 0x24DFD98);
         NativeBattleMusicCommandStep drained = stopped.State.DrainCommands501B60(stopped.Sound);
-        staged = JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(drained.State))!;
+        staged = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleMusicProcessState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State)))!);
         NativeBattleMusicLoadStep copied = staged.AdvanceLoad501A70(drained.Sound, null, 1, 0x24DFD98, readSource: Read);
         Assert.Equal(new NativeMusicBufferIdentity(91, NativeMusicBufferProducer.Battle501A70), copied.State.Buffers.ReadBuffer(0));
         Assert.Equal(new[] { (source + 4, 12), (0xE0DDB8u, 10528) }, reads);

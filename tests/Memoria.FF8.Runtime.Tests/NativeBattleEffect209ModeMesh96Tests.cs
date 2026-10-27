@@ -93,12 +93,12 @@ public sealed class NativeBattleEffect209ModeMesh96Tests
     {
         NativeBattleStaticMeshResource mesh = Mesh(reverse: true);
         NativeBattleEffectMemory memory = Memory();
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(memory)))!);
         NativeBattleEffect209ModeMesh96Step first = NativeBattleEffect209ModeMesh96.DrawLoaded(memory, mesh, new(null, 100, 160, 108), Context(0xF3), NativeBattleGteColorInterpolation.CodeConstants45F270);
         NativeBattleEffect209ModeMesh96Step second = NativeBattleEffect209ModeMesh96.DrawLoaded(restored, mesh, new(null, 100, 160, 108), Context(0xF3), NativeBattleGteColorInterpolation.CodeConstants45F270);
         Assert.Equal(2880, first.Batch.AllocationBytes);
-        Assert.Equal(JsonSerializer.Serialize(first.Batch), JsonSerializer.Serialize(second.Batch));
-        Assert.Equal(JsonSerializer.Serialize(first.Memory.GeometryRegisters), JsonSerializer.Serialize(second.Memory.GeometryRegisters));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Batch)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Batch)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(first.Memory.GeometryRegisters)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(second.Memory.GeometryRegisters)));
     }
 
     private static NativeBattleEffect209ModeMesh96Step Draw(NativeBattleStaticMeshResource mesh, NativeBattleEffectArena context) => NativeBattleEffect209ModeMesh96.DrawLoaded(Memory(), mesh, new(null, 100, 160, 108), context, NativeBattleGteColorInterpolation.CodeConstants45F270);

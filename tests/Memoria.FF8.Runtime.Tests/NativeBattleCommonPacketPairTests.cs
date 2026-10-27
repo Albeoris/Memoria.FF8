@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -11,14 +11,14 @@ public sealed class NativeBattleCommonPacketPairTests
     {
         NativeBattlePrimitiveProcess cold = NativeBattlePrimitiveProcess.FromColdProcess();
         Assert.Null(cold.PacketBank);
-        string json = JsonSerializer.Serialize(cold);
+        string json = NativeBattleTestSnapshots.Json(cold);
         using JsonDocument document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattlePrimitiveProcess.CommonPacketNominalCapacity), out _));
         Assert.False(document.RootElement.TryGetProperty(nameof(NativeBattlePrimitiveProcess.CommonPacketWriteCapacity), out _));
-        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(json)!;
+        NativeBattlePrimitiveProcess restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(json)!;
         Assert.Null(restored.PacketBank);
         Assert.Null(restored.ByteCursor);
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
     }
 
     [Theory]
@@ -54,17 +54,18 @@ public sealed class NativeBattleCommonPacketPairTests
             new(stride - 1, [50, 60], Known(2)),
             new(stride + 1, [0], [NativeBattleGfPacketByteState.Unknown])
         ];
+        NativeBattlePrimitiveProcess preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
         NativeBattlePrimitiveProcess result = source.ApplyCommonWrites(writes);
         Assert.Equal(new byte[] { 1, 50, 60 }, result.ReadCommonPacket(stride - 2, 3));
         Assert.Throws<NotSupportedException>(() => result.ReadCommonPacket(stride + 1, 1));
         Assert.Throws<NotSupportedException>(() => (result with { PacketBuffer = 1 }).ReadCommonPacket(1, 1));
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, source.ReadCommonPacket(stride - 2, 4));
-        NativeBattlePrimitiveProcess sequential = source;
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, preserved.ReadCommonPacket(stride - 2, 4));
+        NativeBattlePrimitiveProcess sequential = preserved;
         foreach (NativeBattleCommonPacketStore write in writes)
         {
             sequential = sequential.ApplyCommonWrite(write.Offset, write.Data, write.Mask);
         }
-        Assert.Equal(JsonSerializer.Serialize(sequential.CommonPacketMemory), JsonSerializer.Serialize(result.CommonPacketMemory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(sequential.CommonPacketMemory), NativeBattleTestSnapshots.Json(result.CommonPacketMemory));
         NativeBattlePrimitiveProcess unknown = result.MarkCommonUnknown(stride - 1, 2);
         Assert.Throws<NotSupportedException>(() => unknown.ReadCommonPacket(stride - 1, 1));
         Assert.Throws<NotSupportedException>(() => (unknown with { PacketBuffer = 1 }).ReadCommonPacket(0, 1));
@@ -95,7 +96,7 @@ public sealed class NativeBattleCommonPacketPairTests
         Assert.Null(one.CommonPacketMemory!.Bank070Buffer1);
         Assert.Throws<NotSupportedException>(() => one.ReadCommonPacket(114688, 1));
         NativeBattlePrimitiveProcess written = one.ApplyCommonWrite(114688, [9, 10], Known(2));
-        NativeBattlePrimitiveProcess restored = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(written))!;
+        NativeBattlePrimitiveProcess restored = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(written))!;
         NativeBattlePrimitiveProcess reset = (restored with { Buffer80 = 1 }).Reset500900(0);
         Assert.Equal((byte)1, reset.PacketBuffer);
         Assert.Equal(new byte[] { 9, 10 }, reset.ReadCommonPacket(0, 2));
@@ -125,9 +126,10 @@ public sealed class NativeBattleCommonPacketPairTests
         process = (process with { PacketBuffer = alias.Buffer }).ApplyCommonWrite(alias.ByteOffset + 4, color.ToImmutableArray(), Known(4));
         links.InvalidatePacketRange(alias with { ByteOffset = alias.ByteOffset + 4 }, 4);
         NativeBattleLogicalOrdering ordering = links.ToImmutable();
+        links.Dispose();
         Assert.True(Assert.Single(ordering.Packets).RequiresPhysicalRead);
-        ordering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(ordering))!;
-        process = JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(JsonSerializer.Serialize(process))!;
+        ordering = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(ordering))!;
+        process = NativeBattleTestSnapshots.RestoreJson<NativeBattlePrimitiveProcess>(NativeBattleTestSnapshots.Json(process))!;
         byte[] lengths = new byte[256];
         lengths[0x60] = 3;
         NativeBattleLogicalCommand command = Assert.Single(ordering.Traverse(lengths.ToImmutableArray(), (reference, count) => (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, count)));

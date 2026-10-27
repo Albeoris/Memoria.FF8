@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -19,13 +19,13 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x1C0A, 4, 5, 6);
         frame = frame with { Arena = frame.Arena.MarkUnknown(SlotBase + 0xB0, 8) };
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = NativeBattleWaterInstructionDispatcher.ExecuteVector(frame, new(0x1000, 8, Pc), Resources().Files[1].Data.Length);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(SlotBase + 0xB0, 1));
         Assert.Equal(4u << 16, Dword(result, SlotBase + 0x5C));
         Assert.Equal(5u << 16, Dword(result, SlotBase + 0x60));
         Assert.Equal(6u << 16, Dword(result, SlotBase + 0x64));
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleWaterInstructionDispatcher.ExecuteVector(restored, new(0x1000, 8, Pc), Resources().Files[1].Data.Length)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleWaterInstructionDispatcher.ExecuteVector(restored, new(0x1000, 8, Pc), Resources().Files[1].Data.Length)));
     }
 
     [Fact]
@@ -192,8 +192,8 @@ public sealed class NativeBattleWaterInstructionDispatcherTests
         Assert.Throws<InvalidDataException>(() => Run(unknown, 0x52, null!, Services()));
         NativeBattleWaterExecutionFrame frame = Fixture(0x80D4, -2);
         frame = PutDword(frame, SlotBase + 0xCC, 0x12123456);
-        NativeBattleWaterExecutionFrame clone = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Run(frame, 0xD4, Resources(), Services())), JsonSerializer.Serialize(Run(clone, 0xD4, Resources(), Services())));
+        NativeBattleWaterExecutionFrame clone = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Run(frame, 0xD4, Resources(), Services())), NativeBattleTestSnapshots.Json(Run(clone, 0xD4, Resources(), Services())));
     }
 
     private static NativeBattleWaterInstructionServices Services() => new(ResolveProgram, new(UnexpectedActorFlags, UnexpectedWriteFlags, UnexpectedSound), new(UnexpectedPointer, UnexpectedPointer, UnexpectedBytes, UnexpectedContact, UnexpectedFrame, UnexpectedStage), UnexpectedByte, UnexpectedActor, UnexpectedAnchor, UnexpectedHeaderBase, UnexpectedCapture, UnexpectedTextures, UnexpectedPublishTextures, UnexpectedFile, UnexpectedEcx, NativeBattleActorAnchorRegisterFixture.Services());

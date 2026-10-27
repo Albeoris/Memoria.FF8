@@ -40,7 +40,7 @@ public sealed class NativeBattleKiros262TrailTests
         NativeBattleKiros262TrailServices services = Services((_, _, _) => throw new InvalidOperationException(), (_, _) => throw new InvalidOperationException(), (_, _, _) => throw new InvalidOperationException());
         NativeBattleKiros262TrailStep result = NativeBattleKiros262Trail.Draw(frame, NativeBattleKiros262TrailState.FromColdProcess(), services);
         Assert.Equal(frame, result.Frame);
-        Assert.Empty(result.State.Memory.Regions);
+        Assert.Empty(NativeBattleStorageSnapshots.Capture(result.State.Memory).Regions);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class NativeBattleKiros262TrailTests
             return new(current, new(10, 20, 30), 0, 0, -4096);
         }, (current, _) => current, (_, _, _) => throw new InvalidOperationException());
         NativeBattleKiros262TrailStep first = NativeBattleKiros262Trail.Draw(Fixture(), NativeBattleKiros262TrailState.FromColdProcess(), firstServices);
-        NativeBattleKiros262TrailState restored = JsonSerializer.Deserialize<NativeBattleKiros262TrailState>(JsonSerializer.Serialize(first.State))!;
+        NativeBattleKiros262TrailState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleKiros262TrailState>(NativeBattleTestSnapshots.Json(first.State))!;
         int emitted = 0;
         NativeBattleKiros262TrailServices secondServices = Services((current, _, _) => new(current, new(40, 50, 60), 0, 0, -4096), (current, _) => current, (current, state, color) =>
         {
@@ -62,10 +62,11 @@ public sealed class NativeBattleKiros262TrailTests
             Assert.Equal((short)10, BinaryPrimitives.ReadInt16LittleEndian(state.Memory.Read(NativeBattleKiros262TrailState.CurveA + 31 * 8, 2)));
             return current;
         });
+        var independentFrame = NativeBattleTestSnapshots.Independent(first.Frame);
         var expected = NativeBattleKiros262Trail.Draw(first.Frame, first.State, secondServices);
-        var actual = NativeBattleKiros262Trail.Draw(first.Frame, restored, secondServices);
+        var actual = NativeBattleKiros262Trail.Draw(independentFrame, restored, secondServices);
         Assert.Equal(2, emitted);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Equal((ushort)2, BinaryPrimitives.ReadUInt16LittleEndian(actual.Frame.Arena.Read(0x5000, 2)));
         Assert.Throws<InvalidDataException>(() => (actual.State with { Memory = actual.State.Memory.Write(0x288, [1]) }).Validate());
     }

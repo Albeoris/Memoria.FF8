@@ -13,8 +13,9 @@ public sealed class NativeBattleTaskBankCaptureTests
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 32, 2);
         (pool, _) = pool.Append(0x600000);
         (pool, _) = pool.Append(0x600100);
-        NativeBattleModulePoolTask task = pool.Slots[0].WriteResourceRowReference(12, cpuRow ? new(8, null) : new(null, 0x1939018)).WriteWord(24, 0xCAFE).MarkPayloadUnknown(18, 2) with { State = 9 };
-        pool = pool with { Slots = pool.Slots.SetItem(0, task) };
+        NativeBattleModulePoolTask task = pool.Slots[0].WriteResourceRowReference(12, cpuRow ? new(8, null) : new(null, 0x1939018)).WriteWord(24, 0xCAFE).MarkPayloadUnknown(18, 2);
+        task.UpdateHeader(task.Flags, 9, task.Next, task.Callback);
+        pool.WriteSlot(0, task);
         NativeBattleEffectArena captured = NativeBattleEffectTaskMemory.CaptureBank(pool);
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(captured.Read(0, 2)));
         Assert.Equal((ushort)9, BinaryPrimitives.ReadUInt16LittleEndian(captured.Read(2, 2)));
@@ -25,7 +26,7 @@ public sealed class NativeBattleTaskBankCaptureTests
         Assert.Equal(task.ReadResourcePointer(12), captured.ReadResourcePointer(12));
         Assert.Throws<NotSupportedException>(() => captured.Read(18, 2));
         Assert.Equal((ushort)0xCAFE, BinaryPrimitives.ReadUInt16LittleEndian(captured.Read(24, 2)));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(captured))!;
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(captured));
         Assert.Equal(captured.ReadResourcePointer(12), restored.ReadResourcePointer(12));
         Assert.Throws<NotSupportedException>(() => restored.Read(18, 2));
         Assert.Equal(captured.Read(20, 44), restored.Read(20, 44));

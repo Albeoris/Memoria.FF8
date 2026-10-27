@@ -98,9 +98,9 @@ public sealed class NativeBattleSiren95ControllerTests
         Assert.Equal(Base + (uint)(first + length), frame.Memory.Siren95.ReadDword(0x258FB74));
         Assert.All(frame.Memory.Arena!.Read(first, length), value => Assert.Equal((byte)0, value));
         Assert.Equal((byte)0xA5, frame.Memory.Arena.Read(first + length, 1)[0]);
-        string saved = JsonSerializer.Serialize(frame);
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!;
-        Assert.Equal(saved, JsonSerializer.Serialize(restored));
+        string saved = NativeBattleTestSnapshots.Json(frame);
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!;
+        Assert.Equal(saved, NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
@@ -122,14 +122,14 @@ public sealed class NativeBattleSiren95ControllerTests
         frame = NativeBattleSiren95Controller.Advance739F40(frame, inputs);
         uint director = frame.Memory.Siren95!.DirectorAddress1533010!.Value;
         frame = frame with { Memory = frame.Memory with { Siren95 = frame.Memory.Siren95.Write(director + 0x48, BitConverter.GetBytes((ushort)1)) } };
-        string saved = JsonSerializer.Serialize(frame);
+        string saved = NativeBattleTestSnapshots.Json(frame);
         frame = NativeBattleSiren95Controller.Advance739F40(frame, inputs);
         Assert.Equal(new[] { 0, 1, 2 }, contacts);
         Assert.Equal(3u, frame.Memory.Siren95!.ReadDword(0x258FCF0));
         contacts.Clear();
-        NativeBattleSiren95Frame restored = NativeBattleSiren95Controller.Advance739F40(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, inputs);
+        NativeBattleSiren95Frame restored = NativeBattleSiren95Controller.Advance739F40(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, inputs);
         Assert.Equal(new[] { 0, 1, 2 }, contacts);
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
     }
 
     private static NativeBattleModulePoolTask RootTask(NativeBattleSiren95Frame frame) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(Root);

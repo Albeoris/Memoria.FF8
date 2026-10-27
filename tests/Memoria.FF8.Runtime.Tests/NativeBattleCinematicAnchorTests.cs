@@ -34,7 +34,7 @@ public sealed class NativeBattleCinematicAnchorTests
         Assert.Equal(frame.ReadTemporaryDword(0xF0), result.Frame.ReadTemporaryDword(0xF0));
         Assert.Same(frame.Core, result.Frame.Core);
         Assert.Same(frame.Arena, result.Frame.Arena);
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattleCinematicAnchor.Project(restored, bank, new(null, 216, 160, 108), 0, 8192)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicAnchor.Project(restored, bank, new(null, 216, 160, 108), 0, 8192)));
     }
 }

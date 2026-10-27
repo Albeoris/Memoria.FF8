@@ -67,8 +67,8 @@ public sealed class NativeBattleRaldo19ControllerTests
         Assert.Equal((ushort)4, generic.ReadWord(0x29C));
         Assert.Equal((ushort)0, generic.ReadWord(0x29E));
         Assert.Single(current.Effect.Pools[4].Slots, task => task.Callback == 0x8A93E0);
-        NativeBattleRaldo19Frame restored = JsonSerializer.Deserialize<NativeBattleRaldo19Frame>(JsonSerializer.Serialize(current))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleRaldo19Controller.Advance(current, fixture.Resources, fixture.Inputs)), JsonSerializer.Serialize(NativeBattleRaldo19Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
+        NativeBattleRaldo19Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRaldo19Frame>(NativeBattleTestSnapshots.Json(current))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleRaldo19Controller.Advance(current, fixture.Resources, fixture.Inputs)), NativeBattleTestSnapshots.Json(NativeBattleRaldo19Controller.Advance(restored, fixture.Resources, fixture.Inputs)));
         current = current with { State = current.State.WithWord(0x48, 1) };
         current = NativeBattleRaldo19Controller.Advance(current, fixture.Resources, inputs);
         Assert.Single(operations.OfType<NativeBattleRaldo19Contact>());

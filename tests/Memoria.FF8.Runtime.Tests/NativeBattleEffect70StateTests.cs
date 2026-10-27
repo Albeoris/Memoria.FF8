@@ -59,10 +59,10 @@ public sealed class NativeBattleEffect70StateTests
         NativeBattleEffect70State state = NativeBattleEffect70State.FromUnknown().WriteDword(ArenaGlobal, ArenaAddress).WriteDword(SavedFlagsAddress + 6 * 4, 0x89AB).DetachRootBank();
         NativeBattleEffectArena view = state.ReadView(ViewAddress, ViewLength).Write(0, BitConverter.GetBytes((short)-32768)).Write(20, BitConverter.GetBytes(int.MinValue));
         state = state.WriteView(ViewAddress, view, ViewLength);
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleEffect70State restored = JsonSerializer.Deserialize<NativeBattleEffect70State>(json)!;
+        string json = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state));
+        NativeBattleEffect70State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect70State>(json)!);
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
         Assert.Null(restored.RootBankStorage);
         Assert.Equal(ArenaAddress, restored.ReadDword(ArenaGlobal));
         Assert.Equal(0x89ABu, restored.ReadDword(SavedFlagsAddress + 6 * 4));

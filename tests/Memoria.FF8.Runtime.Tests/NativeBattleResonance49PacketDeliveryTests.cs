@@ -42,8 +42,8 @@ public sealed class NativeBattleResonance49PacketDeliveryTests
             Assert.Throws<NotSupportedException>(() => output.ReadCommonPacket(20, 1));
             Assert.Throws<NotSupportedException>(() => output.ReadCommonPacket(30, 1));
         }
-        NativeBattleResonance49PacketStep restored = JsonSerializer.Deserialize<NativeBattleResonance49PacketStep>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(restored));
+        NativeBattleResonance49PacketStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleResonance49PacketStep>(NativeBattleTestSnapshots.Json(result))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(restored));
         Assert.Equal(68, restored.Memory.PrimitiveProcess!.ByteCursor);
     }
 

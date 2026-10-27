@@ -13,8 +13,8 @@ public sealed class NativeBattleModuleSpriteSetupTests
         NativeBattleEffectMemory initial = Memory(NativeBattlePackedMatrix32.FromMatrix(Identity(), 0xABCD));
         NativeBattleEffectMemory known = NativeBattleModuleSpriteSetup.Setup571BC0(initial, camera, new NativeBattleVector(10, -20, 30), unchecked((short)0xCAFE), 512, -32);
         NativeBattleEffectMemory unknown = NativeBattleModuleSpriteSetup.Setup571BC0(initial, camera, new NativeBattleVector(10, -20, 30), null, 512, -32);
-        Assert.Equal(JsonSerializer.Serialize(known.GeometryRegisters), JsonSerializer.Serialize(unknown.GeometryRegisters));
-        Assert.Equal(JsonSerializer.Serialize(known.ModuleSpriteBillboard21DFED0), JsonSerializer.Serialize(unknown.ModuleSpriteBillboard21DFED0));
+        Assert.Equal(NativeBattleTestSnapshots.Json(known.GeometryRegisters), NativeBattleTestSnapshots.Json(unknown.GeometryRegisters));
+        Assert.Equal(NativeBattleTestSnapshots.Json(known.ModuleSpriteBillboard21DFED0), NativeBattleTestSnapshots.Json(unknown.ModuleSpriteBillboard21DFED0));
         Assert.Equal(known.ScriptedColorRegisters!.Mac, unknown.ScriptedColorRegisters!.Mac);
         Assert.Equal(known.ScriptedColorRegisters.Ir, unknown.ScriptedColorRegisters.Ir);
         Assert.Equal(known.ScriptedColorRegisters.Flags, unknown.ScriptedColorRegisters.Flags);
@@ -23,8 +23,8 @@ public sealed class NativeBattleModuleSpriteSetupTests
         Assert.All(known.ScriptedColorRegisters.NormalInputKnown!.Value, value => Assert.True(value));
         Assert.All(unknown.ScriptedColorRegisters.NormalInputKnown!.Value.Skip(6), value => Assert.False(value));
         Assert.Equal(new byte[] { 0xFE, 0xCA }, known.ScriptedColorRegisters.NormalInput.Value.Skip(6));
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(unknown))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleModuleSpriteSetup.Setup571BC0(unknown, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)), JsonSerializer.Serialize(NativeBattleModuleSpriteSetup.Setup571BC0(restored, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(unknown))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleModuleSpriteSetup.Setup571BC0(unknown, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)), NativeBattleTestSnapshots.Json(NativeBattleModuleSpriteSetup.Setup571BC0(restored, camera, new NativeBattleVector(10, -20, 30), null, 512, -32)));
     }
 
     [Fact]
@@ -108,10 +108,10 @@ public sealed class NativeBattleModuleSpriteSetupTests
     {
         NativeBattlePackedMatrix32 camera = NativeBattlePackedMatrix32.FromMatrix(Identity() with { X = 500, Y = -200, Z = 1000 }, null);
         NativeBattleEffectMemory memory = NativeBattleModuleSpriteSetup.Setup571BC0(Memory(NativeBattlePackedMatrix32.FromMatrix(Identity(), 0xABCD)), camera, new(1, 2, 3, 4), 4096, -256);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         NativeBattleEffectMemory actual = NativeBattleModuleSpriteSetup.Setup571BC0(memory, camera, new(5, 6, 7, 8), 2048, 256);
         NativeBattleEffectMemory cold = NativeBattleModuleSpriteSetup.Setup571BC0(restored, camera, new(5, 6, 7, 8), 2048, 256);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(cold));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(cold));
     }
 
     private static NativeBattleActionMatrix Identity() => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);

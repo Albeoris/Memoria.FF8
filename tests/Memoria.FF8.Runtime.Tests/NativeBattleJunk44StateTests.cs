@@ -36,7 +36,7 @@ public sealed class NativeBattleJunk44StateTests
         var state = NativeBattleJunk44State.FromUnknown().WriteWord(CasterGlobal, 0x1234) with { RootBankStorage = null };
         state.Validate();
         Assert.Throws<NotSupportedException>(() => state.ReadWord(CasterGlobal + 2));
-        var restored = JsonSerializer.Deserialize<NativeBattleJunk44State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleJunk44State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal((ushort)0x1234, restored.ReadWord(CasterGlobal));

@@ -13,7 +13,7 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
         Fixture fixture = new();
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, int slot) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteBytes(12, new byte[8])) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteBytes(12, new byte[8]));
         NativeBattleEnergyBomber217Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [root] } };
         frame = NativeBattleEnergyBomber217Controller.Advance(frame, fixture.Resources, fixture.Inputs);
         Assert.Equal(ArenaAddress + SecondPacketOffset, frame.State.ReadDword(CursorGlobal));
@@ -94,7 +94,7 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
         NativeBattleEffectTaskPool sprites = fixture.Frame.Effect.Pools[2];
         (sprites, int slot) = sprites.Append(SpriteCallback);
         NativeBattleModulePoolTask task = sprites.Slots[slot].WriteBytes(12, new byte[20]).WriteWord(12, 100).WriteWord(18, 11).WriteWord(20, 20).WriteWord(26, unchecked((ushort)-2));
-        sprites = sprites with { Slots = sprites.Slots.SetItem(slot, task) };
+        sprites = sprites.WriteSlot(slot, task);
         NativeBattleEnergyBomber217Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = fixture.Frame.Effect.Pools.SetItem(2, sprites) } };
         (frame, int result) = NativeBattleEnergyBomber217Controller.AdvanceSprite(frame, sprites.BankAddress, fixture.Inputs);
         Assert.Equal((ushort)100, Assert.Single(fixture.SpriteTasks).ReadWord(12));
@@ -127,7 +127,7 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
         NativeBattleEnergyBomber217Frame frame = fixture.At(86);
         NativeBattleEffectTaskPool sprites = frame.Effect.Pools[2];
         (sprites, int slot) = sprites.Append(SpriteCallback);
-        sprites = sprites with { Slots = sprites.Slots.SetItem(slot, sprites.Slots[slot].WriteBytes(12, new byte[20])) };
+        sprites = sprites.WriteSlot(slot, sprites.Slots[slot].WriteBytes(12, new byte[20]));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(2, sprites) } };
         frame = NativeBattleEnergyBomber217Controller.Advance(frame, fixture.Resources, fixture.Inputs);
         Assert.Equal(0u, frame.Effect.ReturnedDescriptor);
@@ -142,8 +142,8 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
         Fixture fixture = new();
         NativeBattleEnergyBomber217Frame frame = fixture.At(47);
         frame = NativeBattleEnergyBomber217Controller.Write(frame, fixture.MainAddress, fixture.Task(frame).MarkPayloadUnknown(0x16, 2));
-        NativeBattleEnergyBomber217Frame restored = JsonSerializer.Deserialize<NativeBattleEnergyBomber217Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(fixture.Main(frame).Frame), JsonSerializer.Serialize(fixture.Main(restored).Frame));
+        NativeBattleEnergyBomber217Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEnergyBomber217Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Main(frame).Frame)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(fixture.Main(restored).Frame)));
     }
 
     private static uint U32(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
@@ -170,10 +170,10 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
             Resources = new(new(MainActAddress, first.ToImmutableArray()), new(ImpactActAddress, second.ToImmutableArray()), new(0, TrailMeshAddress, new byte[0x270].ToImmutableArray()), new(0, SpriteAddress, 0, 0, new byte[0x16C].ToImmutableArray()), new("FF8_EN:11355D4", new byte[CameraLength].ToImmutableArray()), 0x642C8);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, int rootSlot) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(rootSlot, root.Slots[rootSlot].WriteBytes(12, new byte[8]).WriteWord(12, 2).WriteByte(15, 1)) };
+            root = root.WriteSlot(rootSlot, root.Slots[rootSlot].WriteBytes(12, new byte[8]).WriteWord(12, 2).WriteByte(15, 1));
             NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(MainDescriptor, MainAddress, MainStride, 1);
             (main, int mainSlot) = main.Append(MainCallback);
-            main = main with { Slots = main.Slots.SetItem(mainSlot, main.Slots[mainSlot].WriteBytes(12, new byte[MainStride - 12]).WriteWord(0x28, 1000).WriteWord(0x2A, 2000).WriteWord(0x2C, 3000).WriteWord(0x2E, 777)) };
+            main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteBytes(12, new byte[MainStride - 12]).WriteWord(0x28, 1000).WriteWord(0x2A, 2000).WriteWord(0x2C, 3000).WriteWord(0x2E, 777));
             NativeBattleEffectTaskPool sprites = NativeBattleEffectTaskPool.Initialize(SpriteDescriptor, ArenaAddress, SpriteStride, SpriteCount);
             NativeBattleOriginalEffectState effect = new(217, 216, new(217, Entry, Initializer), new(4, 0, 1, 1, 0, 0), null) { Pools = [root, main, sprites], ReturnedDescriptor = RootDescriptor };
             NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Fresh();
@@ -202,7 +202,8 @@ public sealed class NativeBattleEnergyBomber217ControllerTests
                 Operations.Add(operation);
                 if (operation is NativeBattleEnergyBomber217DrawSprite180 sprite)
                 {
-                    SpriteTasks.Add(NativeBattleEnergyBomber217Controller.Read(frame, sprite.TaskAddress));
+                    NativeBattleModulePoolTask task = NativeBattleEnergyBomber217Controller.Read(frame, sprite.TaskAddress);
+                    SpriteTasks.Add(new(task.Flags, task.State, task.Next, task.Callback, task.ReadBytes(12, task.PayloadLength).ToImmutableArray()));
                 }
                 return frame;
             });

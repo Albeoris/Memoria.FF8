@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -9,6 +9,7 @@ public sealed class NativeBattleEffectWedgeTests
     {
         var fixture = Fixture();
         List<NativeBattleModulePacketBatch> packets = [];
+        NativeBattleEffectWedgeFrame preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         NativeBattleEffectWedgeStep step = Advance(fixture.Frame, fixture.Address, fixture.Projection, fixture.Random, packets);
         NativeCrtRandomState expected = fixture.Random.Draw(out ushort yaw).Draw(out ushort pitch).Draw(out ushort roll);
         NativeBattleModulePoolTask task = new NativeBattleEffectHierarchy(step.Frame.Pools).Read(fixture.Address);
@@ -28,13 +29,14 @@ public sealed class NativeBattleEffectWedgeTests
         Assert.Equal(76, batch.AllocationBytes);
         Assert.Equal(new[] { 0, 28, 64 }, batch.Primitives.Select(primitive => primitive.ByteOffset).ToArray());
         Assert.Equal(new uint[] { 0x02000000, 0xE100002A, 0 }, batch.Primitives[2].Primitive.Words.ToArray());
-        Assert.Equal((ushort)0, new NativeBattleEffectHierarchy(fixture.Frame.Pools).Read(fixture.Address).ReadWord(0x24));
+        Assert.Equal((ushort)0, new NativeBattleEffectHierarchy(preserved.Pools).Read(fixture.Address).ReadWord(0x24));
     }
 
     [Fact]
     public void Immediate_packet_feedback_keeps_memory_and_task_writes_before_final_age_wrap_and_parent_completion()
     {
         var fixture = Fixture();
+        NativeBattleEffectWedgeFrame preserved = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(fixture.Frame));
         int executions = 0;
         NativeBattleEffectWedgeStep step = NativeBattleEffectWedge.Advance8DCC20(fixture.Frame, fixture.Address, fixture.Random, ReadModel, fixture.Projection, (current, batch) =>
         {
@@ -54,8 +56,8 @@ public sealed class NativeBattleEffectWedgeTests
         Assert.Equal((byte)0, after.Read(fixture.Parent).ReadByte(0x28));
         Assert.Equal(1, step.Frame.Memory.Textures!.Count);
         Assert.Equal(new NativeBattleEffectVramCopy(1, 2, 3, 4, 5, 6), step.Frame.Memory.Textures.Slots[0]!.Copy);
-        Assert.Equal(0, fixture.Frame.Memory.Textures!.Count);
-        Assert.Equal((byte)1, new NativeBattleEffectHierarchy(fixture.Frame.Pools).Read(fixture.Parent).ReadByte(0x28));
+        Assert.Equal(0, preserved.Memory.Textures!.Count);
+        Assert.Equal((byte)1, new NativeBattleEffectHierarchy(preserved.Pools).Read(fixture.Parent).ReadByte(0x28));
     }
 
     [Fact]
@@ -67,13 +69,13 @@ public sealed class NativeBattleEffectWedgeTests
         int emitted = 0;
         for (int callback = 0; callback < 17; callback++)
         {
-            NativeBattleEffectWedgeFrame independent = JsonSerializer.Deserialize<NativeBattleEffectWedgeFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleEffectWedgeFrame independent = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectWedgeFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
             List<NativeBattleModulePacketBatch> packets = [];
             List<NativeBattleModulePacketBatch> restoredPackets = [];
             NativeBattleEffectWedgeStep actual = Advance(frame, fixture.Address, fixture.Projection, random, packets);
             NativeBattleEffectWedgeStep restored = Advance(independent, fixture.Address, fixture.Projection, random, restoredPackets);
-            Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(restored));
-            Assert.Equal(JsonSerializer.Serialize(packets), JsonSerializer.Serialize(restoredPackets));
+            Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(actual)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
+            Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(packets)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restoredPackets)));
             Assert.Equal(callback == 16 ? 2 : 0, actual.Result);
             emitted += packets.Count;
             frame = actual.Frame;

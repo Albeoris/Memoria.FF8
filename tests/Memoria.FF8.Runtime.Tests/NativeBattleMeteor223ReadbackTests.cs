@@ -14,8 +14,8 @@ public sealed class NativeBattleMeteor223ReadbackTests
         textures = textures.EnqueueArenaRectangle505DF0(first, arena, 0x100);
         textures = textures.EnqueueArenaReadback505E70(first, 0x200);
         textures = textures.EnqueueArenaRectangle505DF0(new(7, 9, 2, 2), arena, 0x200);
-        textures = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(textures))!;
-        arena = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(arena.Write(0x210, new byte[] { 9 })))!;
+        textures = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(textures))!;
+        arena = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(arena.Write(0x210, new byte[] { 9 })))!;
         NativeBattleEffectTextureDrain drain = textures.Drain505D20(arena);
         Assert.Equal(0, drain.State.Count);
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, drain.Arena!.Read(0x200, 8));
@@ -35,6 +35,6 @@ public sealed class NativeBattleMeteor223ReadbackTests
         NativeBattleEffectTextureDrain drain = textures.Drain505D20(NativeBattleEffectArena.Clear());
         Assert.Equal(new byte[] { 10, 11 }, drain.Arena!.Read(0x300, 2));
         Assert.Empty(drain.Uploads);
-        Assert.Equal(textures.VramRegions, drain.State.VramRegions);
+        Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(textures).VramRegions), NativeBattleTestSnapshots.Json(NativeBattleStorageSnapshots.Capture(drain.State).VramRegions));
     }
 }

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -40,7 +40,7 @@ public sealed class NativeBattleThundaga105ControllerTests
         uint completion = 0;
         for (int callback = 1; callback <= 120; callback++)
         {
-            NativeBattleThundaga105Frame before = frame;
+            NativeBattleThundaga105Frame before = NativeBattleStorageSnapshots.Capture(frame);
             int operationStart = operations.Count;
             frame = NativeBattleThundaga105Controller.Advance6D3E50(frame, inputs, fixture.Resources);
             Assert.Equal((callback & 1) != 0 ? 0x20C1C : 0x8C1C, frame.Effect.DrawArenaOffset);
@@ -126,8 +126,8 @@ public sealed class NativeBattleThundaga105ControllerTests
         {
             if (callback is 2 or 31 or 47 or 66)
             {
-                NativeBattleThundaga105Frame cold = JsonSerializer.Deserialize<NativeBattleThundaga105Frame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleThundaga105Controller.Advance6D3E50(frame, inputs, fixture.Resources)), JsonSerializer.Serialize(NativeBattleThundaga105Controller.Advance6D3E50(cold, inputs, fixture.Resources)));
+                NativeBattleThundaga105Frame cold = NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaga105Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleThundaga105Controller.Advance6D3E50(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), inputs, fixture.Resources)), NativeBattleTestSnapshots.Json(NativeBattleThundaga105Controller.Advance6D3E50(cold, inputs, fixture.Resources)));
             }
             frame = NativeBattleThundaga105Controller.Advance6D3E50(frame, inputs, fixture.Resources);
         }

@@ -20,10 +20,10 @@ public sealed class NativeBattleNoMercy200TargetsTests
     public void SingleTargetBirthsKeepFourOriginalDelayRangesAndCrtDrawOrderAcrossRestore()
     {
         var fixture = Fixture(1, 0);
-        NativeBattleNoMercy200Frame restored = JsonSerializer.Deserialize<NativeBattleNoMercy200Frame>(JsonSerializer.Serialize(fixture.Frame))!;
+        NativeBattleNoMercy200Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleNoMercy200Frame>(NativeBattleTestSnapshots.Json(fixture.Frame))!;
         NativeBattleNoMercy200ChildStep first = NativeBattleNoMercy200Controller.AdvanceTarget(fixture.Frame, fixture.Pool, 0, 0, Inputs());
         NativeBattleNoMercy200ChildStep second = NativeBattleNoMercy200Controller.AdvanceTarget(restored, restored.Effect.Pools[0], 0, 0, Inputs());
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         NativeBattleModulePoolTask[] children = first.Pool.Slots.Where(task => task.Callback == 0x639A60 && (task.Flags & 1) != 0).ToArray();
         Assert.Equal(4, children.Length);
         first.Pool.Validate();
@@ -62,7 +62,7 @@ public sealed class NativeBattleNoMercy200TargetsTests
         NativeBattleEffectParameters parameters = new(2, 0, 8, 0, 0, 0);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(NativeBattleNoMercy200Controller.Children, 0x24F99A0, 36, 250);
         (pool, _) = pool.Append(0x639FD0);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase).WriteWord(14, 0).WriteWord(32, 3).WriteWord(34, 0)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, phase).WriteWord(14, 0).WriteWord(32, 3).WriteWord(34, 0)) });
         NativeBattleOriginalEffectState effect = new(200, 199, new(200, 0x6391D0, 0x575530), parameters, NativeBattleNoMercy200Controller.Root) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { NoMercy200 = new(true) { Parameters = parameters } };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown().Write(0xE33D7C, new byte[] { locked, 0, 0, 0 });

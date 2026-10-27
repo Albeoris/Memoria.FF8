@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect316ControllerTests
         Assert.Equal(0xAB123456u, main.ReadDword(0x14));
         Assert.Equal(CommonAddress + RecordOffset, main.ReadDword(RecordHintOffset));
         Assert.Equal(new byte[0x800], TaskView(main, RecordOffset, 0x800).Read(0, 0x800));
-        Assert.Throws<NotSupportedException>(() => result.Frame.Memory.Arena!.Read(0, 1));
+        Assert.Equal((byte)main.Flags, result.Frame.Memory.Arena!.Read(0, 1)[0]);
         Assert.Equal(1, Read(result.Frame, RootBank).ReadByte(15));
         Assert.Equal(3, Read(result.Frame, RootBank).ReadWord(12));
         Assert.Equal(CommonAddress + SecondPacketOffset, result.Frame.State.ReadDword(CursorGlobal));
@@ -207,7 +207,7 @@ public sealed class NativeBattleEffect316ControllerTests
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Equal(42, BinaryPrimitives.ReadUInt16LittleEndian(result.State.ReadBank(RootBank).Read(12, 2)));
         Assert.Equal(new byte[] { 4, 5, 6 }, result.Memory.Arena!.Read(0x300, 3));
-        result = JsonSerializer.Deserialize<NativeBattleEffect316Frame>(JsonSerializer.Serialize(result))!;
+        result = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect316Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         result.State.Validate();
         Assert.Equal(0x7BEEu, result.State.ReadDword(RandomGlobal));
         Assert.Equal(0xABCD1234u, result.State.ReadDword(ColorGlobal));
@@ -225,7 +225,7 @@ public sealed class NativeBattleEffect316ControllerTests
         Assert.Throws<NotSupportedException>(() => actual.Read(6, 1));
         Assert.Equal(8, actual.Read(7, 1)[0]);
         Assert.Equal(0x04030201u, Read(frame, CommonAddress).ReadDword(RecordHintOffset));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(RecordHintOffset, 1));
+        Assert.Equal((byte)1, frame.Memory.Arena!.Read(RecordHintOffset, 1)[0]);
     }
 
     private static NativeBattleEffect316Frame RootFrame()

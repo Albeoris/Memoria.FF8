@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -32,8 +32,8 @@ public sealed class NativeBattleDuel216ControllerTests
             {
                 Assert.Equal(0, preparation.Slot);
                 NativeBattleModulePoolTask task = current.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDuel216Controller.Main).Slots[0];
-                Assert.Equal(6116, task.Payload.Length);
-                Assert.All(task.Payload, value => Assert.Equal((byte)0, value));
+                Assert.Equal(6116, task.ReadBytes(12, 6116).Length);
+                Assert.All(task.ReadBytes(12, 6116), value => Assert.Equal((byte)0, value));
             }
             else
             {
@@ -50,7 +50,7 @@ public sealed class NativeBattleDuel216ControllerTests
         Assert.Equal(new ushort[] { 16, 6128, 260, 36, 28 }, frame.Effect.Pools.Select(pool => pool.Stride));
         Assert.Equal(new[] { 1, 1, 8, 64, 32 }, frame.Effect.Pools.Select(pool => pool.Slots.Length));
         Assert.Equal((ushort)2, frame.Effect.Pools[0].Slots[0].ReadWord(12));
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(6128, 1));
+        Assert.Equal(BitConverter.GetBytes(frame.Effect.Pools[2].Slots[0].Flags), frame.Memory.Arena!.Read(6128, 2));
     }
 
     [Fact]
@@ -63,11 +63,11 @@ public sealed class NativeBattleDuel216ControllerTests
         {
             NativeBattleEffectTaskPool bank = NativeBattleEffectTaskPool.Initialize(descriptor, checked(0x20DFAB8u + (uint)offset), stride, count);
             (bank, int slot) = bank.Append(0x69A200);
-            bank = bank with { Slots = bank.Slots.SetItem(slot, bank.Slots[slot].WriteWord(12, (ushort)offset)) };
+            bank = NativeBattleTaskFixture.EditPool(bank, data => data with { Slots = bank.Slots.SetItem(slot, bank.Slots[slot].WriteWord(12, (ushort)offset)) });
             banks.Add(bank);
         }
         NativeBattleEffectTaskPool root = frame.Effect.Pools[0];
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteByte(14, 1)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteByte(14, 1)) });
         frame = frame with { Effect = frame.Effect with { Pools = new[] { root }.Concat(banks).ToImmutableArray() }, Memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(frame.Memory, banks.ToImmutableArray()) };
         frame = frame with { Memory = NativeBattleEffectIo.Initialize534110(frame.Memory, 11408) };
         foreach ((short file, short type) in new (short, short)[] { (360, 1), (361, 1), (362, 0) })
@@ -87,14 +87,14 @@ public sealed class NativeBattleDuel216ControllerTests
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena!.Read(6128, 2)));
         Assert.Equal((ushort)6128, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena.Read(6128 + 12, 2)));
         Assert.Equal((ushort)1, BinaryPrimitives.ReadUInt16LittleEndian(frame.Memory.Arena.Read(8208, 2)));
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleDuel216Frame>(JsonSerializer.Serialize(frame))));
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel216Frame>(NativeBattleTestSnapshots.Json(frame))));
     }
 
     private static NativeBattleDuel216Frame Frame(ushort counter)
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(NativeBattleDuel216Controller.Root, 0x25088D8, 16, 1);
         (root, _) = root.Append(0x695AB0);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, counter)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, counter)) });
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), EffectIo = new(0x534150, null, null) };
         NativeBattleOriginalEffectState effect = new(216, 215, new(216, 0x6959E0, 0x6959F0), new(0, 0, 8, 0, 0, 0), NativeBattleDuel216Controller.Root) { Pools = [root] };
         return new(memory, effect, NativeBattleFileStaging.Unknown().Write(0x25088EC, new byte[4]), NativeCrtRandomState.FromColdProcess());

@@ -53,7 +53,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
         frame = fixture.Advance(At(frame, 10));
         Assert.Equal(new NativeBattleVector(105, 212, 297), fixture.Models[3].Transform!.Position28);
         Assert.Throws<NotSupportedException>(() => frame.Effect.Pools[1].Slots[0].ReadWord(102));
-        frame = JsonSerializer.Deserialize<NativeBattleDuel274Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleTestSnapshots.RestoreJson<NativeBattleDuel274Frame>(NativeBattleTestSnapshots.Json(frame))!;
         frame = fixture.Advance(At(frame, 32));
         Assert.Equal(new NativeBattleVector(100, 200, 300), fixture.ContactPosition);
         Assert.Equal(new NativeBattleVector(100, 200, 300), fixture.Models[3].Transform!.Position28);
@@ -63,7 +63,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
     private static NativeBattleDuel274Frame At(NativeBattleDuel274Frame frame, ushort counter)
     {
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, counter)) }) } };
+        return frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, counter)) })) } };
     }
 
     private sealed class Fixture
@@ -86,7 +86,7 @@ public sealed class NativeBattleDuel274BasicMovesTests
             NativeBattleEffectTaskPool targets = NativeBattleEffectTaskPool.Initialize(0x25084A8, NativeBattleEffectNodeMemory.ArenaAddress, 116, 1);
             (targets, _) = targets.Append(0x689AC0);
             NativeBattleModulePoolTask task = targets.Slots[0].WriteByte(15, selector).WriteDword(20, NativeBattleDuel274Controller.Address(3)).WriteWord(40, 100).WriteWord(42, 200).WriteWord(44, 1000).WriteWord(48, 100).WriteWord(50, 200).WriteWord(52, 300).WriteWord(54, 40);
-            targets = targets with { Slots = targets.Slots.SetItem(0, task) };
+            targets = NativeBattleTaskFixture.EditPool(targets, data => data with { Slots = targets.Slots.SetItem(0, task) });
             NativeBattleEffectMemory memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, [targets]);
             NativeBattleOriginalEffectState effect = new(274, 273, new(274, 0x6897E0, 0x6897F0), new(0, 0, 8, 0, 0, 0), root.DescriptorAddress) { Pools = [root, targets] };
             NativeBattleFileStaging staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(0x2508430, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress)).Write(0x2508434, BitConverter.GetBytes(NativeBattleEffectNodeMemory.ArenaAddress + 0x1000));

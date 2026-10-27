@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -50,13 +50,13 @@ public sealed class NativeBattleSiren95ModelTests
             draws++;
             return current;
         } };
-        string saved = JsonSerializer.Serialize(frame);
+        string saved = NativeBattleTestSnapshots.Json(frame);
         var result = NativeBattleSiren95Model.Advance746B60(frame, fixture.Address, source, services);
         Assert.Equal(1, draws);
         Assert.Equal((byte)1, Read(result.Frame, fixture.Address).ReadByte(0x29));
         Assert.False(result.Complete);
-        var restored = NativeBattleSiren95Model.Advance746B60(JsonSerializer.Deserialize<NativeBattleSiren95Frame>(saved)!, fixture.Address, source, services);
-        Assert.Equal(JsonSerializer.Serialize(result.Frame), JsonSerializer.Serialize(restored.Frame));
+        var restored = NativeBattleSiren95Model.Advance746B60(NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(saved)!, fixture.Address, source, services);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result.Frame), NativeBattleTestSnapshots.Json(restored.Frame));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class NativeBattleSiren95ModelTests
         Assert.Equal(2048u, BinaryPrimitives.ReadUInt32LittleEndian(scratch.ReadPrefix(0, 4)));
         Assert.Throws<NotSupportedException>(() => scratch.ReadPrefix(22, 2));
         Assert.Equal(NativeBattleSiren95Model.ProjectedAddress746C10, BinaryPrimitives.ReadUInt32LittleEndian(scratch.Bytes.AsSpan()));
-        NativeBattleEffectNodeScratch hidden = NativeBattleSiren95Scratch.Model(retained, task.WriteByte(0x30, 0x20), identity, Resource(), false, bounds, projection, source, true, null, out _);
+        NativeBattleEffectNodeScratch hidden = NativeBattleSiren95Scratch.Model(NativeBattleEffectNodeScratch.FromColdProcess().WritePrefix(0, BitConverter.GetBytes(0xABCDEF12u)), task.WriteByte(0x30, 0x20), identity, Resource(), false, bounds, projection, source, true, null, out _);
         Assert.Equal(0xABCDEF12u, BinaryPrimitives.ReadUInt32LittleEndian(hidden.ReadPrefix(0, 4)));
     }
 

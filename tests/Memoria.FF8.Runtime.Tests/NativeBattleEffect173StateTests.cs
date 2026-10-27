@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect173StateTests
         state = state.DetachCommonQueue();
         Assert.Null(state.CommonQueueStorage);
         Assert.Throws<InvalidDataException>(() => state.Read(CommonDescriptor, 8));
-        state = JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         state = state.AttachCommonQueue(queue);
         Assert.Equal(0x20F7AB8u, state.ReadDword(CommonDescriptor));
@@ -45,7 +45,7 @@ public sealed class NativeBattleEffect173StateTests
     {
         uint face = FaceRecordAddresses[0];
         NativeBattleEffect173State state = NativeBattleEffect173State.FromUnknown().WriteDword(FirstRecordsAddress, 0).WriteDword(face, 0).WriteWord(CenterAddress, 17);
-        state = JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(0u, state.ReadDword(FirstRecordsAddress));
         Assert.Equal(0u, state.ReadDword(face));
@@ -66,7 +66,7 @@ public sealed class NativeBattleEffect173StateTests
             Assert.Throws<InvalidDataException>(() => state.ReadBank(index));
             state = state.AttachBank(Pools[index].Bank, bank);
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect173State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -84,6 +84,6 @@ public sealed class NativeBattleEffect173StateTests
             Assert.Equal(FaceRecordLengths[index], state.Read(FaceRecordAddresses[index], FaceRecordLengths[index]).Length);
         }
         Assert.Equal(ArenaGlobal, checked(FaceRecordAddresses[^1] + (uint)FaceRecordLengths[^1]));
-        Assert.Null(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleEffectMemory.FromColdProcess() with { Effect173 = null }))!.Effect173);
+        Assert.Null(NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess() with { Effect173 = null })))!).Effect173);
     }
 }

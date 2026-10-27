@@ -35,18 +35,18 @@ public static class NativeBattleQuezacotlGeometry
             return new(memory, new([], 0));
         }
         NativeBattleGfAnimationSource? resource = currentSource;
+        int sourceOffset = 0;
         if (resource is null)
         {
             NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl draw requires its current executable bytes.");
-            int offset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
-            resource = NativeBattleGfAnimationSource.Borrow(sourceAddress, executable.Arena, offset, NativeBattleQuezacotlExecutableMemory.Length - offset);
+            sourceOffset = checked((int)(sourceAddress - NativeBattleQuezacotlExecutableMemory.Address));
+            resource = NativeBattleGfAnimationSource.Borrow(NativeBattleQuezacotlExecutableMemory.Address, executable.Arena, 0, NativeBattleQuezacotlExecutableMemory.Length);
         }
         if (resource.IsDefault || currentSource is not null && currentSource.Address == 0)
         {
             throw new InvalidDataException("Native6C6060 requires its actual bounded current resource view.");
         }
         using NativeBattleGfSourceReader source = resource.OpenReader();
-        const int sourceOffset = 0;
         int directory = checked(sourceOffset + 8 + 4 * node.GeometryIndex);
         int geometry = checked(sourceOffset + BinaryPrimitives.ReadInt32LittleEndian(Read(source, directory, 4)));
         int count = BinaryPrimitives.ReadInt32LittleEndian(Read(source, checked(geometry + 4), 4));

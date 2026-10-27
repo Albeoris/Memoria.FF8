@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -69,8 +69,8 @@ public sealed class NativeBattleDispel109Tests
             frame = NativeBattleDispel109Controller.Advance6CF540(frame, Resources(), inputs);
             if (tick == 36)
             {
-                NativeBattleDispel109Frame independent = JsonSerializer.Deserialize<NativeBattleDispel109Frame>(JsonSerializer.Serialize(frame))!;
-                Assert.Equal(JsonSerializer.Serialize(NativeBattleDispel109Controller.Advance6CF540(frame, Resources(), Inputs())), JsonSerializer.Serialize(NativeBattleDispel109Controller.Advance6CF540(independent, Resources(), Inputs())));
+                NativeBattleDispel109Frame independent = NativeBattleTestSnapshots.RestoreJson<NativeBattleDispel109Frame>(NativeBattleTestSnapshots.Json(frame))!;
+                Assert.Equal(NativeBattleTestSnapshots.Json(NativeBattleDispel109Controller.Advance6CF540(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), Resources(), Inputs())), NativeBattleTestSnapshots.Json(NativeBattleDispel109Controller.Advance6CF540(independent, Resources(), Inputs())));
             }
             Assert.Equal(tick == 73, frame.Effect.ReturnedDescriptor == 0);
         }

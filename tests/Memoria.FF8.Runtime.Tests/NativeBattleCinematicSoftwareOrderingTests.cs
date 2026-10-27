@@ -57,16 +57,16 @@ public sealed class NativeBattleCinematicSoftwareOrderingTests
         Assert.Equal(0u, execution.LiveDispatchFlags);
         Assert.Same(state.Texture, execution.State.Texture);
         Assert.Same(state.Raster, execution.State.Raster);
-        Assert.Equal(pixels, JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(execution.Textures))!.ReadVram());
+        Assert.Equal(pixels, NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(execution.Textures))!.ReadVram());
     }
 
     [Fact]
     public void WarmOmittedFlagsRemainUnknownUntilAuthenticEntryProducer()
     {
         NativeBattleSoftwarePrimitiveState missing = NativeBattleSoftwarePrimitiveState.FromInitializedRenderer() with { DispatchFlags1CA8880 = null };
-        string json = JsonSerializer.Serialize(missing);
+        string json = NativeBattleTestSnapshots.Json(missing);
         Assert.DoesNotContain("DispatchFlags1CA8880", json);
-        NativeBattleSoftwarePrimitiveState restored = JsonSerializer.Deserialize<NativeBattleSoftwarePrimitiveState>(json)!;
+        NativeBattleSoftwarePrimitiveState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSoftwarePrimitiveState>(json)!;
         Assert.Null(restored.DispatchFlags1CA8880);
         NativeBattleSoftwarePrimitiveExecution execution = Execution(restored);
         Assert.Throws<NotSupportedException>(() => execution.LiveDispatchFlags);

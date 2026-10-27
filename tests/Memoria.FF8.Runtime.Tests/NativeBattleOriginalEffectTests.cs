@@ -61,14 +61,14 @@ public sealed class NativeBattleOriginalEffectTests
         (pool, _) = pool.Append(0x62A610);
         NativeBattleOriginalEffectState state = new(2, 1, new(2, 0x6298A0, 0x629880), new(3, 1, 5, 7, 2, 0), pool.DescriptorAddress) { Pools = [pool] };
         state.Validate();
-        string json = JsonSerializer.Serialize(state);
-        NativeBattleOriginalEffectState restored = JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(json)!;
+        string json = NativeBattleTestSnapshots.Json(state);
+        NativeBattleOriginalEffectState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>(json)!;
         restored.Validate();
-        Assert.Equal(json, JsonSerializer.Serialize(restored));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored));
         Assert.Equal((byte)2, restored.Parameters!.Parameter81);
         Assert.Equal((uint?)0x24CA828, restored.ReturnedDescriptor);
         Assert.Throws<InvalidDataException>(() => (state with { Pools = [] }).Validate());
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleOriginalEffectState>("{}"));
+        Assert.Throws<JsonException>(() => NativeBattleTestSnapshots.RestoreJson<NativeBattleOriginalEffectState>("{}"));
     }
 
     [Fact]
@@ -80,9 +80,9 @@ public sealed class NativeBattleOriginalEffectTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(5).LoadIntoArena([4, 5]) }
         };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        string json = JsonSerializer.Serialize(battle.Capture());
+        string json = NativeBattleTestSnapshots.Json(battle.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-        Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(restored.Capture()));
         Assert.Equal(new byte[] { 4, 5 }, restored.NativeEffectMemory!.Arena!.Read(0, 2));
         GameSession process = GameSession.CreateColdProcess();
         process.SetBattle(restored.Capture());

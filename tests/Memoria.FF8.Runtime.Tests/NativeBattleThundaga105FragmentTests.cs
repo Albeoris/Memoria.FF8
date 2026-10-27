@@ -32,8 +32,8 @@ public sealed class NativeBattleThundaga105FragmentTests
         Assert.Equal(pair.MutableMesh.Bytes.AsSpan().Slice(32).ToArray(), initialized.Mesh.Bytes.AsSpan().Slice(32).ToArray());
         Assert.Equal((short)0, S(initialized.Task, 0x28));
         Assert.Equal((short)0, S(initialized.Task, 0xE));
-        string json = JsonSerializer.Serialize(initialized);
-        Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleThundaga105FragmentInitialization>(json)));
+        string json = NativeBattleTestSnapshots.Json(initialized);
+        Assert.Equal(json, NativeBattleTestSnapshots.Json(NativeBattleTestSnapshots.RestoreJson<NativeBattleThundaga105FragmentInitialization>(json)));
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class NativeBattleThundaga105FragmentTests
         NativeBattleThundaga105FragmentStep finished = NativeBattleThundaga105Fragments.Step6D5AD0(last);
         Assert.True(finished.Complete);
         Assert.Equal((ushort)0, finished.Task.ReadWord(0xC));
-        Assert.Equal(last.Payload.AsSpan().Slice(4).ToArray(), finished.Task.Payload.AsSpan().Slice(4).ToArray());
+        Assert.Equal(NativeBattleStorageSnapshots.Capture(last).Payload.AsSpan().Slice(4).ToArray(), NativeBattleStorageSnapshots.Capture(finished.Task).Payload.AsSpan().Slice(4).ToArray());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = new NativeBattleEffectArena([]) };
         NativeBattleThundaga105FragmentEmission emitted = NativeBattleThundaga105Fragments.EmitDebris6D5C00(memory, finished.Task, initialized.Mesh, initialized.Random);
         Assert.Equal(2, emitted.Allocated);

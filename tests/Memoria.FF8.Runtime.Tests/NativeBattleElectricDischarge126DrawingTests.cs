@@ -25,8 +25,8 @@ public sealed class NativeBattleElectricDischarge126DrawingTests
         Assert.Equal(1, calls);
         Assert.Equal(0x12345678u, result.State.ReadDword(CursorGlobal));
         Assert.Equal(NativeBattleTemporaryMemory.Address, U32(result.Staging!, NativeBattleTemporaryMemory.Cursor));
-        NativeBattleElectricDischarge126Frame restored = JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(result, Source(4), Node(0), (next, _) => next)), JsonSerializer.Serialize(Draw(restored, Source(4), Node(0), (next, _) => next)));
+        NativeBattleElectricDischarge126Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectricDischarge126Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(result, Source(4), Node(0), (next, _) => next))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Draw(restored, Source(4), Node(0), (next, _) => next))));
     }
 
     [Fact]

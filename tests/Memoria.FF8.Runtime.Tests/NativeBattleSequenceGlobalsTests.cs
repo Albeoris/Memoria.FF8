@@ -26,7 +26,7 @@ public sealed class NativeBattleSequenceGlobalsTests
     [Fact]
     public void Legacy_missing_globals_remain_unknown_until_each_original_write()
     {
-        JsonObject saved = JsonSerializer.SerializeToNode(NativeBattleEffectMemory.FromColdProcess())!.AsObject();
+        JsonObject saved = JsonSerializer.SerializeToNode(NativeBattleStorageSnapshots.Capture(NativeBattleEffectMemory.FromColdProcess()))!.AsObject();
         saved.Remove("SequenceSine");
         saved.Remove("SequenceCosine");
         NativeBattleEffectMemory memory = saved.Deserialize<NativeBattleEffectMemory>()!;
@@ -45,7 +45,7 @@ public sealed class NativeBattleSequenceGlobalsTests
         Assert.Equal((short)0, cold.ReadSequenceGlobal5044B0(18));
         Assert.Equal((short)0, cold.ReadSequenceGlobal5044B0(19));
         NativeBattleEffectMemory memory = cold.WriteSequenceGlobal5048E0(18, -1024).WriteSequenceGlobal5048E0(19, 2048).BeginLoad(1);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
         Assert.Equal((short)-4096, restored.ReadSequenceGlobal5044B0(18));
         Assert.Equal((short)-4096, restored.ReadSequenceGlobal5044B0(19));
     }

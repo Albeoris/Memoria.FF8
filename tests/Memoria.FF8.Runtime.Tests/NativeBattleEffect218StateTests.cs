@@ -11,11 +11,11 @@ public sealed class NativeBattleEffect218StateTests
     {
         NativeBattleGuardianCameraProcess process = NativeBattleGuardianCameraProgram.FromColdProcess();
         process = process with { Eye = process.Eye with { Current = new(11, 22, 33) }, PreviousPose = new(new(321, -654, 987), new(-1, -2, -3), 320, 12) };
-        NativeBattleGuardianCameraProcess restored = JsonSerializer.Deserialize<NativeBattleGuardianCameraProcess>(JsonSerializer.Serialize(process))!;
+        NativeBattleGuardianCameraProcess restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleGuardianCameraProcess>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(process)))!);
         NativeBattleEffect218Frame frame = Frame(NativeBattleEffectMemory.FromColdProcess() with { GuardianCameraProcess = restored });
         Assert.Equal(new NativeBattleVector(321, -654, 987), PreviousCameraEye6338B0(frame));
         Assert.Throws<InvalidDataException>(() => frame.State.ReadView(0x24FD358, 6));
-        Assert.DoesNotContain("FlareAnchor", JsonSerializer.Serialize(frame.State));
+        Assert.DoesNotContain("FlareAnchor", JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame.State)));
     }
 
     [Fact]

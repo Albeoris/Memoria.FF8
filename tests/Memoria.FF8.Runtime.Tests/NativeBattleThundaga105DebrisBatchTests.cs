@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -48,7 +48,8 @@ public sealed class NativeBattleThundaga105DebrisBatchTests
         int survivors = UpdateFlatRecords(expected);
         NativeBattleEffectArena source = NativeBattleEffectArena.Clear().Write(0, bytes).MarkUnknown(NativeBattleThundaga105Debris.ArenaOffset + 0x1E, 2).MarkUnknown(0x30000, 16);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = source };
-        string before = JsonSerializer.Serialize(memory);
+        NativeBattleEffectMemory preserved = NativeBattleTestSnapshots.Independent(memory);
+        string before = NativeBattleTestSnapshots.Json(preserved);
         Copies copies = new();
         NativeBattleThundaga105DebrisUpdate changed;
         using (NativeBattleTelemetry.BeginScope(copies))
@@ -59,14 +60,15 @@ public sealed class NativeBattleThundaga105DebrisBatchTests
         var snapshot = changed.Memory.Arena!.ReadSnapshot(0, bytes.Length);
         Assert.Equal(expected, snapshot.Data);
         Assert.Equal(source.ReadSnapshot(0, bytes.Length).Known, snapshot.Known);
-        Assert.Equal(before, JsonSerializer.Serialize(memory));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(preserved));
         Assert.Equal(0, copies.ScalarBackingClones);
         Assert.InRange(copies.Total, 1, bytes.LongLength * 3);
 
-        string saved = JsonSerializer.Serialize(changed.Memory);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(saved)!;
+        string saved = NativeBattleTestSnapshots.Json(changed.Memory);
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(saved)!;
+        NativeBattleEffectMemory captured = NativeBattleStorageSnapshots.Capture(changed.Memory);
         _ = NativeBattleThundaga105Debris.Update6D40E0(changed.Memory);
-        Assert.Equal(saved, JsonSerializer.Serialize(changed.Memory));
+        Assert.Equal(saved, NativeBattleTestSnapshots.Json(captured));
         Assert.Equal(expected, restored.Arena!.ReadSnapshot(0, bytes.Length).Data);
         Assert.Equal(snapshot.Known, restored.Arena.ReadSnapshot(0, bytes.Length).Known);
 
@@ -77,14 +79,15 @@ public sealed class NativeBattleThundaga105DebrisBatchTests
         }
         Copies clearCopies = new();
         NativeBattleEffectMemory clear;
+        NativeBattleEffectMemory clearSource = NativeBattleTestSnapshots.Independent(preserved);
         using (NativeBattleTelemetry.BeginScope(clearCopies))
         {
-            clear = NativeBattleThundaga105Debris.ClearAlive(memory);
+            clear = NativeBattleThundaga105Debris.ClearAlive(clearSource);
         }
         Assert.Equal(cleared, clear.Arena!.ReadSnapshot(0, bytes.Length).Data);
         Assert.Equal(0, clearCopies.ScalarBackingClones);
         Assert.InRange(clearCopies.Total, 1, bytes.LongLength * 3);
-        Assert.Equal(before, JsonSerializer.Serialize(memory));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(preserved));
     }
 
     private static int UpdateFlatRecords(byte[] bytes)

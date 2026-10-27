@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -70,9 +70,9 @@ public sealed class NativeBattleScriptedLightCommandsTests
     {
         NativeBattleWaterExecutionFrame first = Fixture(0x93, 1, -1, -1, -1);
         first = first with { Core = first.Core.MarkUnknown(Set + 0x20, 20), Arena = first.Arena.MarkUnknown(0x2095, 1).MarkUnknown(0x2097, 1).MarkUnknown(0x2099, 1) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(first))!;
-        Assert.Equal(JsonSerializer.Serialize(Execute(first)), JsonSerializer.Serialize(Execute(restored)));
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleWaterExecutionFrame result = Execute(first);
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Execute(restored)));
         Assert.All(result.Core.Read(Set, 18), value => Assert.Equal(0, value));
         Assert.Throws<NotSupportedException>(() => result.Core.Read(Set + 0x20, 1));
     }

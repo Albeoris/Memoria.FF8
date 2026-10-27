@@ -10,7 +10,7 @@ public sealed class NativeBattleGravija214EnvironmentTests
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(575, 255, 322, 1, Enumerable.Repeat((byte)0xA5, 644).ToArray()).Upload45BD30(575, 256, 322, 256, Enumerable.Repeat((byte)0xA5, 644 * 256).ToArray());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Textures = textures, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() };
         NativeBattleEffectMemory cleared = NativeBattleGravija214Environment.Clear45BEE0(memory, new(576, 256, 320, 256), 0, 0, 0);
-        NativeBattleEffectArena image = new(cleared.Textures!.VramRegions);
+        NativeBattleEffectArena image = new(NativeBattleStorageSnapshots.Capture(cleared.Textures!).VramRegions);
         for (int row = 256; row < 512; row++)
         {
             Assert.Equal(0xA5A5, Word(575, row));
@@ -18,7 +18,7 @@ public sealed class NativeBattleGravija214EnvironmentTests
             Assert.All(image.Read(2 * (row * 1024 + 576), 640), value => Assert.Equal((byte)0, value));
         }
         Assert.All(image.Read(2 * (255 * 1024 + 575), 644), value => Assert.Equal((byte)0xA5, value));
-        Assert.Equal(textures.Count, cleared.Textures.Count);
+        Assert.Equal(textures.Count, cleared.Textures!.Count);
         Assert.Equal(textures.Slots, cleared.Textures.Slots);
         Assert.Same(memory.PrimitiveProcess!.Software, cleared.PrimitiveProcess!.Software);
         Assert.Contains(cleared.PrimitiveProcess.TextureWindowCache!.Rows, entry => entry.DirtyMask != 0);
@@ -31,7 +31,7 @@ public sealed class NativeBattleGravija214EnvironmentTests
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() };
         NativeBattleEffectMemory cleared = NativeBattleGravija214Environment.Clear45BEE0(memory, new(576, 256, 3, 2), 248, 16, 8);
-        NativeBattleEffectArena image = new(cleared.Textures!.VramRegions);
+        NativeBattleEffectArena image = new(NativeBattleStorageSnapshots.Capture(cleared.Textures!).VramRegions);
         for (int y = 256; y < 258; y++)
         {
             Assert.Equal(new byte[] { 0x41, 0x7C, 0x41, 0x7C, 0x41, 0x7C }, image.Read(2 * (y * 1024 + 576), 6));

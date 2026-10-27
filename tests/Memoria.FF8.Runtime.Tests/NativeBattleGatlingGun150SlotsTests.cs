@@ -69,7 +69,7 @@ public sealed class NativeBattleGatlingGun150SlotsTests
         (NativeBattleGatlingGun150Frame frame, uint address) = fixture.Task(callback, 0);
         uint row = bankA ? ParticleABase : ParticleBBase;
         frame = fixture.Row(frame, row, callback == 0x60EDA0);
-        string before = JsonSerializer.Serialize(frame.State);
+        string before = NativeBattleTestSnapshots.Json(frame.State);
         (frame, int result) = NativeBattleGatlingGun150Controller.AdvanceSlots(frame, address, fixture.Resources, fixture.Inputs(0x201));
         Assert.Equal(0, result);
         Draw draw = Assert.Single(fixture.Draws);
@@ -78,7 +78,7 @@ public sealed class NativeBattleGatlingGun150SlotsTests
         Assert.Equal(callback == 0x60F330 ? 0xDC234Cu : 0xDC21A0u, draw.Source);
         Assert.Equal(callback == 0x60F330 ? -123 : 0, draw.Angle);
         Assert.False(draw.SourceWKnown);
-        Assert.Equal(before, JsonSerializer.Serialize(frame.State));
+        Assert.Equal(before, NativeBattleTestSnapshots.Json(frame.State));
         Assert.Equal(new NativeCrtRandomState(1), frame.Random);
         Assert.Equal((ushort)0, NativeBattleGatlingGun150Controller.Read(frame, address).ReadWord(12));
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(frame.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
@@ -144,11 +144,11 @@ public sealed class NativeBattleGatlingGun150SlotsTests
         Assert.Equal((ushort)516, frame.State.ReadWord(ParticleBBase + 8));
         Assert.Equal((ushort)14, frame.State.ReadWord(ParticleBBase + 16));
         fixture.AfterDraw = null;
-        NativeBattleGatlingGun150Frame restored = JsonSerializer.Deserialize<NativeBattleGatlingGun150Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleGatlingGun150Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGatlingGun150Frame>(NativeBattleTestSnapshots.Json(frame))!;
         var expected = NativeBattleGatlingGun150Controller.AdvanceSlots(frame, address, fixture.Resources, fixture.Inputs());
         var actual = NativeBattleGatlingGun150Controller.AdvanceSlots(restored, address, fixture.Resources, fixture.Inputs());
         Assert.Equal(expected.Result, actual.Result);
-        Assert.Equal(JsonSerializer.Serialize(expected.Frame), JsonSerializer.Serialize(actual.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Frame), NativeBattleTestSnapshots.Json(actual.Frame));
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public sealed class NativeBattleAcid317ControllerTests
     {
         Fixture fixture = new();
         NativeBattleEffectTaskPool root = fixture.Frame.Effect.Pools[0];
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 1).WriteDword(16, 0)) };
+        root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteDword(12, 1).WriteDword(16, 0)) });
         NativeBattleAcid317Frame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = [root] } };
         frame = fixture.Step(frame);
         Assert.Equal(4, frame.Effect.Pools.Length);
@@ -99,11 +99,11 @@ public sealed class NativeBattleAcid317ControllerTests
         Assert.NotNull(frame.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Null(frame.Memory.ScriptedColorRegisters.Material);
         Assert.Equal(11, first.MouthCalls);
-        NativeBattleAcid317Frame restored = JsonSerializer.Deserialize<NativeBattleAcid317Frame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(frame))!;
         first.Operations.Clear();
         Fixture second = new();
-        Assert.Equal(JsonSerializer.Serialize(first.Step(frame)), JsonSerializer.Serialize(second.Step(restored)));
-        Assert.Equal(JsonSerializer.Serialize(first.Operations), JsonSerializer.Serialize(second.Operations));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Step(frame)), NativeBattleTestSnapshots.Json(second.Step(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Operations), NativeBattleTestSnapshots.Json(second.Operations));
     }
 
     private sealed class Fixture
@@ -122,10 +122,10 @@ public sealed class NativeBattleAcid317ControllerTests
             (packets, _) = packets.Publish(1);
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
             (root, _) = root.Append(RootCallback);
-            root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 2).WriteByte(15, 1)) };
+            root = NativeBattleTaskFixture.EditPool(root, data => data with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteWord(12, 2).WriteByte(15, 1)) });
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(TargetDescriptor, ArenaAddress + 0x1280, 616, 1);
             (target, _) = target.Append(TargetCallback);
-            target = target with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) };
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, target.Slots[0].WriteBytes(12, new byte[604]).WriteWord(12, 10).WriteDword(16, 0x1D97494)) });
             NativeBattleOriginalEffectState effect = new(317, 317, new(317, Entry, Initializer), new(0, 1, 8, 0, 0, 0), RootDescriptor) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(TrailDescriptor, ArenaAddress + 0x1000, 80, 8), NativeBattleEffectTaskPool.Initialize(ParticleDescriptor, ArenaAddress, 32, 128)] };
             NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
             for (int index = 0; index < PointCount; index++)
@@ -133,6 +133,7 @@ public sealed class NativeBattleAcid317ControllerTests
                 arena = arena.Write(PointsOffset + index * PointStride + 6, BitConverter.GetBytes((ushort)0xFFFF));
             }
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(317) with { Arena = arena, GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
+            memory = NativeBattleEffectTaskMemory.BindArenaBankOwnership(memory, effect.Pools);
             Frame = new(memory, effect, new(1), NativeBattleAcid317State.FromColdProcess().WriteDword(WorkingGlobal, ArenaAddress).WriteDword(CasterGlobal, 0x1D972C0)) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };
             byte[] act = new byte[16];
             BinaryPrimitives.WriteInt32LittleEndian(act.AsSpan(4), 8);

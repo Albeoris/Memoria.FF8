@@ -22,7 +22,7 @@ public sealed class NativeBattleEffectTextureTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleEffectTextureDrain drained = queued.Drain505D20();
         long batchedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(JsonSerializer.Serialize(scalar.Capture().Regions), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State).VramRegions));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(scalar.Capture().Regions)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State).VramRegions));
         Assert.Equal(data, drained.Uploads.Single().Bytes);
         Assert.True(batchedBytes < 2097152, $"A warm rectangle publication allocated {batchedBytes} bytes.");
         Assert.All(source.Read(0, NativeBattleEffectArena.Length), value => Assert.Equal(0, value));

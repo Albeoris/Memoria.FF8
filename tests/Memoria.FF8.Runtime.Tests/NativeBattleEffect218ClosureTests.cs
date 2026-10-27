@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect218ClosureTests
         NativeBattleEffect218Frame frame = Frame();
         ImmutableArray<NativeBattleEffectTaskPool> pools = Pools.Select(profile => NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity)).ToImmutableArray();
         (NativeBattleEffectTaskPool root, int slot) = pools[0].Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(slot, root.Slots[slot].WriteWord(12, 0x1234)) };
+        root = root.WriteSlot(slot, root.Slots[slot].WriteWord(12, 0x1234));
         frame = frame with { Effect = frame.Effect with { Pools = pools.SetItem(0, root) } };
         NativeBattleEffect218RuntimeInputs inputs = new(null!, null!, false, _ => 1, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
         NativeBattleEffect218Frame actual = Advance(frame, null!, inputs);
@@ -145,7 +145,7 @@ public sealed class NativeBattleEffect218ClosureTests
         NativeBattleCureFamilyPool profile = Pools[1];
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(profile.Descriptor, profile.Bank, profile.Stride, profile.Capacity);
         (pool, int slot) = pool.Append(0x635110);
-        pool = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(12, age).WriteWord(14, 0).WriteWord(22, delay)) };
+        pool = pool.WriteSlot(slot, pool.Slots[slot].WriteWord(12, age).WriteWord(14, 0).WriteWord(22, delay));
         NativeBattleEffect218Frame frame = Frame();
         return (frame with { Effect = frame.Effect with { Pools = [pool] } }, pool.BankAddress + (uint)(slot * pool.Stride));
     }

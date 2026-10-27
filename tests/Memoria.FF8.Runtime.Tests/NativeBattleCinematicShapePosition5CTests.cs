@@ -38,6 +38,7 @@ public sealed class NativeBattleCinematicShapePosition5CTests
             return current;
         });
         NativeBattleWaterExecutionFrame Run(NativeBattleWaterExecutionFrame current) => NativeBattleCinematicShapePosition5C.Execute(current, new(0x1000, 8, Pc), services);
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(unchecked((uint)(x << 16)), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x5C));
         Assert.Equal(unchecked((uint)(y << 16)), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x60));
@@ -45,7 +46,7 @@ public sealed class NativeBattleCinematicShapePosition5CTests
         Assert.Equal(transformed ? new uint[] { Base + 0x2194, Base + 0x4080 } : [], inputs);
         Assert.Same(frame.Random, result.Random);
         Assert.Equal(frame.ReadTemporaryWord(0x13E), result.ReadTemporaryWord(0x13E));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
         Assert.Equal(2, updates);
     }
 

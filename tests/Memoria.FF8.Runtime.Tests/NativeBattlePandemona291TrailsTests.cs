@@ -17,6 +17,7 @@ public sealed class NativeBattlePandemona291TrailsTests
         Assert.Equal(1, spawned.Arena.Read(0x442, 1)[0]);
         Assert.Equal(18467, Word(spawned.Arena, 0x43C));
         Assert.Equal(6334, Word(spawned.Arena, 0x43E));
+        NativeBattleEffectArena restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectArena>(NativeBattleTestSnapshots.Json(spawned.Arena))!;
         NativeBattleEffectArena result = NativeBattlePandemona291Trails.Advance6F19C0(spawned.Arena, TaskAddress);
         Assert.Equal(19, Word(result, 0x432));
         Assert.Equal(1388, Word(result, 0x42C));
@@ -25,8 +26,7 @@ public sealed class NativeBattlePandemona291TrailsTests
         Assert.Equal(unchecked((ushort)-110), Word(result, 0x436));
         Assert.Equal(17971, Word(result, 0x43C));
         Assert.Equal(6210, Word(result, 0x43E));
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(spawned.Arena))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(NativeBattlePandemona291Trails.Advance6F19C0(restored, TaskAddress)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattlePandemona291Trails.Advance6F19C0(restored, TaskAddress)));
     }
 
     [Fact]

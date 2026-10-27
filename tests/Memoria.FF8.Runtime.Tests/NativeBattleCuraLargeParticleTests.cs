@@ -104,10 +104,10 @@ public sealed class NativeBattleCuraLargeParticleTests
             Assert.Equal(unchecked((ushort)(emitter.ReadWord(0x1E) - 384 + offset.Y)), child.ReadWord(0x1E));
             Assert.Equal(0u, child.ReadDword(0x30));
         }
-        NativeBattleCuraFrame restored = JsonSerializer.Deserialize<NativeBattleCuraFrame>(JsonSerializer.Serialize(emitted.Frame))!;
+        NativeBattleCuraFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCuraFrame>(NativeBattleTestSnapshots.Json(emitted.Frame))!;
         var next = NativeBattleCuraParticles.AdvanceLarge(emitted.Frame, fixture.Address, Resources(), fixture.Inputs with { CrtRandom = emitted.CrtRandomAfter });
         var clone = NativeBattleCuraParticles.AdvanceLarge(restored, fixture.Address, Resources(), fixture.Inputs with { CrtRandom = emitted.CrtRandomAfter });
-        Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(clone));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next), NativeBattleTestSnapshots.Json(clone));
     }
 
     [Fact]

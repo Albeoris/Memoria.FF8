@@ -96,16 +96,16 @@ public sealed class NativeBattleTripleGraphTests
             current = step.Frame;
             random = step.Random;
         }
-        string saved = JsonSerializer.Serialize(current);
-        NativeBattleTripleFrame first = JsonSerializer.Deserialize<NativeBattleTripleFrame>(saved)!;
-        NativeBattleTripleFrame second = JsonSerializer.Deserialize<NativeBattleTripleFrame>(saved)!;
+        string saved = NativeBattleTestSnapshots.Json(current);
+        NativeBattleTripleFrame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleTripleFrame>(saved)!;
+        NativeBattleTripleFrame second = NativeBattleTestSnapshots.RestoreJson<NativeBattleTripleFrame>(saved)!;
         List<string> firstOperations = [];
         List<string> secondOperations = [];
         NativeBattleTripleInputs firstInputs = fixture.Inputs with
         {
             Execute = (frame, operation) =>
             {
-                firstOperations.Add(JsonSerializer.Serialize(operation, operation.GetType()));
+                firstOperations.Add(NativeBattleTestSnapshots.Json(operation, operation.GetType()));
                 return frame;
             }
         };
@@ -113,13 +113,13 @@ public sealed class NativeBattleTripleGraphTests
         {
             Execute = (frame, operation) =>
             {
-                secondOperations.Add(JsonSerializer.Serialize(operation, operation.GetType()));
+                secondOperations.Add(NativeBattleTestSnapshots.Json(operation, operation.GetType()));
                 return frame;
             }
         };
         NativeBattleTripleStep a = NativeBattleTripleController.Advance89DFF0(first, fixture.Resources, firstInputs, random);
         NativeBattleTripleStep b = NativeBattleTripleController.Advance89DFF0(second, fixture.Resources, secondInputs, random);
-        Assert.Equal(JsonSerializer.Serialize(a), JsonSerializer.Serialize(b));
+        Assert.Equal(NativeBattleTestSnapshots.Json(a), NativeBattleTestSnapshots.Json(b));
         Assert.Equal(firstOperations, secondOperations);
     }
 

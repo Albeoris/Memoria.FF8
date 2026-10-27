@@ -20,8 +20,8 @@ public sealed class NativeBattleBio22LaterParticleTests
         short actualRadius = radius == 0 ? (short)1 : radius;
         NativeBattleVector fixedPoint = NativeBattleGfMatrices.RotateShort56C4F0(rotation, new(0, 0, actualRadius));
         NativeBattleVector randomPoint = NativeBattleGfMatrices.RotateShort56C4F0(rotation, new(0, 0, (short)(distance % actualRadius)));
-        NativeBattleBio22ParticleFrame fixedFrame = NativeBattleBio22LaterParticles.Place89D280(frame, radius);
-        NativeBattleBio22ParticleFrame randomFrame = NativeBattleBio22LaterParticles.Place89CF30(frame, radius);
+        NativeBattleBio22ParticleFrame fixedFrame = NativeBattleBio22LaterParticles.Place89D280(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), radius);
+        NativeBattleBio22ParticleFrame randomFrame = NativeBattleBio22LaterParticles.Place89CF30(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame)), radius);
         Assert.Equal(after2, fixedFrame.Random);
         Assert.Equal(after3, randomFrame.Random);
         Assert.Equal(unchecked((ushort)(32000 + fixedPoint.X)), fixedFrame.Task.ReadWord(0x1C));
@@ -30,7 +30,7 @@ public sealed class NativeBattleBio22LaterParticleTests
         Assert.Equal(unchecked((ushort)(32000 + randomPoint.X)), randomFrame.Task.ReadWord(0x1C));
         Assert.Equal((ushort)0xBEEF, fixedFrame.Task.ReadWord(0x22));
         Assert.Equal((ushort)0xBEEF, randomFrame.Task.ReadWord(0x22));
-        Assert.Equal(frame.Memory, randomFrame.Memory);
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame.Memory), NativeBattleTestSnapshots.Json(randomFrame.Memory));
     }
 
     [Fact]
@@ -95,10 +95,10 @@ public sealed class NativeBattleBio22LaterParticleTests
         frame = frame with { Primary = frame.Primary.WriteWord(0x7A, unchecked((ushort)-3000)).WriteWord(0x86, 4096) };
         for (int tick = 0; tick < 25; tick++)
         {
-            NativeBattleBio22ParticleFrame restored = JsonSerializer.Deserialize<NativeBattleBio22ParticleFrame>(JsonSerializer.Serialize(frame))!;
+            NativeBattleBio22ParticleFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBio22ParticleFrame>(NativeBattleTestSnapshots.Json(frame))!;
             NativeBattleBio22ParticleStep expected = Advance(callback, restored, Draw);
             NativeBattleBio22ParticleStep next = Advance(callback, frame, Draw);
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(next));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(next));
             frame = next.Frame;
             if (next.CompleteRequested)
             {

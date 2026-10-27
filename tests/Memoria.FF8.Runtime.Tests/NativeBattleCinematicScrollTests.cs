@@ -33,6 +33,7 @@ public sealed class NativeBattleCinematicScrollTests
             Assert.Equal(rectangle, Rectangle(advanced.Core.Read(0x279754C, 8)));
             return advanced;
         });
+        NativeBattleWaterExecutionFrame replayFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame result = Run(frame);
         var actual = result.Arena.ReadSnapshot(0x9000, 8);
         Assert.Equal(sineRows ? new byte[] { 2, 3, 0, 1, 4, 5, 6, 7 } : new byte[] { 2, 3, 0, 1, 6, 7, 4, 5 }, actual.Data);
@@ -44,7 +45,7 @@ public sealed class NativeBattleCinematicScrollTests
         Assert.Equal(0u, result.ReadTemporaryDword(0x7C));
         Assert.Equal(0, result.Core.Read(Header + 0x43, 1)[0]);
         Assert.Same(frame.Random, result.Random);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(replayFrame)));
         Assert.Equal(2, uploads);
         NativeBattleWaterExecutionFrame warm = Run(result);
         Assert.Equal(Base + 0x9008, WaterSchedulerFixture.ReadCoreDword(warm, Manager + 0x74));
@@ -120,11 +121,11 @@ public sealed class NativeBattleCinematicScrollTests
         Assert.Equal(2, textures.Count);
         Assert.All(textures.Slots.Take(2), slot => Assert.Null(slot!.Source));
         frame = frame with { Arena = frame.Arena.Write(0x5064, [0xAB, 0xCD]) };
-        NativeBattleWaterExecutionFrame restored = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
-        NativeBattleEffectTextureState restoredTextures = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(textures))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleEffectTextureState restoredTextures = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectTextureState>(NativeBattleTestSnapshots.Json(textures))!;
         NativeBattleEffectTextureDrain live = textures.Drain505D20(frame.Arena);
         NativeBattleEffectTextureDrain cold = restoredTextures.Drain505D20(restored.Arena);
-        Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(cold));
+        Assert.Equal(NativeBattleTestSnapshots.Json(live), NativeBattleTestSnapshots.Json(cold));
         Assert.Equal(new byte[] { 0xAB, 0xCD }, live.Uploads[0].Bytes.Take(2));
         Assert.Equal((short)20, live.Uploads[0].Y);
         Assert.Equal((short)27, live.Uploads[1].Y);

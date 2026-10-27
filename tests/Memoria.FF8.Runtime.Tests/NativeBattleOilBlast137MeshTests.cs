@@ -25,7 +25,7 @@ public sealed class NativeBattleOilBlast137MeshTests
         Assert.Equal(memory.GeometryRegisters.Translation, result.Memory.GeometryRegisters.Translation);
         Assert.Equal(memory.ScriptedColorRegisters!.Material, result.Memory.ScriptedColorRegisters!.Material);
         Assert.Equal(memory.ScriptedColorRegisters.Rgb, result.Memory.ScriptedColorRegisters.Rgb);
-        Assert.Equal(JsonSerializer.Serialize(memory.PrimitiveProcess), JsonSerializer.Serialize(result.Memory.PrimitiveProcess));
+        Assert.Equal(NativeBattleTestSnapshots.Json(memory.PrimitiveProcess), NativeBattleTestSnapshots.Json(result.Memory.PrimitiveProcess));
         Assert.Equal(Address + 8, U32(result.Context84, 0x18));
         Assert.Equal(Address + (uint)Source(group).Bytes.Length, U32(result.Context84, 0x1C));
         Assert.Throws<NotSupportedException>(() => result.Context84.Read(6, 2));
@@ -141,8 +141,8 @@ public sealed class NativeBattleOilBlast137MeshTests
         NativeBattleOilBlast137MeshStep source = Draw(3, context);
         NativeBattleGfGeometryAttempt firstEnvironment = source.Batch.Attempts[1];
         Assert.Equal(0xE2010710u, firstEnvironment.Primitive!.Words[1]);
-        NativeBattleOilBlast137MeshStep restored = JsonSerializer.Deserialize<NativeBattleOilBlast137MeshStep>(JsonSerializer.Serialize(source))!;
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(restored));
+        NativeBattleOilBlast137MeshStep restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleOilBlast137MeshStep>(NativeBattleTestSnapshots.Json(source))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(source), NativeBattleTestSnapshots.Json(restored));
         Assert.Throws<NotSupportedException>(() => restored.Context84.Read(0x30, 4));
         Assert.Equal(source.Batch.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray(), restored.Batch.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray());
     }

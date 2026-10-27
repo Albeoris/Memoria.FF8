@@ -149,8 +149,8 @@ public sealed class NativeBattleBreath157ChildrenTests
         {
             Assert.Equal((ushort)(callback == 0x604C80 ? 0xCAFE : 0xBEEF), actual.Frame.State.ReadWord(Bank + 14));
         }
-        NativeBattleBreath157Frame restored = JsonSerializer.Deserialize<NativeBattleBreath157Frame>(JsonSerializer.Serialize(actual.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Advance(actual.Frame, callback, Inputs()).Frame), JsonSerializer.Serialize(Advance(restored, callback, Inputs()).Frame));
+        NativeBattleBreath157Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleBreath157Frame>(NativeBattleTestSnapshots.Json(actual.Frame))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Advance(actual.Frame, callback, Inputs()).Frame), NativeBattleTestSnapshots.Json(Advance(restored, callback, Inputs()).Frame));
     }
 
     [Theory]
@@ -216,7 +216,7 @@ public sealed class NativeBattleBreath157ChildrenTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23EBF90, TaskAddress, 36, 100);
         (pool, _) = pool.Append(callback);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x14, 50)) };
+        pool = NativeBattleTaskFixture.EditPool(pool, data => data with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(0x14, 50)) });
         NativeBattleOriginalEffectState effect = new(157, 156, new(157, 0x603E90, 0x603E70), null, 0x23EB618) { Pools = [pool] };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown(), ModuleSpriteBillboard21DFED0 = NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null) };
         NativeBattleBreath157Frame frame = new(memory, effect, new(123), NativeBattleBreath157State.FromColdProcess() with { RootBankStorage = null, ChildBankStorage = null }) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()) };

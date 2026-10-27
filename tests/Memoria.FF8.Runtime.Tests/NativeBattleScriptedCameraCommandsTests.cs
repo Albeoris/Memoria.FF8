@@ -148,12 +148,12 @@ public sealed class NativeBattleScriptedCameraCommandsTests
     {
         NativeBattleWaterExecutionFrame frame = Fixture(0x0039, -1);
         NativeBattleCameraState live = Camera();
-        NativeBattleCameraState restored = JsonSerializer.Deserialize<NativeBattleCameraState>(JsonSerializer.Serialize(live))!;
-        NativeBattleWaterExecutionFrame restoredFrame = JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleCameraState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleCameraState>(NativeBattleTestSnapshots.Json(live))!;
+        NativeBattleWaterExecutionFrame restoredFrame = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleWaterExecutionFrame first = NativeBattleScriptedCameraCommands.Execute(frame, Services(() => live, value => live = value), Program);
         NativeBattleWaterExecutionFrame next = NativeBattleScriptedCameraCommands.Execute(restoredFrame, Services(() => restored, value => restored = value), Program);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(next));
-        Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(next));
+        Assert.Equal(NativeBattleTestSnapshots.Json(live), NativeBattleTestSnapshots.Json(restored));
     }
 
     private static NativeBattleScriptedCameraServices Services(Func<NativeBattleCameraState> read, Action<NativeBattleCameraState> publish) => new((_, _) => throw new InvalidOperationException(), _ => throw new InvalidOperationException())

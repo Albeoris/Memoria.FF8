@@ -87,8 +87,8 @@ public sealed class NativeBattleStaticMeshContext88F4Tests
     {
         Assert.Throws<NotSupportedException>(() => Draw(0x33));
         var first = Draw(0xC3);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(first.Memory))!;
-        Assert.Equal(JsonSerializer.Serialize(Draw(0xC3, memory: first.Memory)), JsonSerializer.Serialize(Draw(0xC3, memory: restored)));
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(first.Memory))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(Draw(0xC3, memory: first.Memory)), NativeBattleTestSnapshots.Json(Draw(0xC3, memory: restored)));
     }
 
     private static NativeBattleStaticMeshContext88Step Draw(uint flags, int z = 2000, bool reversed = false, short fourthZ = 0, int x = 0, NativeBattleEffectArena? context = null, NativeBattleEffectMemory? memory = null)

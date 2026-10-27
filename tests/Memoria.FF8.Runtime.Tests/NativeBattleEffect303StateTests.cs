@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect303StateTests
         var state = NativeBattleEffect303State.FromColdProcess().WriteDword(TargetGlobal, 0x1D97530).WriteDword(SeedGlobal, 0x7FFF) with { RootBankStorage = null };
         var partial = NativeBattleEffectArena.Clear().MarkUnknown(0, 4).Write(1, new byte[] { 9, 8 });
         state = state.WriteView(CursorGlobal, partial, 4);
-        var restored = JsonSerializer.Deserialize<NativeBattleEffect303State>(JsonSerializer.Serialize(state))!;
+        var restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect303State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.Equal(0x1D97530u, restored.ReadDword(TargetGlobal));
@@ -39,7 +39,7 @@ public sealed class NativeBattleEffect303StateTests
         var view = restored.ReadView(CursorGlobal, 4);
         Assert.Equal(new[] { false, true, true, false }, view.ReadSnapshot(0, 4).Known);
         Assert.Equal(new byte[] { 9, 8 }, restored.Read(CursorGlobal + 1, 2));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]

@@ -150,7 +150,7 @@ public sealed class NativeBattleEffect66ControllerTests
     {
         NativeBattleEffect66Frame frame = Frame();
         NativeBattleEffectTaskPool pool = frame.Effect.Pools[1];
-        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool with { Slots = pool.Slots.SetItem(1, pool.Slots[1].WriteDword(16, 0x12345678).MarkPayloadUnknown(20, 4)) }) } };
+        frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, pool.WriteSlot(1, pool.Slots[1].WriteDword(16, 0x12345678).MarkPayloadUnknown(20, 4))) } };
         (frame, uint address) = Spawn622CD0(frame, 0x622EB0);
         Assert.Equal(0u, Read(frame, address).ReadDword(12));
         Assert.Equal(0x12345678u, Read(frame, address).ReadDword(16));
@@ -162,14 +162,14 @@ public sealed class NativeBattleEffect66ControllerTests
     {
         NativeBattleEffect66Frame frame = Frame();
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
-        child = child with { Slots = child.Slots.SetItem(99, child.Slots[99].WriteDword(16, 0xAABBCCDD)) };
+        child = child.WriteSlot(99, child.Slots[99].WriteDword(16, 0xAABBCCDD));
         frame = frame with { Effect = frame.Effect with { Pools = frame.Effect.Pools.SetItem(1, child) } };
         NativeBattleEffect66Frame result = Advance(frame, Resources(), new Harness().Inputs());
         Assert.Empty(result.Effect.Pools);
         Assert.Equal(0u, result.Effect.ReturnedDescriptor);
         Assert.Equal(1, BinaryPrimitives.ReadUInt16LittleEndian(result.State.ReadBank(0).Read(12, 2)));
         Assert.Equal(0xAABBCCDDu, BinaryPrimitives.ReadUInt32LittleEndian(result.State.ReadBank(1).Read(99 * ChildStride + 16, 4)));
-        NativeBattleEffect66Frame restored = JsonSerializer.Deserialize<NativeBattleEffect66Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleEffect66Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect66Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         Assert.Equal(result.State.ReadBank(1).Read(0, ChildCount * ChildStride), restored.State.ReadBank(1).Read(0, ChildCount * ChildStride));
     }
 
@@ -271,7 +271,7 @@ public sealed class NativeBattleEffect66ControllerTests
         (root, _) = root.Append(RootCallback);
         NativeBattleEffectTaskPool child = NativeBattleEffectTaskPool.Initialize(ChildDescriptor, ChildBank, ChildStride, ChildCount);
         (child, _) = child.Append(MainCallback);
-        child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, unchecked((ushort)age))) };
+        child = child.WriteSlot(0, child.Slots[0].WriteWord(12, unchecked((ushort)age)));
         NativeBattleOriginalEffectState effect = new(66, 65, new(66, Entry, Initializer), new(5, 0, 1, 0, 0, 0), null) { Pools = [root, child], ReturnedDescriptor = RootDescriptor };
         NativeBattleEffect66Frame frame = new(NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() }, effect, new(42), NativeBattleEffect66State.FromColdProcess().DetachBank(0).DetachBank(1));
         frame = frame with { State = frame.State.WriteDword(ArenaGlobal, 0x20DFAB8).WriteDword(CasterGlobal, 5) };

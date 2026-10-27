@@ -126,8 +126,8 @@ public sealed class NativeBattleAdditional181ModelDrawingTests
         NativeBattleGeometryRegisterStep registers = new(NativeBattleGeometry.LoadMatrix(NativeBattleGeometryRegisters.Unknown(), NativeBattleCuragaMatrices.Identity8DD770(), true, true, null), NativeBattleScriptedColorRegisters.Unknown());
         var first = NativeBattleSkinnedBodyPackets.EmitBaseFace(face, false, skin.VertexScratch, 4, Context(0), registers, Projection, controls, 17, 2, 0, 0x38, 0x2C, 0x34);
         var second = NativeBattleSkinnedBodyPackets.EmitBaseFace(face, false, skin.VertexScratch, 4, Context(0), registers, Projection, controls, 17, 2, 0, 0x3C, 0x30, 0x38);
-        Assert.Equal(JsonSerializer.Serialize(first.Attempt), JsonSerializer.Serialize(second.Attempt));
-        Assert.Equal(JsonSerializer.Serialize(first.Registers), JsonSerializer.Serialize(second.Registers));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Attempt), NativeBattleTestSnapshots.Json(second.Attempt));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first.Registers), NativeBattleTestSnapshots.Json(second.Registers));
         Assert.Equal(first.Temporary.Read(0x2C, 4), second.Temporary.Read(0x30, 4));
         Assert.Equal(first.Temporary.Read(0x34, 4), second.Temporary.Read(0x38, 4));
     }
@@ -136,9 +136,9 @@ public sealed class NativeBattleAdditional181ModelDrawingTests
     public void Current_scratch_context_and_registers_restore_same_next_pair_through_JSON()
     {
         var first = Draw(Geometry(true), Context(0), 2000);
-        var restored = JsonSerializer.Deserialize<NativeBattleAdditional181ModelStep>(JsonSerializer.Serialize(first))!;
+        var restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAdditional181ModelStep>(NativeBattleTestSnapshots.Json(first))!;
         NativeBattleAdditional181ModelStep Next(NativeBattleAdditional181ModelStep current) => Draw(Geometry(true), current.Temporary128, 2000, memory: current.Memory, scratch: current.VertexScratch);
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(first)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleCameraProjection Projection => new(null, 100, 160, 108);

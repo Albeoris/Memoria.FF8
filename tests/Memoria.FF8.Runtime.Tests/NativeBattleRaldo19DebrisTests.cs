@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 
@@ -30,6 +30,7 @@ public sealed class NativeBattleRaldo19DebrisTests
         {
             expected = expected.Draw(out _);
         }
+        NativeBattleRaldo19Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleRaldo19Frame>(NativeBattleTestSnapshots.Json(frame));
         NativeBattleRaldo19LeafStep step = NativeBattleRaldo19Debris.Advance(frame, address, fixture.Inputs.Packets, (_, _) => throw new InvalidDataException("The spawner cannot render a child inline."));
         Assert.Equal(expected, step.Frame.Random);
         NativeBattleEffectHierarchy hierarchy = new(step.Frame.Effect.Pools);
@@ -49,8 +50,7 @@ public sealed class NativeBattleRaldo19DebrisTests
             Assert.InRange(unchecked((short)high.ReadWord(0x8E + row * 8)), (short)-6143, (short)-2048);
             Assert.InRange(high.ReadWord(0xAC + row * 2), (ushort)240, (ushort)367);
         }
-        NativeBattleRaldo19Frame restored = JsonSerializer.Deserialize<NativeBattleRaldo19Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleRaldo19Debris.Advance(restored, address, fixture.Inputs.Packets, (_, _) => throw new InvalidDataException())));
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleRaldo19Debris.Advance(restored, address, fixture.Inputs.Packets, (_, _) => throw new InvalidDataException())));
     }
 
     [Fact]

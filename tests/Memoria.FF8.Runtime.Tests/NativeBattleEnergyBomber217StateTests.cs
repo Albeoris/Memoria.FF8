@@ -21,12 +21,12 @@ public sealed class NativeBattleEnergyBomber217StateTests
     public void Partial_warm_scalar_state_and_next_write_survive_JSON()
     {
         NativeBattleEnergyBomber217State state = NativeBattleEnergyBomber217State.FromUnknown().WriteDword(NativeBattleEnergyBomber217Profile.WorkingGlobal, NativeBattleEnergyBomber217Profile.ArenaAddress).WriteWord(NativeBattleEnergyBomber217Profile.CursorGlobal, 0xA55A);
-        NativeBattleEnergyBomber217State restored = JsonSerializer.Deserialize<NativeBattleEnergyBomber217State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEnergyBomber217State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEnergyBomber217State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Equal(NativeBattleEnergyBomber217Profile.ArenaAddress, restored.ReadDword(NativeBattleEnergyBomber217Profile.WorkingGlobal));
         Assert.Equal((ushort)0xA55A, restored.ReadWord(NativeBattleEnergyBomber217Profile.CursorGlobal));
         Assert.Throws<NotSupportedException>(() => restored.ReadDword(NativeBattleEnergyBomber217Profile.CursorGlobal));
-        Assert.Equal(JsonSerializer.Serialize(state.WriteWord(NativeBattleEnergyBomber217Profile.CursorGlobal + 2, 0x1234)), JsonSerializer.Serialize(restored.WriteWord(NativeBattleEnergyBomber217Profile.CursorGlobal + 2, 0x1234)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state.WriteWord(NativeBattleEnergyBomber217Profile.CursorGlobal + 2, 0x1234))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.WriteWord(NativeBattleEnergyBomber217Profile.CursorGlobal + 2, 0x1234))));
         Assert.Equal(NativeBattleEnergyBomber217Profile.PacketStep, NativeBattleEnergyBomber217Profile.SecondPacketOffset - NativeBattleEnergyBomber217Profile.FirstPacketOffset);
         Assert.Equal(NativeBattleEnergyBomber217Profile.FirstPacketOffset, NativeBattleEnergyBomber217Profile.MorphOffset + NativeBattleEnergyBomber217Profile.MorphBytes);
     }

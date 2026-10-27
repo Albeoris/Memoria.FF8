@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -24,6 +24,7 @@ public sealed class NativeBattleCinematicVelocity82Tests
             Assert.Equal(-1, selector);
             return Address(0x2100);
         });
+        string original = NativeBattleTestSnapshots.Json(frame);
         NativeBattleWaterExecutionFrame result = Run(frame);
         Assert.Equal(unchecked((uint)x), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x74));
         Assert.Equal(unchecked((uint)y), WaterSchedulerFixture.ReadSlotDword(result, 0, 0x78));
@@ -32,7 +33,7 @@ public sealed class NativeBattleCinematicVelocity82Tests
         Assert.Same(frame.TemporaryFrame, result.TemporaryFrame);
         Assert.Same(frame.Random, result.Random);
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(0x2094, 6));
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(Run(NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(original)!)));
     }
 
     [Fact]

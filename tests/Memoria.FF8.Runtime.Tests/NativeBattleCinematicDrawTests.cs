@@ -26,16 +26,16 @@ public sealed class NativeBattleCinematicDrawTests
         original = original with { Arena = original.Arena.Write(0x214C, [1]) };
         NativeBattleLogicalOrdering source = NativeBattleLogicalOrdering.Clear().Prepend(20, new("20DFAB8", 0, 0x40), [0x04000000, 0x20010203, 1, 2, 3], 0, []);
         source = source.ClearRange45D550(17, 0x1000);
-        string inputFrame = JsonSerializer.Serialize(original);
-        string inputOrdering = JsonSerializer.Serialize(source);
+        string inputFrame = NativeBattleTestSnapshots.Json(original);
+        string inputOrdering = NativeBattleTestSnapshots.Json(source);
         var scalar = Run(false);
         var batched = Run(true);
-        Assert.Equal(JsonSerializer.Serialize(scalar.Frame), JsonSerializer.Serialize(batched.Frame));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Memory), JsonSerializer.Serialize(batched.Memory));
-        Assert.Equal(JsonSerializer.Serialize(scalar.Ordering), JsonSerializer.Serialize(batched.Ordering));
+        Assert.Equal(NativeBattleTestSnapshots.Json(scalar.Frame), NativeBattleTestSnapshots.Json(batched.Frame));
+        Assert.Equal(NativeBattleTestSnapshots.Json(scalar.Memory), NativeBattleTestSnapshots.Json(batched.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(scalar.Ordering), NativeBattleTestSnapshots.Json(batched.Ordering));
         Assert.Equal(scalar.Calls, batched.Calls);
-        Assert.Equal(inputFrame, JsonSerializer.Serialize(original));
-        Assert.Equal(inputOrdering, JsonSerializer.Serialize(source));
+        Assert.Equal(inputFrame, NativeBattleTestSnapshots.Json(original));
+        Assert.Equal(inputOrdering, NativeBattleTestSnapshots.Json(source));
         Assert.Null(batched.Ordering.Transaction);
         if (failingSlot >= 0)
         {
@@ -52,15 +52,17 @@ public sealed class NativeBattleCinematicDrawTests
 
         (NativeBattleWaterExecutionFrame? Frame, NativeBattleEffectMemory Memory, NativeBattleLogicalOrdering Ordering, string[] Calls) Run(bool batch)
         {
-            using NativeBattleLogicalOrderingTransaction? transaction = batch ? new(source) : null;
-            NativeBattleLogicalOrdering ordering = transaction?.View ?? source;
-            NativeBattleEffectMemory memory = new(original.Arena, 0, 0, [], 0, 0, 0, 0);
+            NativeBattleWaterExecutionFrame input = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(original));
+            NativeBattleLogicalOrdering inputOrdering = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(source));
+            using NativeBattleLogicalOrderingTransaction? transaction = batch ? new(inputOrdering) : null;
+            NativeBattleLogicalOrdering ordering = transaction?.View ?? inputOrdering;
+            NativeBattleEffectMemory memory = new(input.Arena, 0, 0, [], 0, 0, 0, 0);
             List<string> calls = [];
             int slot = 0;
             NativeBattleWaterExecutionFrame? drawn = null;
             try
             {
-                drawn = NativeBattleCinematicDraw.Run(NativeBattleCinematicProfile.ForEffect(effect), original, (current, light) =>
+                drawn = NativeBattleCinematicDraw.Run(NativeBattleCinematicProfile.ForEffect(effect), input, (current, light) =>
                 {
                     Assert.Equal(slot + 11, light);
                     calls.Add($"light{light}");

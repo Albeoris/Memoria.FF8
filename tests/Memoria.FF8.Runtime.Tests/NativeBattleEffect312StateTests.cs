@@ -32,7 +32,7 @@ public sealed class NativeBattleEffect312StateTests
     public void Marker_and_matrix_writes_preserve_unknown_payload_padding_and_anchor_W()
     {
         NativeBattleEffect312State state = NativeBattleEffect312State.FromUnknown().WriteDword(0x223CCE8, 0).WriteDword(0x223D648, 0).WriteWord(0x223E148, 4096).WriteWord(0x2240EC8, 123);
-        state = JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Equal(0u, state.ReadDword(0x223CCE8));
         Assert.Equal(0u, state.ReadDword(0x223D648));
@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect312StateTests
             state = state.AttachBank(Pools[index].Bank, bank);
             Assert.Throws<InvalidDataException>(() => state.AttachBank(index, bank));
         }
-        state = JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         for (int index = 0; index < Pools.Length; index++)
         {
@@ -71,7 +71,7 @@ public sealed class NativeBattleEffect312StateTests
         NativeBattleEffect312Resources resources = new(null!, null!, ImmutableDictionary<uint, NativeBattleStaticMeshResource>.Empty, ImmutableDictionary<uint, NativeBattleModuleResource>.Empty, ImmutableDictionary<uint, ImmutableArray<byte>>.Empty.Add(CapturePacketAddress, new byte[CapturePacketLength].ToImmutableArray()));
         NativeBattleEffect312State state = NativeBattleEffect312State.FromColdProcess().BindCapturePacket(resources);
         state = state.WriteCapturePacket(state.ReadCapturePacket().Write(0, BitConverter.GetBytes(0x05123456u)));
-        state = JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(state))!;
+        state = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect312State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         state.Validate();
         Assert.Same(state, state.BindCapturePacket(null!));
         Assert.Equal(BitConverter.GetBytes(0x05123456u), state.ReadCapturePacket().Read(0, 4));

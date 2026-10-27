@@ -57,7 +57,7 @@ public sealed class NativeBattleElectrocute275ActMeshTests
         NativeBattleElectrocute275ActMeshStep rowScaled = Draw(node with { Data = bytes.ToImmutableArray() }, Context(0));
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), 0);
         NativeBattleElectrocute275ActMeshStep ordinary = Draw(node with { Data = bytes.ToImmutableArray() }, Context(0));
-        Assert.Equal(JsonSerializer.Serialize(ordinary), JsonSerializer.Serialize(rowScaled));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordinary)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(rowScaled)));
     }
 
     [Fact]
@@ -113,9 +113,9 @@ public sealed class NativeBattleElectrocute275ActMeshTests
         NativeBattleElectrocute275Frame result = NativeBattleElectrocute275Drawing.EmitNode(frame, Source(4), Context(0), Node(0), camera, new(null, 100, 160, 108), Constants, Deliver);
         Assert.Equal(1, calls);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        NativeBattleElectrocute275Frame restored = JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleElectrocute275Frame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleElectrocute275Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)))!);
         NativeBattleElectrocute275Frame Next(NativeBattleElectrocute275Frame current) => NativeBattleElectrocute275Drawing.EmitNode(current, Source(4), Context(0), Node(0), camera, new(null, 100, 160, 108), Constants, (next, _) => next);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(result))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Next(restored))));
     }
 
     [Fact]

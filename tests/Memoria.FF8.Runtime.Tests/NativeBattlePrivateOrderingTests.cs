@@ -26,9 +26,9 @@ public sealed class NativeBattlePrivateOrderingTests
         Assert.Equal(new uint[] { 0xE6000001, 0xE6000000 }, commands.Select(command => Assert.Single(command.Words)));
         Assert.All(commands, command => Assert.Equal(1, command.OrderingBucket));
         Assert.Empty(written.Ordering.Traverse(Lengths(), (reference, count) => written.Memory.Arena.Read(reference.ByteOffset, count)));
-        NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(written.Memory))!;
-        NativeBattleLogicalOrdering restoredOrdering = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(written.Ordering))!;
-        Assert.Equal(JsonSerializer.Serialize(commands), JsonSerializer.Serialize(Traverse(restoredMemory, restoredOrdering)));
+        NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(written.Memory))!;
+        NativeBattleLogicalOrdering restoredOrdering = NativeBattleTestSnapshots.RestoreJson<NativeBattleLogicalOrdering>(NativeBattleTestSnapshots.Json(written.Ordering))!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(commands), NativeBattleTestSnapshots.Json(Traverse(restoredMemory, restoredOrdering)));
     }
 
     [Fact]

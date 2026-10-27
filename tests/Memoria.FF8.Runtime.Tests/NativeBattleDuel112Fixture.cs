@@ -30,7 +30,7 @@ internal sealed class NativeBattleDuel112Fixture
         {
             task = task.WriteWord(140 + word * 2, (ushort)(word % 4 == 0 ? 4096 : 0));
         }
-        target = target with { Slots = target.Slots.SetItem(0, task) };
+        target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
         NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
         NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target, NativeBattleEffectTaskPool.Initialize(0x2521940, 0x20E0F40, 28, 32), NativeBattleEffectTaskPool.Initialize(0x2521930, 0x20E0D00, 36, 16), NativeBattleEffectTaskPool.Initialize(0x2521920, 0x20E0A00, 48, 16)], DrawArenaOffset = 0x1E88 };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };

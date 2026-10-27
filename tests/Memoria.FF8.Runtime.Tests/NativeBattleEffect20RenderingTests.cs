@@ -55,8 +55,8 @@ public sealed class NativeBattleEffect20RenderingTests
         Assert.Equal(new byte[] { 17, 17, 17, 0xA5 }, prepared.Temporary8C.Read(0x88, 4));
         Assert.Equal(0xA5A5A5A5u, Dword(prepared.Temporary8C, 0x60));
         Assert.False(prepared.Temporary8C.ReadSnapshot(0x70, 4).Known[1]);
-        NativeBattleEffect20BodyPreparation restored = JsonSerializer.Deserialize<NativeBattleEffect20BodyPreparation>(JsonSerializer.Serialize(prepared))!;
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect20BodyRendering.Prepare(prepared.Memory, task, prepared.Temporary8C, inputs)), JsonSerializer.Serialize(NativeBattleEffect20BodyRendering.Prepare(restored.Memory, task, restored.Temporary8C, inputs)));
+        NativeBattleEffect20BodyPreparation restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect20BodyPreparation>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(prepared)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect20BodyRendering.Prepare(prepared.Memory, task, prepared.Temporary8C, inputs))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect20BodyRendering.Prepare(restored.Memory, task, restored.Temporary8C, inputs))));
 
         NativeBattleEffectMemory Observe(NativeBattleEffectMemory current, NativeBattleDrawStock15Rotate rotation)
         {

@@ -163,11 +163,11 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattleActorDirectorFrame frame = fixture.Frame with { Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
         frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
         Assert.Equal((byte)6, frame.Effect.Pools[0].Slots[0].ReadByte(0x29));
-        NativeBattleActorDirectorFrame restored = JsonSerializer.Deserialize<NativeBattleActorDirectorFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleActorDirectorFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleActorDirectorFrame>(NativeBattleTestSnapshots.Json(frame))!;
         NativeBattleActorDirectorFrame expected = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
         NativeBattleActorDirectorFrame actual = NativeBattleActorDirectorController.Advance(restored, fixture.Resources, fixture.Inputs);
         Assert.Equal((byte)7, actual.Effect.Pools[0].Slots[0].ReadByte(0x29));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
         Assert.Throws<InvalidDataException>(() => NativeBattleActorDirectorController.Advance(frame, Resources(16), fixture.Inputs));
     }
 
@@ -179,11 +179,11 @@ public sealed class NativeBattleActorDirectorTests
         NativeBattlePackedMatrix32 packed = NativeBattlePackedMatrix32.FromMatrix(actual, 0xA55A);
         NativeBattleActorDirectorFrame frame = NativeBattleActorDirectorController.Advance(fixture.Frame, fixture.Resources, fixture.Inputs with { PackedCamera = packed });
         Assert.Same(packed, frame.Memory.SharedEffectView2793E58);
-        Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(frame.State.Generic.CopiedCamera));
+        Assert.Equal(NativeBattleTestSnapshots.Json(actual), NativeBattleTestSnapshots.Json(frame.State.Generic.CopiedCamera));
         frame = NativeBattleActorDirectorController.Advance(frame, fixture.Resources, fixture.Inputs);
         Assert.False(frame.Memory.SharedEffectView2793E58!.Known[18]);
         Assert.False(frame.Memory.SharedEffectView2793E58.Known[19]);
-        Assert.Equal(JsonSerializer.Serialize(fixture.Inputs.Camera), JsonSerializer.Serialize(frame.State.Generic.CopiedCamera));
+        Assert.Equal(NativeBattleTestSnapshots.Json(fixture.Inputs.Camera), NativeBattleTestSnapshots.Json(frame.State.Generic.CopiedCamera));
     }
 
     [Theory]

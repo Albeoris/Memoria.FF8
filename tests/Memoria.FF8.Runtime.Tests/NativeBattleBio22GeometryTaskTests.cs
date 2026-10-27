@@ -81,8 +81,8 @@ public sealed class NativeBattleBio22GeometryTaskTests
         int draws = 0;
         for (int tick = 0; tick < 100; tick++)
         {
-            NativeBattleModulePoolTask restoredTask = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(task))!;
-            NativeBattleEffectMemory restoredMemory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+            NativeBattleModulePoolTask restoredTask = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(task))!;
+            NativeBattleEffectMemory restoredMemory = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(memory))!;
             NativeBattleBio22GeometryTaskStep expected = Run(restoredTask, fixture.Parent, restoredMemory, fixture.Resources);
             NativeBattleBio22GeometryTaskStep step = NativeBattleBio22GeometryTask.Advance89AAE0(task, fixture.Parent, memory, fixture.Resources, (current, currentTask, mesh, deformed) =>
             {
@@ -93,7 +93,7 @@ public sealed class NativeBattleBio22GeometryTaskTests
                 Assert.Same(mesh, deformed ? current.Bio22SecondaryGeometry : current.Bio22Geometry);
                 return current;
             });
-            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(step));
+            Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(step));
             task = step.Task;
             memory = step.Memory;
             if (step.CompleteRequested)

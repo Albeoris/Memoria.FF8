@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -73,7 +73,7 @@ public sealed class NativeBattleDoubleSpriteMotionTests
     {
         NativeBattleModulePoolTask task = Task(0x8D6200, 1).WriteDword(0x14, 0x1234);
         int reads = 0;
-        NativeBattleDoubleSpriteMotionStep step = NativeBattleDoubleSpriteMotion.Advance(task, new(3), pointer =>
+        NativeBattleDoubleSpriteMotionStep step = NativeBattleDoubleSpriteMotion.Advance(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task)), new(3), pointer =>
         {
             Assert.Equal(0x1234u, pointer);
             reads++;
@@ -105,10 +105,10 @@ public sealed class NativeBattleDoubleSpriteMotionTests
     public void Current_task_JSON_retains_next_motion_and_rejects_unsupported_signed_phase()
     {
         NativeBattleModulePoolTask original = Task(0x8D6200, 2).WriteWord(0x64, 4).WriteByte(0x48, 36);
-        NativeBattleModulePoolTask restored = JsonSerializer.Deserialize<NativeBattleModulePoolTask>(JsonSerializer.Serialize(original))!;
+        NativeBattleModulePoolTask restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModulePoolTask>(NativeBattleTestSnapshots.Json(original))!;
         NativeBattleDoubleSpriteMotionStep first = NativeBattleDoubleSpriteMotion.Advance(original, new(20));
         NativeBattleDoubleSpriteMotionStep second = NativeBattleDoubleSpriteMotion.Advance(restored, new(20));
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         Assert.Throws<InvalidDataException>(() => NativeBattleDoubleSpriteMotion.Advance(original.WriteByte(0x29, 255), new(20)));
     }
 

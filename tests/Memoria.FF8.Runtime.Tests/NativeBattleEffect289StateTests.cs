@@ -49,7 +49,7 @@ public sealed class NativeBattleEffect289StateTests
     {
         NativeBattleEffect289Resources resources = Resources();
         NativeBattleEffect289State state = NativeBattleEffect289State.FromColdProcess().WriteMeshW(MeshAddresses[0], 0, 3456).WriteMeshW(MeshAddresses[1], 163, 4080) with { RootBankStorage = null };
-        NativeBattleEffect289State restored = JsonSerializer.Deserialize<NativeBattleEffect289State>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffect289State restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect289State>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         restored.Validate();
         Assert.Null(restored.RootBankStorage);
         Assert.True(restored.ColdSourceMeshW);
@@ -57,7 +57,7 @@ public sealed class NativeBattleEffect289StateTests
         Assert.Equal((ushort)4080, Word(restored.ReadStatic(resources, MeshAddresses[1] + 14 + 163 * 8, 2), 0));
         Assert.Equal((ushort)119, BinaryPrimitives.ReadUInt16LittleEndian(resources.ReadMesh(MeshAddresses[0]).Bytes.AsSpan().Slice(14, 2)));
         Assert.Equal((ushort)0, Word(restored.ReadStatic(resources, MeshAddresses[0] + 22, 2), 0));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored)));
     }
 
     [Fact]

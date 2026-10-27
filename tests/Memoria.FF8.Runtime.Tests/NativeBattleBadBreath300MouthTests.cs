@@ -43,7 +43,7 @@ public sealed class NativeBattleBadBreath300MouthTests
         NativeBattleBadBreath300MouthStep expected = NativeBattleBadBreath300Mouth.Prepare(Memory(), model, source, Anchor(1, 2, 3, 1));
         NativeBattleBadBreath300MouthStep actual = NativeBattleBadBreath300Mouth.Prepare(Memory(), stale, source, Anchor(1, 2, 3, 1));
         Assert.Equal(expected.Position, actual.Position);
-        Assert.Equal(JsonSerializer.Serialize(expected.Model.CurrentBodyBoneMatrices), JsonSerializer.Serialize(actual.Model.CurrentBodyBoneMatrices));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected.Model.CurrentBodyBoneMatrices), NativeBattleTestSnapshots.Json(actual.Model.CurrentBodyBoneMatrices));
         Assert.Throws<NotSupportedException>(() => NativeBattleBadBreath300Mouth.Prepare(Memory(), stale with { SequenceState = null }, source, Anchor(1, 2, 3, 1)));
         Assert.Throws<InvalidDataException>(() => NativeBattleBadBreath300Mouth.Prepare(Memory(), model, source, Anchor(1, 2, 3, -1)));
         Assert.Throws<InvalidDataException>(() => NativeBattleBadBreath300Mouth.Prepare(Memory(), model, source, Anchor(1, 2, 3, 2)));
@@ -59,11 +59,11 @@ public sealed class NativeBattleBadBreath300MouthTests
         Assert.Throws<NotSupportedException>(() => NativeBattleBadBreath300Mouth.TransformComposed(memory with { ScriptedColorRegisters = null }, matrix, anchor));
         Assert.Throws<InvalidDataException>(() => NativeBattleBadBreath300Mouth.TransformComposed(memory, matrix, [1, 2, 3]));
         NativeBattleEffectMemory current = NativeBattleBadBreath300Mouth.TransformComposed(memory, matrix, anchor).Memory;
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(current))!;
+        NativeBattleEffectMemory restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(current))!;
         var next = NativeBattleBadBreath300Mouth.TransformComposed(current, matrix, anchor);
         var restoredNext = NativeBattleBadBreath300Mouth.TransformComposed(restored, matrix, anchor);
         Assert.Equal(next.Position, restoredNext.Position);
-        Assert.Equal(JsonSerializer.Serialize(next.Memory), JsonSerializer.Serialize(restoredNext.Memory));
+        Assert.Equal(NativeBattleTestSnapshots.Json(next.Memory), NativeBattleTestSnapshots.Json(restoredNext.Memory));
     }
 
     private static NativeBattleEffectMemory Memory() => NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };

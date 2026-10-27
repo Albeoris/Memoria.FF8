@@ -107,7 +107,7 @@ public sealed class NativeBattleEffect213ControllerTests
         NativeBattleEffect213Frame frame = InitializeTargets(Frame(0), Main, harness.Inputs());
         NativeBattleModulePoolTask task = Read(frame, Main).WriteWord(0x24, 4000).WriteWord(0x26, 200);
         frame = Write(frame, Main, task);
-        frame = JsonSerializer.Deserialize<NativeBattleEffect213Frame>(JsonSerializer.Serialize(frame))!;
+        frame = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffect213Frame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
         (frame, NativeBattleVector point) = InterpolateTarget(frame, Main, 5, harness.Inputs());
         Assert.Equal((short)(100 + ((0 - 100) * 4000 >> 12)), point.X);
         Assert.Equal(new NativeBattleEffect213Contact506690(1), Assert.Single(harness.Operations));
@@ -188,7 +188,7 @@ public sealed class NativeBattleEffect213ControllerTests
     {
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(RootDescriptor, RootBank, 20, 1);
         (root, _) = root.Append(RootCallback);
-        root = root with { Slots = root.Slots.SetItem(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, children ? (byte)1 : (byte)0)) };
+        root = root.WriteSlot(0, root.Slots[0].WriteBytes(12, new byte[8]).WriteWord(12, (ushort)age).WriteByte(15, children ? (byte)1 : (byte)0));
         ImmutableArray<NativeBattleEffectTaskPool> pools = [root];
         if (children)
         {
@@ -198,7 +198,7 @@ public sealed class NativeBattleEffect213ControllerTests
                 if (shape.Descriptor == MainDescriptor && main)
                 {
                     (pool, _) = pool.Append(MainCallback);
-                    pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12])) };
+                    pool = pool.WriteSlot(0, pool.Slots[0].WriteBytes(12, new byte[shape.Stride - 12]));
                 }
                 pools = pools.Add(pool);
             }
@@ -220,7 +220,7 @@ public sealed class NativeBattleEffect213ControllerTests
         public NativeBattleEffect213Inputs Inputs() => new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => Flags, _ => Packets(), (_, model) => NativeBattleEffectArena.Clear().Write(0x1C, BitConverter.GetBytes((short)(((model - 0x1D972C0) / 156) * 100))), _ => NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null), _ => new(null, 512, 160, 108), _ => 0, (frame, model, selector, fraction, retained) =>
         {
             Points.Add((model, selector, fraction));
-            return new(frame, PutPoint(retained, 0, new(unchecked((short)(((model - 0x1D972C0) / 156) * 100)), 0, 0)));
+            return new(frame, PutPoint(NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(retained)), 0, new(unchecked((short)(((model - 0x1D972C0) / 156) * 100)), 0, 0)));
         }, (frame, model) =>
         {
             Counts.Add(model);

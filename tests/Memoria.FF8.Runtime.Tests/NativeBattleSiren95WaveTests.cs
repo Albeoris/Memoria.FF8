@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -43,12 +43,13 @@ public sealed class NativeBattleSiren95WaveTests
             draws++;
             return current;
         }
+        string replay = NativeBattleTestSnapshots.Json(frame);
         var step = NativeBattleSiren95Waves.Advance(frame, fixture.Address, new(fixture.Packets, Draw));
         Assert.Equal(random, step.Frame.Random);
         Assert.Equal(1, draws);
-        NativeBattleSiren95Frame restored = JsonSerializer.Deserialize<NativeBattleSiren95Frame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(step), JsonSerializer.Serialize(NativeBattleSiren95Waves.Advance(restored, fixture.Address, new(fixture.Packets, Draw))));
-        var direct = Read(frame, fixture.Address).WriteWord(0x1C, 123).WriteWord(0x1E, unchecked((ushort)-456)).WriteWord(0x20, 789).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
+        NativeBattleSiren95Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSiren95Frame>(replay)!;
+        Assert.Equal(NativeBattleTestSnapshots.Json(step), NativeBattleTestSnapshots.Json(NativeBattleSiren95Waves.Advance(restored, fixture.Address, new(fixture.Packets, Draw))));
+        var direct = Read(frame, fixture.Address).WriteWord(0x44, 0).WriteWord(0x46, 0).WriteWord(0x48, 0).WriteWord(0x1C, 123).WriteWord(0x1E, unchecked((ushort)-456)).WriteWord(0x20, 789).WriteDword(0x30, 4096).WriteDword(0x34, 4096).WriteDword(0x38, 4096);
         NativeBattleActionMatrix matrix = NativeBattleSiren95Waves.Matrix745380(direct);
         Assert.Equal(NativeBattleCuragaMatrices.Identity8DD770().Rotation.ToArray(), matrix.Rotation.ToArray());
         Assert.Equal((123, -456, 789), (matrix.X, matrix.Y, matrix.Z));

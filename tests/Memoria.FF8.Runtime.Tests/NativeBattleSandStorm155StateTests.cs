@@ -31,7 +31,7 @@ public sealed class NativeBattleSandStorm155StateTests
         Assert.Equal(0x0C000000u, state.ReadDword(SecondPacketAddress));
         Assert.Equal(SecondPacketAddress + 52, state.ReadDword(CursorGlobal));
         Assert.Equal(0x09000000u, BitConverter.ToUInt32(state.Packets.Read(0, 4)));
-        Assert.All(state.Globals.Regions, region => Assert.True(region.Offset + region.Data.Length <= PacketBase - BaseAddress || region.Offset >= CursorGlobal - BaseAddress));
+        Assert.All(NativeBattleStorageSnapshots.Capture(state.Globals).Regions, region => Assert.True(region.Offset + region.Data.Length <= PacketBase - BaseAddress || region.Offset >= CursorGlobal - BaseAddress));
     }
 
     [Fact]
@@ -39,18 +39,18 @@ public sealed class NativeBattleSandStorm155StateTests
     {
         NativeBattleEffectArena vertex = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, new byte[] { 1, 0, 2, 0, 3, 0 });
         NativeBattleSandStorm155State state = NativeBattleSandStorm155State.FromUnknown().WriteView(SelectedVerticesAddress, vertex, 8);
-        NativeBattleSandStorm155State restored = JsonSerializer.Deserialize<NativeBattleSandStorm155State>(JsonSerializer.Serialize(state))!;
+        NativeBattleSandStorm155State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSandStorm155State>(NativeBattleTestSnapshots.Json(state))!;
         restored.Validate();
         Assert.Equal(new byte[] { 1, 0, 2, 0, 3, 0 }, restored.Read(SelectedVerticesAddress, 6));
         Assert.Throws<NotSupportedException>(() => restored.ReadWord(SelectedVerticesAddress + 6));
-        Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        Assert.Equal(NativeBattleTestSnapshots.Json(state), NativeBattleTestSnapshots.Json(restored));
     }
 
     [Fact]
     public void Unowned_task_banks_preserve_payload_knownness_and_can_be_consumed_without_a_mirror()
     {
         NativeBattleSandStorm155State stored = NativeBattleSandStorm155State.FromUnknown() with { RootBankStorage = NativeBattleEffectArena.Clear().MarkUnknown(0, RootBankLength).Write(14, BitConverter.GetBytes((ushort)1234)) };
-        NativeBattleSandStorm155State restored = JsonSerializer.Deserialize<NativeBattleSandStorm155State>(JsonSerializer.Serialize(stored))!;
+        NativeBattleSandStorm155State restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleSandStorm155State>(NativeBattleTestSnapshots.Json(stored))!;
         restored.Validate();
         Assert.Equal((ushort)1234, BitConverter.ToUInt16(restored.RootBankStorage!.Read(14, 2)));
         Assert.Throws<NotSupportedException>(() => restored.RootBankStorage.Read(2, 2));

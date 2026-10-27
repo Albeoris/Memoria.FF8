@@ -37,9 +37,9 @@ public sealed class NativeBattleTonberry90ActorTests
     {
         var fixture = Fixture(3, 0x767B40, 0x520);
         NativeBattleModulePoolTask task = Read(fixture.Frame, fixture.Address).WriteDword(0x74, 0x1000).WriteDword(0x78, 20);
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleStorageSnapshots.Capture(task).Payload.ToArray();
         payload.AsSpan(0x94 - 12).Fill(0xA5);
-        NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, task with { Payload = payload.ToImmutableArray() });
+        NativeBattleTonberry90Frame frame = Write(fixture.Frame, fixture.Address, NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = payload.ToImmutableArray() }));
         frame = frame with { Memory = frame.Memory with { Tonberry90 = frame.Memory.Tonberry90!.WriteDword(0x25A4C10, 0x0201FFFE).WriteDword(0x25A4C14, 0xA5A5FFFD).Write(0x25A2B78, BitConverter.GetBytes((ushort)0xFF00)) } };
         byte[] source = new byte[32];
         BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(4), 16);
@@ -131,9 +131,9 @@ public sealed class NativeBattleTonberry90ActorTests
         var fixture = Fixture(3, 0x763EB0, 0x520);
         NativeBattleTonberry90Frame frame = fixture.Frame;
         NativeBattleModulePoolTask task = Read(frame, fixture.Address).WriteWord(0x24, 5).WriteDword(0x74, 0x1000).WriteDword(0x78, 0x10);
-        byte[] payload = task.Payload.ToArray();
+        byte[] payload = NativeBattleStorageSnapshots.Capture(task).Payload.ToArray();
         payload.AsSpan(0x94 - 12).Fill(0xAA);
-        frame = Write(frame, fixture.Address, task with { Payload = payload.ToImmutableArray() });
+        frame = Write(frame, fixture.Address, NativeBattleTaskFixture.EditTask(task, taskData => taskData with { Payload = payload.ToImmutableArray() }));
         NativeBattleTonberry90State shared = frame.Memory.Tonberry90!;
         uint director = shared.DirectorAddress1547168!.Value;
         shared = shared.Write(director, BitConverter.GetBytes(100u)).Write(director + 4, BitConverter.GetBytes(200u)).Write(director + 0x46, BitConverter.GetBytes((ushort)30));

@@ -69,13 +69,13 @@ public sealed class NativeBattleDuel112ProgramsTests
             NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x2521960, 0x25218F8, 28, 1);
             NativeBattleEffectTaskPool target = NativeBattleEffectTaskPool.Initialize(0x2521950, 0x20DFAB8, 0xF48, 1);
             (target, _) = target.Append(0x6CBF90);
-            NativeBattleModulePoolTask task = target.Slots[0] with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() };
+            NativeBattleModulePoolTask task = NativeBattleTaskFixture.EditTask(target.Slots[0], taskData => taskData with { Payload = Enumerable.Repeat((byte)0xCC, 0xF48 - 12).ToImmutableArray() });
             task = task.WriteWord(12, unchecked((ushort)phase)).WriteDword(176, 0x1D972C0 + 156 * 3);
             for (int word = 0; word < 9; word++)
             {
                 task = task.WriteWord(108 + word * 2, (ushort)(word % 4 == 0 ? 4096 : 0));
             }
-            target = target with { Slots = target.Slots.SetItem(0, task) };
+            target = NativeBattleTaskFixture.EditPool(target, data => data with { Slots = target.Slots.SetItem(0, task) });
             NativeBattleEffectParameters parameters = new(0, 0, 8, 0, 0, 0);
             NativeBattleOriginalEffectState effect = new(112, 111, new(112, 0x6CBBE0, 0x6CBBF0), parameters, 0x2521960) { Pools = [root, target], DrawArenaOffset = 0x1E88 };
             NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear(), Duel112 = new(true, parameters, resources) };

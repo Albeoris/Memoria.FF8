@@ -83,7 +83,7 @@ public sealed class NativeBattleEffect167LowerTests
     {
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x23BE130, 0x23BE140, 36, 100);
         (pool, _) = pool.Append(0x5E3C20);
-        pool = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 40).WriteWord(0x1C, 10).WriteWord(0x1E, 2)) };
+        pool = pool.WriteSlot(0, pool.Slots[0].WriteWord(12, 40).WriteWord(0x1C, 10).WriteWord(0x1E, 2));
         NativeBattleEffect167Frame frame = new(NativeBattleEffect167BodyDrawingTests.Memory(), new(167, 166, new(167, 0x5E2A10, 0x5E29F0), null, null) { Pools = [pool] }, new(77), NativeBattleEffect167State.FromColdProcess());
         NativeBattleEffect167Inputs inputs = new(NativeBattleGteColorInterpolation.CodeConstants45F270, _ => flags, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, (_, _) => throw new InvalidOperationException("Terminal callback must not draw."));
         NativeBattleEffect167Step step = NativeBattleEffect167Lower.AdvanceBody(frame, 0x23BE140, inputs);

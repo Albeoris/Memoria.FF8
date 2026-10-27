@@ -42,7 +42,7 @@ public sealed class NativeBattleAcid317ActMeshTests
         byte[] bytes = node.Data.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), 0xC6300);
         NativeBattleAcid317ActMeshStep actual = Draw(node with { Data = bytes.ToImmutableArray() }, Context(0));
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
+        Assert.Equal(NativeBattleTestSnapshots.Json(expected), NativeBattleTestSnapshots.Json(actual));
     }
 
     [Fact]
@@ -98,9 +98,9 @@ public sealed class NativeBattleAcid317ActMeshTests
         NativeBattleAcid317Frame result = NativeBattleAcid317Drawing.EmitNode(frame, Source(4), Context(0), Node(0), camera, camera, new(null, 100, 160, 108), Constants, Deliver);
         Assert.Equal(1, calls);
         Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(result.Staging!.Read(NativeBattleTemporaryMemory.Cursor, 4)));
-        NativeBattleAcid317Frame restored = JsonSerializer.Deserialize<NativeBattleAcid317Frame>(JsonSerializer.Serialize(result))!;
+        NativeBattleAcid317Frame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleAcid317Frame>(NativeBattleTestSnapshots.Json(result))!;
         NativeBattleAcid317Frame Next(NativeBattleAcid317Frame current) => NativeBattleAcid317Drawing.EmitNode(current, Source(4), Context(0), Node(0), camera, camera, new(null, 100, 160, 108), Constants, (next, _) => next);
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(NativeBattleTestSnapshots.Json(Next(result)), NativeBattleTestSnapshots.Json(Next(restored)));
     }
 
     private static NativeBattleAcid317ActMeshStep Draw(NativeBattleGfAnimationNode node, NativeBattleEffectArena context, NativeBattleActionMatrix? camera = null, NativeBattleEffectArena? arena = null, int count = 4)

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -147,14 +147,14 @@ public sealed class NativeBattleTonberry90ControllerTests
         var fixture = Fixture();
         NativeBattleTonberry90Inputs inputs = fixture.Inputs with { InitializeTarget = (current, _) => current, AdvanceLeaf = (current, _) => new(current, false) };
         NativeBattleTonberry90Frame frame = NativeBattleTonberry90Controller.Advance7624D0(WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 3)), inputs);
-        string saved = JsonSerializer.Serialize(frame);
-        NativeBattleTonberry90Frame first = JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(saved)!;
-        NativeBattleTonberry90Frame second = JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(saved)!;
+        string saved = NativeBattleTestSnapshots.Json(frame);
+        NativeBattleTonberry90Frame first = NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(saved)!;
+        NativeBattleTonberry90Frame second = NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(saved)!;
         for (int tick = 0; tick < 3; tick++)
         {
             first = NativeBattleTonberry90Controller.Advance7624D0(first, inputs);
             second = NativeBattleTonberry90Controller.Advance7624D0(second, inputs);
-            Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+            Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         }
         Assert.Throws<NotSupportedException>(() => NativeBattleTonberry90Controller.Advance7624D0(WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 255)), fixture.Inputs));
     }
@@ -167,8 +167,8 @@ public sealed class NativeBattleTonberry90ControllerTests
         NativeBattleGraphicsModel target = NativeBattleBodyBoneMatrices.PublishLoadedSkeleton(new(3, 0) { SequenceState = new() }, source);
         NativeBattleBodyBoneMatrices publication = target.CurrentBodyBoneMatrices!;
         target = target with { CurrentBodyBoneMatrices = publication with { Matrices = publication.Matrices.SetItem(0, publication.Matrices[0] with { X = 123, Y = -456, Z = 789 }) } };
-        string savedModel = JsonSerializer.Serialize(target);
-        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(savedModel)!;
+        string savedModel = NativeBattleTestSnapshots.Json(target);
+        NativeBattleGraphicsModel restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleGraphicsModel>(savedModel)!;
         NativeBattleTonberry90Inputs inputs = fixture.Inputs with
         {
             ReadModel = actor => actor == 3 ? target : fixture.Inputs.ReadModel(actor),
@@ -176,9 +176,10 @@ public sealed class NativeBattleTonberry90ControllerTests
             AdvanceLeaf = (current, _) => new(current, false)
         };
         NativeBattleTonberry90Frame before = WriteRoot(fixture.Frame, task => task.WriteByte(0x29, 3));
+        string savedFrame = NativeBattleTestSnapshots.Json(before);
         NativeBattleTonberry90Frame frame = NativeBattleTonberry90Controller.Advance7624D0(before, inputs);
-        NativeBattleTonberry90Frame independent = NativeBattleTonberry90Controller.Advance7624D0(JsonSerializer.Deserialize<NativeBattleTonberry90Frame>(JsonSerializer.Serialize(before))!, inputs with { ReadModel = actor => actor == 3 ? restored : fixture.Inputs.ReadModel(actor) });
-        Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(independent));
+        NativeBattleTonberry90Frame independent = NativeBattleTonberry90Controller.Advance7624D0(NativeBattleTestSnapshots.RestoreJson<NativeBattleTonberry90Frame>(savedFrame)!, inputs with { ReadModel = actor => actor == 3 ? restored : fixture.Inputs.ReadModel(actor) });
+        Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(independent));
         NativeBattleModulePoolTask task = frame.Effect.Pools[1].Slots[0];
         Assert.Equal((ushort)123, task.ReadWord(0x48));
         Assert.Equal(unchecked((ushort)-456), task.ReadWord(0x4A));
@@ -189,7 +190,7 @@ public sealed class NativeBattleTonberry90ControllerTests
         Assert.Equal((byte)1, task.ReadByte(0x29));
         Assert.Null(target.SequenceState!.Pose);
         Assert.Null(target.SequenceState.DecodedPose);
-        Assert.Equal(savedModel, JsonSerializer.Serialize(target));
+        Assert.Equal(savedModel, NativeBattleTestSnapshots.Json(target));
     }
 
     private static NativeBattleModulePoolTask RootTask(NativeBattleTonberry90Frame frame) => new NativeBattleEffectHierarchy(frame.Effect.Pools).Read(Root);

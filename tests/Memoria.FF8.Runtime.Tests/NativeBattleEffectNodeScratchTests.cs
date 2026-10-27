@@ -18,8 +18,8 @@ public sealed class NativeBattleEffectNodeScratchTests
         Assert.Throws<NotSupportedException>(() => scratch.ReadPrefix(32, 8));
         scratch = scratch.WritePrefix(18, new byte[] { 0xAB, 0xCD }).WriteSpriteMatrix(matrix);
         Assert.Equal(new byte[] { 0xAB, 0xCD }, scratch.ReadPrefix(18, 2));
-        NativeBattleEffectNodeScratch restored = JsonSerializer.Deserialize<NativeBattleEffectNodeScratch>(JsonSerializer.Serialize(scratch))!;
-        Assert.Equal(JsonSerializer.Serialize(scratch.WriteQuadMatrix(matrix)), JsonSerializer.Serialize(restored.WriteQuadMatrix(matrix)));
+        NativeBattleEffectNodeScratch restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectNodeScratch>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(scratch)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(scratch.WriteQuadMatrix(matrix))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.WriteQuadMatrix(matrix))));
         Assert.Equal(new byte[40], NativeBattleEffectNodeScratch.FromColdProcess().ReadPrefix(0, 40));
     }
 
@@ -36,8 +36,8 @@ public sealed class NativeBattleEffectNodeScratchTests
         NativeBattleEffectNodeScratch retained = new([1, 2, 3, 4, 5, 6, 0xAB, 0xCD], byte.MaxValue);
         retained = retained.WritePlacement(new(1, 2, 3)).WriteFlags(0x80004000);
         Assert.Equal(new byte[] { 3, 0, 0xAB, 0xCD }, retained.Bytes.Skip(4).ToArray());
-        NativeBattleEffectNodeScratch restored = JsonSerializer.Deserialize<NativeBattleEffectNodeScratch>(JsonSerializer.Serialize(retained))!;
-        Assert.Equal(JsonSerializer.Serialize(retained.WritePlacement(new(-1, -2, -3))), JsonSerializer.Serialize(restored.WritePlacement(new(-1, -2, -3))));
+        NativeBattleEffectNodeScratch restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectNodeScratch>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(retained)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(retained.WritePlacement(new(-1, -2, -3)))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(restored.WritePlacement(new(-1, -2, -3)))));
         Assert.Null((NativeBattleEffectMemory.FromColdProcess() with { NodeScratch2793E30 = null }).NodeScratch2793E30);
         Assert.Equal((byte)255, NativeBattleEffectMemory.FromColdProcess().NodeScratch2793E30!.KnownMask);
     }
@@ -126,8 +126,8 @@ public sealed class NativeBattleEffectNodeScratchTests
         frame = frame with { Memory = frame.Memory with { NodeScratch2793E30 = seed.WritePlacement(new(321, -654, 987)) } };
         NativeBattleEffectNodeMemoryWrite retained = Spawn(frame);
         Assert.Equal(frame.Memory.NodeScratch2793E30, retained.Memory.NodeScratch2793E30);
-        NativeBattleCuragaFrame restored = JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(frame))!;
-        Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(Spawn(restored)));
+        NativeBattleCuragaFrame restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCuragaFrame>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frame)))!);
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(retained)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Spawn(restored))));
         frame = NativeBattleCuragaEmitterTests.Source(frame, source => source[0x34] = 2);
         NativeBattleEffectNodeMemoryWrite placed = Spawn(frame);
         Assert.Equal(new NativeBattleVector(41, 0, 1024), placed.Memory.NodeScratch2793E30!.ReadEuler());

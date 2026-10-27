@@ -160,12 +160,12 @@ public sealed class NativeBattleScanControllerTests
         var fixture = Fixture();
         NativeBattleScanFrame frame = NativeBattleScanController.Advance84D110(fixture.Frame, fixture.Inputs, NoChild);
         frame = NativeBattleScanController.Advance84D110(frame, fixture.Inputs, (current, _) => new(current, 0));
-        NativeBattleScanFrame restored = JsonSerializer.Deserialize<NativeBattleScanFrame>(JsonSerializer.Serialize(frame))!;
+        NativeBattleScanFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleScanFrame>(NativeBattleTestSnapshots.Json(frame))!;
         for (int step = 0; step < 3; step++)
         {
             frame = NativeBattleScanController.Advance84D110(frame, fixture.Inputs, (current, _) => new(current, 0));
             restored = NativeBattleScanController.Advance84D110(restored, fixture.Inputs, (current, _) => new(current, 0));
-            Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(restored));
+            Assert.Equal(NativeBattleTestSnapshots.Json(frame), NativeBattleTestSnapshots.Json(restored));
             Assert.Equal(step % 2 == 0 ? 0x4000 : 0, frame.State.CurrentDrawOffset);
         }
         Assert.Equal((byte)1, Root(restored).ReadByte(0x63));

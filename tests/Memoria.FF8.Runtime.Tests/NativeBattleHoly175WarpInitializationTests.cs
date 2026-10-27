@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -11,7 +11,7 @@ public sealed class NativeBattleHoly175WarpInitializationTests
     [Fact]
     public void GridInitializesConsumedFieldsAndPointersWhileLeavingProjectedAndScreenWordsUnknown()
     {
-        NativeBattleHoly175WarpInitializationResult initialized = InitializedGrid.Value;
+        NativeBattleHoly175WarpInitializationResult initialized = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(InitializedGrid.Value));
         NativeBattleHoly175WarpState state = initialized.State;
         NativeCrtRandomState expected = new(1);
         for (int draw = 0; draw < 1118; draw++)
@@ -50,12 +50,12 @@ public sealed class NativeBattleHoly175WarpInitializationTests
     [Fact]
     public void FaceInitializationUsesRetainedPointersTruncatedCentersAndExactFourDrawOrder()
     {
-        NativeBattleHoly175WarpInitializationResult grid = InitializedGrid.Value;
-        string json = JsonSerializer.Serialize(grid.State);
-        NativeBattleHoly175WarpState restored = JsonSerializer.Deserialize<NativeBattleHoly175WarpState>(json)!;
+        NativeBattleHoly175WarpInitializationResult grid = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(InitializedGrid.Value));
+        string json = NativeBattleTestSnapshots.Json(grid.State);
+        NativeBattleHoly175WarpState restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleHoly175WarpState>(json)!;
         NativeBattleHoly175WarpInitializationResult first = NativeBattleHoly175WarpInitialization.InitializeFaces5D25D0(grid.State, grid.Random);
         NativeBattleHoly175WarpInitializationResult second = NativeBattleHoly175WarpInitialization.InitializeFaces5D25D0(restored, grid.Random);
-        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.Equal(NativeBattleTestSnapshots.Json(first), NativeBattleTestSnapshots.Json(second));
         byte[] face = first.State.Faces.Read(0, 36);
         int sumX = 0;
         int sumY = 0;
@@ -101,8 +101,8 @@ public sealed class NativeBattleHoly175WarpInitializationTests
         Assert.Equal(marker, faces.State.PhysicalPackets.Read(40, 4));
         Assert.Throws<NotSupportedException>(() => faces.State.PhysicalPackets.Read(16, 4));
         Assert.Throws<InvalidDataException>(() => faces.State.ReadPoint(NativeBattleHoly175WarpState.GridAAddress + 1, 4, 4));
-        Assert.Throws<InvalidDataException>(() => (faces.State with { GridA = faces.State.GridA.Write(NativeBattleHoly175WarpState.GridALength, marker) }).Validate());
-        Assert.Throws<NotSupportedException>(() => NativeBattleHoly175WarpInitialization.InitializeFaces5D25D0(unknown, new(1)));
+        Assert.Throws<InvalidDataException>(() => (faces.State with { GridA = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(faces.State.GridA)).Write(NativeBattleHoly175WarpState.GridALength, marker) }).Validate());
+        Assert.Throws<NotSupportedException>(() => NativeBattleHoly175WarpInitialization.InitializeFaces5D25D0(NativeBattleHoly175WarpState.Unknown(), new(1)));
     }
 
     private static short S(byte[] bytes) => BinaryPrimitives.ReadInt16LittleEndian(bytes);

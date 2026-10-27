@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect69StageReloadTests
     public void Missing_imported_source_or_seed_remains_unsupported_after_snapshot()
     {
         NativeBattleStageState stage = NativeBattleStageState.FromColdProcess() with { SourceAddress1D9A820 = null, ReloadColorSeed1D9A824 = null };
-        NativeBattleStageState restored = JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(stage))!;
+        NativeBattleStageState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleStageState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(stage)))!);
         Assert.Null(restored.SourceAddress1D9A820);
         Assert.Null(restored.ReloadColorSeed1D9A824);
         Assert.Throws<NotSupportedException>(() => restored.Reload512AC0(0, Source()));
