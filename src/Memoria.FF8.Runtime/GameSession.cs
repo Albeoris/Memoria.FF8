@@ -748,6 +748,11 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved gameplay preferences cannot be null.");
         }
         state.GameplayPreferences.Validate();
+        state.ConfiguredGameplayTuning?.Validate();
+        if (state.Battle is { } tunedBattle && tunedBattle.Definition.Tuning != state.GameplayPreferences.Tuning)
+        {
+            throw new InvalidDataException("Saved battle gameplay rules differ from its captured playthrough rules.");
+        }
         if (state.Battle is { Definition: { } drawDefinition } && drawDefinition.DrawOncePerSpell != state.GameplayPreferences.DrawOncePerSpell)
         {
             throw new InvalidDataException("Saved battle Draw once per spell option differs from its save preference.");
@@ -782,7 +787,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved pending GF Transformations preference cannot change during a battle.");
         }
         state.CharacterVitals?.ValidateMagicSystemConsistency();
-        if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.SmartAttack != state.GameplayPreferences.SmartAttack))
+        if (state.CharacterVitals is { } magicVitals && (magicVitals.MagicSystem.SharedMagicStock != state.GameplayPreferences.SharedMagicStock || magicVitals.MagicSystem.InfiniteMagic != state.GameplayPreferences.InfiniteMagic || magicVitals.MagicSystem.SmartAttack != state.GameplayPreferences.SmartAttack || magicVitals.MagicSystem.UnlimitedMagic != state.GameplayPreferences.Tuning.UnlimitedMagic))
         {
             throw new InvalidDataException("Saved gameplay rules disagree with their magic-system owner.");
         }

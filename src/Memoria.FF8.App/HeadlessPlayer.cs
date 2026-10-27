@@ -114,7 +114,7 @@ internal static class HeadlessPlayer
         Directory.CreateDirectory(outputDirectory);
         var session = new GameSession(options.InitialState);
         using var resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage);
-        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods, modelOverrides: resourceHost);
+        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources, resolveGameFile: resourceHost.ResolveGameFile, readSceneMods: () => resourceHost.SceneMods, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost.GameplayPolicy);
         world.EnsureField();
         world.SetRenderSize(options.Width, options.Height);
         List<PlayerActionResult> results = [];
@@ -126,6 +126,7 @@ internal static class HeadlessPlayer
         for (int index = 0; index < (worldTarget is null && fieldPath is null ? actions.Length : worldBudget); index++)
         {
             resourceHost.Pump();
+            world.SynchronizeGameplayTuning();
             WorldState? before = session.State.World;
             PlayerAction action;
             if (fieldPath is not null)

@@ -200,6 +200,9 @@ internal static class MenuPreview
                 liveData = LiveMenuData.Build(previewState, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
             MenuController menus = liveData is null ? new() : new(() => liveData);
+            GameplayTuning previewTuning = previewState?.ConfiguredGameplayTuning ?? previewState?.GameplayPreferences.Tuning ?? new();
+            GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(mods.Catalog);
+            menus.ConnectGameplayTuning(() => gameplayPolicy.Apply(previewTuning), tuning => previewTuning = gameplayPolicy.EditConfigured(previewTuning, tuning), gameplayPolicy.UnavailableReason);
             menus.Presentation = presentation;
             if (screen.StartsWith("tutorial", StringComparison.Ordinal))
             {
@@ -217,7 +220,11 @@ internal static class MenuPreview
             Dictionary<int, string> names = Enumerable.Range(0, GameNames.BokoSubject + 1).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
             menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);
             menus.BattleDebugRequested += () => { };
-            menus.Open(screen, liveData is null);
+            menus.Open(screen == "debug-gameplay-rules" ? "debug-room" : screen, liveData is null);
+            if (screen == "debug-gameplay-rules")
+            {
+                menus.Execute(new MenuAction("gameplay-rule-open"));
+            }
             menus.Data.Settings["UI presentation"] = presentation.ToString();
             menus.Data.Settings["UI font"] = preferences.UiFontFamily;
             menus.Data.Settings["UI font size"] = fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);

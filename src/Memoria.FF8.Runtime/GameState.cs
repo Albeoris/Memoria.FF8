@@ -39,6 +39,7 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleAbandonment[]? AbandonedNativeBattles { get; init; }
     public GameplayPreferences GameplayPreferences { get; init; } = new();
+    public GameplayTuning? ConfiguredGameplayTuning { get; init; }
     public ImmutableArray<int> RefinedCardIds { get; init; } = [];
     public GameplayPreferences? PendingGameplayPreferences { get; init; }
     public bool PendingMagicModeReview { get; init; }

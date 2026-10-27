@@ -13,10 +13,23 @@ Press **F2** to open Debug Room, or change its binding in [Controls](controls.md
 | Scene | Open the inspector directly; Layers, Objects and Events remain local tabs. |
 | UI tools | Open the fixture menu gallery directly; Reset fixture data affects only previews. |
 | Session | Open the supported-name list directly. |
+| Gameplay rules | Edit numeric rewards, magic consumption, damage limits, Rare Item probabilities and Scan rotation. |
 | Automation | Start, pause, resume, stop or replay automated exploration. |
 | Shortcuts | Keyboard/controller bindings for Debug Room, battle laboratory and battle victory only. |
 
 Player preferences belong in Config. Debug Room has no second editor for volume, fonts, difficulty, random encounters, player ATB mode or gunblade triggering. The gallery is labelled Preview / Fixture and its changes stay isolated from live owners. See [saves and settings](saves.md) for persistence boundaries.
+
+## Gameplay rules
+
+One editor contains three pages: **Rewards & Draw**, **Magic & damage**, and **Rare Item & Scan**. Numeric fields open a keypad and also accept keyboard input. Previous/Next keeps the draft; Apply commits it and Cancel discards it. Save the game to retain applied values. An active battle keeps its captured rules until it ends.
+
+Draw bonus (0–100) adds to successful draws only; failure still awards nothing and spell stock remains capped at 100. AP, character EXP and GF EXP have separate multipliers (0–100, default 1). The imported character-EXP option does not change GF EXP. Field interactions already in progress retain their captured bonus. World-map Draw acquisition is not implemented yet.
+
+**Infinite magic** avoids stock consumption without adding cooldowns. It requires an accessible stocked spell and takes precedence over the separate **Limited magic** rules. **Maximum damage** is a strict positive HP-damage cap from 0 to 100000, default 9999, including attacks with the native break-limit flag. It does not change healing, HP costs or direct HP assignments.
+
+The four Rare Item slot probabilities must total exactly 100%. Selection retains the original 256-value random clock, so custom percentages have that granularity. Free Scan rotation removes directional restrictions for every model. Save-anywhere and dream junction carry are intrinsic and have no disabling controls.
+
+Approved executable-mod behavior may lock individual fields. The editor names the controlling package; change its mod option to release the field. Personal values are retained separately and return when the override is removed. Unknown HEXT bytes require individual review; rejected executable options cannot be activated. Ordinary cosmetic file replacements use the normal resource loader.
 
 ## Edit names
 

@@ -50,7 +50,7 @@ internal static class AutoPlayCommand
         GameSession session = GameWorld.CreateColdProcess(options.GameDirectory);
         using GameResourceHost resources = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory);
         GameWorld? world = null;
-        GameWorld GetWorld() => world ??= new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, modelOverrides: resources);
+        GameWorld GetWorld() => world ??= new(session, options.GameDirectory, new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory, resources.ResolveGameFile), resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy);
         void Restore(GameState state)
         {
             world?.Dispose();
@@ -74,6 +74,7 @@ internal static class AutoPlayCommand
                 try
                 {
                     resources.Pump();
+                    world?.SynchronizeGameplayTuning();
                 }
                 catch (Exception exception)
                 {

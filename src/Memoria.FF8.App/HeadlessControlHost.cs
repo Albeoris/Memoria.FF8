@@ -15,7 +15,7 @@ internal static class HeadlessControlHost
         }
         GameSession session = new(options.InitialState);
         using GameResourceHost resources = new(options.GameDirectory, modsDirectory: options.ModsDirectory);
-        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, readSceneMods: () => resources.SceneMods, modelOverrides: resources);
+        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources, validateWorldPresentation: false, resolveGameFile: resources.ResolveGameFile, readSceneMods: () => resources.SceneMods, modelOverrides: resources, readGameplayPolicy: () => resources.GameplayPolicy);
         world.EnsureField();
         bool running = true;
         bool faulted = world.Events.LastFault is not null;
@@ -128,6 +128,7 @@ internal static class HeadlessControlHost
         while (running)
         {
             resources.Pump();
+            world.SynchronizeGameplayTuning();
             queue.Poll();
             if (running)
             {

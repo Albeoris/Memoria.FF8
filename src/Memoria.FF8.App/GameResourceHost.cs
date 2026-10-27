@@ -45,6 +45,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public FieldSceneMods SceneMods { get; private set; } = FieldSceneMods.Empty;
     public ModelMods ModelMods { get; private set; } = ModelMods.Empty;
     public StartupPolicy StartupPolicy { get; private set; } = StartupPolicy.Default;
+    public GameplayTuningPolicy GameplayPolicy { get; private set; } = GameplayTuningPolicy.Empty;
 
     public FieldModel Apply(string modelId, FieldModel original) => ModelMods.Apply(modelId, original);
     public BattleModel Apply(string modelId, BattleModel original) => ModelMods.Apply(modelId, original);
@@ -169,12 +170,13 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return PrepareLocalizationPublication(localization!);
         }
-        ModPackage[] behaviorPackages = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.JunctionMetadata?.Behaviors.Count > 0).ToArray();
+        ModPackage[] behaviorPackages = catalog.Packages.Where(package => package.Status == ModEffectiveStatus.Active && (package.JunctionMetadata?.Behaviors.Count > 0 || package.JunctionMetadata?.GameplayOverrides.Count > 0)).ToArray();
         if (behaviorPackages.Length > 0 && (source.Descriptor.Edition != GameDataEdition.Classic || !source.Descriptor.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
         {
             return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
         }
         StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
+        GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(catalog);
         if (!JunctionEncodedResources.TryPrepare(catalog, out IReadOnlyList<EncodedResource> encodedResources, out IReadOnlyList<ModDiagnostic> encodedDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
@@ -349,6 +351,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             SceneMods = sceneMods;
             ModelMods = modelMods;
             StartupPolicy = startupPolicy;
+            GameplayPolicy = gameplayPolicy;
             LastLocalizationChangedKeys = localization.ChangedKeys;
             LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
             VoiceResolver = voiceResolver;

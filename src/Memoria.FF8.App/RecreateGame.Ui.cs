@@ -84,6 +84,15 @@ internal sealed partial class RecreateGame
             }
         };
         gameMenus.ConnectMods(resourceHost!.Mods);
+        gameMenus.ConnectGameplayTuning(() =>
+        {
+            world ??= CreateWorld();
+            return world.ReadGameplayTuning();
+        }, tuning =>
+        {
+            world ??= CreateWorld();
+            world.EditGameplayTuning(tuning);
+        }, field => world?.GameplayTuningUnavailableReason(field) ?? resourceHost.GameplayPolicy.UnavailableReason(field), () => world?.GameplayTuningStatus ?? "Changes apply to this playthrough.");
         ConnectGuardianAbilityEditor();
         ConnectLocalizationTools();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);

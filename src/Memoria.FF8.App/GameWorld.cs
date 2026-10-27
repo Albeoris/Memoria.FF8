@@ -39,9 +39,10 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null)
     {
         this.session = session;
+        this.readGameplayPolicy = readGameplayPolicy;
         this.readSceneMods = readSceneMods;
         this.resources = resources;
         this.modelOverrides = modelOverrides;
@@ -159,6 +160,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         Events.ReadNativeActorInfoArena = assets.ReadNativeActorInfoArena;
         Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
+        SynchronizeGameplayTuning();
         snapshotPreparation = session.BindSnapshotPreparation(PrepareSnapshot);
     }
 

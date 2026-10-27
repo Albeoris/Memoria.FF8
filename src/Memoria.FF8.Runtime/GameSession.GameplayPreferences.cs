@@ -5,6 +5,17 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public void ConfigureGameplayTuning(GameplayTuning configured, GameplayTuning effective)
+    {
+        ArgumentNullException.ThrowIfNull(configured);
+        ArgumentNullException.ThrowIfNull(effective);
+        configured.Validate();
+        effective.Validate();
+        GameplayPreferences preferences = State.PendingGameplayPreferences ?? State.GameplayPreferences;
+        SetGameplayPreferences(preferences with { Tuning = effective });
+        State = State with { ConfiguredGameplayTuning = configured };
+    }
+
     public MagicModePreview PreviewGameplayPreferences(GameplayPreferences preferences)
     {
         preferences = PrepareGameplayPreferences(preferences);
@@ -122,7 +133,7 @@ public sealed partial class GameSession
     private bool MagicRulesDiffer(GameplayPreferences preferences)
     {
         GameplayPreferences current = State.GameplayPreferences;
-        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.SmartAttack != current.SmartAttack;
+        return preferences.SharedMagicStock != current.SharedMagicStock || preferences.InfiniteMagic != current.InfiniteMagic || preferences.SmartAttack != current.SmartAttack || preferences.Tuning.UnlimitedMagic != current.Tuning.UnlimitedMagic;
     }
 
     public string? MagicMutationUnavailableReason => ActiveFieldMutationBoundary switch
