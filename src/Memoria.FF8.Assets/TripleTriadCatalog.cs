@@ -3,6 +3,8 @@ using Memoria.FF8.Runtime;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Albeoris.Games.FF8.TextEncoding;
+using Albeoris.Games.FF8.MngrpBin;
+using Albeoris.Games.FF8.KernelBin;
 
 namespace Memoria.FF8.Assets;
 
@@ -57,7 +59,17 @@ public sealed class TripleTriadCatalog
         resources ??= new(provider);
         IGameNativeMemorySource memory = resources.GetSource<IGameNativeMemorySource>() ?? throw new NotSupportedException("The resource source has no authenticated native card memory contract.");
         byte[] names = provider.Descriptor.Edition == GameDataEdition.Remastered ? resources.Read(new ResourceKey("text/card-names")) : memory.Read(NameTableAddress, NativeNameTableLength);
-        TripleTriadCatalog catalog = Read(memory, names, resources.Read(new ResourceKey("menu/m004.bin")));
+        MngrpArchive archive = MngrpArchive.Read(resources.Read(new ResourceKey("menu/mngrp.bin")), resources.Read(new ResourceKey("menu/mngrphd.bin")), FF8Encoding.CreateEuropean());
+        byte[] kernelBytes = resources.Read(new ResourceKey("main/kernel.bin"));
+        _ = NativeKernelDirectory.Read(kernelBytes);
+        KernelData kernel = KernelData.ReadFromArray(kernelBytes, FF8Encoding.CreateEuropean());
+        if (kernel.MenuAbilities.Count != 24)
+        {
+            throw new InvalidDataException("Native Card Mod requires its complete kernel menu ability records.");
+        }
+        var cardAbility = kernel.MenuAbilities[23];
+        TripleTriadCatalog native = Read(memory, names);
+        TripleTriadCatalog catalog = new(native.Cards, native.originalNames, native.TradePriorities, native.AiParameters, NativeRefinementGroupReader.ReadCardRefinements(archive, new NativeRefinementAbility(cardAbility.Name ?? "", cardAbility.Index, cardAbility.Start, cardAbility.End)));
         catalog.resources = resources;
         return catalog;
     }

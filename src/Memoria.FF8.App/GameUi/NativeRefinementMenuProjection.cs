@@ -20,6 +20,10 @@ public static class NativeRefinementMenuProjection
             for (int index = ability.First; index <= ability.Last; index++)
             {
                 NativeRefinementRecipe recipe = definitions.Recipe(abilityId, index);
+                if (definitions.FindRecipeIndex(abilityId, recipe.Ingredient) != index)
+                {
+                    continue;
+                }
                 int ingredientStock = ability.Kind == 4 ? state.CardInventory?.AvailableCount(recipe.Ingredient) ?? 0 : ability.Kind == 2 ? Enumerable.Range(0, 8).Where(row => vitals.IsMenuCharacterAvailable(row, state.WorldControls)).Select(row => MagicInventoryResolver.Resolve(vitals, row)).DistinctBy(inventory => inventory.BankId).Sum(inventory => inventory.Count(recipe.Ingredient)) : economy.Items.FirstOrDefault(stock => stock.ItemId == recipe.Ingredient)?.Count ?? 0;
                 if (ingredientStock <= 0 || ability.Kind == 4 && state.GameplayPreferences.CardModOnce && state.RefinedCardIds.Contains(recipe.Ingredient))
                 {

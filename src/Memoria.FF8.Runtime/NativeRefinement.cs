@@ -6,7 +6,7 @@ public sealed record NativeRefinementRecipe(ushort OutputCount, byte Requirement
 public sealed record NativeRefinementAbility(string Name, byte Kind, byte First, byte Last);
 public sealed record NativeRefinementResult(NativeCharacterVitals Vitals, NativeEconomy Economy, NativeCardInventory? Cards, int Batches);
 
-/// <summary>Original kernel menu-ability ranges and m000..m004 recipes consumed by4D7180/4D7410.</summary>
+/// <summary>Original kernel menu-ability ranges and menu-group recipes consumed by4D7180/4D7410.</summary>
 public sealed record NativeRefinementDefinitions(string ExecutableHash, string KernelHash, ImmutableArray<NativeRefinementAbility> Abilities, ImmutableArray<ImmutableArray<NativeRefinementRecipe>> Tables)
 {
     public ImmutableArray<string> TableHashes { get; init; } = [];
@@ -57,6 +57,28 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         return Tables[ability.Kind][recipeIndex];
     }
 
+    public int FindRecipeIndex(int abilityId, int ingredient)
+    {
+        Validate();
+        if (abilityId is < 97 or >= 116)
+        {
+            throw new ArgumentOutOfRangeException(nameof(abilityId));
+        }
+        NativeRefinementAbility ability = Abilities[abilityId - 92];
+        if (ability.Last - ability.First + 1 == 256)
+        {
+            return -1;
+        }
+        for (int index = ability.First; index <= ability.Last; index++)
+        {
+            if (Tables[ability.Kind][index].Ingredient == ingredient)
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     public int MaximumBatches(NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, int abilityId, int recipeIndex, int row, bool cardModOnce = false, IReadOnlyList<int>? refinedCardIds = null)
     {
         NativeRefinementRecipe recipe = Recipe(abilityId, recipeIndex);
@@ -70,6 +92,10 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
             return 0;
         }
         byte kind = Abilities[abilityId - 92].Kind;
+        if (FindRecipeIndex(abilityId, recipe.Ingredient) != recipeIndex)
+        {
+            return 0;
+        }
         if (kind is 0 or 2 && (uint)row >= 8)
         {
             return 0;

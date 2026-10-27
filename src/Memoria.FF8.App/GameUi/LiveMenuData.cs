@@ -463,12 +463,7 @@ public sealed partial class LiveMenuCatalog
         KernelData kernel = KernelData.ReadFromArray(kernelBytes, encoding);
         byte[] ReadMenu(string name) => assets.ReadResource(new ResourceKey("menu/" + name));
         MngrpArchive textArchive = MngrpArchive.Read(ReadMenu("mngrp.bin"), ReadMenu("mngrphd.bin"), encoding);
-        MngrpTextRecordSection cardText = textArchive.GetSection<MngrpTextRecordSection>(192);
-        if (cardText.Records.Count != NativeCardInventory.CardCount || cardText.Records.Where((record, id) => record.Payload[3] != id).Any())
-        {
-            throw new InvalidDataException("Original card text catalogue does not preserve its 110 card identities.");
-        }
-        string[] cardDescriptions = cardText.Records.Select(record => record.Text.Value).ToArray();
+        string[] cardDescriptions = NativeRefinementGroupReader.ReadCardDescriptions(textArchive);
         TripleTriadCatalog tripleTriad = TripleTriadCatalog.Load(assets.GameDirectory, assets.Resources);
         byte[] fieldItems = ReadMenu("mitem.bin");
         if (fieldItems.Length % 4 != 0)
@@ -494,7 +489,7 @@ public sealed partial class LiveMenuCatalog
     public string? CardName(int id) => (uint)id < tripleTriad.Cards.Length ? LocalizedTable("names_cards", id, tripleTriad.Name(id)) : null;
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? FormatDescription(LocalizedTable("mngrp_slot192_records", id, cardDescriptions[id])) : null;
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
-    public TripleTriadRefinement? CardRefinement(int id) => (uint)id < tripleTriad.Refinements.Length ? tripleTriad.Refinements[id] : null;
+    public TripleTriadRefinement? CardRefinement(int id) => tripleTriad.Refinements.FirstOrDefault(recipe => recipe.CardId == id);
     public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? LocalizedKernel(nameof(kernel.MagicSpells), "Name", id, kernel.MagicSpells[id].Name) : null;
     public bool IsFieldMagic(int id) => (uint)id < kernel.MagicSpells.Count && kernel.MagicSpells[id].AttackType is 3 or 5 or 6;
     public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(LocalizedKernel(nameof(kernel.MagicSpells), "Description", id, kernel.MagicSpells[id].Description)) : null;

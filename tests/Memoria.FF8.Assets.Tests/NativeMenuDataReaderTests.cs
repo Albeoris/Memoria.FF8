@@ -39,7 +39,7 @@ public sealed class NativeMenuDataReaderTests
     }
 
     [Fact]
-    public void CardCatalogLoadsSelectedMenuDataThroughResourceService()
+    public void LooseCardRecipesRemainSeparateFromActiveMenuGroups()
     {
         string directory = TestResources.GameDirectory;
         using IResourceSource source = GameDataSourceFactory.Open(directory);
@@ -49,7 +49,8 @@ public sealed class NativeMenuDataReaderTests
         bytes[7] = 198;
         resources.Prepare(null, encodedResources: [new EncodedResource(new ResourceKey("menu/m004.bin"), "bin", 1, "fixture", bytes)]).Commit();
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory, resources);
-        Assert.Equal(new Runtime.TripleTriadRefinement(0, 1, 198, 37), catalog.Refinements[0]);
+        Assert.Equal(new Runtime.TripleTriadRefinement(0, 1, 198, 37), TripleTriadCatalog.ReadRefinements(bytes)[0]);
+        Assert.NotEqual(TripleTriadCatalog.ReadRefinements(bytes)[0], catalog.Refinements[0]);
     }
 
     [Fact]

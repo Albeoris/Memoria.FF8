@@ -8,7 +8,7 @@ public static class NativeRefinementInput
     public static (int Recipe, int Row) Validate(PlayerAction action)
     {
         string[] parts = action.Text?.Split(':') ?? [];
-        if (action.Kind != PlayerActionKind.RefineItems || action.Value is < 97 or >= 116 || action.Quantity is null or < 1 or > 100 || parts.Length != 2 || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out int recipe) || recipe is < 0 or > 142 || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int row) || row is < 0 or > 7 || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+        if (action.Kind != PlayerActionKind.RefineItems || action.Value is < 97 or >= 116 || action.Quantity is null or < 1 or > 100 || parts.Length != 2 || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out int recipe) || recipe is < 0 or > 255 || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int row) || row is < 0 or > 7 || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
         {
             throw new ArgumentException("Refinement requires a native ability97..115, recipe:row text and explicit batch count1..100.", nameof(action));
         }
