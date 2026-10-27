@@ -111,9 +111,7 @@ public sealed partial class BattleSession
                     return current;
                 case NativeBattleShivaDirectorService.File:
                     NativeBattleEffectFileAsset file = resources.Files.Single(item => item.FileId == operation.First);
-                    NativeBattleEffectMemory loaded = operation.UseWorkBuffer
-                        ? current.Memory with { GuardianWorkBuffer = (current.Memory.GuardianWorkBuffer ?? throw new NotSupportedException("Native Shiva file IO requires its retained auxiliary buffer.")).Write(operation.Second, file.Data.AsSpan()) }
-                        : current.Memory with { Arena = (current.Memory.Arena ?? throw new NotSupportedException("Native Shiva file IO requires its effect arena.")).Write(operation.Second, file.Data.AsSpan()) };
+                    NativeBattleEffectMemory loaded = current.Memory.DeliverBattleFile(file, operation.Second, operation.UseWorkBuffer);
                     NativeEffectIoResult = -1;
                     QueueNativeFileIo482610(file.Data.Length, 0x508470);
                     return current with { Memory = loaded };

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -8,6 +9,10 @@ public sealed record NativeBattleTextureOwnedSpan(int X, int Y, int WidthWords, 
 public sealed record NativeBattleTextureRegistration(NativeBattleTextureOrigin Origin, int X, int Y, int WidthWords, int Height, ImmutableArray<NativeBattleEffectTextureRectangle> CopyFrames, int CurrentFrame = -1)
 {
     public int OwnerId => X + Y * 1024;
+    public bool Active { get; init; } = true;
+    public bool CopyHistoryKnown { get; init; }
+    public int ExactFrame => CopyHistoryKnown && PaletteOwnedSpans is not null ? CurrentFrame : -1;
+    public ImmutableArray<NativeBattleTextureOwnedSpan>? PaletteOwnedSpans { get; init; }
     public ImmutableArray<NativeBattleTextureOwnedSpan> OwnedSpans { get; init; } = [new(X, Y, WidthWords, Height)];
 
     public void Validate()
@@ -29,6 +34,25 @@ public sealed record NativeBattleTextureRegistration(NativeBattleTextureOrigin O
         if (OwnedSpans.IsDefault)
         {
             throw new InvalidDataException("Native texture ownership requires explicit surviving word spans.");
+        }
+        if (PaletteOwnedSpans is { } paletteSpans)
+        {
+            if (paletteSpans.IsDefault)
+            {
+                throw new InvalidDataException("Native texture palette ownership requires explicit surviving word spans.");
+            }
+            foreach (NativeBattleTextureOwnedSpan span in paletteSpans)
+            {
+                NativeBattleTextureCopyHistory.ValidateRectangle(span.X, span.Y, span.WidthWords, span.Height);
+                if (span.WidthWords == 0 || span.Height == 0)
+                {
+                    throw new InvalidDataException("Native texture palette ownership cannot contain empty spans.");
+                }
+            }
+        }
+        if (!Active && !OwnedSpans.IsEmpty)
+        {
+            throw new InvalidDataException("Retired native texture metadata cannot retain pixel ownership.");
         }
         foreach (NativeBattleTextureOwnedSpan span in OwnedSpans)
         {
@@ -82,16 +106,21 @@ public static class NativeBattleTextureCopyHistory
         {
             return registrations;
         }
-        int source = FindIndex(registrations.Value, copy.SourceX, copy.SourceY);
-        if (source < 0)
+        if (registrations.Value.Any(owner => owner.PaletteOwnedSpans is null))
+        {
+            return registrations.Value.Select(owner => owner with { CopyHistoryKnown = false }).ToImmutableArray();
+        }
+        (int source, bool sourcePalette) = FindRole(registrations.Value, copy.SourceX, copy.SourceY);
+        (int target, bool targetPalette) = FindRole(registrations.Value, copy.DestinationX, copy.DestinationY);
+        bool paletteCopy = sourcePalette && targetPalette;
+        if (source < 0 || !registrations.Value[source].Active || sourcePalette && !paletteCopy)
         {
             return registrations;
         }
-        int target = FindIndex(registrations.Value, copy.DestinationX, copy.DestinationY);
         NativeBattleEffectTextureRectangle frame = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height);
         var result = registrations.Value.ToBuilder();
         result[source] = Observe(result[source], frame);
-        if (target >= 0 && target != source)
+        if (target >= 0 && target != source && result[target].Active && (!targetPalette || paletteCopy))
         {
             result[target] = Observe(result[target], frame);
         }
@@ -129,7 +158,7 @@ public static class NativeBattleTextureCopyHistory
             {
                 throw new InvalidDataException("Native texture registrations contain duplicate upload owners.");
             }
-            foreach (NativeBattleTextureOwnedSpan span in registration.OwnedSpans)
+            foreach (NativeBattleTextureOwnedSpan span in registration.OwnedSpans.Concat(registration.PaletteOwnedSpans ?? []))
             {
                 if (occupied.Any(other => span.X < other.X + other.WidthWords && other.X < span.X + span.WidthWords && span.Y < other.Y + other.Height && other.Y < span.Y + span.Height))
                 {
@@ -153,7 +182,7 @@ public static class NativeBattleTextureCopyHistory
         for (int index = registrations.Length - 1; index >= 0; index--)
         {
             NativeBattleTextureRegistration registration = registrations[index];
-            if (registration.OwnedSpans.Any(span => x >= span.X && x < span.X + span.WidthWords && y >= span.Y && y < span.Y + span.Height))
+            if (registration.Active && registration.OwnedSpans.Any(span => Contains(span, x, y)))
             {
                 return index;
             }
@@ -171,130 +200,156 @@ public static class NativeBattleTextureCopyHistory
         return registration with { CopyFrames = registration.CopyFrames.Add(frame), CurrentFrame = registration.CopyFrames.Length };
     }
 
+    private const int PaletteFlag = 1 << 30;
+    private const int WordCount = 1024 * 512;
+
+    private static bool Contains(NativeBattleTextureOwnedSpan span, int x, int y) => x >= span.X && x < span.X + span.WidthWords && y >= span.Y && y < span.Y + span.Height;
+
+    private static (int Index, bool Palette) FindRole(ImmutableArray<NativeBattleTextureRegistration> registrations, int x, int y)
+    {
+        for (int index = registrations.Length - 1; index >= 0; index--)
+        {
+            NativeBattleTextureRegistration registration = registrations[index];
+            if (registration.Active && registration.OwnedSpans.Any(span => Contains(span, x, y)))
+            {
+                return (index, false);
+            }
+            if (registration.PaletteOwnedSpans is { } palette && palette.Any(span => Contains(span, x, y)))
+            {
+                return (index, true);
+            }
+        }
+        return (-1, false);
+    }
+
     private static ImmutableArray<NativeBattleTextureRegistration> UploadSingle(ImmutableArray<NativeBattleTextureRegistration>? registrations, int x, int y, int width, int height, NativeBattleTextureOrigin? origin)
     {
         List<NativeBattleTextureRegistration> owners = (registrations ?? []).ToList();
-        int[] words = new int[checked(width * height)];
-        Array.Fill(words, -1);
-        foreach (NativeBattleTextureRegistration owner in owners)
+        int[] words = ArrayPool<int>.Shared.Rent(WordCount);
+        try
         {
-            foreach (NativeBattleTextureOwnedSpan span in owner.OwnedSpans)
+            Array.Fill(words, -1, 0, WordCount);
+            foreach (NativeBattleTextureRegistration owner in owners)
             {
-                int left = Math.Max(x, span.X);
-                int right = Math.Min(x + width, span.X + span.WidthWords);
-                for (int row = Math.Max(y, span.Y); row < Math.Min(y + height, span.Y + span.Height); row++)
+                foreach (NativeBattleTextureOwnedSpan span in owner.OwnedSpans)
                 {
-                    if (left < right)
-                    {
-                        Array.Fill(words, owner.OwnerId, (row - y) * width + left - x, right - left);
-                    }
+                    Fill(span, owner.OwnerId);
+                }
+                foreach (NativeBattleTextureOwnedSpan span in owner.PaletteOwnedSpans ?? [])
+                {
+                    Fill(span, owner.OwnerId | PaletteFlag);
                 }
             }
-        }
-        int newId = x + y * 1024;
-        for (int row = 0; row < height; row++)
-        {
-            for (int column = 0; column < width; column++)
+            int newId = x + y * 1024;
+            Map(new(x, y, width, height), newId);
+            if (origin?.PaletteRectangle is { } palette)
             {
-                int index = row * width + column;
-                int oldId = words[index];
-                int oldIndex = oldId < 0 ? -1 : owners.FindIndex(owner => owner.OwnerId == oldId);
-                if (oldIndex >= 0)
-                {
-                    NativeBattleTextureRegistration old = owners[oldIndex];
-                    // The loader retains metadata for uploads starting on the old rectangle's final word column or row.
-                    bool retainedEdge = old.WidthWords >= 10 && x + 1 == old.X + old.WidthWords || old.Height >= 10 && y + 1 == old.Y + old.Height;
-                    if (!retainedEdge)
-                    {
-                        owners.RemoveAt(oldIndex);
-                        NativeBattleTextureOwnedSpan cleared = new(old.X, old.Y, old.WidthWords, old.Height);
-                        for (int ownerIndex = 0; ownerIndex < owners.Count; ownerIndex++)
-                        {
-                            owners[ownerIndex] = owners[ownerIndex] with { OwnedSpans = Subtract(owners[ownerIndex].OwnedSpans, cleared) };
-                        }
-                        int left = Math.Max(x, old.X);
-                        int right = Math.Min(x + width, old.X + old.WidthWords);
-                        for (int clearedRow = Math.Max(y, old.Y); clearedRow < Math.Min(y + height, old.Y + old.Height); clearedRow++)
-                        {
-                            if (left < right)
-                            {
-                                Array.Fill(words, -1, (clearedRow - y) * width + left - x, right - left);
-                            }
-                        }
-                    }
-                }
-                words[index] = newId;
+                Map(new(palette.X, palette.Y, palette.Width, palette.Height), newId | PaletteFlag);
             }
-        }
-        NativeBattleTextureOwnedSpan uploaded = new(x, y, width, height);
-        var result = ImmutableArray.CreateBuilder<NativeBattleTextureRegistration>();
-        foreach (NativeBattleTextureRegistration owner in owners)
-        {
-            if (owner.OwnerId != newId)
-            {
-                result.Add(owner with { OwnedSpans = Subtract(owner.OwnedSpans, uploaded) });
-            }
-        }
-        if (origin is not null)
-        {
-            var spans = ImmutableArray.CreateBuilder<NativeBattleTextureOwnedSpan>();
-            for (int row = 0; row < height; row++)
+            Dictionary<int, ImmutableArray<NativeBattleTextureOwnedSpan>.Builder> pixelSpans = [];
+            Dictionary<int, ImmutableArray<NativeBattleTextureOwnedSpan>.Builder> paletteSpans = [];
+            for (int row = 0; row < 512; row++)
             {
                 int column = 0;
-                while (column < width)
+                while (column < 1024)
                 {
-                    if (words[row * width + column] != newId)
-                    {
-                        column++;
-                        continue;
-                    }
+                    int id = words[row * 1024 + column];
                     int start = column++;
-                    while (column < width && words[row * width + column] == newId)
+                    while (column < 1024 && words[row * 1024 + column] == id)
                     {
                         column++;
                     }
-                    if (spans.Count > 0 && spans[^1] is { } previous && previous.X == x + start && previous.WidthWords == column - start && previous.Y + previous.Height == y + row)
+                    if (id >= 0)
                     {
-                        spans[^1] = previous with { Height = previous.Height + 1 };
-                    }
-                    else
-                    {
-                        spans.Add(new(x + start, y + row, column - start, 1));
+                        bool isPalette = (id & PaletteFlag) != 0;
+                        AddSpan(isPalette ? paletteSpans : pixelSpans, id & ~PaletteFlag, new(start, row, column - start, 1));
                     }
                 }
             }
-            result.Add(new(origin, x, y, width, height, []) { OwnedSpans = spans.ToImmutable() });
+            var result = ImmutableArray.CreateBuilder<NativeBattleTextureRegistration>();
+            foreach (NativeBattleTextureRegistration owner in owners)
+            {
+                if (owner.OwnerId == newId)
+                {
+                    if (origin is null && owner.PaletteOwnedSpans is not null && !Spans(paletteSpans, owner.OwnerId).IsEmpty)
+                    {
+                        result.Add(owner with { Active = false, OwnedSpans = [], PaletteOwnedSpans = Spans(paletteSpans, owner.OwnerId) });
+                    }
+                    continue;
+                }
+                ImmutableArray<NativeBattleTextureOwnedSpan> pixels = Spans(pixelSpans, owner.OwnerId);
+                ImmutableArray<NativeBattleTextureOwnedSpan>? palettes = owner.PaletteOwnedSpans is null ? null : Spans(paletteSpans, owner.OwnerId);
+                if (owner.Active || palettes is null || !palettes.Value.IsEmpty)
+                {
+                    result.Add(owner with { OwnedSpans = pixels, PaletteOwnedSpans = palettes });
+                }
+            }
+            if (origin is not null)
+            {
+                result.Add(new(origin, x, y, width, height, [])
+                {
+                    OwnedSpans = Spans(pixelSpans, newId),
+                    PaletteOwnedSpans = Spans(paletteSpans, newId),
+                    CopyHistoryKnown = true
+                });
+            }
+            return result.ToImmutable();
+
+            void Fill(NativeBattleTextureOwnedSpan span, int id)
+            {
+                for (int row = span.Y; row < span.Y + span.Height; row++)
+                {
+                    Array.Fill(words, id, row * 1024 + span.X, span.WidthWords);
+                }
+            }
+
+            void Map(NativeBattleTextureOwnedSpan rectangle, int id)
+            {
+                for (int row = rectangle.Y; row < rectangle.Y + rectangle.Height; row++)
+                {
+                    for (int column = rectangle.X; column < rectangle.X + rectangle.WidthWords; column++)
+                    {
+                        int index = row * 1024 + column;
+                        int previousId = words[index];
+                        int previous = previousId < 0 || (previousId & PaletteFlag) != 0 ? -1 : owners.FindIndex(owner => owner.Active && owner.OwnerId == previousId);
+                        if (previous >= 0)
+                        {
+                            NativeBattleTextureRegistration old = owners[previous];
+                            // The loader retains metadata for uploads starting on the old rectangle's final word column or row.
+                            bool retainedEdge = old.WidthWords >= 10 && rectangle.X + 1 == old.X + old.WidthWords || old.Height >= 10 && rectangle.Y + 1 == old.Y + old.Height;
+                            if (!retainedEdge)
+                            {
+                                owners[previous] = old with { Active = false, OwnedSpans = [] };
+                                Fill(new(old.X, old.Y, old.WidthWords, old.Height), -1);
+                            }
+                        }
+                        words[index] = id;
+                    }
+                }
+            }
         }
-        return result.ToImmutable();
+        finally
+        {
+            ArrayPool<int>.Shared.Return(words);
+        }
     }
 
-    private static ImmutableArray<NativeBattleTextureOwnedSpan> Subtract(ImmutableArray<NativeBattleTextureOwnedSpan> spans, NativeBattleTextureOwnedSpan removed)
-    {
-        var result = ImmutableArray.CreateBuilder<NativeBattleTextureOwnedSpan>();
-        foreach (NativeBattleTextureOwnedSpan span in spans)
-        {
-            int left = Math.Max(span.X, removed.X);
-            int top = Math.Max(span.Y, removed.Y);
-            int right = Math.Min(span.X + span.WidthWords, removed.X + removed.WidthWords);
-            int bottom = Math.Min(span.Y + span.Height, removed.Y + removed.Height);
-            if (left >= right || top >= bottom)
-            {
-                result.Add(span);
-                continue;
-            }
-            Add(span.X, span.Y, span.WidthWords, top - span.Y);
-            Add(span.X, bottom, span.WidthWords, span.Y + span.Height - bottom);
-            Add(span.X, top, left - span.X, bottom - top);
-            Add(right, top, span.X + span.WidthWords - right, bottom - top);
-        }
-        return result.ToImmutable();
+    private static ImmutableArray<NativeBattleTextureOwnedSpan> Spans(Dictionary<int, ImmutableArray<NativeBattleTextureOwnedSpan>.Builder> spans, int ownerId) => spans.TryGetValue(ownerId, out var value) ? value.ToImmutable() : [];
 
-        void Add(int x, int y, int width, int height)
+    private static void AddSpan(Dictionary<int, ImmutableArray<NativeBattleTextureOwnedSpan>.Builder> spans, int ownerId, NativeBattleTextureOwnedSpan span)
+    {
+        if (!spans.TryGetValue(ownerId, out var owned))
         {
-            if (width > 0 && height > 0)
-            {
-                result.Add(new(x, y, width, height));
-            }
+            owned = ImmutableArray.CreateBuilder<NativeBattleTextureOwnedSpan>();
+            spans.Add(ownerId, owned);
+        }
+        if (owned.Count > 0 && owned[^1] is { } previous && previous.X == span.X && previous.WidthWords == span.WidthWords && previous.Y + previous.Height == span.Y)
+        {
+            owned[^1] = previous with { Height = previous.Height + span.Height };
+        }
+        else
+        {
+            owned.Add(span);
         }
     }
 }

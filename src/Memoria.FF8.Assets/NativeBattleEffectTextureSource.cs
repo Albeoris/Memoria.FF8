@@ -124,7 +124,7 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
         int queryX = pageX * pixelsPerWord + queryU;
         int queryY = pageY + queryV;
         NativeBattleTextureRegistration[] owners = (registrations ?? []).Where(source => source.Origin.BitsPerPixel == selected.Origin.BitsPerPixel && source.OwnedSpans.Any(span => span.X * pixelsPerWord < queryX + queryWidth && (span.X + span.WidthWords) * pixelsPerWord > queryX && span.Y < queryY + queryHeight && span.Y + span.Height > queryY)).OrderBy(source => source.Y).ThenBy(source => source.X).ToArray();
-        TexturePageMember[] members = owners.Select(source => new TexturePageMember("effect", source.Origin.Owner, source.Origin.Kind == NativeBattleTextureSourceKind.Image ? -1 : source.Origin.Member, source.X, source.Y, source.WidthWords, source.Height, source.Origin.BitsPerPixel, source.CurrentFrame)).ToArray();
+        TexturePageMember[] members = owners.Select(source => new TexturePageMember("effect", source.Origin.Owner, source.Origin.Kind == NativeBattleTextureSourceKind.Image ? -1 : source.Origin.Member, source.X, source.Y, source.WidthWords, source.Height, source.Origin.BitsPerPixel, source.ExactFrame)).ToArray();
         return new(page & 31, x, y, width, height, paletteX, paletteY, members) { Namespace = owners.Length == 0 ? null : owners[0].Origin.Domain == NativeBattleTextureDomain.Magic ? "magic" : "battle" };
     }
 

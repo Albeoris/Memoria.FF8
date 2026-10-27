@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -88,6 +89,49 @@ public sealed class NativeBattleShivaDirectorTests
         calls.Clear();
         Advance(Task(41), calls);
         Assert.Equal(new[] { 0x5C4AD0, 0x5C2DE0 }, calls.Select(call => call.First));
+    }
+
+    [Fact]
+    public void Observed_archive_delivery_names_the_pending_D_TIM_after_the_following_E_file_open()
+    {
+        byte[] bytes = new byte[72];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 16);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 8);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 44);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(16), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(18), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(52), 20);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(56), 64);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(58), 256);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(60), 2);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(62), 2);
+        NativeBattleEffectFileAsset texture = new(543, "MAG184_D.DAT", bytes.ToImmutableArray());
+        NativeBattleEffectFileAsset model = new(544, "MAG184_E.DAT", new byte[64].ToImmutableArray());
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(184).DeliverBattleFile(texture, 0x10000);
+        List<NativeBattleShivaDirectorOperation> calls = [];
+        Advance(Task(15), calls);
+        foreach (NativeBattleShivaDirectorOperation operation in calls)
+        {
+            if (operation.Service == NativeBattleShivaDirectorService.Upload)
+            {
+                memory = memory with { Textures = memory.Textures!.EnqueueArenaTim505E30(memory.Arena!, operation.First).State };
+            }
+            else if (operation.Service == NativeBattleShivaDirectorService.File)
+            {
+                Assert.Equal(model.FileId, operation.First);
+                memory = memory.DeliverBattleFile(model, operation.Second, operation.UseWorkBuffer);
+            }
+        }
+        memory = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(memory))!;
+        NativeBattleEffectTextureDrain drain = memory.Textures!.Drain505D20(memory.Arena);
+        Assert.Equal("mag184_e.dat", drain.Uploads[1].Origin!.Owner);
+        Assert.Equal(NativeBattleTextureDomain.Battle, drain.Uploads[1].Origin!.Domain);
+        Assert.Equal("mag184_d.dat", drain.Uploads[1].Origin!.SourceOwner);
+        Assert.Equal(0, drain.Uploads[1].Origin!.Member);
+        NativeBattleEffectTextureState copied = drain.State.EnqueueCopy505EB0(64, 256, 1, 1, 65, 256).Drain505D20().State;
+        NativeBattleTextureRegistration owner = NativeBattleTextureCopyHistory.Find(copied.TextureRegistrations, 64, 256)!;
+        Assert.Equal("mag184_e.dat", owner.Origin.Owner);
+        Assert.Equal(0, owner.CurrentFrame);
     }
 
     [Fact]

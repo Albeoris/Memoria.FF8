@@ -165,6 +165,91 @@ public sealed class NativeBattleTextureCopyHistoryTests
         Assert.Throws<InvalidDataException>(() => NativeBattleTextureCopyHistory.Validate([owners[0], owners[0] with { X = 65, OwnedSpans = [new(65, 256, 31, 16)] }]));
     }
 
+    [Fact]
+    public void Palette_copies_and_pixel_copies_share_one_first_seen_frame_sequence()
+    {
+        NativeBattleTextureOrigin origin = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 8, 8) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(0, 32, 16, 2) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 8, 8, origin);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(0, 32, 16, 1, 0, 33));
+        Assert.Equal(0, Assert.Single(owners!.Value).ExactFrame);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(64, 256, 1, 1, 65, 256));
+        NativeBattleTextureRegistration owner = Assert.Single(owners!.Value);
+        Assert.Equal(1, owner.ExactFrame);
+        Assert.Equal(new NativeBattleEffectTextureRectangle[] { new(0, 32, 16, 1), new(64, 256, 1, 1) }, owner.CopyFrames);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(0, 32, 16, 1, 0, 33));
+        Assert.Equal(0, Assert.Single(owners!.Value).ExactFrame);
+    }
+
+    [Theory]
+    [InlineData(0, 32, 128, 256, -1, -1)]
+    [InlineData(64, 256, 16, 32, 0, -1)]
+    [InlineData(0, 32, 16, 32, 0, 0)]
+    [InlineData(0, 32, 32, 100, -1, -1)]
+    [InlineData(64, 256, 32, 100, 0, -1)]
+    public void Mixed_role_copies_follow_the_flagged_native_owner_lookup(short sourceX, short sourceY, short targetX, short targetY, int sourceFrame, int targetFrame)
+    {
+        NativeBattleTextureOrigin source = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(0, 32, 16, 1) };
+        NativeBattleTextureOrigin target = new("mag013.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(16, 32, 16, 1) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 2, 1, source);
+        owners = NativeBattleTextureCopyHistory.Upload(owners, 128, 256, 2, 1, target);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(sourceX, sourceY, 1, 1, targetX, targetY));
+        Assert.Equal(sourceFrame, NativeBattleTextureCopyHistory.Find(owners, 64, 256)!.ExactFrame);
+        Assert.Equal(targetFrame, NativeBattleTextureCopyHistory.Find(owners, 128, 256)!.ExactFrame);
+    }
+
+    [Fact]
+    public void Shared_palette_words_belong_only_to_the_last_registered_image_owner()
+    {
+        NativeBattleTextureOrigin common = new("a8def.tim", 0, NativeBattleTextureRole.Pixels, 4, 192, 256) { Domain = NativeBattleTextureDomain.Battle, Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(0, 224, 16, 16) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 192, 256, common);
+        Assert.Empty(owners!.Value[0].PaletteOwnedSpans!.Value);
+        Assert.Empty(owners.Value[1].PaletteOwnedSpans!.Value);
+        Assert.Equal(new NativeBattleTextureOwnedSpan[] { new(0, 224, 16, 16) }, owners.Value[2].PaletteOwnedSpans!.Value);
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(0, 225, 16, 1, 0, 224));
+        Assert.Equal(new[] { -1, -1, 0 }, owners!.Value.Select(owner => owner.ExactFrame));
+    }
+
+    [Fact]
+    public void Palette_registration_overwrites_word_roles_in_the_same_map_as_image_ownership()
+    {
+        NativeBattleTextureOrigin first = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 8, 8) { Kind = NativeBattleTextureSourceKind.Tim };
+        NativeBattleTextureOrigin second = new("mag013.tim", 0, NativeBattleTextureRole.Pixels, 4, 8, 8) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(64, 256, 16, 1) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 8, 8, first);
+        owners = NativeBattleTextureCopyHistory.Upload(owners, 128, 256, 8, 8, second);
+        Assert.Null(NativeBattleTextureCopyHistory.Find(owners, 64, 256));
+        Assert.Null(NativeBattleTextureCopyHistory.Find(owners, 64, 257));
+        Assert.Equal("mag013.tim", Assert.Single(owners!.Value).Origin.Owner);
+    }
+
+    [Fact]
+    public void Retired_image_palette_tags_still_allow_a_known_palette_source_to_advance()
+    {
+        NativeBattleTextureOrigin source = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(0, 32, 16, 1) };
+        NativeBattleTextureOrigin target = new("mag013.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1) { Kind = NativeBattleTextureSourceKind.Tim, PaletteRectangle = new(16, 32, 16, 1) };
+        var owners = NativeBattleTextureCopyHistory.Upload(null, 64, 256, 2, 1, source);
+        owners = NativeBattleTextureCopyHistory.Upload(owners, 128, 256, 2, 1, target);
+        owners = NativeBattleTextureCopyHistory.Upload(owners, 128, 256, 1, 1);
+        Assert.Null(NativeBattleTextureCopyHistory.Find(owners, 128, 256));
+        owners = NativeBattleTextureCopyHistory.Copy(owners, new(0, 32, 1, 1, 16, 32));
+        Assert.Equal(0, NativeBattleTextureCopyHistory.Find(owners, 64, 256)!.ExactFrame);
+        Assert.Equal(-1, Assert.Single(owners!.Value.Where(owner => !owner.Active)).CurrentFrame);
+    }
+
+    [Fact]
+    public void Old_missing_palette_metadata_does_not_invent_an_exact_frame_history()
+    {
+        NativeBattleTextureOrigin origin = new("mag012.tim", 0, NativeBattleTextureRole.Pixels, 4, 2, 1);
+        NativeBattleTextureRegistration old = new(origin, 64, 256, 2, 1, [new(64, 256, 1, 1)], 0);
+        Assert.Null(old.PaletteOwnedSpans);
+        Assert.Equal(-1, old.ExactFrame);
+        var copied = NativeBattleTextureCopyHistory.Copy([old], new(65, 256, 1, 1, 64, 256));
+        Assert.Equal(-1, Assert.Single(copied!.Value).ExactFrame);
+        var reloaded = NativeBattleTextureCopyHistory.Upload(copied, 64, 256, 2, 1, origin);
+        Assert.NotNull(Assert.Single(reloaded!.Value).PaletteOwnedSpans);
+        reloaded = NativeBattleTextureCopyHistory.Copy(reloaded, new(65, 256, 1, 1, 64, 256));
+        Assert.Equal(0, Assert.Single(reloaded!.Value).ExactFrame);
+    }
+
     private static ImmutableArray<NativeBattleTextureRegistration>? Upload(ImmutableArray<NativeBattleTextureRegistration>? owners, string name, int x, int y, int width, int height)
     {
         NativeBattleTextureOrigin origin = new(name, 0, NativeBattleTextureRole.Pixels, 4, width, height) { Kind = NativeBattleTextureSourceKind.Tim };

@@ -139,6 +139,36 @@ public sealed class NativeBattleEffectTextureSourceTests
     }
 
     [Fact]
+    public void CopiedAndChainedSourceReplacementsSurviveSourceOverwriteWithoutDestinationMods()
+    {
+        NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 2, 1));
+        state = state.EnqueueCopy505EB0(0, 0, 2, 1, 16, 0).Drain505D20().State;
+        state = state.EnqueueCopy505EB0(16, 0, 2, 1, 32, 0).Drain505D20().State;
+        state = state.Upload45BD30(0, 0, 2, 1, new byte[4]);
+        using InMemoryResourceSource source = Source();
+        ResourceService resources = new(source);
+        RecordingResolver resolver = new(context => context.NativeAlias!.Owner.Path == "magic/mag012_b.00" ? Solid(context, new(90, 20, 30, 127), 2) : null);
+        resources.Prepare(resolver).Commit();
+        using NativeBattleEffectTextureSource textures = new(resources);
+        PixelImage original = new(8, 1);
+
+        Assert.Same(original, textures.Apply(original, state, 0, 0, 0, 0, 8, 1));
+        PixelImage copied = textures.Apply(original, state, 0, 0, 64, 0, 8, 1);
+        PixelImage chained = textures.Apply(original, state, 0, 0, 128, 0, 8, 1);
+
+        Assert.Equal(16, copied.Width);
+        Assert.Equal(copied[0, 0], chained[0, 0]);
+        Assert.Equal(new Rgba32(90, 20, 30, 127), chained[15, 1]);
+        Assert.Equal(2, resolver.Contexts.Count);
+        Assert.All(resolver.Contexts, context =>
+        {
+            Assert.Equal("magic/mag012_b.00", context.NativeAlias!.Owner.Path);
+            Assert.Equal(0, context.NativeAlias.X);
+            Assert.Empty(context.NativePage!.Members);
+        });
+    }
+
+    [Fact]
     public void DistinctRetainedFrameHistoriesDoNotShareAResourceContextAgainstTheSameLiveState()
     {
         NativeBattleEffectTextureState state = PixelState(new("mag012_b.00", 2, NativeBattleTextureRole.Pixels, 4, 2, 1));

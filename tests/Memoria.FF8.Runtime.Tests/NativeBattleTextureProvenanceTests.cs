@@ -166,7 +166,7 @@ public sealed class NativeBattleTextureProvenanceTests
         Assert.Contains(retained.LiveTextureSources!.Value, region => region.Origin.Role == NativeBattleTextureRole.Pixels);
         Assert.DoesNotContain(overwritten.LiveTextureSources!.Value, region => region.Origin.Role == NativeBattleTextureRole.Pixels);
         Assert.Single(retained.TextureRegistrations!.Value);
-        Assert.Empty(overwritten.TextureRegistrations!.Value);
+        Assert.DoesNotContain(overwritten.TextureRegistrations!.Value, registration => !registration.OwnedSpans.IsEmpty);
         NativeBattlePcTextureWindowPixels restored = JsonSerializer.Deserialize<NativeBattlePcTextureWindowPixels>(JsonSerializer.Serialize(retained))!;
         restored.Validate();
         Assert.Equal(retained.LiveTextureSources.Value, restored.LiveTextureSources!.Value);
