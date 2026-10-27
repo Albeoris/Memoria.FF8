@@ -18,9 +18,9 @@ public static class NativeBattleDatDirectory
             throw new InvalidDataException("Native battle DAT directory requires its complete original resource.");
         }
         int count = BinaryPrimitives.ReadInt32LittleEndian(bytes);
-        if (count is < 1 or > 16 || bytes.Length < 8 + count * 4 || BinaryPrimitives.ReadInt32LittleEndian(bytes[(4 + count * 4)..]) != bytes.Length || index < 0 || index > count)
+        if (count is < 1 or > 16 || bytes.Length < 8 + count * 4 || index < 0 || index > count)
         {
-            throw new InvalidDataException("Native battle DAT directory is unbounded or its declared length disagrees.");
+            throw new InvalidDataException("Native battle DAT directory is incomplete or its section selection is invalid.");
         }
         int previous = 8 + count * 4;
         for (int section = 0; section < count; section++)
@@ -32,6 +32,7 @@ public static class NativeBattleDatDirectory
             }
             previous = offset;
         }
+        // 507120 consumes section offsets; 482610/52D400 obtain the loaded extent from the file itself.
         return index == count ? bytes.Length : BinaryPrimitives.ReadInt32LittleEndian(bytes[(4 + index * 4)..]);
     }
 }
