@@ -1,4 +1,31 @@
-# Memoria FF8
+<h1 align="center">Memoria FF8</h1>
+
+<p align="center">
+  <strong>A from-scratch recreation of the <em>FINAL FANTASY VIII</em> engine in C#, built to bring the original game to life through an independent, readable implementation.</strong>
+</p>
+
+<p align="center">
+  <a href="#about"><img src="https://img.shields.io/badge/status-experimental-orange" alt="Status: experimental"></a>
+  <a href="https://github.com/Albeoris/Memoria.FF8/actions/workflows/build.yml"><img src="https://github.com/Albeoris/Memoria.FF8/actions/workflows/build.yml/badge.svg" alt="Desktop distributions"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <a href="#play"><img src="https://img.shields.io/badge/playable-Windows_x64-blue" alt="Playable: Windows x64"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Albeoris/Memoria.FF8/releases">Download</a> ·
+  <a href="#about">About</a> ·
+  <a href="#build">Build</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="https://github.com/Albeoris/Memoria.FF8/issues">Report a bug</a>
+</p>
+
+<p align="center">
+  <a href="https://www.patreon.com/Albeoris/join"><img src="https://img.shields.io/badge/Support_on-Patreon-FF424D?style=for-the-badge" alt="Support on Patreon"></a>
+  <a href="https://boosty.to/albeoris"><img src="https://img.shields.io/badge/Support_on-Boosty-F15F2C?style=for-the-badge" alt="Support on Boosty"></a>
+</p>
+
+> [!IMPORTANT]
+> This project ships **no game files**. You need your own legally obtained copy of a supported edition of *FINAL FANTASY VIII*. Memoria FF8 is an independent fan project and is not affiliated with or endorsed by the game's rights holders.
 
 ## Legal Notice and Rights-Holder Information
 
