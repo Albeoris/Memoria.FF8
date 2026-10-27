@@ -25,7 +25,7 @@ public sealed partial class GameAssets
             if (cache.Program is null || cache.Generation != generation || overrides is not null)
             {
                 using IFlArchive world = OpenArchive("world");
-                byte[] wmset = Read(world, "wmsetus.obj");
+                byte[] wmset = Read(world, Path.GetFileName(NativeResourceNames.WorldSettings(resources.ResourceLanguage).Path));
                 int[] sections = WorldAssetReader.ReadSections(wmset);
                 cache.Program = wmset[sections[9]..sections[10]];
                 cache.Generation = generation;

@@ -43,6 +43,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly Dictionary<(int, int), PixelImage> textures = [];
     private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
     private readonly ResourceService resources;
+    private readonly ResourceKey worldSettingsKey;
     private readonly AssetTextureScope textureScope;
     private readonly IModelOverrideSource? modelOverrides;
     private AssetHandle<TextureValue>? roadHandle;
@@ -70,6 +71,7 @@ public sealed partial class WorldAssets : IDisposable
             archiveSource = resources.GetSource<IGameArchiveSource>() ?? throw new NotSupportedException("The world resource source does not support archive enumeration.");
         }
         this.resources = resources;
+        worldSettingsKey = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
         this.modelOverrides = modelOverrides;
         textureScope = new AssetTextureScope(resources);
         IFlArchive? openedArchive = null;
@@ -78,12 +80,14 @@ public sealed partial class WorldAssets : IDisposable
             openedArchive = archiveSource.OpenArchive("world");
             archive = openedArchive;
             terrain = resources.Get(new ResourceKey("world/wmx.obj"));
-            using Stream terrainSource = terrain.OpenRead();
-            if (!terrainSource.CanSeek || terrainSource.Length != 835L * SegmentBytes)
+            using (Stream terrainSource = terrain.OpenRead())
             {
-                throw new InvalidDataException("Unexpected WMX segment count.");
+                if (!terrainSource.CanSeek || terrainSource.Length != 835L * SegmentBytes)
+                {
+                    throw new InvalidDataException("Unexpected WMX segment count.");
+                }
             }
-            wmset = Read("wmsetus.obj");
+            wmset = resources.Read(worldSettingsKey);
             sections = WorldAssetReader.ReadSections(wmset);
             mapLocations = new WorldMapLocations(wmset);
             Spawns = WorldAssetReader.ReadSpawns(wmset, sections);
@@ -275,7 +279,7 @@ public sealed partial class WorldAssets : IDisposable
         int[] members = selected ?? Enumerable.Range(0, pointers.Length).ToArray();
         List<TextureKey> dependencies = [];
         List<(int X, int Y)> positions = [];
-        ResourceKey owner = new("world/wmsetus.obj");
+        ResourceKey owner = worldSettingsKey;
         for (int index = 0; index < members.Length; index++)
         {
             int member = members[index];

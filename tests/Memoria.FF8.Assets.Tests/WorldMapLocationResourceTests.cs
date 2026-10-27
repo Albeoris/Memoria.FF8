@@ -20,6 +20,33 @@ public sealed class WorldMapLocationResourceTests
         Assert.Equal(-2, locations.GetPlaceId(0, 0));
     }
 
+    [Fact]
+    public void ExplicitFrenchSelectionUsesItsOwnCanonicalMapAndKeepsStorageProfile()
+    {
+        using LocationSource source = new();
+        ResourceService resources = new(source, "fr");
+        ResourceKey french = new("world/wmsetfr.obj");
+        EncodedResource english = new(new ResourceKey("world/wmsetus.obj"), "obj", 1, "fixture", Map(9));
+        resources.Prepare(null, encodedResources: [english, new(french, "obj", 1, "fixture", Map(23))]).Commit();
+        WorldMapLocations locations = WorldMapLocations.Read(resources);
+        Assert.Equal(23, locations.GetPlaceId(0, 0));
+        Assert.Equal("fr", resources.ResourceLanguage);
+        Assert.Equal("en", resources.Source.Language);
+        Assert.Equal(0, source.Reads);
+        ResourceReloadRequiredException failure = Assert.Throws<ResourceReloadRequiredException>(() => resources.Prepare(null, encodedResources: [english]));
+        Assert.Contains(french, failure.Resources);
+    }
+
+    [Fact]
+    public void ExplicitMissingFrenchMapCannotUseAvailableEnglishMap()
+    {
+        using InMemoryResourceSource source = new(new("memory", GameDataEdition.Classic, []));
+        source.Set(new("world/wmsetus.obj"), Map(9), "obj");
+        FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => WorldMapLocations.Read(new ResourceService(source, "fr")));
+        Assert.Contains("world/wmsetfr.obj", failure.Message);
+        Assert.Equal(9, WorldMapLocations.Read(new ResourceService(source)).GetPlaceId(0, 0));
+    }
+
     private static byte[] Map(byte place)
     {
         const int start = 196;

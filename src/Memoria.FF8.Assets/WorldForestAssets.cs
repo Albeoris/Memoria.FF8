@@ -140,7 +140,7 @@ public sealed partial class WorldAssets
             atlas.Pixels.AsSpan((y + row) * atlas.Width + x, texture.Width).CopyTo(texture.Pixels.AsSpan(row * texture.Width, texture.Width));
         }
         forestTextures.Add((type, frame), texture);
-        var handle = textureScope.Register(new Memoria.FF8.Resources.TextureKey(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), $"forest/{type}/{frame}"), texture, "classic-world-sprite", nativeAlias: ReadSectionTextureAddress(38, tim, palette, x, y, texture.Width, texture.Height));
+        var handle = textureScope.Register(new Memoria.FF8.Resources.TextureKey(worldSettingsKey, $"forest/{type}/{frame}"), texture, "classic-world-sprite", nativeAlias: ReadSectionTextureAddress(38, tim, palette, x, y, texture.Width, texture.Height));
         if (handle is not null)
         {
             forestTextureHandles.Add((type, frame), handle);

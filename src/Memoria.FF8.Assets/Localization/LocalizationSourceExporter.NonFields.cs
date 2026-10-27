@@ -291,15 +291,7 @@ public static partial class LocalizationSourceExporter
             }
         }
 
-        private string WorldResource => "world/" + (language switch
-        {
-            "fr" => "wmsetfr.obj",
-            "de" => "wmsetgr.obj",
-            "es" => "wmsetsp.obj",
-            "it" => "wmsetit.obj",
-            "jp" => "wmsetjp.obj",
-            _ => "wmsetus.obj"
-        });
+        private string WorldResource => NativeResourceNames.WorldSettings(language).Path;
 
         private void World()
         {

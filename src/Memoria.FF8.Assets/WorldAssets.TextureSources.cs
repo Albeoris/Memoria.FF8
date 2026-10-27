@@ -23,7 +23,7 @@ public sealed partial class WorldAssets
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(member, pointers.Length);
         TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section - 1] + pointers[member]).Image;
         PixelImage original = tim.Decode(palette);
-        TextureKey key = new(new ResourceKey("world/wmsetus.obj"), $"section/{section}/texture/{member}", palette);
+        TextureKey key = new(worldSettingsKey, $"section/{section}/texture/{member}", palette);
         AssetHandle<TextureValue>? handle = textureScope.Register(key, original, "classic-world-section", SectionTextureRegion(tim, palette), value => tim.Decode(value), tim.Palettes.Count);
         if (handle is not null)
         {
@@ -52,7 +52,7 @@ public sealed partial class WorldAssets
             TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section - 1] + pointers[member]).Image;
             if (tim.X == source.X && tim.Y == source.Y && tim.WidthInWords == source.WidthInWords && tim.Height == source.Height)
             {
-                return new(new ResourceKey("world/wmsetus.obj"), $"section/{section}/texture/{member}", palette, x, y, width, height, tim.PixelWidth, tim.Height);
+                return new(worldSettingsKey, $"section/{section}/texture/{member}", palette, x, y, width, height, tim.PixelWidth, tim.Height);
             }
         }
         throw new InvalidDataException("The world texture has no member in its original section.");
@@ -78,7 +78,7 @@ public sealed partial class WorldAssets
             TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section - 1] + pointers[member]).Image;
             if (tim.PixelMode == TimPixelMode.Indexed4 && x >= tim.X && x + widthWords <= tim.X + tim.WidthInWords && y >= tim.Y && y + height <= tim.Y + tim.Height)
             {
-                return new(new ResourceKey("world/wmsetus.obj"), $"section/{section}/texture/{member}", 0, (x - tim.X) * 4, y - tim.Y, widthWords * 4, height, tim.PixelWidth, tim.Height);
+                return new(worldSettingsKey, $"section/{section}/texture/{member}", 0, (x - tim.X) * 4, y - tim.Y, widthWords * 4, height, tim.PixelWidth, tim.Height);
             }
         }
         if (section == 40)

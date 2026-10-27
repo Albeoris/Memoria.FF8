@@ -61,7 +61,7 @@ public sealed partial class WorldAssets
         }
         List<TextureKey> dependencies = [];
         List<(int X, int Y)> positions = [];
-        ResourceKey owner = new("world/wmsetus.obj");
+        ResourceKey owner = worldSettingsKey;
         foreach (NativeWorldTextureCopy copy in ReadNativeWorldTextureCopies(disc, counter))
         {
             (TimImage source, int member) = FindNativeCopySource(copy);

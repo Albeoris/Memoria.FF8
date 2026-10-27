@@ -91,11 +91,12 @@ public sealed partial class GameAssets
         {
             yield return new("world/chara", "World characters", "World character", "world/chara.one", "world character chara.one") { LoadError = worldError };
         }
+        ResourceKey worldSettingsKey = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
         byte[]? wmset = null;
         string? staticError = null;
         try
         {
-            wmset = resources.Read(new ResourceKey("world/wmsetus.obj"));
+            wmset = resources.Read(worldSettingsKey);
         }
         catch (Exception exception) when (CatalogError(exception))
         {
@@ -117,12 +118,12 @@ public sealed partial class GameAssets
             {
                 int shape = index + 64;
                 string name = $"World static shape {shape}";
-                yield return new($"world/static/{shape}", name, "World static", "world/wmsetus.obj", $"{name} world/wmsetus.obj {index}", ModelIndex: shape);
+                yield return new($"world/static/{shape}", name, "World static", worldSettingsKey.Path, $"{name} {worldSettingsKey.Path} {index}", ModelIndex: shape);
             }
         }
         if (staticError is not null)
         {
-            yield return new("world/static/unavailable", "World static models", "World static", "world/wmsetus.obj", "world static models wmsetus.obj") { LoadError = staticError };
+            yield return new("world/static/unavailable", "World static models", "World static", worldSettingsKey.Path, $"world static models {worldSettingsKey.Path}") { LoadError = staticError };
         }
         foreach (ModelCatalogEntry entry in EnumerateFieldModelSources())
         {

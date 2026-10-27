@@ -294,6 +294,6 @@ public sealed partial class GameAssets
     public NativeTutorialExamCatalog ReadNativeTutorialExamCatalog()
     {
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), resources.Source.Language);
+        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), resources.ResourceLanguage);
     }
 }

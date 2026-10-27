@@ -26,7 +26,7 @@ public sealed class WorldMapLocations
     public static WorldMapLocations Read(ResourceService resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
-        return new WorldMapLocations(resources.Read(new ResourceKey("world/wmsetus.obj")));
+        return new WorldMapLocations(resources.Read(NativeResourceNames.WorldSettings(resources.ResourceLanguage)));
     }
 
     public short GetPlaceId(int x, int rawZ)
