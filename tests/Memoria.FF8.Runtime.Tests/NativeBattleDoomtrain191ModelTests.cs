@@ -38,7 +38,7 @@ public sealed class NativeBattleDoomtrain191ModelTests
         NativeBattleDecodedPose pose = NativeBattleArenaPose.ReadCurrentPose(frame.Memory.Arena!, 24, 2);
         Assert.Equal(new NativeBattleVector(0, 0, 0), pose.Translation);
         Assert.Equal(2, pose.Bones.Length);
-        Assert.Throws<NotSupportedException>(() => frame.Memory.Arena!.Read(24 + 32 + 48 + 18, 2));
+        Assert.Equal(new byte[] { 0, 0 }, frame.Memory.Arena!.Read(24 + 32 + 48 + 18, 2));
         Assert.Equal(JsonSerializer.Serialize(frame), JsonSerializer.Serialize(NativeBattleDoomtrain191Model.Select642470(JsonSerializer.Deserialize<NativeBattleDoomtrain191Frame>(JsonSerializer.Serialize(frame))!, 0, SourceLength)));
     }
 

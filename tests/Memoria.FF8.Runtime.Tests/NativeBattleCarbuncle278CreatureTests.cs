@@ -34,7 +34,7 @@ public sealed class NativeBattleCarbuncle278CreatureTests
         NativeBattleCarbuncleExecutableMemory result = source.SelectFirstPose(new(pose, 1, 2));
         Assert.Equal((short)-20, BinaryPrimitives.ReadInt16LittleEndian(result.Read(NativeBattleCarbuncleExecutableMemory.Address + 10, 2)));
         Assert.Equal(new byte[] { 0, 0 }, result.Read(NativeBattleCarbuncleExecutableMemory.Address + 50, 2));
-        Assert.Throws<NotSupportedException>(() => result.Read(NativeBattleCarbuncleExecutableMemory.Address + 98, 2));
+        Assert.Equal(new byte[] { 0, 0 }, result.Read(NativeBattleCarbuncleExecutableMemory.Address + 98, 2));
         string json = JsonSerializer.Serialize(result);
         NativeBattleCarbuncleExecutableMemory restored = JsonSerializer.Deserialize<NativeBattleCarbuncleExecutableMemory>(json)!;
         restored.Validate();

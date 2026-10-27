@@ -45,7 +45,7 @@ public sealed partial class NativeBattleCinematicModelTests
         Assert.Equal(new NativeBattleVector(0, 0, 0), pose.Translation);
         Assert.All(pose.Bones, bone => Assert.Equal(new NativeBattleVector(0, 0, 0), bone.Rotation));
         Assert.Equal((short)0, WordSigned(result, Skeleton + 32 + 18));
-        Assert.Throws<NotSupportedException>(() => result.Arena.Read(Skeleton + 32 + 48 + 18, 2));
+        Assert.Equal((short)0, WordSigned(result, Skeleton + 32 + 48 + 18));
         Assert.Throws<NotSupportedException>(() => result.Arena.Read(Skeleton + 6, 2));
         Assert.Equal((short)713, WordSigned(result, Skeleton + 2));
     }
