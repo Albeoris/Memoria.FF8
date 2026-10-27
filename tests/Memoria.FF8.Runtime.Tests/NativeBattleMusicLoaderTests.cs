@@ -104,7 +104,7 @@ public sealed class NativeBattleMusicLoaderTests
     public void Source_directory_bounds_and_unavailable_shared_pool_refuse_without_a_completion_write()
     {
         byte[] invalid = Directory().ToArray();
-        BinaryPrimitives.WriteInt32LittleEndian(invalid.AsSpan(12), invalid.Length + 1);
+        BinaryPrimitives.WriteInt32LittleEndian(invalid.AsSpan(8), invalid.Length + 1);
         Assert.Throws<InvalidDataException>(() => NativeBattleMusicLoadSource.Read501A20(invalid.ToImmutableArray()));
         NativeBattleAuxiliaryState auxiliary = NativeBattleAuxiliaryState.Clear();
         for (int index = 0; index < 16; index++)
@@ -112,6 +112,23 @@ public sealed class NativeBattleMusicLoaderTests
             auxiliary = auxiliary.AppendCameraBlend(8);
         }
         Assert.Throws<InvalidOperationException>(() => auxiliary.AppendMusicLoad501A20(0x1234, (_, _) => Assert.Fail("No caller write follows failed506C10 allocation.")));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(33)]
+    public void Source_sections_use_actual_loaded_extent_instead_of_terminal_size_metadata(int declaredLength)
+    {
+        ImmutableArray<byte> directory = Directory();
+        NativeBattleMusicLoadSource expected = NativeBattleMusicLoadSource.Read501A20(directory);
+        byte[] bytes = directory.ToArray();
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), declaredLength);
+
+        NativeBattleMusicLoadSource actual = NativeBattleMusicLoadSource.Read501A20(bytes.ToImmutableArray());
+
+        Assert.Equal(expected.SoundBank.ToArray(), actual.SoundBank.ToArray());
+        Assert.Equal(expected.Music.ToArray(), actual.Music.ToArray());
     }
 
     private static NativeBattleMusicProcessState Create(byte bank) => new(new(1, null, null, null, 0, null), bank, null);
