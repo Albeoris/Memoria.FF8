@@ -185,7 +185,10 @@ class TargetTests(unittest.TestCase):
 
     def test_interrupted_directory_promotion_recovers_and_commits(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = self.deployment_root(directory)
+            # Exercise canonicalization even on hosts without a temporary-directory symlink.
+            alias_parent = Path(directory) / "alias-parent"
+            alias_parent.mkdir()
+            root = self.deployment_root(alias_parent / "..")
             incoming = {"tool": self.digest("new")}
             target.prepare_deployment(root, incoming)
             target.accept_deployment_archive(root, incoming, self.deployment_archive(root, {"tool": "new"}))
@@ -197,6 +200,9 @@ class TargetTests(unittest.TestCase):
             with mock.patch.object(target.os, "replace", side_effect=interrupt):
                 with self.assertRaises(OSError):
                     target.commit_deployment(root, incoming)
+            self.assertTrue((root / "deployment-backup").is_dir())
+            self.assertTrue((root / "deployment-staging").is_dir())
+            self.assertFalse((root / "payload").exists())
             target.recover_deployment(root)
             self.assertEqual("new", (root / "payload/tool").read_text())
             self.assertEqual(incoming, json.loads((root / "payload-manifest.json").read_text()))
@@ -261,7 +267,30 @@ class TargetTests(unittest.TestCase):
                     group.signal(target.signal.SIGTERM)
                 kill.assert_not_called()
 
-    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux /proc process-group integration test")
+    @staticmethod
+    def digest(text):
+        return hashlib.sha256(text.encode()).hexdigest()
+
+    def deployment_root(self, directory):
+        # Match the target's canonical paths, including temporary-directory aliases.
+        root = Path(directory).resolve()
+        (root / "payload").mkdir()
+        (root / "payload/tool").write_text("old")
+        (root / "payload-manifest.json").write_text(json.dumps(target.file_manifest(root / "payload")))
+        return root
+
+    @staticmethod
+    def deployment_archive(root, contents):
+        (root / "inbox").mkdir(exist_ok=True)
+        archive = root / "inbox/incoming.zip"
+        with zipfile.ZipFile(archive, "w") as output:
+            for name, content in contents.items():
+                output.writestr(name, content)
+        return archive
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "Requires Linux /proc and process-group signals")
+class LinuxTargetIntegrationTests(unittest.TestCase):
     def test_real_exited_leader_leaves_term_ignoring_child_that_cleanup_kills(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
@@ -277,26 +306,6 @@ class TargetTests(unittest.TestCase):
             finally:
                 target.stop_owned_group(process.memoria_group, grace_seconds=0.1)
                 process.stdout.close()
-
-    @staticmethod
-    def digest(text):
-        return hashlib.sha256(text.encode()).hexdigest()
-
-    def deployment_root(self, directory):
-        root = Path(directory)
-        (root / "payload").mkdir()
-        (root / "payload/tool").write_text("old")
-        (root / "payload-manifest.json").write_text(json.dumps(target.file_manifest(root / "payload")))
-        return root
-
-    @staticmethod
-    def deployment_archive(root, contents):
-        (root / "inbox").mkdir(exist_ok=True)
-        archive = root / "inbox/incoming.zip"
-        with zipfile.ZipFile(archive, "w") as output:
-            for name, content in contents.items():
-                output.writestr(name, content)
-        return archive
 
 
 if __name__ == "__main__":

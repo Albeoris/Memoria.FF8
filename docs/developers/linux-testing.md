@@ -105,3 +105,5 @@ python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py
 ```
 
 These validate quoting, Windows drive conversion, named-target selection, dirty-source/dependency/script cache invalidation, tamper detection, incremental transfer plans, data preservation, cancellation cleanup and Vulkan classification using mocks. They do not establish an actual WSLg, Steam Deck, Intel Mac or native Linux runtime pass.
+
+CI runs the mocked orchestration contracts and Python `TargetTests` on Windows, Linux and macOS. The `LinuxTargetIntegrationTests` class requires Linux `/proc` and real process-group signals: it has a platform skip marker for local discovery and runs in a separate Linux-only CI step. Select these groups with unittest's `-k TargetTests` or `-k LinuxTargetIntegrationTests`. Mark tests that require native host facilities with an explicit platform skip condition; tests of mocked Linux commands or portable file operations remain portable.

@@ -33,12 +33,18 @@ jobs:
       - name: Install portable text test fonts
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk
-      - name: Validate Linux testing orchestration
+      - name: Validate portable orchestration contracts
         shell: pwsh
         run: |
           ./tools/linux-testing/tests/Orchestration.Tests.ps1
-          python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py
-          if ($LASTEXITCODE -ne 0) { throw 'Linux target orchestration tests failed.' }
+          python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py -k TargetTests
+          if ($LASTEXITCODE -ne 0) { throw 'Portable target orchestration tests failed.' }
+      - name: Validate native Linux process cleanup
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: |
+          python -m unittest discover -s ./tools/linux-testing/tests -p test_target.py -k LinuxTargetIntegrationTests
+          if ($LASTEXITCODE -ne 0) { throw 'Native Linux target integration tests failed.' }
       - name: Check portable project coverage
         shell: pwsh
         run: ./tools/Get-PlatformInventory.ps1 -Check
