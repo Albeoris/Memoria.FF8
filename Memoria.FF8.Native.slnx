@@ -38,4 +38,5 @@
   <Project Path="tests/Memoria.FF8.App.Tests/Memoria.FF8.App.Tests.csproj" />
   <Project Path="tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj" />
   <Project Path="tests/Memoria.FF8.BattleEffects.Tests/Memoria.FF8.BattleEffects.Tests.csproj" />
+  <Project Path="vendor/MonoGame.Native.Vulkan/tests/ReadbackSmoke/ReadbackSmoke.csproj" />
 </Solution>

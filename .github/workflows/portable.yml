@@ -27,9 +27,9 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
-      - name: Install portable text test fonts
+      - name: Install Linux build and text dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-cjk build-essential cmake git curl unzip openssl binutils libsdl2-dev
       - name: Validate portable orchestration contracts
         shell: pwsh
         run: |

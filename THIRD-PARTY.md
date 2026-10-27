@@ -10,6 +10,8 @@ The standalone `Memoria.PsfDecoder` audio codec uses the GPLv3 Highly Experiment
 
 Runtime packages are restored from NuGet at the versions in `Directory.Packages.props`. Their package metadata retains the authors, source and license declarations:
 
+The Linux Vulkan native runtime includes a narrow swapchain readback synchronization fix. Its pinned upstream source, dependency revisions, patch, build recipe and notices are retained under [vendor/MonoGame.Native.Vulkan](vendor/MonoGame.Native.Vulkan/README.md); the distribution includes the corresponding `licenses/MonoGame.Native.Vulkan/` notices.
+
 | Component | Version | License and source |
 | --- | --- | --- |
 | Avalonia / Avalonia.Desktop / Avalonia.Themes.Fluent | 11.3.9 | [MIT](https://github.com/AvaloniaUI/Avalonia) |

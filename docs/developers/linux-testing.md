@@ -36,9 +36,9 @@ Copy-Item ./tools/linux-testing/settings.example.json ./tools/linux-testing/loca
 
 Set `GameDirectory` to your existing legal Windows game folder, including a folder on another drive. The script invokes `wslpath` with that complete path as one argument; it does not assume a C: drive or split spaces. It prefills the isolated test launcher's selected folder. It never copies game assets into a build or alters the selected folder. If a mapped or external drive is not available inside WSL, expose/mount that drive yourself and verify it is accessible before retrying. The script does not mount drives automatically.
 
-`-Distro` overrides the configured distro. `-GameDirectory` overrides its configured Windows game folder for a single run. For example, pass a folder selected on your own machine:
-
 Set optional `MediaToolsDirectory` to an existing native Linux LGPL FFmpeg directory containing `ffmpeg` and `ffprobe`. It accepts a Windows path accessible through WSL or an absolute Linux path. Hardware targets use `HardwareMediaToolsDirectory`. These tools are referenced in place, never transferred with application or original game assets; the game validates them before use. Configure this once to avoid optional media-installation dialogs during unattended game smoke tests.
+
+`-Distro` overrides the configured distro. `-GameDirectory` overrides its configured Windows game folder for a single run. For example, pass a folder selected on your own machine:
 
 ```powershell
 pwsh ./tools/Test-Linux.ps1 -GameDirectory $env:MEMORIA_FF8_GAME_DIR

@@ -44,4 +44,5 @@
     <Project Path="tests/Memoria.FF8.Remastered.Tests/Memoria.FF8.Remastered.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Events.Tests/Memoria.FF8.Events.Tests.csproj" />
   </Folder>
+  <Project Path="vendor/MonoGame.Native.Vulkan/tests/ReadbackSmoke/ReadbackSmoke.csproj" />
 </Solution>

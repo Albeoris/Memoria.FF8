@@ -70,5 +70,6 @@
     <Copy SourceFiles="@(MusicHostPublishFile)" DestinationFiles="@(MusicHostPublishFile->'$(PublishDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
+  <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" />
   <Import Project="../../vendor/HighlyExperimental/PsfDecoder.targets" />
 </Project>

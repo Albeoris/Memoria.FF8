@@ -78,7 +78,7 @@ try {
             if ($SetupDependencies) {
                 Write-Host 'Explicit setup: installing ordinary Ubuntu runtime/diagnostic packages from configured distro repositories. sudo may request your Linux password.'
                 # Sudo runs interactively; credentials are never captured by this script.
-                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y cmake build-essential fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
+                & wsl.exe --distribution $settings.Distro --exec sh -c 'sudo apt-get update && sudo apt-get install -y cmake build-essential git curl unzip openssl binutils libsdl2-dev fonts-dejavu-core fonts-noto-core fonts-noto-cjk libx11-6 libice6 libsm6 libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libgl1 libegl1 libgtk-3-0t64 dbus-user-session xdg-desktop-portal xdg-desktop-portal-gtk libasound2t64 libpulse0 libvulkan1 vulkan-tools mesa-utils mesa-vulkan-drivers'
                 if ($LASTEXITCODE -ne 0) {
                     throw 'Explicit Ubuntu dependency setup failed. Review apt output; no external repository or graphics driver was requested.'
                 }

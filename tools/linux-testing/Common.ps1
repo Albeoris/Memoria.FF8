@@ -388,7 +388,7 @@ function Get-LinuxPsfBuildEnvironment([string]$ProductRoot, $Settings, [string]$
         throw 'The installed Linux PSF decoder does not match the executable built from the retained CMake source.'
     }
     @{ identity = $identity; distro = $Settings.Distro; sha256 = $installedHash } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $install 'build.json') -Encoding utf8
-    return @{ MemoriaPsfDecoderPrepared = 'true'; MemoriaPsfDecoderDirectory = [IO.Path]::GetFullPath($install) }
+    return @{ MemoriaPsfDecoderPrepared = 'true'; MemoriaPsfDecoderDirectory = [IO.Path]::GetFullPath($install); MemoriaNativeVulkanDistro = $Settings.Distro }
 }
 
 function Assert-PayloadPsfDecoder([string]$Payload, [string]$DecoderDirectory) {

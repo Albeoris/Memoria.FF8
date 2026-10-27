@@ -1,0 +1,65 @@
+diff --git a/native/monogame/vulkan/MGG_Vulkan.cpp b/native/monogame/vulkan/MGG_Vulkan.cpp
+index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..32dae3161e3d6abe0d299721736cb593e2f2634b 100644
+--- a/native/monogame/vulkan/MGG_Vulkan.cpp
++++ b/native/monogame/vulkan/MGG_Vulkan.cpp
+@@ -183,6 +183,7 @@ struct MGVK_Frame
+ 	MGG_Buffer* uniforms = nullptr;
+ 	VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+ 	VkSemaphore imageAcquiredSemaphore = VK_NULL_HANDLE;
++	bool imageAcquiredPending = false;
+ 	VkFence completedFence = VK_NULL_HANDLE;
+ };
+ 
+@@ -2213,6 +2214,7 @@ void MGVK_TryAcquireSwap(MGG_GraphicsDevice* device, MGVK_Frame& frame)
+ 		res = vkAcquireNextImageKHR(device->device, device->swapchain, UINT64_MAX,
+ 			frame.imageAcquiredSemaphore, VK_NULL_HANDLE, &frame.image_index);
+ 		VK_CHECK_RESULT(res);
++		frame.imageAcquiredPending = res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR;
+ 	}
+ 
+ 	// This should be cleared by now.
+@@ -2585,7 +2587,7 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
+ 
+ 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+ 		submitInfo.pNext = nullptr;
+-		submitInfo.waitSemaphoreCount = 1;
++		submitInfo.waitSemaphoreCount = frame.imageAcquiredPending ? 1 : 0;
+ 		submitInfo.pWaitSemaphores = waits;
+ 		submitInfo.pWaitDstStageMask = waitFlags;
+ 		submitInfo.commandBufferCount = 1;
+@@ -2593,6 +2595,8 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame,
+ 		submitInfo.signalSemaphoreCount = 1;
+ 		submitInfo.pSignalSemaphores = &swap.renderCompleteSemaphore;
+ 		res = vkQueueSubmit(device->queue, 1, &submitInfo, frame.completedFence);
++		VK_CHECK_RESULT(res);
++		frame.imageAcquiredPending = false;
+ 
+ 		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+ 		presentInfo.waitSemaphoreCount = 1;
+@@ -4232,13 +4236,13 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+ 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+ 
+ 	VkSubmitInfo flushSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+-	flushSubmitInfo.waitSemaphoreCount = 1;
++	flushSubmitInfo.waitSemaphoreCount = frame.imageAcquiredPending ? 1 : 0;
+ 	flushSubmitInfo.pWaitSemaphores = &frame.imageAcquiredSemaphore;
+ 	flushSubmitInfo.commandBufferCount = 1;
+ 	flushSubmitInfo.pCommandBuffers = &frame.commandBuffer;
+ 	flushSubmitInfo.pWaitDstStageMask = waitStages;
+-	flushSubmitInfo.signalSemaphoreCount = 1;
+-	flushSubmitInfo.pSignalSemaphores = &device->swapchains[frame.image_index].renderCompleteSemaphore;
++	// Present alone signals completion; this flush only consumes acquisition.
++	flushSubmitInfo.signalSemaphoreCount = 0;
+ 
+ 	VkFence flushFence;
+ 	VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+@@ -4247,7 +4251,8 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+ 
+ 	{
+ 		std::lock_guard lock(device->queueMutex);
+-		vkQueueSubmit(device->queue, 1, &flushSubmitInfo, flushFence);
++		VK_CHECK_RESULT(vkQueueSubmit(device->queue, 1, &flushSubmitInfo, flushFence));
++		frame.imageAcquiredPending = false;
+ 	}
+ 	vkWaitForFences(device->device, 1, &flushFence, VK_TRUE, UINT64_MAX);
+ 	vkDestroyFence(device->device, flushFence, nullptr);

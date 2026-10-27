@@ -1,0 +1,727 @@
+SDL2 source notices at the pinned source revision. HIDAPI is used under its BSD/original permissive license option.
+
+Source: src/SDL.c
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/events/imKStoUCS.c
+/*
+Copyright (C) 2003-2006,2008 Jamey Sharp, Josh Triplett
+Copyright © 2009 Red Hat, Inc.
+Copyright 1990-1992,1999,2000,2004,2009,2010 Oracle and/or its affiliates.
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+*/
+
+Source: src/joystick/controller_type.c
+/*
+  Copyright (C) Valve Corporation
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/libm/e_atan2.c
+/*
+ * ====================================================
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ *
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ * ====================================================
+ */
+
+Source: src/render/software/SDL_rotate.c
+/*
+
+SDL_rotate.c: rotates 32bit or 8bit surfaces
+
+Shamelessly stolen from SDL_gfx by Andreas Schiffler. Original copyright follows:
+
+Copyright (C) 2001-2011  Andreas Schiffler
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+   1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+
+   2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+   3. This notice may not be removed or altered from any source
+   distribution.
+
+Andreas Schiffler -- aschiffler at ferzkopp dot net
+
+*/
+
+Source: src/stdlib/SDL_crc16.c
+/* Public domain CRC implementation adapted from:
+   http://home.thep.lu.se/~bjorn/crc/crc32_simple.c
+
+   This algorithm is compatible with the 16-bit CRC described here:
+   https://www.lammertbies.nl/comm/info/crc-calculation
+*/
+
+Source: src/stdlib/SDL_crc32.c
+/* Public domain CRC implementation adapted from:
+   http://home.thep.lu.se/~bjorn/crc/crc32_simple.c
+
+   This algorithm is compatible with the 32-bit CRC described here:
+   https://www.lammertbies.nl/comm/info/crc-calculation
+*/
+
+Source: src/stdlib/SDL_strtokr.c
+/*
+ * Adapted from _PDCLIB_strtok() of PDClib library at
+ * https://github.com/DevSolar/pdclib.git
+ *
+ * The code was under CC0 license:
+ * https://creativecommons.org/publicdomain/zero/1.0/legalcode :
+ *
+ *                        No Copyright
+ *
+ * The person who associated a work with this deed has dedicated the
+ * work to the public domain by waiving all of his or her rights to
+ * the work worldwide under copyright law, including all related and
+ * neighboring rights, to the extent allowed by law.
+ *
+ * You can copy, modify, distribute and perform the work, even for
+ * commercial purposes, all without asking permission. See Other
+ * Information below.
+ */
+
+Source: src/video/SDL_egl.c
+/*
+ *  Simple DirectMedia Layer
+ *  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+ *
+ *  This software is provided 'as-is', without any express or implied
+ *  warranty.  In no event will the authors be held liable for any damages
+ *  arising from the use of this software.
+ *
+ *  Permission is granted to anyone to use this software for any purpose,
+ *  including commercial applications, and to alter it and redistribute it
+ *  freely, subject to the following restrictions:
+ *
+ *  1. The origin of this software must not be misrepresented; you must not
+ *     claim that you wrote the original software. If you use this software
+ *     in a product, an acknowledgment in the product documentation would be
+ *     appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be
+ *     misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
+
+Source: src/joystick/hidapi/SDL_hidapi_steamdeck.c
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2023 Max Maisel <max.maisel@posteo.de>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/joystick/windows/SDL_rawinputjoystick.c
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2025 Sam Lantinga <slouken@libsdl.org>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+*/
+
+Source: src/events/imKStoUCS.h
+/*
+Copyright (C) 2003-2006,2008 Jamey Sharp, Josh Triplett
+Copyright Â© 2009 Red Hat, Inc.
+Copyright 1990-1992,1999,2000,2004,2009,2010 Oracle and/or its affiliates.
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice (including the next
+paragraph) shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+*/
+
+Source: src/video/arm/pixman-arm-asm.h
+/*
+ * Copyright © 2010 Nokia Corporation
+ *
+ * Permission to use, copy, modify, distribute, and sell this software and its
+ * documentation for any purpose is hereby granted without fee, provided that
+ * the above copyright notice appear in all copies and that both that
+ * copyright notice and this permission notice appear in supporting
+ * documentation, and that the name of Mozilla Corporation not be used in
+ * advertising or publicity pertaining to distribution of the software without
+ * specific, written prior permission.  Mozilla Corporation makes no
+ * representations about the suitability of this software for any purpose.  It
+ * is provided "as is" without express or implied warranty.
+ *
+ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
+ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
+ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+ * SOFTWARE.
+ *
+ * Author:  Siarhei Siamashka (siarhei.siamashka@nokia.com)
+ *
+ */
+
+Source: src/video/arm/pixman-arm-neon-asm.h
+/*
+ * Copyright © 2009 Nokia Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ * Author:  Siarhei Siamashka (siarhei.siamashka@nokia.com)
+ */
+
+Source: src/video/arm/pixman-arm-simd-asm.h
+/*
+ * Copyright (c) 2012 Raspberry Pi Foundation
+ * Copyright (c) 2012 RISC OS Open Ltd
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+ * arising from the use of this software.
+ *
+ * Permission is granted to anyone to use this software for any purpose,
+ * including commercial applications, and to alter it and redistribute it
+ * freely, subject to the following restrictions:
+ *
+ * 1. The origin of this software must not be misrepresented; you must not
+ *    claim that you wrote the original software. If you use this software
+ *    in a product, an acknowledgment in the product documentation would be
+ *    appreciated but is not required.
+ * 2. Altered source versions must be plainly marked as such, and must not be
+ *    misrepresented as being the original software.
+ * 3. This notice may not be removed or altered from any source distribution.
+ */
+
+Source: src/video/haiku/SDL_bmessagebox.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 2018-2019 EXL <exlmotodev@gmail.com>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/video/qnx/sdl_qnx.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2017 BlackBerry Limited
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/video/uikit/SDL_uikitmetalview.h
+/*
+ Simple DirectMedia Layer
+ Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+
+ This software is provided 'as-is', without any express or implied
+ warranty.  In no event will the authors be held liable for any damages
+ arising from the use of this software.
+
+ Permission is granted to anyone to use this software for any purpose,
+ including commercial applications, and to alter it and redistribute it
+ freely, subject to the following restrictions:
+
+ 1. The origin of this software must not be misrepresented; you must not
+ claim that you wrote the original software. If you use this software
+ in a product, an acknowledgment in the product documentation would be
+ appreciated but is not required.
+ 2. Altered source versions must be plainly marked as such, and must not be
+ misrepresented as being the original software.
+ 3. This notice may not be removed or altered from any source distribution.
+ */
+
+Source: src/video/wayland/SDL_waylandshmbuffer.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/video/khronos/EGL/egl.h
+/*
+** Copyright 2013-2020 The Khronos Group Inc.
+** SPDX-License-Identifier: Apache-2.0
+**
+** This header is generated from the Khronos EGL XML API Registry.
+** The current version of the Registry, generator scripts
+** used to make the header, and the header can be found at
+**   http://www.khronos.org/registry/egl
+**
+** Khronos $Git commit SHA1: f4cc936b88 $ on $Git commit date: 2023-12-16 01:21:49 -0500 $
+*/
+
+Source: src/video/khronos/EGL/eglplatform.h
+/*
+** Copyright 2007-2020 The Khronos Group Inc.
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+Source: src/video/khronos/GLES2/gl2.h
+/*
+** Copyright 2013-2020 The Khronos Group Inc.
+** SPDX-License-Identifier: MIT
+**
+** This header is generated from the Khronos OpenGL / OpenGL ES XML
+** API Registry. The current version of the Registry, generator scripts
+** used to make the header, and the header can be found at
+**   https://github.com/KhronosGroup/OpenGL-Registry
+*/
+
+Source: src/video/khronos/GLES2/gl2platform.h
+/*
+** Copyright 2017-2020 The Khronos Group Inc.
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+Source: src/video/khronos/KHR/khrplatform.h
+/*
+** Copyright (c) 2008-2018 The Khronos Group Inc.
+**
+** Permission is hereby granted, free of charge, to any person obtaining a
+** copy of this software and/or associated documentation files (the
+** "Materials"), to deal in the Materials without restriction, including
+** without limitation the rights to use, copy, modify, merge, publish,
+** distribute, sublicense, and/or sell copies of the Materials, and to
+** permit persons to whom the Materials are furnished to do so, subject to
+** the following conditions:
+**
+** The above copyright notice and this permission notice shall be included
+** in all copies or substantial portions of the Materials.
+**
+** THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+** EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+** MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+** IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+** CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+** TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+** MATERIALS OR THE USE OR OTHER DEALINGS IN THE MATERIALS.
+*/
+
+Source: src/video/khronos/vk_video/vulkan_video_codecs_common.h
+/*
+** Copyright 2015-2024 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+Source: src/video/khronos/vulkan/vk_icd.h
+/*
+ * Copyright 2015-2023 The Khronos Group Inc.
+ * Copyright 2015-2023 Valve Corporation
+ * Copyright 2015-2023 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+Source: src/video/khronos/vulkan/vk_platform.h
+/*
+** Copyright 2014-2024 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+Source: src/video/khronos/vulkan/vk_sdk_platform.h
+/*
+ * Copyright (c) 2015-2016 The Khronos Group Inc.
+ * Copyright (c) 2015-2016 Valve Corporation
+ * Copyright (c) 2015-2016 LunarG, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+Source: src/joystick/hidapi/steam/controller_constants.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2021 Valve Corporation
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/joystick/hidapi/steam/controller_structs.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2020 Valve Corporation
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/hidapi/hidapi/hidapi.h
+/*******************************************************
+ HIDAPI - Multi-Platform library for
+ communication with HID devices.
+
+ Alan Ott
+ Signal 11 Software
+
+ 8/22/2009
+
+ Copyright 2009, All Rights Reserved.
+
+ At the discretion of the user of this library,
+ this software may be licensed under the terms of the
+ GNU General Public License v3, a BSD-Style license, or the
+ original HIDAPI license as outlined in the LICENSE.txt,
+ LICENSE-gpl3.txt, LICENSE-bsd.txt, and LICENSE-orig.txt
+ files located at the root of the source distribution.
+ These files may also be found in the public source
+ code repository located at:
+        https://github.com/libusb/hidapi .
+********************************************************/
+
+Source: src/core/linux/SDL_evdev_capabilities.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 2020 Collabora Ltd.
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/core/linux/SDL_sandbox.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 2022 Collabora Ltd.
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: src/audio/aaudio/SDL_aaudiofuncs.h
+/*
+  Simple DirectMedia Layer
+  Copyright , (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+Source: include/SDL_bits.h
+/* Based off of Bit Twiddling Hacks by Sean Eron Anderson
+     * <seander@cs.stanford.edu>, released in the public domain.
+     * http://graphics.stanford.edu/~seander/bithacks.html#IntegerLog
+     */
+
+Source: include/SDL_hidapi.h
+/**
+ * # CategoryHIDAPI
+ *
+ * Header file for SDL HIDAPI functions.
+ *
+ * This is an adaptation of the original HIDAPI interface by Alan Ott, and
+ * includes source code licensed under the following license:
+ *
+ * ```
+ * HIDAPI - Multi-Platform library for
+ * communication with HID devices.
+ *
+ * Copyright 2009, Alan Ott, Signal 11 Software.
+ * All Rights Reserved.
+ *
+ * This software may be used by anyone for any reason so
+ * long as the copyright notice in the source files
+ * remains intact.
+ * ```
+ *
+ * (Note that this license is the same as item three of SDL's zlib license, so
+ * it adds no new requirements on the user.)
+ *
+ * If you would like a version of SDL without this code, you can build SDL
+ * with SDL_HIDAPI_DISABLED defined to 1. You might want to do this for
+ * example on iOS or tvOS to avoid a dependency on the CoreBluetooth
+ * framework.
+ */
+
+Source: include/SDL_opengl.h
+/*
+ * Mesa 3-D graphics library
+ *
+ * Copyright (C) 1999-2006  Brian Paul   All Rights Reserved.
+ * Copyright (C) 2009  VMware, Inc.  All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+Source: include/SDL_vulkan.h
+/*
+  Simple DirectMedia Layer
+  Copyright (C) 2017, Mark Callow
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "package": "MonoGame.Runtime.Linux.Vulkan",
+  "version": "3.8.5.1",
+  "runtimeIdentifier": "linux-x64",
+  "upstream": {
+    "repository": "https://github.com/MonoGame/MonoGame.git",
+    "commit": "5e9fe9b100ffa67026dff97cc8adffae1414534e"
+  },
+  "dependencies": [
+    {
+      "repository": "https://github.com/MonoGame/MonoGame.Library.SDL.git",
+      "path": "native/monogame/external/sdl2",
+      "commit": "9f64afcc0c04d1714c412f8be2704d47096a6b9e"
+    },
+    {
+      "repository": "https://github.com/libsdl-org/SDL.git",
+      "path": "native/monogame/external/sdl2/sdl",
+      "commit": "5d249570393f7a37e037abf22cd6012a4cc56a71"
+    },
+    {
+      "repository": "https://github.com/nothings/stb.git",
+      "path": "external/stb",
+      "commit": "f58f558c120e9b32c217290b80bad1a0729fbb2c"
+    },
+    {
+      "repository": "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
+      "path": "native/monogame/external/vma",
+      "commit": "0e89587db3ebee4d463f191bd296374c5fafc8ea"
+    },
+    {
+      "repository": "https://github.com/zeux/volk.git",
+      "path": "native/monogame/external/volk",
+      "commit": "3a8068a57417940cf2bf9d837a7bb60d015ca2f1"
+    },
+    {
+      "repository": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+      "path": "native/monogame/external/vulkan-headers",
+      "commit": "eaa319dade959cb61ed2229c8ea42e307cc8f8b3"
+    },
+    {
+      "repository": "https://github.com/FNA-XNA/FAudio.git",
+      "path": "native/monogame/external/faudio",
+      "commit": "8a87fdc9242a7b507cf5c96c539334a1760c1ec7"
+    }
+  ],
+  "shaderCompiler": {
+    "package": "dotnet-mgfxc",
+    "profile": "Vulkan",
+    "version": "3.8.5.1"
+  },
+  "patchSha256": "91e0ef14f75506ef87fef32e52fa5f6341e64a01fe67cc41435610ff6c732c66",
+  "referencePackageSha512": "aHqIoWOuugfo1bH3pMh4bYsXHLImpQHYGUOgMuic3hWZazyELU7xmq5kJeudWd5jjLF2vFR9/FuHRrEf13slEw=="
+}

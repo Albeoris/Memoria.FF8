@@ -18,6 +18,8 @@ The script publishes a self-contained x64 launcher, dispatcher and isolated Wind
 
 Generated directories live under `artifacts/package/<RID>`. Linux produces `Memoria-FF8-linux-x64.tar.gz`; Intel macOS produces `Memoria-FF8-osx-x64.tar.gz` containing `Memoria.FF8.app`. The pinned MonoGame Mac runtime requires **macOS 26.0 on Intel**. An older Intel CI runner can build and statically inspect this payload; that does not establish a runtime pass. Unix archives preserve executable modes even when cross-published from Windows.
 
+Linux also builds the [locked native Vulkan runtime](../../vendor/MonoGame.Native.Vulkan/README.md), including the backbuffer-readback synchronization correction. Its recipe supports native Linux builds and Windows builds through a configured WSL2 distro. The Windows testing workflow prepares the native PSF codec and passes the selected distro to the Vulkan recipe. `./tools/Test-Linux.ps1 -SetupDependencies` installs ordinary Ubuntu native build dependencies; players need neither compilers nor SDKs. Verified native outputs and incremental CMake builds are reused.
+
 The complete Windows package also builds the isolated DX12 native runtime from its [public locked source recipe](../../vendor/MonoGame.Native.DX12/README.md). This requires Git, CMake 3.24 or newer compatible with the selected Visual Studio version, and Visual Studio C++ desktop tools plus a Windows SDK. The builder invokes the recipe once, verifies the output receipt/hash, and includes its source provenance and licenses before package validation. Vulkan, DX11 and Unix retain their own runtime families. Players need none of these native build tools.
 
 | Output | Purpose |

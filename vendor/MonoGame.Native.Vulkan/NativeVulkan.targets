@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup Condition="'$(MemoriaTargetRuntime)' == 'linux-x64' and '$(MemoriaGraphicsBackend)' == 'Vulkan'">
+    <MemoriaNativeVulkanDirectory Condition="'$(MemoriaNativeVulkanDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../artifacts/native-vulkan/linux-x64'))</MemoriaNativeVulkanDirectory>
+    <MemoriaNativeVulkanDistroArgument Condition="'$(MemoriaNativeVulkanDistro)' != ''">-Distro &quot;$(MemoriaNativeVulkanDistro)&quot;</MemoriaNativeVulkanDistroArgument>
+  </PropertyGroup>
+  <Target Name="BuildNativeVulkanRuntime" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(MemoriaTargetRuntime)' == 'linux-x64' and '$(MemoriaGraphicsBackend)' == 'Vulkan'">
+    <Exec Condition="'$(MemoriaNativeVulkanPrepared)' != 'true'" Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Build-NativeVulkan.ps1&quot; -RuntimeIdentifier &quot;$(MemoriaTargetRuntime)&quot; -OutputDirectory &quot;$(MemoriaNativeVulkanDirectory)&quot; $(MemoriaNativeVulkanDistroArgument)" />
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)../../tools/Build-NativeVulkan.ps1&quot; -RuntimeIdentifier &quot;$(MemoriaTargetRuntime)&quot; -OutputDirectory &quot;$(MemoriaNativeVulkanDirectory)&quot; -VerifyOnly" />
+  </Target>
+  <Target Name="CopyNativeVulkanRuntime" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="BuildNativeVulkanRuntime" Condition="'$(MemoriaTargetRuntime)' == 'linux-x64' and '$(MemoriaGraphicsBackend)' == 'Vulkan'">
+    <ItemGroup>
+      <NativeVulkanNotice Include="$(MemoriaNativeVulkanDirectory)/licenses/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(MemoriaNativeVulkanDirectory)/libmgruntime.so;$(MemoriaNativeVulkanDirectory)/native-runtime.json" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="$(MemoriaNativeVulkanDirectory)/libmgruntime.so" DestinationFolder="$(TargetDir)runtimes/linux-x64/native/" Condition="Exists('$(TargetDir)runtimes/linux-x64/native/libmgruntime.so')" />
+    <Copy SourceFiles="@(NativeVulkanNotice)" DestinationFiles="@(NativeVulkanNotice->'$(TargetDir)licenses/MonoGame.Native.Vulkan/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+  <Target Name="PublishNativeVulkanRuntime" AfterTargets="Publish" DependsOnTargets="BuildNativeVulkanRuntime" Condition="'$(MemoriaTargetRuntime)' == 'linux-x64' and '$(MemoriaGraphicsBackend)' == 'Vulkan'">
+    <ItemGroup>
+      <NativeVulkanPublishNotice Include="$(MemoriaNativeVulkanDirectory)/licenses/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="$(MemoriaNativeVulkanDirectory)/libmgruntime.so;$(MemoriaNativeVulkanDirectory)/native-runtime.json" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="@(NativeVulkanPublishNotice)" DestinationFiles="@(NativeVulkanPublishNotice->'$(PublishDir)licenses/MonoGame.Native.Vulkan/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+</Project>

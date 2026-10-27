@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <MemoriaGraphicsBackend>Vulkan</MemoriaGraphicsBackend>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.Native" />
+  </ItemGroup>
+  <Import Project="../../NativeVulkan.targets" />
+</Project>
