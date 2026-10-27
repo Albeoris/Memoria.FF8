@@ -272,6 +272,12 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             ToImmutable();
             return storage.Root;
         }
+        internal NativeBattleLogicalOrdering PublishKnownAncestorPrefix()
+        {
+            RequireActive();
+            storage.PublishKnownAncestorPrefix(boundary, callbacks);
+            return storage.Root;
+        }
         internal void BeginCheckpoint()
         {
             RequireActive();
@@ -786,6 +792,27 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 ClearUndo();
             }
             for (int index = first; index < marks.Count; index++)
+            {
+                Remember(marks[index]);
+            }
+        }
+        internal void PublishKnownAncestorPrefix(Checkpoint boundary, IReadOnlyList<Checkpoint> callbacks)
+        {
+            int first = marks.IndexOf(boundary);
+            int end = first + callbacks.Count + 1;
+            if (first < 0 || marks.Count < end || callbacks.Where((mark, index) => !ReferenceEquals(mark, marks[first + index + 1])).Any())
+            {
+                throw new InvalidOperationException("Ancestor ordering publication lost its native producer bookmarks.");
+            }
+            //The inner producer must publish first; rebasing this ancestor never accepts an unfinished inner suffix.
+            for (int index = end; index < marks.Count; index++)
+            {
+                if (!marks[index].Automatic && !RepresentsCurrentPrefix(marks[index]))
+                {
+                    throw new InvalidOperationException("Ancestor ordering publication requires every intervening native producer to freeze its current prefix.");
+                }
+            }
+            for (int index = first; index < end; index++)
             {
                 Remember(marks[index]);
             }

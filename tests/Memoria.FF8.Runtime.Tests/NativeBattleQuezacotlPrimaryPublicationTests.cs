@@ -57,6 +57,65 @@ public sealed class NativeBattleQuezacotlPrimaryPublicationTests
         Assert.Equal(777, unpublishedLocal.QuezacotlTargetY1774);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Actual_graphics_publication_accepts_primary_or_provisional_prefix_and_rolls_back_only_later_suffix(bool provisional, bool callback)
+    {
+        NativeBattleQuezacotlPacketWrite input = Initial();
+        string accepted;
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            operation.AdmitOrdering(input.Ordering);
+            using NativeBattleLogicalOrderingTransaction? continuation = provisional ? new(input.Ordering) : null;
+            if (continuation is not null)
+            {
+                NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, continuation.View, Batch(21));
+            }
+            using (NativeBattleLogicalOrderingTransaction producer = new(input.Ordering))
+            {
+                if (callback)
+                {
+                    producer.BeginCheckpoint();
+                }
+                NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, producer.View, Batch(22));
+                Assert.Throws<InvalidOperationException>(() => NativeBattleTaskOperation.AcceptPublishedOrdering(producer.View));
+                NativeBattleLogicalOrdering published = BattleSession.FreezeNativeQuezacotlOrderingPublication(producer.View, provisional ? input.Ordering : null, continuation);
+                NativeBattleTaskOperation.AcceptPublishedOrdering(published);
+                accepted = OrderingReceipt(published);
+                Assert.Null(published.Transaction);
+                if (callback)
+                {
+                    producer.CommitCheckpoint();
+                    producer.BeginCheckpoint();
+                }
+                NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, producer.View, Batch(23));
+            }
+        }
+        Assert.Equal(accepted, OrderingReceipt(input.Ordering));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Ancestor_publication_rejects_an_unfinished_inner_native_producer(bool callback)
+    {
+        NativeBattleQuezacotlPacketWrite input = Initial();
+        string original = OrderingReceipt(input.Ordering);
+        using (NativeBattleLogicalOrderingTransaction ancestor = new(input.Ordering))
+        {
+            if (callback)
+            {
+                ancestor.BeginCheckpoint();
+            }
+            using NativeBattleLogicalOrderingTransaction inner = new(input.Ordering);
+            NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, inner.View, Batch(21));
+            Assert.Throws<InvalidOperationException>(() => ancestor.FreezeKnownAncestorPrefix());
+        }
+        Assert.Equal(original, OrderingReceipt(input.Ordering));
+    }
     private static NativeBattleQuezacotlPacketWrite Initial()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116) with { QuezacotlTargetY1774 = 1 };

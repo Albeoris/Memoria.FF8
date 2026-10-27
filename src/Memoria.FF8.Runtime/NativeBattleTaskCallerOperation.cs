@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
@@ -71,6 +71,33 @@ internal sealed class NativeBattleTaskCallerOperation : IDisposable
         }
     }
 
+    //These callback boundaries retain private overlay stores; PreparePrefix owns physical publication.
+    internal void CommitOverlaySuffix()
+    {
+        RequireOverlaySuffix();
+        arena.CommitCheckpoint();
+        overlayCheckpoint = false;
+        arena.BeginCheckpoint();
+        overlayCheckpoint = true;
+    }
+
+    internal void RollbackOverlaySuffix()
+    {
+        RequireOverlaySuffix();
+        arena.RollbackCheckpoint();
+        overlayCheckpoint = false;
+        arena.BeginCheckpoint();
+        overlayCheckpoint = true;
+    }
+
+    private void RequireOverlaySuffix()
+    {
+        RequireCurrent();
+        if (prepared || !overlayCheckpoint)
+        {
+            throw new InvalidOperationException("Explicit task callback requires its caller's unprepared overlay suffix checkpoint.");
+        }
+    }
     internal void PreparePrefix()
     {
         RequireCurrent();

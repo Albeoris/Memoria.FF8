@@ -321,6 +321,48 @@ public sealed class NativeBattleGfAnimationWorkspaceTests
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(pool)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Lazy_retained_cache_enlists_before_initialization_or_emit_opens_a_public_transaction(bool advance)
+    {
+        Fixture fixture = new(1, 1);
+        fixture.Stream(0, 0, 0, Q(7), 0, 0, -1);
+        fixture.Stream(1, 0, 0, Q(9), 0, 0, -1);
+        NativeBattleEffectArena bank = NativeBattleEffectArena.CreateUnknown(512).Write(0, Enumerable.Repeat((byte)0xCD, 512).ToArray());
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleGfAnimationWorkspace.Borrow(bank, 0, 512);
+        if (advance)
+        {
+            workspace.Initialize7016B0(fixture.Source, 512);
+        }
+        NativeBattleEffectArena before = NativeBattleStorageSnapshots.Capture(bank);
+        NativeBattleRetainedEffectStorage.AdmitStorage(bank, new NativeBattleRetainedStorageAuthority());
+        using (NativeBattleTaskOperation operation = new([]))
+        {
+            Assert.False(bank.Working.HasCheckpoint);
+            if (advance)
+            {
+                Assert.Throws<InvalidOperationException>(() => workspace.Advance701970(fixture.Source, 0, (current, node) =>
+                {
+                    Assert.True(bank.Working.HasCheckpoint);
+                    Assert.False(NativeBattleEffectArenaTransaction.HasActive(bank.Working));
+                    return node.NodeIndex == 0 ? current : throw new InvalidOperationException("Unpublished second retained-cache emit failed.");
+                }));
+                Assert.Equal(Q(7), Int(workspace, 8));
+                Assert.Equal(Q(9), Int(workspace, 20));
+            }
+            else
+            {
+                workspace.Initialize7016B0(fixture.Source, 512);
+                Assert.Equal(Fixture.Address, workspace.ResourceAddress);
+            }
+            Assert.True(bank.Working.HasCheckpoint);
+            Assert.False(NativeBattleEffectArenaTransaction.HasActive(bank.Working));
+        }
+        Assert.False(bank.Working.HasCheckpoint);
+        Assert.False(NativeBattleEffectArenaTransaction.HasActive(bank.Working));
+        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(bank)));
+    }
     private sealed class Fixture
     {
         public const uint Address = 0x1298C68;

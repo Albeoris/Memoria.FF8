@@ -54,24 +54,24 @@ public sealed partial class BattleSession
             }
             NativeBattleEffectMemory previousMemory = RequireWaterMemory();
             bool common = !(output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length);
-            if (common && commonTransaction is null && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
+            NativeBattleEffectMemory appendMemory = previousMemory;
+            if (common && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
             {
-                commonTransaction = new(process);
-                NativeEffectMemory = previousMemory with { PrimitiveProcess = commonTransaction.View };
+                commonTransaction ??= new(process);
+                appendMemory = previousMemory with { PrimitiveProcess = process with { CommonTransaction = commonTransaction } };
             }
             if (common)
             {
                 commonTransaction?.BeginCheckpoint();
             }
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.View } };
+            }
+            (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory) written;
             try
             {
-                var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics);
-                if (common)
-                {
-                    commonTransaction?.CommitCheckpoint();
-                }
-                graphics = written.Graphics;
-                return written.Frame;
+                written = AppendNativeCinematicPacketsUnpublished(current, output, ordering, batch, graphics, appendMemory);
             }
             catch
             {
@@ -79,9 +79,24 @@ public sealed partial class BattleSession
                 {
                     commonTransaction?.RollbackCheckpoint();
                 }
-                NativeEffectMemory = previousMemory;
                 throw;
             }
+            if (common)
+            {
+                commonTransaction?.CommitCheckpoint();
+            }
+            NativeBattleEffectMemory acceptedMemory = written.Memory;
+            if (commonTransaction is not null && common)
+            {
+                acceptedMemory = acceptedMemory with { PrimitiveProcess = commonTransaction.Freeze(acceptedMemory.PrimitiveProcess!) };
+            }
+            graphics = written.Graphics;
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };
+            }
+            NativeEffectMemory = acceptedMemory;
+            return written.Frame;
         });
         try
         {
@@ -125,12 +140,19 @@ public sealed partial class BattleSession
 
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) AppendNativeCinematicPackets(NativeBattleWaterExecutionFrame current, uint output, uint? ordering, NativeBattleGfGeometryBatch batch, NativeBattleGraphicsState graphics, ushort flags20 = 0)
     {
+        var written = AppendNativeCinematicPacketsUnpublished(current, output, ordering, batch, graphics, RequireWaterMemory(), flags20);
+        NativeEffectMemory = written.Memory;
+        return (written.Frame, written.Graphics);
+    }
+
+    private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory) AppendNativeCinematicPacketsUnpublished(NativeBattleWaterExecutionFrame current, uint output, uint? ordering, NativeBattleGfGeometryBatch batch, NativeBattleGraphicsState graphics, NativeBattleEffectMemory inputMemory, ushort flags20 = 0)
+    {
         if (ordering is uint tableAddress)
         {
             int bucket = OtBucket(tableAddress);
             batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { Bucket = bucket } } : attempt).ToImmutableArray() };
         }
-        NativeBattleEffectMemory memory = RequireWaterMemory() with { Arena = current.Arena, ScriptedEffects = current.Core };
+        NativeBattleEffectMemory memory = inputMemory with { Arena = current.Arena, ScriptedEffects = current.Core };
         NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native cinematic packets require their current ordering table.");
         if (output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length)
         {
@@ -149,7 +171,6 @@ public sealed partial class BattleSession
             memory = memory with { PrimitiveProcess = written.Process };
             graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = written.Ordering } };
         }
-        NativeEffectMemory = memory;
-        return (current with { Arena = memory.Arena!, Core = memory.ScriptedEffects! }, graphics);
+        return (current with { Arena = memory.Arena!, Core = memory.ScriptedEffects! }, graphics, memory);
     }
 }

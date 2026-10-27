@@ -39,6 +39,11 @@ internal sealed class NativeBattleLogicalOrderingTransaction : IDisposable
         RequireActive();
         return Writer.PublishRoot();
     }
+    internal NativeBattleLogicalOrdering FreezeKnownAncestorPrefix()
+    {
+        RequireActive();
+        return Writer.PublishKnownAncestorPrefix();
+    }
     internal NativeBattleLogicalOrdering.Delta SuspendCheckpointDelta()
     {
         RequireActive();

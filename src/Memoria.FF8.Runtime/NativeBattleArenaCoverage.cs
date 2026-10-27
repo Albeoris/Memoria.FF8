@@ -135,9 +135,18 @@ internal sealed class NativeBattleArenaCoverage : INativeBattleCheckpointPartici
         }
         int end = offset + length;
         int first = 0;
-        while (first < Ranges.Count && Ranges[first].End < offset)
+        int last = Ranges.Count;
+        while (first < last)
         {
-            first++;
+            int middle = first + (last - first) / 2;
+            if (Ranges[middle].End < offset)
+            {
+                first = middle + 1;
+            }
+            else
+            {
+                last = middle;
+            }
         }
         int after = first;
         while (after < Ranges.Count && Ranges[after].Offset <= end)

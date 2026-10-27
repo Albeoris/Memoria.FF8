@@ -25,11 +25,19 @@ internal sealed partial class RecreateGame
 
     protected override void EndDraw()
     {
+        bool observePacing = diagnosticTelemetry?.PacingEnabled == true;
+        long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
         base.EndDraw();
         graphicsReadiness?.Presented(Window);
+        if (observePacing)
+        {
+            long presentEnd = Stopwatch.GetTimestamp();
+            diagnosticTelemetry!.ObservePresentationPacing(presentBegin, presentEnd, presentationPacer.TimingObservation);
+        }
         TimeSpan now = Stopwatch.GetElapsedTime(presentationClockStarted);
         visualFrameRate?.Presented(now);
         AdvanceDiagnosticDriver(now);
+        presentationPacer.ObserveTiming(diagnosticTelemetry?.PacingEnabled == true);
         if (now >= nextFpsLabelUpdate)
         {
             double? fps = visualFrameRate?.PresentationsPerSecond;

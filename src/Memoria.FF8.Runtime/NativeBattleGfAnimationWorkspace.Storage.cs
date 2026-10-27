@@ -211,6 +211,7 @@ public sealed partial record NativeBattleGfAnimationWorkspace : INativeBattleSto
         public MutationScope(NativeBattleGfAnimationWorkspace source)
         {
             source.arena.RequireWritable();
+            NativeBattleTaskOperation.EnlistRetained(source.arena.Working);
             if (source.arena.Transaction is null && !source.arena.Working.HasCheckpoint && !NativeBattleEffectArenaTransaction.HasActive(source.arena.Working))
             {
                 transaction = new(source.arena);

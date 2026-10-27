@@ -85,27 +85,26 @@ public sealed partial class BattleSession
         {
             NativeBattleEffectMemory previousMemory = RequireWaterMemory();
             bool common = !(output >= NativeBattleEffectNodeMemory.ArenaAddress && output - NativeBattleEffectNodeMemory.ArenaAddress <= NativeBattleEffectArena.Length);
-            if (common && commonTransaction is null && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
+            NativeBattleEffectMemory appendMemory = previousMemory;
+            if (common && previousMemory.PrimitiveProcess is { CommonTransaction: null } process)
             {
-                commonTransaction = new(process);
-                NativeEffectMemory = previousMemory with { PrimitiveProcess = commonTransaction.View };
+                commonTransaction ??= new(process);
+                appendMemory = previousMemory with { PrimitiveProcess = process with { CommonTransaction = commonTransaction } };
             }
             arenaTransaction?.BeginCheckpoint();
             if (common)
             {
                 commonTransaction?.BeginCheckpoint();
             }
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.View } };
+            }
+            (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics, NativeBattleEffectMemory Memory) written;
             try
             {
                 ushort flags = selectedHandler is 0xAAB290 or 0xAAB6D0 ? (ushort)1 : (ushort)0;
-                var written = AppendNativeCinematicPackets(current, output, ordering, batch, graphics, flags);
-                arenaTransaction?.CommitCheckpoint();
-                if (common)
-                {
-                    commonTransaction?.CommitCheckpoint();
-                }
-                graphics = written.Graphics;
-                return written.Frame;
+                written = AppendNativeCinematicPacketsUnpublished(current, output, ordering, batch, graphics, appendMemory, flags);
             }
             catch
             {
@@ -114,9 +113,29 @@ public sealed partial class BattleSession
                 {
                     commonTransaction?.RollbackCheckpoint();
                 }
-                NativeEffectMemory = previousMemory;
                 throw;
             }
+            arenaTransaction?.CommitCheckpoint();
+            if (common)
+            {
+                commonTransaction?.CommitCheckpoint();
+            }
+            NativeBattleEffectMemory acceptedMemory = written.Memory;
+            if (arenaTransaction is not null)
+            {
+                acceptedMemory = acceptedMemory with { Arena = arenaTransaction.Freeze() };
+            }
+            if (commonTransaction is not null && common)
+            {
+                acceptedMemory = acceptedMemory with { PrimitiveProcess = commonTransaction.Freeze(acceptedMemory.PrimitiveProcess!) };
+            }
+            graphics = written.Graphics;
+            if (orderingTransaction is not null)
+            {
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = orderingTransaction.Freeze() } };
+            }
+            NativeEffectMemory = acceptedMemory;
+            return written.Frame;
         });
         NativeBattleEffectArena? publishedArena = null;
         try

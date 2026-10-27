@@ -67,6 +67,14 @@ public static class NativeBattleScriptedMeshPreparation
             source = frame.ReadTemporaryDword(0x74);
             normalSource = frame.ReadTemporaryDword(0x78);
         }
+        if (frame.Arena.Transaction is null)
+        {
+            NativeBattleTaskOperation.AdmitCurrentRetainedArena(frame.Arena);
+        }
+        if (depthOwner.Transaction is null)
+        {
+            NativeBattleTaskOperation.AdmitCurrentRetainedArena(depthOwner);
+        }
         using NativeBattleEffectArenaTransaction? arenaTransaction = frame.Arena.Transaction is null ? new(frame.Arena) : null;
         using NativeBattleEffectArenaTransaction? depthTransaction = depthOwner.Transaction is null ? new(depthOwner) : null;
         frame = frame with { Arena = arenaTransaction?.View ?? frame.Arena };

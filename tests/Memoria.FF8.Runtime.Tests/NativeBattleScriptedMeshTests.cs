@@ -11,6 +11,46 @@ public sealed class NativeBattleScriptedMeshTests
     private static readonly NativeBattleActionMatrix Identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Projection_enlists_owned_depth_before_its_public_overlay_in_nested_task_passes(bool failNormal)
+    {
+        NativeBattleWaterMeshPrepared prepared = Prepared(1, failNormal ? 1 : 0);
+        if (failNormal)
+        {
+            prepared = prepared with { Frame = prepared.Frame with { Arena = prepared.Frame.Arena.Write(0x20E1, [1]).MarkUnknown(0x10048, 8) } };
+        }
+        NativeBattleEffectArena depth = NativeBattleEffectArena.CreateUnknown(8);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = prepared.Frame.Arena, ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess() with { Depths = depth } };
+        NativeBattleOriginalEffectState effect = new(202, 201, new(202, 1, 0), null, null);
+        var originalDepth = depth.ReadSnapshot(0, 8);
+        byte[] originalWork = prepared.Frame.Arena.Read(0x20000, 16);
+        using NativeBattleTaskOperation parent = new(memory, effect);
+        using (NativeBattleTaskOperation callback = new(memory, effect))
+        {
+            if (failNormal)
+            {
+                Assert.Throws<NotSupportedException>(() => Run());
+            }
+            else
+            {
+                NativeBattleScriptedMeshProjected projected = Run();
+                Assert.Equal(1000u, projected.DepthOwner.ReadUInt32(0));
+                Assert.Same(depth.Working, projected.DepthOwner.Working);
+                Assert.Null(projected.DepthOwner.Transaction);
+                Assert.NotEqual(originalWork, projected.Frame.Arena.Read(0x20000, 16));
+            }
+        }
+        var restoredDepth = depth.ReadSnapshot(0, 8);
+        Assert.Equal(originalDepth.Data, restoredDepth.Data);
+        Assert.Equal(originalDepth.Known, restoredDepth.Known);
+        Assert.Equal(originalWork, prepared.Frame.Arena.Read(0x20000, 16));
+        parent.Commit();
+
+        NativeBattleScriptedMeshProjected Run() => NativeBattleScriptedMeshPreparation.Project(prepared, failNormal ? 0x50 : 0x48, new(null, 216, 160, 108), 0, 0, depth, UnitLighting(), Step(prepared));
+    }
+
+    [Theory]
     [InlineData(0x95D100u, 0)]
     [InlineData(0x95D100u, 1)]
     [InlineData(0x95D100u, 2)]
@@ -46,6 +86,7 @@ public sealed class NativeBattleScriptedMeshTests
         int length = triangle ? 28 : 32;
         NativeBattleWaterMeshGroup group = new(triangle ? (short)6 : (short)16, 1, face.ToImmutableArray());
         NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler == 0x95D100 ? NativeBattleCinematicDispatch.Canonicalize(261, handler) : handler, 0, records.AsSpan(0, triangle ? 24 : 32).ToArray().ToImmutableArray(), triangle ? [0xFFFF000A, 20, 30] : [0xFFFF000A, 20, 30, 40], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
+        NativeBattleWaterExecutionFrame inputSnapshot = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleScriptedMeshSubmission result = Run(frame);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(0u, result.Frame.ReadTemporaryDword(0xF0));
@@ -68,7 +109,7 @@ public sealed class NativeBattleScriptedMeshTests
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[3]);
             Assert.Equal(NativeBattleGfPacketByteState.Untouched, packet.WriteMask[12]);
         }
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Run(NativeBattleStorageSnapshots.Restore(inputSnapshot)))));
     }
 
     [Fact]
@@ -147,6 +188,7 @@ public sealed class NativeBattleScriptedMeshTests
         }
         NativeBattleWaterMeshGroup group = new(type, 1, Face(type, stride).ToImmutableArray());
         NativeBattleScriptedMeshSubmission Run(NativeBattleWaterExecutionFrame current) => NativeBattleScriptedMeshPackets.EmitSelected(current, group, handler, 0, records.ToImmutableArray(), [11, 23, 35, 47], 0x5000, NativeBattleScriptedLightingMemory.Unknown(), NativeBattleScriptedColorRegisters.Unknown(), pointer => (int)(pointer / 4), NativeBattleGeometryRegisters.Unknown(), 0.5f);
+        NativeBattleWaterExecutionFrame inputSnapshot = NativeBattleStorageSnapshots.Capture(frame);
         NativeBattleScriptedMeshSubmission result = Run(frame);
         NativeBattleGfGeometryAttempt packet = Assert.Single(result.Packets.Attempts);
         Assert.Equal(reject ? 0 : type == 8 ? 32 : 40, result.Packets.AllocationBytes);
@@ -162,7 +204,7 @@ public sealed class NativeBattleScriptedMeshTests
             Assert.Equal(new[] { 5, 11, 17, type == 8 ? 0 : 23 }, packet.Primitive.VertexPayload4);
         }
         Assert.Equal(NativeBattleGfPacketByteState.Known, packet.WriteMask[8]);
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Run(JsonSerializer.Deserialize<NativeBattleWaterExecutionFrame>(JsonSerializer.Serialize(frame))!)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Run(NativeBattleStorageSnapshots.Restore(inputSnapshot)))));
     }
 
     [Fact]
@@ -235,15 +277,15 @@ public sealed class NativeBattleScriptedMeshTests
     public void Independent_snapshot_repeats_plain_projection_work_and_native_shader_state()
     {
         NativeBattleWaterMeshPrepared prepared = Prepared(3, 0);
-        NativeBattleWaterMeshPrepared restored = JsonSerializer.Deserialize<NativeBattleWaterMeshPrepared>(JsonSerializer.Serialize(prepared))!;
+        NativeBattleWaterMeshPrepared restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleWaterMeshPrepared>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(prepared)))!);
         NativeBattleScriptedMeshProjected expected = Project(prepared, 0x58);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(Project(restored, 0x58)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(expected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Project(restored, 0x58))));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Projection_batches_clipped_work_and_depth_without_mutating_inputs_or_publishing_outer_transactions(bool sharedImmutableOwner)
+    public void Projection_batches_clipped_work_and_depth_preserve_detached_inputs_and_borrow_outer_transactions(bool sharedInitialValue)
     {
         NativeBattleWaterMeshPrepared prepared = Prepared(3, 1);
         NativeBattleEffectArena arena = prepared.Frame.Arena.Write(0x20E1, [1]).Write(0x10058, [0, 0x10, 0, 0, 0, 0, 0xEF, 0xBE]);
@@ -258,12 +300,15 @@ public sealed class NativeBattleScriptedMeshTests
         arena = arena.Write(0x10008, BitConverter.GetBytes(0x60u)).Write(0x10060, [6, 0, 1, 0]).Write(0x10064, face).Write(0x10070, [0, 0, 0xFF, 0xFF]);
         arena = arena.WriteResourcePointer(0x20000, new(null, 123)).WriteResourcePointer(0x50000, new(null, 456)).MarkUnknown(0x2001C, 4).MarkUnknown(0x20024, 4);
         prepared = prepared with { Frame = prepared.Frame with { Arena = arena }, LocalClip = new(new(0, 2, 0), 8) };
-        NativeBattleEffectArena depths = sharedImmutableOwner ? arena : NativeBattleEffectArena.Clear().WriteResourcePointer(4, new(null, 789)).WriteResourcePointer(16, new(null, 987)).MarkUnknown(12, 4);
-        string originalFrame = JsonSerializer.Serialize(prepared.Frame);
-        string originalDepths = JsonSerializer.Serialize(depths);
-        NativeBattleScriptedMeshProjected projected = Run(prepared, depths);
-        Assert.Equal(originalFrame, JsonSerializer.Serialize(prepared.Frame));
-        Assert.Equal(originalDepths, JsonSerializer.Serialize(depths));
+        NativeBattleEffectArena depths = sharedInitialValue ? arena : NativeBattleEffectArena.Clear().WriteResourcePointer(4, new(null, 789)).WriteResourcePointer(16, new(null, 987)).MarkUnknown(12, 4);
+        string originalFrame = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(prepared.Frame));
+        string originalDepths = JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(depths));
+        NativeBattleWaterMeshPrepared preparedSnapshot = NativeBattleStorageSnapshots.Capture(prepared);
+        NativeBattleEffectArena depthSnapshot = NativeBattleStorageSnapshots.Capture(depths);
+        NativeBattleScriptedMeshProjected projected = Run(NativeBattleStorageSnapshots.Restore(preparedSnapshot), NativeBattleStorageSnapshots.Restore(depthSnapshot));
+        NativeBattleScriptedMeshProjected projectedSnapshot = NativeBattleStorageSnapshots.Capture(projected);
+        Assert.Equal(originalFrame, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(prepared.Frame)));
+        Assert.Equal(originalDepths, JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(depths)));
         Assert.Null(projected.Frame.Arena.Transaction);
         Assert.Null(projected.DepthOwner.Transaction);
         NativeBattleModuleProjectedVertex expected = NativeBattleModuleProjection.Project45FAA0(Identity, new(0, 16, 1000), new(null, 216, 160, 108), 0, 0);
@@ -272,26 +317,27 @@ public sealed class NativeBattleScriptedMeshTests
             Assert.Equal(expected.Screen, BinaryPrimitives.ReadUInt32LittleEndian(projected.Frame.Arena.Read(0x20000 + index * 8, 4)));
             Assert.Equal((uint)expected.Depth, BinaryPrimitives.ReadUInt32LittleEndian(projected.DepthOwner.Read(index * 4, 4)));
         }
-        Assert.False(projected.Frame.Arena.ResourcePointers!.ContainsKey(0x20000));
+        Assert.False(projectedSnapshot.Frame.Arena.ResourcePointers!.ContainsKey(0x20000));
         Assert.Equal(arena.ReadResourcePointer(0x50000), projected.Frame.Arena.ReadResourcePointer(0x50000));
         Assert.All(projected.Frame.Arena.ReadSnapshot(0x2001C, 4).Known, known => Assert.False(known));
         Assert.All(projected.Frame.Arena.ReadSnapshot(0x20024, 4).Known, known => Assert.False(known));
         Assert.Equal(0x00000080u, BinaryPrimitives.ReadUInt32LittleEndian(projected.Frame.Arena.Read(0x20018, 4)));
         Assert.Equal((ushort)0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(projected.Registers.NormalInput!.Value.AsSpan().Slice(6)));
 
-        using NativeBattleEffectArenaTransaction outerArena = new(arena);
-        using NativeBattleEffectArenaTransaction outerDepths = new(depths);
-        NativeBattleScriptedMeshProjected nested = Run(prepared with { Frame = prepared.Frame with { Arena = outerArena.View } }, outerDepths.View);
+        NativeBattleWaterMeshPrepared outerInput = NativeBattleStorageSnapshots.Restore(preparedSnapshot);
+        using NativeBattleEffectArenaTransaction outerArena = new(outerInput.Frame.Arena);
+        using NativeBattleEffectArenaTransaction outerDepths = new(NativeBattleStorageSnapshots.Restore(depthSnapshot));
+        NativeBattleScriptedMeshProjected nested = Run(outerInput with { Frame = outerInput.Frame with { Arena = outerArena.View } }, outerDepths.View);
         Assert.Same(outerArena.View, nested.Frame.Arena);
         Assert.Same(outerDepths.View, nested.DepthOwner);
-        NativeBattleScriptedMeshProjected frozen = nested with { Frame = nested.Frame with { Arena = outerArena.Freeze() }, DepthOwner = outerDepths.Freeze() };
-        Assert.Equal(JsonSerializer.Serialize(projected), JsonSerializer.Serialize(frozen));
-        Assert.Equal(JsonSerializer.Serialize(Submit(projected)), JsonSerializer.Serialize(Submit(frozen)));
+        NativeBattleScriptedMeshProjected frozen = NativeBattleStorageSnapshots.Capture(nested with { Frame = nested.Frame with { Arena = outerArena.Freeze() }, DepthOwner = outerDepths.Freeze() });
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(projected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frozen)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Submit(NativeBattleStorageSnapshots.Restore(projectedSnapshot)))), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(Submit(NativeBattleStorageSnapshots.Restore(frozen)))));
         outerArena.View.Write(0x20000, [1, 2, 3, 4]);
         outerDepths.View.Write(0, [5, 6, 7, 8]);
         Assert.Equal(expected.Screen, BinaryPrimitives.ReadUInt32LittleEndian(projected.Frame.Arena.Read(0x20000, 4)));
         Assert.Equal((uint)expected.Depth, BinaryPrimitives.ReadUInt32LittleEndian(projected.DepthOwner.Read(0, 4)));
-        Assert.Equal(JsonSerializer.Serialize(projected), JsonSerializer.Serialize(frozen));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(projected)), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(frozen)));
 
         NativeBattleScriptedMeshProjected Run(NativeBattleWaterMeshPrepared input, NativeBattleEffectArena depthOwner) => NativeBattleScriptedMeshPreparation.Project(input, 0x74, new(null, 216, 160, 108), 0, 0, depthOwner, UnitLighting(), Step(input));
         static NativeBattleScriptedMeshSubmission Submit(NativeBattleScriptedMeshProjected input) => NativeBattleScriptedMeshPreparation.Submit(input, 0x74, _ => 0xAEB5B0, _ => 12, pointer => (int)(pointer / 4));

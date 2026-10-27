@@ -3,16 +3,27 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private NativeBattleLogicalOrdering? provisionalQuezacotlOrdering;
-    private bool provisionalQuezacotlOrderingPublished;
+    private NativeBattleLogicalOrderingTransaction? provisionalQuezacotlOrderingTransaction;
 
     private void PublishNativeQuezacotlGraphics(NativeBattleGraphicsState graphics)
     {
-        if (provisionalQuezacotlOrdering is { } pending && graphics.PrimitiveFrame?.Pending.SharesWorkingStorage(pending) == true)
+        if (graphics.PrimitiveFrame is { } frame)
         {
-            provisionalQuezacotlOrderingPublished = true;
+            NativeBattleLogicalOrdering accepted = FreezeNativeQuezacotlOrderingPublication(frame.Pending, provisionalQuezacotlOrdering, provisionalQuezacotlOrderingTransaction);
+            graphics = graphics with { PrimitiveFrame = frame with { Pending = accepted } };
         }
         AcceptNativeEffectPublication(graphics.OriginalEffect, graphics.PrimitiveFrame?.Pending);
         nativeGraphics = graphics;
+    }
+
+    internal static NativeBattleLogicalOrdering FreezeNativeQuezacotlOrderingPublication(NativeBattleLogicalOrdering pending, NativeBattleLogicalOrdering? provisional, NativeBattleLogicalOrderingTransaction? continuation)
+    {
+        NativeBattleLogicalOrdering accepted = pending.Transaction is { } producer ? producer.Freeze() : pending;
+        if (continuation is not null && provisional is not null && pending.SharesWorkingStorage(provisional))
+        {
+            accepted = continuation.FreezeKnownAncestorPrefix();
+        }
+        return accepted;
     }
 
     private NativeBattleGraphicsState AdvanceNativeQuezacotlFirstWindow(NativeBattleGraphicsState graphics)
@@ -49,27 +60,19 @@ public sealed partial class BattleSession
         using NativeBattleLogicalOrderingTransaction continuation = new(pending);
         continuation.ResumeDelta(primaryDelta);
         NativeBattleLogicalOrdering? previous = provisionalQuezacotlOrdering;
-        bool previousPublished = provisionalQuezacotlOrderingPublished;
+        NativeBattleLogicalOrderingTransaction? previousTransaction = provisionalQuezacotlOrderingTransaction;
         provisionalQuezacotlOrdering = pending;
-        provisionalQuezacotlOrderingPublished = false;
+        provisionalQuezacotlOrderingTransaction = continuation;
         try
         {
             NativeBattleGraphicsState result = FinishNativeQuezacotlSecondaryLists(step.Graphics, step.Memory, step.Effect, step.Phase, step.DepthTrace);
             NativeBattleLogicalOrdering accepted = continuation.Freeze();
             return result with { PrimitiveFrame = result.PrimitiveFrame! with { Pending = accepted } };
         }
-        catch
-        {
-            if (provisionalQuezacotlOrderingPublished)
-            {
-                continuation.Freeze();
-            }
-            throw;
-        }
         finally
         {
             provisionalQuezacotlOrdering = previous;
-            provisionalQuezacotlOrderingPublished = previousPublished;
+            provisionalQuezacotlOrderingTransaction = previousTransaction;
         }
     }
 }

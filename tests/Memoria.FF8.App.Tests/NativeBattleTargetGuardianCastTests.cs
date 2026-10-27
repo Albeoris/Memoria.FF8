@@ -316,6 +316,44 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(after.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(after, 320, 224).ToArray());
             Publish("completed-next", battle.Capture());
+            if (effectId == 116)
+            {
+                battle = after;
+                for (int callback = 0; callback < 4096 && !battle.CanChoosePlayerCommand("party"); callback++)
+                {
+                    prior = battle.Capture();
+                    battle.Tick();
+                    audio.Update(battle);
+                }
+                Assert.True(battle.CanChoosePlayerCommand("party"), "The restored completed GF cast must release its ordinary command owner.");
+                Assert.True(Released(battle.Capture()));
+                battle.QueueAction("party", target, BattleAbility.GuardianForce, guardian);
+                bool nextSelected = false;
+                for (int callback = 0; callback < 4096; callback++)
+                {
+                    prior = battle.Capture();
+                    battle.Tick();
+                    audio.Update(battle);
+                    if (battle.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: > 0 } nextEffect && nextEffect.Binding.Effect == effectId)
+                    {
+                        nextSelected = true;
+                        break;
+                    }
+                }
+                Assert.True(nextSelected, "The same restored battle must admit and initialize its next ordinary GF command.");
+                Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "GuardianForceCharging" && entry.ActorId == "party"));
+                Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "GuardianForceReady" && entry.ActorId == "party"));
+                BattleSnapshot nextCommand = battle.Capture();
+                Assert.Equal((byte)254, nextCommand.NativeActionScratch!.Command);
+                Assert.Equal((ushort)(64 + guardian), nextCommand.NativeActionScratch.Action);
+                BattleSession nextRestored = SaveAndLoad("next-command-initialized");
+                prior = battle.Capture();
+                battle.Tick();
+                nextRestored.Tick();
+                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(nextRestored.Capture()));
+                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition, true).Render(nextRestored, 320, 224).ToArray());
+                Publish("next-command-after", battle.Capture());
+            }
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", guardian, effectId, completed.Frame, NativeCallback = completed.NativeGraphics.Callback, boundaries, visibleRgbChanges, SoundCount = sounds.Count }));
         }
         catch (Exception error)

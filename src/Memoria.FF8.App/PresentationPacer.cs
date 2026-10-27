@@ -16,11 +16,27 @@ internal sealed class PresentationPacer : IDisposable
     private double nextDeadline;
     private int activeFrameLimit;
     private bool disposed;
+    private bool observeTiming;
+    private long observedCalls;
+    private long observedTimerCalls;
+    private long observedTimerTicks;
+    private long observedResets;
+    private long invalidObservations;
+    private int observedFrameLimit;
+
+    internal void ObserveTiming(bool enabled) => observeTiming = enabled;
+    internal PresentationPacerObservation TimingObservation => new(observeTiming, observedCalls, observedTimerCalls, observedTimerTicks, observedResets, observedFrameLimit, invalidObservations);
+
 
     public void WaitForNextFrame(int frameLimit, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
+        if (observeTiming)
+        {
+            observedCalls++;
+            observedFrameLimit = frameLimit;
+        }
         if (frameLimit <= 0)
         {
             Reset();
@@ -75,7 +91,21 @@ internal sealed class PresentationPacer : IDisposable
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
+            long waitStarted = observeTiming ? Stopwatch.GetTimestamp() : 0;
             uint result = WaitForSingleObject(handle, MaximumWaitMilliseconds);
+            if (observeTiming)
+            {
+                long waitEnded = Stopwatch.GetTimestamp();
+                observedTimerCalls++;
+                if (waitEnded < waitStarted || observedTimerTicks > long.MaxValue - (waitEnded - waitStarted))
+                {
+                    invalidObservations++;
+                }
+                else
+                {
+                    observedTimerTicks += waitEnded - waitStarted;
+                }
+            }
             if (result == uint.MaxValue)
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -100,6 +130,10 @@ internal sealed class PresentationPacer : IDisposable
     public void Reset()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (observeTiming)
+        {
+            observedResets++;
+        }
         nextDeadline = 0;
         activeFrameLimit = 0;
     }

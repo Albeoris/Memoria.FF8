@@ -5,7 +5,11 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter, long EffectStartedTicks, long EffectCompletedTicks, double EffectDurationMs, TelemetryProcessSample ProcessBefore, TelemetryProcessSample ProcessAfter);
+internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool CleanupCompleted, int TailPresentedFrames, long StartCallback, long EndCallback, long StartFrame, long EndFrame, long RendererFrames, long PrecedingPresentationTicks, TelemetryOwnerState StartOwners, TelemetryOwnerState EndOwners, BattleDiagnosticEffectDispatch[] Dispatches, TelemetryFrameSummary Frames, TelemetryTrafficSnapshot Traffic, BattleEvent[] Events, BattleDiagnosticResolution[] Resolutions, BattleDiagnosticCombatant[] Before, BattleDiagnosticCombatant[] After, long DroppedEvents, string? IntegrityError, long AllocatedBytes, int[] Collections, NativeBattlePoolObservation PoolBefore, NativeBattlePoolObservation PoolAfter, long EffectStartedTicks, long EffectCompletedTicks, double EffectDurationMs, TelemetryProcessSample ProcessBefore, TelemetryProcessSample ProcessAfter)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DiagnosticPacingSummary? PresentationPacing { get; init; }
+}
 
 /// <summary>Observes one live session. Scored windows include ordinary admission, first-use work, cleanup and presented tails.</summary>
 internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDisposable
@@ -37,6 +41,21 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private long effectCompletedTicks;
     private readonly DiagnosticPresentationProgress presentationProgress = new(Stopwatch.Frequency);
     private const int EventCapacity = 65536;
+    private readonly bool pacingEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1";
+    private DiagnosticPresentationPacing? pacing;
+    private PresentationPacerObservation pacingObservation;
+    private long presentBegin;
+    private long presentEnd;
+
+    internal bool PacingEnabled => pacingEnabled;
+
+    internal void ObservePresentationPacing(long begin, long end, PresentationPacerObservation observation)
+    {
+        presentBegin = begin;
+        presentEnd = end;
+        pacingObservation = observation;
+    }
+
 
     internal DiagnosticLiveTelemetry(BattleSession battle, Guid instance, ushort expectedEffect = 1)
     {
@@ -68,6 +87,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         rendererOwner = rendererId;
         before = battle.ObserveDiagnosticCombatants();
         preceding = timestamp;
+        pacing = pacingEnabled ? new(Stopwatch.Frequency, 65536, timestamp, pacingObservation) : null;
         start = Owners(frame);
         previousRender = rendererVersion;
         renders = dropped = 0;
@@ -110,6 +130,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             renders++;
         }
         previousRender = rendererVersion;
+        pacing?.Record(frame, timestamp, presentBegin, presentEnd, pacingObservation);
         presentationProgress.Presented(timestamp, effectStartedTicks, effectCompletedTicks);
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));
     }
@@ -132,8 +153,9 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         }
         double effectDuration = effectStartedTicks > 0 && effectCompletedTicks > effectStartedTicks ? (effectCompletedTicks - effectStartedTicks) * 1000.0 / Stopwatch.Frequency : 0;
         TelemetryProcessSample processAfter = TelemetryProcessSample.Capture();
-        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter));
+        executions.Add(new(executions.Count + 1, completed, completed, tailFrames, start.NativeCallback, end.NativeCallback, start.FrameIndex, frame, renders, preceding, start, end, dispatches.ToArray(), frames!.Complete(), traffic!.Complete(), events.ToArray(), resolutions.ToArray(), before, after, dropped, error, GC.GetTotalAllocatedBytes() - allocations, collections.Select((count, index) => GC.CollectionCount(index) - count).ToArray(), poolBefore, poolAfter, effectStartedTicks, effectCompletedTicks, effectDuration, processBefore!, processAfter) { PresentationPacing = pacing?.Complete() });
         start = null;
+        pacing = null;
         frames = null;
         traffic = null;
     }
