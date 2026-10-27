@@ -59,8 +59,8 @@ public static class NativeBattleChoco98Nodes
     private static NativeBattleRecover93NodeFrame Assemble(NativeBattleChoco98NodeFrame frame)
     {
         frame.State.Validate();
-        ImmutableArray<byte>? data = frame.State.StaticData;
-        uint flag = data is { } bytes ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) : 0;
+        NativeBattleNodeSource? data = frame.State.StaticData;
+        uint flag = data is { } bytes ? bytes.ReadUInt32(0) : 0;
         return new(frame.Memory, frame.Effect, frame.State.Work with { InitializationFlag = flag, Data = data }, frame.Random);
     }
 

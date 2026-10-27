@@ -94,7 +94,7 @@ public static class NativeBattleEffect83NodeEngine
                     (byte[] packed, bool[] known) = frame.Memory.Arena!.ReadSnapshot(matrixOffset, 32);
                     short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(18)) : null;
                     frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect83 node mesh requires current geometry registers."), matrix, true, true, padding) } };
-                    NativeBattleEffect83Mesh104Step drawn = NativeBattleEffect83Mesh104.DrawLoaded(frame.Memory, new(0, resourceAddress, resource), inputs.ReadProjection(frame), temporary, inputs.Colors);
+                    NativeBattleEffect83Mesh104Step drawn = NativeBattleEffect83Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors);
                     full = NativeBattleEffectNodeContextMemory.Copy(drawn.Context104, 0, NativeBattleEffectNodeContextMemory.Capture(drawn.Memory), 76, 104);
                     frame = frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(drawn.Memory, full), State = frame.State.WriteDword(0x25CFA40, checked(temporaryAddress + 104)) };
                     memory.PublishProcessMemory(frame.Memory);

@@ -27,6 +27,12 @@ public static class NativeBattleRecoveryMeshPackets
 
     public static NativeBattleGfGeometryBatch EmitBatch8131A0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch8131A0(reader, matrix, projection, context, colors);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch8131A0(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null)
+    {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, null, (group, face, readCorner, offset) => group switch
         {
             2 => NativeBattleEffectMeshPackets.EmitTextured(face, readCorner, false, false, NativeBattleRestorationMeshPackets.Normalize(context, true), colors, offset),

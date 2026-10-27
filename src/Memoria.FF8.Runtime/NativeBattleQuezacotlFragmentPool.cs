@@ -30,48 +30,46 @@ public static class NativeBattleQuezacotlFragmentPool
     {
         NativeBattleEffectTaskPool pool = effect.Pools.SingleOrDefault(existing => existing.DescriptorAddress == Descriptor) ?? throw new NotSupportedException("Native6C4732 requires its initialized current EXE task pool.");
         Validate(memory, pool);
+        Span<byte> raw = stackalloc byte[Stride];
         for (int attempt = 0; attempt < 2; attempt++)
         {
             if (!pool.Slots.Any(task => (task.Flags & 1) == 0))
             {
                 continue;
             }
+            _ = memory.SharedEffectRandom ?? throw new NotSupportedException("Native7059E0 requires the retained shared effect RNG DWORD2557098; explicitly migrate a proved named standalone source.");
+            int targetZ = effect.Quezacotl?.TargetZ1770 ?? throw new NotSupportedException("Native6C476A requires its current targetZ1770 DWORD.");
+            pool.BindStorage(Executable(memory).Arena, NativeBattleQuezacotlExecutableMemory.Address, NativeBattleTaskStorageBinding.AdoptPhysicalState);
             int? previousTail = pool.Tail;
             (pool, int index) = pool.Append(Callback);
-            byte[] raw = ReadTask(memory, index).ToArray();
+            Executable(memory).ReadInto(Bank + checked((uint)(index * Stride)), raw);
             BinaryPrimitives.WriteUInt16LittleEndian(raw, pool.Slots[index].Flags);
-            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(2), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(4), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(8), Callback);
-            Word(0x0C, 0);
-            Word(0x10, (short)((Next() & 0xFFF) - 2048));
-            Word(0x12, 0);
-            Word(0x14, unchecked((short)((Next() & 0xFFF) + (effect.Quezacotl?.TargetZ1770 ?? throw new NotSupportedException("Native6C476A requires its current targetZ1770 DWORD.")) - 2048)));
-            Word(0x18, (short)((Next() & 0x3F) - 32));
-            Word(0x1C, (short)((Next() & 0x3F) - 32));
-            Word(0x1A, (short)(-128 - (Next() & 0x7F)));
-            Word(0x20, unchecked((short)Next()));
-            Word(0x22, unchecked((short)Next()));
-            Word(0x24, unchecked((short)Next()));
+            BinaryPrimitives.WriteUInt16LittleEndian(raw[2..], 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw[4..], 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(raw[8..], Callback);
+            Word(raw, 0x0C, 0);
+            Word(raw, 0x10, (short)((Next() & 0xFFF) - 2048));
+            Word(raw, 0x12, 0);
+            Word(raw, 0x14, unchecked((short)((Next() & 0xFFF) + targetZ - 2048)));
+            Word(raw, 0x18, (short)((Next() & 0x3F) - 32));
+            Word(raw, 0x1C, (short)((Next() & 0x3F) - 32));
+            Word(raw, 0x1A, (short)(-128 - (Next() & 0x7F)));
+            Word(raw, 0x20, unchecked((short)Next()));
+            Word(raw, 0x22, unchecked((short)Next()));
+            Word(raw, 0x24, unchecked((short)Next()));
             raw[0x28] = unchecked((byte)Next());
             raw[0x29] = unchecked((byte)Next());
             raw[0x2A] = unchecked((byte)Next());
-            memory = WriteTask(memory, index, raw.ToImmutableArray());
+            memory = WriteTask(memory, index, raw);
             if (previousTail is int tail)
             {
                 memory = WriteDword(memory, Bank + (uint)tail * Stride + 4, Bank + (uint)index * Stride);
             }
-            pool = pool.WriteSlot(index, pool.Slots[index].WriteRetainedBytes(12, raw.AsSpan(12)));
 
             ushort Next()
             {
                 memory = memory.DrawSharedEffectRandom7059E0(out ushort random);
                 return random;
-            }
-
-            void Word(int offset, short value)
-            {
-                BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(offset), value);
             }
         }
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C4732 requires its current secondary descriptor heads.");
@@ -91,8 +89,13 @@ public static class NativeBattleQuezacotlFragmentPool
         {
             throw new InvalidDataException("Native6C6660 requires its actual2C-byte current EXE task.");
         }
+        return WriteTask(memory, index, task.AsSpan());
+    }
+
+    private static NativeBattleEffectMemory WriteTask(NativeBattleEffectMemory memory, int index, ReadOnlySpan<byte> task)
+    {
         _ = Offset(index);
-        return memory with { QuezacotlExecutableMemory = Executable(memory).Write(Bank + (uint)index * Stride, task.AsSpan()) };
+        return memory with { QuezacotlExecutableMemory = Executable(memory).Write(Bank + (uint)index * Stride, task) };
     }
 
     public static NativeBattleEffectMemory WriteDword(NativeBattleEffectMemory memory, uint address, uint value)
@@ -144,6 +147,11 @@ public static class NativeBattleQuezacotlFragmentPool
         NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl fragments require their current mutable EXE resource bank.");
         executable.Validate();
         return executable;
+    }
+
+    private static void Word(Span<byte> task, int offset, short value)
+    {
+        BinaryPrimitives.WriteInt16LittleEndian(task[offset..], value);
     }
 
     private static int Offset(int index)

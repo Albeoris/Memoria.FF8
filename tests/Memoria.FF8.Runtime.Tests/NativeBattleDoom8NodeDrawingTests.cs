@@ -41,8 +41,8 @@ public sealed class NativeBattleDoom8NodeDrawingTests
         Assert.Equal((uint?)2048, emitted.Frame.Memory.ScriptedColorRegisters!.Ir0);
         Assert.Equal(MeshAddress + 8, U32(Context(emitted.Frame), 4));
         Assert.Equal(500u, U32(Context(emitted.Frame), 0x38));
-        NativeBattleDoom8Frame restored = JsonSerializer.Deserialize<NativeBattleDoom8Frame>(JsonSerializer.Serialize(emitted.Frame))!;
-        Assert.Equal(JsonSerializer.Serialize(Emit(emitted.Frame, Mesh())), JsonSerializer.Serialize(Emit(restored, Mesh())));
+        NativeBattleDoom8Frame restored = RoundTrip(emitted.Frame);
+        Assert.Equal(SnapshotJson(Emit(emitted.Frame, Mesh())), SnapshotJson(Emit(restored, Mesh())));
     }
 
     [Fact]
@@ -63,7 +63,8 @@ public sealed class NativeBattleDoom8NodeDrawingTests
     public void Unsupported_scratch_pointer_or_missing_geometry_owner_is_not_replaced()
     {
         NativeBattleDoom8Frame frame = Frame();
-        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8NodeDrawing.Begin(frame with { State = frame.State.WriteDword(NativeBattleDoom8NodeDrawing.ContextPointer, 0) }, MeshAddress, 0, 0, null));
+        NativeBattleDoom8Frame invalid = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(frame));
+        Assert.Throws<NotSupportedException>(() => NativeBattleDoom8NodeDrawing.Begin(invalid with { State = invalid.State.WriteDword(NativeBattleDoom8NodeDrawing.ContextPointer, 0) }, MeshAddress, 0, 0, null));
         frame = NativeBattleDoom8NodeDrawing.Begin(frame, MeshAddress, 0, 0, null);
         Assert.Throws<NotSupportedException>(() => Emit(frame with { Memory = frame.Memory with { GeometryRegisters = null } }, Mesh()));
     }
@@ -106,4 +107,7 @@ public sealed class NativeBattleDoom8NodeDrawingTests
         BinaryPrimitives.WriteUInt32LittleEndian(mesh.AsSpan(104), 0xC0BB9944);
         return mesh.ToImmutableArray();
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

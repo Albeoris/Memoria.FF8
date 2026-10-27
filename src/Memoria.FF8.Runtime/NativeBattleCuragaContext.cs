@@ -5,6 +5,7 @@ public static class NativeBattleCuragaContext
 {
     public static NativeBattleCuragaFrame Initialize87E230(NativeBattleCuragaFrame frame, uint address, NativeBattleCuragaResources resources, NativeBattleCuragaControllerInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         NativeBattleCuragaFamilyProfile profile = NativeBattleCuragaFamilyProfile.ForGenericTask(frame, address);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -16,9 +17,9 @@ public static class NativeBattleCuragaContext
         {
             throw new NotSupportedException("The actor director generic producer supports only its original mode0 anchors.");
         }
-        NativeBattleCuragaExecutableState executable = profile.RequireExecutable(frame.Memory).Initialize87EA20(resources.Executable ?? throw new NotSupportedException("Native87EA20 requires the authenticated executable source."));
+        using NativeBattleNodeInitialization<NativeBattleCuragaExecutableState> executable = profile.RequireExecutable(frame.Memory).Prepare87EA20(resources.Executable ?? throw new NotSupportedException("Native87EA20 requires the authenticated executable source."));
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native87E230 requires its50AFC0 header base."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.ExecutableAddress, observeBone: (actor, selector) => frame = inputs.ObserveBoneAnchor?.Invoke(frame, actor, selector) ?? frame);
         hierarchy = hierarchy.Write(address, task);
-        return frame with { Memory = profile.WithExecutable(frame.Memory, executable), Effect = frame.Effect with { Pools = hierarchy.Pools } };
+        return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = profile.WithExecutable(frame.Memory, executable.Publish()), Effect = frame.Effect with { Pools = hierarchy.Pools } });
     }
 }

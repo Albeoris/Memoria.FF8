@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattleEffect88MeshPreparation
@@ -14,7 +12,7 @@ internal static class NativeBattleEffect88MeshPreparation
         curagaContext = NativeBattleCuraga88Mesh.PrepareContext(curagaContext, meshAddress, System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(source.AsSpan(0x3A)), curagaFade, curagaFade != 0 ? memory.Dword(node + 0x16C) : null);
         view = NativeBattleEffectNodeContextMemory.Copy(curagaContext, 0, view, NativeBattleCuraga88Mesh.SharedViewOffset, NativeBattleCuraga88Mesh.ContextLength);
         memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(process, view));
-        return (ImmutableArray<byte> bytes, NativeBattleActionMatrix matrix) =>
+        return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix) =>
         {
             NativeBattleEffectMemory current = memory.CaptureProcessMemory();
             NativeBattleEffectArena currentView = NativeBattleEffectNodeContextMemory.Capture(current);

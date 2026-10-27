@@ -76,8 +76,8 @@ public static class NativeBattleChoco100Nodes
 
     private static NativeBattleRecover93NodeFrame Assemble(NativeBattleChoco100NodeFrame frame, uint source)
     {
-        ImmutableArray<byte>? data = source == StaticAddress ? frame.State.StaticData : (frame.Io ?? throw new NotSupportedException("Native Choco loaded nodes require their initialized IO owner.")).Banks.Read(source, Policy(frame.Effect, source).SourceLength).ToImmutableArray();
-        uint flag = data is { } bytes ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) : 0;
+        NativeBattleNodeSource? data = source == StaticAddress ? frame.State.StaticData : NativeBattleEffectNodeBank.BorrowSource((frame.Io ?? throw new NotSupportedException("Native Choco loaded nodes require their initialized IO owner.")).Banks, source, Policy(frame.Effect, source).SourceLength);
+        uint flag = data is { } bytes ? bytes.ReadUInt32(0) : 0;
         return new(frame.Memory, frame.Effect, frame.State.Work with { InitializationFlag = flag, Data = data }, frame.Random);
     }
 
@@ -95,7 +95,7 @@ public static class NativeBattleChoco100Nodes
             {
                 throw new NotSupportedException("Native Choco loaded node stores require their initialized IO owner.");
             }
-            io = io with { Banks = io.Banks.Write(source, result.State.Data ?? throw new InvalidDataException("Native Choco lost its loaded mutable source owner.")) };
+            (result.State.Data ?? throw new InvalidDataException("Native Choco lost its loaded mutable source owner.")).RequireStorage(io.Banks.Bytes, checked((int)(source - io.Banks.BaseAddress)));
         }
         return frame with { Memory = result.Memory, Effect = result.Effect, Random = result.Random, State = state, Io = io };
     }

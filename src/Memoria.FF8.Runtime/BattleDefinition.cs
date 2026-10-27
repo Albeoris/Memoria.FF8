@@ -329,6 +329,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 public sealed record BattleSnapshot
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleStorageGraph? StorageGraph { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticTerminalHoldState? DiagnosticTerminalHold { get; init; }
     public BattleOriginalStockDrawOperation[]? OriginalStockDrawOperations { get; init; }
     public NativeBattleEscapeState Escape { get; init; } = new();

@@ -14,11 +14,21 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
     internal NativeBattleGfGeometryBatch DrawNodes(NativeBattleCameraProjection projection, short cameraRoll, NativeBattleEffectNodePrepareMesh prepareMesh, Action<bool, NativeBattleGfGeometryBatch>? deliver = null)
     {
         ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
-        Dictionary<uint, ImmutableArray<byte>> resources = [];
+        Dictionary<uint, NativeBattleGfSourceReader> resources = [];
         int allocated = 0;
-        DrawList(false);
-        DrawList(true);
-        return new(attempts.ToImmutable(), allocated);
+        try
+        {
+            DrawList(false);
+            DrawList(true);
+            return new(attempts.ToImmutable(), allocated);
+        }
+        finally
+        {
+            foreach (NativeBattleGfSourceReader reader in resources.Values)
+            {
+                reader.Dispose();
+            }
+        }
 
         void DrawList(bool meshes)
         {
@@ -55,9 +65,9 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                         }
                     }
                     NativeBattleActionMatrix matrix = ReadMatrix(node + 0xAC);
-                    if (!resources.TryGetValue(resource, out ImmutableArray<byte> bytes))
+                    if (!resources.TryGetValue(resource, out NativeBattleGfSourceReader? bytes))
                     {
-                        bytes = bank.ReadResource(resource);
+                        bytes = bank.OpenResourceReader(resource);
                         resources.Add(resource, bytes);
                     }
                     NativeBattleGfGeometryBatch batch;

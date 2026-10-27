@@ -50,14 +50,17 @@ internal static class NativeBattleAngelWing84Nodes
             int emitters = frame.State.Emitters ?? throw new NotSupportedException("Native Angel Wing emitter pool has not been cleared.");
             int geometry = frame.State.Geometry ?? throw new NotSupportedException("Native Angel Wing geometry pool has not been cleared.");
             using NativeBattleEffectNodeMemory memory = new(frame.Memory, frame.Effect, address, emitters, 432, geometry, 26880, useSharedScratch: true);
-            NativeBattleEffectNodeBank bank = new(NativeBattleAngelWing84NodeResources.Address, frame.State.NodeData ?? throw new NotSupportedException("Native Angel Wing requires its current fixed node bank."));
+            NativeBattleNodeSource bankSource = frame.State.NodeData ?? throw new NotSupportedException("Native Angel Wing requires its current fixed node bank.");
+            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(bankSource);
+            using NativeBattleEffectNodeBank bank = new(NativeBattleAngelWing84NodeResources.Address, bankSource);
             ushort emitterCursor = frame.State.EmitterScanCursor ?? throw new NotSupportedException("Native Angel Wing emitter cursor is unknown.");
             ushort geometryCursor = frame.State.GeometryScanCursor ?? throw new NotSupportedException("Native Angel Wing geometry cursor is unknown.");
             NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera ?? throw new NotSupportedException("Native Angel Wing requires its current copied camera."), readModel, (parent, source, target) => NativeBattleEffectNodeAllocation.AllocateEmitter(memory, emitters, 4, ref emitterCursor, parent, source, target), (emitter, source) => NativeBattleEffectNodeAllocation.AllocateGeometry(memory, geometry, 40, ref geometryCursor, emitter, source)) { SpawnOrigin = spawnOrigin };
             NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
             lifecycle.AdvanceAndDraw(ref currentRandom, projection, cameraRoll, PrepareMesh, (_, batch) => privatePackets.Add(batch));
             NativeBattleEffectNodeMemoryWrite written = memory.FlushStorage();
-            frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State with { NodeData = bank.Data, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
+            bank.Publish();
+            frame = frame with { Memory = written.Memory, Effect = written.Effect, State = frame.State with { NodeData = bankSource, EmitterScanCursor = emitterCursor, GeometryScanCursor = geometryCursor } };
 
             NativeBattleEffectNodeMeshInstance PrepareMesh(int node, byte[] source)
             {
@@ -140,8 +143,8 @@ internal static class NativeBattleAngelWing84Nodes
 
     private static NativeBattleRecover93NodeFrame ToNodeFrame(NativeBattleAngelWing84Frame frame, NativeCrtRandomState random)
     {
-        ImmutableArray<byte>? data = frame.State.NodeData;
-        uint flag = data is { } retained ? BinaryPrimitives.ReadUInt32LittleEndian(retained.AsSpan()) : 0;
+        NativeBattleNodeSource? data = frame.State.NodeData;
+        uint flag = data is { } retained ? retained.ReadUInt32(0) : 0;
         NativeBattleRecover93NodeState state = new(flag, data, frame.State.Emitters, frame.State.Geometry, frame.State.EmitterScanCursor, frame.State.GeometryScanCursor, frame.State.PassEmitterCount, frame.State.PassGeometryCount, frame.State.CopiedCamera, frame.State.PrimaryDrawCursor, frame.State.EmitterResetWord, frame.State.GeometryResetWord);
         return new(frame.Memory, frame.Effect, state, random);
     }

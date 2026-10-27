@@ -20,7 +20,9 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         ImmutableArray<NativeBattleEffectUnknownRegion> unknown = TryProperty(root, "UnknownRegions", options, out JsonElement unknownValue) ? unknownValue.Deserialize<ImmutableArray<NativeBattleEffectUnknownRegion>>(options) : [];
         ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = TryProperty(root, "ResourcePointers", options, out JsonElement pointerValue) ? pointerValue.Deserialize<ImmutableDictionary<int, NativeBattleResourcePointer?>>(options) : null;
         int logicalLength = TryProperty(root, "LogicalLength", options, out JsonElement logicalLengthValue) ? logicalLengthValue.GetInt32() : NativeBattleEffectArena.Length;
-        return NativeBattleEffectArena.CreateSnapshot(regions.Deserialize<ImmutableArray<NativeBattleEffectMemoryRegion>>(options), unknown, pointers, logicalLength);
+        NativeBattleEffectArenaSnapshot snapshot = NativeBattleEffectArena.CreateSnapshot(regions.Deserialize<ImmutableArray<NativeBattleEffectMemoryRegion>>(options), unknown, pointers, logicalLength);
+        NativeBattleStorageReference? reference = TryProperty(root, "StorageReference", options, out JsonElement referenceValue) ? referenceValue.Deserialize<NativeBattleStorageReference>(options) : null;
+        return snapshot.WithStorageReference(reference);
     }
 
     internal static void WriteSnapshot(Utf8JsonWriter writer, NativeBattleEffectArena value, JsonSerializerOptions options)
@@ -43,6 +45,11 @@ public sealed class NativeBattleEffectArenaJsonConverter : JsonConverter<NativeB
         {
             writer.WritePropertyName(PropertyName("ResourcePointers", options));
             JsonSerializer.Serialize(writer, pointers, options);
+        }
+        if (value.StorageReference is { } reference)
+        {
+            writer.WritePropertyName(PropertyName("StorageReference", options));
+            JsonSerializer.Serialize(writer, reference, options);
         }
         writer.WriteEndObject();
     }

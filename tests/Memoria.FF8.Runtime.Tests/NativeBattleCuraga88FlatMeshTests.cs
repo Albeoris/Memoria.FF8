@@ -87,12 +87,12 @@ public sealed class NativeBattleCuraga88FlatMeshTests
         Assert.Equal(new int?[] { 648, 1296, 1944 }, result.Registers.Colors.Mac);
         Assert.Equal(new int?[] { 648, 1296, 1944 }, result.Registers.Colors.Ir);
         Assert.Equal(result.Registers.Colors.Rgb[2], Assert.Single(result.Batch.Attempts).Primitive!.Words[1]);
-        NativeBattleCuraga88MeshStep restored = JsonSerializer.Deserialize<NativeBattleCuraga88MeshStep>(JsonSerializer.Serialize(result))!;
+        NativeBattleCuraga88MeshStep restored = RoundTrip(result);
         NativeBattleCuraga88MeshStep Next(NativeBattleCuraga88MeshStep retained)
         {
             return NativeBattleCuraga88Mesh.EmitBatch(Mesh(group), Address, Matrix, new(null, 100, 160, 108), retained.Context88, retained.Registers, retained.FarControls, 0, 0, 0x100, Constants, null, 0x155);
         }
-        Assert.Equal(JsonSerializer.Serialize(Next(result)), JsonSerializer.Serialize(Next(restored)));
+        Assert.Equal(SnapshotJson(Next(result)), SnapshotJson(Next(restored)));
     }
 
     [Fact]
@@ -167,4 +167,7 @@ public sealed class NativeBattleCuraga88FlatMeshTests
         }
         return mesh.ToImmutableArray();
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

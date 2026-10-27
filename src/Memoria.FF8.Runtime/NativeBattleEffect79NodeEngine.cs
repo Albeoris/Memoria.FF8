@@ -129,7 +129,7 @@ public static class NativeBattleEffect79NodeEngine
                     short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(18)) : null;
                     frame = frame with { Memory = frame.Memory with { GeometryRegisters = NativeBattleGeometry.LoadMatrix(frame.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect79 node mesh requires current geometry registers."), matrix, true, true, padding) } };
                     ObserveStack(0x7B6020, null);
-                    NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, new(0, resourceAddress, resource), inputs.ReadProjection(frame), temporary, inputs.Colors);
+                    NativeBattleEffect79Mesh104Step drawn = NativeBattleEffect79Mesh104.DrawLoaded(frame.Memory, resourceAddress, resource, inputs.ReadProjection(frame), temporary, inputs.Colors);
                     full = NativeBattleEffectNodeContextMemory.Copy(drawn.Context104, 0, NativeBattleEffectNodeContextMemory.Capture(drawn.Memory), 76, 104);
                     frame = frame with { Memory = NativeBattleEffectNodeContextMemory.Publish(drawn.Memory, full), State = frame.State.WriteDword(0x25EB3AC, checked(temporaryAddress + 104)) };
                     memory.PublishProcessMemory(frame.Memory);

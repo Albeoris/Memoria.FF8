@@ -81,6 +81,11 @@ internal sealed partial class NativeBattleTaskOperation
             {
                 continue;
             }
+            if (storage is NativeBattleNodeSource { IsStaging: true } staged)
+            {
+                current?.AdmitStaging(staged.StagingAuthority);
+                break;
+            }
             NativeBattleEffectArena? arena = storage is NativeBattleNodeSource node ? node.Arena : storage as NativeBattleEffectArena;
             if (arena is not null)
             {
@@ -99,7 +104,13 @@ internal sealed partial class NativeBattleTaskOperation
         return storage;
     }
 
-    internal static void AcceptPublishedEffectStorage(NativeBattleNodeSource storage) => AcceptPublishedEffectStorage(storage.Arena);
+    internal static void AcceptPublishedEffectStorage(NativeBattleNodeSource storage)
+    {
+        if (!storage.IsStaging)
+        {
+            AcceptPublishedEffectStorage(storage.Arena);
+        }
+    }
 
     internal static void AcceptPublishedEffectStorage(NativeBattleEffectArena storage)
     {

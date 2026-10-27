@@ -7,30 +7,37 @@ public static partial class NativeBattleCuragaNodeKinematics
 {
     public static NativeBattleCuragaNodePresentationStep AdvanceAndDraw87EC80(NativeBattleCuragaFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);
+        ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(memory);
+        using NativeBattleEffectNodeBank bank = CurrentBank(memory);
         NativeBattleEffectNodeLifecycle core = CreateLifecycle(memory, bank, readModel);
         if (memory.Profile.StreamsPacketProducers)
         {
             NativeBattleGfGeometryBatch streamed = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
-            return new(FlushCurrent(memory, bank), random, ordering, streamed);
+            return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodePresentationStep>(operation, new(FlushCurrent(memory, bank), random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), streamed));
         }
         NativeBattleGfGeometryBatch batch = core.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMeshes(memory, projection, colors));
         NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
-        return new(drawn.Frame, random, drawn.Ordering, batch);
+        return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodePresentationStep>(operation, new(drawn.Frame, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, drawn.Ordering), batch));
     }
 
     public static NativeBattleCuragaNodeDrawStep DrawNodes880390And87ED10(NativeBattleCuragaFrame frame, uint contextTask, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);
+        ordering = orderingOperation?.View ?? ordering;
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleEffectNodeBank bank = CurrentBank(memory);
+        using NativeBattleEffectNodeBank bank = CurrentBank(memory);
         if (memory.Profile.StreamsPacketProducers)
         {
             NativeBattleGfGeometryBatch streamed = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors), (meshes, packetBatch) => ordering = StreamBatch(memory, frame, ordering, packetBatch, meshes));
-            return new(FlushCurrent(memory, bank), ordering, streamed);
+            return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaNodeDrawStep>(operation, new(FlushCurrent(memory, bank), NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), streamed));
         }
         NativeBattleGfGeometryBatch batch = CreateLifecycle(memory, bank).DrawNodes(projection, cameraRoll, PrepareMeshes(memory, projection, colors));
-        return CommitDraws(memory, bank, ordering, batch);
+        NativeBattleCuragaNodeDrawStep drawn = CommitDraws(memory, bank, ordering, batch);
+        return NativeBattleTaskOperation.CompleteStandalone(operation, drawn with { Ordering = NativeBattleTaskOperation.CompleteOrdering(orderingOperation, drawn.Ordering) });
     }
 
     private static NativeBattleCuragaNodeDrawStep CommitDraws(NativeBattleCuragaNodeMemory memory, NativeBattleEffectNodeBank bank, NativeBattleLogicalOrdering ordering, NativeBattleGfGeometryBatch batch)

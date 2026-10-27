@@ -16,7 +16,7 @@ public sealed class NativeBattleEffectTextureCopyTests
         }
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, bytes.ToImmutableArray())] };
         state = state.EnqueueCopy505EB0(0, 0, 4, 1, 1, 0);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(state))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state)))!);
         NativeBattleEffectTextureDrain step = state.Drain505D20();
         Assert.Equal(step.State.ReadVram(), restored.Drain505D20().State.ReadVram());
         byte[] result = step.State.ReadVram();
@@ -67,9 +67,9 @@ public sealed class NativeBattleEffectTextureCopyTests
             scalar = scalar.Write(2 * ((destinationY + row) * 1024 + destinationX), transferred.AsSpan(2 * row * width, 2 * width));
         }
         long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(JsonSerializer.Serialize(state with { Count = 0, VramRegions = scalar.Regions }), JsonSerializer.Serialize(drained.State));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(state with { Count = 0, VramRegions = scalar.Capture().Regions })), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State)));
         Assert.Equal(transferred, Assert.Single(drained.Uploads).Bytes.ToArray());
-        Assert.Equal(memory, new NativeBattleEffectArena(state.VramRegions).Read(0, memory.Length));
+        Assert.Equal(memory, state.ReadVram().AsSpan(0, memory.Length).ToArray());
         Assert.True(transferBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; transfer allocated {transferBytes} bytes.");
     }
 

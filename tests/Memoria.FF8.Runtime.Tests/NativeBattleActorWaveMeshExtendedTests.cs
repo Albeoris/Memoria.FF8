@@ -26,7 +26,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         NativeBattleGfGeometryBatch expected = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, Matrix, Projection, context, Constants);
         uint depth = group is 0 or 2 or 4 ? 499u : 500u;
         expected = expected with { Attempts = expected.Attempts.Select(attempt => attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = 17 + ((int)depth >> 2) } }).ToImmutableArray() };
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal(depth, result.Registers.Geometry.Otz);
         Assert.Equal(depth, result.Registers.Geometry.Mac0);
@@ -161,8 +161,8 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         Assert.Equal(499u, result.Registers.Geometry.Mac0);
         Assert.Equal(499u, Dword(result.Context104, 0x38));
         Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, result.Context104.Read(0x40, 8));
-        NativeBattleActorWaveMeshStep restored = JsonSerializer.Deserialize<NativeBattleActorWaveMeshStep>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result.Registers), JsonSerializer.Serialize(restored.Registers));
+        NativeBattleActorWaveMeshStep restored = RoundTrip(result);
+        Assert.Equal(SnapshotJson(result.Registers), SnapshotJson(restored.Registers));
     }
 
     [Fact]
@@ -201,11 +201,11 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         Assert.Equal(new[] { 0, 8, 16 }, reads);
         Assert.Equal(0x2704220u, Dword(result.Context104, 4));
         Assert.Equal(Address + (uint)shape.Length, Dword(result.Context104, 0x2C));
-        Assert.Equal(JsonSerializer.Serialize(Emit(original).Batch), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(SnapshotJson(Emit(original).Batch), SnapshotJson(result.Batch));
         Assert.Null(result.Registers.Geometry.V1[6]);
         Assert.Null(result.Registers.Geometry.V2[6]);
-        NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(scratch))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(Draw(restored)));
+        NativeBattleEffectArena restored = RoundTrip(scratch);
+        Assert.Equal(SnapshotJson(result), SnapshotJson(Draw(restored)));
 
         NativeBattleActorWaveMeshStep Draw(NativeBattleEffectArena vertices)
         {
@@ -273,4 +273,7 @@ public sealed class NativeBattleActorWaveMeshExtendedTests
         }
         return mesh.ToImmutableArray();
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

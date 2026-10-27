@@ -15,7 +15,7 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
         Assert.Equal((ushort)0x5678, captured.ReadWord(1024, 511));
         Assert.Equal((ushort)0, captured.ReadWord(1215, 511));
         captured.ValidateMapping(95, new(0, 0, 256, 256));
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(owner))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(owner)))!);
         Assert.Equal(captured.Data.ToArray(), NativeBattlePcTextureWindowPixels.Capture(95, new(0, 0, 256, 256), restored).Data.ToArray());
         Assert.Equal(owner.VramReadTail, owner.Initialize500400().VramReadTail);
     }
@@ -57,7 +57,7 @@ public sealed class NativeBattlePcTextureWindowPixelsTests
         Assert.Same(changed, NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), after));
         string json = JsonSerializer.Serialize(original);
         Assert.Equal(json, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattlePcTextureWindowPixels>(json)));
-        NativeBattleEffectTextureState restoredOwner = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(after))!;
+        NativeBattleEffectTextureState restoredOwner = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(after)))!);
         NativeBattlePcTextureWindowPixels restoredCapture = NativeBattlePcTextureWindowPixels.Capture(64, new(0, 0, 8, 2), restoredOwner);
         Assert.NotSame(changed, restoredCapture);
         Assert.Equal(changed.Data.ToArray(), restoredCapture.Data.ToArray());

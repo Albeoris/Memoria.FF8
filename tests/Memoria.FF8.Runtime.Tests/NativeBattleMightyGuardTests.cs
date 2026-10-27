@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -116,9 +116,77 @@ public sealed class NativeBattleMightyGuardTests
         Assert.Equal(4u, task.ReadDword(0x34 + 4));
         Assert.Equal(fixture.Frame.Profile.SourceAddress + 4, task.ReadDword(0x34 + 0x224));
         Assert.Equal(1u, frame.State.InitializationFlag);
-        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(frame.State.Executable!.Value.AsSpan()));
+        Assert.Equal(1u, frame.State.Executable!.ReadUInt32(0));
         Assert.Equal(effect == 78 ? 1500u : 0u, task.ReadDword(0x34 + 0x214));
         Assert.Throws<NotSupportedException>(() => (NativeBattleMightyGuardState.FromColdProcess(effect) with { InitializationFlag = 1 }).InitializeSource(fixture.Resources));
+    }
+
+    [Theory]
+    [InlineData(73)]
+    [InlineData(78)]
+    public void Context_initialization_keeps_fixups_private_through_model_callbacks_and_publishes_one_owned_bank(ushort effect)
+    {
+        var fixture = Fixture(effect);
+        byte[] raw = fixture.Resources.NodeSource.Data.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(4), 0x104);
+        NativeBattleNodeSource source = new(raw.ToImmutableArray());
+        NativeBattleMightyGuardResources resources = fixture.Resources with { NodeSource = fixture.Resources.NodeSource with { Data = raw.ToImmutableArray() } };
+        NativeBattleMightyGuardState state = fixture.Frame.State with { Executable = source };
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 4));
+        hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteDword(0x30, fixture.Frame.Profile.SourceAddress));
+        NativeBattleMightyGuardFrame frame = fixture.Frame with { State = state, Memory = fixture.Frame.Memory.WithMightyGuard(state), Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        int reads = 0;
+        using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
+        {
+            NativeBattleMightyGuardFrame initialized = NativeBattleMightyGuardController.InitializeContext(frame, context.Address, resources, fixture.Inputs.Packets, index =>
+            {
+                reads++;
+                Assert.Equal(0u, source.ReadUInt32(0));
+                Assert.Equal(0x104u, source.ReadUInt32(4));
+                return fixture.Inputs.ReadModel(index);
+            }, fixture.Inputs.ReadPoseSource);
+            Assert.True(reads > 0);
+            Assert.Same(source, initialized.State.Executable);
+            Assert.Same(frame.Memory.RetainedAuthority, source.Arena.Working.RetainedAuthority);
+            Assert.Equal(1u, source.ReadUInt32(0));
+            Assert.Equal(frame.Profile.SourceAddress + 0x104, source.ReadUInt32(4));
+            Assert.Equal(context.Address, initialized.State.ContextTask);
+            NativeBattleTaskOperation.AcceptPublishedMemory(frame.Memory.WithMightyGuard(initialized.State));
+        }
+        Assert.Equal(1u, source.ReadUInt32(0));
+        Assert.Equal(frame.Profile.SourceAddress + 0x104, source.ReadUInt32(4));
+    }
+
+    [Fact]
+    public void Context_callback_failure_discards_unpublished_fixups_and_initialization_flag()
+    {
+        var fixture = Fixture(78);
+        byte[] raw = fixture.Resources.NodeSource.Data.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(raw.AsSpan(4), 0x104);
+        NativeBattleNodeSource source = new(raw.ToImmutableArray());
+        NativeBattleMightyGuardResources resources = fixture.Resources with { NodeSource = fixture.Resources.NodeSource with { Data = raw.ToImmutableArray() } };
+        NativeBattleMightyGuardState state = fixture.Frame.State with { Executable = source };
+        NativeBattleEffectHierarchy hierarchy = new(fixture.Frame.Effect.Pools);
+        uint root = hierarchy.Address(0, 0);
+        NativeBattleEffectHierarchyAppend context = hierarchy.Append8DC540(2, fixture.Frame.Profile.GenericCallback, 676, root, (_, _, _) => new(0, 4));
+        hierarchy = context.Hierarchy.Write(context.Address, context.Hierarchy.Read(context.Address).WriteDword(0x30, fixture.Frame.Profile.SourceAddress));
+        NativeBattleMightyGuardFrame frame = fixture.Frame with { State = state, Memory = fixture.Frame.Memory.WithMightyGuard(state), Effect = fixture.Frame.Effect with { Pools = hierarchy.Pools } };
+        using (NativeBattleTaskOperation operation = new(frame.Memory, frame.Effect))
+        {
+            Assert.Throws<InvalidOperationException>(() => NativeBattleMightyGuardController.InitializeContext(frame, context.Address, resources, fixture.Inputs.Packets, _ =>
+            {
+                Assert.Equal(0u, source.ReadUInt32(0));
+                Assert.Equal(0x104u, source.ReadUInt32(4));
+                throw new InvalidOperationException("Target observation failed.");
+            }, fixture.Inputs.ReadPoseSource));
+        }
+        byte[] actual = new byte[source.Length];
+        source.ReadInto(0, actual);
+        Assert.Equal(raw, actual);
+        Assert.Equal(0u, state.InitializationFlag);
+        Assert.Equal(0u, state.ContextTask);
     }
 
     [Theory]

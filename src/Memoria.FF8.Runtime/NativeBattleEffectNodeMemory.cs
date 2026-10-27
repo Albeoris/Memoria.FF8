@@ -167,7 +167,9 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         }
     }
 
-    internal INativeBattleCuragaSpriteGeometry ProjectedSpriteGeometry(int node, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection)
+    internal INativeBattleCuragaSpriteGeometry ProjectedSpriteGeometry(int node, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection) => ProjectedSpriteGeometry(node, resourceAddress, new NativeBattleGfSourceReader(resource), phase, projection);
+
+    internal INativeBattleCuragaSpriteGeometry ProjectedSpriteGeometry(int node, uint resourceAddress, NativeBattleGfSourceReader resource, ushort phase, NativeBattleCameraProjection projection)
     {
         int offset = node + 0xAC + 18;
         NodeByte low = Cell(offset);
@@ -176,7 +178,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
         return new ProjectedSpriteRegisters(this, resourceAddress, resource, phase, projection, padding);
     }
 
-    private sealed class ProjectedSpriteRegisters(NativeBattleEffectNodeMemory owner, uint resourceAddress, ImmutableArray<byte> resource, ushort phase, NativeBattleCameraProjection projection, short? sourcePadding) : INativeBattleCuragaSpriteGeometry
+    private sealed class ProjectedSpriteRegisters(NativeBattleEffectNodeMemory owner, uint resourceAddress, NativeBattleGfSourceReader resource, ushort phase, NativeBattleCameraProjection projection, short? sourcePadding) : INativeBattleCuragaSpriteGeometry
     {
         private NativeBattleEffectArena context = NativeBattleEffectArena.Clear().MarkUnknown(0, 180);
         private NativeBattleGeometryRegisterStep registers = null!;
@@ -193,10 +195,10 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
             context = Dword(context, 0, resourceAddress);
             context = Word(context, 4, phase);
             context = Word(context, 0x24, 0);
-            context = Word(context, 0x26, BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(8)));
-            int frame = BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(10 + phase * 2));
-            context = Word(context, 0x28, BinaryPrimitives.ReadUInt16LittleEndian(resource.AsSpan().Slice(12 + phase * 2)));
-            uint descriptor = BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan().Slice(frame));
+            context = Word(context, 0x26, resource.UShort(8));
+            int frame = resource.UShort(10 + phase * 2);
+            context = Word(context, 0x28, resource.UShort(12 + phase * 2));
+            uint descriptor = resource.UInt(frame);
             context = Dword(context, 0x2C, checked(resourceAddress + (uint)frame + 4));
             context = Dword(context, 0x30, descriptor & 0x7FFFFFFF);
             context = Word(context, 0x24, (descriptor & 0x80000000) == 0 ? (ushort)0 : (ushort)0x100);
@@ -207,7 +209,7 @@ internal partial class NativeBattleEffectNodeMemory : IDisposable
             main = rolled;
             context = Matrix(context, 0x84, rolled).MarkUnknown(0x96, 2);
             context = Dword(context, 0x1C, 0x808080);
-            context = context.Write(0x20, resource.AsSpan().Slice(4, 4));
+            context = Dword(context, 0x20, resource.UInt(4));
             context = Dword(Dword(Dword(Dword(Dword(context, 0xB0, 0), 0xAC, 0), 0xA4, 4096), 0xA8, 0), 0x3C, uint.MaxValue);
             Publish();
         }

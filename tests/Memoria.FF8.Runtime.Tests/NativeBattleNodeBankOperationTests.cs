@@ -58,4 +58,42 @@ public sealed class NativeBattleNodeBankOperationTests
         Assert.False(padding.Known[0]);
         Assert.Equal(2, source.Arena.ReadResourcePointer(16)!.CpuRow);
     }
+    [Fact]
+    public void Empty_publication_does_not_accept_other_effect_writes_to_the_same_bank()
+    {
+        NativeBattleEffectMemory memory = new(null, 0, 0, [], 0, 0, 0, 0);
+        NativeBattleOriginalEffectState effect = new(1, 0, new(1, 1, 0), null, null);
+        NativeBattleNodeSource source = new([0, 0, 0, 0]);
+        using (NativeBattleTaskOperation operation = new(memory, effect))
+        {
+            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(source);
+            using NativeBattleNodeBankOperation bank = new(source);
+            source.Arena.WriteUInt32(0, 9);
+            bank.Publish();
+        }
+        Assert.Equal(0u, source.ReadUInt32(0));
+    }
+
+    [Fact]
+    public void Explicit_external_source_acceptance_retains_only_its_prefix_and_not_other_effect_banks()
+    {
+        NativeBattleEffectMemory memory = new(null, 0, 0, [], 0, 0, 0, 0);
+        NativeBattleOriginalEffectState effect = new(1, 0, new(1, 1, 0), null, null);
+        NativeBattleNodeSource first = new([0, 0, 0, 0]);
+        NativeBattleNodeSource second = new([0, 0, 0, 0]);
+        using (NativeBattleTaskOperation operation = new(memory, effect))
+        {
+            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(first);
+            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(second);
+            using NativeBattleNodeBankOperation bank = new(first);
+            bank.WriteUInt32(0, 1);
+            second.Arena.WriteUInt32(0, 2);
+            bank.Publish(true);
+            first.Arena.WriteUInt32(0, 9);
+            second.Arena.WriteUInt32(0, 8);
+        }
+        Assert.Equal(1u, first.ReadUInt32(0));
+        Assert.Equal(0u, second.ReadUInt32(0));
+    }
+
 }

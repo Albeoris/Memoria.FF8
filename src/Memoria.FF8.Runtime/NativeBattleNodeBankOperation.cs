@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -8,7 +8,10 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
     private readonly record struct Cell(byte Data, bool Known, bool Dirty);
     private readonly NativeBattleNodeSource source;
     private readonly NativeBattleReadWindow baseline;
-    private readonly NativeBattleEffectArenaTransaction publication;
+    private readonly NativeBattleStagingReadWindow stagingBaseline;
+    private readonly NativeBattleEffectArenaTransaction? publication;
+    private readonly NativeBattleFileStagingTransaction? stagingPublication;
+    private NativeBattleReadWindowStore? stagingReaders;
     private readonly NativeBattleStagingDeltaMap<Cell> cells = new(1005);
     private readonly List<int> dirty = [];
     private bool disposed;
@@ -16,6 +19,21 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
     internal NativeBattleNodeBankOperation(NativeBattleNodeSource source)
     {
         this.source = source;
+        NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(source);
+        if (source.IsStaging)
+        {
+            stagingBaseline = source.StagingAuthority.OpenEffectiveReadWindow(source.StagingAddress, source.Length);
+            try
+            {
+                stagingPublication = NativeBattleFileStagingTransaction.CreatePrivateChild(source.StagingAuthority);
+            }
+            catch
+            {
+                stagingBaseline.Dispose();
+                throw;
+            }
+            return;
+        }
         baseline = source.Arena.OpenReadWindow(0, source.Length);
         try
         {
@@ -42,7 +60,7 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
             }
             return cell.Data;
         }
-        return baseline.ReadByte(offset);
+        return source.IsStaging ? stagingBaseline.ReadByte(offset) : baseline.ReadByte(offset);
     }
 
     internal ushort ReadUInt16(int offset)
@@ -64,7 +82,14 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
         {
             throw new ArgumentException("Native node bytes and knownness destinations must match.", nameof(known));
         }
-        baseline.ReadWithKnownness(offset, bytes, known);
+        if (source.IsStaging)
+        {
+            stagingBaseline.ReadWithKnownness(offset, bytes, known);
+        }
+        else
+        {
+            baseline.ReadWithKnownness(offset, bytes, known);
+        }
         for (int index = 0; index < bytes.Length; index++)
         {
             if (cells.TryGetValue((uint)(offset + index), out Cell cell))
@@ -103,7 +128,14 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
         RequireRange(offset, bytes.Length);
         cells.EnsureCapacity(checked(cells.Count + bytes.Length));
         dirty.EnsureCapacity(checked(dirty.Count + bytes.Length));
-        source.Arena.Working.ObserveReadWindowWrite(this, checked(source.Arena.WorkingOffset + offset), bytes.Length);
+        if (source.IsStaging)
+        {
+            stagingReaders?.BeforeWrite(this, offset, bytes.Length);
+        }
+        else
+        {
+            source.Arena.Working.ObserveReadWindowWrite(this, checked(source.Arena.WorkingOffset + offset), bytes.Length);
+        }
         for (int index = 0; index < bytes.Length; index++)
         {
             int target = offset + index;
@@ -133,17 +165,33 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
     internal NativeBattleGfSourceReader OpenReader(int offset, int length)
     {
         RequireRange(offset, length);
+        if (source.IsStaging)
+        {
+            stagingReaders ??= new(1_048_576);
+            return new(stagingReaders.Open(this, offset, length, length));
+        }
         return new(source.Arena.Working.OpenReadWindow(this, checked(source.Arena.WorkingOffset + offset), length, length));
     }
 
-    internal void Publish()
+    internal void Publish(bool acceptPublishedStorage = false)
     {
         RequireActive();
+        if (dirty.Count == 0)
+        {
+            return;
+        }
         dirty.Sort();
         bool checkpoint = false;
         try
         {
-            publication.BeginCheckpoint();
+            if (stagingPublication is not null)
+            {
+                stagingPublication.BeginCheckpoint();
+            }
+            else
+            {
+                publication!.BeginCheckpoint();
+            }
             checkpoint = true;
             Span<byte> bytes = stackalloc byte[256];
             for (int cursor = 0; cursor < dirty.Count;)
@@ -155,17 +203,40 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
                 {
                     bytes[count++] = cells[(uint)dirty[cursor++]].Data;
                 }
-                publication.View.Write(first, bytes[..count]);
+                if (stagingPublication is not null)
+                {
+                    stagingPublication.View.Write(checked(source.StagingAddress + (uint)first), bytes[..count]);
+                }
+                else
+                {
+                    publication!.View.Write(first, bytes[..count]);
+                }
             }
-            publication.CommitCheckpoint();
-            checkpoint = false;
-            publication.Freeze();
+            if (stagingPublication is not null)
+            {
+                stagingPublication.CommitCheckpoint();
+                checkpoint = false;
+                stagingPublication.Freeze(stagingPublication.View);
+            }
+            else
+            {
+                publication!.CommitCheckpoint();
+                checkpoint = false;
+                publication.Freeze();
+            }
         }
         catch
         {
             if (checkpoint)
             {
-                publication.RollbackCheckpoint();
+                if (stagingPublication is not null)
+                {
+                    stagingPublication.RollbackCheckpoint();
+                }
+                else
+                {
+                    publication!.RollbackCheckpoint();
+                }
             }
             throw;
         }
@@ -175,7 +246,10 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
             cells[(uint)offset] = accepted with { Dirty = false };
         }
         dirty.Clear();
-        NativeBattleTaskOperation.AcceptPublishedEffectStorage(source);
+        if (acceptPublishedStorage)
+        {
+            NativeBattleTaskOperation.AcceptPublishedEffectStorage(source);
+        }
     }
 
     private void RequireRange(int offset, int length)
@@ -187,19 +261,26 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
         }
     }
 
-    private void RequireActive() => ObjectDisposedException.ThrowIf(disposed, this);
+    private void RequireActive()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (source.IsStaging)
+        {
+            _ = stagingBaseline.Length;
+        }
+    }
     long INativeBattleReadWindowSource.ReadWindowGeneration => 0;
     void INativeBattleReadWindowSource.ValidateReadWindow(long generation)
     {
         RequireActive();
-        _ = baseline.Length;
+        _ = source.IsStaging ? stagingBaseline.Length : baseline.Length;
     }
     void INativeBattleReadWindowSource.SeedReadWindow(NativeBattleReadWindowLease lease)
     {
     }
     void INativeBattleReadWindowSource.ReadWindowByte(int absoluteOffset, out byte value, out bool known)
     {
-        int offset = checked(absoluteOffset - source.Arena.WorkingOffset);
+        int offset = source.IsStaging ? absoluteOffset : checked(absoluteOffset - source.Arena.WorkingOffset);
         RequireRange(offset, 1);
         if (cells.TryGetValue((uint)offset, out Cell cell))
         {
@@ -209,7 +290,14 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
         }
         Span<byte> bytes = stackalloc byte[1];
         Span<bool> flags = stackalloc bool[1];
-        baseline.ReadWithKnownness(offset, bytes, flags);
+        if (source.IsStaging)
+        {
+            stagingBaseline.ReadWithKnownness(offset, bytes, flags);
+        }
+        else
+        {
+            baseline.ReadWithKnownness(offset, bytes, flags);
+        }
         value = bytes[0];
         known = flags[0];
     }
@@ -218,9 +306,18 @@ internal sealed class NativeBattleNodeBankOperation : IDisposable, INativeBattle
     {
         if (!disposed)
         {
-            source.Arena.Working.InvalidateReadWindows(this);
-            publication.Dispose();
-            baseline.Dispose();
+            if (source.IsStaging)
+            {
+                stagingReaders?.CloseAll();
+                stagingPublication!.Dispose();
+                stagingBaseline.Dispose();
+            }
+            else
+            {
+                source.Arena.Working.InvalidateReadWindows(this);
+                publication!.Dispose();
+                baseline.Dispose();
+            }
             disposed = true;
         }
     }

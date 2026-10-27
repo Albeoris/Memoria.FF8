@@ -13,7 +13,7 @@ public static class NativeBattleRinoa87Storage
         {
             throw new InvalidDataException("Native Rinoa87 retained storage lost its original physical workspace or body owner.");
         }
-        if (state.NodeData is { } node && (node.IsDefault || node.Length != NativeBattleRinoa87NodeResources.Length || BinaryPrimitives.ReadUInt32LittleEndian(node.AsSpan()) is not (0 or 1)))
+        if (state.NodeData is { } node && (node.IsDefault || node.Length != NativeBattleRinoa87NodeResources.Length || node.ReadUInt32(0) is not (0 or 1)))
         {
             throw new InvalidDataException("Native Rinoa87 node source contradicts its retained physical owner.");
         }

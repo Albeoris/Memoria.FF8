@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -308,7 +308,8 @@ public static class NativeBattleMightyGuardController
 
     public static NativeBattleMightyGuardFrame InitializeContext(NativeBattleMightyGuardFrame frame, uint address, NativeBattleMightyGuardResources resources, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource)
     {
-        NativeBattleMightyGuardState owner = frame.State.InitializeSource(resources) with { ContextTask = address };
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleNodeInitialization<NativeBattleMightyGuardState> initialization = frame.State.PrepareSource(resources);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
         if (task.Callback != frame.Profile.GenericCallback || task.ReadDword(0x30) != frame.Profile.SourceAddress)
@@ -321,7 +322,9 @@ public static class NativeBattleMightyGuardController
             short scale = TargetScale(readModel(task.ReadByte(0x2D)).GeometryBounds52 ?? throw new NotSupportedException("Enemy Mighty Guard requires its target's actual native bounds."));
             task = task.WriteDword(0x34 + 0x214, unchecked((uint)(int)scale)).WriteDword(0x34 + 0x218, unchecked((uint)(int)scale)).WriteDword(0x34 + 0x21C, unchecked((uint)(int)scale));
         }
-        return frame with { State = owner, Effect = frame.Effect with { Pools = hierarchy.Write(address, task).Pools } };
+        NativeBattleEffectHierarchy initialized = hierarchy.Write(address, task);
+        NativeBattleMightyGuardState owner = initialization.Publish() with { ContextTask = address };
+        return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { State = owner, Effect = frame.Effect with { Pools = initialized.Pools } });
     }
 
     public static short TargetScale(NativeBattleEffectLocalBounds bounds)

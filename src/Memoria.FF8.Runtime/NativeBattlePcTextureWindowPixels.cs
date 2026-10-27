@@ -73,7 +73,6 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         int y = ((row & 31) >> 4) * 256 + rectangle.Y;
         int width = (rectangle.X % pixelsPerWord + rectangle.Width + pixelsPerWord - 1) / pixelsPerWord;
         byte[] data = new byte[2 * width * rectangle.Height];
-        NativeBattleEffectArena bank = new(textures.VramRegions);
         for (int line = 0; line < rectangle.Height; line++)
         {
             int address = 2 * ((y + line) * 1024 + x);
@@ -81,7 +80,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
             int known = Math.Min(count, NativeBattleEffectArena.Length - address);
             if (known > 0)
             {
-                bank.Read(address, known).CopyTo(data, 2 * line * width);
+                textures.ReadVramInto(address, data.AsSpan(2 * line * width, known));
             }
             if (known < count)
             {

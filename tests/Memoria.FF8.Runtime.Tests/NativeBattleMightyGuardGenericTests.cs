@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Text.Json;
 
@@ -39,11 +39,11 @@ public sealed class NativeBattleMightyGuardGenericTests
         Assert.Equal((ushort)13, result.State.EmitterReset);
         Assert.Equal((ushort)17, result.State.GeometryReset);
         Assert.Equal(1u, result.State.InitializationFlag);
-        Assert.Equal(bank, result.State.Executable!.Value.ToArray());
+        Assert.Equal(bank, Bytes(result.State.Executable!));
         Assert.Same(result.State, result.Memory.RequireMightyGuard(effect));
         Assert.Same(frame.Memory.SharedEffectView2793E58, result.Memory.SharedEffectView2793E58);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(result.Memory))!;
-        Assert.Equal(bank, restored.RequireMightyGuard(effect).Executable!.Value.ToArray());
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(result.Memory)))!);
+        Assert.Equal(bank, Bytes(restored.RequireMightyGuard(effect).Executable!));
         Assert.Equal((ushort)29, restored.RequireMightyGuard(effect).EmitterScan);
         Assert.Equal(1232, restored.RequireMightyGuard(effect).PrimaryDrawCursor);
     }
@@ -75,6 +75,13 @@ public sealed class NativeBattleMightyGuardGenericTests
         NativeBattleMightyGuardFrame frame = Frame(78);
         Assert.Throws<NotSupportedException>(() => NativeBattleCuragaFamilyProfile.ForGenericNodes(78).RequireExecutable(frame.Memory with { MightyGuard78 = null }));
         Assert.Throws<InvalidDataException>(() => (frame with { Effect = frame.Effect with { Binding = frame.Effect.Binding with { Entry = 0 } } }).ToGeneric());
+    }
+
+    private static byte[] Bytes(NativeBattleNodeSource source)
+    {
+        byte[] data = new byte[source.Length];
+        source.ReadInto(0, data);
+        return data;
     }
 
     private static NativeBattleMightyGuardFrame Frame(ushort effect)

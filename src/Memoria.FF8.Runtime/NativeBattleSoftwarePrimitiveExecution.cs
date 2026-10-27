@@ -314,7 +314,6 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             return;
         }
         byte[] previous = Textures.ReadVram();
-        NativeBattleEffectArena bank = new(Textures.VramRegions);
         int first = 0;
         while (first < image.Length && image[first] == previous[first])
         {
@@ -327,9 +326,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
         if (end > first)
         {
-            bank = bank.Write(first, image.AsSpan(first, end - first));
+            Textures = Textures.PublishVramSpan(first, image.AsSpan(first, end - first));
         }
-        Textures = Textures with { VramRegions = bank.Capture().Regions };
         imageChanged = false;
     }
 }

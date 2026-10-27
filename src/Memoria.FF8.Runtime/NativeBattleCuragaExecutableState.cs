@@ -11,10 +11,15 @@ public sealed record NativeBattleCuragaExecutableSource(ImmutableArray<byte> Dat
 }
 
 /// <summary>The actual retained initialization DWORD and lazily materialized Curaga executable bank. Missing old state remains unknown.</summary>
-public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] uint InitializationFlag, [property: JsonRequired] ImmutableArray<byte>? Data)
+[method: JsonConstructor]
+public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] uint InitializationFlag, [property: JsonRequired, JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource? Data)
 {
     public const uint Address = 0x17D5F4C;
     public const int Length = 0x81B4;
+
+    public NativeBattleCuragaExecutableState(uint initializationFlag, ImmutableArray<byte> data) : this(initializationFlag, new NativeBattleNodeSource(data))
+    {
+    }
 
     public uint ResourceAddress { get; init; } = Address;
 
@@ -48,7 +53,7 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
         {
             throw new InvalidDataException("Native Curaga family executable bank has no original module identity.");
         }
-        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != ByteLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
+        if (Data is { } bytes && (bytes.Length != ByteLength || bytes.ReadUInt32(0) != InitializationFlag))
         {
             throw new InvalidDataException("Native Curaga executable bank contradicts its retained initialization DWORD or original extent.");
         }
@@ -56,6 +61,12 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
 
     /// <summary>87E230 calls87EA20 only while the retained resourceDWORD is0, then writes1.</summary>
     public NativeBattleCuragaExecutableState Initialize87EA20(NativeBattleCuragaExecutableSource source)
+    {
+        using NativeBattleNodeInitialization<NativeBattleCuragaExecutableState> initialization = Prepare87EA20(source);
+        return initialization.Publish();
+    }
+
+    internal NativeBattleNodeInitialization<NativeBattleCuragaExecutableState> Prepare87EA20(NativeBattleCuragaExecutableSource source)
     {
         Validate();
         if (source.ResourceAddress != ResourceAddress)
@@ -68,25 +79,38 @@ public sealed record NativeBattleCuragaExecutableState([property: JsonRequired] 
             {
                 throw new NotSupportedException("Native87EA20 requires the previously fixed executable bytes; a nonzero retained flag cannot recreate them.");
             }
-            return this;
+            return new(this, null);
         }
         if (source.Data.IsDefault || source.Data.Length != ByteLength || BinaryPrimitives.ReadUInt32LittleEndian(source.Data.AsSpan()) != 0)
         {
             throw new InvalidDataException("Native Curaga first-use materialization requires the authenticated uninitialized17D5F4C resource.");
         }
-        byte[] data = NativeBattleEffectNodeBankFixups.Relocate(Data ?? source.Data, ResourceAddress);
-        BinaryPrimitives.WriteUInt32LittleEndian(data, 1);
-        return new(1, data.ToImmutableArray()) { ResourceAddress = ResourceAddress };
+        NativeBattleNodeSource data = Data ?? new(source.Data);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(data.Arena ?? throw new InvalidDataException("Native executable fixups require their arena-backed resource owner."));
+        NativeBattleNodeBankOperation operation = new(data);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, ResourceAddress);
+            operation.WriteUInt32(0, 1);
+            return new(this with { InitializationFlag = 1, Data = data }, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 
     public byte[] Read(uint address, int count)
     {
         Validate();
-        ImmutableArray<byte> bytes = Data ?? throw new NotSupportedException("Native Curaga requires its materialized executable resource bytes.");
+        NativeBattleNodeSource bytes = Data ?? throw new NotSupportedException("Native Curaga requires its materialized executable resource bytes.");
         if (address < ResourceAddress || count < 0 || address - ResourceAddress > ByteLength || count > ByteLength - (address - ResourceAddress))
         {
             throw new InvalidDataException("Native Curaga executable read leaves17D5F4C's original resource.");
         }
-        return bytes.AsSpan().Slice(checked((int)(address - ResourceAddress)), count).ToArray();
+        byte[] result = new byte[count];
+        bytes.ReadInto(checked((int)(address - ResourceAddress)), result);
+        return result;
     }
 }

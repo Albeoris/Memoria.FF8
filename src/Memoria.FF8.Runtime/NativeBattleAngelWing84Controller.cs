@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleAngelWing84State([property: JsonRequired] int SourceArenaOffset, [property: JsonRequired] int AuxiliaryCursor, [property: JsonRequired] int? PrimaryDrawCursor, [property: JsonRequired] int? SecondaryDrawCursor, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<byte>? NodeData { get; init; }
+    public NativeBattleNodeSource? NodeData { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleEffectOwnedModelState? BodyModel { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -103,7 +103,7 @@ public sealed class NativeBattleChoco97UvTests
         List<byte[]> observed = [];
         lifecycle.DrawNodes(new(null, 256, 160, 120), 0, (_, _) => (resource, _) =>
         {
-            observed.Add(mesh.Corners.Select(offset => resource[offset]).ToArray());
+            observed.Add(mesh.Corners.Select(offset => resource.Byte(offset)).ToArray());
             return new([], 0);
         });
         Assert.Equal(2, observed.Count);
@@ -178,6 +178,26 @@ public sealed class NativeBattleChoco97UvTests
     }
 
     private sealed record SourceHistory([property: System.Text.Json.Serialization.JsonConverter(typeof(NativeBattleOwnedGfAnimationSource.Converter))] NativeBattleGfAnimationSource Source);
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Working_node_UV_stores_match_scalar_resource_without_publishing_a_failed_suffix(int group)
+    {
+        var fixture = Mesh(group, false, [0, 16, 32, 48]);
+        NativeBattleNodeSource source = new(fixture.Bytes);
+        using (NativeBattleEffectNodeBank bank = new(0x1000, source))
+        {
+            NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 4, 0);
+            Assert.Equal(fixture.Bytes, source.Arena.Read(0, source.Length));
+            bank.Publish();
+            Assert.Equal(NativeBattleChoco97Uv.Scroll72DF60(fixture.Bytes, -8), source.Arena.Read(0, source.Length));
+            NativeBattleChoco97Uv.MutateDrawableResource(bank, bank.Address, 4, 0);
+        }
+        Assert.Equal(NativeBattleChoco97Uv.Scroll72DF60(fixture.Bytes, -8), source.Arena.Read(0, source.Length));
+    }
 
     private static (ImmutableArray<byte> Bytes, int[] Corners) Mesh(int selected, bool vertical, byte[] values)
     {

@@ -143,6 +143,12 @@ public static class NativeBattleRestorationMeshPackets
 
     public static NativeBattleGfGeometryBatch EmitBatch884370(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch884370(reader, matrix, projection, context, colors, readSelectedVertex, observeFirstThreeFlags);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch884370(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleFullLifeMeshContext context, NativeBattleSummonColors? colors = null, Func<int, NativeBattleVector>? readSelectedVertex = null, Action<uint>? observeFirstThreeFlags = null)
+    {
         return NativeBattleEffectMeshPackets.EmitBatch(mesh, matrix, projection, context.Flags, readSelectedVertex, (group, face, readCorner, offset) => group switch
         {
             1 => EmitF4_8846C0(face, readCorner, context, colors, offset),

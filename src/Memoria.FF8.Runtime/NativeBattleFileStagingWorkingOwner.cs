@@ -98,6 +98,7 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         }
         finally
         {
+            overlay.TransactionOwner = null;
             activeOverlays.Remove(overlay);
             overlays.Push(overlay);
         }

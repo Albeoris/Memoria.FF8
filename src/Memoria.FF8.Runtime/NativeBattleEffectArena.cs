@@ -50,6 +50,8 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         capturedAuthority = original.capturedAuthority;
         capturedOffset = original.capturedOffset;
         capturedBound = original.capturedBound;
+        StorageReference = original.StorageReference;
+        CapturedBorrowed = original.CapturedBorrowed;
         Transaction = original.Transaction;
         borrowed = original.borrowed;
     }
@@ -428,7 +430,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
                 pointers.Add(offset, pointer);
             }
         }
-        return new(regions.ToImmutable(), unknowns.MoveToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound);
+        return new NativeBattleEffectArenaSnapshot(regions.ToImmutable(), unknowns.MoveToImmutable(), pointers.Count == 0 ? null : pointers.ToImmutable(), captured, workingOffset, bound) { CapturedBorrowed = borrowed };
     }
 
     object INativeBattleStorageNode.CaptureDetached(NativeBattleStorageCaptureContext context)
@@ -442,7 +444,9 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             throw new InvalidOperationException("Native arena capture requires a committed physical owner and cannot retain a transaction view.");
         }
         NativeBattleEffectArenaTransaction.RequireCommittedForCapture(Working);
-        return CreateCaptured(context.GetOrAddOwner(Working.BackingIdentity, Working.Capture));
+        NativeBattleEffectArenaSnapshot result = CreateCaptured(context.GetOrAddOwner(Working.BackingIdentity, Working.Capture));
+        context.RegisterCapturedArena(result);
+        return result;
     }
 
     object INativeBattleStorageNode.RestoreOwned(NativeBattleStorageRestoreContext context)

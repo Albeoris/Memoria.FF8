@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleRecover93NodeResource(ImmutableArray<byte> Data);
-public sealed record NativeBattleRecover93NodeState([property: JsonRequired] uint InitializationFlag, [property: JsonRequired] ImmutableArray<byte>? Data, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort? EmitterScanCursor, [property: JsonRequired] ushort? GeometryScanCursor, [property: JsonRequired] ushort? PassEmitterCount, [property: JsonRequired] ushort? PassGeometryCount, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera, [property: JsonRequired] int? PrivateDrawCursor, [property: JsonRequired] ushort? Word2594BB0, [property: JsonRequired] ushort? Word2592550)
+public sealed record NativeBattleRecover93NodeState([property: JsonRequired] uint InitializationFlag, [property: JsonRequired] NativeBattleNodeSource? Data, [property: JsonRequired] int? Emitters, [property: JsonRequired] int? Geometry, [property: JsonRequired] ushort? EmitterScanCursor, [property: JsonRequired] ushort? GeometryScanCursor, [property: JsonRequired] ushort? PassEmitterCount, [property: JsonRequired] ushort? PassGeometryCount, [property: JsonRequired] NativeBattleActionMatrix? CopiedCamera, [property: JsonRequired] int? PrivateDrawCursor, [property: JsonRequired] ushort? Word2594BB0, [property: JsonRequired] ushort? Word2592550)
 {
     public static NativeBattleRecover93NodeState FromColdProcess() => new(0, null, null, null, null, null, null, null, null, null, null, null);
 
@@ -15,7 +15,7 @@ public sealed record NativeBattleRecover93NodeState([property: JsonRequired] uin
     }
     internal void Validate(int sourceLength, int emitterBytes, int geometryBytes)
     {
-        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != sourceLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
+        if (Data is { } bytes && (bytes.IsDefault || bytes.Length != sourceLength || bytes.ReadUInt32(0) != InitializationFlag))
         {
             throw new InvalidDataException("Native Recover node bank contradicts its exact retained initialization owner.");
         }

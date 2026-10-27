@@ -109,12 +109,19 @@ public sealed partial class BattleSession
                         return Append(next with { State = next.State with { MorphScratch = drawn.MorphScratch } }, drawn.Packets);
                     }, view));
                 case 0x76C700:
-                    current = current with { State = current.State with { NodeData = Staging(NativeBattleRinoa88NodeResources.Address, NativeBattleRinoa88NodeResources.Length) } };
+                {
+                    NativeBattleFileStaging sourceStaging = NativeFileStaging ?? throw new NotSupportedException("Native76C700 requires the actual staged node owner.");
+                    using NativeBattleFileStagingTransaction nodeStaging = NativeBattleFileStagingTransaction.CreatePrivateChild(sourceStaging);
+                    current = current with { State = current.State with { NodeData = NativeBattleNodeSource.BorrowPrivateView(nodeStaging.View, NativeBattleRinoa88NodeResources.Address, NativeBattleRinoa88NodeResources.Length) } };
                     NativeBattleRinoa88NodeStep nodeStep = NativeBattleRinoa88Nodes.Advance(current, address, resources.Nodes, controller, random, projection, NativeCamera!.Roll, Ordering(), colors);
                     random = nodeStep.Random;
                     StoreOrdering(nodeStep.Ordering);
-                    NativeFileStaging = (NativeFileStaging ?? throw new NotSupportedException("Native76C700 requires the actual staged node owner.")).Write(NativeBattleRinoa88NodeResources.Address, (nodeStep.Frame.State.NodeData ?? throw new InvalidDataException("Native76C700 lost its mutable source.")).AsSpan());
-                    return new(nodeStep.Frame, nodeStep.Result);
+                    NativeBattleFileStaging publishedStaging = nodeStaging.Freeze(nodeStaging.View);
+                    NativeBattleNodeSource nodeSource = nodeStep.Frame.State.NodeData ?? throw new InvalidDataException("Native76C700 lost its mutable source.");
+                    NativeBattleRinoa88Frame published = nodeStep.Frame with { State = nodeStep.Frame.State with { NodeData = nodeSource.RebindStaging(publishedStaging, NativeBattleRinoa88NodeResources.Address, NativeBattleRinoa88NodeResources.Length) } };
+                    NativeFileStaging = publishedStaging;
+                    return new(published, nodeStep.Result);
+                }
                 case 0x773090:
                     NativeBattleRinoa88OverlayStep overlay = NativeBattleRinoa88Overlay.Advance773090(task, current.State.Counter25ACD34, resources.ScreenColors, ReadProxyDepth);
                     current = current with { Effect = current.Effect with { Pools = hierarchy.Write(address, overlay.Task).Pools } };

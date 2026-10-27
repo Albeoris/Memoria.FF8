@@ -37,9 +37,15 @@ public static class NativeBattleActorWaveMesh
 
     public static NativeBattleActorWaveMeshStep EmitBatch(ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch(reader, meshAddress, matrix, projection, context104, registers, farControls, dqa, dqb, zsf4, constants, matrixPadding18, zsf3, readVertexW, selectedVerticesAddress, readSelectedVertex);
+    }
+
+    internal static NativeBattleActorWaveMeshStep EmitBatch(NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleEffectArena context104, NativeBattleGeometryRegisterStep registers, NativeBattleModelRendererRegisters farControls, short dqa, int dqb, short? zsf4, NativeBattleSummonColors constants, short? matrixPadding18 = null, short? zsf3 = null, Func<int, short?>? readVertexW = null, uint? selectedVerticesAddress = null, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    {
         ValidateContext(context104);
         matrix.Validate();
-        if (mesh.IsDefaultOrEmpty || mesh.Length < 8 || ReadDword(context104, 0) != meshAddress)
+        if (mesh.IsDefault || mesh.Length == 0 || mesh.Length < 8 || ReadDword(context104, 0) != meshAddress)
         {
             throw new InvalidDataException("Native actor mesh requires its actual addressed geometry and retained context.");
         }
@@ -50,7 +56,7 @@ public static class NativeBattleActorWaveMesh
             throw new NotSupportedException("Native actor mesh preserved vertex pointers require their selected original owner.");
         }
         context104 = Dword(context104, 4, preservedVertices ? selectedVerticesAddress!.Value : checked(meshAddress + 8));
-        int cursor = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(mesh.AsSpan()));
+        int cursor = checked((int)mesh.UInt(0));
         registers = registers with { Geometry = NativeBattleGeometry.LoadMatrix(registers.Geometry, matrix, true, true, matrixPadding18) };
         (byte[] farBytes, bool[] farKnown) = context104.ReadSnapshot(8, 3);
         farControls = farControls with { FarRed = Lane(0), FarGreen = Lane(1), FarBlue = Lane(2) };
@@ -175,7 +181,7 @@ public static class NativeBattleActorWaveMesh
             {
                 throw new InvalidDataException("Native actor mesh access leaves its current addressed bank.");
             }
-            return mesh.AsSpan().Slice(offset, count);
+            return mesh.Read(offset, count);
         }
         (NativeBattleVector Vertex, short? W) Vertex(byte[] face, int corner)
         {

@@ -30,7 +30,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
             Assert.Equal(files[index], BinaryPrimitives.ReadInt16LittleEndian(descriptor.AsSpan(2)));
             Assert.Equal(destinations[index], BinaryPrimitives.ReadUInt32LittleEndian(descriptor.AsSpan(4)));
         }
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(step.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(step.Memory))!);
         NativeBattleQuezacotlFirstWindowIoStep busy = NativeBattleQuezacotlFirstWindowIo.Advance(restored, phase);
         Assert.False(busy.AdvancePhase);
         Assert.Null(busy.Request);
@@ -45,10 +45,11 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         NativeBattleQuezacotlFirstWindowIoStep waiting = NativeBattleQuezacotlFirstWindowIo.Advance(memory, 30);
         Assert.False(waiting.AdvancePhase);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, waiting.Memory.Arena!.Read(64, 5));
+        NativeBattleEffectMemory waitingSnapshot = NativeBattleStorageSnapshots.Capture(waiting.Memory);
         NativeBattleQuezacotlFirstWindowIoStep ready = NativeBattleQuezacotlFirstWindowIo.Advance(waiting.Memory, 30);
         Assert.True(ready.AdvancePhase);
         Assert.Equal((short)508, ready.Request!.FileId);
-        NativeBattleQuezacotlFirstWindowIoStep defaultBranch = NativeBattleQuezacotlFirstWindowIo.Advance(memory, 31);
+        NativeBattleQuezacotlFirstWindowIoStep defaultBranch = NativeBattleQuezacotlFirstWindowIo.Advance(NativeBattleStorageSnapshots.Restore(waitingSnapshot), 31);
         Assert.True(defaultBranch.AdvancePhase);
         Assert.Null(defaultBranch.Request);
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, defaultBranch.Memory.Arena!.Read(64, 5));
@@ -77,7 +78,7 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.Equal((byte)26, committed.ReadCommittedVoice());
         Assert.Equal((byte)2, process.Rotation);
         Assert.Equal((uint?)690007, process.OriginalEffectIds[26]);
-        NativeBattleEffectMemory restored = JsonSerializer.Deserialize<NativeBattleEffectMemory>(JsonSerializer.Serialize(io.Memory))!;
+        NativeBattleEffectMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectMemory>(SnapshotJson(io.Memory))!);
         Assert.Equal(request, restored.SummonStream!.Play5018C0(128, 127));
         Assert.Throws<NotSupportedException>(() => request.Commit46B2A0(NativeGlobalSoundProcess.UnknownBufferless()));
     }
@@ -119,12 +120,12 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         {
             Assert.Null(pool.Head);
             Assert.Null(pool.Tail);
-            Assert.Equal(JsonSerializer.Serialize(effect.Pools.Single(before => before.DescriptorAddress == pool.DescriptorAddress).Slots), JsonSerializer.Serialize(pool.Slots));
+            Assert.Equal(SnapshotJson(effect.Pools.Single(before => before.DescriptorAddress == pool.DescriptorAddress).Slots), SnapshotJson(pool.Slots));
             Assert.Equal((ushort)1, pool.Slots[0].Flags);
             pool.Validate();
         }
         Assert.Same(unrelated, reset.Pools[3]);
-        Assert.Equal(JsonSerializer.Serialize(reset), JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(JsonSerializer.Serialize(reset))));
+        Assert.Equal(SnapshotJson(reset), SnapshotJson(JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(SnapshotJson(reset))));
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFirstWindowIo.ResetPools6C4D3C(effect with { Pools = [ribbon, paths] }));
 
         static NativeBattleEffectTaskPool Pool(uint descriptor)
@@ -132,7 +133,8 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
             NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(descriptor, 0x211ECB8, 32, 2);
             (pool, _) = pool.Append(0x6C7800);
             (pool, _) = pool.Append(0x6C7800);
-            return pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0].WriteWord(12, 0xA5A5)) };
+            pool.Slots[0].WriteWord(12, 0xA5A5);
+            return pool;
         }
     }
 
@@ -157,4 +159,6 @@ public sealed class NativeBattleQuezacotlFirstWindowIoTests
         Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, ready.Memory.Arena!.Read(64, 5));
         Assert.Equal(new uint[] { 11, 22, 33, 44, 55 }, ready.Memory.QuezacotlSecondaryHeads!.Value);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

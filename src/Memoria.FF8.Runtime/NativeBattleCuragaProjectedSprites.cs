@@ -24,6 +24,12 @@ public static class NativeBattleCuragaProjectedSprites
 
     public static NativeBattleGfGeometryBatch EmitBatch8DD260(ImmutableArray<byte> resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null)
     {
+        using NativeBattleGfSourceReader reader = new(resource);
+        return EmitBatch8DD260(reader, phase, matrix, projection, cameraRoll, tableBaseBucket, depthShift, depthBias, observeRolledMatrix, observeQuadMatrix, geometry);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch8DD260(NativeBattleGfSourceReader resource, ushort phase, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short cameraRoll, int tableBaseBucket, byte depthShift, short depthBias = 0, Action<NativeBattleActionMatrix>? observeRolledMatrix = null, Action<NativeBattleActionMatrix>? observeQuadMatrix = null, INativeBattleCuragaSpriteGeometry? geometry = null)
+    {
         if (resource.IsDefault || depthShift > 31)
         {
             throw new InvalidDataException("Native8DD260 requires its original resource and actual depth shift.");
@@ -110,12 +116,12 @@ public static class NativeBattleCuragaProjectedSprites
         return new(attempts.ToImmutable(), allocated);
     }
 
-    private static ReadOnlySpan<byte> Read(ImmutableArray<byte> source, int offset, int length)
+    private static ReadOnlySpan<byte> Read(NativeBattleGfSourceReader source, int offset, int length)
     {
         if (offset < 0 || offset > source.Length - length)
         {
             throw new InvalidDataException("Native8DD260 frame or palette access exceeds its actual resource bank.");
         }
-        return source.AsSpan().Slice(offset, length);
+        return source.Read(offset, length);
     }
 }

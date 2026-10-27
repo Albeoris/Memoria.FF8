@@ -64,7 +64,11 @@ public sealed class NativeBattleQuezacotlFragmentTests
     public void Missing_random_owner_is_strict_only_when_an_allocation_is_admitted()
     {
         NativeBattleQuezacotlFragmentWrite state = Fixture();
+        string before = SnapshotJson(state);
         Assert.Contains("7059E0", Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(state.Memory with { SharedEffectRandom = null }, state.Effect)).Message);
+        Assert.Equal(before, SnapshotJson(state));
+        Assert.Contains("targetZ1770", Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(state.Memory, state.Effect with { Quezacotl = null })).Message);
+        Assert.Equal(before, SnapshotJson(state));
         for (int iteration = 0; iteration < 16; iteration++)
         {
             state = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(state.Memory, state.Effect);
@@ -106,7 +110,7 @@ public sealed class NativeBattleQuezacotlFragmentTests
         }
         NativeBattleEffectMemory memory = NativeBattleQuezacotlFragmentPool.WriteTask(state.Memory, 0, raw.ToImmutableArray());
         NativeBattleEffectTaskPool currentPool = state.Effect.Pools[0];
-        currentPool = currentPool with { Slots = currentPool.Slots.SetItem(0, currentPool.Slots[0] with { Payload = raw.AsSpan(12).ToArray().ToImmutableArray() }) };
+        Assert.Equal(raw.AsSpan(12).ToArray(), currentPool.Slots[0].ReadRawPayloadSpan().ToArray());
         NativeBattleQuezacotlFragmentWrite spawned = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(memory, state.Effect with { Pools = [currentPool] });
         Assert.All(retained, offset => Assert.Equal((byte)0xA5, NativeBattleQuezacotlFragmentPool.ReadTask(spawned.Memory, 0)[offset]));
     }
@@ -188,7 +192,8 @@ public sealed class NativeBattleQuezacotlFragmentTests
         Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlFragmentPool.ReadTask(state.Memory with { QuezacotlExecutableMemory = null }, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => NativeBattleQuezacotlFragmentPool.ReadTask(state.Memory, 32));
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPhysics.Advance6C6707(new byte[43].ToImmutableArray(), false));
-        Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.Validate(state.Effect.Pools[0] with { BankAddress = 0x2108954 }));
+        NativeBattleEffectTaskPool pool = state.Effect.Pools[0];
+        Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.Validate(new(pool.DescriptorAddress, 0x2108954, pool.Stride, pool.Slots, pool.Head, pool.Tail)));
     }
 
     [Fact]
@@ -197,14 +202,20 @@ public sealed class NativeBattleQuezacotlFragmentTests
         NativeBattleQuezacotlFragmentWrite start = Fixture();
         NativeBattleQuezacotlFragmentWrite state = NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(start.Memory, start.Effect);
         NativeBattleQuezacotlFragmentWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlFragmentWrite>(SnapshotJson(state))!);
+        NativeBattleQuezacotlFragmentWrite baseline = NativeBattleStorageSnapshots.Capture(restored);
         NativeBattleEffectTaskPool pool = restored.Effect.Pools[0];
         NativeBattleQuezacotlFragmentPool.Validate(restored.Memory, pool);
         byte[] raw = NativeBattleQuezacotlFragmentPool.ReadTask(restored.Memory, 0).ToArray();
         raw[12] ^= 1;
         NativeBattleEffectMemory divergent = NativeBattleQuezacotlFragmentPool.WriteTask(restored.Memory, 0, raw.ToImmutableArray());
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.SpawnTwo6C4732(divergent, restored.Effect));
-        NativeBattleEffectTaskPool wrongCallback = pool with { Slots = pool.Slots.SetItem(0, pool.Slots[0] with { Callback = 0x6C7800 }) };
+        restored = NativeBattleStorageSnapshots.Restore(baseline);
+        NativeBattleEffectTaskPool wrongCallback = restored.Effect.Pools[0];
+        NativeBattleModulePoolTask task = wrongCallback.Slots[0];
+        task.UpdateHeader(task.Flags, task.State, task.Next, 0x6C7800);
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.Validate(restored.Memory, wrongCallback));
+        restored = NativeBattleStorageSnapshots.Restore(baseline);
+        pool = restored.Effect.Pools[0];
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlFragmentPool.Validate(restored.Memory with { QuezacotlSecondaryHeads = [0, 0, 0, 0, 0] }, pool));
     }
 

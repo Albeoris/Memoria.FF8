@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -10,17 +10,37 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
     private readonly NativeBattleFileStagingOverlay overlay;
     private bool disposed;
 
-    public NativeBattleFileStagingTransaction(NativeBattleFileStaging source)
+    public NativeBattleFileStagingTransaction(NativeBattleFileStaging source) : this(source, false)
     {
-        if (source.Transaction is not null)
+    }
+
+    private NativeBattleFileStagingTransaction(NativeBattleFileStaging source, bool privateLayer)
+    {
+        if (!privateLayer && source.Transaction is not null)
         {
             throw new InvalidOperationException("Native staging transactions cannot be nested.");
         }
         source.Validate();
         this.source = source;
         owner = source.WorkingOwner;
+        NativeBattleFileStagingOverlay? parent = privateLayer ? source.Transaction?.ActiveOverlay ?? owner.EffectivePublicOverlay() : null;
         overlay = owner.LeaseOverlay();
+        overlay.TransactionOwner = this;
+        if (privateLayer)
+        {
+            overlay.BeginPrivateChild(parent);
+        }
         View = source with { Transaction = this };
+    }
+
+    internal static NativeBattleFileStagingTransaction CreatePrivateChild(NativeBattleFileStaging source) => new(source, true);
+    internal NativeBattleFileStagingOverlay ActiveOverlay
+    {
+        get
+        {
+            RequireActive();
+            return overlay;
+        }
     }
 
     internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease)
@@ -244,7 +264,11 @@ internal sealed class NativeBattleFileStagingTransaction : IDisposable
         NativeBattleFileStaging.RequirePhysicalRange(address, length);
     }
 
-    internal void RequireActive() => ObjectDisposedException.ThrowIf(disposed, this);
+    internal void RequireActive()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        overlay.RequireLayerActive();
+    }
 
     public void Dispose()
     {

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -21,9 +21,16 @@ internal sealed class NativeBattleStagingReadWindowLease
 
     internal void AddCell(uint address, byte value, bool known)
     {
-        Budget.Require(1);
+        bool exists = InitialCells.TryGetValue(address, out _);
+        if (!exists)
+        {
+            Budget.Require(1);
+        }
         InitialCells[address] = new(value, known);
-        Budget.Accept(1);
+        if (!exists)
+        {
+            Budget.Accept(1);
+        }
     }
 
     internal void Require(int offset, int length, long generation)
@@ -356,6 +363,15 @@ internal sealed partial class NativeBattleFileStagingOverlay
 {
     internal void CaptureReadWindowPrefix(NativeBattleStagingReadWindowLease lease)
     {
+        RequireLayerActive();
+        parent?.CaptureReadWindowPrefix(lease);
+        foreach (var entry in lease.InitialCells)
+        {
+            if (LastUnknown(entry.Key) != 0)
+            {
+                lease.AddCell(entry.Key, entry.Value.Value, false);
+            }
+        }
         ulong end = (ulong)lease.Address + (uint)lease.Length;
         int copied = 0;
         try

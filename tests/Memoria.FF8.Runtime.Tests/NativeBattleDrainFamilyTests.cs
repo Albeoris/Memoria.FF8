@@ -26,7 +26,7 @@ public sealed class NativeBattleDrainFamilyTests
         process = NativeBattleEffectNodeContextMemory.Publish(process, view);
         const int first = 0x10000;
         const int node = first + 0x10E0;
-        NativeBattleEffectNodeMemory memory = new(process, fixture.Frame.Effect, fixture.Address, first, 0x10E0, node, 0x16F80, true);
+        using NativeBattleEffectNodeMemory memory = new(process, fixture.Frame.Effect, fixture.Address, first, 0x10E0, node, 0x16F80, true);
         uint meshAddress = profile.BankAddress + 0x1000;
         memory.Dword(node + 0x170, meshAddress);
         memory.Word(node + 0x1CE, 2048);
@@ -35,7 +35,8 @@ public sealed class NativeBattleDrainFamilyTests
         NativeBattleCameraProjection projection = new(null, 100, 160, 108);
         NativeBattleSummonColors constants = new(0, 0, 1f / 4096f, BitConverter.Int64BitsToDouble(0x4330000080000000L));
         NativeBattleEffectNodeMeshInstance emit = NativeBattleEffect88MeshPreparation.Prepare(memory, node, new byte[344], projection, constants);
-        NativeBattleGfGeometryBatch batch = emit(Triangle(), NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 });
+        using NativeBattleGfSourceReader resource = new(Triangle());
+        NativeBattleGfGeometryBatch batch = emit(resource, NativeBattleCuragaMatrices.Identity8DD770() with { Z = 2000 });
         Assert.NotNull(Assert.Single(batch.Attempts).Primitive);
         NativeBattleEffectMemory after = memory.CaptureProcessMemory();
         Assert.Equal(499u, after.GeometryRegisters!.Otz);

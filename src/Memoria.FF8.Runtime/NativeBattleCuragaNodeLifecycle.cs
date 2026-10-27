@@ -8,6 +8,8 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleEffectMemory process = memory.CaptureProcessMemory();
         NativeBattleCuragaExecutableState retained = memory.Profile.RequireExecutable(process);
+        NativeBattleNodeSource source = retained.Data ?? throw new NotSupportedException("Native Curaga node requires its materialized executable bytes.");
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(source.Arena);
         if (memory.Profile.Effect != 43)
         {
             return CurrentBank(retained);
@@ -21,6 +23,10 @@ public static partial class NativeBattleCuragaNodeKinematics
     {
         NativeBattleCuragaExecutableState retained = source ?? throw new NotSupportedException("Native Curaga node requires its retained current executable bank.");
         retained.Validate();
+        if (retained.Data is { } data)
+        {
+            NativeBattleTaskOperation.AdmitCurrentRetainedArena(data.Arena);
+        }
         return new(retained.ResourceAddress, retained.Data ?? throw new NotSupportedException("Native Curaga node requires its materialized executable bytes."));
     }
 
@@ -34,7 +40,8 @@ public static partial class NativeBattleCuragaNodeKinematics
         NativeBattleCuragaFrame result = memory.Flush();
         NativeBattleCuragaFamilyProfile profile = memory.Profile;
         NativeBattleCuragaExecutableState retained = profile.RequireExecutable(result.Memory);
-        return result with { Memory = profile.WithExecutable(result.Memory, retained with { Data = bank.Data }) };
+        bank.Publish();
+        return result with { Memory = profile.WithExecutable(result.Memory, retained with { Data = bank.Source }) };
     }
 
     private static NativeBattleEffectArena WriteWaveWord(NativeBattleEffectArena context, int offset, ushort value)
@@ -73,7 +80,7 @@ public static partial class NativeBattleCuragaNodeKinematics
                 }
                 view = NativeBattleEffectNodeContextMemory.Copy(waveContext, 0, view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleActorWaveMesh.ContextLength);
                 memory.PublishProcessMemory(NativeBattleEffectNodeContextMemory.Publish(process, view));
-                return (ImmutableArray<byte> bytes, NativeBattleActionMatrix matrix) =>
+                return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix) =>
                 {
                     NativeBattleEffectMemory current = memory.CaptureProcessMemory();
                     NativeBattleEffectArena currentView = NativeBattleEffectNodeContextMemory.Capture(current);
@@ -96,7 +103,7 @@ public static partial class NativeBattleCuragaNodeKinematics
                 farColor = memory.Dword(node + 0x16C);
             }
             NativeBattleCuragaMeshContext context = new(flags, farColor, fade == 0 ? null : fade, null, null, null, 17, 2);
-            return (ImmutableArray<byte> bytes, NativeBattleActionMatrix matrix) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, projection, context, colors: colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
+            return (NativeBattleGfSourceReader bytes, NativeBattleActionMatrix matrix) => NativeBattleCuragaMeshPackets.EmitBatch87EEB0(bytes, matrix, projection, context, colors: colors, observeFirstThreeFlags: memory.WriteProjectionFlags);
         };
     }
 }

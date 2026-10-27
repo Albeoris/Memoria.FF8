@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleMoogle96NodeResource(uint Address, ImmutableArray<byte> Data);
-public sealed record NativeBattleMoogle96NodeBank([property: JsonRequired] uint Address, [property: JsonRequired] uint InitializationFlag, [property: JsonRequired] ImmutableArray<byte>? Data);
+public sealed record NativeBattleMoogle96NodeBank([property: JsonRequired] uint Address, [property: JsonRequired] uint InitializationFlag, [property: JsonRequired] NativeBattleNodeSource? Data);
 public sealed record NativeBattleMoogle96NodeState([property: JsonRequired] NativeBattleRecover93NodeState Work, [property: JsonRequired] ImmutableArray<NativeBattleMoogle96NodeBank> Banks)
 {
     public static NativeBattleMoogle96NodeState FromColdProcess() => new(NativeBattleRecover93NodeState.FromColdProcess(), [new(0x169227C, 0, null), new(0x1696DE8, 0, null)]);
@@ -19,7 +19,7 @@ public sealed record NativeBattleMoogle96NodeState([property: JsonRequired] Nati
         foreach (NativeBattleMoogle96NodeBank bank in Banks)
         {
             int length = bank.Address == 0x169227C ? 0x4B6C : 0x33D4;
-            if (bank.Data is { } bytes && (bytes.IsDefault || bytes.Length != length || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != bank.InitializationFlag))
+            if (bank.Data is { } bytes && (bytes.IsDefault || bytes.Length != length || bytes.ReadUInt32(0) != bank.InitializationFlag))
             {
                 throw new InvalidDataException("Native Moogle node source contradicts its retained initialization owner.");
             }

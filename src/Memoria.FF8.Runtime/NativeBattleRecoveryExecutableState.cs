@@ -7,8 +7,13 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleRecoveryExecutableSource(ushort Effect, ImmutableArray<byte> Data);
 
 /// <summary>Current complete addressed resource bank; cold flag1 and absolute pointers are authenticated, never inferred for an old save.</summary>
-public sealed record NativeBattleRecoveryExecutableState([property: JsonRequired] ushort Effect, [property: JsonRequired] ImmutableArray<byte> Data)
+[method: JsonConstructor]
+public sealed record NativeBattleRecoveryExecutableState([property: JsonRequired] ushort Effect, [property: JsonRequired, JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource Data)
 {
+    public NativeBattleRecoveryExecutableState(ushort effect, ImmutableArray<byte> data) : this(effect, new NativeBattleNodeSource(data))
+    {
+    }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<byte>? Channels { get; init; }
 
@@ -24,19 +29,25 @@ public sealed record NativeBattleRecoveryExecutableState([property: JsonRequired
     }
 
     [JsonIgnore]
-    public uint InitializationFlag => BinaryPrimitives.ReadUInt32LittleEndian(Data.AsSpan().Slice(DirectoryOffset));
+    public uint InitializationFlag => Data.ReadUInt32(DirectoryOffset);
     private int DirectoryOffset => checked((int)(NativeBattleRecoveryProfile.ForEffect(Effect).DirectoryAddress - NativeBattleRecoveryProfile.ForEffect(Effect).ExecutableAddress));
 
     public void Validate()
     {
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(Effect);
-        if (Data.IsDefault || Data.Length != profile.ExecutableLength || Channels is { } channels && (channels.IsDefault || channels.Length != profile.ChannelLength))
+        if (Data is null || Data.Length != profile.ExecutableLength || Channels is { } channels && (channels.IsDefault || channels.Length != profile.ChannelLength))
         {
             throw new InvalidDataException("Native recovery bank does not have its own original addressed extent.");
         }
     }
 
     public NativeBattleRecoveryExecutableState Initialize(NativeBattleRecoveryExecutableSource source)
+    {
+        using NativeBattleNodeInitialization<NativeBattleRecoveryExecutableState> initialization = Prepare(source);
+        return initialization.Publish();
+    }
+
+    internal NativeBattleNodeInitialization<NativeBattleRecoveryExecutableState> Prepare(NativeBattleRecoveryExecutableSource source)
     {
         Validate();
         if (source.Effect != Effect)
@@ -45,12 +56,22 @@ public sealed record NativeBattleRecoveryExecutableState([property: JsonRequired
         }
         if (InitializationFlag != 0)
         {
-            return this;
+            return new(this, null);
         }
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(Effect);
-        byte[] written = NativeBattleEffectNodeBankFixups.Relocate(Data, profile.ExecutableAddress, DirectoryOffset);
-        BinaryPrimitives.WriteUInt32LittleEndian(written.AsSpan(DirectoryOffset), 1);
-        return this with { Data = written.ToImmutableArray() };
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(Data.Arena ?? throw new InvalidDataException("Native executable fixups require their arena-backed resource owner."));
+        NativeBattleNodeBankOperation operation = new(Data);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, profile.ExecutableAddress, DirectoryOffset);
+            operation.WriteUInt32(DirectoryOffset, 1);
+            return new(this, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 
     public byte[] Read(uint address, int count)
@@ -63,7 +84,9 @@ public sealed record NativeBattleRecoveryExecutableState([property: JsonRequired
         }
         if (address >= start && address - start <= Data.Length && count <= Data.Length - (address - start))
         {
-            return Data.AsSpan().Slice(checked((int)(address - start)), count).ToArray();
+            byte[] result = new byte[count];
+            Data.ReadInto(checked((int)(address - start)), result);
+            return result;
         }
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(Effect);
         if (address < profile.ChannelAddress || address - profile.ChannelAddress > profile.ChannelLength || count > profile.ChannelLength - (address - profile.ChannelAddress))

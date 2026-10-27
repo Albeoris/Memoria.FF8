@@ -29,8 +29,8 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         Assert.Throws<NotSupportedException>(() => written.Memory.Arena!.Read(0x8D9, 1));
         Assert.Equal(new byte[] { 0x5A, 0x5A }, written.Memory.Arena!.Read(0x8DA, 2));
         Assert.Equal(Enumerable.Repeat((byte)0xA5, 19), written.Memory.Arena.Read(149, 19));
-        NativeBattleQuezacotlPacketWrite restored = JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(JsonSerializer.Serialize(written))!;
-        Assert.Equal(JsonSerializer.Serialize(written), JsonSerializer.Serialize(restored));
+        NativeBattleQuezacotlPacketWrite restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleQuezacotlPacketWrite>(SnapshotJson(written))!);
+        Assert.Equal(SnapshotJson(written), SnapshotJson(restored));
         Assert.Equal(3, restored.Memory.PrimitiveProcess!.ReadCommonPacket(64, 3).Length);
     }
 
@@ -40,7 +40,8 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(116);
         memory = memory with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Arena = memory.Arena!.Write(0, new byte[0x20000]) };
         NativeBattleOriginalEffectState effect = new(116, 115, new(116, 0x6C3550, 0x6C3560), null, null) { DrawArenaOffset = 0x10000 };
-        NativeBattleQuezacotlPacketWrite scalar = new(memory, effect, NativeBattleLogicalOrdering.Clear());
+        NativeBattleEffectMemory initialMemory = NativeBattleStorageSnapshots.Capture(memory);
+        NativeBattleQuezacotlPacketWrite scalar = new(NativeBattleStorageSnapshots.Restore(initialMemory), effect, NativeBattleLogicalOrdering.Clear());
         ImmutableArray<NativeBattleQuezacotlSkinWrite>.Builder writes = ImmutableArray.CreateBuilder<NativeBattleQuezacotlSkinWrite>();
         List<NativeBattleQuezacotlSkinBatch> scalarBatches = [];
         int common = 0;
@@ -60,19 +61,36 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
             common += commonBytes;
             draw += effectBytes;
         }
+        NativeBattleQuezacotlSkinBatch batch = new(writes.ToImmutable(), common, draw);
+        NativeBattleLogicalOrdering batchOrdering = NativeBattleLogicalOrdering.Clear();
+        Warm(scalar.Memory, scalar.Effect, scalar.Ordering, scalarBatches);
+        Warm(memory, effect, batchOrdering, [batch]);
         long before = GC.GetAllocatedBytesForCurrentThread();
         foreach (NativeBattleQuezacotlSkinBatch scalarBatch in scalarBatches)
         {
             scalar = NativeBattleQuezacotlSkinArena.Append(scalar.Memory, scalar.Effect, scalar.Ordering, scalarBatch);
         }
         long scalarBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        NativeBattleQuezacotlSkinBatch batch = new(writes.ToImmutable(), common, draw);
         before = GC.GetAllocatedBytesForCurrentThread();
-        NativeBattleQuezacotlPacketWrite result = NativeBattleQuezacotlSkinArena.Append(memory, effect, NativeBattleLogicalOrdering.Clear(), batch);
+        NativeBattleQuezacotlPacketWrite result = NativeBattleQuezacotlSkinArena.Append(memory, effect, batchOrdering, batch);
         long batchBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(result));
+        Assert.Equal(SnapshotJson(scalar), SnapshotJson(result));
         Assert.True(batchBytes < scalarBytes / 8, $"Scalar allocated {scalarBytes} bytes; batch allocated {batchBytes} bytes.");
-        Assert.Equal(new byte[12], memory.Arena.Read(0x8D0, 12));
+        Assert.Equal(new byte[12], initialMemory.Arena!.Read(0x8D0, 12));
+    }
+
+    private static void Warm(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect, NativeBattleLogicalOrdering ordering, IEnumerable<NativeBattleQuezacotlSkinBatch> batches)
+    {
+        using NativeBattleTaskOperation storage = new(memory, effect);
+        using NativeBattleLogicalOrderingTransaction links = new(ordering);
+        links.BeginCheckpoint();
+        foreach (NativeBattleQuezacotlSkinBatch batch in batches)
+        {
+            NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlSkinArena.Append(memory, effect, links.View, batch);
+            memory = written.Memory;
+            effect = written.Effect;
+        }
+        links.RollbackCheckpoint();
     }
 
     private static NativeBattleGfGeometryAttempt Packet(NativeBattleGeometryPrimitive primitive)
@@ -84,4 +102,6 @@ public sealed class NativeBattleQuezacotlSkinArenaTests
         }
         return new(0, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray(), primitive);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
 }

@@ -9,15 +9,21 @@ public static class NativeBattleRestorationLifecycle
 {
     public static NativeBattleRestorationPresentationStep AdvanceAndDraw(NativeBattleRestorationFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);
+        ordering = orderingOperation?.View ?? ordering;
         using NativeBattleRestorationNodeMemory memory = new(frame, contextTask);
         NativeBattleRestorationExecutableState retained = frame.Memory.GetRestorationExecutable(memory.Profile.Effect) ?? throw new NotSupportedException("Native restoration node lifecycle requires its own retained executable bank.");
         retained.Validate();
-        NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data ?? throw new NotSupportedException("Native restoration node lifecycle requires its executed context resource initialization."));
+        NativeBattleNodeSource nodeSource = retained.Data ?? throw new NotSupportedException("Native restoration node lifecycle requires its executed context resource initialization.");
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(nodeSource.Arena);
+        using NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, nodeSource);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
         NativeBattleRestorationFrame result = memory.Flush();
-        NativeBattleRestorationExecutableState written = retained with { Data = bank.Data };
+        bank.Publish();
+        NativeBattleRestorationExecutableState written = retained with { Data = bank.Source };
         result = result with { Memory = result.Memory.WithRestorationExecutable(written) };
         if (!batch.Attempts.IsEmpty)
         {
@@ -26,7 +32,7 @@ public static class NativeBattleRestorationLifecycle
             result = result with { Memory = packets.Memory, State = result.State with { PrimaryDrawCursor = packets.Cursor } };
             ordering = packets.Ordering;
         }
-        return new(result, random, ordering, batch);
+        return NativeBattleTaskOperation.CompleteStandalone<NativeBattleRestorationPresentationStep>(operation, new(result, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), batch));
 
         int? AllocateEmitter(uint parent, sbyte source, sbyte target)
         {

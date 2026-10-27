@@ -9,15 +9,20 @@ public static class NativeBattleRecoveryLifecycle
 {
     public static NativeBattleRecoveryPresentationStep AdvanceAndDraw(NativeBattleRecoveryFrame frame, uint contextTask, NativeCrtRandomState random, Func<int, NativeBattleGraphicsModel> readModel, NativeBattleCameraProjection projection, short cameraRoll, NativeBattleLogicalOrdering ordering, NativeBattleSummonColors? colors = null)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
+        using NativeBattleLogicalOrderingTransaction? orderingOperation = NativeBattleTaskOperation.ProtectOrdering(ordering);
+        ordering = orderingOperation?.View ?? ordering;
         using NativeBattleRecoveryNodeMemory memory = new(frame, contextTask);
         NativeBattleRecoveryExecutableState retained = frame.Memory.GetRecoveryExecutable(memory.Profile.Effect) ?? throw new NotSupportedException("Native recovery node lifecycle requires its own retained executable bank.");
         retained.Validate();
-        NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data, retained.Read);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(retained.Data.Arena);
+        using NativeBattleEffectNodeBank bank = new(memory.Profile.ExecutableAddress, retained.Data, retained.Read);
         NativeBattleEffectNodeInputs inputs = new(frame.State.CopiedCamera, readModel, AllocateEmitter, AllocateGeometry);
         NativeBattleEffectNodeLifecycle lifecycle = new(memory, bank, inputs);
         NativeBattleGfGeometryBatch batch = lifecycle.AdvanceAndDraw(ref random, projection, cameraRoll, PrepareMesh);
         NativeBattleRecoveryFrame result = memory.Flush();
-        NativeBattleRecoveryExecutableState written = retained with { Data = bank.Data };
+        bank.Publish();
+        NativeBattleRecoveryExecutableState written = retained with { Data = bank.Source };
         result = result with { Memory = result.Memory.WithRecoveryExecutable(written) };
         if (!batch.Attempts.IsEmpty)
         {
@@ -26,7 +31,7 @@ public static class NativeBattleRecoveryLifecycle
             result = result with { Memory = packets.Memory, State = result.State with { PrimaryDrawCursor = packets.Cursor } };
             ordering = packets.Ordering;
         }
-        return new(result, random, ordering, batch);
+        return NativeBattleTaskOperation.CompleteStandalone<NativeBattleRecoveryPresentationStep>(operation, new(result, random, NativeBattleTaskOperation.CompleteOrdering(orderingOperation, ordering), batch));
 
         int? AllocateEmitter(uint parent, sbyte source, sbyte target)
         {

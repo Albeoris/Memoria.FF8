@@ -43,7 +43,8 @@ public sealed record NativeBattleEffectTextureDrain(NativeBattleEffectTextureSta
 }
 
 /// <summary>505E30/505D20's32 physical16-byte slots and45BD30's retained1024x51216-bit VRAM.</summary>
-public sealed record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, [property: JsonRequired] ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions)
+[JsonConverter(typeof(NativeBattleEffectTextureStateJsonConverter))]
+public sealed partial record NativeBattleEffectTextureState([property: JsonRequired] ImmutableArray<NativeBattleEffectTimUpload?> Slots, [property: JsonRequired] int Count, [property: JsonRequired] NativeBattleEffectAnimationRegisters? Animation, ImmutableArray<NativeBattleEffectMemoryRegion> VramRegions) : INativeBattleStorageNode
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableArray<NativeBattleTextureSourceRegion>? LiveTextureSources { get; init; }
@@ -62,12 +63,13 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new InvalidDataException("Native45BD30 upload requires its exact bounded VRAM rectangle and source words.");
         }
-        NativeBattleEffectArena memory = new(VramRegions);
+        RequireWorking();
+        using NativeBattleVramOwner.Mutation mutation = vramOwner.BeginMutation(VramVersion);
         for (int row = 0; row < height; row++)
         {
-            memory = memory.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
+            mutation.Write(2 * ((y + row) * 1024 + x), bytes.Slice(2 * row * width, 2 * width));
         }
-        return this with { VramRegions = memory.Capture().Regions, LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
+        return this with { vramVersion = mutation.Commit(), LiveTextureSources = NativeBattleTextureProvenance.Overwrite(LiveTextureSources, x, y, width, height), TextureRegistrations = NativeBattleTextureCopyHistory.Upload(TextureRegistrations, x, y, width, height) };
     }
 
     public static NativeBattleEffectTextureState FromColdProcess() => new(ImmutableArray.CreateRange(new NativeBattleEffectTimUpload?[32]), 0, null, []) { VramReadTail = new byte[PcPageReadTailLength].ToImmutableArray() };
@@ -83,6 +85,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState Initialize500400()
     {
+        RequireWorking();
         Validate();
         //500400 clears1D98420 only. Slots,509970 registers and VRAM survive battle initialization.
         return this with { Count = 0 };
@@ -98,7 +101,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new InvalidDataException("Native texture upload state requires32 physical slots and its successful0..31 pending count.");
         }
-        NativeBattleEffectArena.CreateSnapshot(VramRegions, []).Validate();
+        ValidateVram();
         if (TextureFileContext is { } context && (string.IsNullOrWhiteSpace(context.Identity.Name) || !Enum.IsDefined(context.Identity.Domain) || context.Identity.SourceOffset < 0 || context.NextTimMember < 0))
         {
             throw new InvalidDataException("Native texture file context requires its observed open and nonnegative upload ordinal.");
@@ -200,6 +203,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState Register509970(NativeBattleEffectHeapAllocation source, int offset = 0)
     {
+        RequireWorking();
         Validate();
         RequireSource(source, offset, 6);
         ReadOnlySpan<byte> data = source.Data.AsSpan().Slice(offset);
@@ -213,6 +217,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public (NativeBattleEffectTextureState State, int NextOffset) EnqueueTim505E30(NativeBattleEffectHeapAllocation source, int offset = 0, NativeBattleTextureFileIdentity? identity = null)
     {
+        RequireWorking();
         Validate();
         if (Count == 31)
         {
@@ -229,6 +234,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public (NativeBattleEffectTextureState State, int NextOffset) EnqueueArenaTim505E30(NativeBattleEffectArena arena, int offset, NativeBattleTextureFileIdentity? identity = null)
     {
+        RequireWorking();
         Validate();
         if (Count == 31)
         {
@@ -250,6 +256,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public (NativeBattleEffectTextureState State, uint NextAddress) EnqueueStagingTim505E30(NativeBattleFileStaging staging, uint address, NativeBattleTextureFileIdentity? identity = null)
     {
+        RequireWorking();
         Validate();
         if (Count == 31)
         {
@@ -267,6 +274,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public (NativeBattleEffectTextureState State, uint NextAddress) EnqueueProcessTim505E30(uint address, NativeBattleEffectHeapAllocation current)
     {
+        RequireWorking();
         Validate();
         if (address != 0x16146E8)
         {
@@ -286,6 +294,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState EnqueueCopy505EB0(short sourceX, short sourceY, short width, short height, short destinationX, short destinationY)
     {
+        RequireWorking();
         Validate();
         if (Count == 31)
         {
@@ -297,6 +306,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState EnqueueArenaRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectArena arena, int offset, NativeBattleTextureOrigin? origin = null)
     {
+        RequireWorking();
         Validate();
         RequireRectangle(rectangle);
         arena.Validate();
@@ -328,6 +338,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState EnqueueRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectHeapAllocation source, int offset = 0, NativeBattleTextureOrigin? origin = null)
     {
+        RequireWorking();
         Validate();
         RequireRectangle(rectangle);
         RequireSource(source, offset, checked(2 * rectangle.Width * rectangle.Height));
@@ -350,6 +361,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState EnqueueScriptedRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, uint address)
     {
+        RequireWorking();
         Validate();
         RequireRectangle(rectangle);
         RequireScriptedRange(address, checked(2 * rectangle.Width * rectangle.Height));
@@ -363,6 +375,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureState EnqueueArenaReadback505E70(NativeBattleEffectTextureRectangle rectangle, int destinationOffset)
     {
+        RequireWorking();
         Validate();
         RequireRectangle(rectangle);
         RequireArenaRange(destinationOffset, checked(2 * rectangle.Width * rectangle.Height));
@@ -376,12 +389,15 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null, NativeBattleFileStaging? stagingSource = null, Func<uint, NativeBattleEffectHeapAllocation>? resolveProcessTim = null, NativeBattleScriptedEffectMemory? scriptedSource = null)
     {
+        RequireWorking();
         Validate();
         if (Count == 0)
         {
             return new(this, []);
         }
-        NativeBattleEffectArena bank = new(VramRegions);
+        RequireWorking();
+        using NativeBattleVramOwner.Mutation mutation = vramOwner.BeginMutation(VramVersion);
+        NativeBattleEffectArena bank = mutation.Arena;
         ImmutableArray<NativeBattleTextureSourceRegion>? liveSources = LiveTextureSources;
         ImmutableArray<NativeBattleTextureRegistration>? registrations = TextureRegistrations;
         NativeBattleTextureFileContext? fileContext = TextureFileContext;
@@ -491,12 +507,10 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                     origin = null;
                 }
                 ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
-                using NativeBattleEffectArenaWriter writer = new(bank);
                 for (int row = 0; row < height; row++)
                 {
-                    writer.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
+                    mutation.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
                 }
-                bank = writer.Freeze();
                 liveSources = NativeBattleTextureProvenance.Overwrite(liveSources, x, y, width, height, origin);
                 if (!palette)
                 {
@@ -505,7 +519,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 uploads.Add(new(x, y, width, height, bytes) { Origin = origin });
             }
         }
-        return new(this with { Count = 0, VramRegions = bank.Capture().Regions, LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
+        return new(this with { Count = 0, vramVersion = mutation.Commit(), LiveTextureSources = liveSources, TextureRegistrations = registrations, TextureFileContext = fileContext }, uploads.ToImmutable()) { Arena = arenaSource };
 
         NativeBattleEffectTextureRectangle? FollowingPaletteRectangle(int imageIndex)
         {
@@ -533,8 +547,8 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             {
                 throw new InvalidDataException("Native45BDD0 copy leaves its1024x512 word VRAM.");
             }
-            byte[] memory = bank.Read(0, NativeBattleEffectArena.Length);
             int bytesPerRow = 2 * copy.Width;
+            Span<byte> valueBytes = stackalloc byte[4];
             for (int row = 0; row < copy.Height; row++)
             {
                 int read = 2 * ((copy.SourceY + row) * 1024 + copy.SourceX);
@@ -543,24 +557,21 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 //45BDD0 uses forward REP MOVSD followed by REP MOVSB, including overlapping rectangles.
                 for (; offset + 4 <= bytesPerRow; offset += 4)
                 {
-                    uint value = BinaryPrimitives.ReadUInt32LittleEndian(memory.AsSpan(read + offset, 4));
-                    BinaryPrimitives.WriteUInt32LittleEndian(memory.AsSpan(write + offset, 4), value);
+                    bank.ReadInto(read + offset, valueBytes);
+                    mutation.Write(write + offset, valueBytes);
                 }
                 for (; offset < bytesPerRow; offset++)
                 {
-                    memory[write + offset] = memory[read + offset];
+                    valueBytes[0] = bank.ReadByte(read + offset);
+                    mutation.Write(write + offset, valueBytes[..1]);
                 }
             }
             byte[] changed = new byte[bytesPerRow * copy.Height];
-            using NativeBattleEffectArenaWriter writer = new(bank);
             for (int row = 0; row < copy.Height; row++)
             {
                 int write = 2 * ((copy.DestinationY + row) * 1024 + copy.DestinationX);
-                ReadOnlySpan<byte> bytes = memory.AsSpan(write, bytesPerRow);
-                writer.Write(write, bytes);
-                bytes.CopyTo(changed.AsSpan(row * bytesPerRow));
+                bank.ReadInto(write, changed.AsSpan(row * bytesPerRow, bytesPerRow));
             }
-            bank = writer.Freeze();
             liveSources = NativeBattleTextureProvenance.Copy(liveSources, copy);
             registrations = NativeBattleTextureCopyHistory.Copy(registrations, copy);
             uploads.Add(new(copy.DestinationX, copy.DestinationY, copy.Width, copy.Height, changed.ToImmutableArray()) { Copied = true });
@@ -609,7 +620,9 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
     {
         Validate();
         //45BD30's base1B47818 is PE zero-fill; the shared sparse1MB bank preserves untouched zeroes.
-        return NativeBattleEffectArena.CreateSnapshot(VramRegions, []).Read(0, 1024 * 512 * 2);
+        byte[] result = new byte[NativeBattleEffectArena.Length];
+        VramVersion.ReadInto(0, result);
+        return result;
     }
 
     private static int BlockLength(NativeBattleEffectHeapAllocation source, int offset)

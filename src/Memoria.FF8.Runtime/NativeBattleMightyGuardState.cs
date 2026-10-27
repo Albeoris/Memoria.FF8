@@ -1,10 +1,9 @@
-using System.Buffers.Binary;
-using System.Collections.Immutable;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleMightyGuardState([property: JsonRequired] ushort Effect, [property: JsonRequired] uint InitializationFlag, [property: JsonRequired] ImmutableArray<byte>? Executable)
+[method: JsonConstructor]
+public sealed record NativeBattleMightyGuardState([property: JsonRequired] ushort Effect, [property: JsonRequired] uint InitializationFlag, [property: JsonRequired, JsonConverter(typeof(NativeBattleNodeSource.Converter))] NativeBattleNodeSource? Executable)
 {
     public int? SourceArenaOffset { get; init; }
     public int? PrimaryDrawCursor { get; init; }
@@ -30,13 +29,19 @@ public sealed record NativeBattleMightyGuardState([property: JsonRequired] ushor
     public void Validate()
     {
         NativeBattleMightyGuardProfile profile = NativeBattleMightyGuardProfile.ForEffect(Effect);
-        if (Executable is { } bytes && (bytes.IsDefault || bytes.Length != profile.SourceLength || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) != InitializationFlag))
+        if (Executable is { } bytes && (bytes.Length != profile.SourceLength || bytes.ReadUInt32(0) != InitializationFlag))
         {
             throw new InvalidDataException("Mighty Guard requires its retained initialization flag and matching original executable bank.");
         }
     }
 
     public NativeBattleMightyGuardState InitializeSource(NativeBattleMightyGuardResources resources)
+    {
+        using NativeBattleNodeInitialization<NativeBattleMightyGuardState> initialization = PrepareSource(resources);
+        return initialization.Publish();
+    }
+
+    internal NativeBattleNodeInitialization<NativeBattleMightyGuardState> PrepareSource(NativeBattleMightyGuardResources resources)
     {
         Validate();
         resources.Validate();
@@ -50,11 +55,22 @@ public sealed record NativeBattleMightyGuardState([property: JsonRequired] ushor
             {
                 throw new NotSupportedException("Mighty Guard requires its previously fixed executable bytes when the retained initialization flag is nonzero.");
             }
-            return this;
+            return new(this, null);
         }
-        byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(Executable ?? resources.NodeSource.Data, resources.NodeSource.ResourceAddress);
-        BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-        return this with { InitializationFlag = 1, Executable = relocated.ToImmutableArray() };
+        NativeBattleNodeSource data = Executable ?? new(resources.NodeSource.Data);
+        NativeBattleTaskOperation.AdmitCurrentRetainedArena(data.Arena);
+        NativeBattleNodeBankOperation operation = new(data);
+        try
+        {
+            NativeBattleEffectNodeBankFixups.Relocate(operation, resources.NodeSource.ResourceAddress);
+            operation.WriteUInt32(0, 1);
+            return new(this with { InitializationFlag = 1, Executable = data }, operation);
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 }
 

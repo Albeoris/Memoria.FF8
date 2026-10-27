@@ -37,26 +37,22 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
                 for (int index = entry.Value.StoredLength - 1; index >= 0 && (ulong)entry.Key + (uint)index + 1 > last; index--)
                 {
                     uint address = checked(entry.Key + (uint)index);
-                    if (!bytes.TryGetValue(address, out _) && entry.Value.IsKnown(index, 1) && LastUnknown(address) == 0)
+                    if (!bytes.TryGetValue(address, out _) && ExplicitKnown(address))
                     {
                         last = (ulong)address + 1;
                         break;
                     }
                 }
             }
-            foreach (var entry in bytes)
-            {
-                if (entry.Value.Sequence > LastUnknown(entry.Key))
-                {
-                    last = Math.Max(last, (ulong)entry.Key + 1);
-                }
-            }
+            last = Math.Max(last, LastWrittenEnd(this));
             return last;
         }
     }
 
     public void Begin()
     {
+        generation = checked(generation + 1);
+        leased = true;
         BaseAddress = source.BaseAddress;
     }
 
@@ -96,12 +92,12 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public void ReadWithKnownness(uint address, Span<byte> data, Span<bool> known)
     {
-        source.ReadWithKnownness(address, data, known);
+        ReadBaseline(address, data, known);
         for (int index = 0; index < data.Length; index++)
         {
             uint current = checked(address + (uint)index);
             bool written = bytes.TryGetValue(current, out Cell cell);
-            if (!written && !source.IsExplicitKnown(current) && ForgottenZero(current))
+            if (!written && !BaselineExplicitKnown(current) && ForgottenZero(current))
             {
                 known[index] = false;
             }
@@ -169,7 +165,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
             pointer = change.Value;
             return change.Present;
         }
-        return source.TryGetPointer(address, out pointer);
+        return BaselinePointer(address, out pointer);
     }
 
     public void SetPointerMetadata(uint address, NativeBattleResourcePointer? pointer)
@@ -184,22 +180,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
             return;
         }
         invalidated.Clear();
-        var originals = source.EnumeratePointers();
-        while (originals.MoveNext())
-        {
-            uint current = originals.Current.Key;
-            if (Overlaps(current, address, length))
-            {
-                invalidated.Add(current);
-            }
-        }
-        foreach (uint current in pointers.Keys)
-        {
-            if (Overlaps(current, address, length) && !invalidated.Contains(current))
-            {
-                invalidated.Add(current);
-            }
-        }
+        CollectVisiblePointerKeys(address, length, invalidated);
         if (checkpoint)
         {
             pointerUndo.EnsureCapacity(checked(pointerUndo.Count + invalidated.Count));
@@ -212,10 +193,8 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public IEnumerable<KeyValuePair<uint, NativeBattleResourcePointer?>> EnumerateResourcePointers()
     {
-        using var originals = source.EnumeratePointers();
-        while (originals.MoveNext())
+        foreach (var entry in BaselinePointers())
         {
-            var entry = originals.Current;
             if (pointers.TryGetValue(entry.Key, out Pointer change))
             {
                 if (change.Present)
@@ -230,7 +209,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         }
         foreach (var entry in pointers)
         {
-            if (entry.Value.Present && !source.TryGetPointer(entry.Key, out _))
+            if (entry.Value.Present && !BaselinePointer(entry.Key, out _))
             {
                 yield return new(entry.Key, entry.Value.Value);
             }
@@ -239,7 +218,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public ImmutableDictionary<uint, NativeBattleResourcePointer?> CapturePointers()
     {
-        var result = source.CapturePointers().ToBuilder();
+        var result = (parent is null ? source.CapturePointers() : parent.CapturePointers()).ToBuilder();
         foreach (var entry in pointers)
         {
             if (entry.Value.Present)
@@ -256,7 +235,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public bool IntersectsLoaderZero(uint address, int length)
     {
-        if (!source.IntersectsLoaderZero(address, length))
+        if (!BaselineZero(address, length))
         {
             return false;
         }
@@ -264,7 +243,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
         for (int index = 0; index < length; index++)
         {
             uint current = checked(address + (uint)index);
-            if (source.IntersectsLoaderZero(current, 1) && LastUnknown(current) == 0 && !ForgottenZero(current))
+            if (BaselineZero(current, 1) && LastUnknown(current) == 0 && !ForgottenZero(current))
             {
                 return true;
             }
@@ -349,6 +328,11 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public void Publish()
     {
+        if (parent is not null)
+        {
+            PublishToParent();
+            return;
+        }
         if (checkpoint)
         {
             throw new InvalidOperationException("Native staging publication requires a committed overlay boundary.");
@@ -409,6 +393,10 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public void Reset()
     {
+        leased = false;
+        generation = checked(generation + 1);
+        parent = null;
+        parentGeneration = 0;
         long cleared = bytes.Clear();
         unknown.Clear();
         forgottenZeros.Clear();
@@ -437,7 +425,7 @@ internal sealed partial class NativeBattleFileStagingOverlay(NativeBattleFileSta
 
     public ImmutableArray<NativeBattleLoaderZeroRegion> CaptureLoaderZeros()
     {
-        List<NativeBattleLoaderZeroRegion> ranges = [.. source.CaptureLoaderZeros()];
+        List<NativeBattleLoaderZeroRegion> ranges = [.. (parent is null ? source.CaptureLoaderZeros() : parent.CaptureLoaderZeros())];
         foreach (Unknown range in unknown)
         {
             RemoveZero(ranges, range.Address, range.Length);

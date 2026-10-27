@@ -35,6 +35,10 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
                     }
                 }
             }
+            if (inputs.MutateResource is { } mutate)
+            {
+                mutate(bank, resource, kind, memory.Byte(node + 0x1D6));
+            }
             if (inputs.ResourceUpdate is { } update)
             {
                 bank.ReplaceData(update(bank, resource, kind, memory.Byte(node + 0x1D6)));
@@ -197,8 +201,23 @@ internal sealed partial class NativeBattleEffectNodeLifecycle
         {
             throw new NotSupportedException("Native881540 shifted overlapping shape/destination aliases require their original forward read/write owner.");
         }
-        ImmutableArray<byte> data = bank.Data;
-        bank.ReplaceData(NativeBattleGfMorphGeometry.Morph45E9D0(data, first, data, second, count, ratio, data, target));
+        if (bank.IsWorking)
+        {
+            using NativeBattleGfSourceReader source = bank.OpenWholeReader();
+            ImmutableArray<NativeBattleVector> vertices = NativeBattleGfMorphGeometry.MorphVertices45E9D0(source, first, source, second, count, ratio);
+            foreach (NativeBattleVector vertex in vertices)
+            {
+                bank.WriteUInt16(target, unchecked((ushort)vertex.X));
+                bank.WriteUInt16(target + 2, unchecked((ushort)vertex.Y));
+                bank.WriteUInt16(target + 4, unchecked((ushort)vertex.Z));
+                target = unchecked(target + 8);
+            }
+        }
+        else
+        {
+            ImmutableArray<byte> data = bank.Data;
+            bank.ReplaceData(NativeBattleGfMorphGeometry.Morph45E9D0(data, first, data, second, count, ratio, data, target));
+        }
 
         int Offset(uint pointer)
         {

@@ -24,7 +24,7 @@ public static class NativeBattleSiren95Nodes
         {
             uint sourceAddress = task.ReadDword(0x30);
             NativeBattleSiren95State state = State(frame);
-            ImmutableArray<byte> data;
+            NativeBattleNodeSource data;
             if (sourceAddress == 0x16A40EC)
             {
                 if (state.StaticNodeData is not { } retained)
@@ -40,12 +40,14 @@ public static class NativeBattleSiren95Nodes
             }
             else
             {
-                data = task.Callback == 0x73F900 ? NativeBattleSiren95Io.ReadProgrammeSource(frame.Memory, sourceAddress).Data : NativeBattleProcessFileBanks.Read(frame.Memory).Read(sourceAddress, 0x1294).ToImmutableArray();
+                NativeBattleChoco97IoBanks banks = NativeBattleProcessFileBanks.Read(frame.Memory);
+                int length = task.Callback == 0x73F900 ? NativeBattleSiren95Io.ReadProgrammeSource(frame.Memory, sourceAddress).Length : 0x1294;
+                data = NativeBattleEffectNodeBank.BorrowSource(banks, sourceAddress, length);
             }
             NativeBattleEffectNodeCallerPolicy policy = new(sourceAddress, data.Length, task.Callback, 40, 74, false, AllowMode3: true);
             int first = ArenaOffset(state.ReadDword(0x258EC54));
             int second = ArenaOffset(state.ReadDword(0x258FB6C));
-            NativeBattleRecover93NodeState work = new(BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan()), data, first, second, state.ReadWord(0x2585AE0), state.ReadWord(0x258EDD0), state.ReadWord(0x258FB40), state.ReadWord(0x258EC50), (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Native Siren nodes require their copied camera bytes.")).ReadMatrix(), frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Siren nodes require their actual private packet cursor."), null, null);
+            NativeBattleRecover93NodeState work = new(data.ReadUInt32(0), data, first, second, state.ReadWord(0x2585AE0), state.ReadWord(0x258EDD0), state.ReadWord(0x258FB40), state.ReadWord(0x258EC50), (frame.Memory.SharedEffectView2793E58 ?? throw new NotSupportedException("Native Siren nodes require their copied camera bytes.")).ReadMatrix(), frame.Effect.DrawArenaOffset ?? throw new NotSupportedException("Native Siren nodes require their actual private packet cursor."), null, null);
             NativeBattleRecover93NodeFrame current = new(frame.Memory with { Siren95 = state }, frame.Effect, work, frame.Random);
             if (phase == 0)
             {
@@ -66,8 +68,8 @@ public static class NativeBattleSiren95Nodes
             }
             else
             {
-                NativeBattleChoco97IoBanks banks = NativeBattleProcessFileBanks.Read(memory).Write(sourceAddress, current.State.Data!.Value);
-                memory = NativeBattleProcessFileBanks.Write(memory, banks);
+                NativeBattleChoco97IoBanks banks = NativeBattleProcessFileBanks.Read(memory);
+                (current.State.Data ?? throw new InvalidDataException("Native Siren lost its current source authority.")).RequireStorage(banks.Bytes, checked((int)(sourceAddress - banks.BaseAddress)));
             }
             if (far is uint rgb)
             {
@@ -94,7 +96,7 @@ public static class NativeBattleSiren95Nodes
                 }
                 return (bytes, matrix) =>
                 {
-                    _ = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan());
+                    _ = bytes.UInt(0);
                     byte[] rgb = nodeMemory.ReadScratchPrefix(0, 3);
                     far = (uint)(rgb[0] | rgb[1] << 8 | rgb[2] << 16);
                     return new([], 0);

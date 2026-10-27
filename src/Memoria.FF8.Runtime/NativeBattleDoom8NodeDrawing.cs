@@ -24,6 +24,12 @@ public static class NativeBattleDoom8NodeDrawing
 
     public static NativeBattleDoom8NodeMeshStep Emit(NativeBattleDoom8Frame frame, ImmutableArray<byte> mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return Emit(frame, reader, meshAddress, matrix, projection, constants, matrixPadding18);
+    }
+
+    internal static NativeBattleDoom8NodeMeshStep Emit(NativeBattleDoom8Frame frame, NativeBattleGfSourceReader mesh, uint meshAddress, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors constants, short? matrixPadding18)
+    {
         RequireReserved(frame);
         NativeBattleEffectMemory memory = frame.Memory;
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Doom mesh requires its actual COMMON renderer process.");
@@ -47,13 +53,13 @@ public static class NativeBattleDoom8NodeDrawing
         return NativeBattleEffectNodeContextMemory.Copy(view, NativeBattleActorWaveMesh.SharedViewOffset, NativeBattleEffectArena.Clear().MarkUnknown(0, NativeBattleActorWaveMesh.ContextLength), 0, NativeBattleActorWaveMesh.ContextLength);
     }
 
-    private static short ReadVertexW(ImmutableArray<byte> mesh, int offset)
+    private static short ReadVertexW(NativeBattleGfSourceReader mesh, int offset)
     {
         if (offset < 8 || offset > mesh.Length - 8)
         {
             throw new InvalidDataException("Doom mesh vertex padding leaves its actual selected resource.");
         }
-        return System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(mesh.AsSpan().Slice(offset + 6, 2));
+        return mesh.Short(offset + 6);
     }
 
     private static void RequireReserved(NativeBattleDoom8Frame frame)

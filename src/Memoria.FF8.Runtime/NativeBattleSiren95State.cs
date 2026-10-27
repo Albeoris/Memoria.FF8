@@ -28,7 +28,7 @@ public sealed partial record NativeBattleSiren95State([property: JsonRequired] N
     }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<byte>? StaticNodeData { get; init; }
+    public NativeBattleNodeSource? StaticNodeData { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool StaticNodeDataKnownCold { get; init; }
 

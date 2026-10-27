@@ -23,7 +23,7 @@ public sealed class NativeBattleCuraga88MeshTests
         NativeBattleGfGeometryBatch expected = NativeBattleCuragaMeshPackets.EmitBatch87EEB0(mesh, Matrix, Projection, context, colors: Constants);
         uint depth = group == 4 ? 499u : 500u;
         expected = expected with { Attempts = expected.Attempts.Select(attempt => attempt.Primitive is null ? attempt : attempt with { Primitive = attempt.Primitive with { Bucket = 17 + ((int)depth >> 2) } }).ToImmutableArray() };
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(result.Batch));
         Assert.NotNull(Assert.Single(result.Batch.Attempts).Primitive);
         Assert.Equal(depth, result.Registers.Geometry.Otz);
         Assert.Equal(depth, result.Registers.Geometry.Mac0);
@@ -146,18 +146,19 @@ public sealed class NativeBattleCuraga88MeshTests
     public void Restored_full_owner_produces_identical_next_GTE_packet_and_context_without_hydration()
     {
         NativeBattleCuraga88MeshStep first = Emit(Mesh(7));
-        string json = JsonSerializer.Serialize(first);
-        NativeBattleCuraga88MeshStep restored = JsonSerializer.Deserialize<NativeBattleCuraga88MeshStep>(json)!;
+        NativeBattleCuraga88MeshStep frozen = NativeBattleStorageSnapshots.Capture(first);
+        string json = JsonSerializer.Serialize(frozen);
+        NativeBattleCuraga88MeshStep restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleCuraga88MeshStep>(json)!);
         NativeBattleCuraga88MeshStep Next(NativeBattleCuraga88MeshStep retained)
         {
             return NativeBattleCuraga88Mesh.EmitBatch(Mesh(4), Address, Matrix, Projection, retained.Context88, retained.Registers, retained.FarControls, 0, 0, 0x100, Constants, 0x4321, 0x155);
         }
-        Assert.Equal(JsonSerializer.Serialize(Next(first)), JsonSerializer.Serialize(Next(restored)));
-        Assert.Equal(0u, Dword(first.Context88, 0x18));
-        Assert.Equal(0u, Dword(first.Context88, 0x30) & 0x60000);
-        Assert.NotEqual(0u, Dword(first.Context88, 0x24));
-        Assert.Throws<NotSupportedException>(() => first.Context88.Read(0x28, 4));
-        Assert.Throws<NotSupportedException>(() => first.Context88.Read(0x40, 24));
+        Assert.Equal(SnapshotJson(Next(first)), SnapshotJson(Next(restored)));
+        Assert.Equal(0u, Dword(frozen.Context88, 0x18));
+        Assert.Equal(0u, Dword(frozen.Context88, 0x30) & 0x60000);
+        Assert.NotEqual(0u, Dword(frozen.Context88, 0x24));
+        Assert.Throws<NotSupportedException>(() => frozen.Context88.Read(0x28, 4));
+        Assert.Throws<NotSupportedException>(() => frozen.Context88.Read(0x40, 24));
     }
 
     private static NativeBattleCuraga88MeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf3 = 0x155, short? zsf4 = 0x100, Func<int, short?>? readVertexW = null)
@@ -214,4 +215,7 @@ public sealed class NativeBattleCuraga88MeshTests
         }
         return mesh.ToImmutableArray();
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

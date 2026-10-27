@@ -35,20 +35,25 @@ public static class NativeBattleChoco97Uv
 
     private static void ScrollWorking(NativeBattleEffectArena output, int resourceOffset, int delta, bool vertical)
     {
-        if (resourceOffset < 0 || resourceOffset > output.LogicalLength - 4)
+        ScrollWorking(output.LogicalLength, output.ReadByte, output.ReadInt32, (offset, value) => output.Write(offset, [value]), resourceOffset, delta, vertical);
+    }
+
+    private static void ScrollWorking(int ownerLength, Func<int, byte> readByte, Func<int, int> readDword, Action<int, byte> writeByte, int resourceOffset, int delta, bool vertical)
+    {
+        if (resourceOffset < 0 || resourceOffset > ownerLength - 4)
         {
             throw new InvalidDataException("Native Choco UV mutation requires its complete current resource owner.");
         }
-        int directory = output.ReadInt32(resourceOffset);
+        int directory = readDword(resourceOffset);
         int cursor = checked(resourceOffset + directory / 4 * 4);
         int[] strides = [12, 12, 20, 24, 20, 24, 28, 36];
         for (int group = 0; group < 8; group++)
         {
             Require(cursor, 4);
-            int count = output.ReadInt32(cursor);
+            int count = readDword(cursor);
             cursor = checked(cursor + 4);
             int stride = strides[group];
-            if (count < 0 || count > (output.LogicalLength - cursor) / stride)
+            if (count < 0 || count > (ownerLength - cursor) / stride)
             {
                 throw new InvalidDataException("Native Choco UV group leaves its supplied current resource extent.");
             }
@@ -57,13 +62,13 @@ public static class NativeBattleChoco97Uv
             {
                 if (corners.Length != 0)
                 {
-                    uint[] candidates = corners.Select(offset => vertical ? unchecked((uint)((output.ReadByte(cursor + offset + 1) << 8) + (delta << 8))) : unchecked((uint)((output.ReadByte(cursor + offset) & 0x7F) + delta))).ToArray();
+                    uint[] candidates = corners.Select(offset => vertical ? unchecked((uint)((readByte(cursor + offset + 1) << 8) + (delta << 8))) : unchecked((uint)((readByte(cursor + offset) & 0x7F) + delta))).ToArray();
                     uint limit = vertical ? 0xFF00u : 0x7Fu;
                     bool wrap = candidates.Any(value => value > limit);
                     for (int corner = 0; corner < corners.Length; corner++)
                     {
                         uint candidate = wrap ? unchecked(candidates[corner] - (vertical ? 0x8000u : 64u)) : candidates[corner];
-                        output.Write(cursor + corners[corner] + (vertical ? 1 : 0), [(byte)((candidate & limit) >> (vertical ? 8 : 0))]);
+                        writeByte(cursor + corners[corner] + (vertical ? 1 : 0), (byte)((candidate & limit) >> (vertical ? 8 : 0)));
                     }
                 }
                 cursor = checked(cursor + stride);
@@ -72,11 +77,28 @@ public static class NativeBattleChoco97Uv
 
         void Require(int offset, int length)
         {
-            if (offset < 0 || length < 0 || offset > output.LogicalLength - length)
+            if (offset < 0 || length < 0 || offset > ownerLength - length)
             {
                 throw new InvalidDataException("Native Choco UV cursor leaves its supplied resource owner.");
             }
         }
+    }
+
+    internal static void MutateDrawableResource(NativeBattleEffectNodeBank bank, uint resource, int kind, byte sourceNodeIndex)
+    {
+        if (sourceNodeIndex != 0 || kind is not (4 or 5))
+        {
+            return;
+        }
+        if (kind == 5)
+        {
+            throw new NotSupportedException("Native Choco kind5 resource update requires its own admitted source contract.");
+        }
+        if (resource < bank.Address || (ulong)resource >= (ulong)bank.Address + (uint)bank.Length)
+        {
+            throw new NotSupportedException("Native Choco resource mutation requires its retained same-bank writable owner.");
+        }
+        ScrollWorking(bank.Length, offset => bank.ReadByte(checked(bank.Address + (uint)offset)), offset => unchecked((int)bank.ReadUInt32(checked(bank.Address + (uint)offset))), bank.WriteByte, checked((int)(resource - bank.Address)), -8, false);
     }
 
     internal static ImmutableArray<byte> UpdateDrawableResource(NativeBattleEffectNodeBank bank, uint resource, int kind, byte sourceNodeIndex)

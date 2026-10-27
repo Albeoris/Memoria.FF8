@@ -80,9 +80,11 @@ public static class NativeBattleCuragaNodeEngine
 
     public static NativeBattleCuragaFrame Birth882E20(NativeBattleCuragaFrame frame, uint contextTask)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         using NativeBattleCuragaNodeMemory memory = new(frame, contextTask);
-        NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, NativeBattleCuragaNodeKinematics.CurrentBank(memory)).Birth();
-        return memory.Flush();
+        using NativeBattleEffectNodeBank bank = NativeBattleCuragaNodeKinematics.CurrentBank(memory);
+        NativeBattleCuragaNodeKinematics.CreateLifecycle(memory, bank).Birth();
+        return NativeBattleTaskOperation.CompleteStandalone<NativeBattleCuragaFrame>(operation, memory.Flush());
     }
 
     public static NativeBattleCuragaFrame AdvanceList8804D0(NativeBattleCuragaFrame frame, uint contextTask, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceEmitter, Func<NativeBattleCuragaFrame, uint, int, NativeBattleCuragaFrame> advanceGeometry)

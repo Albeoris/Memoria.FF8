@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>A retained mutable ACT owner; catalog animation sources remain immutable values.</summary>
-internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimationSource, INativeBattleStorageNode
+internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimationSource, INativeBattleStorageNode, INativeBattleArenaStorageNode
 {
     private readonly NativeBattleEffectArena storage;
     private readonly bool snapshot;
@@ -31,6 +31,7 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
     }
     internal override NativeBattleEffectArena? FrozenArena => snapshot ? storage : null;
     bool INativeBattleStorageNode.IsSnapshot => snapshot;
+    NativeBattleEffectArena INativeBattleArenaStorageNode.SnapshotArena => snapshot ? storage : throw new InvalidOperationException("Arena alias inspection requires a frozen ACT source.");
 
     internal static NativeBattleOwnedGfAnimationSource Own(NativeBattleGfAnimationSource source)
     {
@@ -87,6 +88,8 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
     private sealed record SnapshotData(uint Address, ImmutableArray<byte> Data)
     {
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public NativeBattleStorageReference? StorageReference { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableArray<NativeBattleEffectUnknownRegion>? UnknownRegions { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ImmutableDictionary<int, NativeBattleResourcePointer?>? ResourcePointers { get; init; }
@@ -103,6 +106,10 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
             }
             NativeBattleEffectArena frozen = new([new(0, value.Data)], value.UnknownRegions ?? [], value.ResourcePointers, value.Data.Length);
             frozen.Validate();
+            if (value.StorageReference is not null)
+            {
+                frozen = frozen.WithStorageReference(value.StorageReference);
+            }
             return new NativeBattleOwnedGfAnimationSource(value.Address, frozen, value.Data);
         }
 
@@ -119,6 +126,7 @@ internal sealed record NativeBattleOwnedGfAnimationSource : NativeBattleGfAnimat
             }
             JsonSerializer.Serialize(writer, new SnapshotData(owned.Address, owned.payload)
             {
+                StorageReference = owned.storage.StorageReference,
                 UnknownRegions = owned.storage.UnknownRegions.IsEmpty ? null : owned.storage.UnknownRegions,
                 ResourcePointers = owned.storage.ResourcePointers is { Count: > 0 } pointers ? pointers : null
             }, options);

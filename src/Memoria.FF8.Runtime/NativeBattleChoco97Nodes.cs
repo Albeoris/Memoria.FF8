@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleChoco97NodeState([property: JsonRequired] NativeBattleRecover93NodeState Work, [property: JsonRequired] ImmutableArray<byte>? StaticData)
+public sealed record NativeBattleChoco97NodeState([property: JsonRequired] NativeBattleRecover93NodeState Work, [property: JsonRequired] NativeBattleNodeSource? StaticData)
 {
     public static NativeBattleChoco97NodeState FromColdProcess() => new(NativeBattleRecover93NodeState.FromColdProcess(), null);
 
@@ -83,14 +83,14 @@ public static class NativeBattleChoco97Nodes
         {
             throw new NotSupportedException("Native Choco context requires its current physical source's executed initialization.");
         }
-        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, current, address, readModel, projection, roll, ordering, colors, NativeBattleChoco97Uv.UpdateDrawableResource);
+        NativeBattleRecover93NodeStep step = NativeBattleEffectNodeCaller.Advance74F6E0(profile, current, address, readModel, projection, roll, ordering, colors, NativeBattleChoco97Uv.MutateDrawableResource);
         return new(Store(frame, source, step.Frame), step.Complete, step.Ordering, step.PrivateSprites, step.CommonMeshes);
     }
 
     private static NativeBattleRecover93NodeFrame Assemble(NativeBattleChoco97NodeFrame frame, uint source)
     {
-        ImmutableArray<byte>? data = source == StaticAddress ? frame.State.StaticData : (frame.Io ?? throw new NotSupportedException("Native Choco loaded nodes require their initialized IO owner.")).Banks.Read(LoadedAddress, LoadedLength).ToImmutableArray();
-        uint flag = data is { } bytes ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) : 0;
+        NativeBattleNodeSource? data = source == StaticAddress ? frame.State.StaticData : NativeBattleEffectNodeBank.BorrowSource((frame.Io ?? throw new NotSupportedException("Native Choco loaded nodes require their initialized IO owner.")).Banks, LoadedAddress, LoadedLength);
+        uint flag = data is { } bytes ? bytes.ReadUInt32(0) : 0;
         return new(frame.Memory, frame.Effect, frame.State.Work with { InitializationFlag = flag, Data = data }, frame.Random);
     }
 
@@ -108,7 +108,7 @@ public static class NativeBattleChoco97Nodes
             {
                 throw new NotSupportedException("Native Choco loaded node stores require their initialized IO owner.");
             }
-            io = io with { Banks = io.Banks.Write(LoadedAddress, result.State.Data ?? throw new InvalidDataException("Native Choco lost its loaded mutable source owner.")) };
+            (result.State.Data ?? throw new InvalidDataException("Native Choco lost its loaded mutable source owner.")).RequireStorage(io.Banks.Bytes, checked((int)(LoadedAddress - io.Banks.BaseAddress)));
         }
         return frame with { Memory = result.Memory, Effect = result.Effect, Random = result.Random, State = state, Io = io };
     }

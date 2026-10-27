@@ -15,11 +15,27 @@ internal interface INativeBattleStorageNode
 
 internal static class NativeBattleStorageSnapshots
 {
-    public static T Capture<T>(T value) => new NativeBattleStorageCaptureContext().Map(value);
-    public static T Restore<T>(T value) => new NativeBattleStorageRestoreContext().Map(value);
+    public static T Capture<T>(T value)
+    {
+        NativeBattleStorageCaptureContext context = new();
+        T result = context.Map(value);
+        return result is BattleSnapshot snapshot ? (T)(object)context.AttachStorageGraph(snapshot) : result;
+    }
+
+    public static T Restore<T>(T value)
+    {
+        NativeBattleStorageRestoreContext context = new();
+        if (value is BattleSnapshot snapshot)
+        {
+            NativeBattleRetainedSourceAliases.Validate(snapshot);
+            context.PrepareStorageGraph(snapshot);
+        }
+        T result = context.Map(value);
+        return result is BattleSnapshot restored ? (T)(object)NativeBattleRetainedSourceAliases.Rebind(restored) : result;
+    }
 }
 
-internal sealed class NativeBattleStorageCaptureContext : NativeBattleStorageContext
+internal sealed partial class NativeBattleStorageCaptureContext : NativeBattleStorageContext
 {
     protected override object MapStorage(INativeBattleStorageNode node)
     {
@@ -36,7 +52,7 @@ internal sealed class NativeBattleStorageCaptureContext : NativeBattleStorageCon
     }
 }
 
-internal sealed class NativeBattleStorageRestoreContext : NativeBattleStorageContext
+internal sealed partial class NativeBattleStorageRestoreContext : NativeBattleStorageContext
 {
     private readonly List<NativeBattleEffectMemory> retainedMemories = [];
     private readonly List<NativeBattleOriginalEffectState> retainedEffects = [];
@@ -67,7 +83,7 @@ internal sealed class NativeBattleStorageRestoreContext : NativeBattleStorageCon
         {
             throw new InvalidOperationException("Battle storage restore requires detached snapshot storage.");
         }
-        object restored = node.RestoreOwned(this);
+        object restored = node is NativeBattleEffectArena arena && TryRestoreGraphView(arena, out NativeBattleEffectArena? view) ? view! : node.RestoreOwned(this);
         if (restored is not INativeBattleStorageNode { IsSnapshot: false })
         {
             throw new InvalidOperationException("Battle storage restore must create owned working storage.");

@@ -11,6 +11,12 @@ public static partial class NativeBattleCuragaMeshPackets
 
     public static NativeBattleGfGeometryBatch EmitBatch87EEB0(ImmutableArray<byte> mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleCuragaMeshContext context, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattleSummonColors? colors = null, Action<uint>? observeFirstThreeFlags = null)
     {
+        using NativeBattleGfSourceReader reader = new(mesh);
+        return EmitBatch87EEB0(reader, matrix, projection, context, readSelectedVertex, colors, observeFirstThreeFlags);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitBatch87EEB0(NativeBattleGfSourceReader mesh, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleCuragaMeshContext context, Func<int, NativeBattleVector>? readSelectedVertex = null, NativeBattleSummonColors? colors = null, Action<uint>? observeFirstThreeFlags = null)
+    {
         if (context.DepthShift > 31)
         {
             throw new InvalidDataException("Native87EEB0 requires its actual depth shift.");

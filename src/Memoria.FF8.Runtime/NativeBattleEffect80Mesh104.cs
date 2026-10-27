@@ -9,6 +9,12 @@ public static class NativeBattleEffect80Mesh104
 {
     public static NativeBattleEffect80Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, NativeBattleStaticMeshResource mesh, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
     {
+        using NativeBattleGfSourceReader resource = new(mesh.Bytes);
+        return DrawLoaded(memory, mesh.Address, resource, projection, context, constants, readSelectedVertex);
+    }
+
+    internal static NativeBattleEffect80Mesh104Step DrawLoaded(NativeBattleEffectMemory memory, uint meshAddress, NativeBattleGfSourceReader resource, NativeBattleCameraProjection projection, NativeBattleEffectArena context, NativeBattleSummonColors constants, Func<int, (NativeBattleVector Vertex, short? W)>? readSelectedVertex = null)
+    {
         NativeBattleGeometryRegisters geometry = memory.GeometryRegisters ?? throw new NotSupportedException("Effect80 requires current geometry registers.");
         NativeBattleScriptedGraphicsMemory controls = memory.ScriptedGraphics ?? throw new NotSupportedException("Effect80 requires current projection controls.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Effect80 requires current primitive controls.");
@@ -31,7 +37,7 @@ public static class NativeBattleEffect80Mesh104
         short? padding = known[18] && known[19] ? BinaryPrimitives.ReadInt16LittleEndian(packed.AsSpan(18)) : null;
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(context.Read(0x14, 4));
         uint? selected = (flags & 0x2000) != 0 ? BinaryPrimitives.ReadUInt32LittleEndian(context.Read(4, 4)) : null;
-        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(mesh.Bytes, mesh.Address, matrix.ReadMatrix(), projection, context, new(geometry, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect80 requires current color registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Effect80 requires current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, constants, padding, controls.Zsf3, selectedVerticesAddress: selected, readSelectedVertex: readSelectedVertex);
+        NativeBattleActorWaveMeshStep drawn = NativeBattleActorWaveMesh.EmitBatch(resource, meshAddress, matrix.ReadMatrix(), projection, context, new(geometry, memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect80 requires current color registers.")), process.ModelRendererRegisters ?? throw new NotSupportedException("Effect80 requires current far-color controls."), controls.Dqa, controls.Dqb, controls.Zsf4, constants, padding, controls.Zsf3, selectedVerticesAddress: selected, readSelectedVertex: readSelectedVertex);
         return new(memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors, PrimitiveProcess = process with { ModelRendererRegisters = drawn.FarControls } }, drawn.Context104, drawn.Batch);
     }
 }

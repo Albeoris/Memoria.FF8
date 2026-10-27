@@ -20,7 +20,7 @@ public sealed record NativeBattleRinoa88NodeResources(ImmutableArray<byte> Data)
 public sealed partial record NativeBattleRinoa88State
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ImmutableArray<byte>? NodeData { get; init; }
+    public NativeBattleNodeSource? NodeData { get; init; }
     [JsonRequired]
     public ImmutableArray<byte> MorphScratch { get; init; }
 }
@@ -77,18 +77,24 @@ public static class NativeBattleRinoa88Nodes
             {
                 throw new NotSupportedException("Native76C790 requires its reached source and target-center placement mode1.");
             }
-            ImmutableArray<byte> data = frame.State.NodeData ?? throw new NotSupportedException("Native76C790 requires the actual completed file410 staging owner.");
-            uint flag = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan());
+            NativeBattleNodeSource data = frame.State.NodeData ?? throw new NotSupportedException("Native76C790 requires the actual completed file410 staging owner.");
+            if (frame.State.NodeData is not null)
+            {
+                NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(data);
+            }
+            using NativeBattleNodeBankOperation bank = new(data);
+            uint flag = bank.ReadUInt32(0);
             if (flag == 0)
             {
-                byte[] relocated = NativeBattleEffectNodeBankFixups.Relocate(data, NativeBattleRinoa88NodeResources.Address);
-                BinaryPrimitives.WriteUInt32LittleEndian(relocated, 1);
-                data = relocated.ToImmutableArray();
+                NativeBattleEffectNodeBankFixups.Relocate(bank, NativeBattleRinoa88NodeResources.Address);
+                bank.WriteUInt32(0, 1);
             }
             NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
             task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(16)), frame.Effect.Parameters ?? throw new NotSupportedException("Native76C790 requires its original action parameters."), controller.Packets, controller.ReadModel, controller.ReadPoseSource, NativeBattleRinoa88NodeResources.Address);
-            frame = frame with { State = frame.State with { NodeData = data } };
             Store();
+            bank.Publish(false);
+            NativeBattleTaskOperation.AdmitCurrentRetainedEffectStorage(data);
+            frame = frame with { State = frame.State with { NodeData = data } };
         }
         bool AdvanceContext()
         {
@@ -116,8 +122,8 @@ public static class NativeBattleRinoa88Nodes
 
     private static NativeBattleRecover93NodeFrame ToNodeFrame(NativeBattleRinoa88Frame frame, NativeCrtRandomState random)
     {
-        ImmutableArray<byte>? data = frame.State.NodeData;
-        uint flag = data is { } bytes ? BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan()) : 0;
+        NativeBattleNodeSource? data = frame.State.NodeData;
+        uint flag = data is { } bytes ? bytes.ReadUInt32(0) : 0;
         NativeBattleRecover93NodeState state = new(flag, data, frame.State.EmitterOffset, frame.State.GeometryOffset, frame.State.Word25A6BB8, frame.State.Word25AC6E8, frame.State.Word25ACCF0, frame.State.Word25AC6D8, frame.State.CopiedCamera, frame.State.PrimaryDrawCursor, frame.State.Word25AC3A4, frame.State.Word25A4DA0);
         return new(frame.Memory, frame.Effect, state, random);
     }

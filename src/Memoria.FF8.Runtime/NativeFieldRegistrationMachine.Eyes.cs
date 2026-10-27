@@ -96,7 +96,7 @@ public static partial class NativeFieldRegistrationMachine
             process = process with { TextureWindowCache = cache.Invalidate464850(destinationX, destinationY, destinationX + width - 1, destinationY + height - 1, textures) };
         }
         NativeBattleEffectTextureDrain copied = (textures with { Count = 0 }).EnqueueCopy505EB0(sourceX, sourceY, width, height, destinationX, destinationY).Drain505D20();
-        context.Effects = context.Effects with { Textures = textures with { VramRegions = copied.State.VramRegions }, PrimitiveProcess = process };
+        context.Effects = context.Effects with { Textures = textures.WithVramPublication(copied.State), PrimitiveProcess = process };
         context.Uploads.AddRange(copied.Uploads);
         context.Animations = context.Animations?.Copy(sourceX, sourceY, width, height, destinationX, destinationY);
         context.Animations = context.Animations?.WritePlane(destinationX, destinationY, closed, retain);

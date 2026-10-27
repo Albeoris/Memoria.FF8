@@ -24,7 +24,7 @@ public sealed class NativeBattleEffectTextureTests
         before = GC.GetAllocatedBytesForCurrentThread();
         NativeBattleEffectTextureDrain drained = queued.Drain505D20();
         long batchedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(JsonSerializer.Serialize(scalar.Regions), JsonSerializer.Serialize(drained.State.VramRegions));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Regions), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State).VramRegions));
         Assert.Equal(data, drained.Uploads.Single().Bytes);
         Assert.True(batchedBytes < scalarBytes / 10, $"Scalar {scalarBytes}; batched {batchedBytes}");
         Assert.All(source.Read(0, NativeBattleEffectArena.Length), value => Assert.Equal(0, value));
@@ -48,10 +48,10 @@ public sealed class NativeBattleEffectTextureTests
         Assert.Equal(0x3210, BinaryPrimitives.ReadUInt16LittleEndian(drained.State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
         Assert.Equal(0, drained.State.Count);
         Assert.Equal(source, drained.State.Slots[0]!.Source);
-        Assert.Equal(drained.State.VramRegions, drained.State.Initialize500400().VramRegions);
+        Assert.Equal(drained.State.ReadVram(), drained.State.Initialize500400().ReadVram());
         Assert.Equal(queued.State.Slots, queued.State.Initialize500400().Slots);
         Assert.Empty(drained.State.Drain505D20().Uploads);
-        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(drained.State))!;
+        NativeBattleEffectTextureState restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(drained.State)))!);
         restored.Validate();
         Assert.Equal(drained.State.ReadVram(), restored.ReadVram());
     }

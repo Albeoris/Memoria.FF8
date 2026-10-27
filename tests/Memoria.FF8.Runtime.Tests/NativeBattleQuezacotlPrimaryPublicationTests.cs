@@ -7,34 +7,38 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleQuezacotlPrimaryPublicationTests
 {
     [Fact]
-    public void Completed_local_packets_can_handoff_without_publishing_them_to_the_previous_graphics_owner()
+    public void Completed_local_ordering_suffix_can_be_suspended_while_its_previous_owner_is_published()
     {
         NativeBattleQuezacotlPacketWrite published = Initial();
+        string previousOrdering = OrderingReceipt(published.Ordering);
         NativeBattleGfGeometryBatch batch = Batch(21);
-        NativeBattleQuezacotlPacketWrite expected = NativeBattleQuezacotlPacketArena.Append(published.Memory, published.Effect, published.Ordering, batch);
+        NativeBattleQuezacotlPacketWrite input = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(published));
+        NativeBattleQuezacotlPacketWrite expected = NativeBattleQuezacotlPacketArena.Append(input.Memory, input.Effect, input.Ordering, batch);
         using NativeBattleLogicalOrderingTransaction ordering = new(published.Ordering);
         ordering.BeginCheckpoint();
         NativeBattleQuezacotlPacketWrite local = NativeBattleQuezacotlPacketArena.Append(published.Memory, published.Effect, ordering.View, batch);
-        NativeBattleLogicalOrdering handoff = ordering.Freeze();
-        ordering.RollbackCheckpoint();
+        string completedHandoff = OrderingReceipt(ordering.View);
+        NativeBattleLogicalOrdering.Delta pending = ordering.SuspendCheckpointDelta();
         NativeBattleLogicalOrdering previousOwner = ordering.Freeze();
-        Assert.Equal(JsonSerializer.Serialize(expected.Ordering), JsonSerializer.Serialize(handoff));
-        Assert.Equal(JsonSerializer.Serialize(published.Ordering), JsonSerializer.Serialize(previousOwner));
-        Assert.Equal(JsonSerializer.Serialize(expected.Memory), JsonSerializer.Serialize(local.Memory));
-        Assert.DoesNotContain("Transaction", JsonSerializer.Serialize(handoff));
-        Assert.DoesNotContain("Transaction", JsonSerializer.Serialize(previousOwner));
+        Assert.Equal(OrderingReceipt(expected.Ordering), completedHandoff);
+        Assert.Equal(previousOrdering, OrderingReceipt(previousOwner));
+        Assert.Equal(SnapshotJson(expected.Memory), SnapshotJson(local.Memory));
+        Assert.DoesNotContain("Transaction", completedHandoff);
+        Assert.DoesNotContain("Transaction", OrderingReceipt(previousOwner));
+        ordering.ResumeDelta(pending);
+        Assert.Equal(completedHandoff, OrderingReceipt(ordering.Freeze()));
     }
 
     [Fact]
     public void Failed_node_discards_successful_unpublished_links_and_freezes_the_actual_published_memory_record()
     {
         NativeBattleQuezacotlPacketWrite published = Initial();
-        string expectedMemory = JsonSerializer.Serialize(published.Memory);
-        string expectedOrdering = JsonSerializer.Serialize(published.Ordering);
+        string expectedMemory = SnapshotJson(published.Memory);
+        string expectedOrdering = OrderingReceipt(published.Ordering);
         NativeBattleGfGeometryBatch invalid = new([Known(0, 22), Known(20, -1)], 40);
         Assert.Throws<InvalidDataException>(() => NativeBattleQuezacotlPacketArena.Append(published.Memory, published.Effect, published.Ordering, invalid));
-        Assert.Equal(expectedMemory, JsonSerializer.Serialize(published.Memory));
-        Assert.Equal(expectedOrdering, JsonSerializer.Serialize(published.Ordering));
+        Assert.Equal(expectedMemory, SnapshotJson(published.Memory));
+        Assert.Equal(expectedOrdering, OrderingReceipt(published.Ordering));
 
         using NativeBattleEffectArenaTransaction arena = new(published.Memory.Arena!);
         using NativeBattleLogicalOrderingTransaction ordering = new(published.Ordering);
@@ -47,8 +51,8 @@ public sealed class NativeBattleQuezacotlPrimaryPublicationTests
         arena.RollbackCheckpoint();
         ordering.RollbackCheckpoint();
         NativeBattleEffectMemory frozenPublishedOwner = actualPublishedOwner with { Arena = arena.Freeze() };
-        Assert.Equal(expectedMemory, JsonSerializer.Serialize(frozenPublishedOwner));
-        Assert.Equal(expectedOrdering, JsonSerializer.Serialize(ordering.Freeze()));
+        Assert.Equal(expectedMemory, SnapshotJson(frozenPublishedOwner));
+        Assert.Equal(expectedOrdering, OrderingReceipt(ordering.Freeze()));
         Assert.Equal(1, frozenPublishedOwner.QuezacotlTargetY1774);
         Assert.Equal(777, unpublishedLocal.QuezacotlTargetY1774);
     }
@@ -72,4 +76,8 @@ public sealed class NativeBattleQuezacotlPrimaryPublicationTests
         }
         return new(offset, bytes.ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, bytes.Length).ToImmutableArray(), primitive);
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+
+    private static string OrderingReceipt(NativeBattleLogicalOrdering value) => JsonSerializer.Serialize(new { Table = value.Table.ToArray(), Proxies = value.Proxies.ToArray(), Packets = value.Packets.ToArray(), value.ProxyCursor, value.TableBuffer, OtherTable = value.OtherTable?.ToArray() });
+
 }

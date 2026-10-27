@@ -37,7 +37,7 @@ public sealed class NativeBattleActorWaveMeshTests
         NativeBattleActorWaveMeshStep result = Emit(mesh);
         NativeBattleEsunaMeshContext context = new(0x30, null, null, 0, 0, 0, new(0, 0, 256, 256), new(0, 0, 256, 256), 17, 2);
         NativeBattleGfGeometryBatch expected = NativeBattleRestorationMeshPackets.EmitBatch88E240(mesh, Matrix, Projection, context, Constants);
-        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(result.Batch));
+        Assert.Equal(SnapshotJson(expected), SnapshotJson(result.Batch));
         Assert.Equal(40, result.Batch.AllocationBytes);
         Assert.Equal(Address + 8, Dword(result.Context104, 4));
         Assert.Equal(Address + (uint)mesh.Length, Dword(result.Context104, 0x2C));
@@ -131,8 +131,8 @@ public sealed class NativeBattleActorWaveMeshTests
         Assert.Equal(new uint?[] { null, null, null, null }, result.Registers.Geometry.Sz);
         Assert.Equal(Address + 72, Dword(result.Context104, 0x2C));
         Assert.Throws<NotSupportedException>(() => result.Context104.Read(0x30, 4));
-        NativeBattleActorWaveMeshStep independent = JsonSerializer.Deserialize<NativeBattleActorWaveMeshStep>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(independent));
+        NativeBattleActorWaveMeshStep independent = RoundTrip(result);
+        Assert.Equal(SnapshotJson(result), SnapshotJson(independent));
     }
 
     private static NativeBattleActorWaveMeshStep Emit(ImmutableArray<byte> mesh, NativeBattleEffectArena? context = null, NativeBattleCameraProjection? projection = null, short? zsf4 = 0x100)
@@ -168,4 +168,7 @@ public sealed class NativeBattleActorWaveMeshTests
         }
         return mesh.ToImmutableArray();
     }
+    private static string SnapshotJson<T>(T value) => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value));
+    private static T RoundTrip<T>(T value) => NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<T>(SnapshotJson(value))!);
+
 }

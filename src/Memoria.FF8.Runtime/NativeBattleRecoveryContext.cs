@@ -5,6 +5,7 @@ public static class NativeBattleRecoveryContext
 {
     public static NativeBattleRecoveryFrame Initialize(NativeBattleRecoveryFrame frame, uint address, NativeBattleRecoveryResources resources, NativeBattleRecoveryControllerInputs inputs)
     {
+        using NativeBattleTaskOperation? operation = NativeBattleTaskOperation.BeginStandalone(frame.Memory, frame.Effect);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(resources.Effect);
         NativeBattleEffectHierarchy hierarchy = new(frame.Effect.Pools);
         NativeBattleModulePoolTask task = hierarchy.Read(address);
@@ -13,10 +14,10 @@ public static class NativeBattleRecoveryContext
             throw new InvalidDataException("Native recovery context requires its own original callback and executable pointer.");
         }
         NativeBattleRecoveryExecutableState retained = frame.Memory.GetRecoveryExecutable(resources.Effect) ?? throw new NotSupportedException("Native recovery context requires its own retained initialization owner.");
-        NativeBattleRecoveryExecutableState executable = retained.Initialize(resources.Executable ?? throw new NotSupportedException("Native recovery context requires its authenticated original executable resource."));
+        using NativeBattleNodeInitialization<NativeBattleRecoveryExecutableState> executable = retained.Prepare(resources.Executable ?? throw new NotSupportedException("Native recovery context requires its authenticated original executable resource."));
         task = NativeBattleEffectNodeContext.Initialize(task, hierarchy.Read(task.ReadDword(0x10)), frame.Effect.Parameters ?? throw new NotSupportedException("Native recovery context requires50AFC0 parameters."), inputs.Packets, inputs.ReadModel, inputs.ReadPoseSource, profile.DirectoryAddress, true);
         hierarchy = hierarchy.Write(address, task);
-        NativeBattleEffectMemory memory = frame.Memory.WithRecoveryExecutable(executable);
-        return frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } };
+        NativeBattleEffectMemory memory = frame.Memory.WithRecoveryExecutable(executable.Publish());
+        return NativeBattleTaskOperation.CompleteStandalone(operation, frame with { Memory = memory, Effect = frame.Effect with { Pools = hierarchy.Pools } });
     }
 }
