@@ -64,6 +64,46 @@ public sealed class GameplayTuningPreferenceTests
         Assert.Equal(configured, restored.State.ConfiguredGameplayTuning);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ScanRotationChangesImmediatelyWhileOtherTuningRemainsDeferred(bool live)
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        GameplayTuning original = new() { DrawBonus = 7 };
+        session.ConfigureGameplayTuning(original, original);
+        BattleSession battle = new(new BattleDefinition
+        {
+            Tuning = original,
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.TurnBased);
+        if (live)
+        {
+            session.SetLiveBattle(battle);
+        }
+        else
+        {
+            session.SetBattle(battle.Capture());
+        }
+        GameplayTuning enabled = original with { UnrestrictedScanRotation = true };
+        session.ConfigureGameplayTuning(enabled, enabled);
+        Assert.Equal(enabled, session.State.GameplayPreferences.Tuning);
+        Assert.Null(session.State.PendingGameplayPreferences);
+        Assert.Equal(enabled, live ? battle.Capture().Definition.Tuning : session.State.Battle!.Definition.Tuning);
+
+        GameplayTuning next = original with { DrawBonus = 12 };
+        session.ConfigureGameplayTuning(next, next);
+        Assert.Equal(original, session.State.GameplayPreferences.Tuning);
+        Assert.Equal(next, session.State.PendingGameplayPreferences!.Tuning);
+        Assert.Equal(original, live ? battle.Capture().Definition.Tuning : session.State.Battle!.Definition.Tuning);
+        string path = TestResources.ArtifactFile($"live-scan-rotation-{live}.json");
+        session.Save(path, compact: true);
+        GameSession restored = new(GameSession.Load(path));
+        Assert.Equal(original, restored.State.Battle!.Definition.Tuning);
+        Assert.Equal(next, restored.State.PendingGameplayPreferences!.Tuning);
+    }
+
     [Fact]
     public void InvalidConfiguredOrEffectiveRulesLeaveTheWholeSessionUnchanged()
     {

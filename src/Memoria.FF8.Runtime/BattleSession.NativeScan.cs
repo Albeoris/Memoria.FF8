@@ -4,6 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    public void SetUnrestrictedScanRotation(bool enabled)
+    {
+        definition = definition with { Tuning = definition.Tuning with { UnrestrictedScanRotation = enabled } };
+    }
+
     private NativeBattleGraphicsState RunNativeScan40(NativeBattleGraphicsState graphics, bool initialize)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Scan requires its retained effect process.");

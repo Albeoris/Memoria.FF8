@@ -22,7 +22,7 @@ public sealed class NativeScanWindowDrawingTests
         Assert.Equal(new[] { 106f, 106f, 138f }, canvas.Runs.Select(run => run.Y));
         Assert.All(canvas.Runs, run => Assert.Equal(new UiRect(250, 120, 200, 100), run.Clip));
         Assert.Equal(new UiColor(0, 255, 0), canvas.Runs[0].Color);
-        Assert.Equal(32, canvas.Runs[0].Size);
+        Assert.Equal(32f / 1.5f, canvas.Runs[0].Size);
         Assert.Equal(0, canvas.Fills);
         Assert.Single(canvas.Clips);
     }

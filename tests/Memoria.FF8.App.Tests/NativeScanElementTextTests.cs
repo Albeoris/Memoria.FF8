@@ -47,7 +47,7 @@ public sealed class NativeScanElementTextTests
         SystemAdvanceCanvas prefixCanvas = new();
         NativeScanWindowDrawing.Draw(prefixCanvas, new UiTheme(), NativeScanWindowTextProjection.Project(prefix, Services(source.ToArray()), "en"), new UiRect(0, 0, 320, 224), 0, 1);
         Assert.Equal("Resists: Fire", string.Concat(prefixCanvas.Runs.Select(run => run.Text)));
-        Assert.All(prefixCanvas.Runs, run => Assert.Equal(16f, run.Size));
+        Assert.All(prefixCanvas.Runs, run => Assert.Equal(16f / 1.5f, run.Size));
         Assert.Equal(prefixBefore, JsonSerializer.Serialize(prefix));
     }
 

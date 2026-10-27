@@ -29,7 +29,7 @@ internal static class NativeScanWindowDrawing
         float scale = Math.Min(viewport.Width / 320, viewport.Height / 224);
         float left = viewport.X + (viewport.Width - 320 * scale) / 2;
         float top = viewport.Y + (viewport.Height - 224 * scale) / 2;
-        float size = theme.FontSize * scale * textScale;
+        float size = theme.FontSize * scale * textScale / 1.5f;
         UiRect Map(NativeBattleScanRect rectangle) => new(left + rectangle.X * scale, top + rectangle.Y * scale, rectangle.Width * scale, rectangle.Height * scale);
         canvas.PushClip(viewport);
         try

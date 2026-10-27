@@ -12,7 +12,7 @@ public sealed partial class BattleSession
     public const int AttackWindupFrames = 12;
     public const int AttackRecoveryFrames = 12;
     public const int MaximumAdvanceFrames = 18_000;
-    private readonly BattleDefinition definition;
+    private BattleDefinition definition;
     private readonly List<BattleCombatant> combatants;
     private readonly Dictionary<string, BattleCombatant> byId;
     private readonly Dictionary<BattleStatusKind, IBattleStatusEffectHandler> handlers;

@@ -104,7 +104,7 @@ public sealed partial class MenuController
         foreach (string field in GameplayTuningFields[gameplayTuningPage])
         {
             string? locked = GameplayTuningLock(field);
-            string help = locked ?? (field == "UnlimitedMagic" ? "Cast without consuming magic stock or cooldown costs. Takes precedence over Limited magic." : IsRareItemField(field) ? "Percentage from 0 to 100. All four slots must total exactly 100%." : field == "UnrestrictedScanRotation" ? "Allow rotation of every scanned target." : field == "MaximumDamage" ? "Cap all positive HP damage, including attacks that break the normal limit: 0-100000. Healing and instant KO are unchanged." : "Whole number from 0 to 100. Zero disables this bonus or reward.");
+            string help = locked ?? (field == "UnlimitedMagic" ? "Cast without consuming magic stock or cooldown costs. Takes precedence over Limited magic." : IsRareItemField(field) ? "Percentage from 0 to 100. All four slots must total exactly 100%." : field == "UnrestrictedScanRotation" ? "Allow rotation of every scanned target. Applies immediately, including during Scan." : field == "MaximumDamage" ? "Cap all positive HP damage, including attacks that break the normal limit: 0-100000. Healing and instant KO are unchanged." : "Whole number from 0 to 100. Zero disables this bonus or reward.");
             rows.Add(new MenuEntry(field, GameplayTuningLabel(field) + "   " + GameplayTuningDisplay(field) + (locked is null ? "" : " \u00B7 Locked"), help, Action: new MenuAction("gameplay-rule-edit", field), Enabled: GameplayTuningAvailable && locked is null));
         }
         rows.Add(new("previous", "Previous page", "Keep the draft and show the previous group.", Action: new("gameplay-rule-page", Value: "-1")));

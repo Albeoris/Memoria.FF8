@@ -13,7 +13,20 @@ public sealed partial class GameSession
         effective.Validate();
         GameplayPreferences preferences = State.PendingGameplayPreferences ?? State.GameplayPreferences;
         SetGameplayPreferences(preferences with { Tuning = effective });
-        State = State with { ConfiguredGameplayTuning = configured };
+        GameplayTuning current = State.GameplayPreferences.Tuning with { UnrestrictedScanRotation = effective.UnrestrictedScanRotation };
+        BattleSnapshot? snapshot = State.Battle;
+        if (snapshot is not null)
+        {
+            snapshot = snapshot with { Definition = snapshot.Definition with { Tuning = snapshot.Definition.Tuning with { UnrestrictedScanRotation = effective.UnrestrictedScanRotation } } };
+        }
+        liveBattle?.SetUnrestrictedScanRotation(effective.UnrestrictedScanRotation);
+        GameplayPreferences? pending = State.PendingGameplayPreferences;
+        GameplayPreferences active = State.GameplayPreferences with { Tuning = current };
+        if (pending == active)
+        {
+            pending = null;
+        }
+        State = State with { ConfiguredGameplayTuning = configured, GameplayPreferences = active, PendingGameplayPreferences = pending, Battle = snapshot };
     }
 
     public MagicModePreview PreviewGameplayPreferences(GameplayPreferences preferences)
