@@ -171,7 +171,7 @@ public sealed partial class GameSession
 
     public bool CanApplyGuardianForceAbilities(out string? reason, Func<string, string, string>? localize = null)
     {
-        if (State.Battle is not null || State.PendingBattleEncounter is not null)
+        if (HasActiveBattle || State.PendingBattleEncounter is not null)
         {
             reason = GuardianForceAbilityText.Create("guardian.editor.boundary.battle").Format(localize);
             return false;

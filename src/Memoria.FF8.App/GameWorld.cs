@@ -374,7 +374,7 @@ internal sealed partial class GameWorld : IDisposable
                 Events.Restore(saved);
             }
         }
-        if (snapshot is not null && session.State.Battle is null && Events.Scene.NativeFieldRegistration is { } registration)
+        if (snapshot is not null && !session.HasActiveBattle && Events.Scene.NativeFieldRegistration is { } registration)
         {
             Events.RehydrateNativeModelResources();
             registration = Events.Scene.NativeFieldRegistration!;

@@ -21,14 +21,14 @@ public sealed partial class GameSession
         return candidate with { PendingOriginalAchievementActions = candidate.PendingOriginalAchievementActions.Add(fact) };
     }
 
-    private GameState StageOriginalAchievementDraws(GameState candidate, BattleSnapshot? owned)
+    private GameState StageOriginalAchievementDraws(GameState candidate, BattleLiveObservation? owned)
     {
         if (owned is null || candidate.PendingBattleEncounter is not { } encounter)
         {
             return candidate;
         }
-        BattleOriginalStockDrawOperation[] operations = owned.OriginalStockDrawOperations ?? [];
-        BattleOriginalStockDrawOperation[] previous = State.PendingBattleEncounter?.OccurrenceId == encounter.OccurrenceId ? State.Battle?.OriginalStockDrawOperations ?? [] : [];
+        BattleOriginalStockDrawOperation[] operations = owned.StockDraws.ToArray();
+        BattleOriginalStockDrawOperation[] previous = State.PendingBattleEncounter?.OccurrenceId == encounter.OccurrenceId ? acceptedBattleObservation?.StockDraws.ToArray() ?? State.Battle?.OriginalStockDrawOperations ?? [] : [];
         OriginalAchievementDrawCursor cursor = candidate.OriginalAchievementDrawCursor ?? new(encounter.OccurrenceId, previous.Length);
         if (cursor.OccurrenceId != encounter.OccurrenceId || cursor.Operations > operations.Length || cursor.Operations < 0)
         {
@@ -57,28 +57,19 @@ public sealed partial class GameSession
         return StageOriginalAchievementBattleState(candidate, owned);
     }
 
-    private GameState StageOriginalMaximumHitPoints(GameState candidate, BattleSnapshot owned)
+    private GameState StageOriginalMaximumHitPoints(GameState candidate, BattleLiveObservation owned)
     {
-        if (candidate.PendingBattleEncounter is not { } encounter || owned.DebugOutcome is not null || owned.Definition.EncounterId != encounter.Formation)
+        if (candidate.PendingBattleEncounter is not { } encounter || owned.DebugOutcome is not null || owned.EncounterId != encounter.Formation)
         {
             return candidate;
         }
-        foreach (BattleCombatantSnapshot actor in owned.Combatants)
+        foreach (BattleLiveMaximumHp actor in owned.MaximumHitPoints)
         {
-            if (actor.NativeParticipant is not { Active: true, Suspended: false, ActorIndex: >= 0 and < 3, MaximumHitPoints: 9999 })
+            if (!actor.Eligible || acceptedBattleObservation?.MaximumHitPoints.Any(previous => previous.Id == actor.Id && previous.Maximum) == true || acceptedBattleObservation is null && State.Battle?.Combatants.SingleOrDefault(previous => previous.Id == actor.Id)?.NativeParticipant is { Active: true, Suspended: false, MaximumHitPoints: 9999 })
             {
                 continue;
             }
-            BattleCombatantDefinition? definition = owned.Definition.Combatants.SingleOrDefault(source => source.Id == actor.Id);
-            if (definition is not { IsPlayer: true, MagicRecordId: >= 0 and < 11, NativePlayerStatRules: not null })
-            {
-                continue;
-            }
-            if (State.Battle?.Combatants.SingleOrDefault(previous => previous.Id == actor.Id)?.NativeParticipant is { Active: true, Suspended: false, MaximumHitPoints: 9999 })
-            {
-                continue;
-            }
-            candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.MaximumHitPoints, "maximum-hp/" + definition.MagicRecordId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), encounter.OccurrenceId);
+            candidate = StageOriginalAchievementAction(candidate, OriginalAchievementActionKind.MaximumHitPoints, "maximum-hp/" + actor.MagicRecordId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), encounter.OccurrenceId);
         }
         return candidate;
     }

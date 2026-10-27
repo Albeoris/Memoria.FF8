@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
-    private void DrawNativePrimitiveSprite(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements)
+    private void DrawNativePrimitiveSprite(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements)
     {
         NativeBattleLogicalCommand command = resolved.Command;
         bool semi = (command.Opcode & 2) != 0;

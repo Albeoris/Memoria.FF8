@@ -49,6 +49,25 @@ public sealed partial class BattleSession
 
         public NativeBattleGraphicsState Run()
         {
+            state.BeginCheckpoint();
+            try
+            {
+                NativeBattleGraphicsState result = RunCore();
+                state.CommitCheckpoint();
+                return result;
+            }
+            catch
+            {
+                if (state.HasCheckpoint)
+                {
+                    state.RollbackCheckpoint();
+                }
+                throw;
+            }
+        }
+
+        private NativeBattleGraphicsState RunCore()
+        {
             NativeBattleEffectHierarchyStep step = hierarchy.Advance(0, (current, address) =>
             {
                 hierarchy = current;

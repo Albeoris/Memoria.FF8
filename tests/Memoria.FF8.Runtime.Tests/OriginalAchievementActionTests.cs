@@ -120,7 +120,7 @@ public sealed class OriginalAchievementActionTests
         BattleSession battle = Create(0);
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, PendingBattleEncounter = Encounter(), Battle = battle.Capture() });
         session.SetLiveBattle(battle);
-        GameState beforeDraw = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        GameState beforeDraw = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.PrepareSnapshot()))!;
 
         battle.QueueAction("party", "source", BattleAbility.Draw, 1);
         battle.Tick();

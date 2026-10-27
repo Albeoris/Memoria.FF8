@@ -551,15 +551,14 @@ internal sealed partial class RecreateGame
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(uiCanvas!, uiTheme);
-        if (!SlotsModalBlocksGameplay && active.NativeEffectMemory?.Scan is { Text.Initialized: true } scan && active.NativeGraphics?.UiServices is { } services)
+        if (!SlotsModalBlocksGameplay && battleScene.PresentedNativeFrame is { Scan: { } scan } presentation)
         {
-            NativeBattleScanTextFrame text = scan.Text.ReadFrame(services.Flags942);
-            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(text, active.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources.Source.Language);
+            IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(scan.Text, scan.CreateExpansionServices(), new(0, 0, 320, 224), (resourceHost ?? throw new InvalidOperationException("Native scan text requires its resource source.")).Resources.Source.Language);
             if (resourceHost is not null)
             {
-                windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(active, text, windows);
+                windows = new LocalizationBattlePresentation(resourceHost.Resources).Scan(scan, windows);
             }
-            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), active.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
+            NativeScanWindowDrawing.Draw(uiCanvas!, uiTheme, windows, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height), presentation.Frame / 15.0, uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f);
         }
         if (!SlotsModalBlocksGameplay && active.NativeExamTimer is { DisplayEnabled: true } timer)
         {

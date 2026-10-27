@@ -120,7 +120,7 @@ public sealed partial class EventEngine
 
     private bool OwnsNativeFieldEyeProcess(GameSession session)
     {
-        return session.State.Battle is null && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId;
+        return !session.HasActiveBattle && session.State.Scene == SceneKind.Field && session.State.FieldId == FieldId;
     }
 
     private void CaptureNativeEyeProcessOwners()

@@ -62,7 +62,7 @@ internal sealed partial class GameWorld
         }
         bool world = session.State.Scene == SceneKind.WorldMap;
         bool activeMenu = Events.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
-        if (battle is not null || session.State.Battle is not null || Events.HasPendingBattle || Events.CurrentDialogue is not null || Events.PendingTripleTriad is not null || !world && (!activeMenu && !Events.CanAcceptMovementInput || Events.PartyMenu is not null && !activeMenu || !Events.Scene.MenuEnabled) || world && worldScene!.CurrentDialogue is not null)
+        if (battle is not null || session.HasActiveBattle || Events.HasPendingBattle || Events.CurrentDialogue is not null || Events.PendingTripleTriad is not null || !world && (!activeMenu && !Events.CanAcceptMovementInput || Events.PartyMenu is not null && !activeMenu || !Events.Scene.MenuEnabled) || world && worldScene!.CurrentDialogue is not null)
         {
             return new PlayerActionResult(false, Events.NextTrigger, 0, "The current interaction suspends naming item use.");
         }

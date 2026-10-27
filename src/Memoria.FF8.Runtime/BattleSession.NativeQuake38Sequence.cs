@@ -84,7 +84,7 @@ public sealed partial class BattleSession
                 case 6:
                     if (state.Word(0x279299E) == 5)
                     {
-                        state = state with { SavedActors = graphics.Models.Select(NativeBattleQuake38SavedActor.Capture8DBBA0).ToImmutableArray() };
+                        state.SetSavedActors(graphics.Models.Select(NativeBattleQuake38SavedActor.Capture8DBBA0).ToImmutableArray());
                         Sound(resources.QuakeSound, 1);
                         task = Next(task);
                     }
@@ -108,7 +108,7 @@ public sealed partial class BattleSession
                             model = QueueNativeModelSequence(model, (byte)sequence);
                         }
                         graphics = graphics with { Models = graphics.Models.SetItem(actor, model) };
-                        state = state with { SavedActors = state.SavedActors.SetItem(actor, bounce.Saved) };
+                        state.SetSavedActor(actor, bounce.Saved);
                     }
                     DrawGround();
                     if (state.Word(0x279299E) == 7)

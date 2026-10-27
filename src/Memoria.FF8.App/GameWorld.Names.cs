@@ -12,7 +12,7 @@ internal sealed partial class GameWorld
             throw new ArgumentOutOfRangeException(nameof(subject));
         }
         string name = GameNames.Normalize(text);
-        if (battle is not null || session.State.Battle is not null)
+        if (battle is not null || session.HasActiveBattle)
         {
             throw new NotSupportedException("Character naming is unavailable while a game-owned battle is active.");
         }

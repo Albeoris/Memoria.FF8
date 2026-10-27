@@ -27,7 +27,8 @@ internal sealed partial class BattleScenePresentation
     private readonly BattleCamera? camera;
     private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
-    private NativeBattlePrimitiveFrame? renderedPrimitiveFrame;
+    private NativeBattlePreparedPrimitiveFrame? renderedPrimitiveFrame;
+    internal NativeBattlePreparedPresentation? PresentedNativeFrame { get; private set; }
     private NativeBattlePcRenderTailReceipt? renderedPcRenderTail;
     private NativeBattlePcUiFrame? renderedPcUiFrame;
     private NativeBattleEffectTextureState? renderedTextures;
@@ -119,7 +120,13 @@ internal sealed partial class BattleScenePresentation
             renderedGpu = null;
         }
         renderer.TriangleRenderer = triangleRenderer;
-        if (session.GuardianAnimationSkipPending)
+        NativeBattlePreparedPresentation? prepared = session.PreparedPresentation;
+        if (session.NativeGraphics is not null && prepared is null)
+        {
+            throw new InvalidOperationException("Native battle rendering requires a completed prepared presentation.");
+        }
+        PresentedNativeFrame = prepared;
+        if (prepared?.GuardianAnimationSkipPending ?? session.GuardianAnimationSkipPending)
         {
             if (triangleRenderer is null && renderedPixels is not null)
             {
@@ -129,24 +136,24 @@ internal sealed partial class BattleScenePresentation
             {
                 return [];
             }
-            byte[] blank = renderer.RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame.Clear(), null);
+            byte[] blank = renderer.RenderNativePrimitiveFrame(new NativeBattlePreparedPrimitiveFrame([], []), null);
             renderedGpu = triangleRenderer as GpuTriangleRenderer;
             renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
             renderedPixels = triangleRenderer is null ? blank : null;
             return blank;
         }
         BattleCamera? selectedCamera = camera;
-        if (session.NativeGraphics is { } rawGraphics)
+        if (prepared is not null)
         {
-            if (session.NativeCamera?.CurrentPose is { FocalLength: > 0 } nativeCamera)
+            if (prepared.Camera is { FocalLength: > 0 } nativeCamera)
             {
                 selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
-            NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
-            NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
-            NativeBattlePcUiFrame? uiFrame = session.NativeEffectMemory?.UiImmediateFrame;
-            NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
-            IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(session, rawGraphics);
+            NativeBattlePreparedPrimitiveFrame frame = prepared.Primitives;
+            NativeBattleEffectTextureState? textures = prepared.Textures;
+            NativeBattlePcUiFrame? uiFrame = prepared.UiFrame;
+            NativeBattlePcTextureWindowCache? windows = prepared.TextureWindows;
+            IReadOnlyList<NativeBattleTextureReplacement> replacements = NativeModelReplacements(prepared);
             bool unchanged = ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedPcRenderTail, frame.LastPcRenderTail) && ReferenceEquals(renderedPcUiFrame, uiFrame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera && renderedModelReplacements is not null && renderedModelReplacements.SequenceEqual(replacements) && renderedEffectTextureGeneration == assets.EffectTextureSource.Generation;
             if (triangleRenderer is null && renderedPixels is not null && unchanged)
             {
@@ -257,11 +264,11 @@ internal sealed partial class BattleScenePresentation
         canvas.PushClip(viewport);
         try
         {
-            if (session.NativeGraphics is { } graphics)
+            if (PresentedNativeFrame is { } prepared)
             {
                 PixelBounds native = renderer.ProjectionBounds;
                 UiRect nativeViewport = new(viewport.X + native.X * viewport.Width / renderer.Width, viewport.Y + native.Y * viewport.Height / renderer.Height, native.Width * viewport.Width / renderer.Width, native.Height * viewport.Height / renderer.Height);
-                BattleDamageTextPresentation.Draw(graphics.Effects.TextDraws, canvas, nativeViewport);
+                BattleDamageTextPresentation.Draw(prepared.DamageText, canvas, nativeViewport);
                 return;
             }
             foreach (BattleImpactCue cue in impactTimeline.Collect(session))

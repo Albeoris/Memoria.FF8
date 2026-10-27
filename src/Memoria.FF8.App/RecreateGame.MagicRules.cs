@@ -85,7 +85,7 @@ internal sealed partial class RecreateGame
             newGameMagicPreferences = next;
             return true;
         }
-        if (session.State.Battle is not null)
+        if (session.HasActiveBattle)
         {
             session.SetGameplayPreferences(next);
             return true;
@@ -113,7 +113,7 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException("Hardcore is permanent.");
         }
-        if (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null)
+        if (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null)
         {
             throw new InvalidOperationException("Hardcore can be enabled only between battles.");
         }
@@ -143,7 +143,7 @@ internal sealed partial class RecreateGame
     {
         get
         {
-            if (session.State.Scene == SceneKind.Title || session.State.Battle is not null)
+            if (session.State.Scene == SceneKind.Title || session.HasActiveBattle)
             {
                 return null;
             }
@@ -161,7 +161,7 @@ internal sealed partial class RecreateGame
 
     private void PresentPendingMagicModeReview()
     {
-        if (session.State.PendingMagicModeReview && session.State.PendingGameplayPreferences is { } pending && session.State.Battle is null && session.State.PendingBattleEncounter is null && session.State.Scene is SceneKind.Field or SceneKind.WorldMap && gameMenus is not null && gameMenus.ScreenId != "mode-review")
+        if (session.State.PendingMagicModeReview && session.State.PendingGameplayPreferences is { } pending && !session.HasActiveBattle && session.State.PendingBattleEncounter is null && session.State.Scene is SceneKind.Field or SceneKind.WorldMap && gameMenus is not null && gameMenus.ScreenId != "mode-review")
         {
             if (MagicRuleBoundaryUnavailableReason is not null)
             {

@@ -41,7 +41,7 @@ internal static class ChocoboWorldSettings
 internal sealed partial class RecreateGame
 {
     private ChocoboWorldMode DefaultChocoboWorldMode => ChocoboWorldSettings.DefaultMode(resourceHost!.Resources.Source.Edition);
-    private ChocoboPresentationText? ChocoboWorldBoundaryUnavailableText => ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null ? ChocoboText.Create("chocobo.boundary.battle") : saveMenu.IsOpen ? ChocoboText.Create("chocobo.boundary.save") : session.State.PendingMagicModeReview ? ChocoboText.Create("chocobo.boundary.settings") : null;
+    private ChocoboPresentationText? ChocoboWorldBoundaryUnavailableText => ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null ? ChocoboText.Create("chocobo.boundary.battle") : saveMenu.IsOpen ? ChocoboText.Create("chocobo.boundary.save") : session.State.PendingMagicModeReview ? ChocoboText.Create("chocobo.boundary.settings") : null;
     private string? ChocoboWorldBoundaryUnavailableReason => ChocoboWorldBoundaryUnavailableText?.Fallback;
 
     private bool ApplyChocoboWorldMenuAction(MenuAction action)

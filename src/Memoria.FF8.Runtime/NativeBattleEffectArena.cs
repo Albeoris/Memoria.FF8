@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -69,6 +70,57 @@ public sealed partial record NativeBattleEffectArena([property: JsonRequired] Im
             throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {count} bytes; unknown padding or pointer data cannot be substituted.");
         }
         return ReadStorage(offset, count);
+    }
+
+    public byte ReadByte(int offset)
+    {
+        Span<byte> bytes = stackalloc byte[1];
+        ReadInto(offset, bytes);
+        return bytes[0];
+    }
+
+    public ushort ReadUInt16(int offset)
+    {
+        Span<byte> bytes = stackalloc byte[2];
+        ReadInto(offset, bytes);
+        return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
+    }
+
+    public short ReadInt16(int offset) => unchecked((short)ReadUInt16(offset));
+
+    public uint ReadUInt32(int offset)
+    {
+        Span<byte> bytes = stackalloc byte[4];
+        ReadInto(offset, bytes);
+        return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+    }
+
+    public void ReadInto(int offset, Span<byte> destination)
+    {
+        if (Transaction is { } transaction)
+        {
+            transaction.ReadInto(offset, destination);
+            return;
+        }
+        Validate();
+        RequireRange(offset, destination.Length);
+        if (!destination.IsEmpty && IntersectsUnknown(offset, destination.Length))
+        {
+            throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {destination.Length} bytes; unknown padding or pointer data cannot be substituted.");
+        }
+        destination.Clear();
+        NativeBattleTelemetry.Record(1002, NativeBattleTrafficKind.ZeroFill, destination.Length);
+        int firstRegion = FirstRegionEndingAt(offset, false);
+        for (int index = firstRegion; index < Regions.Length && Regions[index].Offset < offset + destination.Length; index++)
+        {
+            NativeBattleEffectMemoryRegion region = Regions[index];
+            int first = Math.Max(offset, region.Offset);
+            int end = Math.Min(offset + destination.Length, region.Offset + region.Data.Length);
+            if (end > first)
+            {
+                NativeBattleTelemetry.Copy(1002, region.Data.AsSpan().Slice(first - region.Offset, end - first), destination.Slice(first - offset));
+            }
+        }
     }
 
     public (byte[] Data, bool[] Known) ReadSnapshot(int offset, int count)

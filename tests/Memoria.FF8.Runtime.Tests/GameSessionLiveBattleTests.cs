@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameSessionLiveBattleTests
 {
     [Fact]
-    public void LivePublicationMatchesValidatedSnapshotAndPreservesRetainedMemoryAfterReturn()
+    public void LivePublicationDefersPersistenceAndExportsRetainedMemoryAtReturn()
     {
         BattleSession battle = CreateBattle();
         battle.Tick();
@@ -15,11 +15,17 @@ public sealed class GameSessionLiveBattleTests
         validated.SetBattle(battle.Capture());
         live.SetLiveBattle(battle);
 
-        Assert.Equal(JsonSerializer.Serialize(validated.State), JsonSerializer.Serialize(live.State));
-        NativeBattleRetainedMemory retained = live.State.NativeBattleMemory!;
+        Assert.Null(live.State.Battle);
+        Assert.True(live.HasActiveBattle);
+        Assert.NotNull(live.LiveBattle);
+        Assert.Equal(JsonSerializer.Serialize(validated.State), JsonSerializer.Serialize(live.PrepareSnapshot()));
+        NativeBattleRetainedMemory beforeReturn = live.State.NativeBattleMemory!;
         live.SetLiveBattle(null);
         Assert.Null(live.State.Battle);
-        Assert.Same(retained, live.State.NativeBattleMemory);
+        Assert.False(live.HasActiveBattle);
+        Assert.Null(live.LiveBattle);
+        Assert.NotNull(live.State.NativeBattleMemory);
+        Assert.NotSame(beforeReturn, live.State.NativeBattleMemory);
     }
 
     [Fact]
@@ -28,7 +34,7 @@ public sealed class GameSessionLiveBattleTests
         BattleSession battle = CreateBattle();
         GameSession live = GameSession.CreateColdProcess();
         live.SetLiveBattle(battle);
-        BattleSnapshot published = live.State.Battle!;
+        BattleSnapshot published = live.PrepareSnapshot().Battle!;
         string before = JsonSerializer.Serialize(published);
 
         battle.InstantVictory();
@@ -36,8 +42,11 @@ public sealed class GameSessionLiveBattleTests
         Assert.Equal(before, JsonSerializer.Serialize(published));
         live.SetLiveBattle(battle);
         Assert.Equal(BattleOutcome.Active, published.Outcome);
-        Assert.Equal(BattleOutcome.Victory, live.State.Battle!.Outcome);
-        Assert.NotSame(published.Definition.Combatants, live.State.Battle.Definition.Combatants);
+        Assert.Null(live.State.Battle);
+        Assert.Equal((byte)4, live.LiveBattle!.NativeResult);
+        BattleSnapshot current = live.PrepareSnapshot().Battle!;
+        Assert.Equal(BattleOutcome.Victory, current.Outcome);
+        Assert.NotSame(published.Definition.Combatants, current.Definition.Combatants);
     }
 
     [Fact]
@@ -48,6 +57,26 @@ public sealed class GameSessionLiveBattleTests
 
         Assert.Throws<InvalidDataException>(() => session.SetBattle(invalid));
         Assert.Null(session.State.Battle);
+    }
+
+    [Fact]
+    public void DirectSnapshotPreparationCapturesAttachedBattleAndKeepsPresenceGuardsLive()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        BattleSession battle = CreateBattle();
+        session.SetLiveBattle(battle);
+        using IDisposable binding = session.BindSnapshotPreparation(state => state with { FieldName = "prepared" });
+
+        battle.Tick();
+        GameState captured = session.PrepareSnapshot();
+
+        Assert.Equal("prepared", captured.FieldName);
+        Assert.Equal(battle.Frame, captured.Battle!.Frame);
+        Assert.Null(session.State.Battle);
+        Assert.True(session.HasActiveBattle);
+        session.CompleteSnapshotPreparation(binding);
+        Assert.Equal(battle.Frame, session.State.Battle!.Frame);
+        Assert.True(session.HasActiveBattle);
     }
 
     private static BattleSession CreateBattle() => new(new BattleDefinition

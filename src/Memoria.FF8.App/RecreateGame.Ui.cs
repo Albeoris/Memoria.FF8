@@ -166,7 +166,7 @@ internal sealed partial class RecreateGame
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["GF Transformations"] = ReadCurrentUiPreferences().GuardianFormsEnabled ? "On" : "Off";
-        data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null;
+        data.GuardianFormsPreferenceLocked = ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null;
         data.LimitOncePerTurnPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.SelphieCardSlotsPreferenceLocked = data.GuardianFormsPreferenceLocked;
         data.DrawOncePerSpellPreferenceLocked = data.GuardianFormsPreferenceLocked;
@@ -457,15 +457,15 @@ internal sealed partial class RecreateGame
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
     {
-        if (key == "Draw once per spell" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
+        if (key == "Draw once per spell" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.DrawOncePerSpell != session.State.GameplayPreferences.DrawOncePerSpell)
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
         }
-        if (key == "Limit once per turn" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
+        if (key == "Limit once per turn" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.LimitOncePerTurn != session.State.GameplayPreferences.LimitOncePerTurn)
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
         }
-        if (key == "Selphie card Slots" && (ActiveBattle is not null || session.State.Battle is not null || session.State.PendingBattleEncounter is not null) && preferences.SelphieCardSlots != session.State.GameplayPreferences.SelphieCardSlots)
+        if (key == "Selphie card Slots" && (ActiveBattle is not null || session.HasActiveBattle || session.State.PendingBattleEncounter is not null) && preferences.SelphieCardSlots != session.State.GameplayPreferences.SelphieCardSlots)
         {
             throw new InvalidOperationException("Selphie card Slots cannot change until the battle ends.");
         }

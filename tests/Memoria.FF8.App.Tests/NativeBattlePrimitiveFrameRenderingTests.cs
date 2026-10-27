@@ -47,6 +47,28 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         }
     }
 
+    [Fact]
+    public void Prepared_commands_keep_their_texture_and_palette_epoch_after_later_publication()
+    {
+        const ushort page = 0x80;
+        const ushort clut = 0x4000;
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), (uint)clut << 16, Point(30, 10), (uint)page << 16, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame source = Frame([new(command, TexturedMode(page, 0), 1)]);
+        NativeBattlePreparedPrimitiveFrame prepared = NativeBattlePreparedPrimitiveFrame.From(source);
+        NativeBattleEffectTextureState first = NativeBattleEffectTextureState.FromColdProcess().Upload45BD30(0, 0, 1, 1, [1, 0]).Upload45BD30(0, 256, 2, 1, [0, 0, 0x1F, 0]);
+        NativeBattleEffectTextureState next = first.Upload45BD30(1, 256, 1, 1, [0xE0, 3]);
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        renderer.RenderNativePrimitiveFrame(prepared, first);
+        Rgba32 originalPixel = capture.Texture![0, 0];
+        renderer.RenderNativePrimitiveFrame(prepared, next);
+        Assert.NotEqual(originalPixel, capture.Texture![0, 0]);
+        renderer.RenderNativePrimitiveFrame(prepared, first);
+        Assert.Equal(originalPixel, capture.Texture![0, 0]);
+        Assert.Null(typeof(NativeBattlePreparedPrimitiveFrame).GetProperty("Pending"));
+        Assert.Equal(source.LastCommands, prepared.LastCommands);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

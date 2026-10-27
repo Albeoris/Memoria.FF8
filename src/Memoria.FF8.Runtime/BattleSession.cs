@@ -41,7 +41,7 @@ public sealed partial class BattleSession
             }
             handlers[handler.Kind] = handler;
         }
-        this.definition = CloneDefinition(definition);
+        this.definition = NativeBattleStorageSnapshots.Capture(CloneDefinition(definition));
         NativeCamera = this.definition.NativeStageCameraBank is null ? null : NativeBattleCameraState.Initialize();
         chocoboRewards = this.definition.ChocoboRewards.ObserveInventory(this.definition.NativeItemInventory ?? []);
         nativeCards = this.definition.NativeCards?.DeepCopy();
@@ -116,6 +116,7 @@ public sealed partial class BattleSession
         {
             Outcome = DetermineOutcome();
         }
+        RefreshPreparedPresentation();
     }
 
     public BattleDifficulty Difficulty { get; private set; } = BattleDifficulty.Normal;
@@ -330,7 +331,7 @@ public sealed partial class BattleSession
 
     public BattleSnapshot Capture()
     {
-        return new BattleSnapshot
+        return NativeBattleStorageSnapshots.Capture(new BattleSnapshot
         {
             DiagnosticTerminalHold = DiagnosticTerminalHold,
             OriginalStockDrawOperations = originalStockDrawOperations.ToArray(),
@@ -400,7 +401,7 @@ public sealed partial class BattleSession
             NativeLastAllocatedIndex = nativeLastAllocatedIndex,
             NativeScriptState = NativeScriptState,
             CustomHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order().ToArray()
-        };
+        });
     }
 
     public static BattleSession Restore(BattleSnapshot snapshot, IEnumerable<IBattleStatusEffectHandler>? additionalHandlers = null)
@@ -408,6 +409,8 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(snapshot);
         try
         {
+            BattleDefinition snapshotDefinition = snapshot.Definition;
+            snapshot = NativeBattleStorageSnapshots.Restore(snapshot with { Definition = null! }) with { Definition = snapshotDefinition };
             if ((snapshot.Definition.MagicVitals is not null) != (snapshot.MagicVitals is not null))
             {
                 throw new InvalidDataException("A battle checkpoint with magic rules requires its authoritative banks and reservations.");
@@ -419,6 +422,7 @@ public sealed partial class BattleSession
             session.RestoreNativeCamera(snapshot);
             session.RestoreValidated(snapshot);
             session.ValidateBattleMagicSnapshot();
+            session.RefreshPreparedPresentation();
             return session;
         }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NullReferenceException or KeyNotFoundException)
@@ -1451,6 +1455,8 @@ public sealed partial class BattleSession
 
     private void PublishCandidate(BattleSession candidate)
     {
+        BattleSnapshot candidateSnapshot = candidate.Capture();
+        candidate = Restore(candidateSnapshot);
         DiagnosticResetCount++;
         nativeActionMemory.State = candidate.nativeActionMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
@@ -1540,11 +1546,12 @@ public sealed partial class BattleSession
         NativeCamera = candidate.NativeCamera;
         NativeGraphics = candidate.NativeGraphics;
         RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
-        RestoreGuardianForces(candidate.Capture());
+        RestoreGuardianForces(candidateSnapshot);
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);
         RestoreNativeBattleClock(candidate.nativeBattleClock);
         turnAdvance = candidate.turnAdvance;
         RestoreOriginalStockDrawOperations(candidate.originalStockDrawOperations.ToArray());
+        RefreshPreparedPresentation();
     }
 }

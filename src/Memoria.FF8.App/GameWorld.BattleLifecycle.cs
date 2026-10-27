@@ -71,14 +71,15 @@ internal sealed partial class GameWorld
     {
         BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
         RequireNativeBattleReturnBranch(occurrence.SourceScene, occurrence.ScriptedOwner is not null);
-        BattleResult result = CaptureBattleOutcome(active, occurrence);
         PublishBattleSnapshot(active);
+        BattleSnapshot completed = session.CompleteLiveBattle();
+        BattleResult result = CaptureBattleOutcome(active, occurrence, completed);
         if (active.NativeResult == 1 && !Events.ReadNativeDefeatReturnBranch4706B0().ResumePreviousScene)
         {
             int callbacks = checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value));
             NativeBattleAbandonment abandoned = occurrence.SourceScene == SceneKind.Field
                 ? Events.CaptureNativeBattleAbandonment(occurrence, callbacks)
-                : new(occurrence, Events.ReadNativeDefeatReturnBranch4706B0(), active.Capture().Definition.NativeExamTimerAtEntry?.ClockCalls ?? throw new NotSupportedException("World defeat requires its actual entry clock."), session.ExamTimer!.ClockCalls, callbacks);
+                : new(occurrence, Events.ReadNativeDefeatReturnBranch4706B0(), active.EntryClockCalls ?? throw new NotSupportedException("World defeat requires its actual entry clock."), session.ExamTimer!.ClockCalls, callbacks);
             abandoned.Validate();
             Events.RequireNativeBattleAbandonment(abandoned);
             ApplyBattleResult(occurrence, result, guardianForceLearning);
@@ -94,7 +95,7 @@ internal sealed partial class GameWorld
         if (occurrence.SourceScene == SceneKind.WorldMap)
         {
             bool menuBattle = Events.PendingMenuBattle is not null;
-            NativeWorldBattleOutcome physical = new(occurrence, active.NativeResult!.Value, active.Capture().Definition.NativeExamTimerAtEntry?.ClockCalls ?? throw new NotSupportedException("World outcome requires its actual entry clock."), session.ExamTimer!.ClockCalls) { DefeatBranch = active.NativeResult == 1 ? Events.ReadNativeDefeatReturnBranch4706B0() : null };
+            NativeWorldBattleOutcome physical = new(occurrence, active.NativeResult!.Value, active.EntryClockCalls ?? throw new NotSupportedException("World outcome requires its actual entry clock."), session.ExamTimer!.ClockCalls) { DefeatBranch = active.NativeResult == 1 ? Events.ReadNativeDefeatReturnBranch4706B0() : null };
             Events.RequireNativeWorldBattleOutcome(physical);
             Action publishWorld = PrepareNativeWorldBattleReturn(active, occurrence);
             ApplyBattleResult(occurrence, result, guardianForceLearning);
@@ -128,7 +129,7 @@ internal sealed partial class GameWorld
         {
             FieldAssets currentField = Field ?? throw new NotSupportedException("Native kind3 requires its current original field resources.");
             NativeBattleRetainedMemory retained = session.State.NativeBattleMemory ?? throw new NotSupportedException("Native kind3 requires its actual retained battle process memory.");
-            registration = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained, active.Capture().NativeCrtRandom);
+            registration = Events.ExecuteNativeBattleFieldResourceReload(currentField.NativeRegistration ?? throw new NotSupportedException("Native kind3 requires the current original field ONE/MCH registration inputs."), active.NativeResult ?? throw new InvalidOperationException("Active battle has no native return result."), retained, active.CurrentCrtRandom);
             reloadedMemory = registration.Memory;
             Events.ValidateNativeBattleFieldRegistrationMemory(reloadedMemory);
             reloadedField = assets.BindNativeRegisteredTextures(currentField, Events.Scene.NativeFieldRegistration ?? throw new InvalidDataException("Native kind3 did not publish its actual registered field resource addresses."), reloadedMemory.EffectMemory?.Textures ?? throw new NotSupportedException("Native kind3 requires its retained texture memory."), reloadedMemory.FieldTextureAnimations);
@@ -139,7 +140,7 @@ internal sealed partial class GameWorld
             Events.ReturnFromNativeMenuBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
-                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native menu battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native menu battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
                 Events.CommitNativeBattleFieldReturn(prepared);
             });
             PublishReloadedBattleField(reloadedField!);
@@ -151,7 +152,7 @@ internal sealed partial class GameWorld
             Events.ReturnFromInteractiveBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
-                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult!.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
                 Events.CommitNativeBattleFieldReturn(prepared);
             }, active.NativeResult!.Value);
             PublishReloadedBattleField(reloadedField!);
@@ -161,7 +162,7 @@ internal sealed partial class GameWorld
             Events.ReturnFromNativeRandomFieldBattle(checked((int)(active.NativeGraphics is null ? active.Frame : active.NativeHostCallbacks!.Value)), active.NativeResult!.Value, () =>
             {
                 ApplyBattleResult(occurrence, result, guardianForceLearning);
-                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.Capture().Definition.NativeFlags, active.NativeResult.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
+                EventEngine.PreparedNativeBattleFieldReturn prepared = Events.PrepareNativeBattleFieldReturn(active.NativeMusicProcess ?? throw new NotSupportedException("Native battle return requires its live physical music owner."), active.EntryFlags, active.NativeResult.Value, BattleMusicEntryResources, reloadedMemory, registration?.CrtRandomBefore, registration?.CrtRandomAfter);
                 Events.CommitNativeBattleFieldReturn(prepared);
             });
             PublishReloadedBattleField(reloadedField!);

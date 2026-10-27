@@ -20,7 +20,7 @@ public sealed partial class GameSession
         ArgumentNullException.ThrowIfNull(preferences);
         preferences = PrepareGameplayPreferences(preferences);
         RequireBattleGameplayPreferenceBoundary(preferences);
-        if (State.Battle is not null || State.PendingBattleEncounter is not null)
+        if (HasActiveBattle || State.PendingBattleEncounter is not null)
         {
             State = State with { PendingGameplayPreferences = preferences, PendingMagicModeReview = preferences.SharedMagicStock != State.GameplayPreferences.SharedMagicStock };
             return;
@@ -39,7 +39,7 @@ public sealed partial class GameSession
         _ = PrepareGameplayPreferences(preview.Preferences);
         preview.Preferences.Validate();
         RequireBattleGameplayPreferenceBoundary(preview.Preferences);
-        if (State.Battle is not null || State.PendingBattleEncounter is not null)
+        if (HasActiveBattle || State.PendingBattleEncounter is not null)
         {
             State = State with { PendingGameplayPreferences = preview.Preferences, PendingMagicModeReview = preview.Preferences.SharedMagicStock != State.GameplayPreferences.SharedMagicStock };
             return;
@@ -61,7 +61,7 @@ public sealed partial class GameSession
 
     public void ApplyPendingGameplayPreferences()
     {
-        if (State.PendingGameplayPreferences is { } pending && State.Battle is null && State.PendingBattleEncounter is null && !State.PendingMagicModeReview)
+        if (State.PendingGameplayPreferences is { } pending && !HasActiveBattle && State.PendingBattleEncounter is null && !State.PendingMagicModeReview)
         {
             SetGameplayPreferences(pending);
         }
@@ -69,7 +69,7 @@ public sealed partial class GameSession
 
     public void SetAttackMode(int row, MagicAttackMode mode)
     {
-        if ((uint)row >= 8 || !Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || !vitals.MagicSystem.SmartAttack || !State.GameplayPreferences.SmartAttack || State.Battle is not null)
+        if ((uint)row >= 8 || !Enum.IsDefined(mode) || State.CharacterVitals is not { } vitals || !vitals.MagicSystem.SmartAttack || !State.GameplayPreferences.SmartAttack || HasActiveBattle)
         {
             throw new InvalidOperationException("Attack modes require an available field party record.");
         }
@@ -101,19 +101,19 @@ public sealed partial class GameSession
 
     private void RequireBattleGameplayPreferenceBoundary(GameplayPreferences preferences)
     {
-        if (preferences.DrawOncePerSpell != State.GameplayPreferences.DrawOncePerSpell && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        if (preferences.DrawOncePerSpell != State.GameplayPreferences.DrawOncePerSpell && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Draw once per spell cannot change until the battle ends.");
         }
-        if (preferences.LimitOncePerTurn != State.GameplayPreferences.LimitOncePerTurn && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        if (preferences.LimitOncePerTurn != State.GameplayPreferences.LimitOncePerTurn && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Limit once per turn cannot change until the battle ends.");
         }
-        if (preferences.SelphieCardSlots != State.GameplayPreferences.SelphieCardSlots && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        if (preferences.SelphieCardSlots != State.GameplayPreferences.SelphieCardSlots && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("Selphie card Slots cannot change until the battle ends.");
         }
-        if (preferences.GuardianFormsEnabled != State.GameplayPreferences.GuardianFormsEnabled && (State.Battle is not null || State.PendingBattleEncounter is not null))
+        if (preferences.GuardianFormsEnabled != State.GameplayPreferences.GuardianFormsEnabled && (HasActiveBattle || State.PendingBattleEncounter is not null))
         {
             throw new InvalidOperationException("GF Transformations cannot change until the battle ends.");
         }

@@ -28,10 +28,24 @@ public static class NativeBattleQuake38Controller
         int first = header.FirstContactIndex ?? throw new NotSupportedException("Native Quake requires its first actual action contact.");
         NativeBattleModulePoolTask task = hierarchy.Read(root.Address).WriteDword(12, 0x1D99A78).WriteByte(45, packets.ReadContact(first).Primary.ActorIndex).WriteWord(90, header.ReadByte(16)).WriteWord(88, header.ReadByte(17));
         hierarchy = hierarchy.Write(root.Address, task);
-        state = state.SetDword(0x2792B48, 0x20DFAB8).SetDword(0x2792B44, 0x20F3AB8).SetDword(0x2792E34, 0x2107AB8).SetDword(0x2792E1C, 0x2107AB8).SetDword(0x2792E0C, 0x21130B8).SetDword(0x2792E08, 0x2113D78);
-        NativeBattleEffectTextureState textures = (memory.Textures ?? throw new NotSupportedException("Native Quake requires its retained texture owner.")).Register5099A0(resources.Camera);
-        (textures, _) = textures.EnqueueTim505E30(new(resources.Texture.Name, resources.Texture.Data));
-        memory = memory with { Textures = textures, Quake38 = state };
-        return new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x278E648, DrawArenaOffset = null }, state);
+        state.BeginCheckpoint();
+        try
+        {
+            state.SetDword(0x2792B48, 0x20DFAB8).SetDword(0x2792B44, 0x20F3AB8).SetDword(0x2792E34, 0x2107AB8).SetDword(0x2792E1C, 0x2107AB8).SetDword(0x2792E0C, 0x21130B8).SetDword(0x2792E08, 0x2113D78);
+            NativeBattleEffectTextureState textures = (memory.Textures ?? throw new NotSupportedException("Native Quake requires its retained texture owner.")).Register5099A0(resources.Camera);
+            (textures, _) = textures.EnqueueTim505E30(new(resources.Texture.Name, resources.Texture.Data));
+            memory = memory with { Textures = textures, Quake38 = state };
+            NativeBattleQuake38Frame result = new(memory, effect with { Pools = hierarchy.Pools, ReturnedDescriptor = 0x278E648, DrawArenaOffset = null }, state);
+            state.CommitCheckpoint();
+            return result;
+        }
+        catch
+        {
+            if (state.HasCheckpoint)
+            {
+                state.RollbackCheckpoint();
+            }
+            throw;
+        }
     }
 }

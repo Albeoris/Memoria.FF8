@@ -17,12 +17,17 @@ public sealed partial class GameSession
 {
     public ChocoboImportPreview PreviewChocoboWorldImport(NativeChocoboWorldImport import, NativeChocoboWorldTransferTable table, bool reviewedAssociation = false)
     {
+        if (HasActiveBattle)
+        {
+            ChocoboPresentationText message = ChocoboText.Create("chocobo.import.battle-active");
+            return new(State, import, table, null, [], message.Fallback) { MessageText = message };
+        }
         return ChocoboWorldTransfers.Preview(State, import, table, reviewedAssociation);
     }
 
     public string CommitChocoboWorldImport(ChocoboImportPreview preview, string currentContentSha256)
     {
-        if (currentContentSha256 != preview.Import.ContentSha256 || !ChocoboWorldTransfers.SameOwners(State, preview.Source))
+        if (HasActiveBattle || currentContentSha256 != preview.Import.ContentSha256 || !ChocoboWorldTransfers.SameOwners(State, preview.Source))
         {
             throw ChocoboText.Create("chocobo.import.source-changed").InvalidOperation();
         }

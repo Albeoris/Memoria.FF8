@@ -66,7 +66,7 @@ internal sealed partial class GameWorld
             //48B7E0 refreshes the active characters and calls495EC0 before publishing the entry banks.
             NativeCharacterVitals vitals = session.State.CharacterVitals!.RebuildParty();
             session.SetCharacterVitals(vitals);
-            session.SetBattle(candidate.Capture());
+            session.SetLiveBattle(candidate);
         }
         if (entry.Music is { } prepared && entry.CommittedMusic is null)
         {
@@ -99,7 +99,7 @@ internal sealed partial class GameWorld
             SynchronizeNativeBattleHostCallbacks(active);
         }
         session.SetLiveBattle(active);
-        Events.SynchronizeNativeBattleMusicProcess(session.State.Battle?.NativeMusicProcess);
+        Events.SynchronizeNativeBattleMusicProcess(active?.NativeMusicProcess);
     }
 
     internal void SynchronizeBattlePresentation()
@@ -107,7 +107,7 @@ internal sealed partial class GameWorld
         if (battle is { } active)
         {
             SynchronizeNativeBattleHostCallbacks(active);
-            session.AcceptBattleAchievementFacts(active.EnemyDefeats);
+            session.SetLiveBattle(active);
             CompleteNativeDefeatIfReady();
         }
     }

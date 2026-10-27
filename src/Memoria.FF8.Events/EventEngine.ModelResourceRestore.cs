@@ -17,7 +17,7 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        if (services is not GameSession session || session.State.Battle is not null || Scene.NativeBattleFieldReloadState is not null)
+        if (services is not GameSession session || session.HasActiveBattle || Scene.NativeBattleFieldReloadState is not null)
         {
             throw new NotSupportedException("Model resource replacement cannot reconstruct caches during a pending battle resource transaction.");
         }

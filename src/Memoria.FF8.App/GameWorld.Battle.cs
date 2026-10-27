@@ -47,6 +47,10 @@ internal sealed partial class GameWorld
     {
         battle = session.State.Battle is null ? null : AttachNativeEffectResources(BattleSession.Restore(session.State.Battle));
         synchronizedNativeBattleCallbacks = battle?.NativeHostCallbacks ?? battle?.Frame ?? 0;
+        if (battle is not null)
+        {
+            session.SetLiveBattle(battle);
+        }
         Events.HostAutomaticBattles = true;
         Events.UseInteractiveBattle = (_, _) => session.State.FullBattlePlaythrough == true;
         Events.ValidateInteractiveBattle = (encounter, flags) =>
@@ -376,7 +380,7 @@ internal sealed partial class GameWorld
         return checked((int)(active.Frame - before));
     }
 
-    internal BattleResult CaptureBattleOutcome(BattleSession active, BattleEncounterOccurrence encounter)
+    internal BattleResult CaptureBattleOutcome(BattleSession active, BattleEncounterOccurrence encounter, BattleSnapshot? completedSnapshot = null)
     {
         encounter.Validate();
         if (active.Outcome == BattleOutcome.Active || active.EncounterId != encounter.Formation)
@@ -417,7 +421,7 @@ internal sealed partial class GameWorld
                 items.Add(new BattleItemConsumption(stock.ItemId, stock.Count, checked((byte)(stock.Count - after))));
             }
         }
-        BattleSnapshot completed = active.Capture();
+        BattleSnapshot completed = completedSnapshot ?? active.Capture();
         bool debugVictory = active.Events.Any(entry => entry.Kind == "debug-victory");
         int[] defeated = debugVictory ? [] : active.EnemyDefeats.Select(defeat => defeat.Slot).Distinct().ToArray();
         int[] eligible = active.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !debugVictory ? CaptureRewardEligibleGuardianForces(vitals, party, completed) : [];

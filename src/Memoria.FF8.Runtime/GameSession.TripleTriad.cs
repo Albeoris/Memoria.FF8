@@ -63,7 +63,7 @@ public sealed partial class GameSession
     public bool RefineCard(TripleTriadRefinement recipe, int batches = 1)
     {
         ArgumentNullException.ThrowIfNull(recipe);
-        if (State.TripleTriadPlay is not null || State.Battle is not null || State.CardInventory is not { } cards || State.Economy is not { } economy || !CanUseCardMod(State.CharacterVitals))
+        if (State.TripleTriadPlay is not null || HasActiveBattle || State.CardInventory is not { } cards || State.Economy is not { } economy || !CanUseCardMod(State.CharacterVitals))
         {
             return false;
         }

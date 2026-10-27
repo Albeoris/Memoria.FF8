@@ -2,13 +2,13 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
-    private GameState StageOriginalAchievementBattleState(GameState candidate, BattleSnapshot owned)
+    private GameState StageOriginalAchievementBattleState(GameState candidate, BattleLiveObservation owned)
     {
-        if (candidate.PendingBattleEncounter is not { } encounter || owned.Definition.NativeEntry is null || owned.Definition.EncounterId != encounter.Formation || owned.DebugOutcome is not null)
+        if (candidate.PendingBattleEncounter is not { } encounter || !owned.NativeEntry || owned.EncounterId != encounter.Formation || owned.DebugOutcome is not null)
         {
             return candidate;
         }
-        NativeCharacterVitals? vitals = owned.MagicVitals ?? candidate.CharacterVitals;
+        NativeCharacterVitals? vitals = owned.Vitals ?? candidate.CharacterVitals;
         if (vitals is not null)
         {
             vitals.Validate();
@@ -27,13 +27,13 @@ public sealed partial class GameSession
             vitals = vitals with { GuardianForces = guardianForces };
         }
         NativeEconomy? economy = candidate.Economy;
-        if (economy is not null && owned.NativeItemInventory is { } items)
+        if (economy is not null && !owned.Items.IsDefault)
         {
-            economy = economy with { Items = items.ToArray() };
+            economy = economy with { Items = owned.Items.ToArray() };
         }
-        GameState observed = candidate with { CharacterVitals = vitals, CardInventory = owned.NativeCards ?? candidate.CardInventory, Economy = economy };
+        GameState observed = candidate with { CharacterVitals = vitals, CardInventory = owned.Cards ?? candidate.CardInventory, Economy = economy };
         OriginalAchievementProgress progress = OriginalAchievementState.Observe(observed);
-        if (owned.NativeScriptState?.UnlockedTutorials.Contains(127) == true)
+        if (owned.OmegaProof)
         {
             progress = progress with { OmegaProof = true };
         }

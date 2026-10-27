@@ -19,7 +19,7 @@ public sealed partial class GameSession
     {
         occurrence.Validate();
         receipt.RequireCompleteFootReload();
-        if (State.Scene != SceneKind.WorldMap || State.World is not { } world || State.SavedWorld is not { } saved || occurrence.SourceScene != SceneKind.WorldMap || occurrence.SourceFieldId != State.FieldId || occurrence.SourceFrame != world.Frame || receipt.SourceWorldFrame != world.Frame || receipt.WorldMode != 3 || State.PendingBattleEncounter is not null || State.Battle is not null || State.RandomEncounters?.Pending is not null)
+        if (State.Scene != SceneKind.WorldMap || State.World is not { } world || State.SavedWorld is not { } saved || occurrence.SourceScene != SceneKind.WorldMap || occurrence.SourceFieldId != State.FieldId || occurrence.SourceFrame != world.Frame || receipt.SourceWorldFrame != world.Frame || receipt.WorldMode != 3 || State.PendingBattleEncounter is not null || HasActiveBattle || State.RandomEncounters?.Pending is not null)
         {
             throw new InvalidOperationException("Menu combat departure requires its current encounter and actual saved foot pose.");
         }
@@ -29,7 +29,7 @@ public sealed partial class GameSession
     public void RecordNativeWorldBattleDeparture(RandomEncounterRequest request, NativeSavedWorldFootReturn receipt)
     {
         receipt.RequireCompleteFootReload();
-        if (State.Scene != SceneKind.WorldMap || State.World is not { } world || State.SavedWorld is not { } saved || State.RandomEncounters?.Pending != request || request.Scene != SceneKind.WorldMap || request.Frame != world.Frame || receipt.SourceWorldFrame != world.Frame || receipt.WorldMode != 3 || State.PendingBattleEncounter is not null || State.Battle is not null)
+        if (State.Scene != SceneKind.WorldMap || State.World is not { } world || State.SavedWorld is not { } saved || State.RandomEncounters?.Pending != request || request.Scene != SceneKind.WorldMap || request.Frame != world.Frame || receipt.SourceWorldFrame != world.Frame || receipt.WorldMode != 3 || State.PendingBattleEncounter is not null || HasActiveBattle)
         {
             throw new InvalidOperationException("World combat departure requires its current unconsumed random request and actual saved foot pose.");
         }
@@ -54,7 +54,7 @@ public sealed partial class GameSession
     public void PublishNativeWorldBattleMusic(NativeMusicProcessState buffers)
     {
         buffers.Validate();
-        if (State.Scene != SceneKind.WorldMap || State.Battle is not null || State.NativeBattleMemory?.MusicProcess is not { } music)
+        if (State.Scene != SceneKind.WorldMap || HasActiveBattle || State.NativeBattleMemory?.MusicProcess is not { } music)
         {
             throw new InvalidOperationException("World music publication requires the completed world combat reload.");
         }

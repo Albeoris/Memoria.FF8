@@ -19,6 +19,7 @@ public sealed partial class BattleSession
             return;
         }
         memory.Validate();
+        memory = NativeBattleStorageSnapshots.Restore(memory);
         //47CCB0 initial entry calls48D1F0; the physical arenas, pointer and independent gates survive it.
         nativeActionPackets = memory.ActionPackets.ResetCounts();
         nativePartyStatusMirrors = memory.PartyStatusMirrors;

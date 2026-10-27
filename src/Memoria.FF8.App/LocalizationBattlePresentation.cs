@@ -64,27 +64,14 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
         return identity is { } source ? Kernel(source.Collection, source.Role, action.KernelSection == 10 ? action.SupplementalKernelIndex ?? action.KernelIndex : action.KernelIndex, original) : original;
     }
 
-    public IReadOnlyList<NativeScanWindowText> Scan(BattleSession session, NativeBattleScanTextFrame frame, IReadOnlyList<NativeScanWindowText> original)
+    public IReadOnlyList<NativeScanWindowText> Scan(NativeBattlePreparedScan scan, IReadOnlyList<NativeScanWindowText> original)
     {
-        NativeBattleOriginalEffectState? effect = session.NativeGraphics?.OriginalEffect;
-        if (effect?.Binding.ScanTextResources is null)
-        {
-            return original;
-        }
-        NativeBattleModulePoolTask? viewer = effect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == 0x84F860);
-        if (viewer is null)
-        {
-            return original;
-        }
-        int actorIndex = viewer.ReadByte(0x2D);
-        string? actorId = session.NativeGraphics!.ActorIds.ElementAtOrDefault(actorIndex);
-        BattleCombatant? actor = session.Combatants.FirstOrDefault(candidate => candidate.Id == actorId);
-        if (actor is null)
+        if (scan.Resources is null || scan.Actor is not { } actor)
         {
             return original;
         }
         string descriptionKey = LocalizationSourceExporter.IndexedKey(resources.Source.Language, "scan_monsters", actor.ModelId);
-        string name = CombatantName(actor);
+        string name = actor.IsPlayer || actor.HasNativeDisplayNameOverride ? actor.Name : Table($"c0m{actor.ModelId:000}_names", 0, actor.Name);
         return original.Select(window =>
         {
             string? replacement = window.Index == 0 && resources.Localization.Values.TryGetValue(descriptionKey, out var value) ? value.Text : window.Index == 2 && name != actor.Name ? name : null;
@@ -92,7 +79,7 @@ internal sealed class LocalizationBattlePresentation(ResourceService resources)
             {
                 return window;
             }
-            NativeBattleScanByteOwner row = frame.Windows.Row(window.Index);
+            NativeBattleScanByteOwner row = scan.Text.Windows.Row(window.Index);
             return ScanWindow(window, row, replacement);
         }).ToArray();
     }

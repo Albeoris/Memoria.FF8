@@ -8,6 +8,21 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePcUiRenderingTests
 {
     [Fact]
+    public void Paused_prepared_geometry_can_render_new_ui_without_changing_the_previous_ui_payload()
+    {
+        NativeBattlePreparedPrimitiveFrame prepared = NativeBattlePreparedPrimitiveFrame.From(World());
+        NativeBattlePcUiFrame original = Ui() with { Semi = [] };
+        NativeBattlePcUiFrame current = Ui();
+        BattleRenderer renderer = new(320, 216);
+        byte[] before = renderer.RenderNativePrimitiveFrame(prepared, null, uiFrame: original, uiTexture: Texture).ToArray();
+        byte[] after = renderer.RenderNativePrimitiveFrame(prepared, null, uiFrame: current, uiTexture: Texture).ToArray();
+        Assert.NotEqual(before, after);
+        Assert.Equal(before, renderer.RenderNativePrimitiveFrame(prepared, null, uiFrame: original, uiTexture: Texture));
+        Assert.Empty(original.Semi);
+        Assert.Single(current.Semi);
+    }
+
+    [Fact]
     public void Ui_opaque_precedes_world_and_semi_follows_world_without_writing_depth()
     {
         Capture backend = new();

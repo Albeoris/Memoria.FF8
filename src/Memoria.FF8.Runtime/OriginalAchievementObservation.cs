@@ -37,7 +37,7 @@ public sealed partial class GameSession
     /// <summary>Called by the player host after accepted gameplay; an active battle retains separate transaction ownership.</summary>
     public void ObserveOriginalAchievements(bool? nativeLanguage12 = null)
     {
-        if (State.Scene == SceneKind.Title || State.Battle is not null || State.PendingBattleEncounter is not null)
+        if (State.Scene == SceneKind.Title || HasActiveBattle || State.PendingBattleEncounter is not null)
         {
             return;
         }

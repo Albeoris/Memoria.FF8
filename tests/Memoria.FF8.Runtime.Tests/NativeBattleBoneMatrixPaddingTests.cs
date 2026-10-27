@@ -55,17 +55,22 @@ public sealed class NativeBattleBoneMatrixPaddingTests
         Assert.Throws<NotSupportedException>(() => arena.Read(0, 128));
     }
 
-    [Fact]
-    public void Scaled_restore_preserves_composed_padding_values_and_knownness_through_JSON()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Scaled_restore_preserves_composed_padding_values_and_knownness_through_JSON(bool transactional)
     {
         NativeBattleEffectArena arena = Skeleton();
         arena = arena.Write(50, [0x34, 0x12]).Write(98, [0xCD, 0xAB]).Write(146, [0x78, 0x56]).MarkUnknown(147, 1);
         NativeBattleDecodedPose pose = new(new(0, 0, 0), Enumerable.Repeat(new NativeBattleBonePose(new(311, -700, 177), new(1024, 1024, 1024)), 3).ToImmutableArray(), true);
-        NativeBattleEffectArena actual = NativeBattleArenaPose.RestoreBoneMatrices(arena, 0, pose);
+        using NativeBattleEffectArenaTransaction? transaction = transactional ? new(arena) : null;
+        NativeBattleEffectArena actual = NativeBattleArenaPose.RestoreBoneMatrices(transaction?.View ?? arena, 0, pose);
+        actual = transaction?.Freeze() ?? actual;
         Assert.Equal(new byte[] { 0x34, 0x12 }, actual.Read(50, 2));
         Assert.Equal(new byte[] { 0xCD, 0xAB }, actual.Read(98, 2));
         Assert.Equal((byte)0x78, actual.Read(146, 1)[0]);
         Assert.Throws<NotSupportedException>(() => actual.Read(147, 1));
+        Assert.Equal(new byte[] { 0x78, 0x56 }, actual.ReadSnapshot(146, 2).Data);
         NativeBattleEffectArena restored = JsonSerializer.Deserialize<NativeBattleEffectArena>(JsonSerializer.Serialize(actual))!;
         Assert.Equal(actual.ReadSnapshot(146, 2).Known, restored.ReadSnapshot(146, 2).Known);
         Assert.Equal(actual.Read(98, 2), restored.Read(98, 2));

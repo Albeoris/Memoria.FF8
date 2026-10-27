@@ -111,6 +111,8 @@ public sealed partial class GameSession : IEventServices
         try
         {
             State = PrepareSnapshot();
+            liveBattle = null;
+            acceptedBattleObservation = null;
         }
         finally
         {
@@ -129,6 +131,7 @@ public sealed partial class GameSession : IEventServices
         try
         {
             GameState snapshot = snapshotPreparation?.Prepare(State) ?? State;
+            snapshot = CaptureLiveBattle(snapshot);
             ValidateLiveEventMemoryOwners(snapshot, snapshot.EventMemory);
             return snapshot;
         }
@@ -177,6 +180,8 @@ public sealed partial class GameSession : IEventServices
 
     private void ResetTransientGameplayState()
     {
+        liveBattle = null;
+        acceptedBattleObservation = null;
         Dialog = null;
         movieReturnScene = SceneKind.Field;
         acceleratingMovie = false;

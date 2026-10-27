@@ -49,6 +49,7 @@ public sealed partial class BattleSession
                 if ((Outcome is BattleOutcome.Victory or BattleOutcome.Defeat) && DebugOutcome is null && NativeGraphics.NativeOutcome?.FadeDurationB0C == 0)
                 {
                     PublishNativePcUiFrame();
+                    RefreshPreparedPresentation();
                     return ready;
                 }
                 //47CCB0 calls48D0C0 once after outer action/AI producers and immediately before500900.
@@ -71,6 +72,7 @@ public sealed partial class BattleSession
                 NativeGraphics = NativeGraphics with { UiServices = final with { PauseDE9 = retained } };
             }
             PublishNativePcUiFrame();
+            RefreshPreparedPresentation();
             return ready;
         }
         finally

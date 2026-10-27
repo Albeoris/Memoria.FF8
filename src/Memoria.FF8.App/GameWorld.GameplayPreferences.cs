@@ -33,7 +33,7 @@ internal sealed partial class GameWorld
             battle.SetDifficulty(preferences.Difficulty);
             battle.SetMode(preferences.AtbMode);
             battle.SetGunbladeMode(preferences.GunbladeMode);
-            session.SetBattle(battle.Capture());
+            session.SetLiveBattle(battle);
         }
     }
 

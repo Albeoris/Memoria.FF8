@@ -89,7 +89,7 @@ public sealed partial class GameSession
     public void AdvanceNativeBattleEntryRandom(NativeCrtRandomState before, int draws)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(draws);
-        if (State.CrtRandom != before || State.PendingBattleEncounter is null || State.Battle is not null)
+        if (State.CrtRandom != before || State.PendingBattleEncounter is null || HasActiveBattle)
         {
             throw new InvalidOperationException("Battle entry random draws require the pending encounter and its unchanged CRT owner.");
         }
@@ -103,7 +103,7 @@ public sealed partial class GameSession
 
     public void PublishNativeBattleEntryMusic(NativeBattleMusicEntryPreparation entry)
     {
-        if (State.PendingBattleEncounter is not { } pending || entry.Receipt.Encounter != pending.Formation || State.Battle is not null)
+        if (State.PendingBattleEncounter is not { } pending || entry.Receipt.Encounter != pending.Formation || HasActiveBattle)
         {
             throw new InvalidOperationException("Battle entry music requires its pending encounter before combat publication.");
         }
@@ -149,7 +149,7 @@ public sealed partial class GameSession
             throw new InvalidOperationException("Battle result requires its unapplied current encounter occurrence.");
         }
         NativeGlobalRandomState? globalRandom = ProjectNativeGlobalRandom(globalRandomChange);
-        GameState draws = StageOriginalAchievementDraws(State, State.Battle);
+        GameState draws = StageOriginalAchievementDraws(State, acceptedBattleObservation ?? (State.Battle is { } savedBattle ? BattleLiveObservation.FromSnapshot(savedBattle) : null));
         GameState staged = achievementDefeats is null ? draws : StageBattleAchievementFacts(draws, achievementDefeats);
         GameState accepted = FinalizeBattleAchievementFacts(staged, encounter.OccurrenceId, achievementDefeats ?? [], achievementOutcome, achievementOutcome == BattleOutcome.Escaped || achievementOutcome == BattleOutcome.Victory && (achievementFormationFlags & 0x10) == 0);
         GameState candidate = accepted with { ChocoboRewards = chocoboRewardsAfter ?? State.ChocoboRewards, KnownMagic = knownMagicAfter ?? State.KnownMagic, GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
@@ -168,15 +168,68 @@ public sealed partial class GameSession
         State = State with { FullBattlePlaythrough = enabled ? true : null };
     }
 
+    private BattleSession? liveBattle;
+    private BattleLiveObservation? acceptedBattleObservation;
+
+    public bool HasActiveBattle => liveBattle is not null || State.Battle is not null;
+    public BattleLiveObservation? LiveBattle => acceptedBattleObservation;
+
+    private GameState CaptureLiveBattle(GameState source)
+    {
+        if (liveBattle is null)
+        {
+            return source;
+        }
+        BattleSnapshot snapshot = liveBattle.Capture();
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(snapshot, source.NativeBattleMemory?.ColdExecutableSha256 ?? snapshot.Definition.NativeRetainedMemory?.ColdExecutableSha256);
+        return source with { Battle = snapshot, NativeBattleMemory = retained, ExamTimer = snapshot.NativeExamTimer ?? source.ExamTimer, VibrationProcess = snapshot.NativeVibrationProcess ?? source.VibrationProcess, GlobalSoundProcess = snapshot.NativeGlobalSoundProcess ?? source.GlobalSoundProcess };
+    }
+
+    /// <summary>Exports the accepted battle once at lifecycle return and releases its live attachment.</summary>
+    public BattleSnapshot CompleteLiveBattle()
+    {
+        if (liveBattle is null)
+        {
+            throw new InvalidOperationException("Battle completion requires its attached live owner.");
+        }
+        SetLiveBattle(liveBattle);
+        State = CaptureLiveBattle(State);
+        liveBattle = null;
+        return State.Battle!;
+    }
+
     public void SetBattle(BattleSnapshot? snapshot)
     {
         BattleSnapshot? owned = snapshot is null ? null : BattleSession.Restore(snapshot).Capture();
+        liveBattle = null;
         SetOwnedBattle(owned);
+        acceptedBattleObservation = owned is null ? null : BattleLiveObservation.FromSnapshot(owned);
     }
 
     public void SetLiveBattle(BattleSession? active)
     {
-        SetOwnedBattle(active?.Capture());
+        if (active is null)
+        {
+            if (liveBattle is not null)
+            {
+                State = CaptureLiveBattle(State);
+            }
+            liveBattle = null;
+            SetOwnedBattle(null);
+            acceptedBattleObservation = null;
+            return;
+        }
+        BattleLiveObservation observation = active.ObserveLiveState();
+        GameState candidate = AdvanceNativePlaytime(State with { Battle = null, ExamTimer = observation.Timer ?? State.ExamTimer, VibrationProcess = observation.Vibration ?? State.VibrationProcess, GlobalSoundProcess = observation.Sound ?? State.GlobalSoundProcess });
+        if (candidate.AchievementCursor is null && State.PendingBattleEncounter is not null)
+        {
+            candidate = candidate with { AchievementCursor = LegacyAchievementCursor(State) };
+        }
+        candidate = StageOriginalAchievementDraws(candidate, observation);
+        candidate = StageBattleAchievementFacts(candidate, observation.EnemyDefeats);
+        State = candidate;
+        liveBattle = active;
+        acceptedBattleObservation = observation;
     }
 
     private void SetOwnedBattle(BattleSnapshot? owned)
@@ -188,7 +241,7 @@ public sealed partial class GameSession
         {
             candidate = candidate with { AchievementCursor = LegacyAchievementCursor(State) };
         }
-        candidate = StageOriginalAchievementDraws(candidate, owned);
+        candidate = StageOriginalAchievementDraws(candidate, owned is null ? null : BattleLiveObservation.FromSnapshot(owned));
         State = owned is null ? candidate : StageBattleAchievementFacts(candidate, owned.EnemyDefeats);
         if (owned is null && State.PendingBattleEncounter is null)
         {

@@ -267,6 +267,18 @@ internal sealed class NativeBattleEffectArenaWriter
         return NativeBattleTelemetry.Materialize(1017, storage!.AsSpan(offset, count));
     }
 
+    internal void ReadIntoThrough(int offset, Span<byte> destination)
+    {
+        RequireRange(offset, destination.Length);
+        int first = FirstUnknownEndingAt(offset, false);
+        if (!destination.IsEmpty && first < unknown.Count && unknown[first].Offset < offset + destination.Length)
+        {
+            throw new NotSupportedException($"Native effect arena read intersects unresolved physical bytes at arena offset 0x{offset:X} for {destination.Length} bytes; unknown padding or pointer data cannot be substituted.");
+        }
+        EnsureReadThroughCapacity(offset + destination.Length);
+        NativeBattleTelemetry.Copy(1017, storage!.AsSpan(offset, destination.Length), destination);
+    }
+
     internal (byte[] Data, bool[] Known) ReadSnapshotThrough(int offset, int count)
     {
         RequireRange(offset, count);

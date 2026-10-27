@@ -6,7 +6,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
-    private void DrawNativePrimitiveLine(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
+    private void DrawNativePrimitiveLine(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
     {
         NativeBattleLogicalCommand command = resolved.Command;
         bool semi = (command.Opcode & 2) != 0;
