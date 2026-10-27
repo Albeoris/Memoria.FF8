@@ -115,6 +115,10 @@ public static partial class LocalizationProjectIO
                     Dictionary<string, JsonElement> unknown = new(extension.Values, StringComparer.Ordinal);
                     foreach ((string key, JsonElement value) in row.ExtensionData)
                     {
+                        if (manifest.SchemaVersion >= 2 && key == "Field Name" && value.ValueKind == JsonValueKind.String && value.GetString() == "" && extension.Values.TryGetValue(key, out JsonElement previous) && previous.ValueKind == JsonValueKind.Null)
+                        {
+                            continue;
+                        }
                         if (manifest.SchemaVersion >= 2 || value.ValueKind != JsonValueKind.String || value.GetString() != "" || (!extension.Values.ContainsKey(key) && extension.PresentColumns.Contains(key, StringComparer.Ordinal)))
                         {
                             unknown[key] = value;

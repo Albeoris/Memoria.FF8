@@ -52,7 +52,7 @@ public sealed partial class MenuController
         Register(new() { Id = "localization-patch", Title = "New localization patch", Help = "Choose a base project. The patch keeps its Target and row identities, with empty translations for your changes.", Entries = _ => LocalizationOptions(), Details = _ => LocalizationOptionsDetails() });
         Register(new() { Id = "localization-datasets", Title = "Localization · Languages", Help = "Only successfully probed datasets are available. Confirm toggles references or selects the requested language.", Entries = _ => LocalizationDatasets() });
         Register(new() { Id = "localization-text", Title = "Localization · Text entry", Help = "Type using the keyboard, or select characters with the controller. Target is a nonempty custom identifier, for example ru (Literary edition).", Columns = 8, Entries = _ => LocalizationTextEntries(), Details = _ => [LocalizationTextValue()] });
-        Register(new() { Id = "localization-review", Title = "Localization · Review and progress", Help = "Review the exact destination, languages, categories and source gaps before creating the disabled package.", Entries = _ => LocalizationReviewEntries(), Details = _ => LocalizationReviewDetails() });
+        Register(new() { Id = "localization-review", Title = "Localization · Review and progress", Help = "Review the exact destination, languages, categories and text/resource gaps before creating the disabled package.", Entries = _ => LocalizationReviewEntries(), Details = _ => LocalizationReviewDetails() });
     }
 
     private IReadOnlyList<MenuEntry> LocalizationOptions()
@@ -390,6 +390,7 @@ public sealed partial class MenuController
             details.Add(SystemText("ui.localizationreviewdetails.details.references", "References: ") + string.Join(", ", project.Manifest.ReferenceLanguages.Values));
             details.Add(SystemText("ui.localizationreviewdetails.details.categories", "Categories: ") + string.Join(", ", project.Entries.Select(row => row.Category).Distinct().Order()));
             details.Add(SystemText("ui.localizationreviewdetails.details.records", "Records: ") + project.Entries.Count);
+            details.Add((project.Manifest.SchemaVersion >= 2 ? SystemText("ui.localizationreviewdetails.details.missing.native.base.text", "Missing native base text: ") : SystemText("ui.localizationreviewdetails.details.missing.legacy.source.text", "Missing legacy source text: ")) + project.Entries.Count(row => !row.SourcePresent));
             if (project.Manifest.ExtensionData.TryGetValue("sourceGaps", out System.Text.Json.JsonElement gaps) && gaps.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
                 details.Add(SystemText("ui.localizationreviewdetails.details.unavailable.resource.category.combinations", "Unavailable resource/category combinations: ") + gaps.GetArrayLength());

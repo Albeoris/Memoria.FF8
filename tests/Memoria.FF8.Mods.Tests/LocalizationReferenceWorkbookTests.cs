@@ -171,6 +171,36 @@ public sealed class LocalizationReferenceWorkbookTests : IDisposable
         }
     }
 
+    [Fact]
+    public void BlankFieldNameCellsPreserveNullMetadataAndClearExistingNames()
+    {
+        LocalizationProject project = Project(2);
+        LocalizationRecord template = project.Entries.Single();
+        Dictionary<string, JsonElement> nullMetadata = template.ExtensionData.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        nullMetadata["Field Name"] = JsonSerializer.SerializeToElement<string?>(null);
+        project = project with
+        {
+            Entries = [template with { ExtensionData = nullMetadata }, template with { Key = "$en_scene_0001" }]
+        };
+        string directory = Path.Combine(_root, "blank-field-names");
+        LocalizationProjectIO.WriteNew(project, directory, "xlsx", "single", TestContext.Current.CancellationToken);
+        string path = Path.Combine(directory, "Localization/localization.xlsx");
+        using (SpreadsheetDocument document = SpreadsheetDocument.Open(path, true))
+        {
+            Worksheet worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
+            worksheet.Descendants<Cell>().Single(cell => cell.CellReference == "H3").InlineString = new InlineString(new Text(""));
+            worksheet.Save();
+        }
+        LocalizationProject actual = LocalizationProjectIO.Read(directory);
+        Assert.Equal(JsonValueKind.Null, actual.Entries.Single(row => row.Key == "$en_scene_0000").ExtensionData["Field Name"].ValueKind);
+        Assert.Equal("", actual.Entries.Single(row => row.Key == "$en_scene_0001").ExtensionData["Field Name"].GetString());
+        string converted = Path.Combine(_root, "blank-field-names-json");
+        LocalizationProjectIO.Convert(directory, converted, "json", "split", TestContext.Current.CancellationToken);
+        LocalizationProject roundTrip = LocalizationProjectIO.Read(converted);
+        Assert.Equal(JsonValueKind.Null, roundTrip.Entries.Single(row => row.Key == "$en_scene_0000").ExtensionData["Field Name"].ValueKind);
+        Assert.Equal("", roundTrip.Entries.Single(row => row.Key == "$en_scene_0001").ExtensionData["Field Name"].GetString());
+    }
+
     private static LocalizationProject Project(int schemaVersion)
     {
         return new LocalizationProject

@@ -878,7 +878,7 @@ public static partial class SystemTextCatalog
         defaults["screen.localization-new.title"] = "New localization";
         defaults["screen.localization-patch.help"] = "Choose a base project. The patch keeps its Target and row identities, with empty translations for your changes.";
         defaults["screen.localization-patch.title"] = "New localization patch";
-        defaults["screen.localization-review.help"] = "Review the exact destination, languages, categories and source gaps before creating the disabled package.";
+        defaults["screen.localization-review.help"] = "Review the exact destination, languages, categories and text/resource gaps before creating the disabled package.";
         defaults["screen.localization-review.title"] = "Localization \u00B7 Review and progress";
         defaults["screen.localization-stack.help"] = "Select several translation packages. The list runs from LOW priority at the TOP to HIGH priority at the BOTTOM. Changes apply only after confirmation.";
         defaults["screen.localization-stack.title"] = "Mods \u00B7 Localization stack";
@@ -1992,6 +1992,8 @@ public static partial class SystemTextCatalog
         defaults["ui.localizationreviewdetails.details.format"] = "Format: ";
         defaults["ui.localizationreviewdetails.details.layout"] = " \u00B7 Layout: ";
         defaults["ui.localizationreviewdetails.details.patch.of.project"] = "Patch of project: ";
+        defaults["ui.localizationreviewdetails.details.missing.native.base.text"] = "Missing native base text: ";
+        defaults["ui.localizationreviewdetails.details.missing.legacy.source.text"] = "Missing legacy source text: ";
         defaults["ui.localizationreviewdetails.details.records"] = "Records: ";
         defaults["ui.localizationreviewdetails.details.references"] = "References: ";
         defaults["ui.localizationreviewdetails.details.target"] = "Target: ";
