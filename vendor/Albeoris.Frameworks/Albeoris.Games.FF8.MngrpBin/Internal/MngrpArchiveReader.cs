@@ -76,6 +76,25 @@ internal static class MngrpArchiveReader
         return new MngrpArchive(sections, directory, encoding);
     }
 
+    internal static IMngrpSection ReadSelectedSection(ReadOnlySpan<Byte> content, ReadOnlySpan<Byte> header, Encoding encoding, Int32 slotIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(slotIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slotIndex, MngrpSlotDirectory.SlotCount);
+        _ = MngrpSlotDirectory.Read(header);
+        MngrpSectionDescriptor requested = MngrpSectionCatalog.Get(slotIndex);
+        Boolean mapped = requested.Layout is MngrpSectionLayout.TextBlockMap or MngrpSectionLayout.TextBlockList;
+        Byte[] selected = new Byte[header.Length];
+        for (Int32 slot = 0; slot < MngrpSlotDirectory.SlotCount; slot++)
+        {
+            MngrpSectionLayout layout = MngrpSectionCatalog.Get(slot).Layout;
+            if (slot == slotIndex || slot == requested.TextSlot || mapped && layout is MngrpSectionLayout.TextBlockMap or MngrpSectionLayout.TextBlockList)
+            {
+                header.Slice(slot * 8, 8).CopyTo(selected.AsSpan(slot * 8));
+            }
+        }
+        return Read(content, selected, encoding).Sections.FirstOrDefault(section => section.SlotIndex == slotIndex) ?? throw new InvalidDataException($"Slot {slotIndex} does not identify an occupied logical section.");
+    }
+
     private static IMngrpSection ReadSection(
         MngrpSlotLocation location,
         ReadOnlySpan<Byte> content,

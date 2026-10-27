@@ -80,6 +80,37 @@ public sealed class MngrpMappedInformationTests
         Assert.Throws<InvalidDataException>(() => MngrpArchive.Read(files, Encoding.UTF8));
     }
 
+    [Fact]
+    public void SelectedMappedSectionKeepsRegistryDependenciesAndIsolatesUnrelatedErrors()
+    {
+        MngrpFilePair files = Fixture();
+        BinaryPrimitives.WriteUInt32LittleEndian(files.Header.AsSpan(87 * 8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(files.Header.AsSpan(87 * 8 + 4), 2);
+        Assert.Throws<InvalidDataException>(() => MngrpArchive.Read(files, Encoding.UTF8));
+        var blocks = Assert.IsType<MngrpTextBlockSection>(MngrpArchive.ReadSection(files.Content, files.Header, Encoding.UTF8, 128));
+        var map = Assert.IsType<MngrpTextBlockMapSection>(MngrpArchive.ReadSection(files.Content, files.Header, Encoding.UTF8, 127));
+        Assert.Equal(2, blocks.Blocks.Count);
+        Assert.Equal("b", blocks.Blocks[0].Texts[1].Value);
+        Assert.Equal(new int?[] { 1, 0, 1 }, map.References.Select(reference => reference.BlockIndex));
+    }
+
+    [Fact]
+    public void SelectedRecordSectionUsesItsRegisteredTextCompanion()
+    {
+        byte[] content = new byte[18];
+        content[2] = 7;
+        content[16] = (byte)'x';
+        byte[] header = new byte[2048];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(192 * 8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(192 * 8 + 4), 16);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(200 * 8), 17);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(200 * 8 + 4), 2);
+        var records = Assert.IsType<MngrpTextRecordSection>(MngrpArchive.ReadSection(content, header, Encoding.UTF8, 192));
+        Assert.Equal(200, records.TextSlotIndex);
+        Assert.Equal("x", Assert.Single(records.Records).Text.Value);
+        Assert.Equal(7, records.Records[0].Payload[0]);
+    }
+
     private static MngrpFilePair Fixture()
     {
         byte[] content = new byte[4096];

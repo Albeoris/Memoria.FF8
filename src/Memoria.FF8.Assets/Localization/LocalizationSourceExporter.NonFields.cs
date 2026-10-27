@@ -136,15 +136,8 @@ public static partial class LocalizationSourceExporter
                 int index = slot;
                 Attempt("Menus", "menu/mngrp.bin/slot" + index, () =>
                 {
-                    // Independent section parsing keeps a malformed/unsupported text section
-                    // from suppressing unrelated tables in the same archive.
-                    byte[] selected = new byte[menuHeader.Length];
-                    menuHeader.AsSpan(index * 8, 8).CopyTo(selected.AsSpan(index * 8));
-                    if (index is >= 188 and <= 192)
-                    {
-                        menuHeader.AsSpan((index + 8) * 8, 8).CopyTo(selected.AsSpan((index + 8) * 8));
-                    }
-                    sections.AddRange(MngrpArchive.Read(menuContent, selected, nonFieldEncoding).Sections);
+                    // Keep registered dependency context while isolating unrelated tables.
+                    sections.Add(MngrpArchive.ReadSection(menuContent, menuHeader, nonFieldEncoding, index));
                 });
             }
             foreach (IMngrpSection section in sections.OrderBy(section => section.SlotIndex))

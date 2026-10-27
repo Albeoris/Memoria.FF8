@@ -23,7 +23,7 @@ public sealed class MngrpArchive
     }
 
     /// <summary>
-    /// The text encoding the archive's strings are stored with — European or Japanese,
+    /// The text encoding the archive's strings are stored with â€” European or Japanese,
     /// matching the file's localization.
     /// </summary>
     public Encoding Encoding { get; }
@@ -42,6 +42,13 @@ public sealed class MngrpArchive
     {
         ArgumentNullException.ThrowIfNull(encoding);
         return MngrpArchiveReader.Read(content, header, encoding);
+    }
+
+    /// <summary>Parses one section with its registered native dependencies, isolating unrelated sections.</summary>
+    public static IMngrpSection ReadSection(ReadOnlySpan<Byte> content, ReadOnlySpan<Byte> header, Encoding encoding, Int32 slotIndex)
+    {
+        ArgumentNullException.ThrowIfNull(encoding);
+        return MngrpArchiveReader.ReadSelectedSection(content, header, encoding, slotIndex);
     }
 
     /// <summary>Parses the pair returned by <see cref="Write"/>.</summary>

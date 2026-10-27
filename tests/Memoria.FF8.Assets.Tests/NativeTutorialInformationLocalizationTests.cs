@@ -68,6 +68,9 @@ public sealed class NativeTutorialInformationLocalizationTests
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(127 * 8 + 4), checked((uint)map.Length));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(128 * 8), checked((uint)map.Length + 1));
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(128 * 8 + 4), checked((uint)block.Length));
+        // An unrelated malformed table must not suppress the mapped Information node.
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(87 * 8), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(87 * 8 + 4), 2);
         using InMemoryResourceSource resource = new(new("synthetic", GameDataEdition.Remastered, []));
         resource.Set(new("menu/mngrp.bin"), content, "bin");
         resource.Set(new("menu/mngrphd.bin"), header, "bin");
@@ -82,6 +85,7 @@ public sealed class NativeTutorialInformationLocalizationTests
         Assert.Equal(64, row.Metadata["Source SHA256"]!.Length);
         Assert.Equal(64, row.Metadata["Companion SHA256"]!.Length);
         Assert.DoesNotContain(result.Gaps, gap => gap.Resource.Contains("slot128", StringComparison.Ordinal));
+        Assert.Contains(result.Gaps, gap => gap.Resource.EndsWith("slot87", StringComparison.Ordinal));
     }
 
     [Fact]
