@@ -41,11 +41,11 @@ public sealed class DiagnosticPresentationPacingTests
     public void Ordinary_pacer_path_does_not_record_observations()
     {
         using PresentationPacer pacer = new();
-        pacer.WaitForNextFrame(0);
+        pacer.WaitForNextFrame(0, TestContext.Current.CancellationToken);
         pacer.Reset();
         Assert.Equal(default(PresentationPacerObservation), pacer.TimingObservation);
         pacer.ObserveTiming(true);
-        pacer.WaitForNextFrame(0);
+        pacer.WaitForNextFrame(0, TestContext.Current.CancellationToken);
         Assert.Equal(1, pacer.TimingObservation.Calls);
         Assert.Equal(1, pacer.TimingObservation.Resets);
         Assert.Equal(0, pacer.TimingObservation.TimerCalls);
