@@ -73,6 +73,81 @@ public sealed class ExternalMusicResolverTests
         Assert.Null(new ExternalMusicResolver(catalog).Resolve("battle.sgt"));
     }
 
+    [Fact]
+    public void SelectedPackageSettingsChooseFormatConfigBiosAndLibraryTogether()
+    {
+        ModPackage low = new("low", "Low", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".");
+        ModPackage high = new("high", "High", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".")
+        {
+            JunctionMetadata = new JunctionManifestMetadata
+            {
+                ExternalMusicPath = "music/synth",
+                ExternalMusicExtension = "minipsf",
+                PsfBiosPath = "music/synth/bios.bin"
+            }
+        };
+        ModFile Entry(string package, string path, byte[] bytes)
+        {
+            return new ModFile(package, ModFormat.Junction, path, 1, () => bytes);
+        }
+        ModFile library = Entry(high.Id, "music/synth/shared/library.psflib", [3]);
+        ModFile bios = Entry(high.Id, "music/synth/bios.bin", [4]);
+        ModCatalogSnapshot catalog = new(1, [high, low],
+        [
+            Entry(low.Id, "music/battle.ogg", [1]),
+            Entry(low.Id, "music/synth/shared/library.psflib", [2]),
+            Entry(high.Id, "music/synth/battle.ogg", [5]),
+            Entry(high.Id, "music/synth/battle.minipsf", [6]),
+            Entry(high.Id, "music/synth/alternate.minipsf", [7]),
+            Entry(high.Id, "music/synth/config.toml", Encoding.UTF8.GetBytes("volume = 70\n[battle]\nno_intro_track = 'alternate'\noffset_seconds = 2.5")),
+            library,
+            bios
+        ]);
+        ExternalMusicSelection selection = new ExternalMusicResolver(catalog).Resolve("003-battle.sgt", true)!;
+        Assert.Equal(high.Id, selection.File.PackageId);
+        Assert.Equal("music/synth/alternate.minipsf", selection.File.RelativePath);
+        Assert.Equal(2.5, selection.OffsetSeconds);
+        Assert.Equal(70, selection.Volume);
+        Assert.Same(bios, selection.BiosFile);
+        Assert.Same(library, selection.ResolveDependency(selection.File.RelativePath, "shared/library.psflib"));
+        Assert.Same(library, selection.ResolveDependency("music/synth/shared/library.psflib", "../shared/library.psflib"));
+    }
+
+    [Theory]
+    [InlineData("../../../outside.psflib")]
+    [InlineData("/outside.psflib")]
+    [InlineData("C:/outside.psflib")]
+    [InlineData("\\\\server/share/library.psflib")]
+    [InlineData("bad\0.psflib")]
+    public void LibraryReferencesCannotEscapeTheSelectedPackage(string dependency)
+    {
+        ExternalMusicSelection selection = Create("", "battle").Resolve("battle.sgt")!;
+        Assert.Throws<InvalidDataException>(() => selection.ResolveDependency(selection.File.RelativePath, dependency));
+    }
+
+    [Fact]
+    public void MissingLibraryDoesNotUseAnotherPackageAndUnknownRequesterIsRejected()
+    {
+        ModPackage high = new("high", "High", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".");
+        ModPackage low = new("low", "Low", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".");
+        ModFile track = new(high.Id, ModFormat.Junction, "music/battle.ogg", 1, () => []);
+        ModFile library = new(low.Id, ModFormat.Junction, "music/shared.psflib", 1, () => []);
+        ExternalMusicSelection selection = new ExternalMusicResolver(new ModCatalogSnapshot(1, [high, low], [track, library])).Resolve("battle.sgt")!;
+        InvalidDataException missing = Assert.Throws<InvalidDataException>(() => selection.ResolveDependency(track.RelativePath, "shared.psflib"));
+        Assert.Contains("high", missing.Message);
+        Assert.Contains("shared.psflib", missing.Message);
+        Assert.Throws<InvalidDataException>(() => selection.ResolveDependency("music/absent.minipsf", "battle.ogg"));
+    }
+
+    [Fact]
+    public void MissingDeclaredBiosFailsBeforePlayback()
+    {
+        ModPackage package = new("example", "Example", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".") { JunctionMetadata = new JunctionManifestMetadata { PsfBiosPath = "music/bios.bin" } };
+        ModFile track = new(package.Id, ModFormat.Junction, "music/battle.ogg", 1, () => []);
+        ExternalMusicResolver resolver = new(new ModCatalogSnapshot(1, [package], [track]));
+        Assert.Contains("BIOS", Assert.Throws<InvalidDataException>(() => resolver.Resolve("battle.sgt")).Message);
+    }
+
     private static ExternalMusicResolver Create(string configuration, params string[] names)
     {
         ModPackage package = new("example", "Example", ModFormat.Junction, true, true, ModEffectiveStatus.Active, ".");

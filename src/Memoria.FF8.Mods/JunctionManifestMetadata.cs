@@ -14,6 +14,9 @@ public sealed record JunctionManifestMetadata
     public bool? EnableFfmpegVideos { get; init; }
     public string? VideoExtension { get; init; }
     public bool? UseExternalMusic { get; init; }
+    public string? ExternalMusicPath { get; init; }
+    public string? ExternalMusicExtension { get; init; }
+    public string? PsfBiosPath { get; init; }
     public IReadOnlyDictionary<string, string> PresentationHints { get; init; } = new Dictionary<string, string>();
     public IReadOnlyDictionary<string, int> Options { get; init; } = new Dictionary<string, int>();
     public IReadOnlyList<JunctionBehavior> Behaviors { get; init; } = Array.Empty<JunctionBehavior>();
@@ -142,7 +145,7 @@ public static partial class JunctionModImporter
             RequireLeaf(setting);
             string name = setting.Name.LocalName;
             bool hint = name is "ff8_use_gamepad_icons" or "internal_resolution_scale" or "enable_bilinear";
-            if (setting.Name.Namespace != XNamespace.None || !hint && name is not ("enable_ffmpeg_videos" or "ffmpeg_video_ext" or "use_external_music"))
+            if (setting.Name.Namespace != XNamespace.None || !hint && name is not ("enable_ffmpeg_videos" or "ffmpeg_video_ext" or "use_external_music" or "external_music_path" or "external_music_ext" or "he_bios_path"))
             {
                 throw new NotSupportedException($"Unsupported Junction FFNx setting: {setting.Name}.");
             }
@@ -157,13 +160,25 @@ public static partial class JunctionModImporter
             }
             string value = setting.Value.Trim();
             bool? flag = null;
-            if (name == "ffmpeg_video_ext")
+            if (name is "external_music_path" or "he_bios_path")
+            {
+                value = NormalizePath(value);
+                if (value.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = value[5..];
+                }
+            }
+            else if (name is "ffmpeg_video_ext" or "external_music_ext")
             {
                 if (value.Length == 0 || value.Any(character => !char.IsAsciiLetterOrDigit(character)))
                 {
-                    throw new InvalidDataException("Junction movie extension must contain only ASCII letters and digits.");
+                    throw new InvalidDataException("Junction resource extension must contain only ASCII letters and digits.");
                 }
                 value = value.ToLowerInvariant();
+                if (name == "external_music_ext" && value is not ("ogg" or "minipsf" or "psf"))
+                {
+                    throw new NotSupportedException($"Unsupported external music extension: {value}.");
+                }
             }
             else if (name == "internal_resolution_scale")
             {
@@ -199,6 +214,18 @@ public static partial class JunctionModImporter
             else if (name == "ffmpeg_video_ext")
             {
                 metadata = metadata with { VideoExtension = value };
+            }
+            else if (name == "external_music_path")
+            {
+                metadata = metadata with { ExternalMusicPath = value };
+            }
+            else if (name == "external_music_ext")
+            {
+                metadata = metadata with { ExternalMusicExtension = value };
+            }
+            else if (name == "he_bios_path")
+            {
+                metadata = metadata with { PsfBiosPath = value };
             }
             else if (name == "use_external_music")
             {

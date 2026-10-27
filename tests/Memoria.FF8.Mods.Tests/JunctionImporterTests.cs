@@ -313,6 +313,43 @@ public sealed class JunctionImporterTests : IDisposable
         Assert.Equal(own, Assert.Single(manifest.After));
     }
 
+    [Theory]
+    [InlineData("minipsf")]
+    [InlineData("psf")]
+    [InlineData("ogg")]
+    public void MapsExternalMusicDriverPathsOntoSelectedPackageResources(string extension)
+    {
+        string manifest = $"<ModInfo><FFNxConfig><use_external_music>true</use_external_music><external_music_path>data/music/synth</external_music_path><external_music_ext>{extension}</external_music_ext><he_bios_path>data/music/synth/bios.bin</he_bios_path></FFNxConfig><ModFolder Folder='data/music/synth' ActiveWhen='1'/></ModInfo>";
+        string path = Package(manifest, ($"data/music/synth/track.{extension}", [1]), ("data/music/synth/shared.psflib", [2]), ("data/music/synth/bios.bin", [3]), ("data/music/synth/config.toml", []));
+        JunctionModPackage package = JunctionModImporter.Open(path);
+        Assert.Equal("music/synth", package.Manifest.ExternalMusicPath);
+        Assert.Equal(extension, package.Manifest.ExternalMusicExtension);
+        Assert.Equal("music/synth/bios.bin", package.Manifest.PsfBiosPath);
+        Assert.Equal(4, package.Files.Count);
+        Assert.Contains(package.Files, file => file.RelativePath == $"music/synth/track.{extension}");
+        Assert.Contains(package.Files, file => file.RelativePath == "music/synth/shared.psflib");
+    }
+
+    [Theory]
+    [InlineData("external_music_path", "../music")]
+    [InlineData("external_music_path", "/music")]
+    [InlineData("he_bios_path", "C:/bios.bin")]
+    [InlineData("external_music_ext", "../minipsf")]
+    public void RejectsUnsafeExternalMusicResourceSettings(string key, string value)
+    {
+        string path = Package($"<ModInfo><FFNxConfig><{key}>{value}</{key}></FFNxConfig></ModInfo>");
+        Assert.Throws<InvalidDataException>(() => JunctionModImporter.Open(path));
+    }
+
+    [Fact]
+    public void RejectsUnsupportedExternalMusicFormatsAndConflictingPaths()
+    {
+        string path = Package("<ModInfo><FFNxConfig><external_music_ext>unknown</external_music_ext></FFNxConfig></ModInfo>");
+        Assert.Throws<NotSupportedException>(() => JunctionModImporter.Open(path));
+        path = Package("<ModInfo><FFNxConfig><external_music_path>music/a</external_music_path><external_music_path>music/b</external_music_path></FFNxConfig></ModInfo>");
+        Assert.Throws<InvalidDataException>(() => JunctionModImporter.Open(path));
+    }
+
     private string Package(string manifest, params (string Name, byte[] Content)[] files)
     {
         return Archive(0x10002, new[] { ("mod.xml", 0, Encoding.UTF8.GetBytes(manifest)) }.Concat(files.Select(file => (file.Name, 0, file.Content))).ToArray());

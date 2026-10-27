@@ -4,7 +4,16 @@ using System.Text.RegularExpressions;
 
 namespace Memoria.FF8.Mods;
 
-public sealed record ExternalMusicSelection(ModFile File, double OffsetSeconds, int Volume);
+public sealed record ExternalMusicSelection(ModFile File, double OffsetSeconds, int Volume)
+{
+    public ModFile? BiosFile { get; init; }
+    public Func<string, string, ModFile>? DependencyResolver { get; init; }
+
+    public ModFile ResolveDependency(string requesterRelativePath, string dependency)
+    {
+        return DependencyResolver?.Invoke(requesterRelativePath, dependency) ?? throw new InvalidDataException("External music has no package dependency resolver.");
+    }
+}
 
 /// <summary>Resolves external tracks from the selected native filename, without changing native music identity or routing.</summary>
 public sealed class ExternalMusicResolver
@@ -15,11 +24,12 @@ public sealed class ExternalMusicResolver
     public ExternalMusicResolver(ModCatalogSnapshot catalog)
     {
         this.catalog = catalog;
-        foreach (ModFile file in catalog.FindAll(ModFormat.Junction, "music/config.toml"))
+        foreach (ModPackage package in catalog.Packages.Where(IsEnabled))
         {
-            if (catalog.Packages.Any(package => package.Id == file.PackageId && package.Status == ModEffectiveStatus.Active && package.JunctionMetadata?.UseExternalMusic != false))
+            ModFile? file = FindConfiguration(catalog, package);
+            if (file is not null)
             {
-                configurations[file.PackageId] = MusicConfiguration.Parse(Encoding.UTF8.GetString(file.ReadBytes()));
+                configurations[package.Id] = MusicConfiguration.Parse(Encoding.UTF8.GetString(file.ReadBytes()));
             }
         }
     }
@@ -27,9 +37,10 @@ public sealed class ExternalMusicResolver
     public static IReadOnlyList<ModDiagnostic> Validate(ModCatalogSnapshot catalog)
     {
         List<ModDiagnostic> diagnostics = [];
-        foreach (ModFile file in catalog.FindAll(ModFormat.Junction, "music/config.toml"))
+        foreach (ModPackage package in catalog.Packages.Where(IsEnabled))
         {
-            if (!catalog.Packages.Any(package => package.Id == file.PackageId && package.Status == ModEffectiveStatus.Active && package.JunctionMetadata?.UseExternalMusic != false))
+            ModFile? file = FindConfiguration(catalog, package);
+            if (file is null)
             {
                 continue;
             }
@@ -45,6 +56,16 @@ public sealed class ExternalMusicResolver
         return diagnostics;
     }
 
+    private static bool IsEnabled(ModPackage package)
+    {
+        return package.Status == ModEffectiveStatus.Active && package.Format == ModFormat.Junction && package.JunctionMetadata?.UseExternalMusic != false;
+    }
+
+    private static ModFile? FindConfiguration(ModCatalogSnapshot catalog, ModPackage package)
+    {
+        return catalog.FindAll(ModFormat.Junction, $"{package.JunctionMetadata?.ExternalMusicPath ?? "music"}/config.toml").FirstOrDefault(file => file.PackageId == package.Id);
+    }
+
     public static string TrackName(string nativeFilename)
     {
         string name = Path.GetFileNameWithoutExtension(nativeFilename.Replace('\\', '/'));
@@ -57,17 +78,23 @@ public sealed class ExternalMusicResolver
         string name = TrackName(nativeFilename);
         foreach (ModPackage package in catalog.Packages)
         {
-            if (package.Status != ModEffectiveStatus.Active || package.Format != ModFormat.Junction || package.JunctionMetadata?.UseExternalMusic == false)
+            if (!IsEnabled(package))
             {
                 continue;
             }
             MusicConfiguration config = configurations.GetValueOrDefault(package.Id) ?? MusicConfiguration.Empty;
             TrackConfiguration? track = config.Tracks.GetValueOrDefault(name);
             string selectedName = noIntro && track?.NoIntroTrack is string alternate ? alternate : name;
-            ModFile? file = catalog.FindAll(ModFormat.Junction, $"music/{selectedName}.ogg").FirstOrDefault(file => file.PackageId == package.Id);
+            string folder = package.JunctionMetadata?.ExternalMusicPath ?? "music";
+            string extension = package.JunctionMetadata?.ExternalMusicExtension ?? "ogg";
+            ModFile? FindTrack(string trackName)
+            {
+                return catalog.FindAll(ModFormat.Junction, $"{folder}/{trackName}.{extension}").FirstOrDefault(file => file.PackageId == package.Id);
+            }
+            ModFile? file = FindTrack(selectedName);
             if (file is null)
             {
-                if (selectedName != name && catalog.FindAll(ModFormat.Junction, $"music/{name}.ogg").Any(file => file.PackageId == package.Id))
+                if (selectedName != name && FindTrack(name) is not null)
                 {
                     throw new InvalidDataException($"External music alternate track '{selectedName}' is missing from package '{package.Id}'.");
                 }
@@ -78,9 +105,43 @@ public sealed class ExternalMusicResolver
             {
                 offset = intro;
             }
-            return new ExternalMusicSelection(file, offset, config.Volume);
+            ModFile? bios = null;
+            if (package.JunctionMetadata?.PsfBiosPath is string biosPath)
+            {
+                bios = catalog.FindAll(ModFormat.Junction, biosPath).FirstOrDefault(candidate => candidate.PackageId == package.Id) ?? throw new InvalidDataException($"External music BIOS '{biosPath}' is missing from package '{package.Id}'.");
+            }
+            return new ExternalMusicSelection(file, offset, config.Volume)
+            {
+                BiosFile = bios,
+                DependencyResolver = (requester, dependency) => ResolveDependency(package, requester, dependency)
+            };
         }
         return null;
+    }
+
+    private ModFile ResolveDependency(ModPackage package, string requester, string dependency)
+    {
+        if (string.IsNullOrWhiteSpace(dependency) || dependency.Length > 1024 || dependency.Any(character => char.IsControl(character)) || dependency.Replace('\\', '/').StartsWith('/') || dependency.Contains(':'))
+        {
+            throw new InvalidDataException("External music dependency must be a bounded package-relative filename.");
+        }
+        string normalizedRequester;
+        string resolved;
+        try
+        {
+            normalizedRequester = ModCatalogSnapshot.NormalizePath(requester);
+            string directory = normalizedRequester.Contains('/') ? normalizedRequester[..normalizedRequester.LastIndexOf('/')] + "/" : "";
+            resolved = ModCatalogSnapshot.NormalizePath(directory + dependency);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException("External music dependency escapes its package.", exception);
+        }
+        if (!catalog.FindAll(ModFormat.Junction, normalizedRequester).Any(file => file.PackageId == package.Id))
+        {
+            throw new InvalidDataException($"External music dependency requester '{requester}' is not in package '{package.Id}'.");
+        }
+        return catalog.FindAll(ModFormat.Junction, resolved).FirstOrDefault(file => file.PackageId == package.Id) ?? throw new InvalidDataException($"External music dependency '{dependency}' requested by '{requester}' is missing from package '{package.Id}'.");
     }
 
     private static string ValidateName(string name)
