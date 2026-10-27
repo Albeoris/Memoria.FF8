@@ -64,7 +64,8 @@ public sealed class NativeBattleCommonPacketTransactionTests
         Assert.Equal(10000, total);
         Assert.True(allocated < 1_000_000, $"Physical packet reads allocated {allocated} bytes.");
         NativeBattleCommonPacketMemory memory = process.CommonPacketMemory!;
-        NativeBattleEffectArena invalid = NativeBattleStorageSnapshots.Capture(memory.Bank070Buffer0!) with { UnknownRegions = [] };
+        NativeBattleEffectArena snapshot = NativeBattleStorageSnapshots.Capture(memory.Bank070Buffer0!);
+        NativeBattleEffectArena invalid = new(snapshot.Regions, [], snapshot.ResourcePointers, snapshot.Bound);
         Assert.Throws<InvalidDataException>(() => (process with { CommonPacketMemory = memory with { Bank070Buffer0 = invalid } }).ValidateCommonPacketMemory());
         process = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattlePrimitiveProcess>(SnapshotJson(process))!);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, process.ReadCommonPacket(0, 4));
